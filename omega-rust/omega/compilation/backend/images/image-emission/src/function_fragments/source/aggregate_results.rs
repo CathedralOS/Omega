@@ -201,7 +201,7 @@ pub(super) fn operation(
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()
                 && row.call.crash_continuations == *crash_continuations).count() == 1
         }
-        AbstractOperation::ReturnStructural { psi_edge, source, returned_claims, trivial_affine_locals, trivial_affine_discards } => {
+        AbstractOperation::ReturnStructural { psi_edge, source, returned_claims, trivial_affine_locals, cleanup_actions: expected_cleanup } => {
             returned_claims.is_empty() && trivial_affine_locals.is_empty()
                 && graph.blocks.iter().filter(|block| matches!(&block.terminator,
                     TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
@@ -209,7 +209,7 @@ pub(super) fn operation(
                             target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                             target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                             target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
-                        } && super::control_flow::cleanup_matches(cleanup_actions, trivial_affine_discards))).count() == 1
+                        } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, &block.operations, *psi_edge))).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }
                         if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)

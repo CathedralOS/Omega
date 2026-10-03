@@ -693,6 +693,7 @@ fn build_traced_with(
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
+            normal_exit_cleanups: Vec::new(),
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),

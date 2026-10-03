@@ -710,7 +710,7 @@ pub enum AbstractOperation {
             StructuralPlaceDeclaration,
             StructuralTypeDeclaration,
         )>,
-        trivial_affine_discards: Vec<PlaceId>,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Establish one verified reference carrier. The structural result owns the
     /// loan; its referent remains the `source` argument's projected home and is

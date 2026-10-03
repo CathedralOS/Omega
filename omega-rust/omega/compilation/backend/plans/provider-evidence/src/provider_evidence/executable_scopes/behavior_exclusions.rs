@@ -1232,6 +1232,9 @@ fn nominal_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
     match terminator {
         Terminator::Return {
             cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
+            cleanup_actions, ..
         } => cleanup_actions
             .iter()
             .filter_map(|action| match action {

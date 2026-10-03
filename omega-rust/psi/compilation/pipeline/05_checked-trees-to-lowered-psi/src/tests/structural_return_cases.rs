@@ -4,7 +4,7 @@ use super::{CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, lowe
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, place_id, value_id};
 use checked_trees::types::PrimitiveType;
-use checked_trees::{CheckedScalarExpression, CheckedStructuralScalarReturnCleanupAction};
+use checked_trees::{CheckedNormalCleanupAction, CheckedScalarExpression};
 use terminal_psi::{
     Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
 };
@@ -30,8 +30,8 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
         .terminal_structural_scalar_returns
         .machines[0]
         .cleanup_actions = vec![
-        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
-        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
+        CheckedNormalCleanupAction::DiscardRoot(0),
+        CheckedNormalCleanupAction::DiscardRoot(1),
     ];
 
     assert!(matches!(

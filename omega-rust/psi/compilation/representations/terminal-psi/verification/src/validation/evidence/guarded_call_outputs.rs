@@ -220,11 +220,11 @@ pub(super) fn validate_guarded_call_outputs(
                                 terminal_psi::Terminator::ReturnStructural {
                                     source,
                                     returned_claims,
-                                    trivial_affine_discards,
+                                    cleanup_actions,
                                     ..
                                 } if *source == parameter.place
                                     && returned_claims.is_empty()
-                                    && trivial_affine_discards.is_empty()
+                                    && cleanup_actions.is_empty()
                             )
                             && *target_requirement == use_.target_requirement
                             && target_term.proposition == use_.target_requirement

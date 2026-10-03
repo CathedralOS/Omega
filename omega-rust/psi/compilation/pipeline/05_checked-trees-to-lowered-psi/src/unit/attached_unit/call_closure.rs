@@ -61,6 +61,24 @@ pub(crate) fn checked_unit_call_closure_including(
                 }
             }
         }
+        if let Some(composed) = plans.composed_for_machine(machine_symbol) {
+            for cleanup in composed
+                .states
+                .iter()
+                .flat_map(|state| &state.normal_exit_cleanups)
+                .flat_map(|exit| &exit.actions)
+                .filter_map(|action| match action {
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup)
+                    }
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
+                })
+            {
+                if !closure.contains(&cleanup.cleanup_machine) {
+                    closure.push(cleanup.cleanup_machine);
+                }
+            }
+        }
     }
     Ok(closure)
 }

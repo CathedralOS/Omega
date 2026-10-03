@@ -115,18 +115,20 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
         },
     });
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &mut machine.blocks[0].terminator
     else {
         unreachable!()
     };
-    *trivial_affine_discards = vec![
+    *cleanup_actions = vec![
         second_local_place,
         local_place,
         second_affine_parameter_place,
         affine_parameter_place,
-    ];
+    ]
+    .into_iter()
+    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+    .collect();
     validate_module(&module).expect("exact local establishment and cleanup validate");
 
     let mut claim_bearing_tail = module.clone();
@@ -169,13 +171,12 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
 
     let mut missing_cleanup = module.clone();
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &mut missing_cleanup.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    trivial_affine_discards.clear();
+    cleanup_actions.clear();
     assert!(matches!(
         validate_module(&missing_cleanup),
         Err(ModuleError::StructuralReturnAffineDiscardsMismatch { .. })
@@ -183,13 +184,12 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
 
     let mut reordered_cleanup = module.clone();
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &mut reordered_cleanup.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    trivial_affine_discards.reverse();
+    cleanup_actions.reverse();
     assert!(matches!(
         validate_module(&reordered_cleanup),
         Err(ModuleError::StructuralReturnAffineDiscardsMismatch { .. })

@@ -64,7 +64,7 @@ fn completed_owned_byte_call_rejects_consumer_before_producer() {
         source: id(2),
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     }];
     let mut consumer = source.functions[0].clone();
     consumer.machine = id(3);
@@ -303,7 +303,7 @@ fn check_owned_byte_parameter_store(capacity: u64, owned_destination: bool) {
                     source: id(3),
                     returned_claims: Vec::new(),
                     trivial_affine_locals: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             ]);
             0

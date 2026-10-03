@@ -341,9 +341,14 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
             vec![OwnershipEvent::Cleanup(cleanup_actions.clone())]
         }
         O::ReturnStructural {
-            returned_claims, ..
+            returned_claims,
+            cleanup_actions,
+            ..
         } => {
-            vec![OwnershipEvent::StructuralReturn(returned_claims.clone())]
+            vec![
+                OwnershipEvent::StructuralReturn(returned_claims.clone()),
+                OwnershipEvent::Cleanup(cleanup_actions.clone()),
+            ]
         }
         O::Crash {
             frontier_lower_bound,

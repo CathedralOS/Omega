@@ -61,12 +61,27 @@ pub(crate) fn selected_cleanups(
                 .iter()
                 .flat_map(|plan| &plan.cleanup_actions)
                 .filter_map(|action| match action {
-                    checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
-                        cleanup,
-                    ) => Some(cleanup),
-                    checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
-                        None
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup)
                     }
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
+                }),
+        )
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter()
+                .flat_map(|machine| &machine.states)
+                .flat_map(|state| &state.normal_exit_cleanups)
+                .flat_map(|exit| &exit.actions)
+                .filter_map(|action| match action {
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup)
+                    }
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) => None,
                 }),
         )
 }
@@ -76,7 +91,8 @@ pub(crate) fn selected_cleanups(
 pub(crate) fn lower_nominal_cleanup_action(
     checked: &CheckedTrees,
     cleanup: &CheckedUnitNominalAffineCleanupPlan,
-    parameter: &terminal_psi::StructuralParameterDeclaration,
+    place: PlaceId,
+    structural_type: StructuralTypeId,
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
@@ -87,12 +103,12 @@ pub(crate) fn lower_nominal_cleanup_action(
         cleanup.cleanup_machine,
     )?;
     validate_nominal_cleanup_target(target, cleanup)?;
-    if lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type {
+    if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
         return unsupported("nominal cleanup member target identity drifted");
     }
     Ok(NominalAffineCleanup {
-        place: parameter.place,
-        structural_type: parameter.structural_type,
+        place,
+        structural_type,
         cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
         cleanup_receiver: receivers.iter().find_map(|(source, receiver)| {
             (*source == cleanup.cleanup_machine).then_some(*receiver)
@@ -203,20 +219,28 @@ fn finalize_nominal_cleanup_machine(
     }
     let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
     for (ordinal, cleanup) in nominal.cleanups.iter().enumerate() {
-        if cleanup.source_parameter_index as usize != nominal.cleanups.len() - ordinal - 1 {
+        if cleanup.source_parameter_index().map(|index| index as usize)
+            != Some(nominal.cleanups.len() - ordinal - 1)
+        {
             return unsupported("nominal cleanup action order drifted");
         }
         let parameter = machine
             .structural_parameters
-            .iter()
-            .find(|parameter| parameter.position == cleanup.source_parameter_index)
+            .get(
+                cleanup
+                    .source_parameter_index()
+                    .ok_or(LoweringError::Unsupported(
+                        "nominal parameter cleanup acquired another source",
+                    ))? as usize,
+            )
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup member parameter is absent from its terminal signature",
             ))?;
         cleanups.push(lower_nominal_cleanup_action(
             checked,
             cleanup,
-            parameter,
+            parameter.place,
+            parameter.structural_type,
             type_ids,
             machine_ids,
             receivers,

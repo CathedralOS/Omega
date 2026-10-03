@@ -112,7 +112,7 @@ fn fixture(
         edge: edge_id(1),
         source: place_id(1),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     module
 }
@@ -308,7 +308,7 @@ fn scalar_array_forged_shapes_operands_custody_and_consumers_reject() {
                     edge: edge_id(1),
                     source: place_id(2),
                     returned_claims: vec![],
-                    trivial_affine_discards: vec![],
+                    cleanup_actions: vec![],
                 }
             }
             8 => {
@@ -599,7 +599,7 @@ fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> Termi
             edge: edge_id(depth + 1),
             source,
             returned_claims: vec![],
-            trivial_affine_discards: vec![],
+            cleanup_actions: vec![],
         };
         module.machines.push(machine);
     }

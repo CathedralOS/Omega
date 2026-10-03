@@ -46,6 +46,9 @@ pub(super) fn nominal_cleanups(
         Terminator::ReturnUnitNominalAffine { cleanups, .. } => Box::new(cleanups.iter()),
         Terminator::Return {
             cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
+            cleanup_actions, ..
         } => Box::new(cleanup_actions.iter().filter_map(|action| match action {
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
             TerminalAffineCleanupAction::DiscardRoot(_)

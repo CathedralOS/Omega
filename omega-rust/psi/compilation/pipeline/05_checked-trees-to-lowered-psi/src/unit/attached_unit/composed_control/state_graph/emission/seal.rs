@@ -8,7 +8,7 @@ use super::super::super::super::super::{
 };
 use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
-use super::super::{case_emission, edges};
+use super::super::case_emission;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
@@ -45,53 +45,55 @@ impl StateGraphEmission<'_, '_> {
             .filter(|_| !is_guarded_return)
         {
             if let Terminator::ReturnStructural {
-                trivial_affine_discards,
-                ..
+                cleanup_actions, ..
             } = completion
             {
-                let (owner, source) =
-                    crate::expression_preparation::source_custody::authored_state(
-                        checked,
-                        state.state,
-                    )?;
-                // A returned permission does not consume the temporary slice
-                // descriptor used to select its referent. Dispose all other
-                // live local roots, not only entry parameters. An owned
-                // result keeps the parameter-only roster: its locals moved
-                // into calls or into the result carry no exit disposition.
-                // Selected-owner joins keep their residual splice below.
-                if evaluation.selection_cleanups.is_empty()
-                    && validation::reference_shell(&checked.typed, source.return_type).is_some()
-                {
-                    *trivial_affine_discards = super::state::return_root_discards(
-                        checked,
-                        state,
-                        &operations,
-                        &evaluation,
-                        state_parameters,
-                    )?;
-                    continue;
-                }
-                *trivial_affine_discards =
-                    edges::return_discards(checked, owner.symbol, source, state)?
-                        .into_iter()
-                        .map(|index| {
-                            evaluation.current_structural_place(state_parameters[index].place)
-                        })
-                        .collect();
+                let statement_index = match &state.terminator {
+                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => {
+                        // Admission authenticated a single final expression or
+                        // unconditional value transition after the body.
+                        let (_, authored) = crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+                        checked.statement_table.statements(authored.statement_nodes).len().checked_sub(1)
+                            .ok_or(LoweringError::Unsupported("structural return has no source statement"))?
+                    }
+                    CheckedComposedUnitControlTerminatorPlan::ReturnCase { result } => {
+                        result.statement_ordinal as usize
+                    }
+                    _ => {
+                        return unsupported(
+                            "structural return lost its authored completion coordinate",
+                        );
+                    }
+                };
+                let exit =
+                    super::super::cleanup::coordinate(checked, state, statement_index, false)?;
+                *cleanup_actions = super::super::cleanup::for_exit(
+                    checked,
+                    state,
+                    exit,
+                    self.catalogs,
+                    state_parameters,
+                    &evaluation,
+                    &operations,
+                )?;
             }
         }
         if !is_guarded_return && !evaluation.selection_cleanups.is_empty() {
             match &mut terminator {
-                Terminator::ReturnStructural {
-                    trivial_affine_discards,
-                    ..
-                }
-                | Terminator::ReturnUnit {
-                    trivial_affine_discards,
-                    ..
-                } => {
-                    let discards = trivial_affine_discards;
+                Terminator::ReturnStructural { .. } | Terminator::ReturnUnit { .. } => {
+                    let discards = match &terminator {
+                        Terminator::ReturnStructural {
+                            cleanup_actions, ..
+                        } => cleanup_actions
+                            .iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::place)
+                            .collect::<Vec<_>>(),
+                        Terminator::ReturnUnit {
+                            trivial_affine_discards,
+                            ..
+                        } => trivial_affine_discards.clone(),
+                        _ => unreachable!(),
+                    };
                     let mut local_discards = Vec::new();
                     for operation in state.operations.iter().rev() {
                         if let Some((result, discard_result_on_return)) =
@@ -128,7 +130,33 @@ impl StateGraphEmission<'_, '_> {
                             .map(|(_, place)| (place, false)),
                     );
                     local_discards.extend(discards.iter().map(|place| (*place, true)));
-                    *discards = evaluation.selection_return_discards(local_discards)?;
+                    let selected = evaluation.selection_return_discards(local_discards)?;
+                    match &mut terminator {
+                        Terminator::ReturnStructural {
+                            cleanup_actions, ..
+                        } => {
+                            let previous = std::mem::take(cleanup_actions);
+                            *cleanup_actions = selected
+                                .into_iter()
+                                .map(|place| {
+                                    previous
+                                        .iter()
+                                        .find(|action| action.place() == place)
+                                        .cloned()
+                                        .unwrap_or(
+                                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                                                place,
+                                            ),
+                                        )
+                                })
+                                .collect();
+                        }
+                        Terminator::ReturnUnit {
+                            trivial_affine_discards,
+                            ..
+                        } => *trivial_affine_discards = selected,
+                        _ => unreachable!(),
+                    }
                 }
                 // Ordinary successors already partitioned each edge's residual
                 // custody inside `successor`; no global return splice applies.

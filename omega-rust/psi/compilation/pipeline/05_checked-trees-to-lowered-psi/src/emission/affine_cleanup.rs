@@ -433,10 +433,6 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
         | Terminator::ReturnUnitPartialAffine {
             trivial_affine_discards,
             ..
-        }
-        | Terminator::ReturnStructural {
-            trivial_affine_discards,
-            ..
         } => trivial_affine_discards.clone(),
         Terminator::Conditional {
             when_true,
@@ -449,6 +445,9 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
             .copied()
             .collect(),
         Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
             cleanup_actions, ..
         } => cleanup_actions
             .iter()

@@ -350,7 +350,7 @@ fn called_byte_record_window(scalar_arguments: bool) -> TerminalModule {
         edge: id(10, EdgeId::new),
         source: id(10, PlaceId::new),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module.machines.push(callee);
 

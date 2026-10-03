@@ -996,3 +996,217 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
         assert!(legalize_target_operations(&wrong_type, &source, &unit).is_err());
     }
 }
+
+#[test]
+fn structural_return_snapshots_payload_before_nominal_cleanup_and_replays_actions() {
+    use abstract_operations::{AbstractFunctionResult, AbstractOperation as O, AbstractResult};
+    use semantic_vocabulary::{
+        MachineId, OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId,
+    };
+    use terminal_psi::{
+        StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction as Action,
+    };
+    for length in [2, 3] {
+        for native in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+            target::NativeTarget::windows_x64(),
+        ] {
+            let (mut source, _, original) = fixture(native, Vec::new());
+            let mut owner = source.functions.remove(1);
+            let token_type = StructuralTypeId::new(3).unwrap();
+            let token = PlaceId::new(30).unwrap();
+            let receiver = PlaceId::new(40).unwrap();
+            let hook_id = MachineId::new(3).unwrap();
+            let mut types = source.structural_types.to_vec();
+            let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) = types[0].shape
+            else {
+                unreachable!()
+            };
+            let terminal_psi::StructuralTypeShape::FixedArray { length: extent, .. } =
+                &mut types[1].shape
+            else {
+                unreachable!()
+            };
+            *extent = length;
+            types.push(terminal_psi::StructuralTypeDeclaration {
+                id: token_type,
+                identity: "test::CleanupToken".into(),
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "stamp".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+                    }],
+                },
+            });
+            source.structural_types = types.into();
+            let mut token_parameter = owner.structural_parameters[0].clone();
+            token_parameter.place = token;
+            token_parameter.position = 1;
+            token_parameter.structural_type = token_type;
+            token_parameter.multiplicity = StructuralMultiplicity::Affine;
+            owner.structural_parameters.push(token_parameter.clone());
+            let O::ReturnStructural {
+                cleanup_actions, ..
+            } = &mut owner.operations[0]
+            else {
+                unreachable!()
+            };
+            cleanup_actions.push(Action::InvokeNominal(terminal_psi::NominalAffineCleanup {
+                place: token,
+                structural_type: token_type,
+                cleanup_machine: hook_id,
+                cleanup_receiver: Some(receiver),
+                requirement_obligations: Vec::new(),
+            }));
+            let mut hook = owner.clone();
+            hook.machine = hook_id;
+            hook.attachment = Some(token_type);
+            hook.result = AbstractFunctionResult::Unit;
+            token_parameter.place = receiver;
+            token_parameter.position = 0;
+            token_parameter.access = StructuralAccess::MutableBorrow;
+            token_parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+            hook.structural_parameters = vec![token_parameter.clone()];
+            hook.operations = vec![
+                O::IntegerConstant {
+                    psi_operation: OperationId::new(30).unwrap(),
+                    result: ValueId::new(30).unwrap(),
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(99),
+                },
+                O::StructuralScalarFieldStore {
+                    psi_operation: OperationId::new(31).unwrap(),
+                    destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        token_parameter,
+                    ),
+                    path: Vec::new(),
+                    field: StructuralFieldId::new(1).unwrap(),
+                    value: AbstractResult {
+                        value: ValueId::new(30).unwrap(),
+                        scalar_type,
+                    },
+                    range_obligation: None,
+                },
+                O::ReturnUnit {
+                    psi_edge: semantic_vocabulary::EdgeId::new(3).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            ];
+            source.entry = owner.machine;
+            source.functions = vec![owner, hook];
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                original.fuel_schedule,
+            )
+            .unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let function = &selected.plan().functions[0];
+            let block = &function.blocks[0];
+            let call = block.instructions.iter().find(|instruction| matches!(instruction.kind, selected_instructions::SelectedInstructionKind::CallUnit { callee } if callee == hook_id)).expect("executable hook");
+            assert!(
+                !call.clobbers.is_empty(),
+                "the hook has ordinary caller-save clobbers"
+            );
+            assert!(
+                function
+                    .memory_accesses
+                    .iter()
+                    .filter(|access| access.place == PlaceId::new(20).unwrap()
+                        && access.role
+                            == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+                    .all(|access| access.instruction.0 < call.id.0),
+                "returned storage is observed before cleanup"
+            );
+
+            let selected_instructions::SelectedTerminator::Return {
+                instruction: returned,
+                ..
+            } = &block.terminator
+            else {
+                unreachable!()
+            };
+            // Every fixed ABI return operand is freshly copied after the call;
+            // snapshots live across it without acquiring that fixed register.
+            for operand in &returned.operands {
+                let definition = block
+                    .instructions
+                    .iter()
+                    .find(|instruction| {
+                        instruction.operands.iter().any(|candidate| {
+                            candidate.virtual_register == operand.virtual_register
+                                && matches!(
+                                    candidate.access,
+                                    register_model::RegisterOperandAccess::Def
+                                        | register_model::RegisterOperandAccess::UseDef
+                                )
+                        })
+                    })
+                    .expect("return copy");
+                assert!(definition.id.0 > call.id.0);
+            }
+            let mut missing = target.clone();
+            missing.functions[0].graph.blocks[0]
+                .operations
+                .retain(|operation| !matches!(operation, TargetUnitOperation::CleanupCall { .. }));
+            assert!(legalize_target_operations(&missing, &source, &unit).is_err());
+            for mutation in 0..3 {
+                let mut changed = source.clone();
+                let O::ReturnStructural {
+                    cleanup_actions,
+                    source: returned,
+                    ..
+                } = &mut changed.functions[0].operations[0]
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    0 => cleanup_actions.clear(),
+                    1 => {
+                        let Action::InvokeNominal(action) = &mut cleanup_actions[0] else {
+                            unreachable!()
+                        };
+                        action.place = *returned;
+                    }
+                    2 => cleanup_actions.push(cleanup_actions[0].clone()),
+                    _ => unreachable!(),
+                }
+                let changed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                    &changed,
+                    unit.fuel_schedule,
+                )
+                .unwrap();
+                assert!(
+                    optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err()
+                );
+            }
+        }
+    }
+}

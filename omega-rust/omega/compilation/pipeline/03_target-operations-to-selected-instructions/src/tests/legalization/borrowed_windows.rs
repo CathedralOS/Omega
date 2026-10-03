@@ -259,7 +259,7 @@ fn returned_reference_source(projected: bool) -> abstract_operations::AbstractOp
             source: place(21),
             returned_claims: Vec::new(),
             trivial_affine_locals: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     ];
     let carrier = StructuralWindowRoot::OwnedResult {

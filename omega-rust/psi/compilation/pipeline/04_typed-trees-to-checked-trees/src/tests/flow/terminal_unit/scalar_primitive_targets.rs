@@ -157,9 +157,17 @@ fn primitive_scalar_call_borrows_the_body_for_a_deleted_registration_and_rejects
             2 => plans[position].effects.clear(),
             3 => plans[position].state = arena::Handle::invalid(),
             4 => plans[position].result_type = PrimitiveType::Bool,
-            5 => plans[position]
-                .cleanup_actions
-                .push(checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0)),
+            5 => plans[position].cleanup_actions.push(
+                checked_trees::CheckedNormalCleanupAction::Discard(
+                    checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: 0,
+                        },
+                        path: Vec::new(),
+                        type_identity: "forged".into(),
+                    },
+                ),
+            ),
             6 => {
                 plans[position].structural_parameters[0].access =
                     checked_trees::CheckedStructuralAccess::SharedBorrow

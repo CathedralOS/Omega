@@ -57,7 +57,7 @@ pub(super) fn finish(
             }
             Terminator::ReturnStructural {
                 source,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if homes.values().any(|home| home == source) {
@@ -65,7 +65,7 @@ pub(super) fn finish(
                         "state loan backing cannot escape as an owned return",
                     ));
                 }
-                merge_homes(trivial_affine_discards, homes, &producers);
+                merge_home_actions(cleanup_actions, homes, &producers);
             }
             Terminator::ReturnUnit {
                 trivial_affine_discards,
@@ -76,20 +76,7 @@ pub(super) fn finish(
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                let mut discards = cleanup_actions
-                    .iter()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => Ok(*place),
-                        _ => Err(LoweringError::Unsupported(
-                            "state loan backing requires plain scalar return cleanup",
-                        )),
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                merge_homes(&mut discards, homes, &producers);
-                *cleanup_actions = discards
-                    .into_iter()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .collect();
+                merge_home_actions(cleanup_actions, homes, &producers);
             }
             Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnUnitNominalAffine { .. } => {
@@ -123,4 +110,27 @@ fn merge_homes(
             (None, None) => std::cmp::Ordering::Equal,
         },
     );
+}
+
+fn merge_home_actions(
+    actions: &mut Vec<TerminalAffineCleanupAction>,
+    homes: &BTreeMap<u32, PlaceId>,
+    producers: &BTreeMap<PlaceId, semantic_vocabulary::OperationId>,
+) {
+    for home in homes.values() {
+        if !actions.iter().any(|action| action.place() == *home) {
+            actions.push(TerminalAffineCleanupAction::DiscardRoot(*home));
+        }
+    }
+    actions.sort_by(|first, second| {
+        match (
+            producers.get(&first.place()),
+            producers.get(&second.place()),
+        ) {
+            (Some(first), Some(second)) => second.cmp(first),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
 }

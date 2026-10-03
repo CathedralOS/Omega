@@ -623,7 +623,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
         edge: edge_id(3),
         source: super::place_id(6),
         returned_claims: vec![minted_claim],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let caller = &mut module.machines[0];
     caller.blocks[0].operations[0].result =

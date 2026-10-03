@@ -106,6 +106,7 @@ fn composed(plan: &CheckedUnitEffectMachinePlan) -> CheckedComposedUnitControlMa
         contract_service_reach: plan.contract_service_reach,
         service_reach: plan.service_reach,
         states: vec![CheckedComposedUnitControlStatePlan {
+            normal_exit_cleanups: Vec::new(),
             erased_scalar_parameters: Vec::new(),
             erased_proof_parameters: Vec::new(),
             requires: Vec::new(),

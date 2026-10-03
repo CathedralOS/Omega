@@ -80,6 +80,8 @@ mod scalar_qualifications;
 mod scalar_returns_and_nominal_modules;
 #[path = "unit/shared_scalar_loans.rs"]
 mod shared_scalar_loans;
+#[path = "unit/structural_nominal_returns.rs"]
+mod structural_nominal_returns;
 #[path = "unit/unit_results_and_fuel.rs"]
 mod unit_results_and_fuel;
 #[path = "unit/zeroed_structural.rs"]

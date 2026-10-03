@@ -663,7 +663,7 @@ fn projected_root_is_fully_consumed(
         })
 }
 
-fn validate_scalar_cleanup_actions(
+fn validate_return_cleanup_actions(
     module: &TerminalModule,
     machine: &TerminalMachine,
     parameter_order: &[&StructuralParameterDeclaration],
@@ -673,9 +673,18 @@ fn validate_scalar_cleanup_actions(
     borrowed_references: &[super::references::LiveReference],
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<(), ModuleError> {
-    let mismatch = || ModuleError::ScalarReturnAffineDiscardsMismatch {
-        machine: machine.id,
-        block,
+    let mismatch = || {
+        if machine.result.structural().is_some() {
+            ModuleError::StructuralReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
+        } else {
+            ModuleError::ScalarReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
+        }
     };
     let mut frontier = frontier.clone();
     let mut actions = actions.iter();
@@ -696,7 +705,7 @@ fn validate_scalar_cleanup_actions(
             continue;
         }
         if frontier.partial_custody_paths.contains_key(&place) {
-            validate_scalar_residual_cleanup(
+            validate_return_residual_cleanup(
                 module,
                 machine,
                 block,
@@ -737,7 +746,9 @@ fn validate_scalar_cleanup_actions(
     }
 
     for parameter in parameter_order.iter().rev() {
-        if !frontier.owned_places.contains_key(&parameter.place) {
+        if !frontier.owned_places.contains_key(&parameter.place)
+            || parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        {
             continue;
         }
         if parameter.multiplicity != StructuralMultiplicity::Affine
@@ -756,7 +767,7 @@ fn validate_scalar_cleanup_actions(
             .partial_custody_paths
             .contains_key(&parameter.place)
         {
-            validate_scalar_residual_cleanup(
+            validate_return_residual_cleanup(
                 module,
                 machine,
                 block,
@@ -784,7 +795,7 @@ fn validate_scalar_cleanup_actions(
                 TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     if cleanup.place == parameter.place
                         && cleanup.structural_type == parameter.structural_type
-                        && valid_scalar_nominal_cleanup(module, machine, machines, cleanup) => {}
+                        && valid_return_nominal_cleanup(module, machine, machines, cleanup) => {}
                 _ => return Err(mismatch()),
             }
         }
@@ -792,7 +803,7 @@ fn validate_scalar_cleanup_actions(
     }
 
     // The frontier also records available copies. They may remain after a
-    // scalar return; only affine/linear custody requires explicit discharge.
+    // return; only affine/linear custody requires explicit discharge.
     if actions.next().is_some()
         || super::references::validate_normal_return(
             machine,
@@ -813,7 +824,7 @@ fn validate_scalar_cleanup_actions(
 
 /// Whole and projected results follow the same lifetime order. A projected
 /// disposal must name the complete remaining subtree roster, never the root.
-fn validate_scalar_residual_cleanup(
+fn validate_return_residual_cleanup(
     module: &TerminalModule,
     machine: &TerminalMachine,
     block: BlockId,
@@ -821,9 +832,18 @@ fn validate_scalar_residual_cleanup(
     place: PlaceId,
     actions: &mut std::slice::Iter<'_, TerminalAffineCleanupAction>,
 ) -> Result<(), ModuleError> {
-    let mismatch = || ModuleError::ScalarReturnAffineDiscardsMismatch {
-        machine: machine.id,
-        block,
+    let mismatch = || {
+        if machine.result.structural().is_some() {
+            ModuleError::StructuralReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
+        } else {
+            ModuleError::ScalarReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
+        }
     };
     let root_type = partial_affine_root_type(machine, place).ok_or_else(mismatch)?;
     let moved = frontier
@@ -854,7 +874,7 @@ fn validate_scalar_residual_cleanup(
     Ok(())
 }
 
-fn valid_scalar_nominal_cleanup(
+fn valid_return_nominal_cleanup(
     module: &TerminalModule,
     caller: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,

@@ -524,7 +524,7 @@ fn compressed_trivial_affine_return_requires_exact_shape_and_reverse_discards() 
 
     let mut wrong_discards = compressed_trivial_affine_return_unit();
     let AbstractOperation::ReturnStructural {
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut wrong_discards.functions[0].blocks[0].nodes[0].operation
     else {
@@ -545,7 +545,7 @@ fn compressed_trivial_affine_return_requires_exact_shape_and_reverse_discards() 
 
     let mut missing_discard = compressed_trivial_affine_return_unit();
     let AbstractOperation::ReturnStructural {
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut missing_discard.functions[0].blocks[0].nodes[0].operation
     else {
@@ -560,13 +560,16 @@ fn compressed_trivial_affine_return_requires_exact_shape_and_reverse_discards() 
 
     let mut extra_discard = compressed_trivial_affine_return_unit();
     let AbstractOperation::ReturnStructural {
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut extra_discard.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("fixture is a structural return")
     };
-    trivial_affine_discards.push(id(388, PlaceId::new));
+    trivial_affine_discards.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(id(
+        388,
+        PlaceId::new,
+    )));
     refresh_node_derivatives(&mut extra_discard, 0, 0, 0);
     assert!(matches!(
         validate_psi_optimization_unit(&extra_discard),

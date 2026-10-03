@@ -14,10 +14,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedReturnPlan,
-    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNormalCleanupAction,
+    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     ClosedScalarContractValue,

@@ -1221,7 +1221,7 @@ fn returned_view_source() -> abstract_operations::AbstractOperationPlan {
         source: original,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     }];
     let caller = &mut plan.functions[0];
     let mut other = caller.structural_parameters[0].clone();
@@ -1510,7 +1510,7 @@ fn returned_subslice_materializes_descriptor_home_and_replays_its_producer() {
                 source: result.place,
                 returned_claims: Vec::new(),
                 trivial_affine_locals: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         ];
         let native = target::NativeTarget::macos_arm64();

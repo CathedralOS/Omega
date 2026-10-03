@@ -1163,7 +1163,7 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
         source: PlaceId::new(source).unwrap(),
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let call = |identity, source| AbstractOperation::CallStructural {
         psi_operation: OperationId::new(identity).unwrap(),
@@ -1333,7 +1333,7 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
         source,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     AbstractOperationPlan {
         psi: super::support::identity(),

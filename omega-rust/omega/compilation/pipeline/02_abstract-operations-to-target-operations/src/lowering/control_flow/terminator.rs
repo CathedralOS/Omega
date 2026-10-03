@@ -298,13 +298,16 @@ pub(super) fn lower_terminator(
             source,
             returned_claims,
             trivial_affine_locals,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
             let result = function
                 .result
                 .structural()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let cleanup_actions = cleanup(live, trivial_affine_discards)?;
+            if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            let cleanup_actions = cleanup_actions.clone();
             if terminal_semantics::descriptor_results::is_shared_descriptor(
                 structural_types.values().copied(),
                 result.structural_type,

@@ -62,13 +62,14 @@ fn closed_sum_return_cleanup_follows_subject_multiplicity() {
         let mut returns = 0;
         for block in &machine.blocks {
             if let Terminator::ReturnStructural {
-                trivial_affine_discards,
-                ..
+                cleanup_actions, ..
             } = &block.terminator
             {
                 returns += 1;
                 assert!(
-                    !trivial_affine_discards.contains(&subject),
+                    !cleanup_actions
+                        .iter()
+                        .any(|action| action.place() == subject),
                     "the case edge already settled the affine subject"
                 );
             }

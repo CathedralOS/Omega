@@ -1066,19 +1066,42 @@ impl<'program> Evaluator<'program> {
             // value as its result (the backend's value-state form).
             let mut next: Option<TransitionDecision<'program>> = None;
             let mut tail_value: Option<Value> = None;
-            for (statement_handle, statement) in self
+            let mut exit = checked_trees::FlowClaimJoinExit {
+                state_symbol: state.symbol,
+                statement_index: self
+                    .program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len(),
+                kind: checked_trees::FlowClaimJoinExitKind::FinalExpression,
+            };
+            for (statement_index, (statement_handle, statement)) in self
                 .program
                 .statement_table
                 .iter_statements(state.statement_nodes)
+                .enumerate()
             {
                 match statement {
                     StatementNode::Transition(transition) => {
-                        if let Some(decision) = self.eval_transition(transition, &mut frame)? {
+                        if let Some((decision, kind)) =
+                            self.eval_transition(transition, &mut frame)?
+                        {
+                            exit.statement_index = statement_index;
+                            exit.kind = kind;
                             next = Some(decision);
                             break;
                         }
                     }
                     StatementNode::Expression(expression) => {
+                        if statement_index + 1
+                            == self
+                                .program
+                                .statement_table
+                                .statements(state.statement_nodes)
+                                .len()
+                        {
+                            exit.statement_index = statement_index;
+                        }
                         tail_value = Some(self.eval_expression_at_type(
                             *expression,
                             frame.return_type,
@@ -1099,15 +1122,15 @@ impl<'program> Evaluator<'program> {
 
             match next {
                 None => {
-                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
                     return Ok(tail_value);
                 }
                 Some(TransitionDecision::Value(value)) => {
-                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
                     return Ok(Some(value));
                 }
                 Some(TransitionDecision::Terminal) => {
-                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
                     return Ok(None);
                 }
                 Some(TransitionDecision::Named {
@@ -1116,6 +1139,7 @@ impl<'program> Evaluator<'program> {
                     instance: target_instance,
                     arguments,
                 }) => {
+                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
                     if target_machine.symbol == machine.symbol
                         && Cell::ptr_eq(&target_instance, &instance)
                     {

@@ -585,15 +585,17 @@ fn structural_return_cleans_locals_then_every_affine_tail_parameter_in_reverse_o
         unreachable!()
     };
     let terminal_psi::Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &machine.blocks[0].terminator
     else {
         unreachable!()
     };
     assert_eq!(
-        trivial_affine_discards,
-        &[
+        cleanup_actions
+            .iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::place)
+            .collect::<Vec<_>>(),
+        vec![
             local,
             machine.structural_parameters[2].place,
             machine.structural_parameters[1].place,

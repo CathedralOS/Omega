@@ -190,7 +190,7 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         .for_machine(machine_named(&checked, "self_cleanup"))
         .expect("an ordinary named owner parameter retains its cleanup");
     assert_eq!(named_owner.cleanups.len(), 1);
-    assert_eq!(named_owner.cleanups[0].source_parameter_index, 0);
+    assert_eq!(named_owner.cleanups[0].source_parameter_index().unwrap(), 0);
     let token_drop = checked
         .machines()
         .iter()
@@ -204,7 +204,7 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         ordered
             .cleanups
             .iter()
-            .map(|cleanup| cleanup.source_parameter_index)
+            .map(|cleanup| cleanup.source_parameter_index().unwrap())
             .collect::<Vec<_>>(),
         [1, 0],
         "independent roots clean in reverse declaration order"
@@ -220,7 +220,7 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         three
             .cleanups
             .iter()
-            .map(|cleanup| cleanup.source_parameter_index)
+            .map(|cleanup| cleanup.source_parameter_index().unwrap())
             .collect::<Vec<_>>(),
         [2, 1, 0],
         "three independent roots clean in reverse declaration order"
@@ -238,7 +238,7 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
     assert_eq!(
         five.cleanups
             .iter()
-            .map(|cleanup| cleanup.source_parameter_index)
+            .map(|cleanup| cleanup.source_parameter_index().unwrap())
             .collect::<Vec<_>>(),
         [4, 3, 2, 1, 0],
         "five independent roots clean in reverse declaration order"

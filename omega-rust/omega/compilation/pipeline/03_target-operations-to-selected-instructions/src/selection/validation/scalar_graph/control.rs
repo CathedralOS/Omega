@@ -31,6 +31,22 @@ pub(super) fn validate(
         {
             return Err(replay.invalid());
         }
+        if matches!(
+            returned.value,
+            LegalizedScalarReturnValue::Structural { .. }
+                | LegalizedScalarReturnValue::StructuralParameter { .. }
+                | LegalizedScalarReturnValue::SharedDescriptor { .. }
+        ) {
+            return super::aggregate_return::validate(
+                source,
+                block,
+                returned,
+                replay,
+                calls,
+                environment,
+                catalog,
+            );
+        }
         for (owner, call) in calls {
             super::cleanup_call::validate(*owner, call, returned.effect, replay, environment)?;
         }
@@ -115,6 +131,7 @@ pub(super) fn validate(
                         block,
                         returned,
                         replay,
+                        &[],
                         environment,
                         catalog,
                     );

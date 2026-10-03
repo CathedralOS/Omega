@@ -244,7 +244,7 @@ fn build_unit(
                 source: producer_input,
                 returned_claims: Vec::new(),
                 trivial_affine_locals: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             }],
         );
         identity.result =

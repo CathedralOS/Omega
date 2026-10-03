@@ -22,9 +22,9 @@ use crate::execution::terminal_unit::types::{
     state_flow, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
-    BTreeSet, CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    BTreeSet, CheckFacts, CheckedNormalCleanupAction, CheckedScalarBinding,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
     CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan, Diagnostic,
     ExpressionNode, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind,
@@ -563,9 +563,13 @@ pub(crate) fn build_structural_scalar_return_machine(
         .iter()
         .map(|(_, position)| {
             let source_parameter = source_state_parameters.get(*position as usize)?;
-            let checked_parameter = structural_parameters
+            let (parameter_index, checked_parameter) = structural_parameters
                 .iter()
-                .find(|parameter| parameter.position == *position)?;
+                .enumerate()
+                .find(|(_, parameter)| parameter.position == *position)?;
+            let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            };
             if has_nominal_cleanup
                 && (source_parameter.is_self
                     || source_parameter.is_const
@@ -577,8 +581,12 @@ pub(crate) fn build_structural_scalar_return_machine(
                 return None;
             }
             if !type_graph_requires_nominal_drop(program, source_parameter.type_reference) {
-                return Some(CheckedStructuralScalarReturnCleanupAction::DiscardRoot(
-                    *position,
+                return Some(CheckedNormalCleanupAction::Discard(
+                    checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        source,
+                        path: Vec::new(),
+                        type_identity: checked_parameter.type_identity.clone(),
+                    },
                 ));
             }
             let nominal_cleanup = (|| {
@@ -648,7 +656,8 @@ pub(crate) fn build_structural_scalar_return_machine(
                     return None;
                 }
                 Some(CheckedUnitNominalAffineCleanupPlan {
-                    source_parameter_index: checked_parameter.position,
+                    source,
+
                     type_identity: checked_parameter.type_identity.clone(),
                     cleanup_machine: cleanup_machine.symbol,
                     cleanup_state: cleanup_target.state,
@@ -656,9 +665,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                     requirements: cleanup_requirements,
                 })
             })()?;
-            Some(CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
-                nominal_cleanup,
-            ))
+            Some(CheckedNormalCleanupAction::InvokeNominal(nominal_cleanup))
         })
         .collect::<Option<Vec<_>>>()?;
     let shared_boolean_convergence = has_nominal_cleanup
@@ -670,6 +677,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 return_expression,
                 scalar_parameters.len(),
                 &cleanup_actions,
+                &structural_parameters,
             )
         })
         .flatten();

@@ -8,15 +8,15 @@ use super::super::{
     IntegerSign, Proposition, ScalarTerm, integer_value, obligation_id,
 };
 use super::{
-    BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, LoweredPsi, LoweringError, Multiplicity, PrimitiveType, ScalarType,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
-    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, block_id,
-    boolean_decision_block_count, edge_id, emit_direct_expression,
-    emit_inlined_boolean_value_blocks, finalize_operation_proofs, lower_boolean_value_decision,
-    lower_checked_scalar_expression_at, lower_unit_parameters, terminal_scalar_type, unsupported,
-    validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
+    BTreeSet, Block, CheckedNormalCleanupAction, CheckedScalarBindingValue,
+    CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
+    LoweredPsi, LoweringError, Multiplicity, PrimitiveType, ScalarType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, block_id, boolean_decision_block_count, edge_id,
+    emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
+    lower_boolean_value_decision, lower_checked_scalar_expression_at, lower_unit_parameters,
+    terminal_scalar_type, unsupported, validate_boolean_parameter_types,
+    validate_direct_parameter_types, value_id,
 };
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -103,16 +103,22 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             "nominal scalar return parameter maps do not partition source positions",
         );
     }
-    for (parameter, cleanup) in plan
+    for (index, (parameter, cleanup)) in plan
         .structural_parameters
         .iter()
         .zip(plan.cleanup_actions.iter().rev())
+        .enumerate()
     {
         match cleanup {
-            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(cleanup_position)
-                if *cleanup_position == parameter.position => {}
-            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
-                if cleanup.source_parameter_index == parameter.position
+            CheckedNormalCleanupAction::Discard(discard)
+                if discard.path.is_empty()
+                    && discard.type_identity == parameter.type_identity
+                    && discard.source
+                        == checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: index as u32,
+                        } => {}
+            CheckedNormalCleanupAction::InvokeNominal(cleanup)
+                if cleanup.source_parameter_index() == Some(index as u32)
                     && cleanup.type_identity == parameter.type_identity => {}
             _ => return unsupported("nominal scalar return cleanup frontier drifted"),
         }
@@ -146,7 +152,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         ))?;
     let mut hooks = Vec::new();
     for action in &plan.cleanup_actions {
-        if let CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) = action
+        if let CheckedNormalCleanupAction::InvokeNominal(cleanup) = action
             && !hooks.contains(&cleanup.cleanup_machine)
         {
             hooks.push(cleanup.cleanup_machine);
@@ -239,28 +245,33 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .cleanup_actions
         .iter()
         .map(|action| {
-            let position = match action {
-                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) => *position,
-                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
-                    cleanup.source_parameter_index
-                }
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } = action.source()
+            else {
+                return Err(LoweringError::Unsupported(
+                    "scalar parameter cleanup acquired another source",
+                ));
             };
-            let parameter = structural_parameter_indexes
-                .get(&position)
-                .and_then(|index| structural_parameters.get(*index))
-                .ok_or(LoweringError::Unsupported(
-                    "nominal scalar return cleanup terminal root is absent",
-                ))?;
+            let parameter = structural_parameters.get(*parameter_index as usize).ok_or(
+                LoweringError::Unsupported("nominal scalar return cleanup terminal root is absent"),
+            )?;
             match action {
-                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                CheckedNormalCleanupAction::Discard(discard) => {
+                    if !discard.path.is_empty() {
+                        return unsupported(
+                            "scalar whole-parameter cleanup acquired a residual path",
+                        );
+                    }
                     Ok(TerminalAffineCleanupAction::DiscardRoot(parameter.place))
                 }
-                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
+                CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                     Ok(TerminalAffineCleanupAction::InvokeNominal(
                         crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                             checked,
                             cleanup,
-                            parameter,
+                            parameter.place,
+                            parameter.structural_type,
                             &closure.type_ids,
                             &closure.machine_ids,
                             &receivers,

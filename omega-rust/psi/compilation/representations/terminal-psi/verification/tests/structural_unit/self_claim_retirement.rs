@@ -379,7 +379,7 @@ fn a_linear_self_receiver_retires_as_the_structural_result() {
         edge: edge_id(1),
         source: place_id(1),
         returned_claims: vec![claim_id(1)],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     validate_module(&module)
@@ -424,7 +424,7 @@ fn a_returned_value_does_not_drain_the_receiver_claim() {
         edge: edge_id(1),
         source: place_id(2),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     assert_eq!(

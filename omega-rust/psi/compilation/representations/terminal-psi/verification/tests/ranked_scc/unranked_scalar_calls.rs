@@ -569,7 +569,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
             edge: id(20, EdgeId::new),
             source: id(11, PlaceId::new),
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     }];
     let machine = &mut module.machines[0];

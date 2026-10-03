@@ -111,7 +111,7 @@ fn fixture() -> TerminalModule {
         edge: edge_id(900),
         source: place_id(1),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }

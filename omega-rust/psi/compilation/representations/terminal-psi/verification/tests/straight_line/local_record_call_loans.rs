@@ -324,7 +324,7 @@ fn local_loan_module(
 /// reference or claim, so nothing it returns can retain a caller loan.
 fn record_result_callee(accesses: &[StructuralAccess]) -> TerminalMachine {
     let mut machine = callee(accesses);
-    let owned = machine
+    let owned: Vec<_> = machine
         .structural_parameters
         .iter()
         .filter(|formal| formal.access == StructuralAccess::Owned)
@@ -370,7 +370,10 @@ fn record_result_callee(accesses: &[StructuralAccess]) -> TerminalMachine {
         edge: id(910),
         source: id(CALLEE_RETURNED),
         returned_claims: Vec::new(),
-        trivial_affine_discards: owned,
+        cleanup_actions: owned
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .collect(),
     };
     machine
 }

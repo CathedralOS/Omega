@@ -8,7 +8,7 @@ use crate::interpreter::evaluator::{
     trap, unsupported,
 };
 use checked_trees::{
-    CheckedStructuralScalarReturnCleanupAction, CheckedUnitNominalAffineCleanupPlan,
+    CheckedNormalCleanupAction, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitStructuralParameterPlan,
 };
 
@@ -26,8 +26,8 @@ impl<'program> Evaluator<'program> {
         let Some(checked) = self.checked else {
             return Ok(Vec::new());
         };
-        // Checked cleanup actions retain authored parameter positions, including
-        // gaps occupied by scalar or erased inputs; structural rows are compact.
+        // Action sources use dense structural positions. Parameter rows retain
+        // authored positions for looking up the actual runtime binding.
         let flow = &checked.facts.flow;
         let mut actions = Vec::new();
         if let Some(plan) = flow
@@ -41,8 +41,9 @@ impl<'program> Evaluator<'program> {
                 let parameter = plan
                     .machine
                     .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.position == cleanup.source_parameter_index)
+                    .get(cleanup.source_parameter_index().ok_or_else(|| {
+                        Halt::Unsupported("cleanup requires a parameter source".into())
+                    })? as usize)
                     .ok_or_else(|| {
                         Halt::Unsupported("cleanup source parameter is absent".into())
                     })?;
@@ -56,11 +57,12 @@ impl<'program> Evaluator<'program> {
                 return unsupported("scalar cleanup plan names another return state");
             }
             for action in &plan.cleanup_actions {
-                if let CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) = action {
+                if let CheckedNormalCleanupAction::InvokeNominal(cleanup) = action {
                     let parameter = plan
                         .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.position == cleanup.source_parameter_index)
+                        .get(cleanup.source_parameter_index().ok_or_else(|| {
+                            Halt::Unsupported("cleanup requires a parameter source".into())
+                        })? as usize)
                         .ok_or_else(|| {
                             Halt::Unsupported("cleanup source parameter is absent".into())
                         })?;
@@ -80,12 +82,30 @@ impl<'program> Evaluator<'program> {
             return Ok(());
         };
         let actions = self.normal_cleanup_actions(machine, state)?;
+        let composed = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .and_then(|plan| plan.states.iter().find(|row| row.state == state.symbol));
         for (_, dependency) in checked.facts.operational.cleanup_dependencies.iter() {
             if dependency.caller_machine == machine.symbol
                 && dependency.caller_state == state.symbol
                 && !actions.iter().any(|(action, _)| {
                     action.cleanup_machine == dependency.target_machine
                         && action.cleanup_state == dependency.target_state
+                })
+                && !composed.is_some_and(|state| {
+                    state
+                        .normal_exit_cleanups
+                        .iter()
+                        .flat_map(|row| &row.actions)
+                        .any(|action| {
+                            matches!(action,
+                        CheckedNormalCleanupAction::InvokeNominal(action)
+                            if action.cleanup_machine == dependency.target_machine
+                                && action.cleanup_state == dependency.target_state)
+                        })
                 })
             {
                 return unsupported(
@@ -101,7 +121,87 @@ impl<'program> Evaluator<'program> {
         machine: &Machine,
         state: &State,
         frame: &Frame,
+        exit: checked_trees::FlowClaimJoinExit,
     ) -> EvalResult<()> {
+        if let Some(plan) = self
+            .checked
+            .and_then(|checked| {
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(machine.symbol)
+            })
+            .and_then(|plan| plan.states.iter().find(|row| row.state == state.symbol))
+        {
+            let row = plan
+                .normal_exit_cleanups
+                .iter()
+                .find(|row| row.exit == exit)
+                .ok_or_else(|| {
+                    Halt::Unsupported("normal cleanup has no exact outgoing edge plan".into())
+                })?;
+            for action in &row.actions {
+                let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
+                    continue;
+                };
+                let symbol = match &action.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => {
+                        let parameter = plan
+                            .structural_parameters
+                            .get(*parameter_index as usize)
+                            .filter(|parameter| parameter.type_identity == action.type_identity)
+                            .ok_or_else(|| {
+                                Halt::Unsupported("normal cleanup parameter custody drifted".into())
+                            })?;
+                        self.program
+                            .state_parameters(state)
+                            .get(parameter.position as usize)
+                            .ok_or_else(|| {
+                                Halt::Unsupported("normal cleanup parameter is absent".into())
+                            })?
+                            .symbol
+                    }
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } => *symbol,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => {
+                        let result = plan
+                            .operations
+                            .iter()
+                            .filter_map(|operation| operation.structural_result_binding())
+                            .find(|result| {
+                                result.binding_ordinal == *binding_ordinal
+                                    && result.type_identity == action.type_identity
+                            })
+                            .ok_or_else(|| {
+                                Halt::Unsupported("normal cleanup result binding is absent".into())
+                            })?;
+                        let Some(typed_trees::statement::StatementNode::LocalData(local)) = self
+                            .program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .get(result.statement_index as usize)
+                        else {
+                            return unsupported(
+                                "normal cleanup result has no retained local binding",
+                            );
+                        };
+                        local.symbol
+                    }
+                    _ => return unsupported("normal cleanup source has no retained runtime owner"),
+                };
+                let source = frame.local_cell(symbol).ok_or_else(|| {
+                    Halt::Unsupported("normal cleanup source binding is absent".into())
+                })?;
+                self.execute_nominal_cleanup(action, source)?;
+            }
+            return Ok(());
+        }
         for (action, parameter) in self.normal_cleanup_actions(machine, state)? {
             if parameter.type_identity != action.type_identity {
                 return unsupported("normal cleanup source type custody drifted");

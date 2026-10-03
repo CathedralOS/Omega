@@ -199,6 +199,9 @@ pub(crate) fn derive_root_service_reach(
                 }
                 | O::ReturnUnit {
                     cleanup_actions, ..
+                }
+                | O::ReturnStructural {
+                    cleanup_actions, ..
                 } => {
                     pending.extend(cleanup_actions.iter().filter_map(|action| match action {
                         terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {

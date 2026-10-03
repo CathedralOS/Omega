@@ -241,9 +241,8 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
         })),
         O::ReturnStructural {
-            trivial_affine_discards,
-            ..
-        } => inputs.extend(trivial_affine_discards.iter().copied()),
+            cleanup_actions, ..
+        } => inputs.extend(cleanup_actions.iter().map(|action| action.place())),
         _ => {}
     }
     inputs

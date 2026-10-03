@@ -140,7 +140,7 @@ pub(super) fn encode_terminator(
             edge,
             source,
             returned_claims,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
             writer.u8(6);
             writer.id(*edge);
@@ -149,12 +149,9 @@ pub(super) fn encode_terminator(
             for claim in returned_claims {
                 writer.id(*claim);
             }
-            writer.len(
-                "structural return trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
+            writer.len("structural return cleanup actions", cleanup_actions.len())?;
+            for action in cleanup_actions {
+                encode_affine_cleanup_action(writer, action)?;
             }
         }
         Terminator::Conditional {
@@ -290,7 +287,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
             edge: reader.id("EdgeId")?,
             source: reader.id("PlaceId")?,
             returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+            cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
         7 => Terminator::ReturnUnitPartialAffine {
             edge: reader.id("EdgeId")?,

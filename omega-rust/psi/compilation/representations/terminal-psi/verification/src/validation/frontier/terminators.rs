@@ -21,7 +21,8 @@ use super::super::{
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
     apply_continuation_residual_discards, apply_edge_trivial_affine_discards,
-    expected_trivial_affine_discards, release_reference_discards, validate_scalar_cleanup_actions,
+    expected_trivial_affine_discards, release_reference_discards,
+    validate_return_cleanup_actions,
 };
 
 /// Closes a block: successful exits close owned loans and restore borrowed
@@ -566,7 +567,7 @@ fn close_return(
             place: *place,
         });
     }
-    validate_scalar_cleanup_actions(
+    validate_return_cleanup_actions(
         module,
         machine,
         parameter_order,
@@ -596,7 +597,7 @@ fn close_return_structural(
     let Terminator::ReturnStructural {
         source,
         returned_claims,
-        trivial_affine_discards,
+        cleanup_actions,
         ..
     } = &block.terminator
     else {
@@ -800,11 +801,6 @@ fn close_return_structural(
         })
         && machine.entry_claims.is_empty()
         && machine.content_entry_claims.is_empty()
-        && machine.published_service_ceiling.is_empty()
-        && machine.contract.crash_routes.is_empty()
-        && machine.contract.requires.is_empty()
-        && machine.contract.ensures.is_empty()
-        && machine.contract.outcome_specific_ensures.is_empty()
         && super::super::structural::result_contracts::has_plain_owned_shape(
             module,
             result.structural_type,
@@ -853,21 +849,16 @@ fn close_return_structural(
     for claim in returned_claims {
         frontier.claims.remove(claim);
     }
-    let expected_affine_discards =
-        expected_trivial_affine_discards(machine, parameter_order, &frontier);
-    if *trivial_affine_discards != expected_affine_discards {
-        return Err(ModuleError::StructuralReturnAffineDiscardsMismatch {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    release_reference_discards(
+    validate_return_cleanup_actions(
         module,
         machine,
-        &mut frontier.references,
-        trivial_affine_discards,
+        parameter_order,
+        machines,
+        block.id,
+        &frontier,
+        walk.borrowed_references,
+        cleanup_actions,
     )?;
-    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
     if let Some(claim) = frontier.claims.keys().next() {
         return Err(ModuleError::LiveClaimAtStructuralReturn {
             machine: machine.id,

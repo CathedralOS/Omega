@@ -20,7 +20,7 @@ use terminal_psi::{
     TerminalAffineCleanupAction,
 };
 
-pub(crate) fn commit_cleanup_actions(
+pub(crate) fn commit_cleanup_action(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -29,75 +29,61 @@ pub(crate) fn commit_cleanup_actions(
     scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
-    actions: &[TerminalAffineCleanupAction],
-) -> Result<Vec<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
-    let mut nominal = Vec::new();
-    for action in actions {
-        match action {
-            TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if (reference::discard_structural_value(
+    action: &TerminalAffineCleanupAction,
+) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
+    match action {
+        TerminalAffineCleanupAction::DiscardRoot(place) => {
+            if (reference::discard_structural_value(
+                structural_values,
+                reference_referents,
+                element_views,
+                *place,
+            )
+            .is_none()
+                && scalar_case_values.remove(place).is_none())
+                || !remove_affine_root(frontier, *place)
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            live_claims.retain(|_, claim| claim.place != Some(*place));
+        }
+        TerminalAffineCleanupAction::DiscardResidual(discard) => {
+            let root = structural_values.get(&discard.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
+            )?;
+            if discard.path.is_empty()
+                || resolve_structural_path_type(
+                    structural_types,
+                    root.structural_type,
+                    &discard.path,
+                )? != discard.structural_type
+                || !frontier.remove(discard)
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            if !frontier.iter().any(|entry| entry.place == discard.place) {
+                reference::discard_structural_value(
                     structural_values,
                     reference_referents,
                     element_views,
-                    *place,
-                )
-                .is_none()
-                    && scalar_case_values.remove(place).is_none())
-                    || !remove_affine_root(frontier, *place)
-                {
-                    return Err(TerminalInterpretError::AffineFrontierMismatch);
-                }
-                live_claims.retain(|_, claim| claim.place != Some(*place));
-            }
-            TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                let root = structural_values.get(&discard.place).ok_or(
-                    TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
-                )?;
-                if discard.path.is_empty()
-                    || resolve_structural_path_type(
-                        structural_types,
-                        root.structural_type,
-                        &discard.path,
-                    )? != discard.structural_type
-                    || !frontier.remove(discard)
-                {
-                    return Err(TerminalInterpretError::AffineFrontierMismatch);
-                }
-                if !frontier.iter().any(|entry| entry.place == discard.place) {
-                    reference::discard_structural_value(
-                        structural_values,
-                        reference_referents,
-                        element_views,
-                        discard.place,
-                    );
-                }
-            }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                let value = structural_values.remove(&cleanup.place).ok_or(
-                    TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
-                )?;
-                if value.structural_type != cleanup.structural_type
-                    || !machines.contains_key(&cleanup.cleanup_machine)
-                {
-                    return Err(TerminalInterpretError::AffineFrontierMismatch);
-                }
-                nominal.push((cleanup.clone(), value));
-                live_claims.retain(|_, claim| claim.place != Some(cleanup.place));
+                    discard.place,
+                );
             }
         }
+        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+            let value = structural_values.remove(&cleanup.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
+            )?;
+            if value.structural_type != cleanup.structural_type
+                || !machines.contains_key(&cleanup.cleanup_machine)
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            live_claims.retain(|_, claim| claim.place != Some(cleanup.place));
+            return Ok(Some((cleanup.clone(), value)));
+        }
     }
-    let pending_nominal = nominal
-        .iter()
-        .map(|(cleanup, value)| StructuralAffineDiscard {
-            place: cleanup.place,
-            path: Vec::new(),
-            structural_type: value.structural_type,
-        })
-        .collect::<BTreeSet<_>>();
-    if !structural_values.is_empty() || *frontier != pending_nominal || !live_claims.is_empty() {
-        return Err(TerminalInterpretError::AffineFrontierMismatch);
-    }
-    Ok(nominal)
+    Ok(None)
 }
 
 pub(crate) fn bind_arguments(

@@ -1060,7 +1060,7 @@ fn projected_linear_move_cannot_return_its_partial_ancestor() {
         edge: edge_id(1),
         source: place_id(1),
         returned_claims: vec![claim_id(2)],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     assert_eq!(

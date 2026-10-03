@@ -9,6 +9,7 @@
 pub(super) mod anonymous;
 mod cleanup_evidence;
 mod nominal_requirements;
+pub(super) mod normal_edges;
 mod partial_affine_cleanup;
 mod residuals;
 
@@ -17,10 +18,11 @@ pub(crate) use cleanup_evidence::{
     service_reach_plan_is_empty,
 };
 pub(crate) use nominal_requirements::{
-    checked_requires_expressions, direct_boolean_field_requirement, is_bounded_nominal_cleanup_record,
-    nominal_cleanup_boolean_requirements, nominal_cleanup_caller_boolean_requirements,
-    nominal_cleanup_missing_requirement, nominal_cleanup_missing_requirement_diagnostic,
-    nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,
+    checked_requires_expressions, direct_boolean_field_requirement,
+    is_bounded_nominal_cleanup_record, nominal_cleanup_boolean_requirements,
+    nominal_cleanup_caller_boolean_requirements, nominal_cleanup_missing_requirement,
+    nominal_cleanup_missing_requirement_diagnostic, nominal_scalar_caller_requirements,
+    scalar_nominal_cleanup_missing_requirement_diagnostic,
 };
 pub(crate) use partial_affine_cleanup::{
     build_partial_affine_unit_cleanup_machine, partial_affine_residuals,
@@ -177,8 +179,11 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         source_parameters,
     )?;
     let mut cleanups = Vec::with_capacity(source_parameters.len());
-    for (source_parameter, checked_parameter) in
-        source_parameters.iter().zip(&structural_parameters).rev()
+    for (parameter_index, (source_parameter, checked_parameter)) in source_parameters
+        .iter()
+        .zip(&structural_parameters)
+        .enumerate()
+        .rev()
     {
         let TypeReferenceNode::Named {
             symbol: parameter_data_symbol,
@@ -246,7 +251,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             return None;
         }
         cleanups.push(CheckedUnitNominalAffineCleanupPlan {
-            source_parameter_index: checked_parameter.position,
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
             type_identity: checked_parameter.type_identity.clone(),
             cleanup_machine: cleanup_machine.symbol,
             cleanup_state: cleanup_state.symbol,

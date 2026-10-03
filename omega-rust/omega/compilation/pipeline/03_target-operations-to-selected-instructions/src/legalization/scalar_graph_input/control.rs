@@ -22,15 +22,10 @@ pub(super) fn validate(
                 source,
                 returned_claims,
                 trivial_affine_locals,
-                trivial_affine_discards,
+                cleanup_actions,
             },
             AbstractFunctionResult::Structural(declared),
         ) => {
-            let cleanup_actions = trivial_affine_discards
-                .iter()
-                .copied()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                .collect::<Vec<_>>();
             if terminal_semantics::descriptor_results::is_shared_descriptor(
                 structural_types.iter(),
                 declared.structural_type,

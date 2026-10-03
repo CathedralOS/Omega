@@ -820,7 +820,7 @@ fn case_membership_does_not_consume_the_returned_case_or_payload() {
         edge: edge_id(1),
         source: place_id(1),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     let result = interpret_terminal_artifact_measured(
         &encode_module(&module).unwrap(),

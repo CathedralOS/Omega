@@ -4,10 +4,10 @@
 //! returns, structural Unit control, and scalar-graph construction remain
 //! separate producer responsibilities in the crate root.
 use super::{
-    BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, CheckedUnitStructuralTypePlan, LoweredPsi, LoweringError, MachineContract,
-    MachineId, Multiplicity, Operation, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
+    BTreeSet, Block, CheckedNormalCleanupAction, CheckedScalarBindingValue,
+    CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
+    CheckedUnitStructuralTypePlan, LoweredPsi, LoweringError, MachineContract, MachineId,
+    Multiplicity, Operation, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
     TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
@@ -117,7 +117,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
             machine: plan.realization_machine,
             state: plan.realization_state,
             attachment_type_identity: Some(attachment_type_identity),
-            structural_parameters,
+            structural_parameters: structural_parameters.clone(),
             scalar_parameters: Vec::new(),
             erased_scalar_parameters: Vec::new(),
             erased_proof_parameters: Vec::new(),
@@ -131,13 +131,15 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
             cleanup_actions: (0..plan.argument_source_positions.len())
                 .rev()
                 .map(|position| {
-                    u32::try_from(position)
-                        .map(CheckedStructuralScalarReturnCleanupAction::DiscardRoot)
-                        .map_err(|_| {
+                    let parameter = &structural_parameters[position];
+                    Ok(parameter_discard_action(
+                        u32::try_from(position).map_err(|_| {
                             LoweringError::Unsupported(
                                 "trait operator cleanup parameter count exceeds u32",
                             )
-                        })
+                        })?,
+                        parameter,
+                    ))
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
         };
@@ -348,12 +350,11 @@ pub(crate) fn lower_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
-    if plan.cleanup_actions.iter().any(|action| {
-        matches!(
-            action,
-            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
-        )
-    }) {
+    if plan
+        .cleanup_actions
+        .iter()
+        .any(|action| matches!(action, CheckedNormalCleanupAction::InvokeNominal(_)))
+    {
         effects::validate(
             checked,
             StructuralScalarReturnTypes::published(checked),
@@ -438,12 +439,11 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
 ) -> Result<LoweredPsi, LoweringError> {
     let types = StructuralScalarReturnTypes::shared_with(checked, shared_structural_types);
     let primitive_reference_return = effects::validate(checked, types, plan)?;
-    if plan.cleanup_actions.iter().any(|action| {
-        matches!(
-            action,
-            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
-        )
-    }) {
+    if plan
+        .cleanup_actions
+        .iter()
+        .any(|action| matches!(action, CheckedNormalCleanupAction::InvokeNominal(_)))
+    {
         return unsupported("namespaced structural scalar callees require direct root cleanup");
     }
     let (structural_types, type_ids) = if let Some(shared) = shared_structural_types {
@@ -534,11 +534,10 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     let expected_cleanup = plan
         .structural_parameters
         .iter()
+        .enumerate()
         .rev()
-        .filter(|parameter| parameter.multiplicity == Multiplicity::Affine)
-        .map(|parameter| {
-            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(parameter.position)
-        })
+        .filter(|(_, parameter)| parameter.multiplicity == Multiplicity::Affine)
+        .map(|(index, parameter)| parameter_discard_action(index as u32, parameter))
         .collect::<Vec<_>>();
     if plan.cleanup_actions != expected_cleanup {
         return unsupported("structural scalar return cleanup does not consume its exact frontier");
@@ -582,18 +581,25 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         .cleanup_actions
         .iter()
         .map(|action| {
-            let CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) = action else {
+            let CheckedNormalCleanupAction::Discard(discard) = action else {
                 return Err(LoweringError::Unsupported(
                     "structural scalar return trivial lane acquired a nominal cleanup",
                 ));
             };
-            let parameter_index = plan
-                .structural_parameters
-                .iter()
-                .position(|parameter| parameter.position == *position)
-                .ok_or(LoweringError::Unsupported(
-                    "structural scalar return cleanup position is absent from its signature",
-                ))?;
+            if !discard.path.is_empty() {
+                return Err(LoweringError::Unsupported(
+                    "whole scalar return cleanup acquired a residual path",
+                ));
+            }
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } = discard.source
+            else {
+                return Err(LoweringError::Unsupported(
+                    "scalar return parameter cleanup acquired another source",
+                ));
+            };
+            let parameter_index = parameter_index as usize;
             structural_parameters
                 .get(parameter_index)
                 .map(|parameter| parameter.place)
@@ -1271,4 +1277,17 @@ mod trait_operator_tests {
             Ok(lowered.semantic_module)
         );
     }
+}
+
+fn parameter_discard_action(
+    index: u32,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+) -> CheckedNormalCleanupAction {
+    CheckedNormalCleanupAction::Discard(checked_trees::CheckedUnitPartialAffineDiscardPlan {
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: index,
+        },
+        path: Vec::new(),
+        type_identity: parameter.type_identity.clone(),
+    })
 }

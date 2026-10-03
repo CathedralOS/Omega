@@ -151,7 +151,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         edge: edge_id(6),
         source: place_id(1),
         returned_claims: vec![semantic_vocabulary::ClaimId::new(1).unwrap()],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let crash_edge = Terminator::Crash {
         edge: edge_id(3),

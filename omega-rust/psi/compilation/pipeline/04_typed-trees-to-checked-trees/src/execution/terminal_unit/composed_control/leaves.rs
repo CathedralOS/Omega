@@ -85,6 +85,7 @@ pub(super) fn build(
         _ => return None,
     }
     Some(CheckedComposedUnitControlStatePlan {
+        normal_exit_cleanups: Vec::new(),
         state: state.symbol,
         structural_parameters: structural_parameters.to_vec(),
         scalar_parameters: Vec::new(),

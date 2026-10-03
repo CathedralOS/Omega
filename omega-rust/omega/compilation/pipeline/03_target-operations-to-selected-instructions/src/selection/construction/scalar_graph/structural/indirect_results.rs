@@ -123,6 +123,11 @@ pub(in crate::selection) fn returned(
     input: VirtualRegisterId,
     placement: &calling_conventions::ValuePlacement,
     builder: &mut Builder<'_>,
+    cleanup_calls: &[(
+        target_operations::CallSiteOwner,
+        legalized_operations::LegalizedScalarCall,
+    )],
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let destination = source
         .structural
@@ -154,6 +159,11 @@ pub(in crate::selection) fn returned(
         )?;
         super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;
         offset += width;
+    }
+    // The completed result is in caller-owned storage before hooks execute.
+    // Keep its destination pointer live, then establish the ABI use afterward.
+    for (owner, call) in cleanup_calls {
+        super::super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
     }
     let returned_pointer = matches!(
         source.call_plan.policy,

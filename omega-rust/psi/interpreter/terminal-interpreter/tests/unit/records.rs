@@ -550,7 +550,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
         edge: edge_id(20),
         source: place_id(20),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     module.machines.push(construct);
     let call = |value| OperationKind::CallStructuralWithScalarArguments {

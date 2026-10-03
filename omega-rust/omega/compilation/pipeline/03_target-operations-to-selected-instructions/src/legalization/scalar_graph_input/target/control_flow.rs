@@ -199,18 +199,11 @@ pub(super) fn validate(
                     source: expected_source,
                     returned_claims,
                     trivial_affine_locals,
-                    trivial_affine_discards,
+                    cleanup_actions: expected_cleanup,
                 },
             ) => {
                 psi_edge == expected_edge
-                    // No destructor instructions are needed for these plain homes;
-                    // retain and replay their exact ordered death-edge disposition.
-                    && edge_cleanup_matches(
-                        optimized,
-                        cleanup_actions,
-                        trivial_affine_discards,
-                        &[],
-                    )
+                    && cleanup_actions == expected_cleanup
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
                     // A reference-bearing result must still sit at its declared

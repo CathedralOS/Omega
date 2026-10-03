@@ -1338,3 +1338,103 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
     )
     .expect("shared executable cleanup target and helper verify once as a closure");
 }
+
+fn structural_return_contextual_cleanup_module() -> TerminalModule {
+    let mut module = two_root_shared_contextual_nominal_affine_module();
+    let caller = &mut module.machines[0];
+    let mut returned = caller.structural_parameters[0].clone();
+    returned.place = place_id(100);
+    returned.position = 2;
+    caller.structural_parameters.push(returned.clone());
+    caller.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: returned.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 2,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: place_id(101),
+            kind: StructuralPlaceKind::Result,
+        },
+    ]);
+    caller.result = TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+        reference_sources: Vec::new(),
+        place: place_id(101),
+        structural_type: returned.structural_type,
+        multiplicity: returned.multiplicity,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } =
+        caller.blocks[0].terminator.clone()
+    else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::ReturnStructural {
+        edge,
+        source: returned.place,
+        returned_claims: Vec::new(),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    module
+}
+
+#[test]
+fn structural_return_cleanup_reconstructs_ordered_independent_hook_obligations() {
+    let module = structural_return_contextual_cleanup_module();
+    validate_module(&module).expect("returned ownership precedes sibling cleanup");
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    assert_eq!(
+        obligations
+            .iter()
+            .map(|row| row.obligation.id)
+            .collect::<Vec<_>>(),
+        [
+            obligation_id(3),
+            obligation_id(4),
+            obligation_id(1),
+            obligation_id(2)
+        ]
+    );
+    let mut reversed = module.clone();
+    let Terminator::ReturnStructural {
+        cleanup_actions, ..
+    } = &mut reversed.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanup_actions.reverse();
+    assert!(
+        validate_module(&reversed).is_err(),
+        "action order follows remaining ownership"
+    );
+}
+
+#[test]
+fn structural_return_cleanup_rejects_returned_owner_and_duplicate_disposition() {
+    for returned_owner in [false, true] {
+        let mut module = structural_return_contextual_cleanup_module();
+        let Terminator::ReturnStructural {
+            source,
+            cleanup_actions,
+            ..
+        } = &mut module.machines[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        if returned_owner {
+            cleanup_actions.insert(0, TerminalAffineCleanupAction::DiscardRoot(*source));
+        } else {
+            cleanup_actions.push(cleanup_actions[0].clone());
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "one disposition for each remaining owner"
+        );
+    }
+}

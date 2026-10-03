@@ -710,7 +710,7 @@ impl ChainExit<'_> {
             } => self.insert(trivial_affine_discards),
             Terminator::ReturnStructural {
                 source,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if *source == self.storage {
@@ -718,27 +718,11 @@ impl ChainExit<'_> {
                         "Unit graph state loan chain storage cannot escape as an owned return",
                     ));
                 }
-                self.insert(trivial_affine_discards)
+                self.insert_actions(cleanup_actions)
             }
             Terminator::Return {
                 cleanup_actions, ..
-            } => {
-                let mut discards = cleanup_actions
-                    .iter()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => Ok(*place),
-                        _ => Err(LoweringError::Unsupported(
-                            "Unit graph state loan chain requires plain scalar return cleanup",
-                        )),
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                self.insert(&mut discards)?;
-                *cleanup_actions = discards
-                    .into_iter()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .collect();
-                Ok(())
-            }
+            } => self.insert_actions(cleanup_actions),
             Terminator::ReturnUnitPartialAffine { .. }
             | Terminator::ReturnUnitNominalAffine { .. } => Err(LoweringError::Unsupported(
                 "Unit graph state loan chain requires plain return cleanup",
@@ -777,6 +761,23 @@ impl ChainExit<'_> {
             Forwarding::IntoMember(_) => {}
         }
         self.insert(discards)
+    }
+
+    fn insert_actions(
+        &self,
+        actions: &mut Vec<TerminalAffineCleanupAction>,
+    ) -> Result<(), LoweringError> {
+        let mut places = actions
+            .iter()
+            .map(TerminalAffineCleanupAction::place)
+            .collect::<Vec<_>>();
+        self.insert(&mut places)?;
+        let at = places
+            .iter()
+            .position(|place| *place == self.storage)
+            .expect("inserted loan storage");
+        actions.insert(at, TerminalAffineCleanupAction::DiscardRoot(self.storage));
+        Ok(())
     }
 
     fn insert(&self, discards: &mut Vec<PlaceId>) -> Result<(), LoweringError> {

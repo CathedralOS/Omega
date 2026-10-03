@@ -189,7 +189,7 @@ fn projected_operand_transport_is_independent_of_result_and_owned_sibling() {
         source: PlaceId::new(20).unwrap(),
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     }];
     *call_result(&mut structural) = AbstractStructuralCallResult::Structural {
         result: array_result(30),

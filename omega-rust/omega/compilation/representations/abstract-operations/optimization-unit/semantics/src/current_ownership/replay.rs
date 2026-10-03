@@ -657,7 +657,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::ReturnStructural {
                     source,
                     returned_claims,
-                    trivial_affine_discards,
+                    cleanup_actions,
                     ..
                 } => {
                     // A returned carrier transfers its loans to the caller's
@@ -710,30 +710,13 @@ pub(super) fn validate_current_ownership_cfg(
                     for claim in returned_claims {
                         frontier.claims.remove(claim);
                     }
-                    if trivial_affine_discards
-                        != &expected_trivial_affine_discards(function, &frontier)
-                    {
-                        return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
-                            machine: function.machine,
-                            block: block_id,
-                        });
-                    }
-                    // The returned carrier's rows already transferred; every
-                    // remaining leaf must end with its owner's discard.
-                    for place in trivial_affine_discards {
-                        super::references::discard_owned(
-                            function,
-                            structural_types,
-                            block_id,
-                            &mut frontier.live_references,
-                            *place,
-                        )?;
-                    }
-                    super::references::validate_normal_return(
+                    validate_scalar_cleanup_actions(
                         function,
+                        functions,
                         structural_types,
                         block_id,
-                        &frontier.live_references,
+                        &frontier,
+                        cleanup_actions,
                     )?;
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(

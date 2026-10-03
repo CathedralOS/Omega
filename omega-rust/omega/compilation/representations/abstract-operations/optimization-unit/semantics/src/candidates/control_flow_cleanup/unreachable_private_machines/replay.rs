@@ -174,6 +174,9 @@ pub(crate) fn validator_machine_references(
             }
             | O::ReturnUnit {
                 cleanup_actions, ..
+            }
+            | O::ReturnStructural {
+                cleanup_actions, ..
             } => {
                 references.extend(cleanup_actions.iter().filter_map(|action| match action {
                     terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {

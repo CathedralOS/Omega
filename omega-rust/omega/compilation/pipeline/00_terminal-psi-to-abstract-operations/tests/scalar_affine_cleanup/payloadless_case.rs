@@ -130,7 +130,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                     edge: edge_id(91),
                     source: operation_place,
                     returned_claims: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {
@@ -233,7 +233,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                 edge: edge_id(93),
                 source: place_id(93),
                 returned_claims: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {

@@ -101,7 +101,7 @@ fn return_array(machine: &mut TerminalMachine, source: PlaceId) {
         edge: edge_id(machine.id.get()),
         source,
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
 }
 

@@ -46,7 +46,10 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     for (position, parameter) in plan.structural_parameters.iter().enumerate() {
         let cleanup = &nominal.cleanups[parameter_count - position - 1];
         if usize::try_from(parameter.position).ok() != Some(position)
-            || usize::try_from(cleanup.source_parameter_index).ok() != Some(position)
+            || cleanup
+                .source_parameter_index()
+                .and_then(|index| usize::try_from(index).ok())
+                != Some(position)
             || parameter.is_self
             || parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()

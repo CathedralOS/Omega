@@ -128,7 +128,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                     edge,
                     source,
                     returned_claims: vec![claim],
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {
@@ -189,7 +189,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             psi_edge,
             source: actual_source,
             returned_claims,
-            trivial_affine_discards,
+            cleanup_actions: trivial_affine_discards,
             ..
         }] if *psi_edge == edge
             && *actual_source == source
@@ -351,11 +351,13 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         });
     if let Terminator::ReturnStructural {
         returned_claims,
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut with_local.machines[0].blocks[0].terminator
     {
-        trivial_affine_discards.push(local.id);
+        trivial_affine_discards.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            local.id,
+        ));
         returned_claims.clear();
     }
     // Target lowering admits only claim-free custody shapes: a Linear owned
@@ -412,15 +414,20 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         ] {
             let mut invalid = lowered.clone();
             let AbstractOperation::ReturnStructural {
-                trivial_affine_discards,
+                cleanup_actions: trivial_affine_discards,
                 ..
             } = &mut invalid.functions[0].operations[1]
             else {
                 unreachable!()
             };
             match mutation {
-                "unknown discard" => trivial_affine_discards[0] = place_id(99),
-                "duplicate discard" => trivial_affine_discards.push(local.id),
+                "unknown discard" => {
+                    trivial_affine_discards[0] =
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place_id(99))
+                }
+                "duplicate discard" => trivial_affine_discards.push(
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(local.id),
+                ),
                 "missing establishment" => {
                     invalid.functions[0].operations.remove(0);
                 }
@@ -461,13 +468,15 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             },
         });
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut wider_cleanup.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    trivial_affine_discards.push(extra);
+    trivial_affine_discards.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        extra,
+    ));
     let semantics = encode_module(&wider_cleanup).expect("wider cleanup return should encode");
     let proof = encode_proof_section(&wider_cleanup, &ProofBundle::default())
         .expect("empty proof should encode for the wider cleanup module");
@@ -488,9 +497,9 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     assert!(matches!(
         function.operations.as_slice(),
         [AbstractOperation::ReturnStructural {
-            trivial_affine_discards,
+            cleanup_actions: trivial_affine_discards,
             ..
-        }] if trivial_affine_discards == &[extra]
+        }] if trivial_affine_discards == &[terminal_psi::TerminalAffineCleanupAction::DiscardRoot(extra)]
     ));
 
     let second_extra = place_id(4);
@@ -516,13 +525,16 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             },
         });
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
+        cleanup_actions: trivial_affine_discards,
         ..
     } = &mut wider_cleanup.machines[0].blocks[0].terminator
     else {
         unreachable!()
     };
-    *trivial_affine_discards = vec![second_extra, extra];
+    *trivial_affine_discards = vec![
+        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(second_extra),
+        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(extra),
+    ];
     let semantics = encode_module(&wider_cleanup).expect("two affine cleanups should encode");
     let proof = encode_proof_section(&wider_cleanup, &ProofBundle::default())
         .expect("empty proof should encode for the two-cleanup module");
@@ -543,8 +555,8 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
     assert!(matches!(
         function.operations.as_slice(),
         [AbstractOperation::ReturnStructural {
-            trivial_affine_discards,
+            cleanup_actions: trivial_affine_discards,
             ..
-        }] if trivial_affine_discards == &[second_extra, extra]
+        }] if trivial_affine_discards == &[terminal_psi::TerminalAffineCleanupAction::DiscardRoot(second_extra), terminal_psi::TerminalAffineCleanupAction::DiscardRoot(extra)]
     ));
 }

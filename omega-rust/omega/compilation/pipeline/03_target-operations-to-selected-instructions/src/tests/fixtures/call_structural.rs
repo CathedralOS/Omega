@@ -54,7 +54,7 @@ pub(in crate::tests) fn fixture(
         source: PlaceId::new(source).unwrap(),
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let call = |identity, source| AbstractOperation::CallStructural {
         psi_operation: OperationId::new(identity).unwrap(),
@@ -252,7 +252,7 @@ pub(in crate::tests) fn reference_fixture(
         source,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {
@@ -449,7 +449,7 @@ pub(in crate::tests) fn sum_reference_fixture(
         source,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {
@@ -793,7 +793,7 @@ pub(in crate::tests) fn mixed_result_fixture(
         source,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {

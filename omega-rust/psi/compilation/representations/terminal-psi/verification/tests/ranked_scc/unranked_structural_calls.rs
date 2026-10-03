@@ -249,7 +249,7 @@ fn call_cycle() -> TerminalModule {
                 edge: id(200, EdgeId::new),
                 source: id(202, PlaceId::new),
                 returned_claims: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         ),
     );

@@ -1654,6 +1654,9 @@ pub(in crate::legalization) fn apply_terminator(
         }
         | AbstractOperation::ReturnUnit {
             cleanup_actions, ..
+        }
+        | AbstractOperation::ReturnStructural {
+            cleanup_actions, ..
         } => {
             for action in cleanup_actions {
                 let place = match action {
@@ -1695,11 +1698,7 @@ pub(in crate::legalization) fn apply_terminator(
                 places.push(place);
             }
         }
-        AbstractOperation::ReturnStructural {
-            trivial_affine_discards,
-            ..
-        }
-        | AbstractOperation::Jump {
+        AbstractOperation::Jump {
             trivial_affine_discards,
             ..
         } => places.extend(trivial_affine_discards.iter().copied()),

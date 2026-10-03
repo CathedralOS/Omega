@@ -656,7 +656,7 @@ pub(super) fn payloadless_case_module() -> TerminalModule {
         edge: edge_id(1),
         source: operation_place,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }
@@ -742,7 +742,7 @@ pub(super) fn payloadless_call_module() -> TerminalModule {
                 edge: edge_id(1),
                 source: place_id(3),
                 returned_claims: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {

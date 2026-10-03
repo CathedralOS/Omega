@@ -25,7 +25,7 @@ fn returning() -> TerminalModule {
         edge: id::<EdgeId>(90),
         source: returned,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }

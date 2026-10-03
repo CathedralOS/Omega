@@ -804,7 +804,10 @@ pub(super) fn emit(
                 edge,
                 source: *source,
                 returned_claims: Vec::new(),
-                trivial_affine_discards,
+                cleanup_actions: trivial_affine_discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             }
         } else {
             Terminator::ReturnUnit {

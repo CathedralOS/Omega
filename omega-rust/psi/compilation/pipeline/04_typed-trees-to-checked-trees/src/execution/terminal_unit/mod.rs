@@ -130,23 +130,24 @@ use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedIntegerBinaryKind,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralCallReturnPlans,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
+    CheckedNormalCleanupAction, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessGuardedCallEvidencePlan,
+    CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarFieldStorePlan,
     CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTraitOperatorScalarReturnMachinePlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
-    CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTraitOperatorScalarReturnMachinePlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage, CheckedUnitScalarResultBindingPlan,
@@ -338,6 +339,13 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut composed_machines,
         call_frames,
     );
+    cleanup::normal_edges::retain_planned(
+        program,
+        facts,
+        &candidates,
+        &mut shapes,
+        &mut composed_machines,
+    );
     // Prefer a complete general state graph when both builders describe the
     // same structural-result body, including a returned parameter or call.
     // Otherwise both catalogs appear to define the same entry and closure
@@ -464,6 +472,11 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                         .flat_map(|state| &state.structural_parameters)
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
+                .chain(plan.states.iter().flat_map(|state| &state.normal_exit_cleanups)
+                    .flat_map(|row| &row.actions).map(|action| match action {
+                        checked_trees::CheckedNormalCleanupAction::Discard(discard) => discard.type_identity.as_str(),
+                        checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => cleanup.type_identity.as_str(),
+                    }))
                 .chain(plan.states.iter().flat_map(|state| {
                     state
                         .operation_dependencies()

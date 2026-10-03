@@ -242,7 +242,7 @@ fn owned_byte_return(predicate: Option<ByteSequencePredicate>) -> TerminalModule
         edge: id(1),
         source: id(3),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }
@@ -359,7 +359,7 @@ fn owned_byte_return_forwards_an_exact_ordinary_call_result() {
         edge: id(2),
         source: id(13),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let mut call = caller.blocks[0].operations[4].clone();
     call.id = id(15);

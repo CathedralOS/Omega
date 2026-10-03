@@ -52,7 +52,7 @@ fn array_call(dimensions: &[u64]) -> TerminalModule {
             edge: edge_id(machine.id.get()),
             source: place_id(if machine.id == machine_id(1) { 2 } else { 4 }),
             returned_claims: vec![],
-            trivial_affine_discards: vec![],
+            cleanup_actions: vec![],
         };
     }
     let caller = &mut module.machines[0];
@@ -421,7 +421,7 @@ fn array_parameters_do_not_admit_block_payload_transport() {
         edge: edge_id(3),
         source: place_id(5),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     callee.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(5),

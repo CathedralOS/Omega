@@ -4,8 +4,8 @@
 //! arithmetic proof: Terminal production must discharge every emitted operation,
 //! including intermediate operations whose results are later erased.
 use super::{
-    BTreeSet, CheckFacts, CheckedIntegerBinaryKind, CheckedScalarBinding, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralScalarReturnCleanupAction, PrimitiveType,
+    BTreeSet, CheckFacts, CheckedIntegerBinaryKind, CheckedNormalCleanupAction,
+    CheckedScalarBinding, CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType,
     SymbolHandle,
 };
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
@@ -16,7 +16,8 @@ pub(super) fn checked_shared_boolean_convergence(
     bindings: &[CheckedScalarBinding],
     return_expression: &CheckedScalarExpression,
     scalar_parameter_count: usize,
-    cleanup_actions: &[CheckedStructuralScalarReturnCleanupAction],
+    cleanup_actions: &[CheckedNormalCleanupAction],
+    structural_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Option<checked_trees::CheckedStructuralBooleanConvergencePlan> {
     let [binding] = bindings else {
         return None;
@@ -56,8 +57,8 @@ pub(super) fn checked_shared_boolean_convergence(
             !cleanup_actions.iter().any(|action| {
                 matches!(
                     action,
-                    CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
-                        if cleanup.source_parameter_index == *position
+                    CheckedNormalCleanupAction::InvokeNominal(cleanup)
+                        if cleanup.source_parameter_index().and_then(|index| structural_parameters.get(index as usize)).is_some_and(|parameter| parameter.position == *position)
                 )
             })
         })

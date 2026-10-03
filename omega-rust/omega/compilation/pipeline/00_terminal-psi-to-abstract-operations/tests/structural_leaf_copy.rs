@@ -174,7 +174,7 @@ fn copy_machine(access: StructuralAccess) -> TerminalMachine {
                 edge: id::<EdgeId>(1),
                 source: id::<PlaceId>(2),
                 returned_claims: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {

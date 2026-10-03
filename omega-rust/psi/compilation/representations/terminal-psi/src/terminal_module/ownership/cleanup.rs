@@ -40,3 +40,14 @@ pub enum TerminalAffineCleanupAction {
     DiscardResidual(StructuralAffineDiscard),
     InvokeNominal(NominalAffineCleanup),
 }
+
+impl TerminalAffineCleanupAction {
+    /// The owned root affected by this ordered cleanup action.
+    pub fn place(&self) -> PlaceId {
+        match self {
+            Self::DiscardRoot(place) => *place,
+            Self::DiscardResidual(discard) => discard.place,
+            Self::InvokeNominal(cleanup) => cleanup.place,
+        }
+    }
+}

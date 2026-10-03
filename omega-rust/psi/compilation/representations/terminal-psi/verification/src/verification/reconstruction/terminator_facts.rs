@@ -251,8 +251,10 @@ pub(super) fn append_terminator(
             exits.push(SharedRoster::whole(axioms))
         }
         Terminator::ReturnStructural {
+            edge,
             source,
             returned_claims,
+            cleanup_actions,
             ..
         } => {
             let result = machine
@@ -276,6 +278,19 @@ pub(super) fn append_terminator(
                     .filter(|reshuffle| returned_claims.contains(&reshuffle.claim))
                     .flat_map(|reshuffle| reshuffle.inferred_propositions()),
             );
+            for (position, action) in cleanup_actions.iter().enumerate() {
+                if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                    append_nominal_cleanup_obligations(
+                        cleanup,
+                        machine.id,
+                        *edge,
+                        position,
+                        machines,
+                        &axioms,
+                        operation_obligations,
+                    );
+                }
+            }
             let exit = SharedRoster::whole(axioms);
             if let Some(guard) = outcome_guard {
                 outcome_exits.entry(guard).or_default().push(exit.clone());

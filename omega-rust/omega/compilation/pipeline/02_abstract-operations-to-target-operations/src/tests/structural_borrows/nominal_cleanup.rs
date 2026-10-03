@@ -85,3 +85,82 @@ fn named_nominal_cleanup_borrows_the_owned_parameter_on_its_exact_edge() {
         // action/order refusals belong to the independent legalization replay.
     }
 }
+
+#[test]
+fn structural_return_preserves_selected_nominal_cleanup_of_the_unreturned_owner() {
+    let source = source_plan(
+        "data Token { ready: bool; }
+         machine Token::drop(subject: &mut Token) { subject.ready = false; }
+         machine choose(first: Token, second: Token) -> Token { first }
+         data Main {}
+         machine Main::run(first: Token, second: Token) -> Token { choose(first, second) }",
+    );
+    let (caller, edge, returned, cleanup) = source
+        .functions
+        .iter()
+        .find_map(|function| {
+            function.operations.iter().find_map(|operation| {
+                let AbstractOperation::ReturnStructural {
+                    psi_edge,
+                    source,
+                    cleanup_actions,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                let [TerminalAffineCleanupAction::InvokeNominal(cleanup)] =
+                    cleanup_actions.as_slice()
+                else {
+                    return None;
+                };
+                Some((function.machine, *psi_edge, *source, cleanup))
+            })
+        })
+        .expect("structural return with surviving owner cleanup");
+    assert_ne!(returned, cleanup.place);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .unwrap();
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let function = target
+            .functions
+            .iter()
+            .find(|function| function.machine == caller)
+            .unwrap();
+        let calls = function
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|row| {
+                let TargetUnitOperation::CleanupCall {
+                    owner,
+                    callee,
+                    arguments,
+                    ..
+                } = row
+                else {
+                    return None;
+                };
+                Some((owner, callee, arguments))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            *calls[0].0,
+            CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal: 0
+            }
+        );
+        assert_eq!(*calls[0].1, cleanup.cleanup_machine);
+        assert_eq!(calls[0].2[0].place, cleanup.place);
+    }
+}

@@ -94,7 +94,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         source: call_result,
         returned_claims: vec![claim],
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let jump = |edge| AbstractOperation::Jump {
         structural_bindings: Vec::new(),
@@ -228,7 +228,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                     source: callee_input,
                     returned_claims: vec![claim],
                     trivial_affine_locals: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 }],
             },
         ],

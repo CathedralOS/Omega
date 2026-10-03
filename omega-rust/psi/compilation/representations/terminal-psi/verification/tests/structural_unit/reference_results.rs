@@ -147,7 +147,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         edge: edge_id(2),
         source: place_id(12),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     let mut writer = module.machines[0].clone();
@@ -681,7 +681,7 @@ fn branch_selected_record_return() -> TerminalModule {
         edge: edge_id(4),
         source: place_id(13),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     relay.structural_places.push(reference_place(13, 21));
     let successor = |edge, target| SuccessorEdge {
@@ -961,7 +961,7 @@ fn forwarded_selected_record_return() -> TerminalModule {
         edge: edge_id(10),
         source: place_id(32),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let OperationKind::CallStructuralWithScalarArguments { callee, .. } =
         &mut module.machines[0].blocks[0].operations[0].kind
@@ -1270,7 +1270,7 @@ fn returned_record_projected_call_does_not_admit_escaping_origins() {
         edge: edge_id(3),
         source: place_id(33),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let caller = &mut module.machines[0];
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -2687,7 +2687,7 @@ pub(super) fn owned_reference_record_module(two_leaves: bool, consumes: bool) ->
         edge: edge_id(5),
         source: place_id(40),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let caller = &mut module.machines[0];
     let mut call = caller.blocks[0].operations[0].clone();

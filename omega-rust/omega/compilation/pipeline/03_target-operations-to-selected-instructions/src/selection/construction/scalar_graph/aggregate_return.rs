@@ -13,6 +13,10 @@ pub(super) fn build(
     block: &legalized_operations::LegalizedScalarBlock,
     returned: &legalized_operations::LegalizedScalarReturn,
     builder: &mut Builder<'_>,
+    cleanup_calls: &[(
+        target_operations::CallSiteOwner,
+        legalized_operations::LegalizedScalarCall,
+    )],
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let (place, placement, slot) = if let Some(descriptor) =
@@ -105,6 +109,8 @@ pub(super) fn build(
             pointer.ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             builder,
+            cleanup_calls,
+            environment,
         )?;
         return Ok(SelectedTerminator::Return {
             instruction: builder
@@ -187,6 +193,28 @@ pub(super) fn build(
                 Default::default(),
             )?;
             registers.push(output);
+        }
+    }
+    for (owner, call) in cleanup_calls {
+        super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+    }
+
+    if !cleanup_calls.is_empty() {
+        for (index, register) in registers.iter_mut().enumerate() {
+            let ValueLocation::Register {
+                value_byte_offset, ..
+            } = placement.locations[index]
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            let output = super::structural::transport_register(builder, place, value_byte_offset)?;
+            builder.emit(
+                SelectedInstructionKind::CopyI64,
+                builder.constraints.keys.copy_i64,
+                &[*register, output],
+                Default::default(),
+            )?;
+            *register = output;
         }
     }
     builder.emit(

@@ -211,7 +211,15 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
             }
             6 => plan
                 .cleanup_actions
-                .push(checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0)),
+                .push(checked_trees::CheckedNormalCleanupAction::Discard(
+                    checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index: 0,
+                        },
+                        path: Vec::new(),
+                        type_identity: plan.structural_parameters[0].type_identity.clone(),
+                    },
+                )),
             7 => {
                 let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     value,

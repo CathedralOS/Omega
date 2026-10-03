@@ -848,7 +848,7 @@ fn place_access_summaries_resolve_aliases_external_roots_and_result_sources() {
         source: local_place,
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     // An unreachable block's accesses never pollute the summary.
     callee.blocks.push(OptimizationBlock {

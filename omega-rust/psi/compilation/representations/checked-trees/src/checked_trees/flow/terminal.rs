@@ -36,6 +36,7 @@ mod unit_plans;
 
 pub use affine_cleanup_plans::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
+    CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
     CheckedStructuralCallCustodyPlan, CheckedStructuralReturnedClaimTransferPlan,
     CheckedUnitClaimTransferPlan, CheckedUnitNominalAffineCallerRequirementPlan,
@@ -74,9 +75,8 @@ pub use scalar_return_plans::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
     CheckedStructuralBooleanConvergencePlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
-    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
-    CheckedTraitOperatorScalarReturnMachinePlan,
+    CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralScalarReturnPlans, CheckedTraitOperatorScalarReturnMachinePlan,
 };
 pub use structural_argument_plans::{
     CheckedCallScalarArgument, CheckedUnitCallCoordinate, CheckedUnitEntryClaimPlan,

@@ -1922,7 +1922,7 @@ fn home_fixture() -> (AbstractOperationPlan, Execution) {
             source: produced,
             returned_claims: Vec::new(),
             trivial_affine_locals: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     ];
     callee.result = AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {

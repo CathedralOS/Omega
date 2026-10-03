@@ -137,6 +137,7 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
     pub terminator: CheckedComposedUnitControlTerminatorPlan,
+    pub normal_exit_cleanups: Vec<super::CheckedNormalExitCleanupPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

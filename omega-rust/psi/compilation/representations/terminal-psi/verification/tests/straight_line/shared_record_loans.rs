@@ -287,12 +287,18 @@ fn shared_fixed_byte_loan_preserves_backing_extent() {
     let module = fixed_byte_loan_module();
     assert_eq!(
         terminal_semantics::borrowed_referent_presentation(
-            module.structural_types.iter(), id(PAIR_TYPE), id(TWIN_TYPE)),
+            module.structural_types.iter(),
+            id(PAIR_TYPE),
+            id(TWIN_TYPE)
+        ),
         Some(terminal_semantics::BorrowedReferentPresentation::AddressOfBacking { byte_count: 48 }),
     );
     assert_eq!(
         terminal_semantics::borrowed_referent_presentation(
-            module.structural_types.iter(), id(TWIN_TYPE), id(TWIN_TYPE)),
+            module.structural_types.iter(),
+            id(TWIN_TYPE),
+            id(TWIN_TYPE)
+        ),
         Some(terminal_semantics::BorrowedReferentPresentation::Unchanged),
     );
     validate_module(&module).expect("the exact whole fixed array backs its shared view");
@@ -879,7 +885,7 @@ fn joined_shared_view_stays_read_only() {
         edge: id(903),
         source: id(VIEW),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     assert!(
         validate_module(&module).is_err(),

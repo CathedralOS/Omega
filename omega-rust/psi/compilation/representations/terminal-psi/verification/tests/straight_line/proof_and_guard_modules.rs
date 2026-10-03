@@ -285,7 +285,7 @@ pub(super) fn payloadless_guard_module()
         edge: EdgeId::new(920).expect("return edge"),
         source: operation_place,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     (module, success, failure, result_place)
 }
@@ -410,7 +410,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
             edge: EdgeId::new(edge_raw).unwrap(),
             source: place,
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     };
     machine.entry = BlockId::new(930).expect("entry block");

@@ -282,6 +282,19 @@ pub(super) fn retain_available(
             continue;
         }
         for state in &plan.states {
+            for action in state
+                .normal_exit_cleanups
+                .iter()
+                .flat_map(|row| &row.actions)
+            {
+                if let checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) = action {
+                    closure.require_entry(
+                        caller_index,
+                        cleanup.cleanup_machine,
+                        cleanup.cleanup_state,
+                    );
+                }
+            }
             for operation in state
                 .operation_dependencies()
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)

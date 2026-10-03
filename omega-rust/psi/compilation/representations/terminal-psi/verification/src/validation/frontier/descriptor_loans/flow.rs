@@ -86,11 +86,7 @@ pub(super) fn reconstruct(
                     }
                 }
             }
-            Terminator::ReturnStructural {
-                trivial_affine_discards,
-                ..
-            }
-            | Terminator::ReturnUnit {
+            Terminator::ReturnUnit {
                 trivial_affine_discards,
                 ..
             } => {
@@ -103,6 +99,9 @@ pub(super) fn reconstruct(
                 }
             }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnStructural {
                 cleanup_actions, ..
             } => {
                 for action in cleanup_actions {

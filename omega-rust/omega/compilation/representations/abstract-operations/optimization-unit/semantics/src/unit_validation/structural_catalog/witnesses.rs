@@ -76,9 +76,9 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
         .filter_map(|node| match &node.operation {
             O::ReturnStructural {
                 trivial_affine_locals,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } => Some((trivial_affine_locals, trivial_affine_discards)),
+            } => Some((trivial_affine_locals, cleanup_actions)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -132,7 +132,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
             let O::ReturnStructural {
                 source,
                 trivial_affine_locals,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } = &node.operation
             else {
@@ -226,7 +226,12 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                         .map(|parameter| parameter.place),
                 )
                 .collect::<Vec<_>>();
-            if *trivial_affine_discards != expected_discards {
+            if *cleanup_actions
+                != expected_discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect::<Vec<_>>()
+            {
                 return Err(
                     OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch {
                         machine: function.machine,

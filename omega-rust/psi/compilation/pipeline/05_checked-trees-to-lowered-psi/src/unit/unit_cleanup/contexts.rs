@@ -93,11 +93,25 @@ pub(super) fn validate_requirements(
         }
     }
     for cleanup in &nominal.cleanups {
+        let parameter_index =
+            cleanup
+                .source_parameter_index()
+                .ok_or(LoweringError::Unsupported(
+                    "nominal parameter cleanup acquired another source",
+                ))?;
+        let source_position = nominal
+            .machine
+            .structural_parameters
+            .get(parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup parameter is absent",
+            ))?
+            .position;
         for (index, requirement) in cleanup.requirements.iter().enumerate() {
-            field(cleanup.source_parameter_index, &requirement.field_identity)?;
+            field(source_position, &requirement.field_identity)?;
             if cleanup.requirements[..index].contains(requirement)
                 || !nominal.caller_requirements.iter().any(|caller| {
-                    caller.source_parameter_index == cleanup.source_parameter_index
+                    caller.source_parameter_index == source_position
                         && caller.field_identity == requirement.field_identity
                         && caller.expected == requirement.expected
                 })

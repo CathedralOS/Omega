@@ -3,9 +3,9 @@
 
 use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::{
-    CheckedBoundaryMachinePlan, CheckedScalarBinding, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralDomainPlan,
+    CheckedBoundaryMachinePlan, CheckedNormalCleanupAction, CheckedScalarBinding,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
@@ -130,7 +130,7 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// Complete post-result cleanup stream in reverse authored parameter
     /// order. Keeping trivial and nominal actions in one list prevents either
     /// representation or a later producer from losing their relative order.
-    pub cleanup_actions: Vec<CheckedStructuralScalarReturnCleanupAction>,
+    pub cleanup_actions: Vec<CheckedNormalCleanupAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,12 +175,6 @@ pub enum CheckedStructuralScalarIntegerBoundKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedStructuralBooleanConvergencePlan {
     pub binding_ordinal: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedStructuralScalarReturnCleanupAction {
-    DiscardRoot(u32),
-    InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

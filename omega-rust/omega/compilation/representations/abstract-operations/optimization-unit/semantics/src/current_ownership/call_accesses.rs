@@ -118,6 +118,9 @@ impl CallAccesses {
             }
             | O::ReturnUnit {
                 cleanup_actions, ..
+            }
+            | O::ReturnStructural {
+                cleanup_actions, ..
             } = &node.operation
                 && cleanup_actions.iter().any(|action| {
                     matches!(

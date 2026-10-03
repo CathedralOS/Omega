@@ -52,7 +52,7 @@ pub(crate) fn exact_plain_affine_structural_call(
         source,
         returned_claims,
         trivial_affine_locals,
-        trivial_affine_discards,
+        cleanup_actions,
         ..
     } = &node.operation
     else {
@@ -64,7 +64,7 @@ pub(crate) fn exact_plain_affine_structural_call(
         && *source == parameter.place
         && returned_claims.is_empty()
         && trivial_affine_locals.is_empty()
-        && trivial_affine_discards.is_empty()
+        && cleanup_actions.is_empty()
         && callee.parameters.is_empty()
         && arguments.is_empty()
         && parameter.position == 0

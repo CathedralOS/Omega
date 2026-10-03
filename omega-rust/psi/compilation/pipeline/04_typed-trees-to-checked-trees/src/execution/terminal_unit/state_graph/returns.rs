@@ -14,7 +14,6 @@ use super::{
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, parameter_qualifications, projected_parameter_qualifications,
-    type_graph_requires_nominal_drop,
 };
 
 use crate::execution::terminal_unit::is_reference;
@@ -88,7 +87,6 @@ pub(in crate::execution::terminal_unit) fn signature(
         && validation::bounded_byte_buffer_capacity(program, reference).is_some()
         && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     if (is_reference(program, reference) && !view_result)
-        || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
             && !owned_bytes
             && ((!view_result && !qualifications.is_empty())

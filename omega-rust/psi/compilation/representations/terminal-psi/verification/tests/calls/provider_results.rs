@@ -96,7 +96,7 @@ fn provider_module() -> TerminalModule {
         edge: edge_id(2),
         source: PlaceId::new(1).unwrap(),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }

@@ -117,7 +117,7 @@ fn declare_result(machine: &mut TerminalMachine, source: PlaceId) {
         edge: EdgeId::new(1).unwrap(),
         source,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 }
 fn result() -> OperationResult {
@@ -552,13 +552,14 @@ fn local_shared_slot_case_return() -> TerminalModule {
         ),
     );
     let Terminator::ReturnStructural {
-        trivial_affine_discards,
-        ..
+        cleanup_actions, ..
     } = &mut callee.blocks[0].terminator
     else {
         unreachable!()
     };
-    trivial_affine_discards.push(place(1));
+    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        place(1),
+    ));
     module
 }
 

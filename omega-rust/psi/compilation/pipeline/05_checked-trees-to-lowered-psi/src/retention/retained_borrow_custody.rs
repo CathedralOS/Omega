@@ -626,7 +626,9 @@ mod tests {
                         edge: EdgeId::new(1).unwrap(),
                         source: restored_place,
                         returned_claims: vec![loan],
-                        trivial_affine_discards: vec![buffer_place],
+                        cleanup_actions: vec![
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(buffer_place),
+                        ],
                     },
                 }],
                 contract: MachineContract {

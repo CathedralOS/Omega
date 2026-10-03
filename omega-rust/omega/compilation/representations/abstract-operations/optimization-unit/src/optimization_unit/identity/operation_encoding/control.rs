@@ -82,7 +82,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             returned_claims,
             trivial_affine_locals,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
             bytes.u8(46);
             bytes.id(*psi_edge);
@@ -94,7 +94,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 encode_place_declaration(bytes, *place);
                 encode_structural_type(bytes, structural_type);
             }
-            encode_ids(bytes, trivial_affine_discards);
+            bytes.slice(cleanup_actions, encode_cleanup);
         }
         O::Crash {
             psi_edge,

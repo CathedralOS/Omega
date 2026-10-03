@@ -239,7 +239,10 @@ fn empty_local_cleanup_replays_on_unit_and_structural_returns() {
                 source: parameter.place,
                 returned_claims: Vec::new(),
                 trivial_affine_locals: Vec::new(),
-                trivial_affine_discards: vec![local().id],
+                cleanup_actions: vec![local().id]
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             };
             function.structural_parameters.push(parameter);
         }
@@ -256,7 +259,7 @@ fn empty_local_cleanup_replays_on_unit_and_structural_returns() {
                 cleanup_actions, ..
             } => cleanup_actions.clear(),
             AbstractOperation::ReturnStructural {
-                trivial_affine_discards,
+                cleanup_actions: trivial_affine_discards,
                 ..
             } => trivial_affine_discards.clear(),
             _ => unreachable!(),

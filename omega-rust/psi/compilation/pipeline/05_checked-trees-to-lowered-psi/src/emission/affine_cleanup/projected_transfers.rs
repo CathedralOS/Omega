@@ -188,22 +188,7 @@ pub(super) fn complete(
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                let mut actions = Vec::new();
-                for action in cleanup_actions.iter() {
-                    match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place)
-                            if frontier.iter().any(|root| root.place == *place) =>
-                        {
-                            actions.extend(
-                                take_residuals(&mut frontier, *place, &roots, types)?
-                                    .into_iter()
-                                    .map(TerminalAffineCleanupAction::DiscardResidual),
-                            );
-                        }
-                        _ => actions.push(action.clone()),
-                    }
-                }
-                *cleanup_actions = actions;
+                complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
             Terminator::ReturnUnit {
                 edge,
@@ -241,13 +226,13 @@ pub(super) fn complete(
             }
             Terminator::ReturnStructural {
                 source,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if frontier.iter().any(|root| root.place == *source) {
                     return unsupported("structural return consumes a partially transferred root");
                 }
-                refuse_unrepresentable_discard(&frontier, trivial_affine_discards)?;
+                complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
             Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
                 if cleanups
@@ -492,3 +477,35 @@ fn refuse_unrepresentable_discard(
 
 #[cfg(test)]
 mod tests;
+
+/// Whole and scalar results share the same ordered residual disposal. A
+/// nominal owner cannot be partially moved before its whole-value hook.
+fn complete_actions(
+    frontier: &mut Frontier,
+    cleanup_actions: &mut Vec<TerminalAffineCleanupAction>,
+    roots: &[(PlaceId, StructuralTypeId)],
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    let mut actions = Vec::new();
+    for action in cleanup_actions.iter() {
+        match action {
+            TerminalAffineCleanupAction::DiscardRoot(place)
+                if frontier.iter().any(|root| root.place == *place) =>
+            {
+                actions.extend(
+                    take_residuals(frontier, *place, roots, types)?
+                        .into_iter()
+                        .map(TerminalAffineCleanupAction::DiscardResidual),
+                );
+            }
+            TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                if frontier.iter().any(|root| root.place == cleanup.place) =>
+            {
+                return unsupported("nominal cleanup consumes a partially transferred root");
+            }
+            _ => actions.push(action.clone()),
+        }
+    }
+    *cleanup_actions = actions;
+    Ok(())
+}

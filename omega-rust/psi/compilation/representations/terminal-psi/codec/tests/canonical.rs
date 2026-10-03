@@ -861,7 +861,7 @@ fn structural_call_fixture() -> TerminalModule {
         edge: edge_id(100),
         source: place_id(11),
         returned_claims: vec![claim_id(1)],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     let callee = &mut module.machines[1];
@@ -882,7 +882,7 @@ fn structural_call_fixture() -> TerminalModule {
         edge: edge_id(101),
         source: place_id(20),
         returned_claims: vec![claim_id(1)],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     module

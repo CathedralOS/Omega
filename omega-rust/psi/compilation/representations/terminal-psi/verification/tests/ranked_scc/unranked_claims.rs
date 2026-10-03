@@ -460,7 +460,7 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
             edge: id(4, EdgeId::new),
             source: id(1, PlaceId::new),
             returned_claims: vec![id(1, ClaimId::new)],
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     });
     assert_eq!(

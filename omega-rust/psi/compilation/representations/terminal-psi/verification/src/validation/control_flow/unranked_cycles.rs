@@ -414,11 +414,11 @@ fn terminator_leaves_custody(
         Terminator::ReturnStructural {
             source,
             returned_claims,
-            trivial_affine_discards,
+            cleanup_actions,
             ..
         } => {
             clears(source)
-                && trivial_affine_discards.iter().all(clears)
+                && cleanup_actions.iter().all(|action| clears(&action.place()))
                 && returned_claims
                     .iter()
                     .all(|claim| !identities.contains(claim))
@@ -570,6 +570,9 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
             .collect(),
         Terminator::Return {
             cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
+            cleanup_actions, ..
         } => cleanup_actions
             .iter()
             .filter_map(|action| match action {
@@ -579,10 +582,6 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
             })
             .collect(),
         Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        }
-        | Terminator::ReturnStructural {
             trivial_affine_discards,
             ..
         } => trivial_affine_discards.clone(),

@@ -539,7 +539,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         edge: EdgeId::new(2).unwrap(),
         source: place(4),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let callee_parameters = callee.structural_parameters.clone();
     std::sync::Arc::get_mut(&mut execution.program)

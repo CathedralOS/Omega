@@ -230,7 +230,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                     )?),
                     source: structural_parameter_place,
                     returned_claims: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {

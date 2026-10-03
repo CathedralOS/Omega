@@ -84,8 +84,8 @@ pub enum Terminator {
         source: PlaceId,
         /// Strictly ordered exact live claims transferred with `source`.
         returned_claims: Vec<ClaimId>,
-        /// Exact no-code affine discards committed after result materialization.
-        trivial_affine_discards: Vec<PlaceId>,
+        /// Exact ordered actions committed after result and claim materialization.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Leave checked execution without cleanup or a successor.
     ///

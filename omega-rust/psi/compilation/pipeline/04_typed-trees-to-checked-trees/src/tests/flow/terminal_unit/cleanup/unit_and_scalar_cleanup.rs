@@ -158,10 +158,9 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
         plan.cleanup_actions
             .iter()
             .map(|action| match action {
-                checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
-                    cleanup,
-                ) => cleanup.source_parameter_index,
-                checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) =>
+                    cleanup.source_parameter_index().unwrap(),
+                checked_trees::CheckedNormalCleanupAction::Discard(_) => {
                     panic!("the all-nominal case must not publish a trivial discard")
                 }
             })
@@ -171,7 +170,7 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
     );
     assert!(plan.cleanup_actions.iter().all(|action| matches!(
         action,
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+        checked_trees::CheckedNormalCleanupAction::InvokeNominal(
             cleanup
         ) if cleanup.requirements.is_empty()
     )));
@@ -179,9 +178,7 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
         .cleanup_actions
         .iter()
         .map(|action| {
-            let checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) =
-                action
-            else {
+            let checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) = action else {
                 unreachable!("all-nominal action list")
             };
             checked
@@ -225,7 +222,7 @@ fn nominal_cleanup_static_helper_does_not_inherit_namespace_fields() {
         .expect("namespace fields do not become cleanup helper inputs");
     assert!(matches!(
         plan.cleanup_actions.as_slice(),
-        [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
+        [checked_trees::CheckedNormalCleanupAction::InvokeNominal(_)]
     ));
 }
 
@@ -298,13 +295,18 @@ fn nominal_scalar_cleanup_retains_finite_branch_free_primitive_locals() {
         vec![(0, "ready", true), (1, "observed", true)],
     );
     let [
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
-        checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup),
+        checked_trees::CheckedNormalCleanupAction::Discard(discard),
+        checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup),
     ] = plan.cleanup_actions.as_slice()
     else {
         panic!("mixed cleanup remains reverse-authored after the scalar binding prefix")
     };
-    assert_eq!(cleanup.source_parameter_index, 0);
+    assert_eq!(
+        discard.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+    );
+    assert!(discard.path.is_empty());
+    assert_eq!(cleanup.source_parameter_index().unwrap(), 0);
     assert_eq!(
         cleanup
             .requirements
@@ -352,9 +354,9 @@ fn nominal_scalar_cleanup_accepts_one_final_short_circuit_boolean_decision() {
         );
         assert!(matches!(
             plan.cleanup_actions.as_slice(),
-            [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+            [checked_trees::CheckedNormalCleanupAction::InvokeNominal(
                 cleanup
-            )] if cleanup.source_parameter_index == 0
+            )] if cleanup.source_parameter_index().unwrap() == 0
         ));
         let returned = checked
             .facts

@@ -33,6 +33,21 @@ pub(super) fn build(
             {
                 return Err(invalid());
             }
+            if matches!(
+                returned.value,
+                LegalizedScalarReturnValue::Structural { .. }
+                    | LegalizedScalarReturnValue::StructuralParameter { .. }
+                    | LegalizedScalarReturnValue::SharedDescriptor { .. }
+            ) {
+                return super::aggregate_return::build(
+                    source,
+                    block,
+                    returned,
+                    builder,
+                    calls,
+                    environment,
+                );
+            }
             for (owner, call) in calls {
                 super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
             }
@@ -77,6 +92,7 @@ pub(super) fn build(
                         block,
                         returned,
                         builder,
+                        &[],
                         environment,
                     );
                 }

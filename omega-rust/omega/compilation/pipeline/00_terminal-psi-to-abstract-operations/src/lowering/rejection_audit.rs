@@ -291,7 +291,7 @@ fn structural_return_on_unit_machine_rejects() {
             edge: EdgeId::new(1).unwrap(),
             source: PlaceId::new(1).unwrap(),
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     );
     let module = module(vec![machine(1, TerminalMachineResult::Unit, vec![entry])]);

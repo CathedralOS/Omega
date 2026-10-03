@@ -126,24 +126,85 @@ fn contextual_condition_composes_negated_actuals_in_generic_forwarding() {
 
 #[test]
 fn contextual_condition_retains_disjunctive_selector_as_a_whole_fact() {
-    checked_program("data Token { ready: bool; }
+    checked_program(
+        "data Token { ready: bool; }
         machine Token::drop(owner: &mut Token) requires owner.ready {}
         machine choose<T>(left: bool, right: bool, first: T, second: T) -> T {
             transition left || right { true -> first false -> second }
         }
         machine run() -> Token {
             choose(false, true, Token { ready: false }, Token { ready: true })
-        }");
+        }",
+    );
 }
 
 #[test]
 fn contextual_condition_retains_integer_comparison_as_a_whole_fact() {
-    checked_program("data Token { ready: bool; }
+    checked_program(
+        "data Token { ready: bool; }
         machine Token::drop(owner: &mut Token) requires owner.ready {}
         machine choose<T>(count: u8, first: T, second: T) -> T {
             transition count > 0 { true -> first false -> second }
         }
         machine run() -> Token {
             choose(1, Token { ready: false }, Token { ready: true })
-        }");
+        }",
+    );
+}
+
+#[test]
+fn contextual_condition_retains_exact_normal_edge_cleanup_actions() {
+    let checked = checked_program(&program(true, false, true, true));
+    let plans = &checked.facts.flow.terminal_unit_effects.composed_machines;
+    let choose = plans
+        .iter()
+        .find(|plan| {
+            checked.typed.machines().iter().any(|machine| {
+                machine.symbol == plan.machine && machine.name.as_str().contains("choose")
+            }) && plan
+                .states
+                .iter()
+                .any(|state| state.structural_parameters.len() == 2)
+        })
+        .expect("the general state graph must retain the specialized structural return");
+    let rows = choose
+        .states
+        .iter()
+        .flat_map(|state| &state.normal_exit_cleanups)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    let mut sources = rows
+        .iter()
+        .map(|row| {
+            let [checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup)] =
+                row.actions.as_slice()
+            else {
+                panic!("each outgoing arm must retain exactly the unreturned owner's hook")
+            };
+            assert_eq!(cleanup.requirements.len(), 1);
+            cleanup
+                .source_parameter_index()
+                .expect("dense structural owner")
+        })
+        .collect::<Vec<_>>();
+    sources.sort_unstable();
+    assert_eq!(sources, vec![0, 1]);
+    assert_ne!(rows[0].exit, rows[1].exit);
+    let run = plans
+        .iter()
+        .find(|plan| {
+            checked
+                .typed
+                .machines()
+                .iter()
+                .any(|machine| machine.symbol == plan.machine && machine.name.as_str() == "run")
+        })
+        .expect("forwarding caller remains in the shared closure");
+    assert!(
+        run.states
+            .iter()
+            .flat_map(|state| &state.normal_exit_cleanups)
+            .any(|row| row.actions.is_empty()),
+        "returned owners leave an explicitly empty cleanup edge"
+    );
 }

@@ -2750,7 +2750,9 @@ pub(super) fn block_crash_visit_units(
                 checked_optional_add(Some(prefix), schedule.terminator_units(&block.terminator))?,
             );
         }
-        Terminator::Return { .. } | Terminator::ReturnUnitNominalAffine { .. } => {
+        Terminator::Return { .. }
+        | Terminator::ReturnStructural { .. }
+        | Terminator::ReturnUnitNominalAffine { .. } => {
             // The committed edge suspends into each nominal cleanup machine
             // in order; a crash inside one is a machine crash after the
             // completed prefix — the same crash column
@@ -2998,12 +3000,14 @@ pub(super) fn terminator_edge_targets(terminator: &Terminator) -> Vec<(EdgeId, B
 }
 
 /// The nominal cleanup machines a terminator's edge suspends into, in the
-/// terminator's own execution order. Only `Return` cleanup actions and
-/// `ReturnUnitNominalAffine` entries invoke machines; every other edge commits
-/// no in-module cleanup work.
+/// terminator's own execution order. Scalar and structural action returns,
+/// and `ReturnUnitNominalAffine`, all use the same invocation composition.
 pub(super) fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
     match terminator {
         Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
             cleanup_actions, ..
         } => cleanup_actions
             .iter()
@@ -3091,9 +3095,7 @@ fn outcome_bounds_from(
     let continued = match (&block.terminator, normal_units) {
         (_, None) => OutcomeBounds::default(),
         (
-            Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnStructural { .. },
+            Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. },
             Some(prefix),
         ) => OutcomeBounds {
             returned: Some(
@@ -3105,6 +3107,9 @@ fn outcome_bounds_from(
         },
         (
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnStructural {
                 cleanup_actions, ..
             },
             Some(prefix),

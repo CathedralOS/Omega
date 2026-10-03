@@ -183,3 +183,50 @@ fn abrupt_result_evaluation_does_not_invoke_the_checked_normal_cleanup() {
         "abrupt evaluation leaves the owned value untouched"
     );
 }
+
+#[test]
+fn composed_structural_return_cleans_only_the_selected_sibling() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready { owner.ready = false; }
+        machine choose(flag: bool, first: Token, second: Token) -> Token {
+            transition flag { true -> first false -> second }
+        }
+    "#,
+    );
+    for flag in [true, false] {
+        let mut evaluator = Evaluator::new_checked(&checked, &[]);
+        let machine = evaluator.find_machine_by_name("choose").unwrap();
+        let state = evaluator.machine_entry_state(machine).unwrap();
+        let first = ready_owner(
+            &mut evaluator,
+            checked.typed.state_parameters(state)[1].type_reference,
+        );
+        let second = ready_owner(
+            &mut evaluator,
+            checked.typed.state_parameters(state)[2].type_reference,
+        );
+        let selector = evaluator
+            .allocate_cell(Value::Bool(flag))
+            .unwrap_or_else(|_| panic!("selector"));
+        let instance = evaluator
+            .allocate_cell(Value::Unit)
+            .unwrap_or_else(|_| panic!("instance"));
+        let result = evaluator
+            .run_state_collect(
+                machine,
+                state,
+                instance,
+                vec![
+                    EvaluatedArgument::plain(selector),
+                    EvaluatedArgument::plain(first.clone()),
+                    EvaluatedArgument::plain(second.clone()),
+                ],
+            )
+            .unwrap_or_else(|error| panic!("composed normal cleanup: {error:?}"));
+        assert!(matches!(result, Some(Value::Struct { .. })));
+        assert_eq!(is_ready(&first), flag);
+        assert_eq!(is_ready(&second), !flag);
+    }
+}

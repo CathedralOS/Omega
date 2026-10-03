@@ -13,6 +13,10 @@ pub(super) fn validate(
     block: &legalized_operations::LegalizedScalarBlock,
     returned: &legalized_operations::LegalizedScalarReturn,
     replay: &mut Replay<'_>,
+    cleanup_calls: &[(
+        target_operations::CallSiteOwner,
+        legalized_operations::LegalizedScalarCall,
+    )],
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
@@ -106,6 +110,8 @@ pub(super) fn validate(
             pointer.ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             replay,
+            cleanup_calls,
+            environment,
         )?;
         return Ok(());
     }
@@ -181,6 +187,28 @@ pub(super) fn validate(
                 &Default::default(),
             )?;
             registers.push(output);
+        }
+    }
+    for (owner, call) in cleanup_calls {
+        super::cleanup_call::validate(*owner, call, returned.effect, replay, environment)?;
+    }
+
+    if !cleanup_calls.is_empty() {
+        for (index, register) in registers.iter_mut().enumerate() {
+            let ValueLocation::Register {
+                value_byte_offset, ..
+            } = placement.locations[index]
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            let output = super::structural::result(replay, place, value_byte_offset)?;
+            replay.check_instruction(
+                SelectedInstructionKind::CopyI64,
+                replay.constraints.keys.copy_i64,
+                &[*register, output],
+                &Default::default(),
+            )?;
+            *register = output;
         }
     }
     let provenance = replay.settle_provenance(SelectedInstructionProvenance {

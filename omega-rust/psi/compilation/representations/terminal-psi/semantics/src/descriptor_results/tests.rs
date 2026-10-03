@@ -1519,7 +1519,7 @@ fn returned_case_module() -> TerminalModule {
         edge: EdgeId::new(1).unwrap(),
         source: place(3),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module.machines.push(callee);
     module

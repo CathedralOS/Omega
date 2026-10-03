@@ -23,6 +23,7 @@ impl StateGraphEmission<'_, '_> {
         payload_parameters: &[ValueDeclaration],
         predecessor_discards: &[semantic_vocabulary::PlaceId],
         return_arm: &checked_trees::CheckedConditionalReturnArm,
+        is_continuation: bool,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -76,6 +77,16 @@ impl StateGraphEmission<'_, '_> {
                     checked,
                     plan,
                     state,
+                    super::super::cleanup::coordinate(
+                        checked,
+                        state,
+                        return_arm
+                            .statement_ordinal()
+                            .ok_or(LoweringError::Unsupported(
+                                "return arm lost its source coordinate",
+                            ))? as usize,
+                        is_continuation,
+                    )?,
                     operation,
                     self.catalogs,
                     state_parameters,
@@ -241,6 +252,9 @@ impl StateGraphEmission<'_, '_> {
         match &mut terminator {
             Terminator::Return {
                 cleanup_actions, ..
+            }
+            | Terminator::ReturnStructural {
+                cleanup_actions, ..
             } => {
                 cleanup_actions.retain(|action| {
                     !matches!(
@@ -251,10 +265,6 @@ impl StateGraphEmission<'_, '_> {
                 });
             }
             Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            }
-            | Terminator::ReturnStructural {
                 trivial_affine_discards,
                 ..
             } => {

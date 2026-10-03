@@ -981,7 +981,7 @@ fn selected_case_payload_observation_expires_at_mixed_structural_result_call() {
         edge: EdgeId::new(901).unwrap(),
         source: PlaceId::new(3).unwrap(),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let machine = &mut module.machines[0];
     machine.structural_places.push(StructuralPlaceDeclaration {

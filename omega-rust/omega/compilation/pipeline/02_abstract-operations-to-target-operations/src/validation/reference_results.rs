@@ -1370,6 +1370,9 @@ fn apply_terminator(
         }
         | AbstractOperation::ReturnUnit {
             cleanup_actions, ..
+        }
+        | AbstractOperation::ReturnStructural {
+            cleanup_actions, ..
         } => {
             for action in cleanup_actions {
                 match action {
@@ -1377,7 +1380,9 @@ fn apply_terminator(
                     TerminalAffineCleanupAction::DiscardResidual(discard) => {
                         discard_residual(function, declarations, custody, discard)?;
                     }
-                    _ => return None,
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        discards.push(cleanup.place)
+                    }
                 }
             }
         }
@@ -1398,12 +1403,6 @@ fn apply_terminator(
         } => {
             discards.extend(when_true.trivial_affine_discards.iter().copied());
             discards.extend(when_false.trivial_affine_discards.iter().copied());
-        }
-        AbstractOperation::ReturnStructural {
-            trivial_affine_discards,
-            ..
-        } => {
-            discards.extend(trivial_affine_discards.iter().copied());
         }
         _ => {}
     }

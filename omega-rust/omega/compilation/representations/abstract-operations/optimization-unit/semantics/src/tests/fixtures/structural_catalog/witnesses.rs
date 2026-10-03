@@ -87,7 +87,10 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
                 local_type.clone(),
             ),
         ],
-        trivial_affine_discards: vec![second_local, first_local, second_tail, first_tail],
+        cleanup_actions: vec![second_local, first_local, second_tail, first_tail]
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .collect(),
     });
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {

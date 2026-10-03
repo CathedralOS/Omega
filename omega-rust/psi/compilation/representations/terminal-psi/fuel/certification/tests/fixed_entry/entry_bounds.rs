@@ -9,7 +9,9 @@ use crate::{
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
-use semantic_vocabulary::{EvidenceIdentity, Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{
+    EvidenceIdentity, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+};
 use terminal_codec::{decode_module, encode_module, terminal_psi_identity};
 use terminal_fixed_fuel::{
     derive_fixed_entry_fuel, derive_fixed_segment_fuel, validate_fixed_entry_fuel,
@@ -114,7 +116,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
         edge: edge_id(910),
         source: operation_place,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     let verified = verify_module(
@@ -207,7 +209,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                     edge: edge_id(911),
                     source: caller_operation_place,
                     returned_claims: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {
@@ -629,7 +631,10 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
         edge: edge_id(900),
         source,
         returned_claims: vec![claim],
-        trivial_affine_discards: vec![second_local, local],
+        cleanup_actions: vec![second_local, local]
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .collect(),
     };
     let verified = verify_module(
         &module,
@@ -639,5 +644,65 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     .expect("structural return with trivial local verifies");
     let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
     assert_eq!(certificate.ceiling_units(), 3);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+}
+
+#[test]
+fn structural_return_counts_each_nominal_cleanup_after_result_transfer() {
+    let mut module = three_ordered_shared_executable_nominal_affine_fixture();
+    let caller = &mut module.machines[0];
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } =
+        caller.blocks[0].terminator.clone()
+    else {
+        unreachable!()
+    };
+    let returned = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == cleanups[1].place)
+        .unwrap()
+        .clone();
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(999),
+        kind: StructuralPlaceKind::Result,
+    });
+    caller.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        reference_sources: Vec::new(),
+        place: place_id(999),
+        structural_type: returned.structural_type,
+        multiplicity: returned.multiplicity,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    });
+    caller.blocks[0].terminator = Terminator::ReturnStructural {
+        edge,
+        source: returned.place,
+        returned_claims: Vec::new(),
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[0].clone()),
+            TerminalAffineCleanupAction::InvokeNominal(cleanups[2].clone()),
+        ],
+    };
+    let encoded = encode_module(&module).expect("structural ordered actions encode");
+    let decoded = decode_module(&encoded).expect("structural ordered actions decode");
+    assert_eq!(decoded, module);
+    let mut obsolete = encoded.clone();
+    obsolete[8..10].copy_from_slice(&117u16.to_le_bytes());
+    assert!(matches!(
+        decode_module(&obsolete),
+        Err(terminal_codec::CodecError::UnsupportedFormatMarker(117))
+    ));
+    let verified = verify_module(
+        &decoded,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900)).unwrap();
+    assert_eq!(
+        certificate.ceiling_units(),
+        7,
+        "charged return edge followed by two three-unit hooks"
+    );
     validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }

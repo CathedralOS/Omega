@@ -94,12 +94,12 @@ pub struct CheckedUnitNominalAffineCallerRequirementPlan {
     pub expected: bool,
 }
 
-/// One whole affine parameter disposed by its exact checked empty nominal
-/// cleanup machine. The parameter index is dense in the checked structural
-/// signature and the type identity joins the root to the cleanup attachment.
+/// One whole affine owner disposed by its exact checked nominal cleanup.
+/// The source belongs to the ordinary state value namespace; parameter indexes
+/// are dense structural indexes. Type identity joins it to the attachment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitNominalAffineCleanupPlan {
-    pub source_parameter_index: u32,
+    pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub type_identity: String,
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
@@ -147,4 +147,39 @@ pub struct CheckedStructuralReturnedClaimTransferPlan {
     /// Equal canonical input-relative and result-relative claim path. The
     /// containing call transfers the whole owner, not a projected argument.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
+}
+
+/// One action in a selected normal edge's reverse establishment order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedNormalCleanupAction {
+    Discard(CheckedUnitPartialAffineDiscardPlan),
+    InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
+}
+
+impl CheckedNormalCleanupAction {
+    pub fn source(&self) -> &CheckedUnitStructuralArgumentSourcePlan {
+        match self {
+            Self::Discard(discard) => &discard.source,
+            Self::InvokeNominal(cleanup) => &cleanup.source,
+        }
+    }
+}
+
+impl CheckedUnitNominalAffineCleanupPlan {
+    pub fn source_parameter_index(&self) -> Option<u32> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                Some(parameter_index)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Exact source outgoing coordinate, including the selected continuation arm.
+/// These actions consume retained custody; they never establish entry premises.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedNormalExitCleanupPlan {
+    pub exit: crate::FlowClaimJoinExit,
+    pub actions: Vec<CheckedNormalCleanupAction>,
 }

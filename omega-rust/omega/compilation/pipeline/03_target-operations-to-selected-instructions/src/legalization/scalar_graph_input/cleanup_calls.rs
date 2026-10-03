@@ -25,6 +25,11 @@ pub(in crate::legalization) fn expected(
             psi_edge,
             cleanup_actions,
             ..
+        }
+        | AbstractOperation::ReturnStructural {
+            psi_edge,
+            cleanup_actions,
+            ..
         } => (*psi_edge, cleanup_actions),
         _ => return Ok(Vec::new()),
     };

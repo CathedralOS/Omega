@@ -653,7 +653,7 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
         edge: edge_id(92),
         source: place_id(110),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let caller = &mut module.machines[0];
     caller.structural_places.push(StructuralPlaceDeclaration {

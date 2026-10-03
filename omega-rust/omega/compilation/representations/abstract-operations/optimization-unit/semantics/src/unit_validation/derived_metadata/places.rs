@@ -244,8 +244,7 @@ pub(crate) fn validate_operation_places(
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }
-        | O::StructuralScalarFieldRead { source, .. }
-        | O::ReturnStructural { source, .. } => {
+        | O::StructuralScalarFieldRead { source, .. } => {
             require(*source, known)?;
         }
         O::StoreDynamicDescriptor { stored, .. } => {
@@ -266,7 +265,13 @@ pub(crate) fn validate_operation_places(
         }
         | O::ReturnUnit {
             cleanup_actions, ..
+        }
+        | O::ReturnStructural {
+            cleanup_actions, ..
         } => {
+            if let O::ReturnStructural { source, .. } = operation {
+                require(*source, known)?;
+            }
             for cleanup in cleanup_actions {
                 let place = match cleanup {
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,

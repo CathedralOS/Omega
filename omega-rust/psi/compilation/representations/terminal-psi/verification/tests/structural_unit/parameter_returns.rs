@@ -108,7 +108,7 @@ fn module() -> TerminalModule {
         edge: edge_id(1),
         source: place_id(2),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module
 }
@@ -127,7 +127,7 @@ fn branch(module: &mut TerminalModule) {
         edge: edge_id(5),
         source: place_id(2),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let mut right = left.clone();
     right.id = block_id(4);
@@ -135,7 +135,7 @@ fn branch(module: &mut TerminalModule) {
         edge: edge_id(6),
         source: place_id(2),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let successor = |ordinal| SuccessorEdge {
         edge: edge_id(ordinal),
@@ -351,7 +351,7 @@ fn affine_parameter_return_rejects_disagreeing_join_custody() {
         edge: edge_id(10),
         source: place_id(2),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     for (ordinal, block) in module.machines[0].blocks.iter_mut().skip(1).enumerate() {
         block.terminator = Terminator::Jump {

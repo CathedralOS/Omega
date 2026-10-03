@@ -259,11 +259,11 @@ pub(crate) fn forward_private_state_borrows(
             }
             Terminator::ReturnStructural {
                 source,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 *source = mapped(names, *source);
-                remap_roots(trivial_affine_discards, names);
+                remap_cleanup_actions(cleanup_actions, names);
             }
             Terminator::ReturnUnit {
                 trivial_affine_discards,
@@ -289,19 +289,7 @@ pub(crate) fn forward_private_state_borrows(
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                for cleanup in cleanup_actions {
-                    match cleanup {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => {
-                            *place = mapped(names, *place);
-                        }
-                        TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                            discard.place = mapped(names, discard.place);
-                        }
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            cleanup.place = mapped(names, cleanup.place);
-                        }
-                    }
-                }
+                remap_cleanup_actions(cleanup_actions, names);
             }
             Terminator::StructuralCase { source, cases } => {
                 *source = mapped(names, *source);
@@ -356,6 +344,20 @@ fn has_explicit_transfer(blocks: &[Block], place: PlaceId) -> bool {
 
 fn remap_roots(places: &mut [PlaceId], names: &[(PlaceId, PlaceId, StructuralAccess)]) {
     for place in places {
+        *place = mapped(names, *place);
+    }
+}
+
+fn remap_cleanup_actions(
+    actions: &mut [TerminalAffineCleanupAction],
+    names: &[(PlaceId, PlaceId, StructuralAccess)],
+) {
+    for action in actions {
+        let place = match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => place,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.place,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.place,
+        };
         *place = mapped(names, *place);
     }
 }

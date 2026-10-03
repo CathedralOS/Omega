@@ -739,7 +739,7 @@ fn subslice_types_and_borrowed_return_are_not_implicitly_supported() {
         edge: edge_id(4),
         source: place_id(4),
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     assert!(matches!(
         terminal_verifier::validate_module_representation(&returned),

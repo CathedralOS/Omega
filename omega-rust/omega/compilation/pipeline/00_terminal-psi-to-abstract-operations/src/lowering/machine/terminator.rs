@@ -342,14 +342,25 @@ pub(super) fn lower_terminator(
             edge,
             source,
             returned_claims,
-            trivial_affine_discards,
+            cleanup_actions,
         } if machine.result.structural().is_some() => {
             operations.push(AbstractOperation::ReturnStructural {
                 psi_edge: *edge,
                 source: *source,
                 returned_claims: returned_claims.clone(),
                 trivial_affine_locals: Vec::new(),
-                trivial_affine_discards: trivial_affine_discards.clone(),
+                cleanup_actions: cleanup_actions
+                    .iter()
+                    .cloned()
+                    .map(|action| match action {
+                        TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
+                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
+                            cleanup.requirement_obligations.clear();
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        }
+                        action => action,
+                    })
+                    .collect(),
             });
         }
         Terminator::ReturnStructural { edge, .. } => {

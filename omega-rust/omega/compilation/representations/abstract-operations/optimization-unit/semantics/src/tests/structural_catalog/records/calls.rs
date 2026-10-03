@@ -100,7 +100,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
         source: id(912, PlaceId::new),
         returned_claims: Vec::new(),
         trivial_affine_locals: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
 
     let mut caller = unit().functions.remove(0);

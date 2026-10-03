@@ -297,7 +297,12 @@ impl<'program> Evaluator<'program> {
         &mut self,
         transition: &TableTransition,
         frame: &mut Frame,
-    ) -> EvalResult<Option<TransitionDecision<'program>>> {
+    ) -> EvalResult<
+        Option<(
+            TransitionDecision<'program>,
+            checked_trees::FlowClaimJoinExitKind,
+        )>,
+    > {
         let holds = match transition.guard {
             TransitionGuardNode::Always => true,
             TransitionGuardNode::When(expression) => {
@@ -310,25 +315,37 @@ impl<'program> Evaluator<'program> {
                     .ok_or_else(|| Halt::Trap("transition guard is not boolean".to_owned()))?
             }
         };
-        if !holds {
+        let (target_handle, kind) = if holds {
+            (
+                transition.target,
+                checked_trees::FlowClaimJoinExitKind::TransitionTarget,
+            )
+        } else if transition.continuation.is_valid() {
+            (
+                transition.continuation,
+                checked_trees::FlowClaimJoinExitKind::TransitionContinuation,
+            )
+        } else {
             return Ok(None);
-        }
+        };
 
         // A crash and an ordinary return may both have a terminal target.
         // Preserve the exit kind before dispatching that target; otherwise a
         // failed runtime assertion silently becomes successful completion.
-        match transition.exit {
-            TransitionExit::Ordinary => {}
-            TransitionExit::Crash(cause) => return trap(format!("explicit crash {cause:?}")),
+        if holds {
+            match transition.exit {
+                TransitionExit::Ordinary => {}
+                TransitionExit::Crash(cause) => return trap(format!("explicit crash {cause:?}")),
+            }
         }
 
         let target = self
             .program
             .statement_table
-            .transition_target(transition.target)
+            .transition_target(target_handle)
             .clone();
         let decision = self.resolve_transition_target(&target, frame)?;
-        Ok(Some(decision))
+        Ok(Some((decision, kind)))
     }
 
     fn resolve_transition_target(

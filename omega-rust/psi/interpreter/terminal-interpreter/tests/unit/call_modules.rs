@@ -843,7 +843,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                 edge: edge_id(1),
                 source: operation_result,
                 returned_claims: vec![claim],
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {
@@ -927,7 +927,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                     edge: edge_id(2),
                     source: callee_source,
                     returned_claims: vec![claim],
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 }
             },
         }],

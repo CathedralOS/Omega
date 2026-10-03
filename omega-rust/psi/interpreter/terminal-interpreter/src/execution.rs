@@ -204,9 +204,31 @@ pub(crate) enum SuspendedCallResult {
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
-        remaining: Vec<(NominalAffineCleanup, TerminalStructuralValue)>,
-        final_result: Option<TerminalScalarValue>,
+        remaining: std::vec::IntoIter<terminal_psi::TerminalAffineCleanupAction>,
+        final_result: CompletedReturn,
     },
+}
+
+/// The result is materialized once, before normal cleanup. It remains detached
+/// from hook frames until the original caller can receive it.
+pub(crate) struct CompletedReturn {
+    pub(crate) value: TerminalExecutionResult,
+    pub(crate) destination: Option<StructuralOperationResult>,
+    pub(crate) rebound_claims: Option<BTreeMap<ClaimId, LiveClaim>>,
+    pub(crate) byte_sequence: Option<ByteSequenceBinding>,
+    pub(crate) element_view: Option<crate::element_views::ElementView>,
+}
+
+impl CompletedReturn {
+    pub(crate) fn plain(value: TerminalExecutionResult) -> Self {
+        Self {
+            value,
+            destination: None,
+            rebound_claims: None,
+            byte_sequence: None,
+            element_view: None,
+        }
+    }
 }
 
 impl TerminalExecution {

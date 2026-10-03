@@ -277,12 +277,12 @@ pub(crate) fn rewrite_scalar_case_custody(
         }
         O::ReturnStructural {
             source,
-            trivial_affine_discards,
+            cleanup_actions: trivial_affine_discards,
             ..
         } => {
             for place in case_results {
                 if *source != *place {
-                    insert_case_discard_ordered(structural_places, trivial_affine_discards, *place);
+                    insert_case_cleanup_discard(structural_places, trivial_affine_discards, *place);
                 }
             }
         }

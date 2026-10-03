@@ -285,7 +285,7 @@ fn terminator_exemplars() -> Vec<Terminator> {
             edge,
             source: place,
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
         Terminator::Crash {
             edge,

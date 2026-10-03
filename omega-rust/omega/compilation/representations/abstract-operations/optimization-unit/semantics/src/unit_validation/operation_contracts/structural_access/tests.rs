@@ -167,7 +167,7 @@ fn copied_byte_field_call_replays_declaration_and_excludes_only_its_consumer() {
                     source: copied,
                     returned_claims: Vec::new(),
                     trivial_affine_locals: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 };
                 caller.blocks[0].nodes.push(escape);
             }

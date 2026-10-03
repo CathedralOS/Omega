@@ -189,11 +189,11 @@ pub(crate) fn validate_unit_operation_static(
                         Terminator::ReturnStructural {
                             source,
                             returned_claims,
-                            trivial_affine_discards,
+                            cleanup_actions,
                             ..
                         } if *source == callee_parameter.place
                             && returned_claims.is_empty()
-                            && trivial_affine_discards.is_empty()
+                            && cleanup_actions.is_empty()
                     ));
                 break 'cell callee.parameters.iter().all(|parameter| {
                     matches!(

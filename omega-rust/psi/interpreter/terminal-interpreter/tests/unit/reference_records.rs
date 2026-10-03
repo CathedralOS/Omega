@@ -327,7 +327,7 @@ fn returned_record_reference_module() -> TerminalModule {
         edge: edge_id(201),
         source: place_id(206),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     caller
         .structural_places
@@ -405,7 +405,7 @@ fn forward_owned_record(mut module: TerminalModule) -> TerminalModule {
         edge: edge_id(401),
         source: place_id(401),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     let caller = &mut module.machines[0];
     caller.structural_places.push(StructuralPlaceDeclaration {
@@ -624,7 +624,7 @@ fn owned_record_forwarding_keeps_outer_return_binding_during_nested_call() {
         edge: edge_id(501),
         source: place_id(501),
         returned_claims: vec![],
-        trivial_affine_discards: vec![],
+        cleanup_actions: vec![],
     };
     let mut call = module.machines[0].blocks[0].operations[1].clone();
     call.id = operation_id(406);

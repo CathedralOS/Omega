@@ -192,7 +192,7 @@ fn cleanup_matches_residuals(
 
 /// Earlier graph admission owns the live frontier and callee ABI/body. This
 /// image join retains every executable action's edge, ordinal and original root.
-fn return_cleanup_calls_match(
+pub(super) fn return_cleanup_calls_match(
     actions: &[TerminalAffineCleanupAction],
     operations: &[target_operations::TargetUnitOperation],
     edge: semantic_vocabulary::EdgeId,

@@ -144,7 +144,7 @@ fn literal_return_has_no_affine_debt_but_requires_its_establishment() {
         edge: EdgeId::new(900).unwrap(),
         source,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     validate_module(&module).expect("returning immutable image storage owes no disposal");
 

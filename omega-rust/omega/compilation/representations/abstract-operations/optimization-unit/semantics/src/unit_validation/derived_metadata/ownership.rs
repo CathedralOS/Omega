@@ -30,8 +30,13 @@ pub(crate) fn expected_ownership(
             cleanup_actions, ..
         } => vec![OwnershipEvent::Cleanup(cleanup_actions.clone())],
         O::ReturnStructural {
-            returned_claims, ..
-        } => vec![OwnershipEvent::StructuralReturn(returned_claims.clone())],
+            returned_claims,
+            cleanup_actions,
+            ..
+        } => vec![
+            OwnershipEvent::StructuralReturn(returned_claims.clone()),
+            OwnershipEvent::Cleanup(cleanup_actions.clone()),
+        ],
         O::Crash {
             frontier_lower_bound,
             ..

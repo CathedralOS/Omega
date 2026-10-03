@@ -902,10 +902,6 @@ fn descriptor_inputs(
         O::Jump {
             trivial_affine_discards,
             ..
-        }
-        | O::ReturnStructural {
-            trivial_affine_discards,
-            ..
         } => {
             for place in trivial_affine_discards {
                 dispose(*place);
@@ -915,6 +911,9 @@ fn descriptor_inputs(
             cleanup_actions, ..
         }
         | O::ReturnUnit {
+            cleanup_actions, ..
+        }
+        | O::ReturnStructural {
             cleanup_actions, ..
         } => {
             for cleanup in cleanup_actions {

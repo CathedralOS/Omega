@@ -380,7 +380,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         edge: EdgeId::new(902).unwrap(),
         source: place,
         returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     validate_module(&module).expect("exact payloadless member validates");
 

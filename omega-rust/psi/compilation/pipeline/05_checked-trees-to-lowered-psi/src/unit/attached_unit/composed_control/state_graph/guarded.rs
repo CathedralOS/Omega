@@ -11,8 +11,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{
-    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, case_emission,
-    edges,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedScalarBranchDestination, expression::ExpressionNode};
@@ -206,7 +205,7 @@ pub(super) fn validate(
     {
         return unsupported("ordered reference returns do not cover their candidate roster");
     }
-    edges::return_discards(checked, plan.machine, source, state)?;
+    super::cleanup_admission::validate(checked, plan.machine, source, state)?;
     Ok(())
 }
 
@@ -660,6 +659,7 @@ pub(super) fn emit(
             checked,
             plan,
             state,
+            super::cleanup::destination(checked, state, &guard.destination)?,
             &return_values[position],
             catalogs,
             parameters,
@@ -696,6 +696,7 @@ pub(super) fn emit(
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
     }
+    let fallback_exit = super::cleanup::destination(checked, state, fallback.as_ref().ok_or(LoweringError::Unsupported("ordered return lost its fallback destination"))?)?;
     let fallback =
         return_values
             .last()
@@ -707,6 +708,7 @@ pub(super) fn emit(
         checked,
         plan,
         state,
+        fallback_exit,
         fallback,
         catalogs,
         parameters,
@@ -727,6 +729,7 @@ pub(super) fn emit_return(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
+    exit: checked_trees::FlowClaimJoinExit,
     operation: &CheckedUnitEffectOperationPlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -797,55 +800,13 @@ pub(super) fn complete_structural_return(
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
-    let (_, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
-    // A selected result participates in the cleanup correspondence even though
-    // the return transfers it rather than discarding it.
-    let mut discards = vec![(source, false)];
-    for operation in preparations
-        .iter()
-        .rev()
-        .chain(state.operations.iter().rev())
-    {
-        if let Some((result, discard_result_on_return)) = operation.discardable_structural_result()
-        {
-            let place = case_emission::result(state, result.binding_ordinal, operations)?.place();
-            discards.push((place, discard_result_on_return));
-        }
-    }
-    // Parameter selection sources join the reverse-establishment roster after
-    // every result row: the receipt sorts them last by descending authored
-    // position, and `selection_return_discards` substitutes each residual
-    // join parameter at its own slot.
-    let mut parameter_sources = Vec::new();
-    for cleanup in &evaluation.selection_cleanups {
-        for source in &cleanup.sources {
-            if let Some((position, _)) = evaluation
-                .structural_parameters
-                .iter()
-                .find(|(_, declaration)| declaration.place == *source)
-            {
-                parameter_sources.push((*position, *source));
-            }
-        }
-    }
-    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-    parameter_sources.dedup_by_key(|(_, place)| *place);
-    discards.extend(
-        parameter_sources
-            .into_iter()
-            .map(|(_, place)| (place, false)),
-    );
-    discards.extend(
-        edges::return_discards(checked, plan.machine, source_state, state)?
-            .into_iter()
-            .map(|position| (parameters[position].place, true)),
-    );
-    let discards = evaluation.selection_return_discards(discards)?;
+    let cleanup_actions = super::cleanup::for_exit(
+        checked, state, exit, catalogs, parameters, evaluation, operations,
+    )?;
     Ok(Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,
         returned_claims: Vec::new(),
-        trivial_affine_discards: discards,
+        cleanup_actions,
     })
 }

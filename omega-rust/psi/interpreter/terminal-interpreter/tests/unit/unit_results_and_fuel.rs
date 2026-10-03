@@ -854,7 +854,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                     edge,
                     source,
                     returned_claims: vec![claim],
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: empty_contract(contract_id(1)),

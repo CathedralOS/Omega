@@ -256,9 +256,9 @@ fn owned_array_call_results_return_without_fabricated_claims() {
                 terminal_psi::Terminator::ReturnStructural {
                     source,
                     returned_claims,
-                    trivial_affine_discards,
+                    cleanup_actions,
                     ..
-                } => Some((source, returned_claims, trivial_affine_discards)),
+                } => Some((source, returned_claims, cleanup_actions)),
                 _ => None,
             })
             .unwrap();
@@ -267,7 +267,11 @@ fn owned_array_call_results_return_without_fabricated_claims() {
             1 => returned
                 .1
                 .push(semantic_vocabulary::ClaimId::new(1).unwrap()),
-            _ => returned.2.push(*returned.0),
+            _ => returned
+                .2
+                .push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                    *returned.0,
+                )),
         }
         assert!(
             terminal_verifier::verify_module(

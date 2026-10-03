@@ -382,7 +382,7 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
                 edge: next_edge,
                 source: argument,
                 returned_claims: vec![argument_claim],
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: terminal_psi::MachineContract {

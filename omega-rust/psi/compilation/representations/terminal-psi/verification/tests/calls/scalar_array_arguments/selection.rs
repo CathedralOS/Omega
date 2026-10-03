@@ -127,7 +127,7 @@ fn branch_local_array_cannot_be_returned_after_a_nondominating_join() {
             edge: edge_id(14),
             source: place_id(source),
             returned_claims: vec![],
-            trivial_affine_discards: vec![],
+            cleanup_actions: vec![],
         };
         assert!(
             matches!(validate_module(&module),

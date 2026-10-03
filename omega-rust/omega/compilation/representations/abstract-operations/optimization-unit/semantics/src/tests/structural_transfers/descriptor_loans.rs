@@ -754,7 +754,7 @@ fn shared_returned_descriptor_call_plan() -> abstract_operations::AbstractOperat
                     source: input,
                     returned_claims: Vec::new(),
                     trivial_affine_locals: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 }],
             ),
             function(
@@ -868,7 +868,7 @@ fn unused_descriptor_return_rejects_owned_backing_escape() {
             source: result_place,
             returned_claims: Vec::new(),
             trivial_affine_locals: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     ];
     plan.functions.push(unused);

@@ -130,7 +130,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
             edge: edge_id(3),
             source: place_id(4),
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         };
         module.machines.push(identity);
         let caller = &mut module.machines[0];

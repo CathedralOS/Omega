@@ -503,7 +503,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                         edge: edge_id(1),
                         source: place_id(1),
                         returned_claims: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }],
                 contract: MachineContract {
@@ -582,7 +582,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                         edge: edge_id(2),
                         source: place_id(3),
                         returned_claims: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }],
                 contract: MachineContract {

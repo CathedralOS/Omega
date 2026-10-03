@@ -86,7 +86,7 @@ fn fixture(
             source: place,
             returned_claims: Vec::new(),
             trivial_affine_locals: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     ];
     if length == 0 {

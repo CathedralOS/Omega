@@ -1085,7 +1085,13 @@ fn scan_operation(
         }
         | O::ReturnUnit {
             cleanup_actions, ..
+        }
+        | O::ReturnStructural {
+            cleanup_actions, ..
         } => {
+            if let O::ReturnStructural { source, .. } = operation {
+                pending.attribute(context, *source, Vec::new(), AccessKind::Read);
+            }
             for action in cleanup_actions {
                 match action {
                     TerminalAffineCleanupAction::DiscardRoot(place) => {
@@ -1106,18 +1112,6 @@ fn scan_operation(
                         pending.push_reach(machines, cleanup.cleanup_machine);
                     }
                 }
-            }
-        }
-        O::ReturnStructural {
-            source,
-            trivial_affine_discards,
-            ..
-        } => {
-            // The result handoff observes the returned storage; what the
-            // result carries is declared in the signature, not here.
-            pending.attribute(context, *source, Vec::new(), AccessKind::Read);
-            for place in trivial_affine_discards {
-                pending.attribute(context, *place, Vec::new(), AccessKind::Write);
             }
         }
         O::CallStructural {

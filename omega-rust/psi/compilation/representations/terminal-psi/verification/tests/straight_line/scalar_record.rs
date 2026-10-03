@@ -601,7 +601,7 @@ fn runtime_scalar_record_can_return_with_exact_multiplicity() {
             edge: EdgeId::new(900).unwrap(),
             source: PlaceId::new(1).unwrap(),
             returned_claims: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         };
         validate_module(&module).expect("exact runtime record return");
     }

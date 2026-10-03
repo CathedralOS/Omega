@@ -140,7 +140,7 @@ fn assert_identity_execution(
     let Terminator::ReturnStructural {
         source,
         returned_claims,
-        trivial_affine_discards,
+        cleanup_actions,
         ..
     } = &block.terminator
     else {
@@ -148,7 +148,7 @@ fn assert_identity_execution(
     };
     assert_eq!(*source, parameter.place);
     assert!(returned_claims.is_empty());
-    assert!(trivial_affine_discards.is_empty());
+    assert!(cleanup_actions.is_empty());
 
     let argument = TerminalStructuralValue {
         opaque_identity: 0x5eed_cafe,
@@ -300,7 +300,7 @@ fn altered_terminal_identity_returns_fail_independent_verification() {
         let Terminator::ReturnStructural {
             source,
             returned_claims,
-            trivial_affine_discards,
+            cleanup_actions,
             ..
         } = &mut machine.blocks[0].terminator
         else {
@@ -309,7 +309,9 @@ fn altered_terminal_identity_returns_fail_independent_verification() {
         match drift {
             Drift::UninitializedResultSource => *source = result_place,
             Drift::InventedClaim => returned_claims.push(ClaimId::new(1).unwrap()),
-            Drift::DiscardedReturnedParameter => trivial_affine_discards.push(parameter_place),
+            Drift::DiscardedReturnedParameter => cleanup_actions.push(
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(parameter_place),
+            ),
         }
         assert!(
             terminal_verifier::verify_module(

@@ -122,7 +122,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::ReturnStructural {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 edge: EdgeId::new(90).expect("edge"),
                 source: input_root,
                 returned_claims: vec![claim],
@@ -317,7 +317,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
                 edge: EdgeId::new(1).unwrap(),
                 source: call_result,
                 returned_claims: vec![claim],
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {
@@ -373,7 +373,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
                 edge: EdgeId::new(2).unwrap(),
                 source: callee_input,
                 returned_claims: vec![claim],
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: MachineContract {

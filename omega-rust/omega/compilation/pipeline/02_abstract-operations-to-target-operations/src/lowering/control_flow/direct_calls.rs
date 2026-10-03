@@ -823,6 +823,11 @@ pub(super) fn lower_cleanup_calls(
             psi_edge,
             cleanup_actions,
             ..
+        }
+        | AbstractOperation::ReturnStructural {
+            psi_edge,
+            cleanup_actions,
+            ..
         } => (*psi_edge, cleanup_actions),
         _ => return Ok(()),
     };

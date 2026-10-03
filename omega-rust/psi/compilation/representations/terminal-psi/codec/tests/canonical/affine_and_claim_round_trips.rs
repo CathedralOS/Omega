@@ -184,7 +184,10 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 edge: edge_id(1),
                 source,
                 returned_claims: vec![claim_id(1)],
-                trivial_affine_discards: vec![local, second_affine, first_affine],
+                cleanup_actions: vec![local, second_affine, first_affine]
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             },
         }],
         contract: MachineContract {
@@ -323,7 +326,7 @@ fn structural_result_and_return_round_trip_as_semantic_identity() {
         edge: edge_id(100),
         source: place_id(10),
         returned_claims: vec![claim_id(1)],
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module.root_service_reach.concrete.clear();
 

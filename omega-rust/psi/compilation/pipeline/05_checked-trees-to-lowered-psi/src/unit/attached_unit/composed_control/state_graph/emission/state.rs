@@ -528,6 +528,7 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     &[],
                     return_arm,
+                    !*return_when_true,
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -561,6 +562,7 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     &[],
                     when_true,
+                    false,
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -575,6 +577,7 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     &[],
                     when_false,
+                    true,
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -627,6 +630,7 @@ impl StateGraphEmission<'_, '_> {
                             &payload_parameters,
                             &case_subject_discards,
                             return_arm,
+                            false,
                             &mut evaluation,
                             &mut next_value,
                             &mut next_block,
@@ -679,6 +683,7 @@ impl StateGraphEmission<'_, '_> {
                                 &[],
                                 &[],
                                 &plan.return_arm,
+                                false,
                                 &mut evaluation,
                                 &mut next_value,
                                 &mut next_block,
@@ -710,6 +715,7 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     &[],
                     return_arm,
+                    false,
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -861,7 +867,7 @@ impl StateGraphEmission<'_, '_> {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     source: evaluation.current_structural_place(source),
                     returned_claims,
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => {
@@ -871,7 +877,7 @@ impl StateGraphEmission<'_, '_> {
                         "case return construction missing",
                     ))?,
                     returned_claims: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit

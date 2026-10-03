@@ -117,6 +117,9 @@ impl CallAccesses {
                 Terminator::ReturnUnitNominalAffine { .. } => return,
                 Terminator::Return {
                     cleanup_actions, ..
+                }
+                | Terminator::ReturnStructural {
+                    cleanup_actions, ..
                 } if cleanup_actions.iter().any(|action| {
                     matches!(action, TerminalAffineCleanupAction::InvokeNominal(_))
                 }) =>

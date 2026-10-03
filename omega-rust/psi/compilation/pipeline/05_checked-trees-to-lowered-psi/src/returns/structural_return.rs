@@ -210,7 +210,7 @@ pub(crate) fn lower_structural_return_machine(
         );
     }
     let input_place = input.place;
-    let terminal_discards = local_places
+    let terminal_discards: Vec<_> = local_places
         .iter()
         .rev()
         .map(|(_, _, place)| *place)
@@ -273,7 +273,10 @@ pub(crate) fn lower_structural_return_machine(
                 edge: edge_id(1),
                 source: input_place,
                 returned_claims: vec![claim],
-                trivial_affine_discards: terminal_discards,
+                cleanup_actions: terminal_discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             },
         }],
         contract: MachineContract {
