@@ -849,32 +849,68 @@ impl Context<'_> {
                 if inner_indexes.is_empty() && element_path.is_empty() {
                     return true;
                 }
-                let checked_trees::CheckedStorageRoot::Parameter { index: position } = root else {
+                // A parameter root names the borrowed place through its
+                // formal's symbol; a local root carries the local's own
+                // symbol.
+                let expected_root = match root {
+                    checked_trees::CheckedStorageRoot::Parameter { index: position } => {
+                        let Ok((_, state)) = super::authored_state(self.checked, self.state) else {
+                            return false;
+                        };
+                        let Some(parameter) =
+                            self.checked.state_parameters(state).get(*position as usize)
+                        else {
+                            return false;
+                        };
+                        if parameter.relevance.is_erased() {
+                            return false;
+                        }
+                        parameter.symbol
+                    }
+                    checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+                    | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => *symbol,
+                };
+                let Ok((machine, _)) = super::authored_state(self.checked, self.state) else {
                     return false;
                 };
-                let Ok((machine, state)) = super::authored_state(self.checked, self.state) else {
-                    return false;
-                };
-                let Some(parameter) = self.checked.state_parameters(state).get(*position as usize)
-                else {
-                    return false;
-                };
-                let Ok(place) =
-                    crate::emission::call_source_custody::projected_receivers::store_destination(
-                        self.checked,
-                        machine.symbol,
-                        self.state,
-                        Some(self.statement as usize),
-                        authored,
-                    )
-                else {
-                    return false;
-                };
-                // Selectors alone cannot identify the collection: a same-shaped
-                // sibling parameter or field must not replace its source.
-                !parameter.relevance.is_erased()
-                    && parameter.symbol == place.root
-                    && paths_match(path, &place.path)
+                // A store destination projects an erased carrier local
+                // through its alias to the referent's storage; the retained
+                // root names the authored spelling, so local roots rejoin
+                // through the observation vocabulary instead. Selectors alone
+                // cannot identify the collection: a same-shaped sibling
+                // parameter or field must not replace its source.
+                match root {
+                    checked_trees::CheckedStorageRoot::ViewLocal { .. }
+                    | checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                        let Ok(place) =
+                            crate::emission::call_source_custody::projected_receivers::observation_place(
+                                self.checked,
+                                machine.symbol,
+                                self.state,
+                                self.statement as usize,
+                                authored,
+                            )
+                        else {
+                            return false;
+                        };
+                        expected_root == place.root_symbol
+                            && captured_segments_match(self.checked, path, &place.segments)
+                    }
+                    _ => {
+                        let Ok(place) =
+                            crate::emission::call_source_custody::projected_receivers::store_destination(
+                                self.checked,
+                                machine.symbol,
+                                self.state,
+                                Some(self.statement as usize),
+                                authored,
+                            )
+                        else {
+                            return false;
+                        };
+                        expected_root == place.root && paths_match(path, &place.path)
+                    }
+                }
             }
             // Erased formals have no authored runtime expression to match.
             Scalar::ErasedParameter { .. } => false,
@@ -1872,6 +1908,34 @@ fn paths_match(
                     checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(left),
                     checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(right),
                 ) => left == right,
+                _ => false,
+            })
+}
+
+// The observation vocabulary captures a place's authored spelling: fields
+// name their member's symbol where the retained path keeps its spelling.
+fn captured_segments_match(
+    checked: &checked_trees::CheckedTrees,
+    retained: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    captured: &[facts::PlaceSegment],
+) -> bool {
+    retained.len() == captured.len()
+        && retained
+            .iter()
+            .zip(captured)
+            .all(|(retained, captured)| match (retained, captured) {
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
+                    facts::PlaceSegment::Field { symbol },
+                ) => checked.symbols.name(*symbol) == left,
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::Case(left),
+                    facts::PlaceSegment::Case { variant },
+                ) => checked.symbols.name(*variant) == left,
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
+                    facts::PlaceSegment::FixedIndex { index },
+                ) => u64::try_from(*index) == Ok(*left),
                 _ => false,
             })
 }
