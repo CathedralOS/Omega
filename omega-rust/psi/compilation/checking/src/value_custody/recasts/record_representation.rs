@@ -51,6 +51,16 @@ struct MutableRecordLeaf {
     primitive: typed_trees::types::PrimitiveType,
     stored_integer: Option<(u16, layout_plans::IntegerInterpretation)>,
     byte_projection: bool,
+    arrays: Vec<NormalizedArrayStep>,
+}
+
+/// Depth from the scalar leaf, so prepending enclosing fields preserves the
+/// coordinate. Stride comes from normalization, including explicit layout plans.
+#[derive(Debug, Clone)]
+struct NormalizedArrayStep {
+    suffix_length: usize,
+    stride: usize,
+    extent: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +79,24 @@ pub struct RecastScalarProjection {
     pub stored_integer: Option<semantic_vocabulary::IntegerType>,
 }
 
+/// One retained runtime selector's physical geometry. The caller must resolve
+/// the exact input path occurrence and independently establish its array bound.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecastRuntimeIndexGeometry {
+    pub path_index: usize,
+    pub stride: usize,
+    pub extent: usize,
+}
+
+/// A scalar projection with runtime coordinates left symbolic. `offset` in
+/// `projection` includes fixed coordinates only; each runtime occurrence adds
+/// its value times its stride. Geometry provides neither a value nor a proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecastScalarGeometry {
+    pub projection: RecastScalarProjection,
+    pub indices: Vec<RecastRuntimeIndexGeometry>,
+}
+
 /// One referee's immutable normalized scalar geometry, shared across captured
 /// loans and evaluation namespaces without retaining source trees. These are
 /// type-owned leaves, not source-expression or selector specializations.
@@ -81,6 +109,7 @@ pub struct RecastScalarLayout {
 struct RecastScalarLayoutLeaf {
     path: Box<[checked_trees::CheckedUnitStructuralPathSegment]>,
     projection: RecastScalarProjection,
+    arrays: Box<[NormalizedArrayStep]>,
 }
 
 impl RecastScalarLayout {
@@ -94,6 +123,59 @@ impl RecastScalarLayout {
         let mut matching = self.leaves.iter().filter(|leaf| leaf.path.as_ref() == path);
         let selected = matching.next()?;
         matching.next().is_none().then_some(selected.projection)
+    }
+
+    /// Resolve fields and fixed coordinates exactly, retaining every runtime
+    /// array occurrence separately. Selecting its zero element supplies the
+    /// normalized constant offset; the array node supplies stride and extent.
+    pub fn scalar_path_geometry(
+        &self,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> Option<RecastScalarGeometry> {
+        use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+        if path.len() > MAX_RECAST_REPRESENTATION_DEPTH {
+            return None;
+        }
+        let mut matching = self.leaves.iter().filter(|leaf| {
+            leaf.path.len() == path.len()
+                && leaf
+                    .path
+                    .iter()
+                    .zip(path)
+                    .all(|(fixed, requested)| match requested {
+                        Segment::RuntimeIndex(_) => matches!(fixed, Segment::FixedIndex(0)),
+                        _ => fixed == requested,
+                    })
+        });
+        let leaf = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let mut indices = Vec::new();
+        for (path_index, segment) in path.iter().enumerate() {
+            if !matches!(segment, Segment::RuntimeIndex(_)) {
+                continue;
+            }
+            let suffix_length = path.len().checked_sub(path_index.checked_add(1)?)?;
+            let mut arrays = leaf
+                .arrays
+                .iter()
+                .filter(|array| array.suffix_length == suffix_length);
+            let array = arrays.next()?;
+            if arrays.next().is_some() || array.extent == 0 {
+                return None;
+            }
+            indices.try_reserve(1).ok()?;
+            indices.push(RecastRuntimeIndexGeometry {
+                path_index,
+                stride: array.stride,
+                extent: array.extent,
+            });
+        }
+        Some(RecastScalarGeometry {
+            projection: leaf.projection,
+            indices,
+        })
     }
 }
 
@@ -115,6 +197,7 @@ pub fn recast_scalar_layout(
         leaves.push(RecastScalarLayoutLeaf {
             path: path.into_boxed_slice(),
             projection: scalar_leaf_projection(representation.size, leaf)?,
+            arrays: leaf.arrays.clone().into_boxed_slice(),
         });
     }
     Some(RecastScalarLayout {
@@ -205,6 +288,16 @@ pub fn recast_scalar_path_projection(
 ) -> Option<RecastScalarProjection> {
     let path = recast_projection_path(program, root, scalar_path)?;
     normalized_scalar_projection(program, root, &path)
+}
+
+/// One-shot counterpart of the prepared layout query. Retained selectors remain
+/// caller-owned; this reconstructs only the exact declaration's geometry.
+pub fn recast_scalar_path_geometry(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    scalar_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<RecastScalarGeometry> {
+    recast_scalar_layout(program, root)?.scalar_path_geometry(scalar_path)
 }
 
 fn recast_projection_path(
@@ -699,6 +792,7 @@ fn mutable_record_type_representation_body(
             primitive,
             stored_integer: None,
             byte_projection: true,
+            arrays: Vec::new(),
         });
         return Some(MutableRecordRepresentation {
             size,
@@ -729,6 +823,11 @@ fn mutable_record_type_representation_body(
                 let element_offset = element.size.checked_mul(index)?;
                 for leaf in &element.leaves {
                     let mut projected = leaf.clone();
+                    projected.arrays.push(NormalizedArrayStep {
+                        suffix_length: projected.path.len(),
+                        stride: element.size,
+                        extent: *length,
+                    });
                     projected.path.insert(0, RepresentationSegment::Element(index));
                     projected.offset = leaf.offset.checked_add(element_offset)?;
                     leaves.push(projected);
@@ -821,6 +920,11 @@ pub(super) fn repeat_representation(
         let base = element.size.checked_mul(index)?;
         for leaf in &element.leaves {
             let mut projected = leaf.clone();
+            projected.arrays.push(NormalizedArrayStep {
+                suffix_length: projected.path.len(),
+                stride: element.size,
+                extent: count,
+            });
             projected
                 .path
                 .insert(0, RepresentationSegment::Element(index));
@@ -858,6 +962,11 @@ fn repeat_representation_with_stride(
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
             let mut projected = leaf.clone();
+            projected.arrays.push(NormalizedArrayStep {
+                suffix_length: projected.path.len(),
+                stride,
+                extent: count,
+            });
             projected
                 .path
                 .insert(0, RepresentationSegment::Element(index));
@@ -910,3 +1019,6 @@ pub(super) fn record_representation_implies(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod projection_tests;

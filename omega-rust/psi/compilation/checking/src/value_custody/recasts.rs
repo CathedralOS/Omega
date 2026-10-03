@@ -63,9 +63,9 @@ mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
 pub use record_representation::{
-    RecastLeafSegment, RecastRecordSourceLeaf, RecastScalarLayout, RecastScalarProjection,
-    recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_projection,
-    recast_scalar_projection,
+    RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
+    RecastScalarLayout, RecastScalarProjection, recast_record_source_leaf, recast_scalar_layout,
+    recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
 };
 mod representation_types;
 mod scalar_representation;
