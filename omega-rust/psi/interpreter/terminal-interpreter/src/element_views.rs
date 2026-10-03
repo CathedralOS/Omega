@@ -45,6 +45,7 @@ pub(crate) struct ElementView {
     backing: ElementViewBacking,
     window: Range<usize>,
     home: Option<Arc<ElementViewHome>>,
+    descriptor_home: Option<TerminalStructuralValue>,
     access: StructuralAccess,
 }
 
@@ -63,6 +64,7 @@ impl ElementView {
             backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: None,
+            descriptor_home: None,
             access: StructuralAccess::SharedBorrow,
         }
     }
@@ -75,6 +77,7 @@ impl ElementView {
             backing: ElementViewBacking::Scalars(elements.into()),
             window: 0..length,
             home: Some(Arc::new(home)),
+            descriptor_home: None,
             access: StructuralAccess::MutableBorrow,
         }
     }
@@ -88,6 +91,7 @@ impl ElementView {
             backing: ElementViewBacking::Structural { collection },
             window: 0..length,
             home: None,
+            descriptor_home: None,
             access,
         }
     }
@@ -120,6 +124,23 @@ impl ElementView {
         ));
         path.extend_from_slice(suffix);
         Ok((collection.clone(), path))
+    }
+
+    pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
+        self.descriptor_home = Some(home);
+        self
+    }
+
+    pub(crate) fn detached_descriptor(&self) -> Self {
+        let mut descriptor = self.clone();
+        descriptor.descriptor_home = None;
+        descriptor
+    }
+
+    pub(crate) fn matches_descriptor_home(&self, value: &TerminalStructuralValue) -> bool {
+        self.descriptor_home
+            .as_ref()
+            .map_or_else(|| value.path.is_empty(), |home| home == value)
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -159,6 +180,7 @@ impl ElementView {
             backing: self.backing.clone(),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
             home: self.home.clone(),
+            descriptor_home: None,
             access,
         })
     }
@@ -187,6 +209,27 @@ fn count(
 }
 
 impl TerminalExecution {
+    /// Resolve the descriptor itself at its current structural home. Projecting
+    /// a stored view never reconstructs its window from the owner's backing.
+    pub(crate) fn element_view_argument(
+        &self,
+        argument: &terminal_psi::StructuralArgument,
+        resolved: &TerminalStructuralValue,
+    ) -> Result<&ElementView, TerminalInterpretError> {
+        if argument.path.is_empty()
+            && let Some(view) = self.element_view_values.get(&argument.place)
+        {
+            return if view.matches_descriptor_home(resolved) {
+                Ok(view)
+            } else {
+                Err(TerminalInterpretError::VerifiedOperationMalformed)
+            };
+        }
+        self.structural_element_view_fields
+            .get(&crate::values::StructuralRuntimePlace::from(resolved))
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)
+    }
+
     /// Descriptor lifetime ends with its frame. Only debt-free views retire
     /// implicitly; an affine descriptor or live claim still needs the exact
     /// cleanup action checked by the return, regardless of its carrier.
@@ -208,11 +251,9 @@ impl TerminalExecution {
             })
             .collect::<Vec<_>>();
         for place in retired {
-            crate::reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                place,
-            );
+            // These are frame bindings, including aliases of stored fields.
+            // Ending a callee's borrow cannot dispose the owner's descriptor.
+            self.structural_values.remove(&place);
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);
         }
@@ -329,12 +370,55 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
+        // A fixed byte range selects a descriptor window over its collection;
+        // it is not a child type or storage-home path. Resolve the backing first
+        // and apply the selected extent through the same narrowing operation
+        // used by a subsequent subslice.
+        let (backing_path, selected_window) = match source.path.split_last() {
+            Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
+                if region != ElementViewRegion::WholeCollection || start > end {
+                    return Err(invalid());
+                }
+                (
+                    backing,
+                    Some(
+                        usize::try_from(*start).map_err(|_| invalid())?
+                            ..usize::try_from(*end).map_err(|_| invalid())?,
+                    ),
+                )
+            }
+            _ => (source.path.as_slice(), None),
+        };
+        let backing_source = terminal_psi::StructuralArgument {
+            place: source.place,
+            path: backing_path.to_vec(),
+            access: source.access,
+        };
+        let source = &backing_source;
         let root_type = self.live_structural_type(source.place)?;
         let collection_type = crate::custody::resolve_structural_path_type(
             &self.program.structural_types,
             root_type,
             &source.path,
         )?;
+        if let Some(window) = &selected_window {
+            let StructuralTypeShape::FixedArray {
+                element: source_element,
+                length,
+            } = self.program.structural_types[&collection_type].shape
+            else {
+                return Err(invalid());
+            };
+            if source_element != element
+                || element_scalar
+                    != Some(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                    ))
+                || u64::try_from(window.end).map_err(|_| invalid())? > length
+            {
+                return Err(invalid());
+            }
+        }
         if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
             let start = count(&start, &self.values)?;
             let end = count(&end, &self.values)?;
@@ -387,6 +471,7 @@ impl TerminalExecution {
                         backing: ElementViewBacking::Representation(Arc::new(view)),
                         window: 0..extent,
                         home: None,
+                        descriptor_home: None,
                         access,
                     },
                 );
@@ -420,6 +505,7 @@ impl TerminalExecution {
                     backing: ElementViewBacking::Typed(Arc::new(typed)),
                     window: 0..extent,
                     home: None,
+                    descriptor_home: None,
                     access,
                 },
             );
@@ -483,9 +569,28 @@ impl TerminalExecution {
                     &collection,
                     &mut cursor,
                 )?;
-                if access == StructuralAccess::MutableBorrow {
+                let (value, binding) = if let Some(window) = &selected_window {
+                    self.narrow_byte_sequence_binding(
+                        &binding,
+                        &value,
+                        window.clone(),
+                        access,
+                        descriptor_value.clone(),
+                    )?
+                } else {
+                    (value, binding)
+                };
+                let binding = if access == StructuralAccess::MutableBorrow {
                     descriptor_value = value;
-                }
+                    binding
+                } else {
+                    crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
+                        binding
+                            .immutable()?
+                            .clone()
+                            .with_descriptor_home(descriptor_value.clone()),
+                    )
+                };
                 self.local_structural_identities.commit_cursor(cursor);
                 self.byte_sequence_values.insert(result.place, binding);
             }
@@ -509,6 +614,12 @@ impl TerminalExecution {
                     )
                 } else {
                     ElementView::new(elements)
+                };
+                let view = if let Some(window) = &selected_window {
+                    view.subslice(window.start, window.end, access)
+                        .ok_or_else(invalid)?
+                } else {
+                    view
                 };
                 self.element_view_values.insert(result.place, view);
             }
@@ -780,7 +891,7 @@ impl TerminalExecution {
             })
             || view.len() != length
             || source_value.structural_type != result.structural_type
-            || !source_value.path.is_empty()
+            || !view.matches_descriptor_home(source_value)
             || !source_value.qualifications.is_empty()
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -818,7 +929,10 @@ impl TerminalExecution {
             (Some(previous), Some(_)) if *previous == destination => {}
             _ => return Err(invalid()),
         }
-        let window = view.subslice(start, end, access).ok_or_else(invalid)?;
+        let window = view
+            .subslice(start, end, access)
+            .ok_or_else(invalid)?
+            .with_descriptor_home(destination.clone());
         self.element_view_values.insert(result.place, window);
         self.structural_values.insert(result.place, destination);
         if result.multiplicity == StructuralMultiplicity::Affine {

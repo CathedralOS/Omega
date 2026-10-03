@@ -67,6 +67,7 @@ mod representation_view_guards;
 mod scalar_block_invariants;
 mod scalar_call_case_arguments;
 mod scalar_graph;
+mod scalar_record_view_calls;
 mod service_reach_contracts;
 mod shared_state_views;
 mod source_selection;

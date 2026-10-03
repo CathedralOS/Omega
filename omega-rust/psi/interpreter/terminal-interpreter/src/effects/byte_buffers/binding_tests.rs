@@ -169,6 +169,7 @@ fn execution() -> TerminalExecution {
         )]),
         structural_primitive_storage: BTreeMap::new(),
         reference_referents: BTreeMap::new(),
+        structural_element_view_fields: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         local_structural_identities: LocalStructuralIdentities::with_reserved_identities([101]),
         structural_scalar_fields: BTreeMap::new(),

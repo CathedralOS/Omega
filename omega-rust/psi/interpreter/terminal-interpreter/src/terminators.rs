@@ -213,6 +213,7 @@ impl TerminalExecution {
             reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             );
             self.scalar_case_values.remove(place);
@@ -380,12 +381,23 @@ impl TerminalExecution {
                         .iter()
                         .any(|moved| carrier.path[value.path.len()..].starts_with(moved))
                 });
+                self.structural_element_view_fields.retain(|carrier, _| {
+                    if carrier.opaque_identity != value.opaque_identity
+                        || !carrier.path.starts_with(&value.path)
+                    {
+                        return true;
+                    }
+                    moved_paths
+                        .iter()
+                        .any(|moved| carrier.path[value.path.len()..].starts_with(moved))
+                });
             }
         }
         for place in trivial_affine_discards {
             if reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             )
             .is_none()
@@ -439,6 +451,7 @@ impl TerminalExecution {
             if reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             )
             .is_none()
@@ -538,6 +551,7 @@ impl TerminalExecution {
             reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             );
             self.scalar_case_values.remove(place);
@@ -600,6 +614,7 @@ impl TerminalExecution {
             &self.program.machines,
             &mut self.structural_values,
             &mut self.reference_referents,
+            &mut self.structural_element_view_fields,
             &mut self.scalar_case_values,
             &mut self.live_affine_frontier,
             &mut self.live_claims,
@@ -699,6 +714,7 @@ impl TerminalExecution {
             if reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             )
             .is_none()
@@ -933,6 +949,7 @@ impl TerminalExecution {
                 reference::discard_structural_value(
                     &mut self.structural_values,
                     &mut self.reference_referents,
+                    &mut self.structural_element_view_fields,
                     *place,
                 );
                 self.scalar_case_values.remove(place);
@@ -1088,6 +1105,7 @@ impl TerminalExecution {
             reference::discard_structural_value(
                 &mut self.structural_values,
                 &mut self.reference_referents,
+                &mut self.structural_element_view_fields,
                 *place,
             );
             self.scalar_case_values.remove(place);

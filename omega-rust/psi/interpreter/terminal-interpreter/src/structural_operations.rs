@@ -243,6 +243,7 @@ impl TerminalExecution {
             BTreeMap::new();
         let mut staged_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue> =
             BTreeMap::new();
+        let mut staged_element_views = BTreeMap::new();
         let mut consumed = BTreeSet::new();
         for ((declaration, namespace), binding) in roster.into_iter().zip(fields) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
@@ -344,6 +345,22 @@ impl TerminalExecution {
                                 .collect(),
                         })
                     };
+                    if self
+                        .program
+                        .structural_types
+                        .get(&child.structural_type)
+                        .is_some_and(|row| {
+                            matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                        })
+                    {
+                        let descriptor = self.element_view_argument(argument, child)?;
+                        staged_element_views.insert(member.clone(), descriptor.clone());
+                    }
+                    for (carrier, descriptor) in &self.structural_element_view_fields {
+                        if let Some(place) = retarget(carrier) {
+                            staged_element_views.insert(place, descriptor.clone());
+                        }
+                    }
                     for (carrier, referent) in &self.reference_referents {
                         if let Some(place) = retarget(carrier) {
                             if !affine {
@@ -401,6 +418,8 @@ impl TerminalExecution {
         self.structural_byte_arrays.extend(staged_byte_arrays);
         self.structural_primitive_storage.extend(staged_primitives);
         self.reference_referents.extend(staged_referents);
+        self.structural_element_view_fields
+            .extend(staged_element_views);
         self.structural_cases.insert(
             member_root,
             StructuralCaseContents {
@@ -437,6 +456,9 @@ impl TerminalExecution {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
         self.reference_referents.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_element_view_fields.retain(|carrier, _| {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
         self.structural_primitive_storage.retain(|carrier, _| {
@@ -1132,6 +1154,13 @@ impl TerminalExecution {
             .iter()
             .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
             .collect();
+        let staged_element_views: Vec<_> = self
+            .structural_element_view_fields
+            .iter()
+            .filter_map(|(carrier, descriptor)| {
+                retarget(carrier).map(|place| (place, descriptor.clone()))
+            })
+            .collect();
         let staged_referents: Vec<_> = self
             .reference_referents
             .iter()
@@ -1161,6 +1190,9 @@ impl TerminalExecution {
         self.reference_referents.retain(|carrier, _| {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
+        self.structural_element_view_fields.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
         self.structural_primitive_storage.retain(|carrier, _| {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
@@ -1170,6 +1202,8 @@ impl TerminalExecution {
         self.structural_byte_arrays.extend(staged_arrays);
         self.structural_cases.extend(staged_cases);
         self.reference_referents.extend(staged_referents);
+        self.structural_element_view_fields
+            .extend(staged_element_views);
         self.structural_primitive_storage.extend(staged_primitives);
     }
 
@@ -1221,6 +1255,13 @@ impl TerminalExecution {
             .iter()
             .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
             .collect();
+        let staged_element_views: Vec<_> = self
+            .structural_element_view_fields
+            .iter()
+            .filter_map(|(carrier, descriptor)| {
+                retarget(carrier).map(|place| (place, descriptor.clone()))
+            })
+            .collect();
         let staged_referents: Vec<_> = self
             .reference_referents
             .iter()
@@ -1239,6 +1280,8 @@ impl TerminalExecution {
         self.structural_byte_arrays.extend(staged_arrays);
         self.structural_cases.extend(staged_cases);
         self.reference_referents.extend(staged_referents);
+        self.structural_element_view_fields
+            .extend(staged_element_views);
         self.structural_primitive_storage.extend(staged_primitives);
     }
 
@@ -1274,6 +1317,7 @@ impl TerminalExecution {
                 || result.structural_type != source_value.structural_type
                 || result.qualifications != source_value.qualifications
                 || !source_value.path.is_empty()
+                || !bytes.matches_descriptor_home(source_value)
                 || !result.projected_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
                 || !result.claims.is_empty()
@@ -1300,7 +1344,9 @@ impl TerminalExecution {
             };
             self.byte_sequence_values.insert(
                 result.place,
-                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(bytes),
+                crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
+                    bytes.detached_descriptor(),
+                ),
             );
             self.structural_values.insert(result.place, copied);
             return Ok(OperationFlow::Advance);
@@ -1385,11 +1431,15 @@ impl TerminalExecution {
             let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type
             {
-                self.byte_sequence_values
+                let bytes = self
+                    .byte_sequence_values
                     .get(&source)
                     .ok_or_else(invalid)?
-                    .immutable()?
-                    .clone()
+                    .immutable()?;
+                if !bytes.matches_descriptor_home(root) {
+                    return Err(invalid());
+                }
+                bytes.clone()
             } else {
                 let mut parent = StructuralRuntimePlace::from(&leaf);
                 parent.path.pop().ok_or_else(invalid)?;
@@ -1408,8 +1458,39 @@ impl TerminalExecution {
             if self.byte_sequence_values.contains_key(&result.place) {
                 return Err(invalid());
             }
-            self.byte_sequence_values
-                .insert(result.place, ByteSequenceBinding::Immutable(bytes));
+            self.byte_sequence_values.insert(
+                result.place,
+                ByteSequenceBinding::Immutable(bytes.detached_descriptor()),
+            );
+        }
+        if self
+            .program
+            .structural_types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            })
+        {
+            let root = self.structural_values.get(&source).ok_or_else(invalid)?;
+            let descriptor = if StructuralRuntimePlace::from(root)
+                == StructuralRuntimePlace::from(&leaf)
+                && root.structural_type == leaf.structural_type
+            {
+                let descriptor = self.element_view_values.get(&source).ok_or_else(invalid)?;
+                if !descriptor.matches_descriptor_home(root) {
+                    return Err(invalid());
+                }
+                descriptor
+            } else {
+                self.structural_element_view_fields
+                    .get(&StructuralRuntimePlace::from(&leaf))
+                    .ok_or_else(invalid)?
+            };
+            let descriptor = descriptor.detached_descriptor();
+            if self.element_view_values.contains_key(&result.place) {
+                return Err(invalid());
+            }
+            self.element_view_values.insert(result.place, descriptor);
         }
         self.clone_subtree(
             &StructuralRuntimePlace::from(&leaf),

@@ -23,24 +23,15 @@ pub(super) fn readable_view_referent(
     checked: &CheckedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, ReferenceAccess)> {
-    let mut reference = type_reference;
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference {
-                access: access @ (ReferenceAccess::Shared | ReferenceAccess::Mutable),
-                referee,
-                ..
-            } => {
-                return matches!(
-                    checked.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Slice { .. }
-                )
-                .then_some((*referee, *access));
-            }
-            _ => return None,
-        }
-    }
+    // Constraints can qualify either side of the reference shell. Rejoin the
+    // slice carrier through the common classifier; qualifier admission remains
+    // a separate obligation on the exact argument and formal.
+    let view = validation::slice_view_shell(&checked.typed, type_reference, &[])?;
+    matches!(
+        view.access,
+        ReferenceAccess::Shared | ReferenceAccess::Mutable
+    )
+    .then_some((view.slice, view.access))
 }
 
 fn is_byte_slice(checked: &CheckedTrees, slice: TypeReferenceHandle) -> bool {

@@ -26,6 +26,8 @@ use std::sync::Arc;
 pub(crate) struct ByteSequenceView {
     backing: Arc<[u8]>,
     window: Range<usize>,
+    /// Exact metadata of a projected binding; absent for a newly owned descriptor.
+    descriptor_home: Option<crate::values::TerminalStructuralValue>,
 }
 
 impl ByteSequenceView {
@@ -34,7 +36,31 @@ impl ByteSequenceView {
         Self {
             backing: bytes.into(),
             window: 0..length,
+            descriptor_home: None,
         }
+    }
+
+    pub(crate) fn with_descriptor_home(
+        mut self,
+        home: crate::values::TerminalStructuralValue,
+    ) -> Self {
+        self.descriptor_home = Some(home);
+        self
+    }
+
+    pub(crate) fn detached_descriptor(&self) -> Self {
+        let mut descriptor = self.clone();
+        descriptor.descriptor_home = None;
+        descriptor
+    }
+
+    pub(crate) fn matches_descriptor_home(
+        &self,
+        value: &crate::values::TerminalStructuralValue,
+    ) -> bool {
+        self.descriptor_home
+            .as_ref()
+            .map_or_else(|| value.path.is_empty(), |home| home == value)
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -71,6 +97,7 @@ impl ByteSequenceView {
         Some(Self {
             backing: Arc::clone(&self.backing),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
+            descriptor_home: None,
         })
     }
 }
