@@ -5,6 +5,8 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKi
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess as A, StructuralMultiplicity as M, StructuralTypeShape};
 
+mod copied;
+
 fn supplies(actual: A, requested: A) -> bool {
     actual == A::Owned
         || matches!(
@@ -22,6 +24,7 @@ pub(in crate::selection) fn view_access(
     let mut required = A::SharedBorrow;
     let mut initial = None;
     let mut expected_type = None;
+    let mut copied_whole = false;
     for _ in 0..signature.structural_places.len() {
         if let Some((_, result)) = super::descriptor_result(function, place) {
             return (required == A::SharedBorrow
@@ -69,6 +72,7 @@ pub(in crate::selection) fn view_access(
                         })))
                 || !parameter.projected_qualifications.is_empty()
                 || !matches!(parameter.access, A::SharedBorrow | A::MutableBorrow)
+                || (copied_whole && parameter.access != A::SharedBorrow)
                 || !supplies(parameter.access, required)
                 || !signature.structural_types.iter().any(|row| {
                     row.id == parameter.structural_type
@@ -123,7 +127,8 @@ pub(in crate::selection) fn view_access(
         let result = match &row.kind {
             I::ByteSequenceSubslice { result, .. }
             | I::ElementViewSubslice { result, .. }
-            | I::EstablishElementView { result, .. } => result,
+            | I::EstablishElementView { result, .. }
+            | I::StructuralLeafCopy { result, .. } => result,
             _ => return None,
         };
         if result.place != place
@@ -140,11 +145,27 @@ pub(in crate::selection) fn view_access(
             M::Affine => A::MutableBorrow,
             _ => return None,
         };
-        if !supplies(access, required) {
+        if !supplies(access, required) || (copied_whole && access != A::SharedBorrow) {
             return None;
         }
         initial.get_or_insert(access);
+        copied_whole = false;
         match &row.kind {
+            I::StructuralLeafCopy { source, path, .. } => {
+                if access != A::SharedBorrow {
+                    return None;
+                }
+                if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
+                {
+                    required = A::SharedBorrow;
+                    expected_type = Some(structural_type);
+                    copied_whole = true;
+                    place = *source;
+                } else {
+                    copied::shared_projection(function, row)?;
+                    return initial;
+                }
+            }
             I::ByteSequenceSubslice { source, .. } | I::ElementViewSubslice { source, .. } => {
                 required = access;
                 expected_type = Some(structural_type);
