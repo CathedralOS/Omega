@@ -1925,14 +1925,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `dependent/runtime_sibling_len_index_exit` exercises the library returned-view
   form `let view: &[u8] = self.buf.as_slice()`.
 
-  The next record-view dependency is formation-time capture for mutable
-  field-held selectors. Runtime byte overlays currently retain immutable scalar
-  parameter selectors. Constant locals fold to static selector paths; the current producer
-  does not mint a dynamic-local coordinate. A live field selector explicitly
-  declines instead of reloading a changed selector at observation.
+  Preserve `recast/runtime_field_precondition_capture_exit` at native/interpreter
+  exit **70**: a field-held selector is bounded by the callee precondition at
+  view formation, then captured independently of later selector mutation.
+  Direct writes and mutating calls before formation invalidate that bound,
+  including bounds carried from predecessor states; the four
+  `fail/recast/{field_precondition,incoming_offset}*_invalidated_before_capture`
+  controls must reject. Continue captured loans through the remaining
+  producer/read/call compositions using facts at the formation occurrence.
   Preserve `pass/borrows/shared_recast_loan_member_read`'s native/interpreted
-  exit 0 and canonical place ordering beside provider attachments. Extend
-  captured loans through remaining producer/read/call compositions. Whole mutable
+  exit 0 and canonical place ordering beside provider attachments. Whole mutable
   view locals now retain their backing and exclusive permission through named
   state transfers: `storage/runtime_local_slice_forward_exit` and
   `storage/runtime_parameter_slice_forward_exit` both execute with native and
@@ -2005,9 +2007,17 @@ crash and native exit behavior. Use affected check/native corpus slices under
   forward 20, 30, and 40 while mutating the borrowed counter exactly once per
   invocation. Source-free Terminal replay also executes mixed call/state/value
   completion and rejects substituted call placement, target, coordinate, access,
-  and service evidence. Structural-result tail calls, closed-sum case arms, range-constrained
-  result compatibility, arm calls whose guard or operands make calls, and
-  claim-transferring arm calls remain declined there.
+  and service evidence. Direct boundary requirement arms now share ordinary
+  call frames, operand production, result binding and local disposal.
+  `calls/runtime_guarded_boundary_tail_call_exit` and
+  `recast/runtime_field_precondition_capture_exit` both exit **70** natively
+  and in the interpreter, covering scalar provider results and Unit host calls.
+  Structural-result tail calls, closed-sum case arms, range-constrained result
+  compatibility, arm calls whose guard or operands make calls, and
+  claim-transferring arm calls remain declined there. Nested receiver terminal
+  calls still need the exact receiver leaf identity retained in the typed
+  transition and joined to an occurrence-specific selected dispatch row;
+  the receiver root cannot substitute for that identity.
 
   Qualified runtime-end byte slices now execute: after package preparation,
   `omega run --both tests/omega/pass/slices/domained_runtime_end_subslice_exit/main.omg`
