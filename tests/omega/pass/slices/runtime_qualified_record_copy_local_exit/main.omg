@@ -1,0 +1,44 @@
+// Copy a slice element into an independent local before lending it onward.
+// Byte-owner metadata and enum fields belong to the copy just as scalar fields
+// do; the copied value must survive a subsequent replacement of its source.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Tag [copy] { case First; case Second; }
+data Cell [copy] { label: [u8; 8] in Utf8; tag: Tag; value: u64; }
+data Bag { cells: [Cell; 2]; }
+data Main { console: Binding<Console>; source: Bag; destination: Bag; }
+
+machine copy_selected(source: &Bag, destination: &mut Bag) {
+    let input: &[Cell] = source.cells.as_slice();
+    let selected: Cell = input[1];
+    destination.cells[0] = selected;
+}
+
+machine initialize(cell: &mut Cell, tag: Tag, value: u64) {
+    cell.tag = tag;
+    cell.value = value;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.cells[0].label = "first";
+    main.source.cells[1].label = "second";
+    main.destination.cells[1].label = "kept";
+    initialize(&mut main.source.cells[0], Tag::First, 11);
+    initialize(&mut main.source.cells[1], Tag::Second, 39);
+    initialize(&mut main.destination.cells[1], Tag::First, 31);
+    copy_selected(&main.source, &mut main.destination);
+    main.source.cells[1].label = "changed";
+    transition main.destination.cells[0].value == 39
+        && main.destination.cells[0].label == "second"
+        && main.destination.cells[0].tag == Tag::Second
+        && main.destination.cells[1].value == 31
+        && main.destination.cells[1].label == "kept"
+        && main.source.cells[0].label == "first"
+        && main.source.cells[1].label == "changed" {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

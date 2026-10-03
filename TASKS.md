@@ -4011,11 +4011,20 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   reviewed-corpus execution results.
 
   Remaining joins:
-  - Copy bounded, erased and structural fields of `[copy]` view elements under
-    [ownership](wiki/spec/language/ownership.md). Stage 04's
-    `values/scalar/computations/structural_values.rs::view_element_copy` admits
-    plain scalar fields and fields under exactly one arithmetic policy; a
-    ranged, erased or structural field still declines.
+  - Complete range-qualified scalar and erased-field coverage for `[copy]`
+    view elements under [ownership](wiki/spec/language/ownership.md).
+    Do not infer an implementation gap from `view_element_copy`'s scalar-only
+    reconstruction: its sibling `copied_place` already retains whole structural
+    contents through `StructuralLeafCopy`. At `dd19299af7d` on macOS ARM64,
+    `python3 tools/corpus_gate.py --both --golden tests/omega/corpus_native_macos_arm64.txt
+    --filter slices/runtime_qualified_record_copy_local_exit` executes with
+    native/interpreter exit **70**. A slice element containing bounded owned
+    text and an enum copies through a local into independent destination storage;
+    replacing the source afterward preserves the copied bytes and untouched
+    siblings. This coverage needs no compiler change. The corresponding
+    `omega run --both tests/omega/pass/slices/runtime_qualified_record_copy_local_exit/main.omg`
+    compiles for fresh package review but remains pending ordinary acceptance
+    (exit 200); the fixture policy does not supply that acceptance.
   - Verify consuming mutable-view forwarding on the Unit-graph route with exact
     reborrow places available at successors. Reuse `tests/unit_state_graph/bindings.rs`
     for byte-view controls.
