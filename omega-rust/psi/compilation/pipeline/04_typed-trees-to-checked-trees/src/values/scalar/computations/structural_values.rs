@@ -815,7 +815,11 @@ impl Builder<'_, '_> {
                 return None;
             }
             CheckedStructuralValueKind::Place(argument)
-        } else if validation::reference_result_custody::parts(self.program, expected).is_some() {
+        } else if validation::reference_result_custody::stored_loan_parts(self.program, expected)
+            .is_some_and(|(_, access)| {
+                access == checked_trees::CheckedStructuralAccess::MutableBorrow
+            })
+        {
             let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
                 |machine| {
                     self.program

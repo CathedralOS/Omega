@@ -746,16 +746,29 @@ pub(crate) fn validate_function_references(
             return Err(invalid());
         }
     }
-    if function
+    // A block parameter may hold a whole owned reference record: the same
+    // eligibility as an incoming parameter. The replay's live-reference rows
+    // re-home onto the bound place at each edge, so edge custody, not the
+    // parameter shape, carries the loan's exact evidence.
+    for parameter in function
         .blocks
         .iter()
         .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| contains_reference(types, parameter.structural_type))
+        .filter(|parameter| contains_reference(types, parameter.structural_type))
     {
-        return Err(invalid());
+        if parameter.access != terminal_psi::StructuralAccess::Owned
+            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !constructible(types, parameter.structural_type)
+        {
+            return Err(invalid());
+        }
     }
     // Binding any subtree of a reference-bearing root would need partial-move
     // custody, even when the selected target parameter itself has no references.
+    // A whole owned argument moves the entire record — and every stored loan
+    // with it — across the edge; a borrow lane or a projected path cannot.
     if function
         .blocks
         .iter()
@@ -765,6 +778,8 @@ pub(crate) fn validate_function_references(
         .any(|binding| {
             structural_source_contract(function, binding.argument.place, false)
                 .is_some_and(|source| contains_reference(types, source.structural_type))
+                && (binding.argument.access != terminal_psi::StructuralAccess::Owned
+                    || !binding.argument.path.is_empty())
         })
     {
         return Err(invalid());

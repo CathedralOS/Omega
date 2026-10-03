@@ -1141,7 +1141,15 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 {
                     return true;
                 }
+                // A record whose non-plain leaves are exactly its stored
+                // loans (`Indirect { target: &mut Wrap; }`) rides the same
+                // owned-carrier lane: the edge transfers the whole value, so
+                // each captured loan keeps its checked ingress instead of
+                // minting fresh borrow authority.
                 if !validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                ) && !validation::reference_result_custody::is_reference_record(
                     program,
                     parameter.type_reference,
                 ) {

@@ -1,0 +1,47 @@
+// Recovered from the deleted `rank_endpoint_borrows` case (c60792d7bdd):
+// a countdown whose endpoint bound is read through a stored EXCLUSIVE
+// reference. `indirect.target` is a `&mut Wrap` carried inside `Indirect`
+// through every recursive call, and the projected `indirect.target.remaining`
+// forms the inclusive upper bound of `n -> Nat::Descending`.
+//
+// This pins the whole-record affine move: a locally formed `&mut owner` is
+// packed into `Indirect` in `Main::main`, moved as one owned record into
+// `walk`, and re-bound across the loop-header block parameter on every
+// recursive re-entry. The stored loan keeps its exact formation identity,
+// referent root and carrier path at each hop; native, interpreted, and
+// `--both` executions must agree.
+//
+// exit 0 = the countdown reached `n == 0` and returned it;
+// exit 1 = any other outcome.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Wrap { remaining: u64 [4..=500]; }
+data Indirect { target: &mut Wrap; }
+
+machine walk(n: u64 [0..=4], indirect: Indirect)
+terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
+-> u64 {
+    transition n > 0 {
+        true -> walk(n - 1, indirect)
+        false -> n
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut owner: Wrap = Wrap { remaining: 6 };
+    let indirect: Indirect = Indirect { target: &mut owner };
+    let settled: u64 = walk(4, indirect);
+
+    transition settled == 0 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    state good(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

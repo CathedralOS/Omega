@@ -243,27 +243,39 @@ impl emission::Emission<'_, '_, '_> {
                                 );
                             }
                         };
+                        // A reference member's declared carrier is its whole
+                        // shell — `&mut T` and `&T` register as `Reference`
+                        // shapes under their own identity — while view
+                        // members register peeled, access binding on the
+                        // member rather than the shape, exactly as the
+                        // `&[u8]` arm above reads its unwrapped carrier.
+                        let child_is_reference = self.structural_types.iter().any(|declaration| {
+                            declaration.id == child_type
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                        });
+                        let member_carrier = if child_is_reference {
+                            Some(field.type_reference)
+                        } else {
+                            validation::unwrapped_type_reference(
+                                &self.checked.typed,
+                                field.type_reference,
+                            )
+                        };
                         if !matches!(
                             target.field_type,
                             StructuralFieldType::ByteSequence(_)
                                 | StructuralFieldType::PredicateByteSequence { .. }
                         ) && lookup_type_id(
                             self.type_ids,
-                            // View members register peeled — access binds on
-                            // the member, not on the shape — exactly as the
-                            // `&[u8]` arm above reads its unwrapped carrier.
                             self.checked
-                                .normalized_type_identity(
-                                    validation::unwrapped_type_reference(
-                                        &self.checked.typed,
-                                        field.type_reference,
-                                    )
-                                    .ok_or(
-                                        LoweringError::Unsupported(
-                                            "view record member lost its carrier",
-                                        ),
-                                    )?,
-                                )
+                                .normalized_type_identity(member_carrier.ok_or(
+                                    LoweringError::Unsupported(
+                                        "view record member lost its carrier",
+                                    ),
+                                )?)
                                 .as_str(),
                         )? != child_type
                         {

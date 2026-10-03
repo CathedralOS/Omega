@@ -824,33 +824,66 @@ impl Emission<'_, '_, '_> {
                     self.complete_loan(argument, continuation, LoanAccess::Shared)?;
                     return Ok(continuation.place);
                 }
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } = source.source
-                else {
-                    return unsupported("reference initializer has no formal ingress");
+                let source_place = match source.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => {
+                        let (_, parameter) = self
+                            .evaluation
+                            .structural_parameters
+                            .get(parameter_index as usize)
+                            .ok_or(LoweringError::Unsupported(
+                                "reference initializer parameter missing",
+                            ))?;
+                        if parameter.access != StructuralAccess::MutableBorrow
+                            || parameter.structural_type
+                                != lookup_type_id(self.type_ids, &source.type_identity)?
+                            || !parameter.qualifications.is_empty()
+                            || !parameter.projected_qualifications.is_empty()
+                        {
+                            return unsupported("reference initializer changes ingress custody");
+                        }
+                        parameter.place
+                    }
+                    // A local-rooted loan mints that local's established place:
+                    // `Indirect { target: &mut owner }` lends `owner`'s own
+                    // storage whole, so the source must name one complete
+                    // owned local and the local's carrier must be the exact
+                    // referent the field declared.
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    } => {
+                        let mut locals = self
+                            .evaluation
+                            .structural_locals
+                            .iter()
+                            .filter(|local| local.symbol == symbol);
+                        let local = locals.next().ok_or(LoweringError::Unsupported(
+                            "reference initializer local ingress missing",
+                        ))?;
+                        if locals.next().is_some()
+                            || !local.argument.path.is_empty()
+                            || local.argument.access != StructuralAccess::Owned
+                            || local.structural_type
+                                != lookup_type_id(self.type_ids, &source.type_identity)?
+                        {
+                            return unsupported("reference initializer changes ingress custody");
+                        }
+                        local.argument.place
+                    }
+                    _ => {
+                        return unsupported("reference initializer has no established ingress");
+                    }
                 };
-                let (_, parameter) = self
-                    .evaluation
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "reference initializer parameter missing",
-                    ))?;
                 if !source.path.is_empty()
                     || source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-                    || parameter.access != StructuralAccess::MutableBorrow
-                    || parameter.structural_type
-                        != lookup_type_id(self.type_ids, &source.type_identity)?
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                 {
                     return unsupported("reference initializer changes ingress custody");
                 }
                 let declaration = super::super::reference_results::emit_carrier(
                     self.structural_type,
                     StructuralArgument {
-                        place: parameter.place,
+                        place: source_place,
                         path: Vec::new(),
                         access: StructuralAccess::MutableBorrow,
                     },

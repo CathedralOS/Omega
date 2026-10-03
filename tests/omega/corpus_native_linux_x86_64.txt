@@ -879,6 +879,7 @@ pass/termination/named_computed_rank_endpoints checked 743ms @2d8ed253669f+wt
 pass/termination/natural_call_variable_step checked 689ms @2d8ed253669f+wt
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 595ms @2d8ed253669f+wt
 pass/termination/quotient_endpoint_call_component checked 763ms @2d8ed253669f+wt
+pass/termination/rank_endpoint_borrows_recovery built 2288ms exit:0 @f7f6234600+wt
 pass/termination/rank_range_call_component checked 475ms @2d8ed253669f+wt
 pass/termination/rank_range_call_declared_step_copy checked 705ms @2d8ed253669f+wt
 pass/termination/rank_range_declared_step_copies checked 711ms @2d8ed253669f+wt
@@ -896,10 +897,10 @@ pass/termination/remainder_actual_call_component checked 689ms @2d8ed253669f+wt
 pass/termination/remainder_literal_call_component checked 701ms @2d8ed253669f+wt
 pass/termination/runtime_named_state_remainder_endpoint_exit built 2751ms exit:0 @2d8ed253669f+wt
 pass/termination/runtime_rank_range_state_call_exit built 2214ms exit:70 @9baafc0ace88
-pass/termination/runtime_shrinking_slice_recursion_exit rejected 1524ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph subslice disagrees with its source argument"))
-pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1727ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
+pass/termination/runtime_receiver_byte_slice_recursion_exit built 1726ms exit:70 @f7f6234600+wt
+pass/termination/runtime_shrinking_slice_recursion_exit built 1526ms exit:70 @f7f6234600+wt
+pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1539ms @f7f6234600+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural value: reference record loans, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 679ms @2d8ed253669f+wt
 pass/termination/symbolic_quotient_endpoints checked 712ms @2d8ed253669f+wt
 pass/termination/unsigned_identity_measure_rank_range checked 628ms @2d8ed253669f+wt

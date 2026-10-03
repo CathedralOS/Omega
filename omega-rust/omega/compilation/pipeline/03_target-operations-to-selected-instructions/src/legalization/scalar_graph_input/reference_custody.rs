@@ -1571,11 +1571,42 @@ pub(in crate::legalization) fn apply_terminator(
     Ok(())
 }
 
+/// A whole owned edge move re-homes the moved record's loan leaves onto the
+/// bound name: the custody key is the current carrier location and follows
+/// the value across the edge. Formation identity, result row, root, parent
+/// and referent are provenance and stay put.
+fn re_home_bound_leaves(
+    custody: &mut Custody,
+    bindings: &[abstract_operations::AbstractStructuralBinding],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+) {
+    for (binding, parameter) in bindings.iter().zip(parameters) {
+        if parameter.access != StructuralAccess::Owned
+            || binding.argument.access != StructuralAccess::Owned
+            || !binding.argument.path.is_empty()
+            || binding.argument.place == parameter.place
+        {
+            continue;
+        }
+        let moved: Vec<(PlaceId, Vec<StructuralPathSegment>)> = custody
+            .leaves
+            .keys()
+            .filter(|(carrier, _)| *carrier == binding.argument.place)
+            .cloned()
+            .collect();
+        for (carrier, path) in moved {
+            if let Some(leaf) = custody.leaves.remove(&(carrier, path.clone())) {
+                custody.leaves.insert((parameter.place, path), leaf);
+            }
+        }
+    }
+}
+
 /// Compute each block's entry custody snapshot: ingress seeding at the entry
 /// block and each dominator's exit state elsewhere, replayed over the exact
-/// optimized node order. Reference custody never crosses an edge binding —
-/// lowering rejects reference-bearing structural transfers — so a block's
-/// entry state is exactly its dominator's exit state.
+/// optimized node order. Whole owned edge bindings may re-home a carrier —
+/// every stored loan travels with its record — so a block's entry state is
+/// its dominator's exit state with the edge's bound leaves re-keyed.
 pub(in crate::legalization) fn block_entry_states(
     function: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
@@ -1654,7 +1685,29 @@ pub(in crate::legalization) fn block_entry_states(
                 .filter(|dominator| *dominator != position)
                 .max_by_key(|dominator| dominators[*dominator].len())
                 .ok_or_else(|| invalid())?;
-            states[dominator].clone().ok_or_else(|| invalid())?
+            let mut custody = states[dominator].clone().ok_or_else(|| invalid())?;
+            // A dominating edge that binds this block's parameters carries
+            // each whole owned move's loans onto the bound places. When the
+            // dominator reaches this block through an intermediate block —
+            // a merge point — no binding happens on its terminator and the
+            // entry state stays its exit state unchanged.
+            if let Some(edge) = blocks[dominator]
+                .nodes
+                .last()
+                .and_then(|terminator| {
+                    terminator
+                        .successors
+                        .iter()
+                        .find(|edge| edge.target == blocks[position].id)
+                })
+            {
+                re_home_bound_leaves(
+                    &mut custody,
+                    &edge.structural_bindings,
+                    &blocks[position].structural_parameters,
+                );
+            }
+            custody
         };
         entries.insert(blocks[position].id, custody.clone());
         for node in &blocks[position].nodes {
@@ -1771,7 +1824,9 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
-                StructuralFieldType::Structural(child) if referent(types, child).is_some() => {}
+                StructuralFieldType::Structural(child)
+                    if referent(types, child).is_some()
+                        || plain_record_referent(types, child).is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push(child),
                 _ => return false,
             }

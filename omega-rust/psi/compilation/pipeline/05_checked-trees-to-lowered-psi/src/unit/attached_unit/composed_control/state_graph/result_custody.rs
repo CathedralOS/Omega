@@ -375,15 +375,32 @@ fn retired_in_body(
         {
             return unsupported("Unit graph operand retirement duplicates or precedes its owner");
         }
+        // A stored-loan record is an owned carrier too: its affine whole moves
+        // whole, and the leaves' borrow custody lives in the loan ledger the
+        // construction replay already joined. Retiring it demands the same
+        // exact captured-loan evidence the establishment check requires --
+        // admission is the record loan join, not the plain-contents shape.
+        let stored_loan_record = validation::reference_result_custody::local_owes_record_loans(
+            &checked.typed,
+            local.type_reference,
+        ) && validation::reference_result_custody::local_record_loans(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            source,
+            result.statement_index,
+        )
+        .is_some();
         if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine
             || checked
                 .normalized_type_identity(local.type_reference)
                 .as_str()
                 != result.type_identity
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                &checked.typed,
-                local.type_reference,
-            )
+            || !(stored_loan_record
+                || validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    local.type_reference,
+                ))
         {
             return unsupported("Unit graph operand retirement changed its local custody");
         }

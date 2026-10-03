@@ -1818,7 +1818,18 @@ pub(crate) fn local_value_provenance(
         &checked.typed,
         local.initial_value,
         &mut |expression| {
-            let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
+            // A stored `&`/`&mut` child borrows its target place rather than
+            // minting fresh storage: checking resolves the borrow through the
+            // canonical place of its target, so the loan's conserved origin
+            // is the referee's provenance. Unwrap the shells the same way so
+            // a record literal carrying `&mut owner` keys its establishment
+            // on `owner`'s, exactly as the recorded event does.
+            let mut operand = expression;
+            while let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(operand)
+            {
+                operand = borrow.target;
+            }
+            let ExpressionNode::Name(name) = checked.expression_table.expression(operand) else {
                 return Ok(None);
             };
             if !name.symbol.is_valid() {
@@ -1833,7 +1844,11 @@ pub(crate) fn local_value_provenance(
                 return Ok(None);
             }
             if name.head_symbol != name.symbol || name.members.count() != 1 {
-                return if expression == local.initial_value {
+                // A borrow unwrapped above names a member place: the checker
+                // keys the loan on that tracked path, which is not a whole
+                // owned source here either. Only a bare member-path
+                // initializer -- an actual whole-value move -- is an error.
+                return if operand == expression && expression == local.initial_value {
                     Err("owned local origin is not a whole source")
                 } else {
                     Ok(None)
@@ -1869,7 +1884,8 @@ pub(crate) fn local_value_provenance(
             };
             if origins.next().is_some()
                 || ordinal >= statement
-                || (expression == local.initial_value
+                || (operand == expression
+                    && expression == local.initial_value
                     && checked.normalized_type_identity(origin.type_reference)
                         != checked.normalized_type_identity(local.type_reference))
             {

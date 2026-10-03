@@ -44,6 +44,28 @@ pub(crate) fn plain_type(
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(nested)
+                            if declarations.iter().any(|declaration| {
+                                declaration.id == nested
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::Reference { .. }
+                                    )
+                            }) =>
+                        {
+                            // A stored loan is one address-word leaf inside the
+                            // owned record; its referent must still be a plain
+                            // type (no nested loan rosters through this gate).
+                            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                                declarations
+                                    .iter()
+                                    .find(|declaration| declaration.id == nested)
+                                    .map(|declaration| &declaration.shape)
+                            else {
+                                return false;
+                            };
+                            pending.push(*referent);
+                        }
                         StructuralFieldType::Structural(nested) => pending.push(nested),
                         _ => return false,
                     }
