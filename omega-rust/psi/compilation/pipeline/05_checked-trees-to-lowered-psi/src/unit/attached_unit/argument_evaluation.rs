@@ -357,6 +357,8 @@ impl Evaluation {
             // identity, so only a borrow-carrier local peels to its referee.
             // A `&[T]` view or `&u8` call result still peels — its binding
             // stamps the view or primitive carrier itself.
+            let reference_carrier =
+                matches!(declaration.shape, StructuralTypeShape::Reference { .. });
             let record_call_result = shared_borrow.is_some_and(|referent| {
                 matches!(
                     checked.expression_table.expression(local.initial_value),
@@ -366,12 +368,14 @@ impl Evaluation {
                     checked_trees::types::TypeReferenceNode::Named { .. }
                 )
             });
-            let carrier = match shared_borrow.filter(|_| !record_call_result).or(
-                crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-                    checked,
-                    local.type_reference,
-                ),
-            ) {
+            let carrier = match shared_borrow
+                .filter(|_| !record_call_result && !reference_carrier)
+                .or(
+                    crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                        checked,
+                        local.type_reference,
+                    ),
+                ) {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
             };
@@ -379,11 +383,12 @@ impl Evaluation {
             // a `&` local that binds a record `&T` call result. A `&` local
             // bound by anything else (a match join, a field borrow, a view
             // call) keeps the declared multiplicity of its own type.
-            let expected_multiplicity = if mutable_borrow.is_some() || record_call_result {
-                Multiplicity::Affine
-            } else {
-                checked.type_multiplicity(local.type_reference)
-            };
+            let expected_multiplicity =
+                if mutable_borrow.is_some() || record_call_result || reference_carrier {
+                    Multiplicity::Affine
+                } else {
+                    checked.type_multiplicity(local.type_reference)
+                };
             if !local.symbol.is_valid()
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || expected_multiplicity != result.multiplicity

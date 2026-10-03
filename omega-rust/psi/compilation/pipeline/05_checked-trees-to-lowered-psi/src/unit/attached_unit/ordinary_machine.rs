@@ -1264,7 +1264,8 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
+            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::Call(_) => {
@@ -1277,9 +1278,6 @@ impl MachineEmission<'_> {
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.primitive_local_places.push(local);
                 return Ok(());
-            }
-            CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
-                self.establish_reference(operation)?
             }
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
                 self.release_reference(operation)?

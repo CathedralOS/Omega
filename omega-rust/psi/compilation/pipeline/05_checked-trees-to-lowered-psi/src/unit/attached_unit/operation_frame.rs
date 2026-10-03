@@ -619,16 +619,25 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         self.results
             .require_next(result, "reference result binding is not dense")?;
-        let slice = std::slice::from_ref(source);
-        let earlier = self.results.earlier(slice, self.operations)?;
-        let argument = parameters::lower_reference_source(
-            source,
-            self.structural_types.declarations(),
-            self.parameters,
-            self.caller.local_places,
-            &earlier,
-            self.primitive_locals,
-        )?;
+        let argument =
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                parameter_index,
+            } = source.source
+            {
+                self.primitive_parameter_source(parameter_index, source)?
+            } else {
+                let earlier = self
+                    .results
+                    .earlier(std::slice::from_ref(source), self.operations)?;
+                parameters::lower_reference_source(
+                    source,
+                    self.structural_types.declarations(),
+                    self.parameters,
+                    self.caller.local_places,
+                    &earlier,
+                    self.primitive_locals,
+                )?
+            };
         let declaration = reference_results::emit(
             result,
             argument,
@@ -644,7 +653,26 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("reference establishment produced no structural result");
         };
-        self.results.push(declaration, false);
+        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        let local = matches!(
+            self.checked
+                .statement_table
+                .statements(authored.statement_nodes)
+                .get(result.statement_index as usize),
+            Some(checked_trees::statement::StatementNode::LocalData(_))
+        );
+        if local {
+            reference_results::validate_local_establishment(
+                self.checked,
+                self.state,
+                result,
+                source,
+            )?;
+        }
+        self.results.push(declaration, local);
         self.evaluation.establish_structural_binding(
             self.checked,
             self.state,
@@ -654,6 +682,125 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             self.operations,
         )
+    }
+
+    /// Give one immutable scalar ingress its original addressable home. Every
+    /// loan of that parameter rejoins this place, including differently typed
+    /// views; no loan copies a previously established referent.
+    fn primitive_parameter_source(
+        &mut self,
+        parameter_index: u32,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        let parameter = self
+            .checked
+            .state_parameters(authored)
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && !parameter.relevance.is_erased()
+                    && self
+                        .checked
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+            })
+            .nth(parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "primitive reference ingress is absent",
+            ))?;
+        let scalar_type = terminal_scalar_type(
+            self.checked
+                .primitive_type_reference(parameter.type_reference)
+                .ok_or(LoweringError::Unsupported(
+                    "primitive reference ingress lost its carrier",
+                ))?,
+        )?;
+        if parameter.is_mutable
+            || !parameter.symbol.is_valid()
+            || !source.path.is_empty()
+            || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || self
+                .checked
+                .normalized_type_identity(parameter.type_reference)
+                .as_str()
+                != source.type_identity
+        {
+            return unsupported("primitive reference ingress changed its source custody");
+        }
+        let mut homes = self
+            .evaluation
+            .primitive_storage
+            .iter()
+            .filter(|row| row.0 == parameter.symbol);
+        if let Some((_, place, existing_type)) = homes.next() {
+            if homes.next().is_some() || *existing_type != scalar_type {
+                return unsupported("primitive ingress has ambiguous storage");
+            }
+            return Ok(StructuralArgument {
+                place: *place,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            });
+        }
+        let position = match &self.evaluation.scalar_bindings {
+            Some(bindings) => bindings.immutable_position(parameter_index as usize)?,
+            None => parameter_index as usize,
+        };
+        let value = self.values.get(position).ok_or(LoweringError::Unsupported(
+            "primitive ingress value is absent",
+        ))?;
+        let structural_type = lookup_type_id(self.type_ids, &source.type_identity)?;
+        if value.scalar_type != scalar_type
+            || !self
+                .structural_types
+                .declarations()
+                .iter()
+                .any(|declaration| {
+                    declaration.id == structural_type
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
+                })
+        {
+            return unsupported("primitive ingress value and storage carrier disagree");
+        }
+        let producer = self.operations.allocate();
+        let place = crate::unit::place_id(crate::unit::allocate_dense(self.next_place)?);
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: producer,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+                qualification_establishments: Vec::new(),
+            }),
+            kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
+        });
+        self.private_places
+            .temporaries()
+            .push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                },
+            });
+        self.evaluation
+            .primitive_storage
+            .push((parameter.symbol, place, scalar_type));
+        Ok(StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        })
     }
 
     /// End the established reference carrier: its place rejoins through the

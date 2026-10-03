@@ -48,6 +48,15 @@ fn place_loan_declaration(
     {
         return None;
     }
+    if validation::reference_result_custody::primitive_local_source(
+        &checked.typed,
+        authored_state,
+        index,
+    )
+    .is_some()
+    {
+        return Some(false);
+    }
     let reference = validation::reference_shell(&checked.typed, local.type_reference)?;
     let ExpressionNode::Borrow(initializer) =
         checked.expression_table.expression(local.initial_value)

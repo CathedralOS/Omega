@@ -317,6 +317,50 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
+    if let Some(source) =
+        validation::reference_result_custody::primitive_local_source(program, state, index)
+    {
+        local_phase("statement sequence: local data: primitive reference");
+        let storage = match source.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                parameter_index,
+            } => {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| {
+                        !parameter.is_const
+                            && !parameter.relevance.is_erased()
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                    })
+                    .nth(parameter_index as usize)?
+                    .type_reference
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
+                program
+                    .state_local_declaration(state, symbol)?
+                    .1
+                    .type_reference
+            }
+            _ => return None,
+        };
+        if shapes.add_type(storage, binders, &[])? != source.type_identity {
+            return None;
+        }
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal: u32::try_from(*structural_count).ok()?,
+            type_identity: shapes.add_reference_type(local.type_reference, binders)?,
+            multiplicity: Multiplicity::Affine,
+        };
+        *structural_count = structural_count.checked_add(1)?;
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
+        structural_local_symbols.push(local.symbol);
+        operations.push(CheckedUnitEffectOperationPlan::EstablishReference { result, source });
+        return Some(LocalPlan::Planned);
+    }
     local_phase("statement sequence: local data: shared place loan");
     // The shared `&` loan arms before the structural-value root lookup: a
     // shared borrow registers a value root upstream (exclusive `&mut`
