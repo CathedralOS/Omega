@@ -605,6 +605,18 @@ fn validate(
                     }),
                     _ => None,
                 };
+                let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
+                    && program
+                        .plan_laid_layouts
+                        .iter()
+                        .any(|plan| !plan.integer_fields.is_empty())
+                {
+                    call_frames.as_ref().and_then(|frames| {
+                        frames.local_write_origins_before_statement(machine, statement)
+                    })
+                } else {
+                    Some(Vec::new())
+                };
                 validate_state_statement_node(
                     program,
                     machine,
@@ -618,6 +630,7 @@ fn validate(
                     &mut value_environment,
                     &transition_values,
                     direct_written,
+                    local_write_origins.as_deref(),
                     &mut exact_integer_casts,
                     &mut stored_integer_writes,
                     &mut boundary_operator_applications,

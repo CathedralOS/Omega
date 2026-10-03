@@ -243,20 +243,20 @@ pub(super) fn validate<'a, 'p>(
     );
     // Only a clean value supplies a successful storage-fit judgment.
     if diagnostics.len() == before {
-        if let Some(write) = arithmetic_domains::validate_stored_integer_write(
+        let writes = arithmetic_domains::validate_stored_integer_write(
             program,
             machine,
             current_state,
             assignment.target,
             assignment.value,
+            scope.local_write_origins,
             interval,
             source_primitive,
             value_environment,
             &owner,
             diagnostics,
-        ) {
-            outputs.stored_integer_writes.push(write);
-        }
+        );
+        outputs.stored_integer_writes.extend(writes);
         // Containment for non-literal stores into ranged places (see
         // the local arm's twin note; literal stores refuse through
         // the proof plan).

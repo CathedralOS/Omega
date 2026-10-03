@@ -76,6 +76,7 @@ fn discharge(source: &str, width: u16, sign: IntegerSign) -> bool {
         .statement_table
         .statements(state.statement_nodes)
         .iter()
+        .rev()
         .find_map(|statement| match statement {
             StatementNode::Assignment(assignment) => Some(assignment),
             _ => None,
@@ -83,7 +84,9 @@ fn discharge(source: &str, width: u16, sign: IntegerSign) -> bool {
         .unwrap();
     let mut environment = requires_value_environment(&program, machine, state);
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let StatementNode::LocalData(local) = statement {
+        if let StatementNode::LocalData(local) = statement
+            && program.primitive_type_reference(local.type_reference) == Some(PrimitiveType::Bool)
+        {
             environment = crate::proof_contracts::arithmetic_domains::guard_narrowed_environment(
                 &program,
                 machine,
@@ -94,9 +97,10 @@ fn discharge(source: &str, width: u16, sign: IntegerSign) -> bool {
         }
     }
     let mut diagnostics = Vec::new();
-    let primitive = program.primitive_type_reference(
+    let primitive = program.primitive_type_reference(places::assignment_value_type(
+        &program,
         places::declared_place_type_raw(&program, machine, Some(state), assignment.target).unwrap(),
-    );
+    ));
     let (interval, source, _) = validate_value_range(
         &program,
         machine,
@@ -109,19 +113,29 @@ fn discharge(source: &str, width: u16, sign: IntegerSign) -> bool {
         &mut diagnostics,
     );
     assert!(diagnostics.is_empty(), "RHS: {diagnostics:?}");
+    let frames = crate::CallFrameResolver::new(&program).expect("typed call frames");
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .rev()
+        .find(|statement| matches!(statement, StatementNode::Assignment(_)))
+        .unwrap();
+    let origins = frames.local_write_origins_before_statement(machine, statement);
     let result = validate_stored_integer_write(
         &program,
         machine,
         Some(state),
         assignment.target,
         assignment.value,
+        origins.as_deref(),
         interval,
         source,
         &environment,
         "store",
         &mut diagnostics,
     );
-    if let Some(result) = result {
+    if let Some(result) = result.first() {
         assert_eq!(result.destination, assignment.target);
         assert_eq!(result.value, assignment.value);
         assert_eq!(result.stored_type, IntegerType::new(sign, width).unwrap());
@@ -236,4 +250,139 @@ fn stored_integer_write_cannot_use_storage_width_as_an_unknown_rhs_bound() {
         Interval::UNBOUNDED,
         Some(PrimitiveType::U8)
     ));
+}
+
+#[test]
+fn stored_integer_write_checks_local_and_forwarded_loans() {
+    for declarations in [
+        "let leaf: &mut i64 = &mut cell.value;",
+        "let first: &mut i64 = &mut cell.value; let leaf: &mut i64 = &mut first;",
+    ] {
+        for (value, accepted) in [(127, true), (128, false)] {
+            assert_eq!(
+                discharge(
+                    &format!(
+                        "data Cell {{ value: i64; }} machine store(cell: &mut Cell) {{ {declarations} leaf = {value}; }}"
+                    ),
+                    8,
+                    IntegerSign::Signed
+                ),
+                accepted,
+                "{declarations} / {value}"
+            );
+        }
+    }
+}
+
+#[test]
+fn stored_integer_write_keeps_encoded_view_geometry_through_a_field_loan() {
+    for (value, accepted) in [(127, true), (128, false)] {
+        assert_eq!(
+            discharge(
+                &format!(
+                    "data Cell {{ value: i64; }}
+             machine store(bytes: &mut [u8; 1]) {{
+                 let view: &mut Cell = &mut bytes[0] as &mut Cell;
+                 let leaf: &mut i64 = &mut view.value;
+                 leaf = {value};
+             }}"
+                ),
+                8,
+                IntegerSign::Signed
+            ),
+            accepted
+        );
+    }
+}
+
+#[test]
+fn stored_integer_write_rebinding_keeps_the_current_field_origin() {
+    // The original target is ordinary i64; the replacement is encoded i8.
+    // Reusing the initializer's origin would silently admit the second value.
+    for (value, accepted) in [(127, true), (128, false)] {
+        assert_eq!(
+            discharge(
+                &format!(
+                    "data Cell {{ value: i64; }}
+             machine store(cell: &mut Cell, ordinary: &mut i64) {{
+                 let mut leaf: &mut i64 = &mut ordinary;
+                 leaf = &mut cell.value;
+                 leaf = {value};
+             }}"
+                ),
+                8,
+                IntegerSign::Signed
+            ),
+            accepted
+        );
+    }
+}
+
+#[test]
+fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         machine store(cell: &mut Cell, ordinary: &mut i64) {
+             let leaf: &mut i64 = &mut cell.value;
+             leaf = 127;
+         }",
+        8,
+        IntegerSign::Signed,
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
+        .unwrap();
+    let StatementNode::Assignment(assignment) = statement else {
+        panic!("write");
+    };
+    let frames = crate::CallFrameResolver::new(&program).unwrap();
+    let origins = frames
+        .local_write_origins_before_statement(machine, statement)
+        .unwrap();
+    let encoded = origins
+        .iter()
+        .find(|origin| {
+            origin
+                .source
+                .as_ref()
+                .is_some_and(|source| !source.segments.is_empty())
+        })
+        .unwrap()
+        .clone();
+    let mut plain = encoded.clone();
+    let source = plain.source.as_mut().unwrap();
+    source.root = program.state_parameters(state)[1].symbol;
+    source.segments.clear();
+    source.representation = None;
+    let projections = super::destination_projections(
+        &program,
+        machine,
+        state,
+        assignment.target,
+        Some(&[plain, encoded.clone()]),
+    )
+    .expect("all known candidates remain represented");
+    assert_eq!(
+        projections.len(),
+        1,
+        "an ordinary candidate cannot hide the encoded one"
+    );
+    assert_eq!(projections[0].1.bits(), 8);
+    let mut unknown = encoded.clone();
+    unknown.source = None;
+    assert!(
+        super::destination_projections(
+            &program,
+            machine,
+            state,
+            assignment.target,
+            Some(&[encoded, unknown]),
+        )
+        .is_err(),
+        "an unknown alternative is not ordinary scalar storage"
+    );
 }

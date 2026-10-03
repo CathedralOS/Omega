@@ -2,15 +2,17 @@
 
 use super::integer_ranges::known_u64_value;
 use super::{Interval, ValueEnvironment};
-use crate::value_custody::{expression_types, places};
+use crate::value_custody::places;
 use checked_trees::CheckedStoredIntegerWrite;
 use diagnostics::Diagnostic;
+use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use semantic_vocabulary::{IntegerSign, IntegerType};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[cfg(test)]
 mod tests;
@@ -24,86 +26,299 @@ pub(crate) fn validate_stored_integer_write(
     state: Option<&State>,
     destination: ExpressionHandle,
     value: ExpressionHandle,
+    origins: Option<&[crate::LocalWriteOrigin]>,
     interval: Interval,
     primitive: Option<PrimitiveType>,
     environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<CheckedStoredIntegerWrite> {
-    let state = state?;
-    let ExpressionNode::Member(member) = program.expression_table.expression(destination) else {
-        return None;
-    };
-    let receiver = expression_types::expression_result_type_reference(
-        program,
-        machine,
-        state,
-        member.receiver,
-    )?;
-    let carrier =
-        crate::reference_shell(program, receiver).map_or(receiver, |reference| reference.referee);
-    let data = places::data_definition_for_type(program, carrier)?;
-    let plan = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_symbol == data.symbol)?;
-    if plan.integer_fields.is_empty() {
-        return None;
-    }
-    let field = places::exact_data_member_field(
-        program,
-        data,
-        member.member_symbol,
-        member.member.as_str(),
-        member.case_variant.as_ref().map(|variant| variant.as_str()),
-    );
-    if let Some(field) = field {
-        let index = plan
-            .field_symbols
+) -> Vec<CheckedStoredIntegerWrite> {
+    let destination_primitive =
+        places::declared_place_type_raw(program, machine, state, destination)
+            .map(|reference| places::assignment_value_type(program, reference))
+            .and_then(|reference| program.primitive_type_reference(reference));
+    if !destination_primitive.is_some_and(|primitive| primitive.accepts_integer_literal())
+        || !program
+            .plan_laid_layouts
             .iter()
-            .position(|symbol| *symbol == field.symbol);
-        if index.is_some_and(|index| {
-            !plan
-                .integer_fields
-                .iter()
-                .any(|integer| integer.field_index == index)
-        }) {
-            return None;
+            .any(|plan| !plan.integer_fields.is_empty())
+    {
+        return Vec::new();
+    }
+    let Some(state) = state else {
+        return Vec::new();
+    };
+    let projections = destination_projections(program, machine, state, destination, origins);
+    let Ok(projections) = projections else {
+        diagnostics.push(Diagnostic::error(format!(
+            "IntegerAt store in {owner} has no exact stored field geometry or reference origin"
+        )));
+        return Vec::new();
+    };
+    let mut writes = Vec::new();
+    for (field, stored) in projections {
+        let fits =
+            stored_integer_value_fits(program, value, interval, primitive, environment, stored);
+        if !fits {
+            diagnostics.push(Diagnostic::error(format!(
+                "IntegerAt store in {owner} requires a value proven to fit {}-bit {} storage",
+                stored.bits(),
+                match stored.sign() {
+                    IntegerSign::Signed => "signed",
+                    IntegerSign::Unsigned => "unsigned",
+                },
+            )));
+            return Vec::new();
+        }
+        let write = CheckedStoredIntegerWrite {
+            machine: machine.symbol,
+            state: state.symbol,
+            destination,
+            value,
+            field,
+            stored_type: stored,
+        };
+        if !writes.contains(&write) {
+            writes.push(write);
         }
     }
-    let projection = field
-        .and_then(|field| crate::recast_scalar_projection(program, carrier, &[], field.symbol));
-    let Some(projection) = projection else {
-        diagnostics.push(Diagnostic::error(format!(
-            "IntegerAt store in {owner} has no exact stored field geometry"
-        )));
-        return None;
+    writes
+}
+
+/// The alias inventory belongs to the existing statement-prefix reference
+/// traversal. This operation only substitutes its exact coordinates; it does
+/// not rediscover initializers, pick one conditional origin, or use path text.
+fn destination_projections(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    destination: ExpressionHandle,
+    origins: Option<&[crate::LocalWriteOrigin]>,
+) -> Result<Vec<(SymbolHandle, IntegerType)>, ()> {
+    let mut facts = FactPlan::default();
+    let place = facts.append_place_from_expression(program, destination);
+    let place = facts.places.get(place);
+    let PlaceRoot::Symbol(root) = place.root else {
+        return Err(());
     };
-    let stored = projection.stored_integer?;
-    let fits = if let Some(value) = known_u64_value(program, environment, value) {
+    let segments = facts.place_segments.span_or_empty(place.segments);
+    if !crate::place_has_builtin_coordinates(program, machine, Some(state), destination) {
+        return Err(());
+    }
+    let direct_type = root_type(program, machine, state, root).ok_or(())?;
+    let origins = origins.unwrap_or(&[]);
+    let candidates = origins
+        .iter()
+        .filter(|origin| {
+            origin.local_symbol == root && segments.starts_with(&origin.local_segments)
+        })
+        .collect::<Vec<_>>();
+    let longest = candidates
+        .iter()
+        .map(|origin| origin.local_segments.len())
+        .max();
+    if let Some(longest) = longest {
+        let mut projections = Vec::new();
+        for origin in candidates
+            .into_iter()
+            .filter(|origin| origin.local_segments.len() == longest)
+        {
+            let source = origin.source.as_ref().ok_or(())?;
+            if !source.root.is_valid() {
+                return Err(());
+            }
+            let (carrier, mut path) = match &source.representation {
+                Some((carrier, path)) => (*carrier, path.clone()),
+                None => (
+                    root_type(program, machine, state, source.root).ok_or(())?,
+                    source.segments.clone(),
+                ),
+            };
+            path.extend_from_slice(&segments[longest..]);
+            if let Some(projection) = typed_projection(program, carrier, &path)? {
+                if !projections.contains(&projection) {
+                    projections.push(projection);
+                }
+            }
+        }
+        return Ok(projections);
+    }
+    // A reference local must have a retained origin. A formal's encoding is
+    // an invocation obligation; the separate call consumer substitutes it.
+    if program.state_local_declaration(state, root).is_some()
+        && crate::reference_shell(program, direct_type).is_some()
+    {
+        return Err(());
+    }
+    Ok(typed_projection(program, direct_type, segments)?
+        .into_iter()
+        .collect())
+}
+
+fn root_type(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root || (root == machine.symbol && parameter.is_self))
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .state_local_declaration(state, root)
+                .map(|(_, local)| local.type_reference)
+        })
+}
+
+/// Walk declaration identities once to the leaf's immediate owner. Geometry
+/// normalization then visits only that owner, so an unrelated opaque sibling
+/// in an outer record cannot hide a selected IntegerAt field.
+fn typed_projection(
+    program: &TypedTrees,
+    mut carrier: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
+    let mut selected_case = None;
+    for (position, segment) in path.iter().enumerate() {
+        if position != 0 && crate::reference_shell(program, carrier).is_some() {
+            // Selecting a stored reference's contents requires its own prefix
+            // origin row; its declared referee cannot erase an encoded source.
+            return Err(());
+        }
+        carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                let data = places::data_definition_for_type(program, carrier).ok_or(())?;
+                let field = if let Some(case) = selected_case.take() {
+                    let variant = program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == case =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })
+                        .ok_or(())?;
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == *symbol)
+                } else {
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Field(field)
+                                if field.symbol == *symbol =>
+                            {
+                                Some(field)
+                            }
+                            _ => None,
+                        })
+                }
+                .ok_or(())?;
+                if position + 1 == path.len() {
+                    return Ok(stored_integer_field_type(program, carrier, field.symbol)?
+                        .map(|stored| (field.symbol, stored)));
+                }
+                carrier = field.type_reference;
+            }
+            PlaceSegment::FixedIndex { index } => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return Err(());
+                };
+                if index >= length {
+                    return Err(());
+                }
+                carrier = *element_type;
+            }
+            PlaceSegment::Index { .. } => {
+                // The source-origin producer authenticates builtin coordinates.
+                // Runtime indexing changes the element, never its declaration's encoding.
+                match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => carrier = *element_type,
+                    _ => return Err(()),
+                }
+            }
+            PlaceSegment::Case { variant } => {
+                if selected_case.replace(*variant).is_some() {
+                    return Err(());
+                }
+            }
+            PlaceSegment::FixedRange { start, end } => {
+                if start > end {
+                    return Err(());
+                }
+                match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::FixedArray {
+                        length: typed_trees::types::FixedArrayLength::Literal(length),
+                        ..
+                    } if end <= length => {}
+                    TypeReferenceNode::Slice { .. } => {}
+                    _ => return Err(()),
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// The same exact declared-field geometry is shared by assignment and value
+/// construction. No source expression or scalar alias spelling selects it.
+pub(crate) fn stored_integer_field_type(
+    program: &TypedTrees,
+    carrier: TypeReferenceHandle,
+    field: SymbolHandle,
+) -> Result<Option<IntegerType>, ()> {
+    let carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
+    let data = places::data_definition_for_type(program, carrier).ok_or(())?;
+    let Some(plan) = program
+        .plan_laid_layouts
+        .iter()
+        .find(|plan| plan.data_symbol == data.symbol)
+    else {
+        return Ok(None);
+    };
+    let index = plan
+        .field_symbols
+        .iter()
+        .position(|candidate| *candidate == field)
+        .ok_or(())?;
+    if !plan
+        .integer_fields
+        .iter()
+        .any(|integer| integer.field_index == index)
+    {
+        return Ok(None);
+    }
+    let projection = crate::recast_scalar_projection(program, carrier, &[], field).ok_or(())?;
+    projection.stored_integer.map(Some).ok_or(())
+}
+
+pub(crate) fn stored_integer_value_fits(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    interval: Interval,
+    primitive: Option<PrimitiveType>,
+    environment: &ValueEnvironment,
+    stored: IntegerType,
+) -> bool {
+    if let Some(value) = known_u64_value(program, environment, value) {
         fits_bounds(stored, i128::from(value), i128::from(value))
     } else {
         interval_fits(stored, interval, primitive)
-    };
-    if !fits {
-        diagnostics.push(Diagnostic::error(format!(
-            "IntegerAt store in {owner} requires a value proven to fit {}-bit {} storage",
-            stored.bits(),
-            match stored.sign() {
-                IntegerSign::Signed => "signed",
-                IntegerSign::Unsigned => "unsigned",
-            },
-        )));
-        return None;
     }
-    Some(CheckedStoredIntegerWrite {
-        machine: machine.symbol,
-        state: state.symbol,
-        destination,
-        value,
-        field: field?.symbol,
-        stored_type: stored,
-    })
 }
 
 fn interval_fits(

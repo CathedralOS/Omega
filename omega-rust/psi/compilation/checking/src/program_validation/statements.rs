@@ -31,6 +31,7 @@ pub(super) struct StatementScope<'a> {
     pub(super) machine_symbols: &'a MachineSymbols<'a>,
     pub(super) symbols: &'a TopLevelSymbols<'a>,
     pub(super) writable_roots: &'a WritableRoots<'a, 'a>,
+    pub(super) local_write_origins: Option<&'a [crate::LocalWriteOrigin]>,
     pub(super) transition_values: &'a transitions::TransitionValueEnvironments,
 }
 
@@ -57,6 +58,7 @@ pub(super) fn validate_state_statement_node<'p>(
     value_environment: &mut arithmetic_domains::ValueEnvironment,
     transition_values: &transitions::TransitionValueEnvironments,
     direct_written: Option<Vec<String>>,
+    local_write_origins: Option<&[crate::LocalWriteOrigin]>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
@@ -78,6 +80,7 @@ pub(super) fn validate_state_statement_node<'p>(
         symbols,
         writable_roots,
         transition_values,
+        local_write_origins,
     };
     let mut outputs = StatementOutputs {
         stored_integer_writes,
