@@ -1601,7 +1601,7 @@ pub(super) fn consume_value_call_sources(
     Some(())
 }
 
-pub(super) fn consume_results(
+pub(in crate::execution::terminal_unit) fn consume_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Option<()> {

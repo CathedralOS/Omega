@@ -277,21 +277,84 @@ impl CheckedComposedUnitControlTerminatorPlan {
         }
     }
 
-    /// The terminal machine calls this terminator's conditional arms run
-    /// (`CheckedConditionalReturnArm::Call`), in arm order.
-    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
-        let arms: Vec<&CheckedConditionalReturnArm> = match self {
+    /// Selected completion arms, in authored order. Each arm retains its own
+    /// preparation namespace; these sequences are never concatenated as one
+    /// unconditional execution path.
+    pub fn return_arms(&self) -> Vec<&CheckedConditionalReturnArm> {
+        match self {
             Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
             Self::ConditionalCompletion {
                 when_true,
                 when_false,
                 ..
-            } => vec![when_true, when_false],
+            } => {
+                vec![when_true, when_false]
+            }
+            Self::GuardedJumps { arms, fallback } => {
+                let mut returned: Vec<_> = arms
+                    .iter()
+                    .filter_map(|arm| match arm {
+                        CheckedGuardedJumpArmPlan::Return(plan) => Some(&plan.return_arm),
+                        CheckedGuardedJumpArmPlan::Jump(_) => None,
+                    })
+                    .collect();
+                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
+                    returned.push(arm);
+                }
+                returned
+            }
+            Self::ClosedSum { cases, .. } => cases
+                .iter()
+                .filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Return(arm) => Some(arm),
+                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
+                })
+                .collect(),
             _ => Vec::new(),
-        };
-        arms.into_iter()
+        }
+    }
+
+    /// Mutable completion arms for reconciling their retained calls in place.
+    pub fn return_arms_mut(&mut self) -> Vec<&mut CheckedConditionalReturnArm> {
+        match self {
+            Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => {
+                vec![when_true, when_false]
+            }
+            Self::GuardedJumps { arms, fallback } => {
+                let mut returned: Vec<_> = arms
+                    .iter_mut()
+                    .filter_map(|arm| match arm {
+                        CheckedGuardedJumpArmPlan::Return(plan) => Some(&mut plan.return_arm),
+                        CheckedGuardedJumpArmPlan::Jump(_) => None,
+                    })
+                    .collect();
+                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
+                    returned.push(arm);
+                }
+                returned
+            }
+            Self::ClosedSum { cases, .. } => cases
+                .iter_mut()
+                .filter_map(|case| match &mut case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Return(arm) => Some(arm),
+                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Terminal invocations retained by the completion arms, in arm order.
+    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
+        self.return_arms()
+            .into_iter()
             .filter_map(|arm| match arm {
-                CheckedConditionalReturnArm::Call(operation) => Some(operation),
+                CheckedConditionalReturnArm::Call { operation, .. } => Some(operation),
                 _ => None,
             })
             .collect()
@@ -299,18 +362,10 @@ impl CheckedComposedUnitControlTerminatorPlan {
 
     /// `arm_calls`, for reconciling each call's operands in place.
     pub fn arm_calls_mut(&mut self) -> Vec<&mut CheckedUnitEffectOperationPlan> {
-        let arms: Vec<&mut CheckedConditionalReturnArm> = match self {
-            Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
-            Self::ConditionalCompletion {
-                when_true,
-                when_false,
-                ..
-            } => vec![when_true, when_false],
-            _ => Vec::new(),
-        };
-        arms.into_iter()
+        self.return_arms_mut()
+            .into_iter()
             .filter_map(|arm| match arm {
-                CheckedConditionalReturnArm::Call(operation) => Some(operation),
+                CheckedConditionalReturnArm::Call { operation, .. } => Some(operation),
                 _ => None,
             })
             .collect()
@@ -336,43 +391,16 @@ pub enum CheckedScalarReturnPlan {
 impl CheckedComposedUnitControlStatePlan {
     /// Complete operation dependencies, not runtime evaluation order.
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
-        let selected: Vec<&CheckedUnitEffectOperationPlan> = match &self.terminator {
+        let selected: Vec<_> = match &self.terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                 return_values.iter().collect()
             }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
-                return_arm.operation().into_iter().collect()
-            }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                when_true,
-                when_false,
-                ..
-            } => when_true
-                .operation()
+            _ => self
+                .terminator
+                .return_arms()
                 .into_iter()
-                .chain(when_false.operation())
+                .flat_map(CheckedConditionalReturnArm::operation_dependencies)
                 .collect(),
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
-                let mut selected: Vec<&CheckedUnitEffectOperationPlan> = arms
-                    .iter()
-                    .filter_map(|arm| match arm {
-                        CheckedGuardedJumpArmPlan::Return(plan) => plan.return_arm.operation(),
-                        CheckedGuardedJumpArmPlan::Jump(_) => None,
-                    })
-                    .collect();
-                if let CheckedGuardedJumpFallbackPlan::Return(return_arm) = fallback {
-                    selected.extend(return_arm.operation());
-                }
-                selected
-            }
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
-                .iter()
-                .filter_map(|case| match &case.outcome {
-                    CheckedClosedSumCaseOutcomePlan::Return(return_arm) => return_arm.operation(),
-                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
-                })
-                .collect(),
-            _ => Vec::new(),
         };
         // A composite argument established on an edge runs its operation
         // there, after selection; it is still one of this state's
@@ -459,8 +487,13 @@ pub enum CheckedConditionalReturnArm {
     /// machine with the disposal a Unit or scalar arm performs. A scalar
     /// result is the call's own binding at the arm's transition, numbered
     /// after the state's retained scalar bindings. The call's coordinate
-    /// names the arm's transition.
-    Call(CheckedUnitEffectOperationPlan),
+    /// names the arm's transition. Operand preparation retains the ordinary
+    /// call schedule: it runs inside this arm and interleaves with scalar
+    /// arguments according to their authored positions.
+    Call {
+        operands: crate::CheckedOperandSequence,
+        operation: CheckedUnitEffectOperationPlan,
+    },
 }
 
 impl CheckedConditionalReturnArm {
@@ -468,9 +501,22 @@ impl CheckedConditionalReturnArm {
     /// terminal call. Unit and scalar arms run no operation of their own.
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
         match self {
-            Self::Structural(operation) | Self::Call(operation) => Some(operation),
+            Self::Structural(operation) | Self::Call { operation, .. } => Some(operation),
             Self::Unit { .. } | Self::Scalar { .. } => None,
         }
+    }
+
+    /// All selected-arm dependencies, including preparation for its final
+    /// invocation. The ordinary argument scheduler owns their execution order.
+    pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+        let operands = match self {
+            Self::Call { operands, .. } => Some(operands),
+            _ => None,
+        };
+        operands
+            .into_iter()
+            .flat_map(|operands| operands.iter())
+            .chain(self.operation())
     }
 
     /// The authored transition ordinal this arm completes at, when the arm
@@ -488,7 +534,9 @@ impl CheckedConditionalReturnArm {
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
             ) => Some(result.statement_index),
             Self::Structural(_) => None,
-            Self::Call(operation) => operation.call().map(|call| call.coordinate.statement_index),
+            Self::Call { operation, .. } => {
+                operation.call().map(|call| call.coordinate.statement_index)
+            }
         }
     }
 }

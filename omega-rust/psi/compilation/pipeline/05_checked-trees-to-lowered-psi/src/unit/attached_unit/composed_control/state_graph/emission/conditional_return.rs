@@ -85,12 +85,20 @@ impl StateGraphEmission<'_, '_> {
             // The arm alone invokes its terminal machine call, then completes
             // with the disposal a Unit return performs. A scalar call's result
             // is the machine's: it returns the value the call just bound.
-            checked_trees::CheckedConditionalReturnArm::Call(operation) => {
+            checked_trees::CheckedConditionalReturnArm::Call {
+                operands,
+                operation,
+            } => {
+                let planned = operands
+                    .iter()
+                    .chain(std::iter::once(operation))
+                    .cloned()
+                    .collect::<Vec<_>>();
                 super::super::super::emission::emit_call_operations(
                     checked,
                     plan.machine,
                     state,
-                    std::slice::from_ref(operation),
+                    &planned,
                     self.catalogs,
                     state_parameters,
                     &self.claims.source_claims,

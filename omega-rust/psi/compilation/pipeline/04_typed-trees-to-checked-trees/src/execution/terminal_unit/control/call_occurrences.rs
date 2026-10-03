@@ -435,108 +435,16 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 &mut consumed,
             )?;
         }
-        let construction_destination = match statement {
-            StatementNode::LocalData(local) if !local.is_mutable => {
-                Some((local.initial_value, local.type_reference))
-            }
-            StatementNode::Expression(expression) => Some((*expression, state.return_type)),
-            _ => None,
-        };
-        // Structural dispatch operands and constructor fields own their calls.
-        // This is the static call roster, not an instruction to evaluate every
-        // arm: emission follows the structural value's selected control path.
-        for (_, root) in facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .filter(|(_, root)| {
-                root.state == state.symbol
-                    && root.statement_ordinal as usize == statement_index
-                    && matches!(
-                        root.role,
-                        CheckedScalarExpressionRole::StructuralValueField { .. }
-                            | CheckedScalarExpressionRole::RecordField { .. }
-                            | CheckedScalarExpressionRole::StructuralArrayElement { .. }
-                            | CheckedScalarExpressionRole::StructuralValueSubject { .. }
-                            | CheckedScalarExpressionRole::StructuralValuePattern { .. }
-                    )
-            })
-        {
-            if root.machine != machine {
-                return None;
-            }
-            collect(
-                program,
-                facts,
-                state.symbol,
-                statement_index,
-                root.root,
-                calls,
-                0,
-                &mut Vec::new(),
-                &mut consumed,
-            )?;
-        }
-        let constructions = construction_destination
-            .into_iter()
-            .map(|(expression, expected)| {
-                (
-                    checked_trees::CheckedArrayConstructionSource::Statement,
-                    expression,
-                    expected,
-                )
-            })
-            .chain(
-                crate::values::call_array_constructions(
-                    program,
-                    &facts.flow,
-                    owner,
-                    state,
-                    statement_index,
-                )
-                .into_iter()
-                .map(|array| (array.source, array.expression, array.type_reference)),
-            );
-        for (source, expression, expected) in constructions {
-            let Some(elements) =
-                validation::scalar_array_elements(program, machine, expression, expected)
-            else {
-                continue;
-            };
-            let plans = &facts.values.scalar_computations;
-            for (element_index, (expression, primitive_type)) in
-                elements.elements.into_iter().enumerate()
-            {
-                let role = CheckedScalarExpressionRole::ArrayElement {
-                    source,
-                    element_ordinal: u32::try_from(element_index).ok()?,
-                };
-                let Some(root) =
-                    plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
-                else {
-                    continue;
-                };
-                if root.machine != machine
-                    || !plans.nodes.is_valid(root.root)
-                    || plans.nodes.get(root.root).authored_root != expression
-                    || plans.nodes.get(root.root).primitive_type != primitive_type
-                {
-                    return None;
-                }
-                collect(
-                    program,
-                    facts,
-                    state.symbol,
-                    statement_index,
-                    root.root,
-                    calls,
-                    0,
-                    &mut Vec::new(),
-                    &mut consumed,
-                )?;
-            }
-        }
+        collect_constructor_calls(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            statement,
+            calls,
+            &mut consumed,
+        )?;
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
@@ -851,6 +759,126 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     Some(outer)
 }
 
+/// Constructors retain their scalar evaluation roots independently of the
+/// surrounding schedule. Ordinary statements and selected call arms consume
+/// the same exact element, field, subject and pattern occurrence custody.
+#[allow(clippy::too_many_arguments)]
+fn collect_constructor_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    calls: &[checked_trees::FlowCallFact],
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    let owner = crate::lookup::machine_by_symbol(program, machine)?;
+    let construction_destination = match statement {
+        StatementNode::LocalData(local) if !local.is_mutable => {
+            Some((local.initial_value, local.type_reference))
+        }
+        StatementNode::Expression(expression) => Some((*expression, state.return_type)),
+        _ => None,
+    };
+    // Structural dispatch operands and constructor fields own their calls.
+    // This is the static call roster, not an instruction to evaluate every
+    // arm: emission follows the structural value's selected control path.
+    for (_, root) in facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter(|(_, root)| {
+            root.state == state.symbol
+                && root.statement_ordinal as usize == statement_index
+                && matches!(
+                    root.role,
+                    CheckedScalarExpressionRole::StructuralValueField { .. }
+                        | CheckedScalarExpressionRole::RecordField { .. }
+                        | CheckedScalarExpressionRole::StructuralArrayElement { .. }
+                        | CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                        | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+                )
+        })
+    {
+        if root.machine != machine {
+            return None;
+        }
+        collect(
+            program,
+            facts,
+            state.symbol,
+            statement_index,
+            root.root,
+            calls,
+            0,
+            &mut Vec::new(),
+            consumed,
+        )?;
+    }
+    let constructions = construction_destination
+        .into_iter()
+        .map(|(expression, expected)| {
+            (
+                checked_trees::CheckedArrayConstructionSource::Statement,
+                expression,
+                expected,
+            )
+        })
+        .chain(
+            crate::values::call_array_constructions(
+                program,
+                &facts.flow,
+                owner,
+                state,
+                statement_index,
+            )
+            .into_iter()
+            .map(|array| (array.source, array.expression, array.type_reference)),
+        );
+    for (source, expression, expected) in constructions {
+        let Some(elements) =
+            validation::scalar_array_elements(program, machine, expression, expected)
+        else {
+            continue;
+        };
+        let plans = &facts.values.scalar_computations;
+        for (element_index, (expression, primitive_type)) in
+            elements.elements.into_iter().enumerate()
+        {
+            let role = CheckedScalarExpressionRole::ArrayElement {
+                source,
+                element_ordinal: u32::try_from(element_index).ok()?,
+            };
+            let Some(root) =
+                plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
+            else {
+                continue;
+            };
+            if root.machine != machine
+                || !plans.nodes.is_valid(root.root)
+                || plans.nodes.get(root.root).authored_root != expression
+                || plans.nodes.get(root.root).primitive_type != primitive_type
+            {
+                return None;
+            }
+            collect(
+                program,
+                facts,
+                state.symbol,
+                statement_index,
+                root.root,
+                calls,
+                0,
+                &mut Vec::new(),
+                consumed,
+            )?;
+        }
+    }
+    Some(())
+}
+
 /// A separately scheduled invocation owns its scalar operand calls through
 /// the same computation roots as an invocation in the statement sequence.
 /// A transition guard retains its own earlier computation. The two schedules
@@ -931,6 +959,53 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
                 return None;
             }
         }
+    }
+    let statement = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(call.statement_index)?;
+    collect_constructor_calls(
+        program,
+        facts,
+        machine,
+        source_state,
+        call.statement_index,
+        statement,
+        calls,
+        &mut consumed,
+    )?;
+    for nested in structural_operands::for_call(program, facts, owner, source_state, call)? {
+        let mut occurrences = facts.flow.control.calls.iter().filter(|(_, candidate)| {
+            std::ptr::eq(*candidate, nested)
+                && calls.iter().any(|source| std::ptr::eq(source, nested))
+        });
+        let (handle, nested) = occurrences.next()?;
+        if occurrences.next().is_some()
+            || nested.statement_index != call.statement_index
+            || nested.call_ordinal <= call.call_ordinal
+            || facts.flow.control.is_retired(state, nested)
+            || consumed.contains(&handle)
+        {
+            return None;
+        }
+        consumed.push(handle);
+        let nested_site = crate::semantic::calls::find_call_site(
+            program,
+            machine,
+            state,
+            nested.statement_index,
+            nested.call_ordinal,
+        )?;
+        collect_argument_calls(
+            program,
+            facts,
+            machine,
+            state,
+            nested,
+            crate::semantic::calls::call_site_argument_expressions(program, &nested_site),
+            calls,
+            &mut consumed,
+        )?;
     }
     collect_argument_calls(
         program,

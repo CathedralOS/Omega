@@ -101,7 +101,7 @@ const TRANSITION_ARM_CALLS: &str = r#"
 "#;
 
 fn arm_call_target(arm: &checked_trees::CheckedConditionalReturnArm) -> symbols::SymbolHandle {
-    let checked_trees::CheckedConditionalReturnArm::Call(operation) = arm else {
+    let checked_trees::CheckedConditionalReturnArm::Call { operation, .. } = arm else {
         panic!("a terminal call arm, found {arm:?}");
     };
     operation.call().expect("an ordinary call").target.machine
@@ -283,7 +283,7 @@ fn guarded_tail_call_passes_a_subslice_beside_its_receiver() {
         .composed_for_machine(machine_named(&checked, "Root::check"))
         .expect("the subslice arm call plans");
     let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-        return_arm: checked_trees::CheckedConditionalReturnArm::Call(operation),
+        return_arm: checked_trees::CheckedConditionalReturnArm::Call { operation, .. },
         ..
     } = &plan.states[0].terminator
     else {
@@ -394,7 +394,7 @@ fn guarded_value_tail_call_binds_after_the_state_namespace() {
         arm_call_target(when_true),
         machine_named(&checked, "Root::add")
     );
-    let checked_trees::CheckedConditionalReturnArm::Call(operation) = when_true else {
+    let checked_trees::CheckedConditionalReturnArm::Call { operation, .. } = when_true else {
         unreachable!()
     };
     let result = operation

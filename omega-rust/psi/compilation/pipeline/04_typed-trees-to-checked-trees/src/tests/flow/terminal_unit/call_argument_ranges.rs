@@ -34,7 +34,7 @@ fn arm_call_arguments(
             )
         });
     let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-        return_arm: CheckedConditionalReturnArm::Call(operation),
+        return_arm: CheckedConditionalReturnArm::Call { operation, .. },
         ..
     } = &plan.states[0].terminator
     else {

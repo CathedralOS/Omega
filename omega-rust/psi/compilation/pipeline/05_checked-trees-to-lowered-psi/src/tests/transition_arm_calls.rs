@@ -190,7 +190,10 @@ fn arm_call_placement_is_rejoined_to_its_authored_arm() {
     else {
         panic!("both arms complete: {:?}", state.terminator);
     };
-    let CheckedConditionalReturnArm::Call(call) = when_true.clone() else {
+    let CheckedConditionalReturnArm::Call {
+        operation: call, ..
+    } = when_true.clone()
+    else {
         panic!("the true arm calls");
     };
     state.operations.push(call);
@@ -349,7 +352,7 @@ fn value_tail_call_bindings_are_rejoined_to_their_arm() {
         else {
             panic!("both arms complete: {:?}", state.terminator);
         };
-        let CheckedConditionalReturnArm::Call(operation) = when_true else {
+        let CheckedConditionalReturnArm::Call { operation, .. } = when_true else {
             panic!("the true arm calls");
         };
         let result = operation
@@ -476,7 +479,7 @@ fn ordered_call_placement_and_custody_reject_substitution() {
         let checked_trees::CheckedGuardedJumpArmPlan::Return(first) = &mut arms[0] else {
             panic!("first arm completes");
         };
-        let CheckedConditionalReturnArm::Call(operation) = &mut first.return_arm else {
+        let CheckedConditionalReturnArm::Call { operation, .. } = &mut first.return_arm else {
             panic!("first arm calls");
         };
         if mutation == 0 {

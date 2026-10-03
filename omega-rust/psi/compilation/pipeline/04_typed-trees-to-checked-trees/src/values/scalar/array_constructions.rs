@@ -86,7 +86,7 @@ pub(crate) fn call_array_constructions_in(
                 crate::flow::call_target_symbol(program, call)
             }
             crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-            crate::semantic::calls::CallSite::TransitionNamed { .. } => continue,
+            crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
         };
         if target_symbol != call.target_symbol {
             continue;
@@ -96,7 +96,17 @@ pub(crate) fn call_array_constructions_in(
         else {
             continue;
         };
-        let Some(return_type) = crate::flow::call_target_return_type(program, target_symbol) else {
+        let return_type = match site {
+            // A named invocation may retain its machine head. Keep that
+            // authored identity above; its resolved entry owns the result.
+            // Internal state transfers keep their successor-owned operands.
+            crate::semantic::calls::CallSite::TransitionNamed { .. } => {
+                crate::semantic::calls::terminal_callable_target(program, machine, target_symbol)
+                    .map(|(_, return_type)| return_type)
+            }
+            _ => crate::flow::call_target_return_type(program, target_symbol),
+        };
+        let Some(return_type) = return_type else {
             continue;
         };
         // A scalar computation owns its nested structural operands. Giving
@@ -120,6 +130,13 @@ pub(crate) fn call_array_constructions_in(
                     && call.authored_expression == assignment.value
             }
             Some(StatementNode::Expression(expression)) => call.authored_expression == *expression,
+            // A terminal invocation owns its argument preparation on the
+            // selected arm. Guard and operand expression calls remain under
+            // their scalar computation rather than acquiring another owner.
+            Some(StatementNode::Transition(_)) => matches!(
+                site,
+                crate::semantic::calls::CallSite::TransitionNamed { .. }
+            ),
             _ => false,
         };
         if !direct_root && program.primitive_type_reference(return_type).is_some() {
