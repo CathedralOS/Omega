@@ -148,6 +148,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&capacity_obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::EstablishStructuralArray {
+                    result,
+                    elements,
+                    shape,
+                } => {
+                    bytes.push(243);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    encode_len(bytes, elements.len());
+                    for element in elements {
+                        super::structural_types::encode_structural_argument(bytes, element);
+                    }
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::EstablishScalarArray {
                     result,
                     elements,

@@ -251,7 +251,7 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
             _ => unreachable!(),
         }
         assert!(execution.bind_byte_arrays(&[supplied]).is_err());
-        assert!(execution.structural_byte_arrays.is_empty());
+        assert!(execution.structural_byte_storage.is_empty());
     }
 }
 

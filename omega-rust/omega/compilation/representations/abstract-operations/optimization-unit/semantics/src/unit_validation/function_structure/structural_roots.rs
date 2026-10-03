@@ -1194,6 +1194,7 @@ fn readable_field_type(
                     O::EstablishRecord { result, .. }
                     | O::EstablishZeroedStructural { result, .. }
                     | O::EstablishScalarArray { result, .. }
+                    | O::EstablishStructuralArray { result, .. }
                     | O::EstablishCase { result, .. }
                     | O::EstablishReference { result, .. }
                     | O::MoveStructuralField { result, .. }

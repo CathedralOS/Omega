@@ -166,7 +166,7 @@ fn execution() -> (TerminalExecution, Operation) {
         ]),
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::new(),
-        structural_byte_arrays: BTreeMap::new(),
+        structural_byte_storage: BTreeMap::new(),
         scalar_case_values: BTreeMap::new(),
         scalar_array_values: BTreeMap::new(),
         element_view_values: BTreeMap::new(),
@@ -487,7 +487,7 @@ fn mutable_array_execution() -> (TerminalExecution, Operation) {
     let referent = execution.structural_values[&place(1)].clone();
     let backing = StructuralRuntimePlace::from(&referent);
     execution
-        .structural_byte_arrays
+        .structural_byte_storage
         .insert(backing.clone(), ByteSequenceView::new(vec![0, 128, 255, 7]));
     execution.byte_sequence_values.insert(
         place(1),

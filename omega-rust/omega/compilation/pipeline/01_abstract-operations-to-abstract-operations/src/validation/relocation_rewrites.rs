@@ -602,7 +602,11 @@ pub(crate) fn substitute_invariant_call_roots(
         O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => {}
-        O::CallStructural {
+        O::EstablishStructuralArray {
+            elements: structural_arguments,
+            ..
+        }
+        | O::CallStructural {
             structural_arguments,
             ..
         } => {

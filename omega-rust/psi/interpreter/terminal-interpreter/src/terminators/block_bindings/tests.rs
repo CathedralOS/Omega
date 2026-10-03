@@ -154,7 +154,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         ]),
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::new(),
-        structural_byte_arrays: BTreeMap::new(),
+        structural_byte_storage: BTreeMap::new(),
         scalar_case_values: BTreeMap::new(),
         scalar_array_values: BTreeMap::new(),
         element_view_values: BTreeMap::new(),

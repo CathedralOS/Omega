@@ -355,6 +355,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }
         | OperationKind::TrappingInteger { .. }

@@ -161,7 +161,9 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_linear_owned_contents(program, returned)
+                    || !(validation::has_plain_owned_contents_with_numeric_constraints(
+                        program, returned,
+                    ) || validation::has_linear_owned_contents(program, returned)
                         || validation::reference_result_custody::is_reference_record(
                             program, returned,
                         ))
@@ -822,7 +824,10 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call_target)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_linear_owned_contents(self.program, returned)
+                || !(validation::has_plain_owned_contents_with_numeric_constraints(
+                    self.program,
+                    returned,
+                ) || validation::has_linear_owned_contents(self.program, returned)
                     || validation::reference_result_custody::is_reference_record(
                         self.program,
                         returned,
@@ -1417,7 +1422,8 @@ impl Builder<'_, '_> {
             || name.members.count() != 1
             // An owned carrier may retain shared descriptor leaves. Moving
             // that carrier preserves their loans; it does not own the backing.
-            || !(validation::has_linear_owned_contents(self.program, expected)
+            || !(validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
+                    || validation::has_linear_owned_contents(self.program, expected)
                 || validation::has_owned_or_shared_view_contents(self.program, expected))
         {
             return None;
@@ -1476,7 +1482,10 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !(validation::has_linear_owned_contents(self.program, reference)
+            || !(validation::has_plain_owned_contents_with_numeric_constraints(
+                self.program,
+                reference,
+            ) || validation::has_linear_owned_contents(self.program, reference)
                 || validation::has_owned_or_shared_view_contents(self.program, reference))
             || validation::member_type_substitutions(self.program, data, reference).is_none()
         {

@@ -113,12 +113,10 @@ fn projected_transfers<'a>(
                 arguments.push(argument);
             }
         }
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => {
-            for field in fields {
-                let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-                    continue;
-                };
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => {
+            for argument in operation.kind.constructor_arguments() {
                 if argument.path.is_empty() {
                     continue;
                 }

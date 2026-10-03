@@ -30,6 +30,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }
+        | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }

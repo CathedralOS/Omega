@@ -490,6 +490,7 @@ fn source_contract(
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishScalarArray { result, .. }
+            | O::EstablishStructuralArray { result, .. }
             | O::StructuralLeafCopy { result, .. }
                 if result.place == place
                     && matches!(

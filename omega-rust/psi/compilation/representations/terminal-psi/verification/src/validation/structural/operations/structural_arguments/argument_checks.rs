@@ -402,7 +402,8 @@ pub(in crate::validation) fn validate_structural_argument(
                                         // projected owned subtree: the call's
                                         // result source map rejoins the exact
                                         // leaf loans under that edge.
-                                        OperationKind::EstablishRecord { .. }
+                                        OperationKind::EstablishStructuralArray { .. }
+                                        | OperationKind::EstablishRecord { .. }
                                         | OperationKind::EstablishStructuralCase { .. }
                                         | OperationKind::EstablishStructuralLocal { .. } => {
                                             (reference_result_call
@@ -420,7 +421,8 @@ pub(in crate::validation) fn validate_structural_argument(
                                                 // never moves.
                                                 || (matches!(
                                                     operation.kind,
-                                                    OperationKind::EstablishRecord { .. }
+                                                    OperationKind::EstablishStructuralArray { .. }
+                                        | OperationKind::EstablishRecord { .. }
                                                         | OperationKind::EstablishStructuralLocal {
                                                             ..
                                                         }

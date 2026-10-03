@@ -156,7 +156,7 @@ fn projected_local(
         let (operation, result) = match &node.operation {
             O::EstablishRecord { psi_operation, result, .. }
             | O::EstablishZeroedStructural { psi_operation, result }
-            | O::EstablishScalarArray { psi_operation, result, .. }
+            | O::EstablishScalarArray { psi_operation, result, .. } | O::EstablishStructuralArray { psi_operation, result, .. }
             | O::EstablishCase { psi_operation, result, .. }
             | O::StructuralLeafCopy { psi_operation, result, .. }
             | O::MoveStructuralField { psi_operation, result, .. }

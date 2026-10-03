@@ -365,6 +365,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::ElementViewWrite { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }
         | OperationKind::Call { .. }

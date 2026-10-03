@@ -71,6 +71,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
+    | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
     | AbstractOperation::EstablishScalarArray { psi_operation, .. }
     | AbstractOperation::EstablishCase { psi_operation, .. }
     | AbstractOperation::CallStructural {
@@ -736,6 +737,7 @@ pub(super) fn validate(
             AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
+                | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }

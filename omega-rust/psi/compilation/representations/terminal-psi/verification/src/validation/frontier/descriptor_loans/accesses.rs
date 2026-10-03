@@ -490,15 +490,12 @@ pub(super) fn operation(
             .iter()
             .map(|source| argument(module, machine, source, position))
             .collect(),
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => fields
-            .iter()
-            .filter_map(|field| match &field.value {
-                terminal_psi::RecordFieldValue::Structural(source) => {
-                    Some(argument(module, machine, source, position))
-                }
-                terminal_psi::RecordFieldValue::Scalar { .. } => None,
-            })
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => operation
+            .kind
+            .constructor_arguments()
+            .map(|source| argument(module, machine, source, position))
             .collect(),
         OperationKind::EstablishByteSequenceConcatenation { left, right, .. }
         | OperationKind::ByteSequenceEqual { left, right } => [left, right]
@@ -599,6 +596,7 @@ pub(super) fn may_escape(
             | OperationKind::EstablishMutableElementView { .. }
             | OperationKind::ElementViewSubslice { .. }
             | OperationKind::ByteSequenceSubslice { .. }
+            | OperationKind::EstablishStructuralArray { .. }
             | OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishStructuralCase { .. }
     )

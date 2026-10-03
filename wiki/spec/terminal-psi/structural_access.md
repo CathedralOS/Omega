@@ -282,7 +282,7 @@ the compact inclusive interval; `RefinedScalar` retains an ordinary proposition
 over one declaration-local scalar formal. It cannot name ambient values,
 structural observations, or opaque propositions. Neither representation changes
 the runtime carrier or grants raw mutable-reference access. Nested fields consume
-already completed whole owned records or reference carriers of the exact type;
+already completed owned records or reference carriers of the exact type;
 affine children transfer once, while unrestricted children remain available. An unrestricted
 parent cannot absorb an affine child.
 
@@ -290,9 +290,9 @@ The admitted records contain relevant scalar, mutable primitive reference, or
 recursive record fields and have no claim or qualification rosters. Reference
 children transfer their existing permission without copying their referents;
 the complete returned-leaf source map uses canonical path order, independently
-of constructor and cleanup order. Projected owned child
-construction remains unsupported: its residual custody cannot be inferred from
-a whole-value operand. Ordinary borrowed projections retain their access rules.
+of constructor and cleanup order. An owned child may name an authenticated finite field or fixed-index path.
+Its transfer consumes the current subtree custody and preserves the remaining
+siblings; the whole source name alone grants no partial-transfer authority. Ordinary borrowed projections retain their access rules.
 
 Each operand is evaluated in authored order before this operation. Establishment
 is atomic after all operands are available, with one logical fuel charge before
@@ -318,6 +318,27 @@ This is structural validity, not nominal or routed domain-membership authority.
 The source producer currently projects closed Boolean combinations of supported
 scalar comparisons and exact interval shells. Unsupported source predicates,
 indexed theory, and establishment routes are not silently reduced to raw storage.
+
+## Complete structural array construction
+
+`EstablishStructuralArray` assembles completed owned values into the declared
+`FixedArray` result. Its ordered structural operands have exactly the declared
+element type and extent. Each operand is evaluated before construction; authored
+calls and effects occur once, in increasing element order. An owned operand may
+name a whole value or an authenticated finite field/fixed-index subtree. The
+current custody judgment rejects overlapping affine transfers and preserves the
+remaining siblings. An unrestricted array cannot absorb an affine element.
+
+The constructor charges one operation step before transferring its operands and
+publishes the complete array atomically. It exposes no partially initialized
+array and requires no runtime initialization bitmap. Descriptor backing and
+reference origins move under `FixedIndex(ordinal)` followed by their original
+child path; copying their representation bytes grants no new backing permission.
+Element qualifications must already hold on the supplied completed values.
+
+`EstablishScalarArray` retains its row-major scalar-operand contract. Structural
+array construction carries complete element values rather than manufacturing
+record field identities for array positions.
 
 ## Store vocabulary
 

@@ -83,6 +83,9 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.source(), right.source()]
         }
+        O::EstablishStructuralArray { elements, .. } => {
+            elements.iter().map(|argument| argument.place).collect()
+        }
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {

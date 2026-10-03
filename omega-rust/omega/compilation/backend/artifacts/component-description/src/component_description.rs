@@ -711,6 +711,7 @@ pub(crate) fn derive_component_inventory(
                     OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::EstablishScalarArray { .. }
+                    | OperationKind::EstablishStructuralArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
                     | OperationKind::EstablishZeroedStructural { .. }

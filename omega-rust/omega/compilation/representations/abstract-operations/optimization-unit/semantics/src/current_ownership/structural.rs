@@ -127,6 +127,11 @@ pub(crate) fn partial_affine_root_type(
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             }
+            | O::EstablishStructuralArray {
+                psi_operation,
+                result,
+                ..
+            }
             | O::EstablishRecord {
                 psi_operation,
                 result,
@@ -209,10 +214,15 @@ pub(super) fn constructor_arguments(
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields.as_slice(),
         _ => &[],
     };
+    let elements = match operation {
+        O::EstablishStructuralArray { elements, .. } => elements.as_slice(),
+        _ => &[],
+    };
     fields
         .iter()
         .filter_map(|initializer| match &initializer.value {
             terminal_psi::RecordFieldValue::Structural(argument) => Some(argument),
             terminal_psi::RecordFieldValue::Scalar { .. } => None,
         })
+        .chain(elements)
 }

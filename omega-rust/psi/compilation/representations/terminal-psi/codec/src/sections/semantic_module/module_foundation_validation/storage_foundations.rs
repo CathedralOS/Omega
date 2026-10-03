@@ -1204,7 +1204,8 @@ fn borrowed_field_store_root_type(
         .filter(|producer| {
             matches!(
                 producer.kind,
-                OperationKind::EstablishRecord { .. }
+                OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::CallStructural { .. }
@@ -1325,7 +1326,8 @@ pub(super) fn validate_integer_structural_field(
         .filter(|producer| {
             matches!(
                 producer.kind,
-                OperationKind::EstablishRecord { .. }
+                OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::CallStructural { .. }

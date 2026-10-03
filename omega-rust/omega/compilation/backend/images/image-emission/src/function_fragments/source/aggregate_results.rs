@@ -145,6 +145,21 @@ pub(super) fn operation(
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
             )).count() == 1
         }
+        AbstractOperation::EstablishStructuralArray { psi_operation, result, elements } => {
+            // Assembly retains the complete ordered operand roster, including
+            // projected custody. Earlier source/physical replay authenticates
+            // each child's type, origin, transfer and realized element stride.
+            graph.structural_types.iter().any(|declaration|
+                declaration.id == result.structural_type
+                    && matches!(declaration.shape,
+                        terminal_psi::StructuralTypeShape::FixedArray { length, .. }
+                            if u64::try_from(elements.len()).ok() == Some(length)))
+                && graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                    TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
+                        if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                            && retained_elements == elements
+                )).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

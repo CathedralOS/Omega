@@ -221,3 +221,6 @@ pub(super) const BYTE_SEQUENCE_PREDICATE: u8 = 104;
 pub(super) const BYTE_SEQUENCE_EQUAL: u8 = 105;
 /// A shared-view field store with an exact current-source predicate obligation.
 pub(super) const PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 106;
+
+/// Complete owned structural array construction.
+pub(super) const ESTABLISH_STRUCTURAL_ARRAY: u8 = 107;

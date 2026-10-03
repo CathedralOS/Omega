@@ -25,9 +25,34 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
+    let pointer = initialize_storage(row, builder, result.place, *shape)?;
+    if shape.byte_size == 0 {
+        builder.transport.pointers.push((result.place, pointer));
+        return Ok(());
+    }
+    write_fields(
+        source,
+        row,
+        builder,
+        result.place,
+        pointer,
+        initializers,
+        &fields,
+    )?;
+    builder.transport.pointers.push((result.place, pointer));
+    Ok(())
+}
+/// Allocate the unpublished complete value and initialize every byte,
+/// including padding that subsequent whole-value transfers may observe.
+pub(super) fn initialize_storage(
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+    destination: PlaceId,
+    shape: calling_conventions::ValueShape,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
-        place: result.place,
+        place: destination,
     };
     builder
         .transport
@@ -41,11 +66,10 @@ pub(super) fn establish(
         });
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
     if shape.byte_size == 0 {
-        builder.transport.pointers.push((result.place, pointer));
-        return Ok(());
+        return Ok(pointer);
     }
     // Initialize padding too: a later whole-value copy may transport every byte.
-    let zero = transport_register(builder, result.place, 0)?;
+    let zero = transport_register(builder, destination, 0)?;
     builder.emit(
         SelectedInstructionKind::MaterializeI64 {
             value: IntegerValue::Unsigned(0),
@@ -60,7 +84,7 @@ pub(super) fn establish(
         store(
             builder,
             row,
-            result.place,
+            destination,
             pointer,
             offset,
             width,
@@ -70,17 +94,7 @@ pub(super) fn establish(
         )?;
         offset += u32::from(width);
     }
-    write_fields(
-        source,
-        row,
-        builder,
-        result.place,
-        pointer,
-        initializers,
-        &fields,
-    )?;
-    builder.transport.pointers.push((result.place, pointer));
-    Ok(())
+    Ok(pointer)
 }
 /// Initialize each owned field from its exact scalar or completed child storage.
 /// Case construction uses the same writes after establishing its tag.
@@ -129,156 +143,16 @@ pub(super) fn write_fields(
                 )?;
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {
-                let source_offset =
-                    crate::selection::record_input::operand_offset(source, argument)
-                        .ok_or_else(|| invalid())?;
-                if field_shape.byte_size == 0 {
-                    continue;
-                }
-                // Once an owned input has addressable storage, later borrows
-                // may update it. Copy its current bytes, not stale entry fragments.
-                if let Some(parameter) = source
-                    .structural
-                    .as_ref()
-                    .and_then(|signature| {
-                        signature
-                            .parameters
-                            .iter()
-                            .find(|parameter| parameter.semantic.place == argument.place)
-                    })
-                    .filter(|_| {
-                        argument.path.is_empty()
-                            && !builder
-                                .transport
-                                .pointers
-                                .iter()
-                                .any(|(place, _)| *place == argument.place)
-                    })
-                {
-                    if !crate::selection::aggregate_result_input::inline_argument_fragments(
-                        &parameter.target.placement,
-                    ) {
-                        return Err(invalid());
-                    }
-                    for location in &parameter.target.placement.locations {
-                        let (fragment_offset, width) = match location {
-                            calling_conventions::ValueLocation::Register {
-                                value_byte_offset,
-                                byte_size,
-                                ..
-                            }
-                            | calling_conventions::ValueLocation::Stack {
-                                value_byte_offset,
-                                byte_size,
-                                ..
-                            } => ((*value_byte_offset), *byte_size),
-                            _ => return Err(invalid()),
-                        };
-                        let value = builder
-                            .transport
-                            .fragments
-                            .iter()
-                            .find(|(place, byte_offset, _)| {
-                                *place == argument.place && *byte_offset == fragment_offset
-                            })
-                            .map(|(_, _, value)| *value)
-                            .ok_or_else(|| invalid())?;
-                        memory(
-                            builder,
-                            row,
-                            destination,
-                            offset + fragment_offset,
-                            width,
-                            SelectedMemoryAccessRole::WritePlace,
-                        )?;
-                        super::super::aggregate_memory::store(
-                            builder,
-                            pointer,
-                            value,
-                            offset + fragment_offset,
-                            width,
-                        )?;
-                    }
-                    continue;
-                }
-                let input = builder
-                    .transport
-                    .pointers
-                    .iter()
-                    .find(|(place, _)| *place == argument.place)
-                    .map(|(_, pointer)| *pointer)
-                    .ok_or_else(|| invalid())?;
-                let mut cursor = 0u32;
-                while cursor < field_shape.byte_size {
-                    let source_position =
-                        source_offset.checked_add(cursor).ok_or_else(|| invalid())?;
-                    let width = chunk(
-                        field_shape.byte_size - cursor,
-                        source_position,
-                        offset + cursor,
-                    );
-                    let (input, displacement) = super::memory_pointer(
-                        builder,
-                        row,
-                        argument.place,
-                        input,
-                        source_position,
-                        u32::from(width),
-                    )?;
-                    let value = transport_register(builder, argument.place, source_position)?;
-                    memory(
-                        builder,
-                        row,
-                        argument.place,
-                        source_position,
-                        u32::from(width),
-                        SelectedMemoryAccessRole::ReadPlace,
-                    )?;
-                    let (kind, key) = match width {
-                        8 => (
-                            SelectedInstructionKind::Load64 {
-                                byte_offset: displacement,
-                            },
-                            builder.constraints.keys.load64,
-                        ),
-                        4 => (
-                            SelectedInstructionKind::Load32 {
-                                byte_offset: displacement,
-                            },
-                            builder.constraints.keys.load32,
-                        ),
-                        2 => (
-                            SelectedInstructionKind::Load16 {
-                                byte_offset: displacement,
-                            },
-                            builder.constraints.keys.load16,
-                        ),
-                        _ => (
-                            SelectedInstructionKind::Load8 {
-                                byte_offset: displacement,
-                            },
-                            builder.constraints.keys.load8,
-                        ),
-                    };
-                    builder.emit(
-                        kind,
-                        key.ok_or_else(|| invalid())?,
-                        &[input, value],
-                        provenance(row),
-                    )?;
-                    store(
-                        builder,
-                        row,
-                        destination,
-                        pointer,
-                        offset + cursor,
-                        width,
-                        value,
-                        Vec::new(),
-                        Vec::new(),
-                    )?;
-                    cursor += u32::from(width);
-                }
+                write_structural_operand(
+                    source,
+                    row,
+                    builder,
+                    destination,
+                    pointer,
+                    argument,
+                    offset,
+                    field_shape,
+                )?;
             }
         }
     }
@@ -336,5 +210,168 @@ pub(super) fn store(
             ..provenance(row)
         },
     )?;
+    Ok(())
+}
+
+/// Copy one completed child into a constructor's unpublished destination.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_structural_operand(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+    destination: PlaceId,
+    pointer: VirtualRegisterId,
+    argument: &terminal_psi::StructuralArgument,
+    offset: u32,
+    field_shape: calling_conventions::ValueShape,
+) -> Result<(), SelectedInstructionError> {
+    let source_offset = crate::selection::record_input::operand_offset(source, argument)
+        .ok_or_else(|| invalid())?;
+    if field_shape.byte_size == 0 {
+        return Ok(());
+    }
+    // Once an owned input has addressable storage, later borrows
+    // may update it. Copy its current bytes, not stale entry fragments.
+    if let Some(parameter) = source
+        .structural
+        .as_ref()
+        .and_then(|signature| {
+            signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == argument.place)
+        })
+        .filter(|_| {
+            argument.path.is_empty()
+                && !builder
+                    .transport
+                    .pointers
+                    .iter()
+                    .any(|(place, _)| *place == argument.place)
+        })
+    {
+        if !crate::selection::aggregate_result_input::inline_argument_fragments(
+            &parameter.target.placement,
+        ) {
+            return Err(invalid());
+        }
+        for location in &parameter.target.placement.locations {
+            let (fragment_offset, width) = match location {
+                calling_conventions::ValueLocation::Register {
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                }
+                | calling_conventions::ValueLocation::Stack {
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } => ((*value_byte_offset), *byte_size),
+                _ => return Err(invalid()),
+            };
+            let value = builder
+                .transport
+                .fragments
+                .iter()
+                .find(|(place, byte_offset, _)| {
+                    *place == argument.place && *byte_offset == fragment_offset
+                })
+                .map(|(_, _, value)| *value)
+                .ok_or_else(|| invalid())?;
+            memory(
+                builder,
+                row,
+                destination,
+                offset + fragment_offset,
+                width,
+                SelectedMemoryAccessRole::WritePlace,
+            )?;
+            super::super::aggregate_memory::store(
+                builder,
+                pointer,
+                value,
+                offset + fragment_offset,
+                width,
+            )?;
+        }
+        return Ok(());
+    }
+    let input = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == argument.place)
+        .map(|(_, pointer)| *pointer)
+        .ok_or_else(|| invalid())?;
+    let mut cursor = 0u32;
+    while cursor < field_shape.byte_size {
+        let source_position = source_offset.checked_add(cursor).ok_or_else(|| invalid())?;
+        let width = chunk(
+            field_shape.byte_size - cursor,
+            source_position,
+            offset + cursor,
+        );
+        let (input, displacement) = super::memory_pointer(
+            builder,
+            row,
+            argument.place,
+            input,
+            source_position,
+            u32::from(width),
+        )?;
+        let value = transport_register(builder, argument.place, source_position)?;
+        memory(
+            builder,
+            row,
+            argument.place,
+            source_position,
+            u32::from(width),
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        let (kind, key) = match width {
+            8 => (
+                SelectedInstructionKind::Load64 {
+                    byte_offset: displacement,
+                },
+                builder.constraints.keys.load64,
+            ),
+            4 => (
+                SelectedInstructionKind::Load32 {
+                    byte_offset: displacement,
+                },
+                builder.constraints.keys.load32,
+            ),
+            2 => (
+                SelectedInstructionKind::Load16 {
+                    byte_offset: displacement,
+                },
+                builder.constraints.keys.load16,
+            ),
+            _ => (
+                SelectedInstructionKind::Load8 {
+                    byte_offset: displacement,
+                },
+                builder.constraints.keys.load8,
+            ),
+        };
+        builder.emit(
+            kind,
+            key.ok_or_else(|| invalid())?,
+            &[input, value],
+            provenance(row),
+        )?;
+        store(
+            builder,
+            row,
+            destination,
+            pointer,
+            offset + cursor,
+            width,
+            value,
+            Vec::new(),
+            Vec::new(),
+        )?;
+        cursor += u32::from(width);
+    }
     Ok(())
 }

@@ -303,6 +303,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
             value,
         )?,
+        OperationKind::EstablishStructuralArray { elements } => {
+            value_operations::encode_establish_structural_array(writer, elements)?
+        }
         OperationKind::EstablishScalarArray { elements } => {
             value_operations::encode_establish_scalar_array(writer, elements)?
         }
@@ -992,6 +995,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::ESTABLISH_TRIVIAL_AFFINE_LOCAL => {
             value_operations::decode_establish_trivial_affine_local(reader)?
+        }
+        operation_tags::ESTABLISH_STRUCTURAL_ARRAY => {
+            value_operations::decode_establish_structural_array(reader)?
         }
         operation_tags::ESTABLISH_RECORD => value_operations::decode_establish_record(reader)?,
         operation_tags::ESTABLISH_STRUCTURAL_CASE => {

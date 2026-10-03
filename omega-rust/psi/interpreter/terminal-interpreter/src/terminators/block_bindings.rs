@@ -690,7 +690,8 @@ impl TerminalExecution {
                             terminal_psi::OperationKind::StructuralLeafCopy {
                                 ref path, ..
                             } => !scalar_case || path.is_empty(),
-                            terminal_psi::OperationKind::EstablishRecord { .. }
+                            terminal_psi::OperationKind::EstablishStructuralArray { .. }
+                            | terminal_psi::OperationKind::EstablishRecord { .. }
                             | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => {
                                 !scalar_case
                             }

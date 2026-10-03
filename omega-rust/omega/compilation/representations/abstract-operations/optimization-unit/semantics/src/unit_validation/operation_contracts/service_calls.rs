@@ -96,6 +96,9 @@ pub(crate) fn operation_structural_call_contract_matches(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     match operation {
+        O::EstablishStructuralArray { .. } => {
+            super::scalar_arrays::structural_array_establishment_matches(caller, operation, types)
+        }
         O::EstablishScalarArray { .. } => {
             scalar_array_establishment_matches(caller, operation, types)
         }

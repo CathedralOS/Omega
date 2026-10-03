@@ -730,7 +730,7 @@ fn bounded_byte_collection() -> (TerminalExecution, Operation) {
     source_value.structural_type = bounded_type;
     let backing = StructuralRuntimePlace::from(&*source_value);
     execution
-        .structural_byte_arrays
+        .structural_byte_storage
         .insert(backing.clone(), ByteSequenceView::new(vec![17, 128, 255]));
     execution.byte_sequence_values.insert(
         source,
@@ -816,7 +816,7 @@ fn bounded_byte_collection_establishment_preserves_home_and_capacity() {
 #[test]
 fn bounded_byte_collection_host_input_publishes_storage_and_descriptor_atomically() {
     let (mut execution, operation) = bounded_byte_collection();
-    execution.structural_byte_arrays.clear();
+    execution.structural_byte_storage.clear();
     execution.byte_sequence_values.clear();
     let input = crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue {
         argument_index: 0,
@@ -828,7 +828,7 @@ fn bounded_byte_collection_host_input_publishes_storage_and_descriptor_atomicall
             .bind_byte_arrays(&[input.clone(), input.clone()])
             .is_err()
     );
-    assert!(execution.structural_byte_arrays.is_empty());
+    assert!(execution.structural_byte_storage.is_empty());
     assert!(execution.byte_sequence_values.is_empty());
     execution
         .bind_byte_arrays(std::slice::from_ref(&input))
@@ -1020,7 +1020,7 @@ fn representation_byte_collection() -> (
     let root = execution.structural_values.get_mut(&source).unwrap();
     root.structural_type = array_type;
     let backing = crate::values::StructuralRuntimePlace::from(&*root);
-    execution.structural_byte_arrays.insert(
+    execution.structural_byte_storage.insert(
         backing.clone(),
         ByteSequenceView::new(vec![0, 1, 2, 3, 4, 5, 6, 7]),
     );
@@ -1106,7 +1106,7 @@ fn representation_element_view_writes_live_bytes_through_transferred_descriptor(
     execution
         .execute_element_view_write(&representation_write(3, 5, 7))
         .unwrap();
-    let bytes = &execution.structural_byte_arrays[&backing];
+    let bytes = &execution.structural_byte_storage[&backing];
     assert_eq!(
         (0..8)
             .map(|index| *bytes.get(index).unwrap())

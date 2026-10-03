@@ -156,6 +156,13 @@ pub(super) fn project(
                 shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             }
         }
+        AbstractOperation::EstablishStructuralArray {
+            result, elements, ..
+        } => LegalizedScalarInstructionKind::EstablishStructuralArray {
+            result: result.clone(),
+            elements: elements.clone(),
+            shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+        },
         AbstractOperation::EstablishRecord { result, fields, .. } => {
             LegalizedScalarInstructionKind::EstablishRecord {
                 result: result.clone(),

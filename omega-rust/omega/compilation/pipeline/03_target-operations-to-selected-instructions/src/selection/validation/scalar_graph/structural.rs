@@ -43,6 +43,7 @@ mod record;
 pub(super) mod reference;
 mod scalar_array;
 mod scalar_case;
+mod structural_array;
 mod structural_local;
 mod zeroed;
 pub(super) use primitive_locals::read;
@@ -361,6 +362,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::StoreStructuralField { .. }
     ) {
         leaf_copy::reseat(source, node, replay)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
+    ) {
+        structural_array::establish(source, node, replay)?;
         return Ok(true);
     }
     if matches!(

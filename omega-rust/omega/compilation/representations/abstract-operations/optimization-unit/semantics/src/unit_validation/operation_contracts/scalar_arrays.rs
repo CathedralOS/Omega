@@ -109,3 +109,49 @@ pub(crate) fn plain_scalar_array_call(
         )
         .is_some()
 }
+
+/// Complete array elements keep the same typed ownership contract as structural
+/// record fields; the fixed-array declaration supplies count and element type.
+pub(crate) fn structural_array_establishment_matches(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let O::EstablishStructuralArray {
+        psi_operation,
+        result,
+        elements,
+    } = operation
+    else {
+        return false;
+    };
+    let Some(terminal_psi::StructuralTypeDeclaration {
+        shape: terminal_psi::StructuralTypeShape::FixedArray { element, length },
+        ..
+    }) = types.get(&result.structural_type).copied()
+    else {
+        return false;
+    };
+    matches!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+            | terminal_psi::StructuralMultiplicity::Affine
+    ) && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && u64::try_from(elements.len()).ok() == Some(*length)
+        && function.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == StructuralPlaceKind::OperationResult {
+                        producer: *psi_operation,
+                        structural_type: result.structural_type,
+                    }
+        })
+        && elements.iter().all(|argument| {
+            super::records::structural_initializer_matches(
+                function, result, *element, argument, types,
+            )
+        })
+}

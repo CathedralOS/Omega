@@ -481,6 +481,12 @@ pub enum TargetUnitOperation {
         result_home: TargetStructuralHomeRequirement,
         elements: Vec<ValueId>,
     },
+    /// Bind complete elements into the declared fixed-array home.
+    EstablishStructuralArray {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        elements: Vec<terminal_psi::StructuralArgument>,
+    },
     /// Establish a fresh sum in its exact durable aggregate home.
     EstablishCase {
         psi_operation: OperationId,
@@ -677,6 +683,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishScalarArray {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishStructuralArray {
                 psi_operation,
                 result_home,
                 ..

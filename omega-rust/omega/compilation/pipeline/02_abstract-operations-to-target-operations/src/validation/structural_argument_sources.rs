@@ -167,6 +167,10 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 psi_operation,
                 result,
                 ..
+            } | AbstractOperation::EstablishStructuralArray {
+                psi_operation,
+                result,
+                ..
             }
             | AbstractOperation::EstablishCase {
                 psi_operation,

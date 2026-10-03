@@ -442,6 +442,7 @@ fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
         AbstractOperation::EstablishRecord { psi_operation, .. }
         | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
         | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
+        | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
         | AbstractOperation::EstablishScalarArray { psi_operation, .. }
         | AbstractOperation::EstablishCase { psi_operation, .. }
         | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }

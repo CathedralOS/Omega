@@ -28,6 +28,13 @@ pub enum AbstractOperation {
         result: StructuralOperationResult,
         elements: Vec<ValueId>,
     },
+    /// Bind completed structural elements in declared fixed-array order.
+    /// Each source retains its exact access and selected subtree custody.
+    EstablishStructuralArray {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        elements: Vec<StructuralArgument>,
+    },
     /// Establish initialized activation-local primitive storage, not a scalar alias.
     EstablishPrimitiveLocal {
         psi_operation: OperationId,
@@ -739,6 +746,7 @@ impl AbstractOperation {
     pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
         let result = match self {
             Self::EstablishScalarArray { result, .. }
+            | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
             | Self::ByteSequenceSubslice { result, .. }
             | Self::EstablishElementView { result, .. }
@@ -807,7 +815,11 @@ impl AbstractOperation {
             Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
                 vec![source.path.as_slice()]
             }
-            Self::CallStructural {
+            Self::EstablishStructuralArray {
+                elements: structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
                 structural_arguments,
                 ..
             }
@@ -845,6 +857,7 @@ impl AbstractOperation {
             | Self::StructuralLeafCopy { psi_operation, .. }
             | Self::StoreDynamicDescriptor { psi_operation, .. }
             | Self::EstablishScalarArray { psi_operation, .. }
+            | Self::EstablishStructuralArray { psi_operation, .. }
             | Self::EstablishCase { psi_operation, .. }
             | Self::EstablishByteSequenceLiteral { psi_operation, .. }
             | Self::EstablishByteSequenceConcatenation { psi_operation, .. }

@@ -190,7 +190,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
-            LegalizedScalarInstructionKind::Constant(_)
+            LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
+            | LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::StoreStructuralField { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
@@ -320,6 +321,11 @@ pub enum LegalizedScalarInstructionKind {
         right: terminal_psi::control_flow::ByteSequenceOperand,
         capacity_obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    EstablishStructuralArray {
+        result: terminal_psi::StructuralOperationResult,
+        elements: Vec<terminal_psi::StructuralArgument>,
+        shape: calling_conventions::ValueShape,
     },
     EstablishScalarArray {
         result: terminal_psi::StructuralOperationResult,
@@ -838,6 +844,7 @@ impl LegalizedScalarInstructionKind {
     pub fn get_structural_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
         match self {
             Self::EstablishByteSequenceConcatenation { result, .. }
+            | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }

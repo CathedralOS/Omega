@@ -269,7 +269,8 @@ pub(super) fn validate_operation(
         ) if psi_operation == expected_operation && source == expected_source => {}
         (
             _,
-            AbstractOperation::EstablishScalarArray { .. }
+            AbstractOperation::EstablishStructuralArray { .. }
+            | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::StructuralLeafCopy { .. }
             | AbstractOperation::EstablishCase { .. },

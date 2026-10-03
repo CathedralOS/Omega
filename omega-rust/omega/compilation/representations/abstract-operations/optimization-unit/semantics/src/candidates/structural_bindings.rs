@@ -117,6 +117,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
 fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &StructuralArgument> {
     let mut operands: Vec<&StructuralArgument> = Vec::new();
     match operation {
+        O::EstablishStructuralArray { elements, .. } => operands.extend(elements),
         O::EstablishRecord { fields, .. } => {
             for initializer in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value {

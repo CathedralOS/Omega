@@ -141,6 +141,7 @@ pub(crate) fn expected_uses(
 ) -> Vec<ValueUse> {
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
+        O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()

@@ -404,7 +404,7 @@ impl TerminalExecution {
                 opaque_identity: view.opaque_identity,
                 path: parent_path.to_vec(),
             };
-            if let Some(bytes) = self.structural_byte_arrays.get(&array) {
+            if let Some(bytes) = self.structural_byte_storage.get(&array) {
                 let byte_type =
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
                 let index = usize::try_from(*index).map_err(|_| invalid())?;
@@ -427,7 +427,7 @@ impl TerminalExecution {
             }
         }
         // Other overlaps cannot silently fall back to independent storage.
-        if self.structural_byte_arrays.keys().any(|array| {
+        if self.structural_byte_storage.keys().any(|array| {
             array.opaque_identity == view.opaque_identity && view.path.starts_with(&array.path)
         }) {
             return Err(invalid());

@@ -153,7 +153,7 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
-                                | O::EstablishScalarArray { psi_operation, result, .. }
+                                | O::EstablishScalarArray { psi_operation, result, .. } | O::EstablishStructuralArray { psi_operation, result, .. }
                                 | O::EstablishCase {
                                     psi_operation,
                                     result,
@@ -257,6 +257,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::EstablishPrimitiveLocal { result, .. }
             | O::ByteSequenceSubslice { result, .. }
             | O::EstablishScalarArray { result, .. }
+            | O::EstablishStructuralArray { result, .. }
             | O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
@@ -309,6 +310,11 @@ pub(crate) fn validate_function_structural_catalog(
                 ..
             }
             | O::EstablishScalarArray {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishStructuralArray {
                 psi_operation,
                 result,
                 ..

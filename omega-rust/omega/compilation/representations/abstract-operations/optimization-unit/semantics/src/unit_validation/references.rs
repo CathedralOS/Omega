@@ -636,7 +636,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishByteSequenceConcatenation { result, .. }
-                | O::EstablishScalarArray { result, .. }
+                | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
         | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
         | O::EstablishZeroedStructural { result, .. }
@@ -686,6 +686,7 @@ pub(crate) fn validate_function_references(
             && (!matches!(
                 node.operation,
                 O::EstablishRecord { .. }
+                    | O::EstablishStructuralArray { .. }
                     | O::CallStructural {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..

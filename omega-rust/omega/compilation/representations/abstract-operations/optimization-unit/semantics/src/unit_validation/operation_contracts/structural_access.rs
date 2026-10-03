@@ -874,7 +874,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 // The view's source access IS the loan's access: a mutable
                 // establishment lends mutable, a shared one lends shared.
                 O::EstablishElementView { result, .. } => (result, view_access(caller, operation)?),
-                O::EstablishScalarArray { result, .. }
+                O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
                 | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }

@@ -465,9 +465,10 @@ pub(super) fn authored_occurrences(
                 if values.len() != elements.count() as usize {
                     return unsupported("nested array argument has an invalid element span");
                 }
-                // Calls inside leaves keep their authored occurrence numbers;
-                // the leaf computation still owns selective execution.
-                children.extend(values.iter().map(|element| (*element, false)));
+                // Each element is a direct constructor operand, just like a
+                // record field. Its computation retains selective execution;
+                // this walk only owns the authored call occurrence order.
+                children.extend(values.iter().map(|element| (*element, true)));
                 None
             }
             ExpressionNode::Binary(binary) => {

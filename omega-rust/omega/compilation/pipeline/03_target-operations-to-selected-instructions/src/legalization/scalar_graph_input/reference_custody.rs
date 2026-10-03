@@ -370,6 +370,24 @@ fn leaf_paths(
                     }
                 }
             }
+            StructuralTypeShape::FixedArray { element, length }
+                if contains_reference(types, *element) =>
+            {
+                let length = usize::try_from(*length).ok()?;
+                if pending
+                    .len()
+                    .checked_add(output.len())?
+                    .checked_add(length)?
+                    > maximum_leaves
+                {
+                    return None;
+                }
+                for index in (0..length).rev() {
+                    let mut child_path = path.clone();
+                    child_path.push(StructuralPathSegment::FixedIndex(index as u64));
+                    pending.push((*element, child_path));
+                }
+            }
             // Case payloads hold leaves under field-identity paths as well.
             // Identical segments across cases collapse into the single leaf
             // the authored path names.
@@ -1210,6 +1228,73 @@ fn discard_owned(
     Ok(true)
 }
 
+/// Stage every selected reference leaf before committing the constructor.
+/// Projection prefixes select source storage; destination prefixes relocate
+/// its leaves without moving a sibling or changing the loan's stable identity.
+fn relocate_constructor_leaves<'a>(
+    custody: &mut Custody,
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    destination: PlaceId,
+    operands: impl IntoIterator<
+        Item = (
+            &'a StructuralArgument,
+            StructuralTypeId,
+            StructuralPathSegment,
+        ),
+    >,
+) -> Result<(), LegalizationError> {
+    let mut relocations = Vec::new();
+    let mut moved = BTreeSet::new();
+    if custody
+        .leaves
+        .keys()
+        .any(|(carrier, _)| *carrier == destination)
+    {
+        return Err(invalid());
+    }
+    for (argument, nested, prefix) in operands {
+        if !contains_reference(types, nested) {
+            continue;
+        }
+        let contract = source_contract(function, custody, argument.place).ok_or_else(invalid)?;
+        if argument.access != StructuralAccess::Owned
+            || argument.place == destination
+            || leaf_type(types, contract, &argument.path) != Some(nested)
+        {
+            return Err(invalid());
+        }
+        let paths = leaf_paths(types, nested, custody.leaves.len()).ok_or_else(invalid)?;
+        for path in &paths {
+            let mut source_path = argument.path.clone();
+            source_path.extend(path.iter().cloned());
+            let leaf = custody
+                .leaf(argument.place, &source_path)
+                .ok_or_else(invalid)?;
+            if !moved.insert(leaf.identity.clone()) {
+                return Err(invalid());
+            }
+            let mut target_path = vec![prefix.clone()];
+            target_path.extend(path.iter().cloned());
+            relocations.push(((argument.place, source_path), target_path));
+        }
+        if custody.leaves.keys().any(|(carrier, path)| {
+            *carrier == argument.place
+                && path.starts_with(&argument.path)
+                && !paths
+                    .iter()
+                    .any(|relative| path[argument.path.len()..] == relative[..])
+        }) {
+            return Err(invalid());
+        }
+    }
+    for (from, to) in relocations {
+        let leaf = custody.leaves.remove(&from).ok_or_else(invalid)?;
+        custody.leaves.insert((destination, to), leaf);
+    }
+    Ok(())
+}
+
 /// Apply one operation's custody effect after its target row validated.
 /// Admission was proven upstream; this replay keeps only enough state to
 /// resolve later `.., Referent` spellings and result rosters independently.
@@ -1299,60 +1384,53 @@ pub(in crate::legalization) fn apply(
             if fields.len() != declarations.clone().count() {
                 return Err(invalid());
             }
-            let mut relocations = Vec::new();
-            let mut moved = BTreeSet::new();
+            let mut operands = Vec::new();
             for (field, declaration) in fields.iter().zip(declarations) {
                 if field.field != declaration.id {
                     return Err(invalid());
                 }
-                let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-                    continue;
-                };
-                let StructuralFieldType::Structural(nested) = declaration.field_type else {
-                    continue;
-                };
-                if !contains_reference(types, nested) {
-                    continue;
-                }
-                let contract =
-                    source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
-                if contract != nested {
-                    return Err(invalid());
-                }
-                let paths =
-                    leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
-                for path in &paths {
-                    let leaf = custody
-                        .leaf(argument.place, path)
-                        .ok_or_else(|| invalid())?;
-                    if !moved.insert(leaf.identity.clone()) {
-                        return Err(invalid());
-                    }
-                    let mut destination =
-                        vec![StructuralPathSegment::Field(declaration.identity.clone())];
-                    destination.extend(path.iter().cloned());
-                    relocations.push(((argument.place, path.clone()), destination));
-                }
-                if custody
-                    .leaves
-                    .keys()
-                    .any(|(carrier, path)| *carrier == argument.place && !paths.contains(path))
+                if let (
+                    terminal_psi::RecordFieldValue::Structural(argument),
+                    StructuralFieldType::Structural(nested),
+                ) = (&field.value, &declaration.field_type)
                 {
-                    return Err(invalid());
+                    operands.push((
+                        argument,
+                        *nested,
+                        StructuralPathSegment::Field(declaration.identity.clone()),
+                    ));
                 }
             }
-            if custody
-                .leaves
-                .keys()
-                .any(|(carrier, _)| *carrier == result.place)
-            {
+            relocate_constructor_leaves(custody, function, types, result.place, operands)?;
+        }
+        AbstractOperation::EstablishStructuralArray {
+            result, elements, ..
+        } => {
+            let Some(StructuralTypeDeclaration {
+                shape: StructuralTypeShape::FixedArray { element, length },
+                ..
+            }) = types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+            else {
+                return Err(invalid());
+            };
+            if u64::try_from(elements.len()).ok() != Some(*length) {
                 return Err(invalid());
             }
-            for (from, to) in relocations {
-                if let Some(leaf) = custody.leaves.remove(&from) {
-                    custody.leaves.insert((result.place, to), leaf);
-                }
-            }
+            relocate_constructor_leaves(
+                custody,
+                function,
+                types,
+                result.place,
+                elements.iter().enumerate().map(|(index, argument)| {
+                    (
+                        argument,
+                        *element,
+                        StructuralPathSegment::FixedIndex(index as u64),
+                    )
+                }),
+            )?;
         }
         AbstractOperation::CallStructural {
             psi_operation,
@@ -1767,6 +1845,16 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
         let Some(declaration) = types.iter().find(|declaration| declaration.id == current) else {
             return false;
         };
+        if let StructuralTypeShape::FixedArray { element, .. } = &declaration.shape {
+            if referent(types, *element).is_none()
+                && plain_record_referent(types, *element).is_none()
+            {
+                pending.push(*element);
+            }
+            active.remove(&current);
+            complete.insert(current);
+            continue;
+        }
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
@@ -2021,4 +2109,87 @@ pub(in crate::legalization) fn reference_results(
         });
     }
     Ok(expected)
+}
+
+#[cfg(test)]
+mod array_tests {
+    use super::*;
+    use semantic_vocabulary::ScalarType;
+
+    fn id(value: u64) -> StructuralTypeId {
+        StructuralTypeId::new(value).unwrap()
+    }
+
+    #[test]
+    fn completed_array_reference_leaves_retain_index_paths_and_bound_work() {
+        let types = vec![
+            StructuralTypeDeclaration {
+                id: id(1),
+                identity: "scalar".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            },
+            StructuralTypeDeclaration {
+                id: id(2),
+                identity: "reference".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: id(1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: id(3),
+                identity: "array".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: id(2),
+                    length: 2,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: id(4),
+                identity: "nested".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: id(3),
+                    length: 2,
+                },
+            },
+        ];
+        assert!(constructible(&types, id(4)));
+        assert_eq!(
+            leaf_paths(&types, id(4), 4).unwrap(),
+            vec![
+                vec![
+                    StructuralPathSegment::FixedIndex(0),
+                    StructuralPathSegment::FixedIndex(0)
+                ],
+                vec![
+                    StructuralPathSegment::FixedIndex(0),
+                    StructuralPathSegment::FixedIndex(1)
+                ],
+                vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedIndex(0)
+                ],
+                vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedIndex(1)
+                ],
+            ]
+        );
+        assert!(leaf_paths(&types, id(4), 3).is_none());
+        assert_eq!(
+            leaf_type(
+                &types,
+                id(4),
+                &[
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedIndex(0)
+                ]
+            ),
+            Some(id(2))
+        );
+        assert_eq!(
+            leaf_type(&types, id(4), &[StructuralPathSegment::FixedIndex(2)]),
+            None
+        );
+    }
 }

@@ -62,6 +62,7 @@ pub enum StructuralEffectCustody {
     ExactLiveIntegerField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
+    ExactStructuralArray,
     ExactRecord,
     ExactScalarCase,
     ExactStructuralCase,
@@ -100,6 +101,7 @@ pub enum StructuralEffectAction {
     ReadIntegerField,
     EmitPortWrite,
     EstablishAffinePlace,
+    EstablishStructuralArray,
     EstablishRecord,
     EstablishScalarCase,
     EstablishStructuralCase,
@@ -239,7 +241,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 35] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -571,6 +573,16 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
+            tag: OperationSemanticTag::EstablishStructuralArray,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactStructuralArray,
+                StructuralEffectAction::EstablishStructuralArray,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
+            ),
+        },
+        Self {
             tag: OperationSemanticTag::EstablishRecord,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Structural,
@@ -627,6 +639,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
             | OperationSemanticTag::EstablishTrivialAffineLocal
+            | OperationSemanticTag::EstablishStructuralArray
             | OperationSemanticTag::EstablishRecord
     )
 }
@@ -702,6 +715,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
         OperationSemanticTag::EstablishTrivialAffineLocal,
+        OperationSemanticTag::EstablishStructuralArray,
         OperationSemanticTag::EstablishRecord,
     ] {
         let row = exact_structural_effect_semantic_row_in(tag, rows)?
@@ -905,6 +919,10 @@ pub enum StructuralEffectObservation {
     AffinePlaceEstablished {
         destination: PlaceId,
     },
+    StructuralArrayEstablished {
+        destination: PlaceId,
+        elements: Vec<terminal_psi::StructuralArgument>,
+    },
     RecordEstablished {
         destination: PlaceId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
@@ -1020,7 +1038,8 @@ impl StructuralEffectObservation {
                 membership: proposition,
                 ..
             } => Some(proposition),
-            Self::RecordEstablished { .. }
+            Self::StructuralArrayEstablished { .. }
+            | Self::RecordEstablished { .. }
             | Self::ReferenceEstablished { .. }
             | Self::ReferenceReleased { .. }
             | Self::PrimitiveLocalEstablished { .. }
@@ -1117,6 +1136,9 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EmitPortWrite => OperationSemanticTag::PortWrite,
         StructuralEffectAction::EstablishAffinePlace => {
             OperationSemanticTag::EstablishTrivialAffineLocal
+        }
+        StructuralEffectAction::EstablishStructuralArray => {
+            OperationSemanticTag::EstablishStructuralArray
         }
         StructuralEffectAction::EstablishRecord => OperationSemanticTag::EstablishRecord,
         StructuralEffectAction::EstablishScalarCase => OperationSemanticTag::EstablishScalarCase,
@@ -1336,6 +1358,12 @@ fn validate_structural_effect_schema(
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
                 }
+                StructuralEffectAction::EstablishStructuralArray => schema.result
+                    == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactStructuralArray
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
                 StructuralEffectAction::EstablishRecord => schema.result
                     == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactRecord
@@ -1905,6 +1933,19 @@ pub fn structural_effect_leaf_observation_in(
         ) => StructuralEffectObservation::AffinePlaceEstablished {
             destination: *destination,
         },
+        (
+            StructuralEffectAction::EstablishStructuralArray,
+            OperationKind::EstablishStructuralArray { elements },
+        ) => {
+            let result = operation
+                .result
+                .structural()
+                .expect("validated complete array result");
+            StructuralEffectObservation::StructuralArrayEstablished {
+                destination: result.place,
+                elements: elements.clone(),
+            }
+        }
         (StructuralEffectAction::EstablishRecord, OperationKind::EstablishRecord { fields }) => {
             let result = operation
                 .result
@@ -2400,6 +2441,7 @@ mod tests {
                 OperationSemanticTag::IntegerStructuralField,
                 OperationSemanticTag::PortWrite,
                 OperationSemanticTag::EstablishTrivialAffineLocal,
+                OperationSemanticTag::EstablishStructuralArray,
                 OperationSemanticTag::EstablishRecord,
                 OperationSemanticTag::EstablishMutableElementView,
             ]),

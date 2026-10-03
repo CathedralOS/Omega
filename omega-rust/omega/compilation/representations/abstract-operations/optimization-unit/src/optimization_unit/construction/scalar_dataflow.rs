@@ -144,6 +144,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
                 terminal_psi::RecordFieldValue::Structural(_) => None,
             })
             .collect(),
+        O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. }
         | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],

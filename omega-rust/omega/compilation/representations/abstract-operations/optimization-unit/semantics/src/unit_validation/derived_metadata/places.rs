@@ -51,7 +51,7 @@ pub(crate) fn reconstruct_declared_places(
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishElementView { result, .. }
                 | O::ElementViewSubslice { result, .. }
-                | O::EstablishScalarArray { result, .. }
+                | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
                 | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
@@ -118,6 +118,11 @@ pub(crate) fn validate_operation_places(
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             require(left.source(), known)?;
             require(right.source(), known)?;
+        }
+        O::EstablishStructuralArray { elements, .. } => {
+            for argument in elements {
+                require(argument.place, known)?;
+            }
         }
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
             for initializer in fields {

@@ -31,6 +31,7 @@ fn has_any_projected_qualifications(plan: &AbstractOperationPlan) -> bool {
                 AbstractOperation::EstablishRecord { result, .. }
                 | AbstractOperation::EstablishZeroedStructural { result, .. }
                 | AbstractOperation::EstablishScalarArray { result, .. }
+                | AbstractOperation::EstablishStructuralArray { result, .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
                 | AbstractOperation::EstablishCase { result, .. }
                 | AbstractOperation::CallStructural {

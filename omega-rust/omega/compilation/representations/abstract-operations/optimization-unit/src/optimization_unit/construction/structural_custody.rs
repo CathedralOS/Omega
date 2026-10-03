@@ -15,6 +15,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.extend([result.place, left.source(), right.source()]);
         }
+        O::EstablishStructuralArray {
+            result, elements, ..
+        } => {
+            places.insert(result.place);
+            places.extend(elements.iter().map(|argument| argument.place));
+        }
         O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
             places.insert(result.place);
             places.extend(
@@ -233,6 +239,10 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::EstablishScalarArray {
+            psi_operation,
+            result,
+            ..
+        } | AbstractOperation::EstablishStructuralArray {
             psi_operation,
             result,
             ..

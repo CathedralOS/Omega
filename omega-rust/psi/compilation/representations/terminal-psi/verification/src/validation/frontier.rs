@@ -347,13 +347,8 @@ fn validate_owned_reads(
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
-    if let OperationKind::EstablishRecord { fields }
-    | OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind
     {
-        for field in fields {
-            let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-                continue;
-            };
+        for argument in operation.kind.constructor_arguments() {
             let source =
                 super::structural::result_contracts::source_signature(machine, argument.place)
                     .ok_or(ModuleError::RecordResultMismatch(operation.id))?;

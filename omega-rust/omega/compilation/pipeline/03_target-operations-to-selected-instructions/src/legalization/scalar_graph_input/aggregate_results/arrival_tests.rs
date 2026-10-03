@@ -149,7 +149,8 @@ fn owned_array_arrival_replays_exact_home_and_rejects_substitution() {
                 FuelScheduleIdentity::new(1).unwrap(),
             )
             .unwrap();
-            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+                .unwrap_or_else(|error| panic!("{native:?}, length {length}: {error:?}"));
             let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
                 &source,
                 abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
@@ -386,5 +387,167 @@ fn owned_arrival_storage_preserves_erasure_and_nested_descriptor_geometry() {
             ),
             copied
         );
+    }
+}
+
+#[test]
+fn completed_structural_array_replays_element_storage_and_rejects_substitution() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        for (length, padded_bytes) in [(0, false), (2, false), (2, true)] {
+            let mut source = source(length);
+            let mut declarations = source.structural_types.to_vec();
+            declarations[1].shape = StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: id(1),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                }],
+            };
+            if padded_bytes {
+                declarations[1].shape =
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                        capacity: 1,
+                    });
+            }
+            source.structural_types = declarations.into();
+            let function = &mut source.functions[0];
+            let position = function
+                .operations
+                .iter()
+                .position(|operation| matches!(operation, Operation::EstablishScalarArray { .. }))
+                .unwrap();
+            let Operation::EstablishScalarArray {
+                psi_operation,
+                result,
+                ..
+            } = function.operations[position].clone()
+            else {
+                unreachable!()
+            };
+            let mut replacements = Vec::new();
+            let mut elements = Vec::new();
+            for ordinal in 0..length {
+                let child = StructuralOperationResult {
+                    place: id(100 + ordinal),
+                    structural_type: id(2),
+                    ..result.clone()
+                };
+                elements.push(StructuralArgument {
+                    place: child.place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                });
+                if padded_bytes {
+                    function
+                        .structural_parameters
+                        .push(StructuralParameterDeclaration {
+                            place: child.place,
+                            position: ordinal as u32,
+                            is_self: false,
+                            structural_type: child.structural_type,
+                            access: StructuralAccess::Owned,
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                        });
+                } else {
+                    replacements.push(Operation::EstablishRecord {
+                        psi_operation: id(100 + ordinal),
+                        result: child,
+                        fields: vec![terminal_psi::RecordFieldInitializer {
+                            field: id(1),
+                            value: terminal_psi::RecordFieldValue::Scalar {
+                                value: id(1),
+                                range_obligation: None,
+                            },
+                        }],
+                    });
+                }
+            }
+            replacements.push(Operation::EstablishStructuralArray {
+                psi_operation,
+                result,
+                elements,
+            });
+            function
+                .operations
+                .splice(position..=position, replacements);
+            function.block_entries[1].operation_offset +=
+                if padded_bytes { 0 } else { length as usize };
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+                .unwrap_or_else(|error| panic!("{native:?}, length {length}: {error:?}"));
+            let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+            if padded_bytes {
+                let function = &legalized.plan().scalar_functions[0];
+                let row = function.blocks.iter().flat_map(|block| &block.instructions)
+                    .find(|row| matches!(row.kind, legalized_operations::LegalizedScalarInstructionKind::EstablishStructuralArray { .. })).unwrap();
+                let legalized_operations::LegalizedScalarInstructionKind::EstablishStructuralArray { shape, .. } = &row.kind else { unreachable!() };
+                // Capacity one occupies nine live bytes but each aligned
+                // element owns sixteen bytes in the completed array home.
+                assert_eq!(shape.byte_size, 32);
+                assert_eq!(shape.alignment, 8);
+            }
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            let selected = crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let mut changed = legalized.plan().clone();
+            let constructor = changed.scalar_functions[0].blocks.iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| matches!(row.kind, legalized_operations::LegalizedScalarInstructionKind::EstablishStructuralArray { .. })).unwrap();
+            let legalized_operations::LegalizedScalarInstructionKind::EstablishStructuralArray {
+                elements,
+                shape,
+                ..
+            } = &mut constructor.kind
+            else {
+                unreachable!()
+            };
+            if let Some(element) = elements.first_mut() {
+                element.place = id(999);
+            } else {
+                shape.byte_size = 1;
+            }
+            assert!(
+                crate::validate_legalized_operations(&targeted, &source, &unit, changed).is_err()
+            );
+            let mut changed = selected.plan().clone();
+            changed.functions[0].local_storage_slots.clear();
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err()
+            );
+        }
     }
 }

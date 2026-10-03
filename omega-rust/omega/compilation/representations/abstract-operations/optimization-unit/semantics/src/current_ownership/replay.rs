@@ -289,7 +289,9 @@ pub(super) fn validate_current_ownership_cfg(
                 .cloned()
                 .collect::<Vec<_>>();
             let structural_arguments = match &node.operation {
-                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments.as_slice(),
+                O::EstablishCase { .. }
+                | O::EstablishRecord { .. }
+                | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
                 // A Unit call that forwards descriptors is not replayed here;
                 // the scalar-result call is replayed in both forms.
                 O::CallStructural {
@@ -317,7 +319,9 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
-                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments
+                O::EstablishCase { .. }
+                | O::EstablishRecord { .. }
+                | O::EstablishStructuralArray { .. } => record_arguments
                     .iter()
                     .map(|argument| {
                         crate::unit_validation::operation_contracts::structural_source_contract(

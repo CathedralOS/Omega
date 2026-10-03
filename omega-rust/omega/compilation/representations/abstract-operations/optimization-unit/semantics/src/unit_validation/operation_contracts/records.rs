@@ -201,27 +201,7 @@ pub(crate) fn field_initializers_match(
         }
         match (&declaration.field_type, &initializer.value) {
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
-                let Some(source) = constructor_argument_contract(function, argument, types) else {
-                    return false;
-                };
-                // A view-descriptor member stores its descriptor with the
-                // loan's own access, the element-view sibling of the
-                // borrowed byte view arm below: the record relocates the
-                // descriptor, the referent stays borrowed.
-                argument.access == StructuralAccess::Owned
-                    && (source.access == StructuralAccess::Owned
-                        || (source.access == StructuralAccess::SharedBorrow
-                            && shared_view_member(types, *expected)))
-                    && source.structural_type == *expected
-                    && source.is_unqualified()
-                    && !source_has_claims(function, argument.place)
-                    && argument.place != result.place
-                    && matches!(
-                        source.multiplicity,
-                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                    )
-                    && (result.multiplicity != StructuralMultiplicity::Unrestricted
-                        || source.multiplicity == StructuralMultiplicity::Unrestricted)
+                structural_initializer_matches(function, result, *expected, argument, types)
             }
             (field_type, RecordFieldValue::Structural(argument))
                 if field_type.byte_sequence_carrier().is_some() =>
@@ -321,6 +301,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
             .any(|node| {
                 let result = match &node.operation {
                     O::EstablishScalarArray { result, .. }
+                    | O::EstablishStructuralArray { result, .. }
                     | O::EstablishCase { result, .. }
                     | O::EstablishRecord { result, .. }
                     | O::EstablishZeroedStructural { result, .. }
@@ -612,4 +593,35 @@ pub(crate) fn record_loan(
                 resolve_structural_path(types, root_type, &argument.path)
                     == Some(parameter.structural_type)
             })
+}
+
+/// The completed-value join shared by named fields and fixed-array elements.
+pub(super) fn structural_initializer_matches(
+    function: &PsiOptimizationFunction,
+    result: &terminal_psi::StructuralOperationResult,
+    expected: StructuralTypeId,
+    argument: &terminal_psi::StructuralArgument,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let Some(source) = constructor_argument_contract(function, argument, types) else {
+        return false;
+    };
+    // A view-descriptor member stores its descriptor with the
+    // loan's own access, the element-view sibling of the
+    // borrowed byte view arm below: the record relocates the
+    // descriptor, the referent stays borrowed.
+    argument.access == StructuralAccess::Owned
+        && (source.access == StructuralAccess::Owned
+            || (source.access == StructuralAccess::SharedBorrow
+                && shared_view_member(types, expected)))
+        && source.structural_type == expected
+        && source.is_unqualified()
+        && !source_has_claims(function, argument.place)
+        && argument.place != result.place
+        && matches!(
+            source.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        )
+        && (result.multiplicity != StructuralMultiplicity::Unrestricted
+            || source.multiplicity == StructuralMultiplicity::Unrestricted)
 }

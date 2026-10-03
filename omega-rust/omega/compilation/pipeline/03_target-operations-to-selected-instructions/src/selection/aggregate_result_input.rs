@@ -118,6 +118,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
+            LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => elements.iter().any(|argument|
+                argument.place == place && !argument.path.is_empty()),
             LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
             | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => fields.iter().any(|field|
                 matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
@@ -185,6 +187,7 @@ pub(super) fn membership_layout(
                 let result = match &row.kind {
                     LegalizedScalarInstructionKind::EstablishCase { result, .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
+                    | LegalizedScalarInstructionKind::EstablishStructuralArray { result, .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
                     LegalizedScalarInstructionKind::Call(call) => {
