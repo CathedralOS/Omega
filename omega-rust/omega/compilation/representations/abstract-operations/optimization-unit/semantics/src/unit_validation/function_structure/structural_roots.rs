@@ -73,7 +73,11 @@ pub(crate) fn validate_structural_root_operations(
             && (!matches!(
                 place_kinds.get(&destination.place),
                 Some(StructuralPlaceKind::BlockParameter { .. })
-            ) || destination.access == terminal_psi::StructuralAccess::MutableBorrow)
+            ) || matches!(
+                destination.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ))
     };
     // Both scalar store forms reconstruct the same root authority; local
     // results retain their exact producing operation instead of an ABI slot.

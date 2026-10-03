@@ -201,8 +201,9 @@ impl AddressJoinPins {
             }
         }
         // A local owner keeps its affine disposal obligation while a joined
-        // mutable name holds its address. Pin every possible local origin of
-        // those joins; existing mutable-name availability handles forwarding.
+        // exclusive name holds its address, including write-only loans. Lack
+        // of read authority never releases the backing or its disposal debt.
+        // Pin every possible local origin; name availability handles forwarding.
         let mutable_joins = function
             .blocks
             .iter()
@@ -211,8 +212,10 @@ impl AddressJoinPins {
                     .structural_parameters
                     .iter()
                     .filter(|parameter| {
-                        parameter.access == StructuralAccess::MutableBorrow
-                            && address_joins.contains(&parameter.place)
+                        matches!(
+                            parameter.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        ) && address_joins.contains(&parameter.place)
                     })
                     .map(|parameter| parameter.place)
             })
@@ -452,11 +455,14 @@ impl AddressJoinPins {
                 },
             );
         }
-        // A new mutable local loan borrows live storage; it does not move or
+        // A new exclusive local loan borrows live storage; it does not move or
         // discharge the owner. Check the current frontier before edge cleanup
         // and reject aliases supplied or disposed in the same transaction.
         for (binding, parameter) in edge.structural_bindings.iter().zip(destination) {
-            if parameter.access != StructuralAccess::MutableBorrow {
+            if !matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) {
                 continue;
             }
             let place = binding.argument.place;
