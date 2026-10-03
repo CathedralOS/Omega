@@ -1,3 +1,5 @@
+mod stored_integers;
+
 use crate::proof_contracts::arithmetic_domains::{
     ValueEnvironment, check_value_narrowing, validate_arithmetic_domains,
 };
@@ -74,9 +76,12 @@ pub(super) fn enforce_construction_field_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
+    stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
+    statement_index: usize,
 ) {
     let type_name = literal.type_name.as_str();
     let Some(data_definition) = crate::program_scope::data_definitions::data_definition_by_symbol(
@@ -211,6 +216,21 @@ pub(super) fn enforce_construction_field_obligations(
                 &owner,
                 diagnostics,
             );
+        }
+        if let Some(write) = stored_integers::validate_construction(
+            program,
+            machine,
+            state,
+            expression,
+            literal,
+            field,
+            field_type,
+            environment,
+            &slot_context,
+            diagnostics,
+            statement_index,
+        ) {
+            stored_integer_writes.push(write);
         }
         let Some(range) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
             program, field_type,

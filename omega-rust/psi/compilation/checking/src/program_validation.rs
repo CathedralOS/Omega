@@ -268,7 +268,10 @@ fn validate(
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
     // 03_symbol-resolved-trees-to-typed-trees/src/equality.rs.
-    struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
+    stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
+        program,
+        &mut diagnostics,
+    ));
     // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
     // law on the parse-minted `__destructure#*` marker.
     destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);

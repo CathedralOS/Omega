@@ -754,8 +754,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
-fail/layouts/recast_integer_at_store_requires_fit rejected 111ms expected @1d028c299b0e+wt
-	machine `Main::main` state `main` assignment cannot prove assigned value fits integer storage for field `value`: required -128..=127
+fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978545872+wt
+	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f

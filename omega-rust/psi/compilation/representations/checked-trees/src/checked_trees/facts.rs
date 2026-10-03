@@ -43,7 +43,7 @@ mod domains;
 mod index_compatibility;
 mod placement;
 mod stored_integer_writes;
-pub use stored_integer_writes::CheckedStoredIntegerWrite;
+pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 
 pub use blocking::{BlockingFacts, MachineBlockingFact};
 pub use calls::{

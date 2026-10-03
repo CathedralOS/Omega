@@ -3,7 +3,7 @@
 use super::integer_ranges::known_u64_value;
 use super::{Interval, ValueEnvironment};
 use crate::value_custody::places;
-use checked_trees::CheckedStoredIntegerWrite;
+use checked_trees::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 use diagnostics::Diagnostic;
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use semantic_vocabulary::{IntegerSign, IntegerType};
@@ -73,7 +73,7 @@ pub(crate) fn validate_stored_integer_write(
         let write = CheckedStoredIntegerWrite {
             machine: machine.symbol,
             state: state.symbol,
-            destination,
+            site: StoredIntegerWriteSite::Assignment { destination },
             value,
             field,
             stored_type: stored,
@@ -106,6 +106,27 @@ fn destination_projections(
         return Err(());
     }
     let direct_type = root_type(program, machine, state, root).ok_or(())?;
+    // An aggregate's own scalar field has the representation selected by its
+    // exact nominal declaration. A whole-record loan does not turn Room.value
+    // into some other record's IntegerAt merely because its backing root is
+    // unresolved (for example after a cyclic reference-returning helper).
+    // This establishes encoding only: ordinary write permission and lifetime
+    // checking still own whether the loan may be used.
+    //
+    // A reference-valued field instead writes its referent, whose encoding is
+    // not the reference slot's declaration. Likewise typed_projection refuses
+    // crossings of stored references. Both continue through prefix origins.
+    if matches!(segments.last(), Some(PlaceSegment::Field { .. }))
+        && places::declared_place_type_raw(program, machine, Some(state), destination).is_some_and(
+            |reference| {
+                crate::reference_shell(program, reference).is_none()
+                    && program.primitive_type_reference(reference).is_some()
+            },
+        )
+        && let Ok(projection) = typed_projection(program, direct_type, segments)
+    {
+        return Ok(projection.into_iter().collect());
+    }
     let origins = origins.unwrap_or(&[]);
     let candidates = origins
         .iter()

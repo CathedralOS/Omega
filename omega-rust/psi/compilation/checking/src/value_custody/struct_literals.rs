@@ -7,6 +7,11 @@
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
 //!
+//! Normalized layout-bearing constructors also owe representable physical
+//! stores. The existing scan retains their exact field/value decisions and
+//! statement coordinates for CheckFacts; occurrence-bound analysis supplies
+//! prefix and operand effects without replaying local initializers here.
+//!
 //! Bare case values obey construction obligations too. A case on the right of
 //! membership instead denotes a tag predicate: only exact subject/owner/case
 //! evidence permits skipping its construction checks. Invalid membership must
@@ -42,11 +47,17 @@ pub(crate) use field_obligations::{
 pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
+    let mut stored_integer_writes = Vec::new();
     let empty = ValueEnvironment::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 match statement {
                     StatementNode::RootBinding(binding) => {
                         for expression in [binding.receiver, binding.implementation_operand] {
@@ -58,6 +69,8 @@ pub(crate) fn validate_struct_literal_fields(
                                     expression,
                                     &empty,
                                     diagnostics,
+                                    &mut stored_integer_writes,
+                                    statement_index,
                                 );
                             }
                         }
@@ -70,6 +83,8 @@ pub(crate) fn validate_struct_literal_fields(
                             fact.expression,
                             &empty,
                             diagnostics,
+                            &mut stored_integer_writes,
+                            statement_index,
                         );
                     }
                     StatementNode::Assignment(assignment) => {
@@ -80,6 +95,8 @@ pub(crate) fn validate_struct_literal_fields(
                             assignment.target,
                             &empty,
                             diagnostics,
+                            &mut stored_integer_writes,
+                            statement_index,
                         );
                         scan_expression(
                             program,
@@ -88,6 +105,8 @@ pub(crate) fn validate_struct_literal_fields(
                             assignment.value,
                             &empty,
                             diagnostics,
+                            &mut stored_integer_writes,
+                            statement_index,
                         );
                     }
                     StatementNode::Call(call) => {
@@ -99,11 +118,22 @@ pub(crate) fn validate_struct_literal_fields(
                                 *argument,
                                 &empty,
                                 diagnostics,
+                                &mut stored_integer_writes,
+                                statement_index,
                             );
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        scan_expression(program, machine, state, *expression, &empty, diagnostics);
+                        scan_expression(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                            &empty,
+                            diagnostics,
+                            &mut stored_integer_writes,
+                            statement_index,
+                        );
                     }
                     StatementNode::LocalData(local_data) => {
                         scan_expression(
@@ -113,11 +143,22 @@ pub(crate) fn validate_struct_literal_fields(
                             local_data.initial_value,
                             &empty,
                             diagnostics,
+                            &mut stored_integer_writes,
+                            statement_index,
                         );
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(program, machine, state, *guard, &empty, diagnostics);
+                            scan_expression(
+                                program,
+                                machine,
+                                state,
+                                *guard,
+                                &empty,
+                                diagnostics,
+                                &mut stored_integer_writes,
+                                statement_index,
+                            );
                         }
                         for (target, positive) in
                             [(transition.target, true), (transition.continuation, false)]
@@ -139,6 +180,8 @@ pub(crate) fn validate_struct_literal_fields(
                                 program.statement_table.transition_target(target),
                                 &environment,
                                 diagnostics,
+                                &mut stored_integer_writes,
+                                statement_index,
                             );
                         }
                     }
@@ -146,6 +189,7 @@ pub(crate) fn validate_struct_literal_fields(
             }
         }
     }
+    stored_integer_writes
 }
 
 fn scan_transition_target(
@@ -155,6 +199,8 @@ fn scan_transition_target(
     target: &TransitionTargetNode,
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
+    stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
+    statement_index: usize,
 ) {
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
@@ -174,7 +220,16 @@ fn scan_transition_target(
                 &empty
             };
             for argument in program.statement_table.expression_handles(*arguments) {
-                scan_expression(program, machine, state, *argument, environment, diagnostics);
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    environment,
+                    diagnostics,
+                    stored_integer_writes,
+                    statement_index,
+                );
             }
         }
         TransitionTargetNode::Value(expression) => {
@@ -192,6 +247,8 @@ fn scan_transition_target(
                 *expression,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
         }
         TransitionTargetNode::Terminal => {}
@@ -205,6 +262,8 @@ fn scan_expression(
     expression: ExpressionHandle,
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
+    stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
+    statement_index: usize,
 ) {
     if !expression.is_valid() {
         return;
@@ -213,7 +272,16 @@ fn scan_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             for child in crate::expression_traversal::match_children(program, *dispatch) {
-                scan_expression(program, machine, state, child, environment, diagnostics);
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    child,
+                    environment,
+                    diagnostics,
+                    stored_integer_writes,
+                    statement_index,
+                );
             }
         }
         ExpressionNode::Atomic(atomic) => scan_expression(
@@ -223,6 +291,8 @@ fn scan_expression(
             atomic.value,
             environment,
             diagnostics,
+            stored_integer_writes,
+            statement_index,
         ),
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(
@@ -237,9 +307,12 @@ fn scan_expression(
                 program,
                 machine,
                 state,
+                expression,
                 literal,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
             for field in program.expression_table.struct_fields(literal.fields) {
                 scan_expression(
@@ -249,12 +322,23 @@ fn scan_expression(
                     field.value,
                     environment,
                     diagnostics,
+                    stored_integer_writes,
+                    statement_index,
                 );
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(program, machine, state, *element, environment, diagnostics);
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    *element,
+                    environment,
+                    diagnostics,
+                    stored_integer_writes,
+                    statement_index,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -265,6 +349,8 @@ fn scan_expression(
                 binary.left,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
             let membership =
                 crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
@@ -302,6 +388,8 @@ fn scan_expression(
                     binary.right,
                     environment,
                     diagnostics,
+                    stored_integer_writes,
+                    statement_index,
                 );
             }
         }
@@ -312,6 +400,8 @@ fn scan_expression(
             cast.value,
             environment,
             diagnostics,
+            stored_integer_writes,
+            statement_index,
         ),
         ExpressionNode::Call(call) => {
             scan_expression(
@@ -321,9 +411,20 @@ fn scan_expression(
                 call.receiver,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(program, machine, state, *argument, environment, diagnostics);
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    environment,
+                    diagnostics,
+                    stored_integer_writes,
+                    statement_index,
+                );
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -334,6 +435,8 @@ fn scan_expression(
                 indexed.collection,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
             scan_expression(
                 program,
@@ -342,6 +445,8 @@ fn scan_expression(
                 indexed.index,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
         }
         ExpressionNode::Member(member) => scan_expression(
@@ -351,6 +456,8 @@ fn scan_expression(
             member.receiver,
             environment,
             diagnostics,
+            stored_integer_writes,
+            statement_index,
         ),
         ExpressionNode::Borrow(inner) => scan_expression(
             program,
@@ -359,6 +466,8 @@ fn scan_expression(
             inner.target,
             environment,
             diagnostics,
+            stored_integer_writes,
+            statement_index,
         ),
         ExpressionNode::Range(range) => {
             scan_expression(
@@ -368,8 +477,19 @@ fn scan_expression(
                 range.start,
                 environment,
                 diagnostics,
+                stored_integer_writes,
+                statement_index,
             );
-            scan_expression(program, machine, state, range.end, environment, diagnostics);
+            scan_expression(
+                program,
+                machine,
+                state,
+                range.end,
+                environment,
+                diagnostics,
+                stored_integer_writes,
+                statement_index,
+            );
         }
         ExpressionNode::Unary(unary) => scan_expression(
             program,
@@ -378,6 +498,8 @@ fn scan_expression(
             unary.operand,
             environment,
             diagnostics,
+            stored_integer_writes,
+            statement_index,
         ),
         ExpressionNode::Name(path) => {
             let Some(owner) =

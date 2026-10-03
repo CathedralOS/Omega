@@ -38,7 +38,7 @@ fn a_where_bounded_construction_reads_requires_and_guarded_arithmetic() {
 #[test]
 fn synthesized_payload_tags_are_not_constructor_values() {
     let mut program = crate::front_end::typed_program(
-        "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        "trait Equatable { machine equals(subject: &Self, rhs: &Self) -> bool; }
          data Message { case Empty; case Data(value: i32); }
          MessageEquatable: Message satisfies Equatable;
          data Envelope { message: Message; }
@@ -166,7 +166,7 @@ fn default_domain_cannot_read_a_case_payload_name() {
     let diagnostics = construction_diagnostics(
         "data Interval where hi >= 0, { case Range(lo: u64, hi: u64); }
          data Main { i: Interval; }
-         machine Main::main(&mut self) { self.i = Interval::Range { lo: 1 }; }",
+         machine Main::main(main: &mut Main) { main.i = Interval::Range { lo: 1 }; }",
     );
     assert!(
         !diagnostics.is_empty(),

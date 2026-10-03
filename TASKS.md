@@ -3353,23 +3353,31 @@ unchanged, except for intended deletions, which its commit lists.
   cleanup prerequisites and mathematical proofs distinct from primitive
   operation conditions during this transition.
 
-  The local candidate now checks runtime division/remainder using the shared
-  policy rules, retaining selected disequalities through writes, joins and
-  named-state transport. Ordinary call-result inference preserves immutable
-  actual bounds through helpers, including clamp then widening. All 57 focused
-  arithmetic tests pass. Exact scalar `IntegerAt` writes retain their successful
-  source decision in `CheckFacts`; public
+  The local candidate checks runtime division/remainder with the shared policy
+  rules and retains selected disequalities through writes, joins and named-state
+  transport. Ordinary call-result inference preserves immutable actual bounds,
+  including clamp then widening. Exact scalar `IntegerAt` assignments and
+  normalized constructors retain successful source decisions in `CheckFacts`.
+  Constructors use bounds at each field's evaluation occurrence; scalar loans
+  retain every possible encoded origin, while aggregate field declarations
+  determine their own layout even after a cyclic reference-returning helper.
+  The 78 focused arithmetic/construction tests pass. Public
   `omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
-  now rejects 128 into signed eight-bit storage with a checking diagnostic.
-  The unchanged positive layout customer's both-engine run remains in progress.
+  rejects 128 into signed eight-bit storage at checking. On macOS ARM64,
+  `omega run --both tests/omega/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg`
+  produced the authored native/interpreter exit 72 after the latest rebase.
 
-  Remaining: transport encoded geometry through ordinary logical-field aliases
-  and discharge every effective write, including constructors and callee writes.
-  Existing mutation summaries retain destinations, not intermediate written
-  values; a final-value summary cannot justify an earlier out-of-range store.
-  Preserve valid logical-field borrows and reject an unproved write or call,
-  without inventing public caller requirements. Retain the remaining operation
-  decisions and connect stage 05 consumers before deleting any late gate.
+  Remaining: discharge every callee write and retain/consume all other operation
+  decisions before deleting any late gate. Ordinary non-layout constructors also
+  need the shared arithmetic walk to report typed field-RHS failures; the stored
+  integer constructor path now preserves those errors. Existing mutation summaries retain
+  destinations, not intermediate written values; a final-value summary cannot
+  justify an earlier out-of-range store. Reuse the source scalar expression
+  reader, exact call-operand snapshots and formal/actual path substitution to
+  check every performed write, including nested calls and abrupt completion.
+  Preserve valid logical-field borrows without inventing public caller
+  requirements. Public layout literals are not yet spellable; constructor
+  checks cover normalized trees and do not claim that separate syntax work.
 
   Boolean recast admission already enforces the exact representation set
   (shared implication, mutable equivalence), and source checking already owns

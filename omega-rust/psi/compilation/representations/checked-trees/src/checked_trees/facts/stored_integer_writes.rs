@@ -9,11 +9,26 @@ use semantic_vocabulary::IntegerType;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
+/// Distinguish a place update from the creation of one encoded aggregate.
+/// Neither operation invents an assignment expression for the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StoredIntegerWriteSite {
+    #[default]
+    Missing,
+    Assignment {
+        destination: ExpressionHandle,
+    },
+    Construction {
+        expression: ExpressionHandle,
+        statement_index: usize,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStoredIntegerWrite {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub destination: ExpressionHandle,
+    pub site: StoredIntegerWriteSite,
     pub value: ExpressionHandle,
     pub field: SymbolHandle,
     pub stored_type: IntegerType,
@@ -22,11 +37,11 @@ pub struct CheckedStoredIntegerWrite {
 impl Default for CheckedStoredIntegerWrite {
     fn default() -> Self {
         // Arena's absent row has no source occurrence; its placeholder width
-        // grants no decision without valid machine/state/destination handles.
+        // grants no decision without valid machine/state/site handles.
         Self {
             machine: SymbolHandle::invalid(),
             state: SymbolHandle::invalid(),
-            destination: ExpressionHandle::invalid(),
+            site: StoredIntegerWriteSite::Missing,
             value: ExpressionHandle::invalid(),
             field: SymbolHandle::invalid(),
             stored_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)

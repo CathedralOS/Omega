@@ -1,3 +1,5 @@
+mod construction;
+
 use super::*;
 use crate::proof_contracts::arithmetic_domains::{
     requires_value_environment, validate_value_range,
@@ -136,7 +138,12 @@ fn discharge(source: &str, width: u16, sign: IntegerSign) -> bool {
         &mut diagnostics,
     );
     if let Some(result) = result.first() {
-        assert_eq!(result.destination, assignment.target);
+        assert_eq!(
+            result.site,
+            StoredIntegerWriteSite::Assignment {
+                destination: assignment.target
+            }
+        );
         assert_eq!(result.value, assignment.value);
         assert_eq!(result.stored_type, IntegerType::new(sign, width).unwrap());
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -384,5 +391,131 @@ fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() 
         )
         .is_err(),
         "an unknown alternative is not ordinary scalar storage"
+    );
+}
+
+#[test]
+fn unrelated_integer_at_does_not_change_returned_reference_store_admission() {
+    assert_returned_record_field_is_ordinary(
+        "data Cell { value: i64; }
+         data CellId [copy] { case First; case Second; }
+         data Room { value: u64; }
+         data Level { rooms: [Room; 2]; count: u64; }
+         machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {
+             let slots: &mut [Room] = level.rooms.as_mut_slice();
+             transition cell {
+                 CellId::First -> &mut slots[0]
+                 _ -> &mut slots[1]
+             }
+         }
+         machine exercise(level: &mut Level, cell: CellId) {
+             let room: &mut Room = Level::room_mut(level, cell);
+             room.value = 1;
+         }",
+    );
+}
+
+#[test]
+fn unrelated_integer_at_preserves_cyclic_returned_reference_field_store() {
+    assert_returned_record_field_is_ordinary(
+        "data Cell { value: i64; }
+         data CellId [copy] { case First; case Second; }
+         data Room { value: u64; }
+         data Level { rooms: [Room; 2]; count: u64; }
+         machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {
+             transition { _ -> again(level, cell, 1) }
+             state again(level: &mut Level, cell: CellId, remaining: u64) {
+                 transition remaining > 0 {
+                     true -> again(level, cell, remaining - 1)
+                     _ -> select(level, cell)
+                 }
+             }
+             state select(level: &mut Level, cell: CellId) {
+                 let slots: &mut [Room] = level.rooms.as_mut_slice();
+                 transition cell {
+                     CellId::First -> &mut slots[0]
+                     _ -> &mut slots[1]
+                 }
+             }
+         }
+         machine exercise(level: &mut Level, cell: CellId) {
+             let room: &mut Room = Level::room_mut(level, cell);
+             room.value = 1;
+         }",
+    );
+}
+
+fn assert_returned_record_field_is_ordinary(source: &str) {
+    let program = program_with_storage(source, 8, IntegerSign::Signed);
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "exercise")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
+        .unwrap();
+    let StatementNode::Assignment(assignment) = statement else {
+        panic!("store");
+    };
+    let resolver = crate::CallFrameResolver::new(&program).unwrap();
+    let origins = resolver.local_write_origins_before_statement(machine, statement);
+    let diagnostic_origins = origins.as_ref().map(|origins| {
+        origins
+            .iter()
+            .map(|origin| {
+                (
+                    origin.local_symbol,
+                    origin.local_segments.clone(),
+                    origin.source.as_ref().map(|source| {
+                        (
+                            source.root,
+                            source.segments.clone(),
+                            source.representation.clone(),
+                        )
+                    }),
+                )
+            })
+            .collect::<Vec<_>>()
+    });
+    let result = super::destination_projections(
+        &program,
+        machine,
+        state,
+        assignment.target,
+        origins.as_deref(),
+    );
+    assert_eq!(
+        result,
+        Ok(Vec::new()),
+        "the returned Room has no encoded field; prefix origins: {diagnostic_origins:?}"
+    );
+}
+
+#[test]
+fn declaration_field_projection_does_not_cross_unknown_stored_references() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         data Holder { cell: &mut Cell; }
+         machine store(holder: &mut Holder) { holder.cell.value = 127; }",
+        8,
+        IntegerSign::Signed,
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
+        .unwrap();
+    let StatementNode::Assignment(assignment) = statement else {
+        panic!("store");
+    };
+    assert!(
+        super::destination_projections(&program, machine, state, assignment.target, None,).is_err(),
+        "a stored reference needs its contents' origin, not the enclosing declaration"
     );
 }

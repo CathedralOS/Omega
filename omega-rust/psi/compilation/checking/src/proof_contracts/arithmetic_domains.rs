@@ -98,7 +98,9 @@ pub(crate) use return_ranges::{
     call_return_type, enforce_declared_return_range, enforce_symbolic_range,
     validate_return_value_range,
 };
-pub(crate) use stored_integer_writes::validate_stored_integer_write;
+pub(crate) use stored_integer_writes::{
+    stored_integer_field_type, stored_integer_value_fits, validate_stored_integer_write,
+};
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,
