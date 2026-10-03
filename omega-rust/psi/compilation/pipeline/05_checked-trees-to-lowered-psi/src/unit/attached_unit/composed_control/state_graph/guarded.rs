@@ -755,6 +755,35 @@ pub(super) fn emit_return(
         next_edge,
         operations,
     )?;
+    complete_structural_return(
+        checked,
+        plan,
+        state,
+        operation,
+        &[],
+        parameters,
+        evaluation,
+        next_edge,
+        operations,
+    )
+}
+
+/// Complete an already emitted structural producer. Operand preparations are
+/// part of this selected exit's lifetime and precede the state's earlier
+/// results in reverse-establishment cleanup order. The returned value is
+/// transferred, so it participates in correspondence without being discarded.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn complete_structural_return(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    preparations: &[CheckedUnitEffectOperationPlan],
+    parameters: &[StructuralParameterDeclaration],
+    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    next_edge: &mut u64,
+    operations: &OperationBuffer,
+) -> Result<Terminator, LoweringError> {
     let result = operation
         .structural_result_binding()
         .ok_or(LoweringError::Unsupported(
@@ -773,7 +802,11 @@ pub(super) fn emit_return(
     // A selected result participates in the cleanup correspondence even though
     // the return transfers it rather than discarding it.
     let mut discards = vec![(source, false)];
-    for operation in state.operations.iter().rev() {
+    for operation in preparations
+        .iter()
+        .rev()
+        .chain(state.operations.iter().rev())
+    {
         if let Some((result, discard_result_on_return)) = operation.discardable_structural_result()
         {
             let place = case_emission::result(state, result.binding_ordinal, operations)?.place();
