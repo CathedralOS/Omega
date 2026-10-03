@@ -18,7 +18,7 @@ pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpre
 pass/calls/runtime_guarded_terminal_array_operands_exit built 1322ms exit:0 interpreter-exit:0 interpreter:agrees @db3378f05a303f15e6de9c2597a21c18e3d9fa78
 pass/calls/runtime_guarded_terminal_guard_order_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @9384bb69f1d480980ed1e7a4d01c0f9327e873ad
 pass/calls/runtime_guarded_terminal_operand_order_exit built 842ms exit:0 interpreter-exit:0 interpreter:agrees @e2a12bf7c056aa30aa020384afcb304e80173f68
-pass/calls/runtime_guarded_terminal_structural_result_exit built 1184ms exit:0 interpreter-exit:0 interpreter:agrees @512d3faaa091605af4ca44b900e4ae59be7e607c
+pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @4f20c0c110be
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
