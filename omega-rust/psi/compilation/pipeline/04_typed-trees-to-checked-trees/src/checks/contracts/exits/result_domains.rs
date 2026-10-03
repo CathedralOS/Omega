@@ -1374,9 +1374,8 @@ pub(crate) fn is_readable_mutable_reference(
 }
 
 /// The default-domain field facts a state assumes on entry for its readable
-/// `&mut` referents: each such parameter's `StateParameterDomain` field facts,
-/// including receivers. These are
-/// exactly the rows the self-transition arrival check re-proves
+/// `&mut` referents: each such parameter's `StateParameterDomain` field facts.
+/// These are exactly the rows the state-transition arrival check re-proves
 /// (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
 pub(crate) fn mutable_referent_field_requirements(
     program: &typed_trees::TypedTrees,

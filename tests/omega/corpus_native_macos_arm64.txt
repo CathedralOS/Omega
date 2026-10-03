@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.43, "load1_start": 6.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 11.01, "load1_start": 11.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -482,6 +482,7 @@ pass/domains/explicit_domain_erasure checked 136ms
 pass/domains/local_alias_domain_transfer checked 148ms
 pass/domains/match_domain_patterns checked 177ms
 pass/domains/module_domain_narrow_import_spelling checked 143ms
+pass/domains/qualified_mutable_field_exit built 1115ms exit:0 @b027f59996c3+wt
 pass/domains/record_interval_domain_member_exit built 857ms exit:70 @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit built 1047ms exit:70 stdout:match @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 148ms
@@ -489,7 +490,7 @@ pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_result_domain_machine_overload_exit built 1950ms exit:70 @48008365d839
 pass/domains/semantic_cast_guard_chain_mint checked 193ms
 pass/domains/slice_domain_validator built 546ms
-pass/domains/threaded_subject_keeps_established_domains built 1704ms exit:0 @6e3c4685f8cb
+pass/domains/threaded_subject_keeps_established_domains built 1010ms exit:0 @b027f59996c3+wt
 pass/domains/transparent_alias_expansion checked 205ms
 pass/domains/unit_membership_postcondition_exit built 5301ms exit:70 @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 185ms

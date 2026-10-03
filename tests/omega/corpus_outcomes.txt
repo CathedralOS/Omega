@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.43, "load1_start": 6.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 11.01, "load1_start": 6.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -578,6 +578,8 @@ fail/domains/nested_field_domain_write_unestablished rejected 297ms expected @c0
 fail/domains/nonboolean_member_predicate rejected 274ms expected @2d8ed253669f
 	domain `Player::Odd` proof fact `self.health` must have type `bool`
 	domain `Holder::Invalid` proof fact `self.slot.value` must have type `bool`
+fail/domains/qualified_mutable_invalid_field rejected 148ms expected @b027f59996c3+wt
+	cannot prove default-domain field requirement for call consume from main::entry: parameter packet.label.text requires [u8; N]::NonEmpty
 fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e029f28c+wt
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/refinement_chain_routed_provenance_forge rejected 720ms expected @2d8ed253669f
@@ -1678,6 +1680,7 @@ pass/domains/explicit_domain_erasure checked 288ms @2d8ed253669f
 pass/domains/local_alias_domain_transfer checked 275ms @4e4bfed13aee+wt
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
+pass/domains/qualified_mutable_field_exit checked 931ms @b027f59996c3+wt
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit checked 1024ms @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
