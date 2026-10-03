@@ -925,8 +925,43 @@ fn mixed_structural_results_select_and_replay_their_result_home() {
             selected.plan().clone(),
         )
         .unwrap();
-        // Dropping or substituting the agreed result home rejects at the
-        // legalization replay; selection output is checked verbatim.
+        // The incoming value has the same type and layout, but cannot replace
+        // the completed call's storage identity on the return edge.
+        let mut substituted_home = selected.plan().clone();
+        let returned_home = substituted_home.functions[0]
+            .memory_accesses
+            .iter_mut()
+            .find(|access| {
+                matches!(
+                    access.role,
+                    selected_instructions::SelectedMemoryAccessRole::AddressLocal {
+                        slot: selected_instructions::LocalStorageSlotId::Structural { .. }
+                    }
+                ) && matches!(
+                    access.origin,
+                    selected_instructions::SelectedMemoryAccessOrigin::Block(_)
+                )
+            })
+            .expect("return addresses the completed mixed result");
+        assert_eq!(returned_home.place, result.place);
+        returned_home.place = semantic_vocabulary::PlaceId::new(10).unwrap();
+        returned_home.role = selected_instructions::SelectedMemoryAccessRole::AddressLocal {
+            slot: selected_instructions::LocalStorageSlotId::StructuralParameter {
+                place: returned_home.place,
+            },
+        };
+        assert!(
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                substituted_home,
+            )
+            .is_err()
+        );
+        // Dropping or substituting the agreed result home also rejects at
+        // legalization, before selection consumes the completed value.
         let mut no_home = target.clone();
         let TargetUnitOperation::Call {
             result: target_operations::TargetCallResult::Structural { result_home, .. },
