@@ -464,3 +464,114 @@ fn assert_sequential_artifact(
         );
     }
 }
+
+const MUTABLE_CUSTOMER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/omega/pass/proofs/runtime_mutable_ranked_accumulator_exit/main.omg"
+));
+
+#[test]
+fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
+    use terminal_interpreter::{
+        AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
+        TerminalStructuralInputs,
+    };
+    let source = &MUTABLE_CUSTOMER[MUTABLE_CUSTOMER.find("machine accumulate(").unwrap()..];
+    let checked = crate::front_end::checked_program(source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("accumulate"))
+        .expect("implicit self forwards current mutable scalar values");
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    let module = terminal_codec::decode_module(&semantic_bytes).unwrap();
+    let proofs = terminal_codec::decode_proof_section_for(&module, &proof_bytes).unwrap();
+    let profile = AdmissionProfile::default();
+    verify_module(&module, &proofs, &profile).expect("source-free current-value replay");
+    let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let unsigned = |value| TerminalScalarValue::Integer {
+        scalar_type: carrier,
+        value: IntegerValue::Unsigned(value),
+    };
+    for (remaining, accumulator, total) in [(3, 4, 7), (1, 0, 1), (1, 999, 1000)] {
+        let result = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &profile,
+            &[unsigned(remaining), unsigned(accumulator), unsigned(total)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
+        )
+        .expect("current self operands execute from the decoded artifact");
+        assert_eq!(
+            result.value(),
+            TerminalExecutionResult::Scalar(unsigned(total))
+        );
+    }
+
+    let machine_index = module
+        .machines
+        .iter()
+        .position(|machine| machine.id == module.entry)
+        .unwrap();
+    let machine = &module.machines[machine_index];
+    let Some(TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {
+        panic!("mutable scalar self recurrence retains an independently proved rank");
+    };
+    let cycle = cycles.first().expect("one recurrent component");
+    let edge = cycle
+        .edges
+        .iter()
+        .find(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
+        .expect("the current counter decreases on the self edge");
+    let original_rank = reconstruct_control_cycle_obligations(&module).unwrap();
+    for position in [0, 1] {
+        let mut wrong = module.clone();
+        let stale = wrong.machines[machine_index].parameters[position].id;
+        let source = wrong.machines[machine_index]
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == edge.source)
+            .unwrap();
+        let Terminator::Jump {
+            edge: actual_edge,
+            arguments,
+            ..
+        } = &mut source.terminator
+        else {
+            panic!("self has one simultaneous argument handoff");
+        };
+        assert_eq!(*actual_edge, edge.edge);
+        assert_eq!(arguments.len(), 3);
+        assert_ne!(
+            arguments[position], stale,
+            "current value differs from invocation value"
+        );
+        arguments[position] = stale;
+        validate_module(&wrong).expect("a stale scalar still has the same valid carrier and scope");
+        assert!(
+            verify_module(&wrong, &proofs, &profile).is_err(),
+            "stale self operand {position} must reject"
+        );
+        if position == 1 {
+            let changed_rank = reconstruct_control_cycle_obligations(&wrong).unwrap();
+            assert_eq!(
+                changed_rank[0].obligation.ranking_relation,
+                original_rank[0].obligation.ranking_relation,
+                "stale accumulator corruption leaves the counter rank unchanged"
+            );
+            let mut reproduced = lowered.clone();
+            reproduced.semantic_module = wrong;
+            reproduced.semantic_module.scalar_block_invariants.clear();
+            reproduced.proof_bundle.evidence.clear();
+            retain_provable(&mut reproduced).unwrap();
+            assert!(
+                matches!(
+                    finalize_operation_proofs(&mut reproduced),
+                    Err(LoweringError::OperationProofUnavailable(_))
+                ),
+                "fresh proof production cannot establish conservation for a stale accumulator"
+            );
+        }
+    }
+}

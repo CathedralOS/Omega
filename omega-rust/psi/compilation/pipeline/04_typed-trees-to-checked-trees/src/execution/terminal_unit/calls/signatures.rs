@@ -73,7 +73,9 @@ fn scalar_parameter_signature(
     position: usize,
     parameter: &StateParameter,
 ) -> Option<CheckedStructuralScalarParameterPlan> {
-    if parameter.is_self || parameter.is_const || parameter.is_mutable {
+    // Binding mutability changes the state-local value namespace, not the
+    // incoming scalar carrier. The body initializes its current-value slot.
+    if parameter.is_self || parameter.is_const {
         return None;
     }
     Some(CheckedStructuralScalarParameterPlan {
