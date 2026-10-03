@@ -6,6 +6,8 @@ use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
 
+use typed_trees::types::TypeReferenceNode;
+
 use super::super::details::active_loan_detail;
 use super::super::overlap::{StatedOrderingPremise, canonical_place_for_loan};
 use super::evidence::{CallCompatibility, argument_operand, loan_operand};
@@ -31,6 +33,8 @@ pub(super) fn check_call_access_conflicts<'p>(
         .collect();
     let data_access =
         super::receiver::explicit_jump_data_access(program, facts, state_flow, borrow_call);
+    let subject_access =
+        super::receiver::subject_data_access(program, facts, state_flow, borrow_call);
     // This call's own subject, for a call of any form. A receiver's loan is
     // taken when the call is ENTERED, after its operands are evaluated, so a
     // nested call among those operands released its own loan first. Used only
@@ -242,7 +246,29 @@ pub(super) fn check_call_access_conflicts<'p>(
             // A local carrier does not turn that same parent into a new whole
             // loan. Keep the carrier-lifetime check first: footprint precision
             // cannot extend backing storage beyond the source state's exit.
-            if data_access == Some(index) {
+            // A static call's data-binding subject earns the same excusal only
+            // when the loan enters the call through a reference parameter —
+            // the footprint judgment then covers their overlap. A loan the
+            // callee never receives, or one merely read by value, keeps the
+            // whole-subject check.
+            let loan_enters_call = |loan: &checked_trees::BorrowLoanFact| {
+                crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
+                    .is_some_and(|parameters| {
+                        parameters.iter().enumerate().any(|(position, parameter)| {
+                            matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                TypeReferenceNode::Reference { .. }
+                            ) && accesses
+                                .get(position)
+                                .is_some_and(|argument| argument.root_symbol == loan.owner_symbol)
+                        })
+                    })
+            };
+            if data_access == Some(index)
+                || (subject_access == Some(index) && loan_enters_call(loan))
+            {
                 continue;
             }
             if recording.non_interfering(

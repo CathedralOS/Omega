@@ -16,7 +16,9 @@ mod returned;
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
 };
-pub(super) use footprint::{entered_subject_access, explicit_jump_data_access};
+pub(super) use footprint::{
+    entered_subject_access, explicit_jump_data_access, subject_data_access,
+};
 
 /// Whether `call` runs its target on the caller's implicit receiver.
 ///
