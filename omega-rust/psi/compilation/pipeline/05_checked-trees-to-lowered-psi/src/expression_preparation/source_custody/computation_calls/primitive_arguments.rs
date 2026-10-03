@@ -25,8 +25,8 @@ pub(crate) fn validate(
     access_position: Option<usize>,
 ) -> Result<usize, LoweringError> {
     let (target_referent, target_access) = primitive_reference(checked, target_type)?;
-    if !argument.path.is_empty() || argument.access != target_access {
-        return unsupported("computed primitive argument substituted its path or formal access");
+    if argument.access != target_access {
+        return unsupported("computed primitive argument substituted its formal access");
     }
     let table = &checked.expression_table;
     if !table.expression_is_valid(expression) {
@@ -150,6 +150,34 @@ pub(crate) fn validate(
         }
         _ => return unsupported("computed primitive argument has unsupported source custody"),
     };
+    // Reconstruct whether this declaration established a reference carrier.
+    // Its projection is source evidence, never inferred from the requested
+    // scalar type or the lowered home that happens to be available.
+    let retained_reference = match argument.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => checked
+            .typed
+            .state_local_declaration(state, symbol)
+            .is_some_and(|(ordinal, _)| {
+                ordinal < statement as usize
+                    && validation::reference_result_custody::primitive_local_source(
+                        &checked.typed,
+                        state,
+                        ordinal,
+                    )
+                    .is_some()
+            }),
+        _ => false,
+    };
+    let expected_path: &[checked_trees::CheckedUnitStructuralPathSegment] = if retained_reference {
+        &[checked_trees::CheckedUnitStructuralPathSegment::Referent]
+    } else {
+        &[]
+    };
+    if argument.path != expected_path {
+        return unsupported(
+            "computed primitive argument substituted its retained source projection",
+        );
+    }
     let source_identity = checked.typed.normalized_type_identity(source_referent);
     if checked.primitive_type_reference(source_referent)
         != checked.primitive_type_reference(target_referent)
