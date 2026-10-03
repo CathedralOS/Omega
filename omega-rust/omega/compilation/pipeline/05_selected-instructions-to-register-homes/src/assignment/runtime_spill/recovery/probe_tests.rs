@@ -4,9 +4,9 @@ use register_environment::baseline_target_register_environment;
 use register_homes::AllocatorAvailabilityPolicy;
 use selected_instructions::VirtualRegisterId;
 use selected_instructions_to_selected_instructions::{
-    RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, analyze_live_ranges, analyze_liveness,
-    materialize_allocator_availability, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_span_policy,
+    RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, analyze_allocation_legality,
+    analyze_live_ranges, analyze_liveness, materialize_allocator_availability,
+    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
     test_support::{budget, runtime_spill_source},
 };
 use target::NativeTarget;
@@ -44,6 +44,16 @@ fn failed_crossing_probe(target: NativeTarget) -> (SpillPressureProbe, Validated
     .unwrap();
     let liveness = analyze_liveness(&source).unwrap();
     let ranges = analyze_live_ranges(&source, &liveness).unwrap();
+    let legality = analyze_allocation_legality(
+        &ranges,
+        &availability,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &environment.allocation_constraint_keys(),
+    )
+    .unwrap();
     let crossing = spill_selected_runtime_value_with_span_policy(
         &source,
         0,
@@ -69,6 +79,7 @@ fn failed_crossing_probe(target: NativeTarget) -> (SpillPressureProbe, Validated
         &source,
         &liveness,
         &ranges,
+        &legality,
         &crossing,
     )
     .unwrap();
@@ -83,6 +94,7 @@ fn failed_crossing_probe(target: NativeTarget) -> (SpillPressureProbe, Validated
         &source,
         &liveness,
         &ranges,
+        &legality,
         &bounded,
     )
     .unwrap();

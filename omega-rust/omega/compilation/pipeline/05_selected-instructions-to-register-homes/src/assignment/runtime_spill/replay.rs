@@ -31,6 +31,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         std::collections::BTreeSet::new();
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
+    let mut current_legality = source.legality().clone();
     let mut prior: Option<RuntimeSpillStepRewrite> = None;
     for (step_index, step) in staged.steps.iter().enumerate() {
         if used.contains(&(step.function, step.register)) {
@@ -49,10 +50,12 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 &previous_source,
                 &current_liveness,
                 &current_ranges,
+                &current_legality,
                 &previous.selected(),
             )?;
             failure = require_pressure(assign(environment, &facts.ranges, &facts.legality))?;
             current_ranges = facts.ranges;
+            current_legality = facts.legality;
             current_liveness = facts.liveness;
         }
         if !overlaps_pressure(&failure, &current_ranges, step.function, step.register) {
@@ -146,6 +149,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                             &selected,
                             &current_liveness,
                             &current_ranges,
+                            &current_legality,
                             &SelectedProgramRef::new(&crossing),
                         )?;
                         match assign(environment, &probe.ranges, &probe.legality) {

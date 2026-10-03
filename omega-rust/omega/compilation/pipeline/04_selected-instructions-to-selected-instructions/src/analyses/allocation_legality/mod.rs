@@ -35,6 +35,43 @@ pub fn analyze_allocation_legality(
         constraints,
         reservations,
         selected_keys,
+        None,
+    )?;
+    validate_allocation_legality(
+        ranges,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
+}
+
+/// Reuse proposals for functions whose complete live ranges and allocation
+/// roots are unchanged. The whole result still receives independent replay;
+/// prior rows are not a substitute for validation or the new plan identity.
+pub fn analyze_allocation_legality_reusing(
+    previous_ranges: &ValidatedLiveRanges,
+    previous_legality: &ValidatedAllocationLegality,
+    ranges: &ValidatedLiveRanges,
+    availability: &ValidatedAllocatorAvailability,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
+    let plan = compute::compute_terminal_allocation_legality(
+        ranges,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        Some((previous_ranges, previous_legality)),
     )?;
     validate_allocation_legality(
         ranges,

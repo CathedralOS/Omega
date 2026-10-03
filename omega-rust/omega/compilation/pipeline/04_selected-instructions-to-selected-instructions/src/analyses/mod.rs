@@ -49,7 +49,7 @@ mod selected_input;
 pub(crate) mod spill_choice;
 pub use allocation_legality::{
     AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
-    analyze_allocation_legality, validate_allocation_legality,
+    analyze_allocation_legality, analyze_allocation_legality_reusing, validate_allocation_legality,
 };
 pub(crate) use allocator_availability::validate_allocator_availability;
 pub use allocator_availability::{
