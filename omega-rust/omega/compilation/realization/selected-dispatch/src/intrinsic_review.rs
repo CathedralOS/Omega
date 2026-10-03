@@ -403,6 +403,7 @@ mod tests {
             trait_package_identity: Some(package()),
             methods: vec![
                 ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: "read".into(),
                     requirement_owner: "FilesystemHost".into(),
                     requirement_owner_package_identity: Some(package()),
@@ -410,6 +411,7 @@ mod tests {
                     ..ServiceMethod::default()
                 },
                 ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: "write".into(),
                     requirement_owner: "FilesystemHost".into(),
                     requirement_owner_package_identity: Some(package()),

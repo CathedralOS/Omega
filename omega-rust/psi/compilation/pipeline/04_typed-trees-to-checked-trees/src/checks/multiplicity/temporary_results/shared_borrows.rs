@@ -125,7 +125,6 @@ fn events(
         || program.normalized_type_identity(*referee)
             != program.normalized_type_identity(produced_type)
         || type_multiplicity(program, produced_type) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(program, produced_type)
         || type_carries_linear_obligation(program, produced_type)
     {
         return None;

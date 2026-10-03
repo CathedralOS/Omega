@@ -186,3 +186,150 @@ fn user_vector_name_does_not_hide_a_nested_private_carrier() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn process_exit_completion_requires_the_exact_core_requirement() {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+
+    let canonical = include_str!("../../../../../source/library/core/process_exit.omg");
+    let changed = format!("{canonical}\n// Different admitted source bytes.\n");
+    for (text, relative, origin, expected) in [
+        (
+            canonical,
+            "process_exit.omg",
+            SourceOrigin::Toolchain,
+            BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
+        ),
+        (
+            canonical,
+            "process_exit.omg",
+            SourceOrigin::User,
+            BoundaryCompletion::NormalReturn,
+        ),
+        (
+            canonical,
+            "other/process_exit.omg",
+            SourceOrigin::Toolchain,
+            BoundaryCompletion::NormalReturn,
+        ),
+        (
+            changed.as_str(),
+            "process_exit.omg",
+            SourceOrigin::Toolchain,
+            BoundaryCompletion::NormalReturn,
+        ),
+    ] {
+        let program = typed(text, relative, origin);
+        let definition = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "ProcessExit")
+            .expect("fixture trait");
+        let [requirement] = program.trait_machine_signatures(definition) else {
+            panic!("one process-exit requirement")
+        };
+        assert_eq!(
+            validation::boundary_requirement_completion(&program, requirement.symbol),
+            expected,
+        );
+        assert_eq!(
+            validation::boundary_requirement_completion(&program, definition.symbol),
+            BoundaryCompletion::NormalReturn,
+            "the trait owner cannot substitute for its exact requirement",
+        );
+    }
+}
+
+#[test]
+fn package_completion_receipts_rejoin_exact_owner_and_requirement() {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, PackageKeyIdentity};
+
+    let text = "pub boundary trait Console { machine exit_process(code: i32); machine write_byte(code: i32); }";
+    let package = PackageKeyIdentity::from_digest([11; 32]).expect("package identity");
+    let root = PathBuf::from("fixture");
+    let mut sources = SourceMap::default();
+    let source_id = sources
+        .add_with_metadata(
+            root.join("console.omg"),
+            text.to_owned(),
+            root,
+            Some(package),
+            SourceOrigin::User,
+        )
+        .source_id;
+    let mut program =
+        crate::front_end::typed_program_from_source_map(sources, &[(source_id, text)]);
+    let definition = program.traits().iter().next().expect("Console");
+    let [exit, write] = program.trait_machine_signatures(definition) else {
+        panic!("two exact requirements")
+    };
+    let exit_symbol = exit.symbol;
+    let write_symbol = write.symbol;
+    let declaration = typed_trees::BoundaryCompletionDeclaration {
+        package: Some(package),
+        owner: definition.symbol,
+        owner_path: program.symbols.display_path(definition.symbol, "::"),
+        requirement: exit_symbol,
+        requirement_path: program.symbols.display_path(exit_symbol, "::"),
+        completion: BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
+    };
+    assert_eq!(
+        validation::boundary_requirement_completion(&program, exit_symbol),
+        BoundaryCompletion::NormalReturn
+    );
+    let before = program.structural_fingerprint();
+    let handle = program
+        .boundary_completion_declarations
+        .append(declaration.clone());
+    assert_ne!(
+        before,
+        program.structural_fingerprint(),
+        "role admission invalidates source-semantic memos"
+    );
+    assert_eq!(
+        validation::boundary_requirement_completion(&program, exit_symbol),
+        declaration.completion
+    );
+    validation::validate_boundary_completion_declarations(&program).expect("exact role input");
+    assert_eq!(
+        validation::boundary_requirement_completion(&program, write_symbol),
+        BoundaryCompletion::NormalReturn
+    );
+    for corruption in 0..4 {
+        let mut changed = declaration.clone();
+        match corruption {
+            0 => changed.package = PackageKeyIdentity::from_digest([12; 32]),
+            1 => changed.owner = write_symbol,
+            2 => changed.owner_path.push_str("::Other"),
+            3 => changed.requirement = write_symbol,
+            _ => unreachable!(),
+        }
+        assert!(!validation::valid_boundary_completion_declaration(
+            &program, &changed
+        ));
+    }
+    let before = program.structural_fingerprint();
+    program
+        .boundary_completion_declarations
+        .get_mut(handle)
+        .requirement = write_symbol;
+    assert_ne!(
+        before,
+        program.structural_fingerprint(),
+        "same-length role substitutions invalidate memos"
+    );
+    assert_eq!(
+        validation::boundary_requirement_completion(&program, write_symbol),
+        BoundaryCompletion::NormalReturn
+    );
+    assert!(validation::validate_boundary_completion_declarations(&program).is_err());
+    program
+        .boundary_completion_declarations
+        .get_mut(handle)
+        .clone_from(&declaration);
+    let _ = program.boundary_completion_declarations.append(declaration);
+    assert!(
+        validation::validate_boundary_completion_declarations(&program).is_err(),
+        "repeated semantic-role rows are rejected"
+    );
+}

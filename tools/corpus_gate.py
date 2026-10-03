@@ -54,6 +54,10 @@ against `tests/omega/corpus_both_<target>.txt`:
     python3 tools/corpus_gate.py --interpret --filter _exit
     python3 tools/corpus_gate.py --both --filter run/
 
+An authored stdout oracle must match every requested execution engine.
+Interpreter output that differs or was not observed rejects before recording,
+even when its exit code agrees with native execution.
+
 Reading a move — the summary cuts each field at 300 columns, so use
 `--write-moves` to get every moved fixture's before/after records in full:
 
@@ -202,8 +206,9 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
     return failures
 
 
-def native_stdout_failures(records: list[dict], corpus: Path) -> list[str]:
-    """Enforce authored output even without an exit oracle or a prior golden.
+def execution_stdout_failures(records: list[dict], corpus: Path,
+                             engine: str) -> list[str]:
+    """Enforce authored output for each requested execution engine.
 
     The runner compares output after normalizing line endings. Require its
     match fact rather than accepting an absent observation: unreadable oracle
@@ -212,16 +217,18 @@ def native_stdout_failures(records: list[dict], corpus: Path) -> list[str]:
     also needs completed execution. This does not invent an expected exit code;
     only an authored exit/trap oracle constrains how the process terminates.
     """
+    prefix = "interpreter-" if engine == "interpreter" else ""
+    accepted_statuses = {"checked", "built"} if prefix else {"built"}
     failures = []
     for record in records:
         if not (corpus / record["fixture"] / "expected_stdout.txt").exists():
             continue
         facts = record.get("facts", {})
-        completed = facts.get("exit") not in (None, "timeout", "unrunnable")
-        if (record["status"] != "built" or not completed
-                or facts.get("stdout") != "match"):
+        completed = facts.get(prefix + "exit") not in (None, "timeout", "unrunnable")
+        if (record["status"] not in accepted_statuses or not completed
+                or facts.get(prefix + "stdout") != "match"):
             failures.append(
-                f"{record['fixture']}: expected native stdout match from completed "
+                f"{record['fixture']}: expected {engine} stdout match from completed "
                 f"execution, observed {record['status']} {facts}")
     return failures
 
@@ -878,17 +885,22 @@ def main() -> int:
             options, leg, target, "infrastructure_failed", code, [], [],
             [], str(error)))
         return code
+    failures = []
     if options.native:
-        failures = native_exit_failures(records, ROOT / "tests" / "omega", target)
-        failures.extend(native_stdout_failures(records, ROOT / "tests" / "omega"))
-        if failures:
-            for failure in failures:
-                print(f"corpus_gate: {failure}", file=sys.stderr)
-            code = 1 if options.bisect else 3
-            write_verdict(options, verdict_document(
-                options, leg, target, "regressed", code, records, [],
-                failures, None))
-            return code
+        failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
+        failures.extend(execution_stdout_failures(
+            records, ROOT / "tests" / "omega", "native"))
+    if options.interpret:
+        failures.extend(execution_stdout_failures(
+            records, ROOT / "tests" / "omega", "interpreter"))
+    if failures:
+        for failure in failures:
+            print(f"corpus_gate: {failure}", file=sys.stderr)
+        code = 1 if options.bisect else 3
+        write_verdict(options, verdict_document(
+            options, leg, target, "regressed", code, records, [],
+            failures, None))
+        return code
     # --record stamps each row measured this run with its provenance; rows
     # merged forward in a subset record keep the stamp they were born with.
     stamp = measurement_stamp(options.golden) if options.record else None

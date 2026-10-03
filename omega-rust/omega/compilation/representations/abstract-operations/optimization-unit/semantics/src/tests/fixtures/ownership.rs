@@ -336,6 +336,8 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         }]
         .into(),
         boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),

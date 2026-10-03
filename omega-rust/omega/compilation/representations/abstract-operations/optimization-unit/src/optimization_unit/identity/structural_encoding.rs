@@ -104,6 +104,13 @@ pub(super) fn encode_boundary_machine(
         terminal_psi::BoundaryRequirementKind::Trait => 1,
         terminal_psi::BoundaryRequirementKind::Operator => 2,
     });
+    bytes.u8(match declaration.completion {
+        terminal_psi::BoundaryCompletion::NormalReturn => 0,
+        terminal_psi::BoundaryCompletion::External(
+            terminal_psi::ExternalCompletionKind::ProcessExit,
+        ) => 1,
+    });
+    bytes.boolean(declaration.unconditional_termination);
     encode_optional(
         bytes,
         declaration.attachment.as_ref(),

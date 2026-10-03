@@ -136,6 +136,7 @@ mod tests {
             methods: names
                 .iter()
                 .map(|name| ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: (*name).to_owned(),
                     requirement_owner: requirement_owner.to_owned(),
                     requirement_identity: format!("{requirement_owner}::{name}"),

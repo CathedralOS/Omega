@@ -1,16 +1,11 @@
 //! Nominal-cleanup specialization for structural scalar returns.
 //!
-//! Rebase semantic roots and assign each return leaf its cleanup obligations
-//! before generating certificates. Materialized results and branch-local facts
-//! change premise indexes; a proof copied from the provisional Unit closure
-//! would not describe the completed scalar caller's live observations.
+//! Emit the scalar caller and its cleanup dependencies into one shared namespace.
+//! The caller retains its authored result; normal cleanup is an operation on
+//! its original parameter places, independent of the result's representation.
 use super::super::{
-    BTreeMap, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, IntegerSign, PlaceId, Proposition, ScalarTerm,
-    StructuralFieldType, StructuralTypeShape, integer_value,
-    lower_nominal_affine_unit_cleanup_machine, obligation_id, place_id,
-    retain_additional_structural_types,
+    BTreeMap, CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    IntegerSign, Proposition, ScalarTerm, integer_value, obligation_id,
 };
 use super::{
     BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
@@ -37,11 +32,8 @@ use crate::returns::structural_scalar_return::shared_convergence::{
     shared_boolean_runtime_parameters, valid_shared_boolean_runtime_inputs,
 };
 
-/// Reuse the already ratified bounded nominal-Unit closure construction, then
-/// replace only its synthetic entry body with the checked scalar computation.
-/// This keeps cleanup target/helper retention, dense identities, and ownership
-/// proof validation in one implementation while making result materialization
-/// precede the cleanup action on every scalar return leaf.
+/// Retain ordinary hook bodies through the shared closure, then emit the real
+/// scalar caller and its return actions before final proof reconstruction.
 pub(super) fn lower_nominal_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
@@ -121,72 +113,13 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             _ => return unsupported("nominal scalar return cleanup frontier drifted"),
         }
     }
-    let mut nominal_parameters = Vec::new();
-    let mut nominal_source_positions = Vec::new();
-    for parameter in &plan.structural_parameters {
-        if plan.cleanup_actions.iter().any(|action| {
-            matches!(
-                action,
-                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup)
-                    if cleanup.source_parameter_index == parameter.position
-            )
-        }) {
-            let mut normalized = parameter.clone();
-            normalized.position = u32::try_from(nominal_parameters.len()).map_err(|_| {
-                LoweringError::Unsupported("nominal scalar return root count exceeds u32")
-            })?;
-            nominal_source_positions.push(parameter.position);
-            nominal_parameters.push(normalized);
-        }
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    if source.symbol != plan.machine
+        || checked.primitive_type_reference(state.return_type) != Some(plan.result_type)
+    {
+        return unsupported("nominal scalar completion differs from its authored result type");
     }
-    let mut nominal_cleanups = plan
-        .cleanup_actions
-        .iter()
-        .filter_map(|action| match action {
-            CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
-                Some(cleanup.clone())
-            }
-            CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => None,
-        })
-        .collect::<Vec<_>>();
-    for cleanup in &mut nominal_cleanups {
-        cleanup.source_parameter_index = u32::try_from(
-            nominal_source_positions
-                .iter()
-                .position(|position| *position == cleanup.source_parameter_index)
-                .ok_or(LoweringError::Unsupported(
-                    "nominal scalar return cleanup root is absent",
-                ))?,
-        )
-        .map_err(|_| LoweringError::Unsupported("nominal scalar return root count exceeds u32"))?;
-    }
-    let nominal_caller_requirements = plan
-        .caller_requirements
-        .iter()
-        .filter_map(|requirement| {
-            let compact_position = nominal_source_positions
-                .iter()
-                .position(|position| *position == requirement.source_parameter_index)?;
-            let mut normalized = requirement.clone();
-            Some(
-                u32::try_from(compact_position)
-                    .map(|position| {
-                        normalized.source_parameter_index = position;
-                        normalized
-                    })
-                    .map_err(|_| {
-                        LoweringError::Unsupported("nominal scalar return root count exceeds u32")
-                    }),
-            )
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let contract = checked
-        .facts
-        .contract_plans
-        .for_machine(plan.machine)
-        .ok_or(LoweringError::Unsupported(
-            "nominal scalar return is missing its checked contract identity",
-        ))?;
     let flow = checked
         .facts
         .flow
@@ -200,268 +133,155 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .ok_or(LoweringError::Unsupported(
             "nominal scalar return is missing its checked flow state",
         ))?;
-    let synthetic = CheckedUnitEffectMachinePlan {
-        scalar_result: None,
-        scalar_control: None,
-        structural_result: None,
-        machine: plan.machine,
-        state: plan.state,
-        attachment_type_identity: plan.attachment_type_identity.clone(),
-        structural_parameters: nominal_parameters,
-        scalar_parameters: Vec::new(),
-        erased_scalar_parameters: plan.erased_scalar_parameters.clone(),
-        erased_proof_parameters: plan.erased_proof_parameters.clone(),
-        provider_attachment_requirements: Vec::new(),
-        trivial_affine_locals: Vec::new(),
-        entry_claims: Vec::new(),
-        body_qualifications: Vec::new(),
-        contract_report_fingerprint: contract.report_fingerprint,
-        contract_commitment: contract.commitment,
-        contract_service_reach: checked
-            .facts
-            .service_reaches
-            .plan_for_machine(plan.machine)
-            .ok_or(LoweringError::Unsupported(
-                "nominal scalar return is missing its checked service-reach plan",
-            ))?,
-        service_reach: flow.service_reach,
-        operations: vec![CheckedUnitEffectOperationPlan::Complete {
-            statement_index: 0,
-            trivial_affine_local_discard_ordinals: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-        }],
-    };
-    let nominal = CheckedNominalAffineUnitCleanupMachinePlan {
-        machine: synthetic,
-        caller_requirements: nominal_caller_requirements,
-        cleanups: nominal_cleanups,
-    };
-    let mut staged = checked.clone();
-    // The staged synthetic entry owns no scalar lane, so the Unit closure
-    // signature cannot express authored scalar requires terms against it. The
-    // return-lane scalar_requirements republish the retained integer bounds on
-    // the real caller, so the scratch contract keeps only its derived tail.
-    if let Some(staged_contract) = staged
+    let reach = checked
         .facts
-        .contract_plans
-        .machines
-        .iter_mut()
-        .find(|contract| contract.machine == plan.machine)
-    {
-        let closed = &staged_contract.closed_scalar_values;
-        let derived_requires = closed.requires()[closed.authored_requires().len()..].to_vec();
-        let ensures = closed.ensures().to_vec();
-        let has_crash_clauses = closed.has_crash_clauses();
-        let has_outcome_specific_clauses = closed.has_outcome_specific_clauses();
-        let float_entry_ranges = closed.float_entry_ranges().map(<[_]>::to_vec);
-        staged_contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
-            derived_requires,
-            ensures,
-            has_crash_clauses,
-            has_outcome_specific_clauses,
-        )
-        .with_authored_requires_len(0)
-        .with_float_entry_ranges(float_entry_ranges);
+        .service_reaches
+        .plan_for_machine(plan.machine)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar return is missing its checked service-reach plan",
+        ))?;
+    let mut hooks = Vec::new();
+    for action in &plan.cleanup_actions {
+        if let CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) = action
+            && !hooks.contains(&cleanup.cleanup_machine)
+        {
+            hooks.push(cleanup.cleanup_machine);
+        }
     }
-    for shape in &checked
+    let shapes = &checked
         .facts
         .flow
         .terminal_structural_scalar_returns
-        .structural_types
-    {
-        match staged
-            .facts
-            .flow
-            .terminal_nominal_affine_unit_cleanups
+        .structural_types;
+    let published = &checked.facts.flow.terminal_unit_effects;
+    for shape in shapes {
+        if published
             .structural_types
             .iter()
-            .find(|candidate| candidate.identity == shape.identity)
+            .any(|other| other.identity == shape.identity && other != shape)
         {
-            Some(existing) if existing != shape => {
-                return unsupported(
-                    "nominal scalar return structural type conflicts with its cleanup closure",
-                );
-            }
-            Some(_) => {}
-            None => staged
-                .facts
-                .flow
-                .terminal_nominal_affine_unit_cleanups
-                .structural_types
-                .push(shape.clone()),
+            return unsupported(
+                "nominal scalar return structural type conflicts with its cleanup closure",
+            );
         }
     }
-    let mut lowered = lower_nominal_affine_unit_cleanup_machine(&staged, &nominal)?;
-    let result_type = terminal_scalar_type(plan.result_type)?;
-    retain_additional_structural_types(
-        &mut lowered.semantic_module,
-        &checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .structural_types,
-        plan.structural_parameters
-            .iter()
-            .map(|parameter| parameter.type_identity.clone()),
-    )?;
-    // Cleanup obligations exist before their certificates. Reserve their
-    // semantic identities, not just IDs already present in the proof bundle.
-    let operation_identity_base = lowered
-        .semantic_module
-        .machines
+    let type_roots = plan
+        .structural_parameters
         .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .map(|operation| operation.id.get())
-        .max()
-        .unwrap_or(0)
-        .max(
-            terminal_verifier::maximum_registered_obligation_id(&lowered.semantic_module)
-                .map_err(LoweringError::InvalidTerminalModule)?,
-        );
-    let type_ids = lowered
-        .semantic_module
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .map(|parameter| parameter.type_identity.clone())
+        .chain(plan.attachment_type_identity.iter().cloned())
         .collect::<Vec<_>>();
-    let mut next_place = 1_u64;
+    let mut services = Vec::new();
+    crate::unit::attached_unit::collect_service_summary(
+        &checked.facts.service_reaches.rows,
+        flow.service_reach,
+        &mut services,
+    )?;
+    crate::unit::attached_unit::collect_installation_machine_contract_services(
+        checked,
+        plan.machine,
+        reach,
+        flow.service_reach,
+        &mut services,
+    )?;
+    let mut closure = crate::unit::attached_unit::lower_unit_closure(
+        checked,
+        &crate::unit::attached_unit::UnitClosureRequest {
+            plans: crate::unit::attached_unit::bodies::UnitPlans::with_structural_types(
+                published, shapes,
+            ),
+            entry: plan.machine,
+            unit_roots: &hooks,
+            external: Some(
+                crate::unit::attached_unit::shared_closure::ExternalUnitRoots {
+                    boundary_roots: &[],
+                    structural_type_roots: &type_roots,
+                    service_roots: &services,
+                    scalar_roots: &[],
+                },
+            ),
+            scalar_entry: false,
+        },
+    )?;
+    let receivers = closure.cleanup_receivers();
     let structural_parameters = lower_unit_parameters(
         &plan.structural_parameters,
-        &type_ids,
-        &lowered.semantic_module.structural_types,
+        &closure.type_ids,
+        &closure.lowered.semantic_module.structural_types,
         &[],
-        &mut next_place,
+        &mut closure.next_place,
     )?;
+    // Terminal formals use dense structural positions. Source predicates keep
+    // authored positions across primitive parameters; only their coordinate
+    // changes here, never the allocated runtime place or structural type.
+    let predicate_parameters = plan
+        .structural_parameters
+        .iter()
+        .zip(&structural_parameters)
+        .map(
+            |(source, terminal)| terminal_psi::StructuralParameterDeclaration {
+                position: source.position,
+                ..terminal.clone()
+            },
+        )
+        .collect::<Vec<_>>();
     let structural_parameter_indexes = plan
         .structural_parameters
         .iter()
         .enumerate()
         .map(|(index, parameter)| (parameter.position, index))
         .collect::<BTreeMap<_, _>>();
-    let entry_index = lowered
-        .semantic_module
-        .machines
+    let cleanup_actions = plan
+        .cleanup_actions
         .iter()
-        .position(|machine| machine.id == lowered.semantic_module.entry)
-        .ok_or(LoweringError::Unsupported(
-            "nominal scalar return entry machine was not retained",
-        ))?;
-    let compact_parameters = lowered.semantic_module.machines[entry_index]
-        .structural_parameters
-        .clone();
-    let [compact_block] = lowered.semantic_module.machines[entry_index]
-        .blocks
-        .as_slice()
-    else {
-        return unsupported("nominal scalar return entry control is not a single block");
-    };
-    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &compact_block.terminator else {
-        return unsupported("nominal scalar return synthetic cleanup edge drifted");
-    };
-    let edge = *edge;
-    let mut terminal_nominals = cleanups.clone();
-    if cleanups.len()
-        != plan
-            .cleanup_actions
-            .iter()
-            .filter(|action| {
-                matches!(
-                    action,
-                    CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
-                )
+        .map(|action| {
+            let position = match action {
+                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) => *position,
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
+                    cleanup.source_parameter_index
+                }
+            };
+            let parameter = structural_parameter_indexes
+                .get(&position)
+                .and_then(|index| structural_parameters.get(*index))
+                .ok_or(LoweringError::Unsupported(
+                    "nominal scalar return cleanup terminal root is absent",
+                ))?;
+            match action {
+                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                    Ok(TerminalAffineCleanupAction::DiscardRoot(parameter.place))
+                }
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
+                    Ok(TerminalAffineCleanupAction::InvokeNominal(
+                        crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                            checked,
+                            cleanup,
+                            parameter,
+                            &closure.type_ids,
+                            &closure.machine_ids,
+                            &receivers,
+                            &mut closure.next_call_obligation,
+                        )?,
+                    ))
+                }
+            }
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if plan
+        .caller_requirements
+        .iter()
+        .enumerate()
+        .any(|(index, requirement)| {
+            plan.caller_requirements[..index].iter().any(|earlier| {
+                earlier.source_parameter_index == requirement.source_parameter_index
+                    && earlier.field_identity == requirement.field_identity
+                    && earlier.expected == requirement.expected
             })
-            .count()
+        })
     {
-        return unsupported("nominal scalar return synthetic cleanup count drifted");
+        return unsupported("contextual nominal scalar full caller requirements are duplicated");
     }
-
-    let mut caller_place_rebase = BTreeMap::new();
-    for compact in &compact_parameters {
-        let source_position = nominal_source_positions
-            .get(usize::try_from(compact.position).map_err(|_| {
-                LoweringError::Unsupported(
-                    "nominal scalar return compact root position exceeds usize",
-                )
-            })?)
-            .copied()
-            .ok_or(LoweringError::Unsupported(
-                "nominal scalar return compact root is absent",
-            ))?;
-        let full = structural_parameter_indexes
-            .get(&source_position)
-            .and_then(|index| structural_parameters.get(*index))
-            .ok_or(LoweringError::Unsupported(
-                "nominal scalar return full root is absent",
-            ))?;
-        if compact.structural_type != full.structural_type
-            || caller_place_rebase
-                .insert(compact.place, full.place)
-                .is_some()
-        {
-            return unsupported("nominal scalar return compact root mapping drifted");
-        }
-    }
-    if caller_place_rebase.len() != nominal_source_positions.len() {
-        return unsupported("nominal scalar return compact root mapping is incomplete");
-    }
-
-    let mut next_proof_root = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.structural_places)
-        .map(|place| place.id.get())
-        .chain(
-            structural_parameters
-                .iter()
-                .map(|parameter| parameter.place.get()),
-        )
-        .max()
-        .unwrap_or(0);
-    let mut receiver_place_rebase = BTreeMap::new();
-    for cleanup in &terminal_nominals {
-        let Some(receiver) = cleanup.cleanup_receiver else {
-            continue;
-        };
-        if receiver_place_rebase.contains_key(&receiver) {
-            continue;
-        }
-        // A receiver that names the hook's borrowed `self` parameter is a
-        // declared place, not a proof-local root — it stays put.
-        let receiver_is_hook_parameter = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| machine.id == cleanup.cleanup_machine)
-            .is_some_and(|machine| {
-                machine
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self && parameter.place == receiver)
-            });
-        if receiver_is_hook_parameter {
-            continue;
-        }
-        next_proof_root = next_proof_root
-            .checked_add(1)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal scalar proof-root identity space is exhausted",
-            ))?;
-        receiver_place_rebase.insert(receiver, place_id(next_proof_root));
-    }
-
-    for requirement in &mut lowered.semantic_module.machines[entry_index]
-        .contract
-        .requires
-    {
-        rebase_direct_boolean_requirement_root(
-            requirement,
-            &caller_place_rebase,
-            "contextual nominal scalar caller requirement root drifted",
-        )?;
-    }
-    let mut full_caller_clauses = plan
+    let mut full_caller_requires = plan
         .caller_requirements
         .iter()
         .map(|requirement| {
@@ -471,154 +291,49 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 .ok_or(LoweringError::Unsupported(
                     "contextual nominal scalar full caller root is absent",
                 ))?;
-            let structural_type = lowered
-                .semantic_module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
-                .ok_or(LoweringError::Unsupported(
-                    "contextual nominal scalar full caller type is absent",
-                ))?;
-            let field = match &structural_type.shape {
-                StructuralTypeShape::Record { fields } => fields
-                    .iter()
-                    .find(|field| field.identity == requirement.field_identity)
-                    .filter(|field| {
-                        !field.relevance.is_erased()
-                            && !matches!(field.field_type, StructuralFieldType::Atomic(_))
-                            && field.field_type.scalar_type() == Some(ScalarType::Boolean)
-                    })
-                    .map(|field| field.id),
-                StructuralTypeShape::Reference { .. }
-                | StructuralTypeShape::FusedServiceBinding
-                | StructuralTypeShape::PrimitiveScalar(_)
-                | StructuralTypeShape::ByteSequence(_)
-                | StructuralTypeShape::ElementView { .. }
-                | StructuralTypeShape::FixedArray { .. }
-                | StructuralTypeShape::Sum { .. }
-                | StructuralTypeShape::Mixed { .. } => None,
-            }
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal scalar full caller field drifted",
-            ))?;
-            Ok((
-                (requirement.expected, parameter.place, field),
-                Proposition::Equal(
-                    ScalarTerm::boolean(requirement.expected),
-                    ScalarTerm::boolean_field(parameter.place, field),
-                ),
-            ))
+            crate::unit::unit_cleanup::contexts::field_clause(
+                &closure.lowered.semantic_module.structural_types,
+                parameter,
+                &requirement.field_identity,
+                requirement.expected,
+            )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    full_caller_clauses.sort_by_key(|((expected, root, field), _)| {
-        (
-            *expected,
-            root.get().to_le_bytes(),
-            field.get().to_le_bytes(),
-        )
-    });
-    if full_caller_clauses
-        .windows(2)
-        .any(|pair| pair[0].0 == pair[1].0)
-    {
-        return unsupported("contextual nominal scalar full caller requirements are duplicated");
-    }
-    let mut full_caller_requires = full_caller_clauses
-        .into_iter()
-        .map(|(_, proposition)| proposition)
-        .collect::<Vec<_>>();
-    // Clause order follows (expected, root, field) source keys; the codec
-    // requires canonical proposition byte order, so normalize with the
-    // codec-owned key before publishing.
     crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut full_caller_requires)?;
-    if lowered.semantic_module.machines[entry_index]
-        .contract
-        .requires
-        .iter()
-        .any(|requirement| !full_caller_requires.contains(requirement))
-    {
-        return unsupported("contextual nominal scalar requirement is absent from the full caller");
-    }
-    lowered.semantic_module.machines[entry_index]
-        .contract
-        .requires = full_caller_requires;
-    let target_receivers = terminal_nominals
-        .iter()
-        .filter_map(|cleanup| {
-            cleanup
-                .cleanup_receiver
-                .map(|receiver| (cleanup.cleanup_machine, receiver))
-        })
-        .collect::<BTreeMap<_, _>>();
-    for (target, receiver) in target_receivers {
-        if terminal_nominals.iter().any(|cleanup| {
-            cleanup.cleanup_machine == target && cleanup.cleanup_receiver != Some(receiver)
-        }) {
-            return unsupported("shared contextual scalar cleanup receiver drifted");
-        }
-        let target = lowered
-            .semantic_module
-            .machines
-            .iter_mut()
-            .find(|machine| machine.id == target)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal scalar cleanup target is absent",
-            ))?;
-        for requirement in &mut target.contract.requires {
-            rebase_direct_boolean_requirement_root(
-                requirement,
-                &receiver_place_rebase,
-                "contextual nominal scalar cleanup receiver drifted",
-            )?;
-        }
-    }
-    for cleanup in &mut terminal_nominals {
-        if let Some(receiver) = cleanup.cleanup_receiver {
-            cleanup.cleanup_receiver = Some(*receiver_place_rebase.get(&receiver).ok_or(
-                LoweringError::Unsupported(
-                    "contextual nominal scalar cleanup receiver mapping is absent",
-                ),
-            )?);
-        }
-    }
-
-    let mut terminal_nominals = terminal_nominals.into_iter();
-    let cleanup_actions = plan
-        .cleanup_actions
-        .iter()
-        .map(|action| {
-            let source_position = match action {
-                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(position) => *position,
-                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(cleanup) => {
-                    cleanup.source_parameter_index
-                }
-            };
-            let place = structural_parameter_indexes
-                .get(&source_position)
-                .and_then(|index| structural_parameters.get(*index))
-                .map(|parameter| parameter.place)
-                .ok_or(LoweringError::Unsupported(
-                    "nominal scalar return cleanup terminal root is absent",
-                ))?;
-            match action {
-                CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
-                    Ok(TerminalAffineCleanupAction::DiscardRoot(place))
-                }
-                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_) => {
-                    let mut cleanup =
-                        terminal_nominals.next().ok_or(LoweringError::Unsupported(
-                            "nominal scalar return synthetic cleanup stream is short",
-                        ))?;
-                    cleanup.place = place;
-                    Ok(TerminalAffineCleanupAction::InvokeNominal(cleanup))
-                }
-            }
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    if terminal_nominals.next().is_some() {
-        return unsupported("nominal scalar return synthetic cleanup stream is long");
-    }
-    let mut next_value = 1_u64;
+    let caller_machine =
+        crate::terminal_identities::lookup_machine_id(&closure.machine_ids, plan.machine)?;
+    let declared_service_reach = crate::unit::attached_unit::lower_declared_service_reach(
+        checked,
+        plan.machine,
+        &closure.service_ids,
+    )?;
+    let published_service_ceiling =
+        crate::unit::attached_unit::lower_installation_machine_service_ceiling(
+            checked,
+            plan.machine,
+            reach,
+            flow.service_reach,
+            &closure.service_ids,
+        )?;
+    let attachment = plan
+        .attachment_type_identity
+        .as_deref()
+        .map(|identity| crate::terminal_identities::lookup_type_id(&closure.type_ids, identity))
+        .transpose()?;
+    let mut next_value = closure.next_value;
+    let operation_identity_base = closure
+        .next_operation
+        .max(closure.next_call_obligation)
+        .checked_sub(1)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar closure contains a null identity counter",
+        ))?;
+    let result_type = terminal_scalar_type(plan.result_type)?;
+    let entry_block = block_id(allocate_dense(&mut closure.next_block)?);
+    let edge = edge_id(allocate_dense(&mut closure.next_edge)?);
+    let first_unused_edge = closure.next_edge;
+    let first_unused_block = closure.next_block;
+    let mut lowered = closure.lowered;
     let scalar_parameters = plan
         .scalar_parameters
         .iter()
@@ -1172,38 +887,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     if expression.scalar_type() != result_type {
         return unsupported("nominal scalar return value does not match its checked result type");
     }
-    let first_unused_edge = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| block.terminator.edges())
-        .map(|edge| edge.get())
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "nominal scalar return edge identity space is exhausted",
-        ))?;
-    let first_unused_block = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .map(|block| block.id.get())
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "nominal scalar return block identity space is exhausted",
-        ))?;
-    let entry = &mut lowered.semantic_module.machines[entry_index];
-    let [synthetic_block] = entry.blocks.as_slice() else {
-        return unsupported("nominal scalar return entry control is not a single block");
-    };
-    if synthetic_block.terminator.edge() != edge {
-        return unsupported("nominal scalar return synthetic edge drifted");
-    }
     let parameter_types = scalar_values
         .iter()
         .map(|value| value.scalar_type)
@@ -1228,7 +911,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         };
         let decision = resolve_shared_boolean_member_fields(
             *decision,
-            &structural_parameters,
+            &predicate_parameters,
             &lowered.semantic_module.structural_types,
         )?;
         let decision = normalize_shared_boolean_comparison_leaves(&decision).ok_or(
@@ -1278,7 +961,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             LoweredBooleanDecisionExit::Jump {
                 target: continuation_block,
             },
-            entry.entry,
+            entry_block,
             block_id(first_unused_block),
             &mut next_value,
             &mut next_edge,
@@ -1348,7 +1031,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             &scalar_values,
             Vec::new(),
             LoweredBooleanDecisionExit::Return,
-            entry.entry,
+            entry_block,
             block_id(first_unused_block),
             &mut next_value,
             &mut next_edge,
@@ -1377,7 +1060,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         );
         vec![Block {
             structural_parameters: Vec::new(),
-            id: entry.entry,
+            id: entry_block,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
@@ -1389,30 +1072,131 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             },
         }]
     };
-    entry.blocks = blocks;
-    entry.parameters = scalar_parameters;
-    entry.contract.requires.extend(scalar_requirements);
-    // The codec publishes requires rows strictly increasing in canonical byte
-    // order; extend-then-normalize keeps authored clauses and scalar entry
-    // requirements canonical together. `Proposition`'s derived `Ord` is not
-    // the canonical key, so route through the codec-owned ordering.
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut entry.contract.requires)?;
-    entry.result = TerminalMachineResult::Scalar(ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(next_value),
-        scalar_type: result_type,
-    });
-    entry.structural_parameters = structural_parameters.clone();
-    entry.structural_places = structural_parameters
+    full_caller_requires.extend(scalar_requirements);
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut full_caller_requires)?;
+    let erased_scalar_formals = crate::scalar_graph::scalar_contracts::erased_formal_declarations(
+        &plan.erased_scalar_parameters,
+        &mut next_value,
+    )?;
+    let view_roster = predicate_parameters
         .iter()
-        .map(|parameter| StructuralPlaceDeclaration {
-            id: parameter.place,
-            kind: StructuralPlaceKind::Parameter {
-                position: parameter.position,
-                is_self: parameter.is_self,
+        .map(|parameter| (parameter.position, parameter.clone()))
+        .collect::<Vec<_>>();
+    let element_views = crate::expression_preparation::bindings::element_views(
+        &view_roster,
+        &lowered.semantic_module.structural_types,
+    );
+    let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+        parameters: &view_roster,
+        structural_types: &lowered.semantic_module.structural_types,
+        element_views: &element_views,
+    };
+    crate::unit::runtime_requirements::validate_scalar_source(checked, source, state)?;
+    let authored_requires = crate::unit::attached_unit::lower_entry_requirements(
+        checked,
+        plan.machine,
+        &scalar_parameters,
+        &erased_scalar_formals,
+        &predicate_parameters,
+        &lowered.semantic_module.structural_types,
+    )?
+    .requires;
+    if authored_requires != full_caller_requires {
+        return unsupported(
+            "nominal scalar cleanup requirements differ from the authored callable contract",
+        );
+    }
+    let result = ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(allocate_dense(&mut next_value)?),
+        scalar_type: result_type,
+    };
+    let mut next_guarantee = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .chain(blocks.iter())
+        .flat_map(|block| &block.operations)
+        .map(|operation| operation.id.get())
+        .max()
+        .unwrap_or(0)
+        .max(operation_identity_base)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "nominal scalar guarantee identity space is exhausted",
+        ))?;
+    // Return-leaf cleanup obligations may use identities beyond operation IDs.
+    for block in &blocks {
+        if let Terminator::Return {
+            cleanup_actions, ..
+        } = &block.terminator
+        {
+            for action in cleanup_actions {
+                if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                    for obligation in &cleanup.requirement_obligations {
+                        next_guarantee =
+                            next_guarantee.max(obligation.get().checked_add(1).ok_or(
+                                LoweringError::Unsupported(
+                                    "nominal scalar cleanup identity space is exhausted",
+                                ),
+                            )?);
+                    }
+                }
+            }
+        }
+    }
+    let ensures = crate::unit::attached_unit::lower_normal_guarantees(
+        checked,
+        plan.state,
+        &scalar_parameters,
+        Some(result),
+        &erased_scalar_formals,
+        &views,
+        &mut next_guarantee,
+    )?;
+    lowered.semantic_module.machines.insert(
+        0,
+        super::TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach,
+            id: caller_machine,
+            attachment,
+            parameters: scalar_parameters,
+            structural_parameters: structural_parameters.clone(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(result),
+            structural_places: structural_parameters
+                .iter()
+                .map(|parameter| StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                    },
+                })
+                .collect(),
+            entry_claims: Vec::new(),
+            published_service_ceiling,
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: entry_block,
+            blocks,
+            contract: super::MachineContract {
+                id: crate::terminal_identities::contract_id(caller_machine.get()),
+                crash_routes: Vec::new(),
+                erased_scalar_formals,
+                erased_proof_formals:
+                    crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                        &plan.erased_proof_parameters,
+                    ),
+                requires: full_caller_requires,
+                ensures,
+                outcome_specific_ensures: Vec::new(),
             },
-        })
-        .collect();
+        },
+    );
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
@@ -1462,19 +1246,5 @@ fn attach_edge_local_cleanup_obligations(
             }
         }
     }
-    Ok(())
-}
-
-fn rebase_direct_boolean_requirement_root(
-    proposition: &mut Proposition,
-    places: &BTreeMap<PlaceId, PlaceId>,
-    error: &'static str,
-) -> Result<(), LoweringError> {
-    let Proposition::Equal(ScalarTerm::Boolean(_), ScalarTerm::BooleanField { root, .. }) =
-        proposition
-    else {
-        return unsupported(error);
-    };
-    *root = *places.get(root).ok_or(LoweringError::Unsupported(error))?;
     Ok(())
 }

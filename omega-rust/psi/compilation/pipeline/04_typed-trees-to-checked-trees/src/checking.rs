@@ -13,7 +13,7 @@ mod opaque_property_receipts;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
 
-use crate::checking::program_validation::validate_typed_program;
+use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
 use crate::facts::build_check_facts;
 use checked_trees::CheckedTrees;
@@ -305,7 +305,7 @@ fn lower_typed_trees_uncached(
     // closes before authored-selection finalization rewrites call targets.
     let frozen_program_scope = validation::enter_frozen_program_scope(&program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
-    let mut validated = validate_typed_program(
+    let mut validated = prepare_typed_program(
         &program,
         opaque_property_receipts,
         mode.allows_pending_opaque_copy(),
@@ -325,12 +325,12 @@ fn lower_typed_trees_uncached(
     // instead of rejudging every machine.
     let proven_machine_contracts =
         std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
-    let mut facts = build_check_facts(
+    let (mut facts, _prepared_effect_scope) = build_check_facts(
         &program,
         &validated.proof_plan,
         validated.operational,
         validated.service_reaches,
-        &validated.validation_facts,
+        validated.validation_facts,
         static_machine_selections,
         &mutation_summaries,
     )?;
@@ -374,6 +374,7 @@ fn lower_typed_trees_uncached(
             checks::check_checked_facts_recording_without_crash_admission(&program, &mut facts)?;
         }
     }
+    checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
     let mut facts = crate::execution::finalize_execution::finalize_execution(&program, facts)?;

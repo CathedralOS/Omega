@@ -10,6 +10,9 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    /// Final source execution dependencies, including selected cleanup edges.
+    /// The memo scope accelerates queries; it is not their semantic owner.
+    pub operational: flow_effects::OperationalPlan,
     pub semantic: facts::FactPlan,
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,

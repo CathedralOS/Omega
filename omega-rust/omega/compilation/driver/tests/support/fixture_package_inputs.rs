@@ -12,7 +12,7 @@
 //!   marker 2, the identity entry and dangerous-service acceptance name;
 //! - [`reviewed_repository_fixture_package_inputs`] adds this repository's
 //!   test acceptance: the target profile's reviewed `ProgramEntry` candidate
-//!   and the dangerous standard-library services the preliminary checked
+//!   and the selected package-owned services the preliminary checked
 //!   graph requires;
 //! - the `*_build` writers restate a fixture's authored rows for a scratch
 //!   copy of its source, through absolute paths, so no test target types the
@@ -140,10 +140,9 @@ pub struct FixturePathDependency {
 /// The reader's entry to fixture package mode: exactly the dependencies a
 /// fixture authored, read through the build vocabulary that owns them.
 ///
-/// A fixture compiles in package mode when — and only when — its `build.omg`
-/// authors at least one unconditional `Build::depend`, `depend_as`,
-/// `build_depend` or `build_depend_as` row. A project with no `build.omg`, or
-/// one with no dependency row, compiles without package inputs. Every row must
+/// Dependency rows extend the package identity authored by `Build::package`
+/// or `Build::application`. A project with no declaration and no dependency
+/// row compiles without package inputs. Every row must
 /// name `Source::Path { location: "<path>" }`; that location must resolve
 /// relative to the declaring project; and the directory it names must itself
 /// declare `Build::package(builder, ...)`. Nothing else is admitted: the harness never
@@ -345,9 +344,8 @@ fn fixture_root_declaration(project_root: &Path) -> (BuildDeclarationKind, Strin
 
 /// Package inputs for a repository fixture, or `None` when it authored no
 /// dependency at all and did not request package identity. A fixture that
-/// declares `Build::package` compiles in package mode even with an empty
-/// dependency set; an `application` fixture without a dependency row stays
-/// standalone.
+/// declares `Build::package` or `Build::application` compiles in package mode
+/// even with an empty dependency set.
 ///
 /// Identities: the compilation root takes marker 1 and the bundled standard
 /// library marker 2 — pinned so entry and dangerous-service acceptance can
@@ -368,8 +366,7 @@ pub fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageComp
 /// Package inputs for a copy of a repository fixture staged under another
 /// directory: the rows are read from the fixture's authored project, where
 /// their relative locations resolve, and the root package is bound to the
-/// copy. `None` when the fixture authored no dependency and does not declare
-/// `Build::package`.
+/// copy. `None` when the fixture authored no dependency or project declaration.
 pub fn copied_fixture_package_inputs(
     authored_project_root: &Path,
     copied_project_root: &Path,
@@ -407,21 +404,24 @@ fn dependency_free_inputs(
     .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", authored_root.display()))
 }
 
-/// A fixture that declares `Build::package` requests package identity even
-/// with an empty dependency set; an `application` fixture without a
-/// dependency row stays standalone.
+/// Both authored package and application declarations retain their package
+/// identity even when they have no dependencies.
 fn dependency_free_package_inputs_bound_to(
     authored_root: &Path,
     bound_root: &Path,
 ) -> Option<PackageCompilationInputs> {
-    let Ok(BuildDeclaration::Package(package)) = extract_build_declaration(authored_root) else {
-        return None;
+    let declaration = extract_build_declaration(authored_root).ok()?;
+    let role = declaration.kind();
+    let name = match declaration {
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Workspace(_) => return None,
     };
     Some(dependency_free_inputs(
         authored_root,
         bound_root,
-        BuildDeclarationKind::Package,
-        package.name.into_string(),
+        role,
+        name.into_string(),
     ))
 }
 
@@ -675,35 +675,19 @@ fn derive_program_entry_binding(
     })
 }
 
-/// The package graph plus this repository's test acceptance for a fixture
-/// that authored a dependency on the bundled standard library: the target
-/// profile's reviewed entry candidate, then the dangerous services the
-/// preliminary checked graph requires. `None` for a fixture that stays
-/// standalone.
+/// The authored package graph plus this repository's test acceptance: the
+/// bundled library's target entry candidate when present, then the services the
+/// preliminary checked graph requires, including root-owned services. `None`
+/// for a fixture that stays standalone.
 pub fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
-    reviewed_repository_fixture_package_inputs_with(
-        root_path,
-        target_name,
-        FixtureReviewCache::Reuse,
-    )
-}
-
-pub fn reviewed_repository_fixture_package_inputs_with(
-    root_path: &Path,
-    target_name: Option<&str>,
-    cache: FixtureReviewCache,
-) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
     let Some(mut package_inputs) = repository_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
-    // Entry and dangerous-service acceptance admit declarations the bundled
-    // standard library owns, so they apply only to a fixture that authored a
-    // dependency on it. `repository_fixture_package_inputs` pins that
-    // package's fixture identity for exactly this reason; nothing else here
-    // decides package mode.
+    // Hosted entry acceptance belongs to the bundled standard library's exact
+    // package identity. Service acceptance below follows each selected owner.
     let standard_library_identity = fixture_package_identity(2);
     let declares_standard_library = package_inputs
         .packages()
@@ -727,63 +711,20 @@ pub fn reviewed_repository_fixture_package_inputs_with(
                 ))]
             })?;
     }
-    // Dangerous-service acceptance is this repository's test policy, decided
-    // by the program rather than its spelling: the preliminary checked graph
-    // says which standard-library services the fixture selected and which
-    // operations it resolved against them, and every admitted row is then
-    // derived from and replayed against that same graph. A fixture that
-    // authored no dependency on the bundled standard library cannot require
-    // a service it owns, so it is not compiled twice. This is not evidence
-    // that an audit occurred and is not production accepted-lock recovery.
-    if !declares_standard_library {
-        return Ok(Some(package_inputs));
+    // Discovery publishes candidate source semantics before schema/plan
+    // commitments. Only the following accepted pass grants execution authority.
+    // Reconstruct from this exact graph: a target/use-flags cache cannot retain
+    // package ownership, source-dependent contracts or provider-plan identity.
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
+        permit_unsettled_fused_service_fields: true,
+        ..CheckedCompileRequest::new(root_path, target_name)
+    })?;
+    for (owner, _) in package_inputs.packages() {
+        let required =
+            dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
+        bindings.extend(dangerous_service_bindings(&preliminary, owner, &required)?);
     }
-    // The verdict depends only on the fixture's and the library's sources for
-    // one target, and the bindings only on the target and that verdict, so
-    // both are reused: the verdict from a file keyed by those sources'
-    // digest, the bindings from this process. The product compile still
-    // replays every accepted row against its own checked graph and rejects a
-    // row that is stale or unconsumed; `production_compile` then discards the
-    // entry and recomputes once. `OMEGA_FIXTURE_REVIEW_CACHE=off` bypasses it.
-    let cache_key = fixture_review_cache_key(root_path, target_name);
-    let cached = match (cache, cache_key) {
-        (FixtureReviewCache::Reuse, Some(key)) => {
-            read_cached_dangerous_services(key).and_then(|required| {
-                cached_dangerous_service_bindings(target_name, &required)
-                    .map(|service_bindings| (required, service_bindings))
-            })
-        }
-        _ => None,
-    };
-    let (required, service_bindings) = match cached {
-        Some(cached) => cached,
-        None => {
-            // Like consumer review's discovery pass, the preliminary compile
-            // admits entry `Binding<R>` fields whose Fused selection does not
-            // exist yet: accepting the canonical host bindings below is what
-            // lets settlement mint those selections for the real compile.
-            let preliminary = compile_to_checked(CheckedCompileRequest {
-                package_inputs: Some(package_inputs.clone()),
-                permit_unsettled_fused_service_fields: true,
-                ..CheckedCompileRequest::new(root_path, target_name)
-            })?;
-            let required = dangerous_service_acceptance::required_dangerous_services(
-                &preliminary,
-                standard_library_identity,
-            );
-            let service_bindings =
-                dangerous_service_bindings(&preliminary, standard_library_identity, &required)?;
-            if let Some(key) = cache_key {
-                write_cached_dangerous_services(key, &required);
-            }
-            remember_dangerous_service_bindings(target_name, &required, &service_bindings);
-            (required, service_bindings)
-        }
-    };
-    if !required.any() {
-        return Ok(Some(package_inputs));
-    }
-    bindings.extend(service_bindings);
     package_inputs
         .with_accepted_semantic_bindings(bindings)
         .map(Some)
@@ -819,19 +760,11 @@ fn memoized_program_entry_binding(
     Ok(binding)
 }
 
-/// Whether `reviewed_repository_fixture_package_inputs` may reuse an earlier
-/// preliminary verdict for the same sources.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FixtureReviewCache {
-    Reuse,
-    Bypass,
-}
-
 /// The dangerous-service rows the preliminary checked graph admits, every one
 /// derived from and replayed against that graph.
 fn dangerous_service_bindings(
     preliminary: &compiler::CheckedCompilation,
-    standard_library_identity: PackageKeyIdentity,
+    owner: PackageKeyIdentity,
     required: &dangerous_service_acceptance::RequiredDangerousServices,
 ) -> Result<Vec<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let mut bindings = Vec::new();
@@ -841,7 +774,7 @@ fn dangerous_service_bindings(
                 .execution()
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::FilesystemHostService,
-                    standard_library_identity,
+                    owner,
                     "FilesystemHost",
                 )
                 .map_err(|diagnostic| vec![diagnostic])?,
@@ -853,7 +786,7 @@ fn dangerous_service_bindings(
                 .execution()
                 .candidate_service_binding(
                     AcceptedSemanticBindingRole::TimeHostService,
-                    standard_library_identity,
+                    owner,
                     "TimeHost",
                 )
                 .map_err(|diagnostic| vec![diagnostic])?,
@@ -862,7 +795,7 @@ fn dangerous_service_bindings(
     if let Some(console) = required.console {
         bindings.push(console_acceptance::candidate_console_exit_binding(
             preliminary,
-            standard_library_identity,
+            owner,
             console.output,
             console.input,
         )?);
@@ -870,373 +803,10 @@ fn dangerous_service_bindings(
     if required.process_exit {
         bindings.push(process_exit_acceptance::candidate_process_exit_binding(
             preliminary,
-            standard_library_identity,
+            owner,
         )?);
     }
     Ok(bindings)
-}
-
-/// The verdict as seven flags: filesystem, time, process exit, whether the
-/// console was used, and the console's exit, output and input operations.
-fn dangerous_service_flags(
-    required: &dangerous_service_acceptance::RequiredDangerousServices,
-) -> [bool; 7] {
-    let console = required.console.unwrap_or_default();
-    [
-        required.filesystem,
-        required.time,
-        required.process_exit,
-        required.console.is_some(),
-        console.exit,
-        console.output,
-        console.input,
-    ]
-}
-
-fn dangerous_services_from_flags(
-    flags: [bool; 7],
-) -> dangerous_service_acceptance::RequiredDangerousServices {
-    dangerous_service_acceptance::RequiredDangerousServices {
-        filesystem: flags[0],
-        time: flags[1],
-        process_exit: flags[2],
-        console: flags[3].then_some(dangerous_service_acceptance::ConsoleUse {
-            exit: flags[4],
-            output: flags[5],
-            input: flags[6],
-        }),
-    }
-}
-
-type DangerousServiceBindingMemo =
-    std::sync::Mutex<std::collections::HashMap<(String, [bool; 7]), Vec<AcceptedSemanticBinding>>>;
-
-fn dangerous_service_binding_memo() -> &'static DangerousServiceBindingMemo {
-    static MEMO: std::sync::OnceLock<DangerousServiceBindingMemo> = std::sync::OnceLock::new();
-    MEMO.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-}
-
-fn cached_dangerous_service_bindings(
-    target_name: Option<&str>,
-    required: &dangerous_service_acceptance::RequiredDangerousServices,
-) -> Option<Vec<AcceptedSemanticBinding>> {
-    if !required.any() {
-        return Some(Vec::new());
-    }
-    let key = (
-        target_name.unwrap_or_default().to_owned(),
-        dangerous_service_flags(required),
-    );
-    if let Some(bindings) = dangerous_service_binding_memo()
-        .lock()
-        .ok()
-        .and_then(|memo| memo.get(&key).cloned())
-    {
-        return Some(bindings);
-    }
-    // A fresh process derives these rows from one fixture's preliminary
-    // compile per (target, verdict); the rows depend only on those and the
-    // library, so a file keyed by the library's digest carries them across
-    // runs.
-    let bindings = read_cached_bindings(&bindings_cache_path(target_name, required)?)?;
-    if let Ok(mut memo) = dangerous_service_binding_memo().lock() {
-        memo.insert(key, bindings.clone());
-    }
-    Some(bindings)
-}
-
-fn remember_dangerous_service_bindings(
-    target_name: Option<&str>,
-    required: &dangerous_service_acceptance::RequiredDangerousServices,
-    bindings: &[AcceptedSemanticBinding],
-) {
-    if let Ok(mut memo) = dangerous_service_binding_memo().lock() {
-        memo.insert(
-            (
-                target_name.unwrap_or_default().to_owned(),
-                dangerous_service_flags(required),
-            ),
-            bindings.to_vec(),
-        );
-    }
-    if let Some(path) = bindings_cache_path(target_name, required) {
-        write_cached_bindings(&path, bindings);
-    }
-}
-
-fn bindings_cache_path(
-    target_name: Option<&str>,
-    required: &dangerous_service_acceptance::RequiredDangerousServices,
-) -> Option<PathBuf> {
-    use std::hash::{Hash, Hasher};
-    if std::env::var_os("OMEGA_FIXTURE_REVIEW_CACHE").is_some_and(|value| value == "off") {
-        return None;
-    }
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    "fixture-review-bindings-v1".hash(&mut hasher);
-    target_name.hash(&mut hasher);
-    bundled_library_sources_hash()?.hash(&mut hasher);
-    dangerous_service_flags(required).hash(&mut hasher);
-    Some(
-        repo_root()
-            .join("target")
-            .join("fixture-review-cache")
-            .join(format!("bindings-{:016x}.txt", hasher.finish())),
-    )
-}
-
-/// One line per field: `role`, `package`, `path`, `schema`, `plan`, then one
-/// `permission <schema> <class tags> <requirement>` line per row, and `end`.
-/// Only the four dangerous-service roles occur here; anything else is not
-/// cached, and a written file must decode back to exactly the rows it
-/// encodes.
-fn encode_bindings(bindings: &[AcceptedSemanticBinding]) -> Option<String> {
-    let mut text = String::new();
-    for binding in bindings {
-        let role = match binding.role() {
-            AcceptedSemanticBindingRole::FilesystemHostService => "filesystem",
-            AcceptedSemanticBindingRole::TimeHostService => "time",
-            AcceptedSemanticBindingRole::ConsoleExitProcessI32 => "console-exit",
-            AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => "process-exit",
-            _ => return None,
-        };
-        if binding.declaration_path().contains('\n') {
-            return None;
-        }
-        text.push_str(&format!("role {role}\n"));
-        text.push_str(&format!("package {}\n", hex(&binding.package().digest())));
-        text.push_str(&format!("path {}\n", binding.declaration_path()));
-        text.push_str(&format!(
-            "schema {}\n",
-            hex(binding.normalized_schema_digest().as_bytes())
-        ));
-        match binding.selected_provider_plan_digest() {
-            Some(plan) => text.push_str(&format!("plan {}\n", hex(plan.as_bytes()))),
-            None => text.push_str("plan none\n"),
-        }
-        for permission in binding.terminal_authority_permissions() {
-            let tags = permission
-                .permitted()
-                .classes()
-                .iter()
-                .map(|class| class.canonical_tag().to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-            let requirement = permission.requirement_identity();
-            if requirement.contains('\n') {
-                return None;
-            }
-            text.push_str(&format!(
-                "permission {} {} {requirement}\n",
-                hex(permission.service_schema().as_bytes()),
-                if tags.is_empty() { "-" } else { &tags },
-            ));
-        }
-        text.push_str("end\n");
-    }
-    Some(text)
-}
-
-fn decode_bindings(text: &str) -> Option<Vec<AcceptedSemanticBinding>> {
-    let mut bindings = Vec::new();
-    let mut lines = text.lines();
-    while let Some(line) = lines.next() {
-        let role = match line.strip_prefix("role ")? {
-            "filesystem" => AcceptedSemanticBindingRole::FilesystemHostService,
-            "time" => AcceptedSemanticBindingRole::TimeHostService,
-            "console-exit" => AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            "process-exit" => AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-            _ => return None,
-        };
-        let package =
-            PackageKeyIdentity::from_digest(unhex(lines.next()?.strip_prefix("package ")?)?)?;
-        let path = lines.next()?.strip_prefix("path ")?;
-        let schema = effects::provider_plan::ServiceSchemaDigest::from_digest(unhex(
-            lines.next()?.strip_prefix("schema ")?,
-        )?);
-        let binding = match lines.next()?.strip_prefix("plan ")? {
-            "none" => AcceptedSemanticBinding::new_service(role, package, path, schema).ok()?,
-            plan => AcceptedSemanticBinding::new(
-                role,
-                package,
-                path,
-                schema,
-                effects::provider_plan::ProviderPlanDigest::from_digest(unhex(plan)?),
-            )
-            .ok()?,
-        };
-        let mut permissions = Vec::new();
-        loop {
-            let line = lines.next()?;
-            if line == "end" {
-                break;
-            }
-            let mut fields = line.strip_prefix("permission ")?.splitn(3, ' ');
-            let permission_schema =
-                effects::provider_plan::ServiceSchemaDigest::from_digest(unhex(fields.next()?)?);
-            let tags = fields.next()?;
-            let classes = if tags == "-" {
-                Vec::new()
-            } else {
-                tags.split(',')
-                    .map(|tag| {
-                        let tag = tag.parse::<u8>().ok()?;
-                        effects::TerminalAuthorityClass::ALL
-                            .into_iter()
-                            .find(|class| class.canonical_tag() == tag)
-                    })
-                    .collect::<Option<Vec<_>>>()?
-            };
-            let disposition =
-                effects::TerminalAuthorityDisposition::try_from_canonical_classes(classes).ok()?;
-            permissions.push(effects::ServiceTerminalAuthorityPermission::new(
-                permission_schema,
-                fields.next()?,
-                disposition,
-            ));
-        }
-        bindings.push(
-            binding
-                .with_terminal_authority_permissions(permissions)
-                .ok()?,
-        );
-    }
-    Some(bindings)
-}
-
-fn read_cached_bindings(path: &Path) -> Option<Vec<AcceptedSemanticBinding>> {
-    decode_bindings(&fs::read_to_string(path).ok()?)
-}
-
-fn write_cached_bindings(path: &Path, bindings: &[AcceptedSemanticBinding]) {
-    let Some(text) = encode_bindings(bindings) else {
-        return;
-    };
-    if decode_bindings(&text).as_deref() != Some(bindings) {
-        return;
-    }
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let _ = fs::write(path, text);
-}
-
-fn hex(bytes: &[u8; 32]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn unhex(text: &str) -> Option<[u8; 32]> {
-    if text.len() != 64 {
-        return None;
-    }
-    let mut bytes = [0; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(text.get(index * 2..index * 2 + 2)?, 16).ok()?;
-    }
-    Some(bytes)
-}
-
-/// Every `.omg` file under `root`, in path order, hashed by relative path and
-/// content. `None` when the tree cannot be read.
-fn hash_omega_sources(root: &Path, hasher: &mut impl std::hash::Hasher) -> Option<()> {
-    use std::hash::Hash;
-    let mut files = Vec::new();
-    let mut pending = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(&directory).ok()? {
-            let path = entry.ok()?.path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "omg") {
-                files.push(path);
-            }
-        }
-    }
-    files.sort();
-    for path in files {
-        path.strip_prefix(root)
-            .ok()?
-            .to_string_lossy()
-            .replace('\\', "/")
-            .hash(hasher);
-        fs::read(&path).ok()?.hash(hasher);
-    }
-    Some(())
-}
-
-/// The library sources' digest, computed once per process.
-fn bundled_library_sources_hash() -> Option<u64> {
-    static HASH: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
-    *HASH.get_or_init(|| {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        let library = bundled_standard_library_root();
-        hash_omega_sources(library.parent()?, &mut hasher)?;
-        Some(std::hash::Hasher::finish(&hasher))
-    })
-}
-
-/// A digest of everything the preliminary verdict depends on: the fixture's
-/// sources, the bundled library's sources, the target and this format.
-fn fixture_review_cache_key(root_path: &Path, target_name: Option<&str>) -> Option<u64> {
-    use std::hash::{Hash, Hasher};
-    if std::env::var_os("OMEGA_FIXTURE_REVIEW_CACHE").is_some_and(|value| value == "off") {
-        return None;
-    }
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    "fixture-review-verdict-v1".hash(&mut hasher);
-    target_name.hash(&mut hasher);
-    bundled_library_sources_hash()?.hash(&mut hasher);
-    hash_omega_sources(root_path.parent()?, &mut hasher)?;
-    Some(hasher.finish())
-}
-
-fn fixture_review_cache_path(key: u64) -> PathBuf {
-    repo_root()
-        .join("target")
-        .join("fixture-review-cache")
-        .join(format!("{key:016x}.txt"))
-}
-
-fn read_cached_dangerous_services(
-    key: u64,
-) -> Option<dangerous_service_acceptance::RequiredDangerousServices> {
-    let text = fs::read_to_string(fixture_review_cache_path(key)).ok()?;
-    let mut flags = [false; 7];
-    let values = text.split_whitespace().collect::<Vec<_>>();
-    if values.len() != flags.len() {
-        return None;
-    }
-    for (flag, value) in flags.iter_mut().zip(values) {
-        *flag = match value {
-            "1" => true,
-            "0" => false,
-            _ => return None,
-        };
-    }
-    Some(dangerous_services_from_flags(flags))
-}
-
-fn write_cached_dangerous_services(
-    key: u64,
-    required: &dangerous_service_acceptance::RequiredDangerousServices,
-) {
-    let path = fixture_review_cache_path(key);
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let text = dangerous_service_flags(required)
-        .iter()
-        .map(|flag| if *flag { "1" } else { "0" })
-        .collect::<Vec<_>>()
-        .join(" ");
-    let _ = fs::write(path, text);
-}
-
-/// Forget a cached verdict whose accepted rows the product compile rejected.
-pub fn discard_fixture_review_cache(root_path: &Path, target_name: Option<&str>) {
-    if let Some(key) = fixture_review_cache_key(root_path, target_name) {
-        let _ = fs::remove_file(fixture_review_cache_path(key));
-    }
 }
 
 pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {

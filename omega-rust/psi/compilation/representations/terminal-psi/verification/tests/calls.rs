@@ -61,6 +61,8 @@ fn boundary_call_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
@@ -721,4 +723,34 @@ fn structural_case_id(raw: u64) -> StructuralCaseId {
 
 fn service_id(raw: u64) -> ServiceId {
     ServiceId::new(raw).unwrap()
+}
+
+#[test]
+fn normal_provider_cannot_launder_external_completion() {
+    let mut module = provider_candidate_module();
+    let mut external = module.boundary_machines[0].clone();
+    external.id = boundary_id(2);
+    external.identity = "test::external_completion".into();
+    module.boundary_machines.push(external);
+    module.machines[1].blocks[0].operations.push(Operation {
+        id: operation_id(20),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_id(2),
+            arguments: vec![value_id(2)],
+            structural_arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    validate_module(&module).expect("ordinary provider may call an admitted returning boundary");
+    module.boundary_machines[1].completion = terminal_psi::BoundaryCompletion::External(
+        terminal_psi::ExternalCompletionKind::ProcessExit,
+    );
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidProviderCandidate { .. })
+    ));
 }

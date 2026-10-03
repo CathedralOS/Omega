@@ -60,11 +60,18 @@ pub(crate) fn append_affine_cleanup_permission_events(
         .iter()
         .rev()
     {
-        if let StatementNode::LocalData(local) = statement {
+        if let StatementNode::LocalData(local) = statement
+            && !local.relevance.is_erased()
+        {
             append(local.symbol, local.type_reference);
         }
     }
-    for parameter in program.state_parameters(state).iter().rev() {
+    for parameter in program
+        .state_parameters(state)
+        .iter()
+        .rev()
+        .filter(|parameter| !parameter.relevance.is_erased())
+    {
         // An owned `self` receiver's place roots at the machine symbol — the
         // same durable root `normalized_event_place_root` publishes for its
         // moves. Borrowed receivers keep their unrestricted reference type and

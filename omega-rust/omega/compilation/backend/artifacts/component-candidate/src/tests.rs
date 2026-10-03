@@ -17,6 +17,7 @@ fn selected_plan() -> ProviderPlan {
             trait_name: "IndexedRequirement".into(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "apply".into(),
                 requirement_owner: "IndexedRequirement".into(),
                 requirement_owner_package_identity: None,

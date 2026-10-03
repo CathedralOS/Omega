@@ -247,6 +247,8 @@ struct VirtualFd {
 
 pub(crate) struct Evaluator<'program> {
     program: &'program TypedTrees,
+    /// Checked normal-edge cleanup custody; absent during typed-only evaluation.
+    checked: Option<&'program CheckedTrees>,
     /// Full-program interpretation retains checked named-operator evidence so
     /// a root-preserving intrinsic rewrite can still report the source
     /// operation. Admitted Build evaluation retains the same facts; early

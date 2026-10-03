@@ -20,6 +20,8 @@ pub(crate) fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
     let second_boundary = id(447, BoundaryMachineId::new);
     let unused_boundary = id(448, BoundaryMachineId::new);
     let boundary = |id, identity: &str| terminal_psi::BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

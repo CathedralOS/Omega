@@ -28,7 +28,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 2;
+const RECORD_VERSION: u16 = 3;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -238,6 +238,12 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
         encode_carry(&claim.effective_carry, out);
         encode_string(claim.authority_flow.as_str(), out);
     }
+    out.push(match method.completion {
+        semantic_vocabulary::BoundaryCompletion::NormalReturn => 0,
+        semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        ) => 1,
+    });
     out.push(u8::from(method.has_result));
     encode_optional(
         method.result_type_identity.as_ref(),
@@ -322,6 +328,13 @@ fn recover_service_method(cursor: &mut ObservationCursor<'_>) -> Option<ServiceM
             authority_flow,
         })
     })?;
+    let completion = match cursor.u8()? {
+        0 => semantic_vocabulary::BoundaryCompletion::NormalReturn,
+        1 => semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        ),
+        _ => return None,
+    };
     let has_result = cursor_bool(cursor)?;
     let result_type_identity =
         recover_optional(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
@@ -377,6 +390,7 @@ fn recover_service_method(cursor: &mut ObservationCursor<'_>) -> Option<ServiceM
         _ => {}
     }
     Some(ServiceMethod {
+        completion,
         name,
         requirement_owner,
         requirement_owner_package_identity,

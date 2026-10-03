@@ -146,6 +146,7 @@ fn fixture_with_inventory(
     realization.report_fingerprint = fingerprint;
     realization.commitment = commitment;
     let method = ServiceMethod {
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         name: METHOD_NAME.to_owned(),
         requirement_owner: requirement_owner_name.to_owned(),
         requirement_identity: requirement_identity.clone(),

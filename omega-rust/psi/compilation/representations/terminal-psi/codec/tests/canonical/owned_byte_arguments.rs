@@ -69,6 +69,8 @@ fn owned_byte_call(boundary: bool) -> TerminalModule {
     };
     let call = if boundary {
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             id: boundary_machine_id(1),
             identity: "observe".into(),
             kind: terminal_psi::BoundaryRequirementKind::Trait,

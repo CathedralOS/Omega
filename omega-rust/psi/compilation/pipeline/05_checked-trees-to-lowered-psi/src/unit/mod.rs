@@ -92,10 +92,9 @@ use crate::terminal_identities::{
     structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
-    checked_unit_call_closure_including, checked_unit_target_reach_matches,
-    collect_service_summary, lower_composed_unit_control_machine,
-    lower_installation_machine_service_ceiling, lower_root_service_reach, lower_unit_closure,
-    lower_unit_parameters, unique_unit_machine,
+    checked_unit_target_reach_matches, collect_service_summary,
+    lower_composed_unit_control_machine, lower_installation_machine_service_ceiling,
+    lower_root_service_reach, lower_unit_closure, lower_unit_parameters, unique_unit_machine,
 };
 use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use crate::unit::unit_cleanup::{

@@ -133,6 +133,19 @@ pub(crate) fn infer_service_reaches_uncached(
                 }
             }
         }
+        for (_, dependency) in operational
+            .cleanup_dependencies
+            .iter()
+            .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
+        {
+            // Internal ownership-edge calls propagate the target's checked
+            // closure; they do not manufacture a direct boundary invocation.
+            calls.push((
+                dependency.target_machine,
+                DirectServiceReach::default(),
+                HandleSpan::empty(),
+            ));
+        }
         work.push(MachineReachWork {
             symbol: machine.symbol,
             declared: published.clone(),
@@ -322,6 +335,30 @@ pub(crate) fn infer_service_reaches_uncached(
                             unresolved_installation_reaches: call_unresolved,
                         },
                     );
+                }
+                for (_, dependency) in
+                    operational
+                        .cleanup_dependencies
+                        .iter()
+                        .filter(|(_, dependency)| {
+                            dependency.caller_machine == machine.symbol
+                                && dependency.caller_state == state_summary.symbol
+                        })
+                {
+                    if let Some(target) = work_index
+                        .get(&dependency.target_machine)
+                        .map(|index| &work[*index])
+                    {
+                        extend_service_set(&mut state_transitive, effective_services(target));
+                        extend_service_set(
+                            &mut state_concrete_transitive,
+                            concrete_effective_services(target),
+                        );
+                        extend_installation_reaches(
+                            &mut state_unresolved,
+                            &target.unresolved_installation_reaches,
+                        );
+                    }
                 }
                 let inferred_direct = plan.rows.intern(state_direct);
                 let inferred_transitive = plan.rows.intern(state_transitive);

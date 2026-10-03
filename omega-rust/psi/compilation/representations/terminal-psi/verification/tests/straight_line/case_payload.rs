@@ -274,6 +274,8 @@ fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
     };
     cases[0].trivial_affine_discards.push(source.place);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

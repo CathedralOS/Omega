@@ -247,6 +247,30 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
+    // Cleanup invokes its target on this normal edge just as an operation
+    // invokes a callee. The caller must cover the target's entire published
+    // reach; an empty body does not erase this executable dependency.
+    for block in &machine.blocks {
+        for cleanup in nominal_cleanups(&block.terminator) {
+            let target = machines.get(&cleanup.cleanup_machine).ok_or(
+                ModuleError::InvalidNominalAffineCleanup {
+                    machine: machine.id,
+                    block: block.id,
+                },
+            )?;
+            if !super::call_graph::has_finite_normal_completion(module, target.id)
+                || target
+                    .published_service_ceiling
+                    .iter()
+                    .any(|service| !machine.published_service_ceiling.contains(service))
+            {
+                return Err(ModuleError::InvalidNominalAffineCleanup {
+                    machine: machine.id,
+                    block: block.id,
+                });
+            }
+        }
+    }
     let nominal_returns = machine
         .blocks
         .iter()
@@ -279,7 +303,6 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         || machine.structural_parameters.len() != cleanups.len()
         || machine.structural_places.len() != cleanups.len()
         || !machine.entry_claims.is_empty()
-        || !machine.published_service_ceiling.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
@@ -317,40 +340,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
             return Err(invalid(block.id));
         };
         target_ids.insert(target.id);
-        // The hook body is ordinary terminal control — it is verified as an
-        // ordinary machine elsewhere. What stays exact here is the selection
-        // pairing: the target is owned by the consumed type, returns `Unit`,
-        // takes no scalar arguments, and carries at most the exclusive borrowed
-        // receiver the edge lends.
-        let borrowed_receiver = |parameter: &terminal_psi::StructuralParameterDeclaration| {
-            parameter.position == 0
-                && parameter.structural_type == cleanup.structural_type
-                && matches!(
-                    parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )
-        };
-        if target.id == machine.id
-            || cleanup.requirement_obligations.len() != target.contract.requires.len()
-            || target.attachment != Some(cleanup.structural_type)
-            || target.result != TerminalMachineResult::Unit
-            || !target.parameters.is_empty()
-            || target.structural_parameters.len() > 1
-            || target
-                .structural_parameters
-                .iter()
-                .any(|parameter| !borrowed_receiver(parameter))
-            || !target.contract.crash_routes.is_empty()
-            || !valid_nominal_cleanup_requirements(module, target, cleanup)
-        {
-            return Err(invalid(block.id));
-        }
-        // A declared borrowed receiver is exactly the place the edge lends —
-        // `cleanup_receiver` names it. A contextual proof root without a
-        // declared parameter keeps its validity-scoped identity.
-        if let Some(receiver) = target.structural_parameters.first()
-            && cleanup.cleanup_receiver != Some(receiver.place)
-        {
+        if !valid_nominal_cleanup_target(module, machine.id, target, cleanup) {
             return Err(invalid(block.id));
         }
     }
@@ -368,21 +358,9 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
             let Some(current_machine) = machines.get(&current).copied() else {
                 return Err(invalid(block.id));
             };
-            for current_block in &current_machine.blocks {
-                for operation in &current_block.operations {
-                    let callee = match &operation.kind {
-                        OperationKind::Call { callee, .. }
-                        | OperationKind::CallUnit { callee, .. }
-                        | OperationKind::CallStructuralScalar { callee, .. }
-                        | OperationKind::CallStructural { callee, .. }
-                        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-                            *callee
-                        }
-                        _ => continue,
-                    };
-                    if reachable.insert(callee) {
-                        pending.push(callee);
-                    }
+            for callee in super::call_graph::executable_callees(module, current_machine) {
+                if reachable.insert(callee) {
+                    pending.push(callee);
                 }
             }
         }
@@ -395,6 +373,33 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         }
     }
     Ok(())
+}
+
+/// Unit and scalar returns lend the same exact owner to an ordinary hook.
+/// Its declared parameter place determines custody; receiver spelling adds no authority.
+pub(super) fn valid_nominal_cleanup_target(
+    module: &TerminalModule,
+    caller: MachineId,
+    target: &TerminalMachine,
+    cleanup: &terminal_psi::NominalAffineCleanup,
+) -> bool {
+    target.id != caller
+        && target.attachment == Some(cleanup.structural_type)
+        && target.result == TerminalMachineResult::Unit
+        && target.parameters.is_empty()
+        && target.structural_parameters.len() <= 1
+        && target.structural_parameters.iter().all(|parameter| {
+            parameter.position == 0
+                && parameter.structural_type == cleanup.structural_type
+                && matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+                && cleanup.cleanup_receiver == Some(parameter.place)
+        })
+        && target.contract.crash_routes.is_empty()
+        && cleanup.requirement_obligations.len() == target.contract.requires.len()
+        && valid_nominal_cleanup_requirements(module, target, cleanup)
 }
 
 pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
@@ -430,7 +435,7 @@ pub(super) fn valid_nominal_cleanup_requirements(
     cleanup: &terminal_psi::NominalAffineCleanup,
 ) -> bool {
     if target.contract.requires.is_empty() {
-        // The receiver is still allowed to name the hook's borrowed `self`
+        // The receiver may still name the hook's borrowed
         // parameter — that place doubles as the proof root — but no
         // obligations may exist without requirement clauses.
         return cleanup.requirement_obligations.is_empty();
@@ -439,7 +444,7 @@ pub(super) fn valid_nominal_cleanup_requirements(
     let Some(receiver) = cleanup.cleanup_receiver else {
         return false;
     };
-    // A receiver may name the target's own borrowed `self` parameter — the
+    // A receiver may name the target's own borrowed parameter — the
     // place the edge lends — but never any other declared structural place.
     let receiver_parameter = target.structural_parameters.iter().find(|parameter| {
         parameter.position == 0

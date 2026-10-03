@@ -104,9 +104,13 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_domain_case_membership_meaning, has_exact_integer_domain_subject,
     has_exact_parameter_case_membership_meaning,
 };
+pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
 pub use value_custody::intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;
 pub use value_custody::intrinsic_boundaries::exact_external_leaf_boundary_requirement;
+pub use value_custody::intrinsic_boundaries::is_canonical_process_exit_requirement;
+pub use value_custody::intrinsic_boundaries::valid_boundary_completion_declaration;
+pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declarations;
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
@@ -159,8 +163,8 @@ pub use declarations::traits::{
 pub use machine_calls::effect_inference::{
     declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
-    infer_operational_may, infer_service_reaches, infer_synchronous_invocations,
-    invocation_target_label,
+    infer_operational_may, infer_operational_may_with_cleanup_dependencies, infer_service_reaches,
+    infer_synchronous_invocations, invocation_target_label,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
@@ -339,11 +343,13 @@ pub use frozen_program::{
     FrozenProgramScope, enter_frozen_program_scope, proof_only_classification,
 };
 pub use machine_calls::reference_result_custody;
+pub use program_scope::effects::{PreparedEffectScope, enter_prepared_effect_scope};
 pub use program_scope::{ProgramPlanScopeGuard, enter_program_plan_scope};
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
     OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
-    checked_operator_contract_snapshot, collect_contract_entailment_stand_downs,
+    admit_prepared_program_effects, checked_operator_contract_snapshot,
+    collect_contract_entailment_stand_downs, prepare_specialized_program,
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
     validate_generic_machine_contract_entailment, validate_program, validate_specialized_program,
     validate_specialized_program_deferring_quotient_requests,

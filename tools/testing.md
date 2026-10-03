@@ -162,6 +162,10 @@ re-recording cannot bless a wrong runtime result. Bind the host in `build.omg`
 when providing an oracle. Without an oracle, the existing observation-only
 golden behavior is unchanged. `--both` attempts the checked interpreter too;
 its `declined` result (currently including traps) is not proof of agreement.
+When `--interpret` or `--both` is requested, an authored `expected_stdout.txt`
+also requires completed interpreter execution and `interpreter-stdout:match`.
+Matching exit codes cannot excuse missing or different output, and `--record`
+refuses that result before changing the golden.
 
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign

@@ -12,7 +12,7 @@ use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use terminal_psi::ValueDeclaration;
 
-pub(super) fn lower(
+pub(crate) fn lower(
     checked: &CheckedTrees,
     state: SymbolHandle,
     parameters: &[ValueDeclaration],

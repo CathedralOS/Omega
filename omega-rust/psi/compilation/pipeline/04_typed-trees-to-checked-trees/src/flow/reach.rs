@@ -4,7 +4,7 @@
 use checked_trees::{FlowControlFacts, FlowFacts};
 use language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 
-pub(super) fn attach_reach_summaries(
+pub(crate) fn attach_reach_summaries(
     program: &typed_trees::TypedTrees,
     flow: &mut FlowFacts,
     service_reaches: &flow_effects::ServiceReachInferencePlan,

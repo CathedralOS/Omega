@@ -2,9 +2,9 @@ use super::{
     boundary_call_mut, content_entry_claim, content_predicate, contextual_nominal_affine_module,
     executable_nominal_affine_module, five_call_executable_nominal_affine_module, hard_root_module,
     nominal_affine_module, partial_affine_field_module, projected_unit_call_module,
-    structural_parameter, three_call_executable_nominal_affine_module,
+    provider_boundary_call, structural_parameter, three_call_executable_nominal_affine_module,
     two_call_executable_nominal_affine_module, two_element_projected_unit_call_module,
-    unit_call_mut,
+    unit_call_mut, unused_provider_attachment_module,
 };
 use crate::structural_unit::{
     block_id, claim_id, contract_id, domain_id, edge_id, machine_id, obligation_id, operation_id,
@@ -1485,4 +1485,211 @@ fn projected_move_blocks_later_whole_root_use() {
             place: place_id(1),
         }
     );
+}
+
+fn serviceful_nominal_cleanup_module(transitive: bool) -> terminal_psi::TerminalModule {
+    let mut module = if transitive {
+        executable_nominal_affine_module()
+    } else {
+        nominal_affine_module()
+    };
+    let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: service,
+        identity: "Console".into(),
+        parents: Vec::new(),
+    });
+    module.root_service_reach.concrete.push(service);
+    for machine in &mut module.machines {
+        machine.published_service_ceiling.push(service);
+    }
+    module.machines.last_mut().unwrap().blocks[0]
+        .operations
+        .push(Operation {
+            id: operation_id(20),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::PortWrite {
+                service,
+                port: 0x3f8,
+                value: b'D',
+            },
+        });
+    module
+}
+
+#[test]
+fn nominal_cleanup_reach_includes_direct_and_transitive_output() {
+    for transitive in [false, true] {
+        let module = serviceful_nominal_cleanup_module(transitive);
+        validate_module(&module).expect("normal cleanup output belongs to its owner's reach");
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("source-free cleanup reach and custody replay");
+        let mut missing_root = module.clone();
+        missing_root.root_service_reach.concrete.clear();
+        assert!(matches!(
+            validate_module(&missing_root),
+            Err(ModuleError::RootConcreteServiceReachMismatch { .. })
+        ));
+        let mut missing_caller = module.clone();
+        missing_caller.machines[0].published_service_ceiling.clear();
+        assert!(matches!(
+            validate_module(&missing_caller),
+            Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        ));
+        let mut missing_hook = module;
+        missing_hook.machines[1].published_service_ceiling.clear();
+        assert!(matches!(
+            validate_module(&missing_hook),
+            Err(ModuleError::OperationServiceOutsidePublishedCeiling { .. })
+        ));
+    }
+}
+
+#[test]
+fn nominal_cleanup_reach_preserves_inert_target_declarations() {
+    let mut module = serviceful_nominal_cleanup_module(true);
+    let service = module.services[0].id;
+    module.machines[2].blocks[0].operations.clear();
+    module.machines[2].declared_service_reach.push(service);
+    validate_module(&module).expect("inert helper's authored reach survives cleanup invocation");
+    module.root_service_reach.concrete.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::RootConcreteServiceReachMismatch { .. })
+    ));
+}
+
+#[test]
+fn scalar_return_nominal_cleanup_contributes_executable_reach() {
+    let mut module = serviceful_nominal_cleanup_module(true);
+    let caller = &mut module.machines[0];
+    caller.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(20),
+        scalar_type: ScalarType::Boolean,
+    });
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(21),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } =
+        caller.blocks[0].terminator.clone()
+    else {
+        unreachable!()
+    };
+    caller.blocks[0].terminator = Terminator::Return {
+        edge,
+        value: value_id(20),
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    validate_module(&module).expect("scalar return cleanup uses the same executable reach");
+    let mut missing_caller = module.clone();
+    missing_caller.machines[0].published_service_ceiling.clear();
+    assert!(matches!(
+        validate_module(&missing_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+    module.root_service_reach.concrete.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::RootConcreteServiceReachMismatch { .. })
+    ));
+}
+
+#[test]
+fn executable_cleanup_edges_participate_in_call_cycle_rejection() {
+    let mut module = executable_nominal_affine_module();
+    let helper = &mut module.machines[2];
+    helper.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(20),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(20),
+            structural_type: structural_type_id(1),
+        },
+    });
+    helper.blocks[0].operations.push(Operation {
+        id: operation_id(20),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            place: place_id(20),
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishRecord { fields: Vec::new() },
+    });
+    helper.blocks[0].operations.push(Operation {
+        id: operation_id(21),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(1),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(20),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::RecursiveCallSliceNotYetSupported(_))
+    ));
+}
+
+#[test]
+fn nominal_cleanup_rejects_transitive_external_boundary_completion() {
+    for transitive in [false, true] {
+        let mut module = serviceful_nominal_cleanup_module(transitive);
+        let mut boundary = unused_provider_attachment_module()
+            .boundary_machines
+            .remove(0);
+        boundary.fixed_service_reach = module.root_service_reach.concrete.clone();
+        boundary.published_service_ceiling = boundary.fixed_service_reach.clone();
+        boundary.unconditional_termination = true;
+        module.boundary_machines.push(boundary);
+        let mut operation = provider_boundary_call();
+        operation.id = operation_id(21);
+        module.machines.last_mut().unwrap().blocks[0]
+            .operations
+            .push(operation);
+        validate_module(&module).expect("finite normal-return opaque premise is usable");
+        let mut no_progress = module.clone();
+        no_progress.boundary_machines[0].unconditional_termination = false;
+        assert!(
+            matches!(
+                validate_module(&no_progress),
+                Err(ModuleError::InvalidNominalAffineCleanup { .. })
+            ),
+            "normal return alone cannot promise a finite cleanup"
+        );
+        module.boundary_machines[0].completion = terminal_psi::BoundaryCompletion::External(
+            terminal_psi::ExternalCompletionKind::ProcessExit,
+        );
+        assert!(matches!(
+            validate_module(&module),
+            Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        ));
+    }
 }

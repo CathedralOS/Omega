@@ -21,7 +21,7 @@ use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use checked_interpreter::CanonicalFilesystemMetadataIndex;
 use sha2::{Digest, Sha256};
 
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x01";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
 /// Content digest of the complete compilation inputs a review pass reads:
@@ -61,6 +61,7 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
         digest.update(target.digest());
     }
     digest.update([purpose_tag(inputs.compilation_purpose())]);
+    digest.update([u8::from(inputs.semantic_role_discovery())]);
     for bundle in inputs.dependency_generated_source_bundles() {
         hash_generated_bundle(&mut digest, bundle);
     }

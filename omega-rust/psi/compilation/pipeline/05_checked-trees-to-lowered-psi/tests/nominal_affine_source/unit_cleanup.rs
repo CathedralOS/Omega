@@ -5,7 +5,7 @@ mod contextual_and_multi_root_cleanups;
 
 const SCALAR_SOURCE: &str = r#"
     data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
-    machine Token::drop(&mut self) {}
+    machine Token::drop(owner: &mut Token) {}
 
     data Root {}
     machine Root::enter(token: Token) {}
@@ -13,10 +13,10 @@ const SCALAR_SOURCE: &str = r#"
 
 const FINITE_CONTEXTUAL_SOURCE: &str = r#"
     data Token { ready: bool; audited: bool; armed: bool; }
-    machine Token::drop(&mut self)
+    machine Token::drop(token: &mut Token)
     requires
-        self.armed;
-        self.ready
+        token.armed;
+        token.ready
     {}
 
     data Root {}
@@ -29,8 +29,11 @@ const FINITE_CONTEXTUAL_SOURCE: &str = r#"
 "#;
 
 #[test]
-fn nominal_cleanup_selection_retains_named_and_legacy_borrowed_subjects() {
-    for (subject, receiver) in [("token: &mut Token", "token"), ("&mut self", "self")] {
+fn nominal_cleanup_selection_retains_arbitrary_named_borrowed_subjects() {
+    for (subject, receiver) in [
+        ("token: &mut Token", "token"),
+        ("owner: &mut Token", "owner"),
+    ] {
         let source = format!(
             r#"
             data Helper {{}}

@@ -147,3 +147,96 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
 }
+
+#[test]
+fn postcondition_boolean_operands_do_not_exchange_formal_subjects() {
+    for (argument, accepted) in [("first", true), ("second", false)] {
+        let source = format!(
+            r#"
+            data Cell {{ flag: bool; }}
+            machine set(first: &mut Cell, second: &mut Cell)
+            ensures first.flag
+            ensures !second.flag
+            {{ first.flag = true; second.flag = false; }}
+            machine consume(value: &Cell) requires value.flag {{}}
+            machine caller(first: &mut Cell, second: &mut Cell) {{
+                set(&mut first, &mut second);
+                consume({argument});
+            }}
+            "#,
+        );
+        let result = checked_program_result(&source);
+        assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
+    }
+    let source = r#"
+        data Cell { flag: bool; }
+        machine relate(enabled: bool, first: &Cell, second: &Cell)
+        requires enabled && (first.flag == second.flag)
+        ensures enabled && (first.flag == second.flag)
+        {}
+        machine consume(value: &Cell) requires value.flag {}
+        machine caller(enabled: bool, first: &Cell, second: &Cell)
+        requires enabled && (first.flag == second.flag)
+        {
+            relate(enabled, first, second);
+            consume(first);
+        }
+    "#;
+    let valid = checked_program_result(&source.replace("consume(first);", ""));
+    assert!(
+        valid.is_ok(),
+        "the relation itself is valid: {:?}",
+        valid.err()
+    );
+    assert!(
+        checked_program_result(source).is_err(),
+        "a true scalar operand and equal unknown fields cannot prove either field true",
+    );
+}
+
+#[test]
+fn owned_constructor_boolean_field_supplies_contextual_cleanup_requirement() {
+    let source = r#"
+        data Token { ready: bool; }
+        machine Token::drop(token: &mut Token) requires token.ready {
+            token.ready = false;
+        }
+        machine consume(token: Token) requires token.ready {}
+        data Main {}
+        machine Main::main() {
+            let token: Token = Token { ready: true };
+            consume(token);
+        }
+    "#;
+    checked_program_result(source)
+        .expect("current constructed field satisfies owned actual requirement");
+}
+
+#[test]
+fn boolean_field_snapshots_follow_exact_current_storage_at_calls() {
+    for (before, argument, accepted) in [
+        ("", "&cell", true),
+        ("", "&other", false),
+        ("cell.flag = false;", "&cell", false),
+        ("clear(&mut cell);", "&cell", false),
+        ("cell.other = false;", "&cell", true),
+        ("clear(&mut other);", "&cell", true),
+        ("cell.flag = false; cell.flag = true;", "&cell", true),
+    ] {
+        let source = format!(
+            r#"
+            data Cell {{ flag: bool; other: bool; }}
+            machine clear(value: &mut Cell) {{ value.flag = false; }}
+            machine consume(value: &Cell) requires value.flag {{}}
+            machine caller() {{
+                let mut cell: Cell = Cell {{ flag: true, other: true }};
+                let mut other: Cell = Cell {{ flag: false, other: true }};
+                {before}
+                consume({argument});
+            }}
+        "#
+        );
+        let result = checked_program_result(&source);
+        assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
+    }
+}

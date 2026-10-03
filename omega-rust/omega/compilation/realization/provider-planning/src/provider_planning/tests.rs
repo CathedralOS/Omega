@@ -271,6 +271,7 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
             methods: methods
                 .iter()
                 .map(|method| effects::provider_plan::ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: (*method).to_owned(),
                     requirement_owner: "Pair".to_owned(),
                     requirement_owner_package_identity: None,

@@ -53,6 +53,8 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),

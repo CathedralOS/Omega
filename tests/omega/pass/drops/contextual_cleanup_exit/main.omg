@@ -1,0 +1,71 @@
+// Each consuming call owes the selected hook's prerequisite at the exact owner.
+// Two owners share a hook but retain distinct actions, in reverse parameter order.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+pub boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+
+    // The existing Console role review nominates output through a complete
+    // provider with an exit row. This program never calls that row.
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider {}
+
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+// Windows uses the existing authored import route for process exit.
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+    via ForeignBinding::CompilerIntrinsic;
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
+data Token { ready: bool; byte: i32; }
+
+machine Token::drop(token: &mut Token)
+requires token.ready
+reaches Console
+{
+    Console::write_byte(token.byte);
+    token.ready = false;
+}
+
+machine consume(first: Token, second: Token)
+requires first.ready; second.ready
+reaches Console
+{}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Token = Token { ready: true, byte: 65 };
+    let second: Token = Token { ready: true, byte: 66 };
+    consume(first, second);
+    main.console.write_byte(10);
+}

@@ -16,6 +16,7 @@ pub(in crate::interpreter::evaluator) mod boundary_console;
 pub(in crate::interpreter::evaluator) mod casts_and_recasts;
 pub(in crate::interpreter::evaluator) mod expressions_and_value_calls;
 pub(in crate::interpreter::evaluator) mod host_dispatch;
+mod normal_cleanup;
 pub(in crate::interpreter::evaluator) mod numeric_landing;
 pub(in crate::interpreter::evaluator) mod operator_applications;
 pub(in crate::interpreter::evaluator) mod scalar_operations;

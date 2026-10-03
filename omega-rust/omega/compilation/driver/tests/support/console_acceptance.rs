@@ -1,4 +1,4 @@
-//! Explicit test acceptance of an exact standard-library Console provider.
+//! Explicit test acceptance of an exact package-owned Console provider.
 
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -6,7 +6,7 @@ use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 
 pub fn candidate_console_exit_binding(
     checked: &CheckedCompilation,
-    standard_library: semantic_vocabulary::PackageKeyIdentity,
+    owner: semantic_vocabulary::PackageKeyIdentity,
     accepts_console_output: bool,
     accepts_console_input: bool,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
@@ -23,12 +23,12 @@ pub fn candidate_console_exit_binding(
                     .typed
                     .symbols
                     .symbol_package_identity(provenance.provider.schema.symbol())
-                    == Some(standard_library)
+                    == Some(owner)
         })
         .collect::<Vec<_>>();
     let [(plan, provenance)] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "repository fixture Console exit acceptance resolved {} exact std provider plans instead of one",
+            "repository fixture Console exit acceptance resolved {} exact package-owned provider plans instead of one",
             candidates.len()
         ))]);
     };
@@ -38,7 +38,7 @@ pub fn candidate_console_exit_binding(
         .display_path(provenance.provider.schema.symbol(), "::");
     let binding = AcceptedSemanticBinding::new(
         AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-        standard_library,
+        owner,
         declaration_path,
         plan.schema.identity_digest(),
         plan.identity_digest(),

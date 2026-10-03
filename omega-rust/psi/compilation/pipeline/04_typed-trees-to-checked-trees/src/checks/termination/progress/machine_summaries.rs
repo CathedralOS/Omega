@@ -173,6 +173,24 @@ pub(crate) fn derive_machine_summary(
         }
     }
 
+    // Compiler-selected calls have no authored call ordinal. Use the same
+    // prepared dependency graph as effect admission, and do not invent a
+    // subject substitution for a premise-bearing cleanup contract.
+    let operational = validation::infer_operational_may(program);
+    for (_, dependency) in operational
+        .cleanup_dependencies
+        .iter()
+        .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
+    {
+        let selected = selected_call_summary(program, dependency.target_machine, summaries)?;
+        if !matches!(selected.guarantee,
+            TerminationGuarantee::Terminates { premises } if premises.is_empty())
+            || !selected.build_bound_demands.is_empty()
+        {
+            return Some(no_guarantee(machine.symbol));
+        }
+    }
+
     Some(CheckedProgressSummary {
         machine: machine.symbol,
         guarantee: TerminationGuarantee::Terminates { premises },

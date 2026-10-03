@@ -3,6 +3,8 @@ use super::{BoundaryMachineDeclaration, CanonicalBytes, encode_boundary_machine,
 fn boundary_identity_binds_fixed_reach_and_formal_order() {
     let service = semantic_vocabulary::ServiceId::new(1).unwrap();
     let mut boundary = BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

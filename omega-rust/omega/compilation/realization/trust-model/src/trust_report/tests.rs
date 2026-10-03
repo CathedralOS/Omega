@@ -34,6 +34,7 @@ fn trust_report_rejects_compact_equal_selected_plan_substitution() {
         schema: effects::provider_plan::ServiceSchema {
             trait_name: "Pair".to_owned(),
             methods: vec![effects::provider_plan::ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "run".to_owned(),
                 requirement_owner: "Pair".to_owned(),
                 requirement_identity: "Pair::run".to_owned(),

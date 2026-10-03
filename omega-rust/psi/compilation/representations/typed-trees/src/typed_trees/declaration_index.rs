@@ -273,6 +273,7 @@ impl super::TypedTrees {
             .wrapping_add(self.wire_schema_plans.len() as u64)
             .wrapping_add(self.machine_specializations.len() as u64)
             .wrapping_add(self.boundary_calling_plans.len() as u64)
+            .wrapping_add(self.boundary_completion_declarations.revision())
             .wrapping_add(self.fused_service_erasures.len() as u64)
             .wrapping_add(self.open_index_normalizations.len() as u64)
             .wrapping_add(self.evidence_forwardings.len() as u64)

@@ -60,6 +60,8 @@ pub struct ServiceSchema {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServiceMethod {
+    /// Completion premise of this exact requirement, preserved by installation.
+    pub completion: semantic_vocabulary::BoundaryCompletion,
     pub name: String,
     /// Semantic owner of the exact requirement. This differs from the
     /// enclosing schema when a target root inherits a stable core requirement

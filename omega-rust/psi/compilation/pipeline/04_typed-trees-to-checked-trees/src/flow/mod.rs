@@ -79,6 +79,8 @@ mod reference_spans;
 
 // Not a flow-build step: derived from the complete check facts.
 mod carried_semantic_dependencies;
+mod cleanup_effect_dependencies;
+pub(crate) use cleanup_effect_dependencies::derive_cleanup_effect_dependencies;
 
 pub(crate) use reference_places::{
     call_result_sources, local_reference_candidate_storages_at_call,
@@ -188,7 +190,7 @@ pub(crate) use place::{
     place_case_path_is_inactive, place_cases_are_selected, place_segment_has_unresolved_identity,
     push_field_place_segments, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
-use reach::attach_reach_summaries;
+pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
 use statements::append_state_statement_flow_facts;
 use transfers::propagate_statement_transfers;

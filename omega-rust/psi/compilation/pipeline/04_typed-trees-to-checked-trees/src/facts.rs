@@ -122,10 +122,10 @@ pub(crate) fn build_check_facts(
     proof_plan: &ProofPlan<'_>,
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    validation_facts: &validation::ProgramValidationFacts,
+    mut validation_facts: validation::ProgramValidationFacts,
     static_machine_selections: validation::ValidatedStaticMachineSelections,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<CheckFacts, Vec<diagnostics::Diagnostic>> {
+) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
@@ -143,7 +143,6 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
-    let dynamic_conformances = build_dynamic_conformance_facts(program)?;
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
     select_pending_domain_operator_meanings(program, &mut operators);
@@ -158,6 +157,9 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &mut values.proof_terms.terms,
     );
+    // Form source flow and custody first. Their selected cleanup dispositions
+    // complete the implicit execution graph; only then may effects and the
+    // stronger capability, termination and callable-contract judgments publish.
     // One frame resolver serves the whole immutable fact-construction window:
     // flow classification, terminal ranking projections, termination progress
     // proofs, mutation frames, and crash-route refinement all classify the
@@ -199,6 +201,49 @@ pub(crate) fn build_check_facts(
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program, &operators, &semantic, &flow, &proof,
     )?;
+    // Ownership selects implicit execution edges from the same complete flow
+    // and occurrence schedule later replayed by custody admission. Prepare that
+    // selection before publishing any effect-bearing capability or contract.
+    let mut prepared = CheckFacts {
+        semantic,
+        borrow,
+        proof,
+        values,
+        domains,
+        operators,
+        flow,
+        ..CheckFacts::default()
+    };
+    let cleanup_dispositions = crate::checks::prepare_permission_events(program, &mut prepared)?;
+    let dependencies = crate::flow::derive_cleanup_effect_dependencies(
+        program,
+        &operational,
+        &prepared,
+        &cleanup_dispositions,
+    )?;
+    let operational =
+        validation::infer_operational_may_with_cleanup_dependencies(program, &dependencies);
+    let service_reach_inference = validation::infer_service_reaches(program, &operational);
+    let effect_scope =
+        validation::enter_prepared_effect_scope(program, &operational, &service_reach_inference);
+    validation::admit_prepared_program_effects(program, &operational, &mut validation_facts)?;
+    crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
+    crate::flow::attach_reach_summaries(
+        program,
+        &mut prepared.flow,
+        &service_reach_inference,
+        &operational,
+    );
+    let CheckFacts {
+        semantic,
+        borrow,
+        mut proof,
+        values,
+        domains,
+        operators,
+        mut flow,
+        ..
+    } = prepared;
     flow.terminal_scalar_graphs =
         crate::execution::terminal_scalar::build_checked_scalar_graph_plans_with_call_frames(
             program,
@@ -217,6 +262,7 @@ pub(crate) fn build_check_facts(
         );
     flow.terminal_debug =
         crate::execution::terminal_debug::build_checked_terminal_debug_plans(program);
+    let dynamic_conformances = build_dynamic_conformance_facts(program)?;
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
@@ -235,7 +281,7 @@ pub(crate) fn build_check_facts(
         program,
         &flow,
         &semantic,
-        validation_facts,
+        &validation_facts,
         call_frames.as_ref(),
     )?;
     let mut fact_call_projection_diagnostics = Vec::new();
@@ -346,32 +392,36 @@ pub(crate) fn build_check_facts(
         return Err(fact_call_projection_diagnostics);
     }
 
-    Ok(CheckFacts {
-        semantic,
-        borrow,
-        proof,
-        values,
-        domains,
-        dynamic_conformances,
-        nominal_machine_uses,
-        requirement_call_specializations,
-        operators,
-        capabilities,
-        flow,
-        index_compatibility,
-        mutation,
-        service_reaches,
-        synchronous_invocations,
-        suspensions,
-        blocking,
-        termination,
-        qualifications,
-        contract_plans,
-        carry,
-        fact_call_projections,
-        placed_view_inputs: build_checked_placed_view_inputs(program),
-        ..CheckFacts::default()
-    })
+    Ok((
+        CheckFacts {
+            operational,
+            semantic,
+            borrow,
+            proof,
+            values,
+            domains,
+            dynamic_conformances,
+            nominal_machine_uses,
+            requirement_call_specializations,
+            operators,
+            capabilities,
+            flow,
+            index_compatibility,
+            mutation,
+            service_reaches,
+            synchronous_invocations,
+            suspensions,
+            blocking,
+            termination,
+            qualifications,
+            contract_plans,
+            carry,
+            fact_call_projections,
+            placed_view_inputs: build_checked_placed_view_inputs(program),
+            ..CheckFacts::default()
+        },
+        effect_scope,
+    ))
 }
 
 /// Crash refinement gains path-conditioned and permission-frontier evidence

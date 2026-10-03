@@ -405,3 +405,180 @@ fn exact_direct_intrinsic_signature(
             }
         }
 }
+
+/// Completion belongs to the admitted requirement declaration, independently
+/// of the provider selected to realize it. Only the canonical process-exit
+/// requirement and the existing canonical Console adapter end the domain.
+pub fn boundary_requirement_completion(
+    program: &TypedTrees,
+    requirement: SymbolHandle,
+) -> semantic_vocabulary::BoundaryCompletion {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+    let mut declarations = program
+        .boundary_completion_declarations
+        .iter()
+        .map(|(_, declaration)| declaration)
+        .filter(|declaration| declaration.requirement == requirement);
+    if let Some(declaration) = declarations.next()
+        && declarations.next().is_none()
+        && valid_boundary_completion_declaration(program, declaration)
+    {
+        return declaration.completion;
+    }
+    let external = program.traits().iter().any(|definition| {
+        exact_process_exit_requirement(program, definition, requirement, false)
+            || exact_process_exit_requirement(program, definition, requirement, true)
+    });
+    if external {
+        BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
+    } else {
+        BoundaryCompletion::NormalReturn
+    }
+}
+
+/// The core terminal-event identity used by both checking and interpretation.
+pub fn is_canonical_process_exit_requirement(
+    program: &TypedTrees,
+    trait_symbol: SymbolHandle,
+    requirement: SymbolHandle,
+) -> bool {
+    program.traits().iter().any(|definition| {
+        definition.symbol == trait_symbol
+            && exact_process_exit_requirement(program, definition, requirement, false)
+    })
+}
+
+fn exact_process_exit_requirement(
+    program: &TypedTrees,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    requirement: SymbolHandle,
+    console_adapter: bool,
+) -> bool {
+    const CORE_SOURCE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/core/process_exit.omg"
+    ));
+    const CONSOLE_SOURCE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/console.omg"
+    ));
+    let (trait_name, source_path, source_bytes) = if console_adapter {
+        ("Console", "console.omg", CONSOLE_SOURCE)
+    } else {
+        ("ProcessExit", "process_exit.omg", CORE_SOURCE)
+    };
+    let exact_source = |symbol| {
+        program
+            .symbols
+            .symbol_source_span(symbol)
+            .and_then(|span| program.symbols.source_file(span))
+            .is_some_and(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new(source_path))
+                    && file.source.as_bytes() == source_bytes
+            })
+    };
+    if !requirement.is_valid()
+        || !definition.is_boundary
+        || !definition.is_public
+        || definition.name.as_str() != trait_name
+        || !definition.lifetime_parameters.is_empty()
+        || !program.trait_type_parameters(definition).is_empty()
+        || !exact_source(definition.symbol)
+    {
+        return false;
+    }
+    let signatures = program.trait_machine_signatures(definition);
+    if !console_adapter && signatures.len() != 1 {
+        return false;
+    }
+    signatures.iter().any(|signature| {
+        signature.symbol == requirement
+            && signature.name.as_str() == "exit_process"
+            && exact_source(signature.symbol)
+            && signature.lifetime_parameters.is_empty()
+            && program
+                .state_signature_type_parameters(signature)
+                .is_empty()
+            && signature.native_callback_parameters.is_empty()
+            && !signature.suspends
+            && !signature.blocks
+            && exact_direct_intrinsic_signature(
+                program,
+                program.state_signature_parameters(signature),
+                signature.return_type,
+            )
+    })
+}
+
+/// Rejoin a semantic-role receipt to the exact package-owned declaration.
+/// Consumer policy supplies the role; declaration spelling alone cannot.
+pub fn valid_boundary_completion_declaration(
+    program: &TypedTrees,
+    declaration: &typed_trees::BoundaryCompletionDeclaration,
+) -> bool {
+    if declaration.completion
+        != semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        )
+        || !declaration.requirement.is_valid()
+        || declaration.package.is_none()
+        || program.symbols.symbol_package_identity(declaration.owner) != declaration.package
+        || program
+            .symbols
+            .symbol_package_identity(declaration.requirement)
+            != declaration.package
+        || program.symbols.display_path(declaration.owner, "::") != declaration.owner_path
+        || program.symbols.display_path(declaration.requirement, "::")
+            != declaration.requirement_path
+    {
+        return false;
+    }
+    program.traits().iter().any(|definition| {
+        definition.symbol == declaration.owner
+            && definition.is_boundary
+            && definition.is_public
+            && definition.lifetime_parameters.is_empty()
+            && program.trait_type_parameters(definition).is_empty()
+            && program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| {
+                    signature.symbol == declaration.requirement
+                        && signature.lifetime_parameters.is_empty()
+                        && program
+                            .state_signature_type_parameters(signature)
+                            .is_empty()
+                        && signature.native_callback_parameters.is_empty()
+                        && !signature.suspends
+                        && !signature.blocks
+                        && program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .all(|parameter| !parameter.relevance.is_erased())
+                        && exact_direct_intrinsic_signature(
+                            program,
+                            program.state_signature_parameters(signature),
+                            signature.return_type,
+                        )
+                })
+    })
+}
+
+/// Malformed source-role input must fail admission, never weaken an external
+/// completion promise into an ordinary return by losing its exact join.
+pub fn validate_boundary_completion_declarations(program: &TypedTrees) -> Result<(), &'static str> {
+    let mut requirements = Vec::new();
+    for (_, declaration) in program.boundary_completion_declarations.iter() {
+        if !valid_boundary_completion_declaration(program, declaration)
+            || requirements.contains(&declaration.requirement)
+        {
+            return Err(
+                "boundary completion declaration lost its exact package or requirement custody",
+            );
+        }
+        requirements.push(declaration.requirement);
+    }
+    Ok(())
+}

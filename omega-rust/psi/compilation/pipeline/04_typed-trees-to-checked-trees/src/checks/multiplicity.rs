@@ -10,11 +10,14 @@
 
 mod borrowed_windows;
 mod claim_outcomes;
+mod cleanup_dispositions;
 mod consumed_owners;
+pub(crate) use cleanup_dispositions::CleanupDispositions;
 mod linear_obligations;
 mod linear_validation;
 mod owned_selection;
 mod permission_events;
+pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
 mod temporary_results;
 mod type_multiplicity;

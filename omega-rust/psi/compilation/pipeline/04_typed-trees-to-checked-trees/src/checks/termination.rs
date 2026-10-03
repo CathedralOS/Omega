@@ -46,6 +46,8 @@ mod order;
 mod progress;
 mod ranking;
 
+pub(crate) use progress::entry_covers_progress_premises;
+
 // Contract induction uses the same authored-edge graph as ranking; graph
 // membership supplies no ranking or invariant evidence by itself.
 pub(crate) use graph::{

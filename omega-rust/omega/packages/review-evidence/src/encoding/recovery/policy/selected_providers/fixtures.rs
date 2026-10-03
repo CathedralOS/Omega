@@ -71,6 +71,7 @@ pub(in crate::encoding::recovery) fn method() -> PackagePolicyServiceMethod {
         result: calling.semantic_result.clone(),
     };
     PackagePolicyServiceMethod {
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         name: "call".into(),
         requirement_owner: nominal("Boundary"),
         requirement: nominal("Boundary::call"),

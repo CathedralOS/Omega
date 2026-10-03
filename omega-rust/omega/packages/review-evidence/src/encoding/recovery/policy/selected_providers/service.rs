@@ -38,6 +38,13 @@ pub(in crate::encoding::recovery) fn method(
                 },
             })
         })?,
+        completion: match reader.byte()? {
+            0 => semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            1 => semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            ),
+            _ => return Err(Error::InvalidTag),
+        },
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
         result_claims: reader.sequence(12, |reader| {

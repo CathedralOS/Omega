@@ -277,6 +277,8 @@ fn scalar_boundary_cycle() -> TerminalModule {
     let boundary = id(1, BoundaryMachineId::new);
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

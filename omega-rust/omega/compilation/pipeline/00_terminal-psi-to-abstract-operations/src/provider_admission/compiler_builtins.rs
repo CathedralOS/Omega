@@ -104,6 +104,13 @@ pub(super) fn settle_compiler_builtins<'request>(
                 "compiler-builtin proposal for `{requirement}` does not rejoin one Terminal boundary"
             ))]);
         };
+        if !boundary_contract_matches_selected_schema(boundary, selected_plan, requirement)
+            || boundary.completion != compiler_builtin_completion(proposal.execution)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler-builtin completion for `{requirement}` disagrees with its exact requirement contract"
+            ))]);
+        }
         let mechanism = compiler_intrinsic_execution_identity(proposal.execution);
         request
             .terminal_authority_policy
@@ -174,6 +181,44 @@ pub(super) fn settle_compiler_builtins<'request>(
         });
     }
     Ok((admitted, mechanisms))
+}
+
+/// Compare the retained requirement premise with the exact selected schema row.
+/// Opaque foreign code is admitted under this premise; a display name or service
+/// ceiling cannot supply it. Closed intrinsic executions additionally check their
+/// independently known behavior below.
+pub(super) fn boundary_contract_matches_selected_schema(
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement: &str,
+) -> bool {
+    let mut matching = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.requirement_identity == requirement);
+    matching.next().is_some_and(|method| {
+        method.completion == boundary.completion
+            && boundary.unconditional_termination
+                == (method.terminates_guarantee && method.termination_premises.is_empty())
+    }) && matching.next().is_none()
+}
+
+fn compiler_builtin_completion(
+    execution: CompilerBuiltinExecution,
+) -> semantic_vocabulary::BoundaryCompletion {
+    match execution {
+        CompilerBuiltinExecution::HostedExitProcessI32 => {
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            )
+        }
+        CompilerBuiltinExecution::HostedWriteByteI32
+        | CompilerBuiltinExecution::HostedReadByte
+        | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. } => {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn
+        }
+    }
 }
 
 /// Admit one selected float execution through the receiving target catalog.

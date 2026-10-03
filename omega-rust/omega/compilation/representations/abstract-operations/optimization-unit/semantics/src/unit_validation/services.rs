@@ -194,6 +194,20 @@ pub(crate) fn derive_root_service_reach(
             .map(|node| &node.operation)
         {
             match operation {
+                O::Return {
+                    cleanup_actions, ..
+                }
+                | O::ReturnUnit {
+                    cleanup_actions, ..
+                } => {
+                    pending.extend(cleanup_actions.iter().filter_map(|action| match action {
+                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            Some(cleanup.cleanup_machine)
+                        }
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+                        | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+                    }));
+                }
                 O::Call { callee, .. } => pending.push(*callee),
                 O::CallStructural {
                     callee,

@@ -15,6 +15,7 @@ fn selection_plan(name: &str) -> ProviderPlan {
             trait_name: "Pair".to_owned(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "run".to_owned(),
                 requirement_owner: "Pair".to_owned(),
                 requirement_identity: "Pair::run".to_owned(),

@@ -188,6 +188,8 @@ fn cyclic_boundary_call_reborrows_a_produced_home_without_transferring_it() {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             id: boundary,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             identity: "test::Pairs::update".into(),

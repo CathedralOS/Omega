@@ -480,6 +480,7 @@ impl ClosurePass<'_> {
             }
         }
         let inputs = inputs
+            .with_semantic_role_discovery(self.discovery == TargetEntryDiscovery::Dependencies)
             .with_accepted_semantic_bindings(semantic_bindings)
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {
@@ -662,10 +663,11 @@ impl ClosurePass<'_> {
         // toolchain plans and authorize fused-service erasures, entry and
         // exit bindings resolve into the review's resolved-binding rows —
         // so a pass difference in any binding produces a genuinely
-        // different checked product and review. The only field that ever
-        // differs between the discovery and bound passes is exactly that
-        // map; normalizing it out of this key would replay a review that
-        // never consumed this pass's authority.
+        // different checked product and review. Discovery mode is also an
+        // explicit input: its provisional role projection cannot stand in for
+        // final acceptance. Normalizing either field out of this key would
+        // replay a review that never checked this pass's authority. The typed
+        // frontier can still be reused independently of these later inputs.
         // A persisted review from an earlier update invocation is the
         // same carry an in-session prior offers: the record key binds
         // package identity, purpose, checked context, entry, toolchain,

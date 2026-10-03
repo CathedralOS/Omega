@@ -245,6 +245,8 @@ fn artifact_and_receiver() -> (CanonicalTerminalArtifact, PccReceiverPolicy) {
         parents: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

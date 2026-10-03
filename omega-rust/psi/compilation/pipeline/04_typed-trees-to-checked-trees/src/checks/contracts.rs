@@ -52,6 +52,7 @@ mod direct;
 mod domains;
 mod evaluator;
 pub(in crate::checks) mod prover;
+pub(crate) use prover::boolean_value_at_place;
 
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;

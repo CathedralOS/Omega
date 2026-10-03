@@ -23,6 +23,82 @@ use symbols::SymbolHandle;
 use crate::checks::termination::progress::fact_subjects::{profile_label, subject_label};
 use crate::checks::termination::progress::qualification_correspondences::validate_qualification_correspondences;
 
+/// Check a derived demand against the entry's existing requirement telescope.
+/// This does not add a caller premise or treat an exit guarantee, another
+/// subject's qualification, or a later receipt as an entry assumption.
+pub(crate) fn entry_covers_progress_premises(
+    program: &typed_trees::TypedTrees,
+    checked: &checked_trees::CheckFacts,
+    machine: SymbolHandle,
+    premises: &[ProgressPremise],
+) -> bool {
+    if premises.is_empty() {
+        return true;
+    }
+    let Some(entry) = program
+        .machine_by_symbol(machine)
+        .and_then(|machine| program.machine_states(machine).first())
+    else {
+        return false;
+    };
+    let Some(state) = checked.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine && state.state_symbol == entry.symbol).then_some(state)
+    }) else {
+        return false;
+    };
+    premises.iter().all(|premise| {
+        checked
+            .flow
+            .semantic_constraint_contexts(state.entry_constraints)
+            .any(|context| {
+                checked
+                    .semantic
+                    .context_view(checked.semantic.contexts.get(context))
+                    .facts()
+                    .any(|fact| {
+                        let authored_entry = match (fact.origin, fact.payload) {
+                            (
+                                facts::FactOrigin::MachineContract { machine_symbol },
+                                facts::FactPayload::ContractDomainMembership {
+                                    kind: facts::ContractFactKind::Requires,
+                                    ..
+                                },
+                            ) => machine_symbol == machine,
+                            (
+                                facts::FactOrigin::StateContract {
+                                    machine_symbol,
+                                    state_symbol,
+                                },
+                                facts::FactPayload::ContractDomainMembership {
+                                    kind: facts::ContractFactKind::Requires,
+                                    ..
+                                },
+                            )
+                            | (
+                                facts::FactOrigin::StateParameterDomain {
+                                    machine_symbol,
+                                    state_symbol,
+                                },
+                                facts::FactPayload::DomainMembership { .. },
+                            ) => machine_symbol == machine && state_symbol == entry.symbol,
+                            _ => false,
+                        };
+                        authored_entry
+                            && fact_subjects::fact_domain(program, fact.payload).is_some_and(
+                                |symbol| {
+                                    program.domain_definitions().iter().any(|domain| {
+                                        domain.symbol == symbol
+                                            && domain.semantic_id == premise.profile
+                                    })
+                                },
+                            )
+                            && fact_subjects::fact_subject(&checked.semantic, fact.place).as_ref()
+                                == Some(&premise.subject)
+                    })
+            })
+    })
+}
+
 /// Derive checked termination premises from exact selected call contracts.
 ///
 /// Published operation contracts remain the caller-facing authority. Private

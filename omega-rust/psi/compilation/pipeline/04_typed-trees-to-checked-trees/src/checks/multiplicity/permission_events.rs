@@ -1,6 +1,7 @@
 //! Recording permission events: crash frontiers, proven case membership
 //! and the statically inactive call results that shape which events count.
 
+use super::cleanup_dispositions::{CleanupDispositions, RemainingCustody};
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
     publish_claim_outcome_maps, publish_conditional_claim_joins,
@@ -29,6 +30,18 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
+    prepare_permission_events(program, facts)?;
+    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    Ok(())
+}
+
+/// Prepare source custody without inspecting derived callable contracts. Crash
+/// frontier projection belongs after those contracts have been constructed.
+pub(crate) fn prepare_permission_events(
+    program: &typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) -> Result<CleanupDispositions, Vec<Diagnostic>> {
+    let mut cleanup_dispositions = CleanupDispositions::default();
     let mut permission_events = Vec::new();
     let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
@@ -55,6 +68,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
+        let mut remaining = RemainingCustody::default();
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
@@ -101,6 +115,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
         let prefix_end = first_transition.unwrap_or(statements.len());
         for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
+            let event_start = permission_events.len();
             match owned_selection::record_statement(
                 program,
                 facts,
@@ -130,6 +145,11 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                 &mut claim_identities,
                 &mut conditional_carrier_transfers,
             );
+            remaining.observe(
+                &permission_events[event_start..],
+                &facts.flow.ownership.segments,
+                &mut cleanup_dispositions,
+            );
         }
 
         if let Some(first_transition) = first_transition {
@@ -139,6 +159,8 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                 .collect::<Vec<_>>();
             for statement_index in arm_indices.iter().copied() {
                 let mut outcome = entry.clone();
+                let mut remaining_outcome = remaining.clone();
+                let event_start = permission_events.len();
                 if let Err(diagnostic) = owned_selection::record_statement(
                     program,
                     facts,
@@ -164,7 +186,47 @@ pub(crate) fn record_permission_events_with_incoming_guards(
                     &mut claim_identities,
                     &mut conditional_carrier_transfers,
                 );
+                remaining_outcome.observe(
+                    &permission_events[event_start..],
+                    &facts.flow.ownership.segments,
+                    &mut cleanup_dispositions,
+                );
+                let StatementNode::Transition(transition) = &statements[statement_index] else {
+                    unreachable!("transition indices contain only transitions")
+                };
+                if !matches!(
+                    transition.exit,
+                    typed_trees::statement::TransitionExit::Crash(_)
+                ) {
+                    let mut outgoing = Vec::new();
+                    append_affine_cleanup_permission_events(
+                        program,
+                        state,
+                        state_flow.machine_symbol,
+                        &outcome,
+                        &mut outgoing,
+                    );
+                    remaining_outcome.observe(
+                        &outgoing,
+                        &facts.flow.ownership.segments,
+                        &mut cleanup_dispositions,
+                    );
+                }
             }
+        } else {
+            let mut outgoing = Vec::new();
+            append_affine_cleanup_permission_events(
+                program,
+                state,
+                state_flow.machine_symbol,
+                &places,
+                &mut outgoing,
+            );
+            remaining.observe(
+                &outgoing,
+                &facts.flow.ownership.segments,
+                &mut cleanup_dispositions,
+            );
         }
 
         append_affine_cleanup_permission_events(
@@ -174,12 +236,20 @@ pub(crate) fn record_permission_events_with_incoming_guards(
             &places,
             &mut permission_events,
         );
+        let temporary_start = permission_events.len();
         temporary_results::append_shared_borrow(
             program,
             facts,
             machine,
             state,
             &mut permission_events,
+        );
+        // These are expression-rooted temporaries with their own complete
+        // establishment/drop sequence, independent of state-exit roots.
+        RemainingCustody::default().observe(
+            &permission_events[temporary_start..],
+            &facts.flow.ownership.segments,
+            &mut cleanup_dispositions,
         );
     }
 
@@ -222,9 +292,8 @@ pub(crate) fn record_permission_events_with_incoming_guards(
     let joined_maps =
         derive_checked_claim_outcome_maps(program, &facts.flow.ownership, &joined_events);
     publish_claim_outcome_maps(facts, joined_maps);
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
     if selection_diagnostics.is_empty() {
-        Ok(())
+        Ok(cleanup_dispositions)
     } else {
         Err(selection_diagnostics)
     }

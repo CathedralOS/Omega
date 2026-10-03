@@ -127,6 +127,7 @@ fn project_inner(
         method.result_type_identity.clone()
     };
     Ok(PackagePolicyServiceMethod {
+        completion: method.completion,
         authority: authority::project(compilation, declaration, requirement)?,
         name: method.name.clone(),
         requirement_owner: owner,

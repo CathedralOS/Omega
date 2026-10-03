@@ -24,6 +24,19 @@ pub(super) fn validate_boundary_machines(
     let mut boundary_ids = BTreeSet::new();
     let mut boundary_names = BTreeSet::new();
     for boundary in &module.boundary_machines {
+        // Until terminal external invocations exist, the only retained external
+        // contract is the transitional Unit process-exit requirement. It never
+        // acquires normal guarantees or crash alternatives from this encoding.
+        if matches!(
+            boundary.completion,
+            terminal_psi::BoundaryCompletion::External(_)
+        ) && (!boundary.result.is_unit()
+            || !boundary.crash_routes.is_empty()
+            || !boundary.scalar_ensures.is_empty()
+            || !boundary.content_guarantees.is_empty())
+        {
+            return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
+        }
         if !boundary.has_valid_parameter_order() {
             return Err(ModuleError::InvalidBoundaryParameterOrder(boundary.id));
         }

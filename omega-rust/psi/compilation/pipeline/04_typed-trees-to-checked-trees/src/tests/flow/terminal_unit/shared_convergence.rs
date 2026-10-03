@@ -249,7 +249,7 @@ fn nominal_cleanup_keeps_finite_continuations_and_effect_boundaries() {
     let checked = checked(
         r#"
         data Token {}
-        machine Token::drop(&mut self) {}
+        machine Token::drop(owner: &mut Token) {}
         data Helper {}
         machine Helper::value() -> u64 { 1u64 }
         machine Helper::touch() {}

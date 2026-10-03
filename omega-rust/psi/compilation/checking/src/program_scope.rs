@@ -39,7 +39,7 @@ fn program_key(program: &typed_trees::TypedTrees) -> ProgramKey {
 }
 
 type OperationalSlot = Option<Option<(ProgramKey, OperationalPlan)>>;
-type ServiceReachSlot = Option<Option<(ProgramKey, ServiceReachInferencePlan)>>;
+type ServiceReachSlot = Option<Option<(ProgramKey, OperationalPlan, ServiceReachInferencePlan)>>;
 type ClaimFrontierSlot = Option<
     Option<(
         ProgramKey,

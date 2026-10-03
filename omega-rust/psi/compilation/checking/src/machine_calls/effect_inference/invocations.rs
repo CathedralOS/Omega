@@ -44,6 +44,22 @@ pub fn infer_synchronous_invocations(program: &TypedTrees) -> InvocationInferenc
         .map(|machine| build_machine_work(program, machine, &state_to_machine))
         .collect::<Vec<_>>();
 
+    let operational = super::infer_operational_may(program);
+    for (_, dependency) in operational.cleanup_dependencies.iter() {
+        if let Some(caller) = work
+            .iter_mut()
+            .find(|machine| machine.symbol == dependency.caller_machine)
+        {
+            caller.calls.push(CallWork {
+                target_machine: dependency.target_machine,
+                // The hook borrows its nominal subject; it does not receive
+                // a callable Binding parameter from an authored argument.
+                arguments: Vec::new(),
+                declared: Vec::new(),
+            });
+        }
+    }
+
     loop {
         let previous = work
             .iter()

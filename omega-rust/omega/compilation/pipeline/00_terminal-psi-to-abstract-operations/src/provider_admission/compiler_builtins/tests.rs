@@ -12,6 +12,8 @@ fn boundary(
     result: BoundaryMachineResult,
 ) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -156,4 +158,71 @@ fn a_substituted_format_or_shape_cannot_realize_the_boundary() {
             );
         }
     }
+}
+
+#[test]
+fn boundary_completion_requires_exact_schema_and_closed_execution_agreement() {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+    use target_operations::CompilerBuiltinExecution;
+    let mut declaration = boundary(Vec::new(), BoundaryMachineResult::Unit);
+    let mut plan = effects::provider_plan::ProviderPlan::default();
+    plan.schema
+        .methods
+        .push(effects::provider_plan::ServiceMethod {
+            requirement_identity: declaration.identity.clone(),
+            completion: BoundaryCompletion::NormalReturn,
+            ..Default::default()
+        });
+    let matches = |declaration: &BoundaryMachineDeclaration,
+                   plan: &effects::provider_plan::ProviderPlan| {
+        super::boundary_contract_matches_selected_schema(declaration, plan, &declaration.identity)
+    };
+    assert!(matches(&declaration, &plan));
+    declaration.unconditional_termination = true;
+    assert!(
+        !matches(&declaration, &plan),
+        "NoGuarantee cannot authenticate finite cleanup"
+    );
+    plan.schema.methods[0].terminates_guarantee = true;
+    assert!(matches(&declaration, &plan));
+    plan.schema.methods[0].termination_premises.push(
+        effects::provider_plan::ServiceProgressPremise {
+            profile: "WeakFair".into(),
+            subject: effects::provider_plan::ServiceProgressSubject::ProviderReceiver,
+            subject_projections: Vec::new(),
+            establishment_routes: Vec::new(),
+        },
+    );
+    assert!(
+        !matches(&declaration, &plan),
+        "an undisclosed progress subject cannot become an unconditional guarantee"
+    );
+    declaration.unconditional_termination = false;
+    assert!(matches(&declaration, &plan));
+    plan.schema.methods[0].termination_premises.clear();
+    assert!(
+        !matches(&declaration, &plan),
+        "the retained projection must stay exact"
+    );
+    plan.schema.methods[0].terminates_guarantee = false;
+    assert_ne!(
+        declaration.completion,
+        super::compiler_builtin_completion(CompilerBuiltinExecution::HostedExitProcessI32)
+    );
+    declaration.completion = BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+    assert!(!matches(&declaration, &plan));
+    plan.schema.methods[0].completion = declaration.completion;
+    assert!(matches(&declaration, &plan));
+    assert_eq!(
+        declaration.completion,
+        super::compiler_builtin_completion(CompilerBuiltinExecution::HostedExitProcessI32)
+    );
+    assert_ne!(
+        declaration.completion,
+        super::compiler_builtin_completion(CompilerBuiltinExecution::HostedWriteByteI32)
+    );
+    plan.schema.methods[0]
+        .requirement_identity
+        .push_str("::other");
+    assert!(!matches(&declaration, &plan));
 }

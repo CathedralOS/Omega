@@ -1850,6 +1850,8 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
     let mut parameter = module.machines[2].structural_parameters[0].clone();
     parameter.place = place_id(40);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -2115,6 +2117,8 @@ fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
                 parameter.place = place_id(40);
                 parameter.structural_type = structural_type_id(3);
                 module.boundary_machines.push(BoundaryMachineDeclaration {
+                    unconditional_termination: false,
+                    completion: terminal_psi::BoundaryCompletion::NormalReturn,
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
                     scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),

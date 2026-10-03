@@ -12,13 +12,13 @@ pub(crate) struct ProviderPlanDigestEncoder(Sha256);
 impl ProviderPlanDigestEncoder {
     pub(crate) fn for_provider_plan() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.provider-plan.sha256.v1\0");
+        digest.update(b"omega.provider-plan.sha256.v2\0");
         Self(digest)
     }
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v1\0");
+        digest.update(b"omega.service-schema.sha256.v2\0");
         Self(digest)
     }
 
@@ -124,6 +124,12 @@ impl ProviderPlanDigestEncoder {
             });
         }
 
+        self.byte(match method.completion {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn => 0,
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            ) => 1,
+        });
         self.bool(method.has_result);
         match &method.result_type_identity {
             Some(identity) => {

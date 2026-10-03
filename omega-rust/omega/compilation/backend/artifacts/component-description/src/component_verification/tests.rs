@@ -124,6 +124,8 @@ fn minimal_module() -> TerminalModule {
 fn boundary_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -165,6 +167,8 @@ fn boundary_module() -> TerminalModule {
 fn provider_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -235,6 +239,8 @@ fn bounded_provider_module() -> TerminalModule {
     });
     let bounded = BoundaryMachineId::new(2).expect("boundary identity");
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -300,6 +306,7 @@ fn selected_plan() -> ProviderPlan {
             trait_name: "IndexedRequirement".into(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "apply".into(),
                 requirement_owner: "IndexedRequirement".into(),
                 requirement_owner_package_identity: None,
@@ -835,6 +842,8 @@ fn described_module() -> TerminalModule {
         parents: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -853,6 +862,8 @@ fn described_module() -> TerminalModule {
         published_service_ceiling: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

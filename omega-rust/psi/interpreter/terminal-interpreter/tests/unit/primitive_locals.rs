@@ -155,6 +155,8 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
     let mut parameter = module.machines[1].structural_parameters[0].clone();
     parameter.place = place_id(700);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

@@ -100,11 +100,14 @@ pub(crate) fn apply_statement_permission_production(
             .span_or_empty(event.segments)
             .to_vec();
         select_static_case_alternative(symbol, &event_path, places);
-        if matches!(event.source, FlowOwnershipEventSource::Statement { .. })
-            && written_targets.iter().any(|target| {
-                target.root == event.root && target.destination_path.as_slice() == event_path
-            })
-        {
+        if crate::semantic::calls::find_state(program, state_symbol).is_some_and(|state| {
+            super::super::linear_obligations::move_event_is_production_target(
+                program,
+                state,
+                event,
+                &event_path,
+            )
+        }) {
             continue;
         }
         let matching = places
@@ -186,6 +189,19 @@ pub(crate) fn apply_statement_permission_production(
         &calls,
         permission_events,
     );
+
+    if written_targets.is_empty() {
+        projected_affine::append_replacement(
+            program,
+            facts,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            statement,
+            places,
+            permission_events,
+        );
+    }
 
     for target in written_targets {
         let facts::PlaceRoot::Symbol(symbol) = target.root else {

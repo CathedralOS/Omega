@@ -74,7 +74,7 @@ pub(super) fn append(
         root: event.root,
         segments: path.clone(),
     };
-    let plain_affine = |place: &crate::flow::CanonicalPlace| {
+    let affine = |place: &crate::flow::CanonicalPlace| {
         crate::flow::canonical_place_type_reference(program, state, statement_index, place)
             .is_some_and(|reference| {
                 matches!(
@@ -83,11 +83,10 @@ pub(super) fn append(
                         | TypeReferenceNode::Generic { .. }
                         | TypeReferenceNode::FixedArray { .. }
                 ) && type_multiplicity(program, reference) == Multiplicity::Affine
-                    && validation::has_plain_owned_contents(program, reference)
                     && !type_carries_linear_obligation(program, reference)
             })
     };
-    if !plain_affine(&root) || !plain_affine(&selected) {
+    if !affine(&root) || !affine(&selected) {
         return;
     }
     let mut residuals = Vec::new();
@@ -170,6 +169,10 @@ fn complement(
             program
                 .data_members(data)
                 .iter()
+                .filter(|member| {
+                    !matches!(member,
+                    typed_trees::data::DataMember::Field(field) if field.relevance.is_erased())
+                })
                 .map(|member| match member {
                     typed_trees::data::DataMember::Field(field) => {
                         Some(facts::PlaceSegment::Field {
@@ -202,9 +205,7 @@ fn complement(
             if type_multiplicity(program, reference) == Multiplicity::Unrestricted {
                 continue;
             }
-            if type_multiplicity(program, reference) != Multiplicity::Affine
-                || !validation::has_plain_owned_contents(program, reference)
-            {
+            if type_multiplicity(program, reference) != Multiplicity::Affine {
                 return None;
             }
             output.push(place.segments);

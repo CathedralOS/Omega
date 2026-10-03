@@ -249,3 +249,83 @@ fn nested_static_applications_substitute_their_own_nominal_arguments() {
         &[program.machine_type_parameters(owner)[0].symbol]
     );
 }
+
+#[test]
+fn selected_cleanup_dependency_changes_cached_graph_without_rewriting_source_calls() {
+    let program = crate::front_end::typed_program(
+        r#"
+        boundary trait Console {}
+        data Token {}
+        machine Token::drop(token: &mut Token) reaches Console {}
+        machine consume(token: Token) {}
+    "#,
+    );
+    let machine = |name: &str| {
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+    };
+    let caller = machine("consume");
+    let hook = machine("Token::drop");
+    let _scope = crate::enter_program_plan_scope();
+    let ordinary = crate::infer_operational_may(&program);
+    let original = infer_service_reaches(&program, &ordinary);
+    assert!(
+        original
+            .services(
+                original
+                    .for_machine(caller.symbol)
+                    .unwrap()
+                    .inferred_transitive
+            )
+            .is_empty()
+    );
+    let mut dependencies = arena::Arena::default();
+    dependencies.append(flow_effects::CleanupDependency {
+        caller_machine: caller.symbol,
+        caller_state: program.machine_states(caller)[0].symbol,
+        target_machine: hook.symbol,
+        target_state: program.machine_states(hook)[0].symbol,
+    });
+    let prepared = crate::infer_operational_may_with_cleanup_dependencies(&program, &dependencies);
+    assert_eq!(
+        prepared.calls, ordinary.calls,
+        "cleanup cannot acquire an authored call ordinal"
+    );
+    let completed = infer_service_reaches(&program, &prepared);
+    assert_eq!(
+        completed
+            .services(
+                completed
+                    .for_machine(caller.symbol)
+                    .unwrap()
+                    .inferred_transitive
+            )
+            .len(),
+        1
+    );
+    {
+        let _prepared = crate::enter_prepared_effect_scope(&program, &prepared, &completed);
+        assert_eq!(
+            crate::infer_operational_may(&program).cleanup_dependencies,
+            dependencies
+        );
+    }
+    assert!(
+        crate::infer_operational_may(&program)
+            .cleanup_dependencies
+            .is_empty()
+    );
+    assert!(
+        infer_service_reaches(&program, &ordinary)
+            .services(
+                original
+                    .for_machine(caller.symbol)
+                    .unwrap()
+                    .inferred_transitive
+            )
+            .is_empty()
+    );
+}

@@ -24,6 +24,7 @@ mod canonical_filesystem_host;
 mod canonical_time_host;
 mod composition_modes;
 mod independent_components;
+mod semantic_roles;
 
 pub use canonical_filesystem_host::{
     MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
@@ -118,6 +119,7 @@ pub fn settle_checked_providers(
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
     let target_provider_defaults = settled_target_machines.provider_defaults;
+    semantic_roles::attach_accepted(typed, package_inputs)?;
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
@@ -127,31 +129,43 @@ pub fn settle_checked_providers(
         planning_target,
         package_inputs,
     )?;
-    let derived_provider_plans = crate::ProviderPlanDerivation::evaluated(
-        context,
-        target_name,
-        &evaluated_via_bindings,
-        &settled_target_machines.origins,
-    )
-    .map(derive_satisfies_plans)?;
+    let derive_selected = |typed: &TypedTrees| {
+        let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+        let derived = crate::ProviderPlanDerivation::evaluated(
+            context,
+            target_name,
+            &evaluated_via_bindings,
+            &settled_target_machines.origins,
+        )
+        .map(derive_satisfies_plans)?;
+        let diagnostics = crate::validate_derived_provider_plan_candidates(
+            context,
+            &evaluated_via_bindings,
+            &derived,
+        );
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        let selected = crate::select_derived_provider_plans(
+            &derived,
+            provider_selection_target,
+            &target_provider_defaults,
+            build_provider_selections,
+        )?;
+        Ok((derived, selected))
+    };
+    let (mut derived_provider_plans, mut selected_provider_plans) = derive_selected(typed)?;
+    if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery)
+        && semantic_roles::attach_proposed(typed, &selected_provider_plans)?
+    {
+        // Only completion-dependent provider metadata is rebuilt. Build and
+        // ordinary `via` evaluation above execute exactly once.
+        (derived_provider_plans, selected_provider_plans) = derive_selected(typed)?;
+    }
     let mut provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
-    let diagnostics = crate::validate_derived_provider_plan_candidates(
-        context,
-        &evaluated_via_bindings,
-        &derived_provider_plans,
-    );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    let selected_provider_plans = crate::select_derived_provider_plans(
-        &derived_provider_plans,
-        provider_selection_target,
-        &target_provider_defaults,
-        build_provider_selections,
-    )?;
     // The canonical `FilesystemHost` slot admits no authored conformance or
     // selection row; the toolchain mints the per-target realization plan
     // itself. It joins extraction, fused-service erasure, closure facts, the

@@ -549,9 +549,9 @@ fn owned_graph_signature_admits_affine_and_copy_but_rejects_linear_mutable_and_q
 #[test]
 fn affine_discard_permissions_do_not_authorize_nominal_cleanup_erasure() {
     for source in [
-        format!("{SOURCE}\nmachine Limits::drop(&mut self) {{}}"),
+        format!("{SOURCE}\nmachine Limits::drop(owner: &mut Limits) {{}}"),
         format!(
-            "data Payload {{ value: u64; }}\n{}\nmachine Payload::drop(&mut self) {{}}",
+            "data Payload {{ value: u64; }}\n{}\nmachine Payload::drop(owner: &mut Payload) {{}}",
             SOURCE.replace("data Limits {", "data Limits { payload: Payload;")
         ),
     ] {

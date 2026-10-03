@@ -61,6 +61,17 @@ pub(in crate::encoding::encode) fn method(
             Ok(())
         })
     })?;
+    encoder.field("completion", |encoder| {
+        match method.completion {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn => {
+                encoder.tag("normal_return", 0)
+            }
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            ) => encoder.tag("process_exit", 1),
+        };
+        Ok(())
+    })?;
     encoder.field("has_result", |encoder| {
         encoder.boolean(method.has_result);
         Ok(())

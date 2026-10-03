@@ -333,6 +333,7 @@ pub(super) fn progress_installation_fixture() -> (
             trait_name: "Scheduler".into(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "wait".into(),
                 requirement_owner: "Scheduler".into(),
                 requirement_identity: "Scheduler::wait#exact".into(),
@@ -368,6 +369,7 @@ pub(super) fn progress_installation_fixture() -> (
             trait_name: "SchedulerAdmission".into(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "grant_weak_fair".into(),
                 requirement_owner: "SchedulerAdmission".into(),
                 requirement_identity: route.requirement_identity.clone(),

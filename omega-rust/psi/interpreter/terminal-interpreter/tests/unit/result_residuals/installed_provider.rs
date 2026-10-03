@@ -34,6 +34,8 @@ fn module(nested: bool) -> TerminalModule {
     let mut boundary_parameter = parameter.clone();
     boundary_parameter.place = place_id(6);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -255,6 +257,8 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     let mut module = module(false);
     let parameter = module.machines[1].structural_parameters[0].clone();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -517,6 +521,8 @@ fn installed_boundary_result_mints_the_callers_claims() {
     let mut mint_parameter = module.boundary_machines[0].structural_parameters[0].clone();
     mint_parameter.place = super::place_id(20);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -543,6 +549,8 @@ fn installed_boundary_result_mints_the_callers_claims() {
     unregister_parameter.multiplicity = StructuralMultiplicity::Linear;
     unregister_parameter.qualifications = vec![live];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -709,6 +717,8 @@ fn installed_boundary_result_claims_require_linear_custody() {
 
 fn assumed_required_boundary() -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -730,6 +740,8 @@ fn assumed_required_boundary() -> BoundaryMachineDeclaration {
 
 fn assumed_intermediate_boundary() -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         id: boundary_id(5),
         identity: "test::forward_assumed".into(),
         ..assumed_required_boundary()

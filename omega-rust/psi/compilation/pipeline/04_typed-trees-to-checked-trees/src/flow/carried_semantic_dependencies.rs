@@ -181,7 +181,7 @@ fn append_type_dependencies(
     }
 }
 
-fn event_statement_index(
+pub(super) fn event_statement_index(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     source: PermissionEventSource,
@@ -206,7 +206,7 @@ fn event_statement_index(
     }
 }
 
-fn event_type_reference(
+pub(super) fn event_type_reference(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,

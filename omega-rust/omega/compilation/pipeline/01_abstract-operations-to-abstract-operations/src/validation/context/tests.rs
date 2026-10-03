@@ -45,6 +45,8 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
     let mut unit = verified.unit().clone();
     unit.boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),

@@ -22,6 +22,7 @@ fn plan(name: &str, requirement: &str) -> PackagePolicyProviderPlan {
         provider_type_declaration: Some(nominal("Provider")),
         target: TargetProfile::LinuxX64.target_name().to_owned(),
         methods: vec![PackagePolicyServiceMethod {
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             authority: PackagePolicyServiceAuthority {
                 service_reach: vec![],
                 synchronous_invocations: vec![],

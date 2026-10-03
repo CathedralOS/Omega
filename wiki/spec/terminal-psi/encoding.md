@@ -580,8 +580,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 116 + `u16` vocabulary
-marker 116 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 117 + `u16` vocabulary
+marker 117 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
 <!-- module-table-order -->
@@ -966,7 +966,7 @@ are not re-sorted by the canonical-order checker.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted program-local root introductions + counted content guarantees + fixed service reach + published service ceiling |
+| boundary machine | boundary machine id + identity string + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted program-local root introductions + counted content guarantees + fixed service reach + published service ceiling |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
@@ -977,6 +977,20 @@ are not re-sorted by the canonical-order checker.
 | projected qualification | structural path + domain id |
 | positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
 | required domain | `u32` argument index + domain id |
+
+Boundary completion tags are `0` for the exact normal-return provider premise
+and `1` for external process exit. Unknown tags reject. Completion is independent
+of the result and reach rosters and must match the exact admitted provider
+contract. The transitional external Unit encoding remains unsupported in
+implicit cleanup and does not supply an external terminal invocation or trace.
+
+The unconditional termination bit retains an explicit `Terminates` contract
+with no progress premises. Normal completion alone does not promise finite
+work. Conditional termination projects to false; its premises remain in the
+provider schema and cannot be discharged by this bit. Native admission compares
+the bit with that exact schema. Checked provider bodies and executable cleanup
+dependencies must independently preserve finite normal completion, including
+ranked control cycles and the contracts of opaque calls.
 
 <!-- boundary-parameter-kind-tags -->
 
@@ -1751,14 +1765,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (116). A
+debug map envelopes then carry the shared `u16` vocabulary marker (117). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 116 | yes |
+| semantic module | `PSITERM\0` | 117 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

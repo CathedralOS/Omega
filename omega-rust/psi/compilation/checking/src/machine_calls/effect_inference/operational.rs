@@ -76,12 +76,22 @@ pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
 }
 
 pub(crate) fn infer_operational_may_uncached(program: &TypedTrees) -> OperationalPlan {
+    infer_operational_may_with_cleanup_dependencies(program, &arena::Arena::default())
+}
+
+/// Settle the same operational graph with ownership-selected edge invocations.
+/// The caller supplies exact custody selection, never inferred source calls.
+pub fn infer_operational_may_with_cleanup_dependencies(
+    program: &TypedTrees,
+    dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+) -> OperationalPlan {
     DIRECT_OPERATIONAL_MEMO.with(|cell| {
         *cell.borrow_mut() = Some(symbols::SymbolKeyMap::default());
     });
     let mut machines = build_machine_work(program);
-    propagate_operational_may(&mut machines);
-    let plan = build_plan(program, machines);
+    propagate_operational_may(&mut machines, dependencies);
+    let mut plan = build_plan(program, machines);
+    plan.cleanup_dependencies = dependencies.clone();
     DIRECT_OPERATIONAL_MEMO.with(|cell| {
         *cell.borrow_mut() = None;
     });
@@ -597,7 +607,10 @@ fn signature_operational(
     operational
 }
 
-fn propagate_operational_may(machines: &mut [MachineWork]) {
+fn propagate_operational_may(
+    machines: &mut [MachineWork],
+    dependencies: &arena::Arena<flow_effects::CleanupDependency>,
+) {
     loop {
         let previous = machines
             .iter()
@@ -632,6 +645,25 @@ fn propagate_operational_may(machines: &mut [MachineWork]) {
                             body_may_block |= target.body_may_block;
                         }
                     }
+                }
+            }
+            for (_, dependency) in dependencies.iter().filter(|(_, dependency)| {
+                dependency.caller_machine == machines[machine_index].symbol
+            }) {
+                if let Some(target) = machines
+                    .iter()
+                    .find(|machine| machine.symbol == dependency.target_machine)
+                {
+                    body_may_suspend |= if target.uses_published_contract {
+                        target.published_may_suspend
+                    } else {
+                        target.body_may_suspend
+                    };
+                    body_may_block |= if target.uses_published_contract {
+                        target.published_may_block
+                    } else {
+                        target.body_may_block
+                    };
                 }
             }
             machines[machine_index].body_may_suspend = body_may_suspend;
@@ -690,6 +722,18 @@ fn propagate_operational_may(machines: &mut [MachineWork]) {
                 }
                 transitive_may_suspend |= call.transitive_may_suspend;
                 transitive_may_block |= call.transitive_may_block;
+            }
+            for (_, dependency) in dependencies.iter().filter(|(_, dependency)| {
+                dependency.caller_machine == machine.symbol
+                    && dependency.caller_state == state.symbol
+            }) {
+                if let Some((_, may_suspend, may_block)) = summaries
+                    .iter()
+                    .find(|(symbol, _, _)| *symbol == dependency.target_machine)
+                {
+                    transitive_may_suspend |= may_suspend;
+                    transitive_may_block |= may_block;
+                }
             }
             state.transitive_may_suspend = transitive_may_suspend;
             state.transitive_may_block = transitive_may_block;

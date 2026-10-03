@@ -364,7 +364,10 @@ pub(super) fn valid_nominal_cleanup(
         }
         && target.entry_claim_declarations.is_empty()
         && target.content_entry_claims.is_empty()
-        && target.published_service_ceiling.is_empty()
+        && target
+            .published_service_ceiling
+            .iter()
+            .all(|service| caller.published_service_ceiling.contains(service))
         && target.verified_contract.as_ref().is_none_or(|contract| {
             contract.ensures.is_empty()
                 && contract.outcome_specific_ensures.is_empty()

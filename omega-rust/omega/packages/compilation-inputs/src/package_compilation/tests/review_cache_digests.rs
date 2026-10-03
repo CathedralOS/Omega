@@ -18,7 +18,7 @@ use std::sync::Arc;
 use target::TargetProfile;
 
 const PINNED_INPUTS_DIGEST: &str =
-    "afab0daddb6eb6f456c5d2616784012e2a22ffa7e46ee99d605a8e3d80eb6da8";
+    "202fa3ac72f0d627a894cea97749ca36111da63ad23c827cf62469aac0c9fc82";
 const PINNED_SNAPSHOT_DIGEST: &str =
     "df96be62af51166178a6fb63f8b4fce58f7d3d10c22713fb8cec07c6a36914aa";
 
@@ -124,4 +124,29 @@ fn review_cache_digests_keep_their_exact_bytes() {
         hex(&review_cache_snapshot_digest(&snapshot)),
         PINNED_SNAPSHOT_DIGEST
     );
+}
+
+#[test]
+fn semantic_role_discovery_is_a_distinct_review_input_without_authority() {
+    let tree = TempTree::new();
+    let ordinary = attached_inputs(&tree);
+    let discovery = ordinary.clone().with_semantic_role_discovery(true);
+    assert_ne!(ordinary, discovery);
+    assert_ne!(
+        review_cache_inputs_digest(&ordinary),
+        review_cache_inputs_digest(&discovery),
+        "a proposal-bearing review must not reuse an ordinary compile"
+    );
+    assert_eq!(
+        ordinary.accepted_semantic_bindings().collect::<Vec<_>>(),
+        discovery.accepted_semantic_bindings().collect::<Vec<_>>(),
+        "requesting proposals cannot create accepted role or permission rows"
+    );
+    let (source, target) = discovery.clone().into_parts();
+    assert_eq!(
+        PackageCompilationInputs::from_parts(source, target).unwrap(),
+        discovery,
+        "target input handoff retains the review phase"
+    );
+    assert_eq!(discovery.with_semantic_role_discovery(false), ordinary);
 }

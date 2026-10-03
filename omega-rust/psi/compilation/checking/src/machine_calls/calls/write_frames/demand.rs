@@ -104,10 +104,9 @@ pub(crate) struct CallFrameCaches {
         >,
     >,
     /// Whole-program operational and service-reach plans an operand Call node
-    /// consumes to test call-candidate totality. Both are pure over this
-    /// resolver's immutable program, so one lazy pair serves every operand
-    /// the fixpoint evaluates instead of a fresh whole-program derivation per
-    /// call expression.
+    /// consumes to test call-candidate totality. Source custody preparation
+    /// can add implicit cleanup dependencies without changing TypedTrees, so
+    /// the retained operational graph is part of this memo's identity.
     call_plans: Mutex<
         Option<
             std::sync::Arc<(
@@ -126,12 +125,15 @@ impl CallFrameCaches {
         flow_effects::OperationalPlan,
         flow_effects::ServiceReachInferencePlan,
     )> {
+        let operational = crate::infer_operational_may(program);
         if let Ok(cache) = self.call_plans.lock()
             && let Some(plans) = cache.as_ref()
+            && plans.0 == operational
         {
             return plans.clone();
         }
-        let plans = std::sync::Arc::new(compute_call_plans(program));
+        let service_reaches = crate::infer_service_reaches(program, &operational);
+        let plans = std::sync::Arc::new((operational, service_reaches));
         if let Ok(mut cache) = self.call_plans.lock() {
             *cache = Some(plans.clone());
         }

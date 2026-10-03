@@ -53,6 +53,7 @@ mod authored_selections;
 mod borrow;
 mod carry;
 mod cleanup;
+mod cleanup_admission;
 mod content;
 mod contracts;
 mod dynamic_conformances;

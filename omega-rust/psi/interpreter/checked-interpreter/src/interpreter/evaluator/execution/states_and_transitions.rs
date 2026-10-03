@@ -13,6 +13,7 @@ impl<'program> Evaluator<'program> {
             crate::interpreter::BuildMachineProgram::Typed(typed) => Self::new(typed, &[]),
             crate::interpreter::BuildMachineProgram::Checked(checked) => {
                 let mut evaluator = Self::new(&checked.typed, &[]);
+                evaluator.checked = Some(checked);
                 evaluator.operator_facts = Some(&checked.facts.operators);
                 // Runtime dispatch can carry relationships admitted for the
                 // product, not this activation. Host authority still enters
@@ -29,6 +30,7 @@ impl<'program> Evaluator<'program> {
         let step_budget = ambient_step_budget();
         Self {
             program,
+            checked: None,
             operator_facts: None,
             boundary_adapter_dispatch: &[],
             selected_build_time_operators: &[],
@@ -102,6 +104,7 @@ impl<'program> Evaluator<'program> {
         stdin: &'program [u8],
     ) -> Self {
         let mut evaluator = Self::new(&checked.typed, stdin);
+        evaluator.checked = Some(checked);
         evaluator.operator_facts = Some(&checked.facts.operators);
         evaluator.boundary_adapter_dispatch = &checked.facts.boundary_adapter_dispatch;
         evaluator
@@ -1062,6 +1065,7 @@ impl<'program> Evaluator<'program> {
             // An explicit subject replaces ambient storage for the whole
             // activation, including subsequent state transitions.
             instance = frame.self_cell.clone();
+            self.validate_normal_cleanup_selection(machine, state)?;
 
             // Execute statements, watching for the first satisfied transition. A state
             // whose body ends in a bare expression (`{ 22 }`) returns that expression's
@@ -1100,9 +1104,18 @@ impl<'program> Evaluator<'program> {
             }
 
             match next {
-                None => return Ok(tail_value),
-                Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
-                Some(TransitionDecision::Terminal) => return Ok(None),
+                None => {
+                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    return Ok(tail_value);
+                }
+                Some(TransitionDecision::Value(value)) => {
+                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    return Ok(Some(value));
+                }
+                Some(TransitionDecision::Terminal) => {
+                    self.execute_normal_cleanup(machine, state, &frame)?;
+                    return Ok(None);
+                }
                 Some(TransitionDecision::Named {
                     state: target_state,
                     machine: target_machine,

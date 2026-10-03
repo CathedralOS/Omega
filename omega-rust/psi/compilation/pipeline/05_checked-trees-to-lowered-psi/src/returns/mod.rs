@@ -14,12 +14,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
-    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedReturnPlan,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
+    CheckedStructuralScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     ClosedScalarContractValue,
 };
@@ -29,7 +28,7 @@ use language_semantics::{
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BoundaryMachineId, ContractId, DomainSemanticId, IeeeFloatFormat, IntegerSign, MachineId,
-    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralPlaceKind,
+    Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralPlaceKind,
     StructuralTypeId,
 };
 use terminal_psi::{
@@ -88,7 +87,6 @@ use crate::unit::attached_unit::{
     lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
     validate_transfer_shape,
 };
-use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 
 pub(crate) mod affine_return;
 pub(crate) mod boundary_scalar_return;
