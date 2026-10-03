@@ -400,8 +400,7 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit built 1047ms exit:
 pass/expressions/arithmetic_domain_saturating_signed_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/expressions/arithmetic_domain_trapping_overflow built 967ms exit:signal signal:4 @2d8ed253669f+wt
 pass/expressions/arithmetic_domain_wrapping_exit built 856ms exit:70 @2d8ed253669f+wt
-pass/expressions/borrow_carrying_data_field_exit rejected 932ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural value: reference record loans` (state 0, statement 1)
+pass/expressions/borrow_carrying_data_field_exit built 1574ms exit:70 @176f9a7001a
 pass/expressions/dead_trapping_let_traps built 977ms exit:signal signal:4 @2d8ed253669f+wt
 pass/expressions/declared_operator_match_result built 1520ms exit:70 @9baafc0ace88
 pass/expressions/explicit_scalar_tag_erasure checked 476ms @2d8ed253669f+wt
@@ -575,8 +574,7 @@ pass/layouts/runtime_plan_laid_erased_field_exit built 1610ms exit:70 @9baafc0ac
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1461ms exit:72 @9baafc0ace88
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 2136ms exit:70 @9baafc0ace88
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 5651ms exit:70 @9baafc0ace88
-pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 933ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
+pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 5001ms exit:70 @176f9a7001a
 pass/layouts/runtime_plan_laid_value_field_exit built 1232ms exit:70 @2d8ed253669f+wt
 pass/layouts/runtime_size_of_align_of_exit built 1097ms exit:70 @2d8ed253669f+wt
 pass/locals/mutable_local_call_initializer_exit built 896ms exit:70 @2d8ed253669f+wt
@@ -993,8 +991,7 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1664ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes built 524ms @2d8ed253669f+wt
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
-pass/wire/wire_preserving_decode_relay_exit rejected 887ms @34627c25182b
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: claim-free affine result` (state 0, statement 3)
+pass/wire/wire_preserving_decode_relay_exit built 13841ms exit:70 @176f9a7001a
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
 run/borrows/local_mut_borrow built 1464ms exit:0 @2d8ed253669f+wt
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
