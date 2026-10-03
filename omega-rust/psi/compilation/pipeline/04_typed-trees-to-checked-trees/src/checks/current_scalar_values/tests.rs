@@ -161,3 +161,31 @@ terminates by remaining -> Nat::Descending;
         );
     }
 }
+
+#[test]
+fn current_scalar_assignment_transport_observes_earlier_sibling_call_writes() {
+    let source = r#"
+machine restore_zero(value: &mut u64) -> u64 { value = 0; 0 }
+machine positive(value: u64) -> u64 requires value > 0 { value }
+machine combine(first: u64, second: u64) -> u64 { second }
+machine caller(mut remaining: u64, mut scratch: u64) -> u64
+requires remaining > 0
+{
+    combine(restore_zero(&mut remaining), positive(remaining))
+}
+"#;
+    let diagnostics =
+        crate::lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+            .expect_err("the later call cannot borrow the pre-write positive fact");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call positive")),
+        "{diagnostics:#?}"
+    );
+    let disjoint = source.replace("restore_zero(&mut remaining)", "restore_zero(&mut scratch)");
+    crate::lower_typed_trees(parse_typed_trees(&disjoint), &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| {
+            panic!("a disjoint operand write preserves the scalar fact: {diagnostics:#?}")
+        });
+}

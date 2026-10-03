@@ -106,7 +106,7 @@ impl<'program> CurrentScalarValues<'program> {
                     let TransitionGuardNode::When(guard) = transition.guard else {
                         return None;
                     };
-                    values.invalidate_frame(
+                    values.invalidate_operand_writes(
                         frames.map(|frames| frames.expression_write_frame(machine, guard)),
                     );
                     // A missing primary target preserves its true arm; a
@@ -146,14 +146,14 @@ impl<'program> CurrentScalarValues<'program> {
                     {
                         binding.value = value;
                     } else {
-                        values.invalidate_frame(
+                        values.invalidate_operand_writes(
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
                 }
                 StatementNode::Call(call) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
-                    values.invalidate_frame(
+                    values.invalidate_operand_writes(
                         frames.map(|frames| frames.may_write_frame(machine, call)),
                     );
                 }
@@ -171,7 +171,7 @@ impl<'program> CurrentScalarValues<'program> {
                 return None;
             }
             if let TransitionGuardNode::When(guard) = transition.guard {
-                values.invalidate_frame(
+                values.invalidate_operand_writes(
                     frames.map(|frames| frames.expression_write_frame(machine, guard)),
                 );
                 values.assume(program, machine, state, guard, transition.target == target);
@@ -182,7 +182,7 @@ impl<'program> CurrentScalarValues<'program> {
                 program.statement_table.transition_target(target)
             {
                 for argument in program.statement_table.expression_handles(*arguments) {
-                    values.invalidate_frame(
+                    values.invalidate_operand_writes(
                         frames.map(|frames| frames.expression_write_frame(machine, *argument)),
                     );
                 }
@@ -201,13 +201,17 @@ impl<'program> CurrentScalarValues<'program> {
         // Complete existing operand frames include nested calls, rather than
         // assuming a syntactic assignment or local declaration is effect-free.
         if let Some(frames) = frames {
-            self.invalidate_frame(Some(frames.statement_value_write_frame(machine, statement)));
+            self.invalidate_operand_writes(Some(
+                frames.statement_value_write_frame(machine, statement),
+            ));
         } else if statement_has_call(statement) {
-            self.invalidate_frame(None);
+            self.invalidate_operand_writes(None);
         }
     }
 
-    fn invalidate_frame(&mut self, frame: Option<facts::NormalizedWriteFrame>) {
+    /// Retire current value identities before observing operands that may run
+    /// earlier calls. Unknown effects preserve no live scalar association.
+    pub(crate) fn invalidate_operand_writes(&mut self, frame: Option<facts::NormalizedWriteFrame>) {
         let paths = frame.and_then(|frame| frame.into_complete_paths());
         for binding in &mut self.current {
             if paths.as_ref().is_none_or(|paths| {

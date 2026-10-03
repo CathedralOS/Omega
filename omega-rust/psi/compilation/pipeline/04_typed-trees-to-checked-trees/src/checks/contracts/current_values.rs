@@ -126,7 +126,7 @@ pub(crate) fn proves_call(
     } else {
         TransitionTargetHandle::invalid()
     };
-    let Some(values) = CurrentScalarValues::at(
+    let Some(mut values) = CurrentScalarValues::at(
         program,
         machine,
         state,
@@ -136,6 +136,21 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
+    if !target.is_valid() {
+        let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(call.statement_index)
+        else {
+            return false;
+        };
+        // The ordinal identifies a call inside this statement, but its earlier
+        // sibling operands may already have changed storage. Reuse the full
+        // operand frame conservatively until an ordered capture is available.
+        values.invalidate_operand_writes(
+            frames.map(|frames| frames.statement_value_write_frame(machine, statement)),
+        );
+    }
     let Some((callee, callee_state)) =
         crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)
             .or_else(|| crate::semantic::calls::find_machine_head(program, call.target_symbol))
