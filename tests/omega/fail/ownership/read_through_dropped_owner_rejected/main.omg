@@ -10,7 +10,7 @@ data Guard {
     handle: i32;
 }
 
-machine Guard::drop(&mut self) {
+machine Guard::drop(guard: &mut Guard) {
 }
 
 data Main {}

@@ -1,1 +1,1 @@
-state `take` receives `self` as both mutable and read-only
+state `take` receives `main` as both mutable and read-only

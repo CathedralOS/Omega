@@ -34,8 +34,8 @@ machine larger(value: u64[0..=256]) -> u64 { upper_bound<512>(value) }
 // exact qualification; an established domain value enters through an
 // explicit `as` mint, and field construction requires routed establishment
 // (see the invalid-initializer canary legs).
-domain<const Bound: u64> u64::AtMost<Bound>
-    requires self <= Bound;
+domain<const Bound: u64> u64::AtMost<Bound>(value)
+    requires value <= Bound;
 
 data Bytes<const Capacity: u64, Length [copy]> [copy]
 where

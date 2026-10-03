@@ -135,8 +135,8 @@ fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/affine_record_copy_handoff rejected 149ms expected @14f449e5e62b+wt
 	affine value `settings` was already transferred or consumed; it cannot be moved here
-fail/borrows/bare_self_mut_operand_beside_self_view rejected 197ms expected @882f6744a121+wt
-	state `take` receives `self` as both mutable and read-only
+fail/borrows/bare_self_mut_operand_beside_self_view rejected 156ms expected @51cfa86f7f14+wt
+	state `take` receives `main` as both mutable and read-only
 fail/borrows/borrow_duplicate_mut rejected 277ms expected @c08960bee2b1+wt
 	state `swap` receives `main.value` as mutable more than once
 fail/borrows/borrow_local_alias_active rejected 666ms expected @2d8ed253669f
