@@ -389,3 +389,109 @@ fn correlated_exit_equality_replays_current_updates_and_both_order_directions() 
         );
     }
 }
+
+#[test]
+fn invocation_and_current_definitions_both_remain_available_for_exit_equality() {
+    use semantic_vocabulary::IntegerValue;
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let context = PropositionContext::from_value_types((1..=13).map(|raw| {
+        (
+            ValueId::new(raw).unwrap(),
+            if raw == 13 {
+                ScalarType::Boolean
+            } else {
+                scalar
+            },
+        )
+    }))
+    .unwrap();
+    let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+    let boolean = ScalarTerm::value(ValueId::new(13).unwrap(), ScalarType::Boolean);
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Unsigned(number)).unwrap();
+    let add = |left, right| ScalarTerm::exact_integer_add(integer, left, right).unwrap();
+    let subtract = |left, right| ScalarTerm::exact_integer_subtract(integer, left, right).unwrap();
+    // Exact ensures context from the mutable accumulator artifact. The entry
+    // contract defines total (3) with invocation values (1,2); the retained
+    // header separately equates that SAME total with current sum (7 = 5+6).
+    // Choosing only the first definition loses the current exit correlation.
+    let requirements = vec![
+        Proposition::Equal(value(3), add(value(1), value(2))),
+        Proposition::LessThan(literal(0), value(1)),
+        Proposition::LessOrEqual(value(1), literal(1000)),
+        Proposition::LessOrEqual(value(2), literal(1000)),
+        Proposition::LessOrEqual(value(3), literal(1000)),
+        Proposition::LessOrEqual(literal(1), value(1)),
+    ];
+    let axioms = vec![
+        Proposition::Equal(value(3), value(7)),
+        Proposition::Equal(value(7), add(value(5), value(6))),
+        Proposition::LessThan(literal(0), value(5)),
+        Proposition::LessOrEqual(value(5), literal(1000)),
+        Proposition::LessOrEqual(value(6), literal(1000)),
+        Proposition::LessOrEqual(value(6), literal(18446744073709551614)),
+        Proposition::LessOrEqual(value(7), literal(1000)),
+        Proposition::LessOrEqual(literal(0), value(6)),
+        Proposition::LessOrEqual(literal(0), value(7)),
+        Proposition::LessOrEqual(literal(1), value(5)),
+        Proposition::Equal(value(8), literal(1)),
+        Proposition::Equal(value(9), subtract(value(5), value(8))),
+        Proposition::Equal(value(10), literal(1)),
+        Proposition::Equal(value(11), add(value(6), value(10))),
+        Proposition::Equal(value(12), literal(0)),
+        Proposition::Equal(
+            boolean.clone(),
+            ScalarTerm::IntegerLessThan {
+                scalar_type: integer,
+                left: Box::new(value(12)),
+                right: Box::new(value(9)),
+            },
+        ),
+        Proposition::Implication {
+            premise: Box::new(Proposition::LessThan(value(12), value(9))),
+            conclusion: Box::new(Proposition::Equal(
+                boolean.clone(),
+                ScalarTerm::Boolean(true),
+            )),
+        },
+        Proposition::Implication {
+            premise: Box::new(Proposition::LessOrEqual(value(9), value(12))),
+            conclusion: Box::new(Proposition::Equal(boolean, ScalarTerm::Boolean(false))),
+        },
+        Proposition::LessOrEqual(value(9), literal(0)),
+        Proposition::Equal(value(4), value(11)),
+    ];
+    let goal = Proposition::Equal(value(3), value(4));
+    let produce = |axioms: &[Proposition]| {
+        produce_checked_canonical_integer_proof(
+            &context,
+            &goal,
+            &requirements,
+            axioms,
+            &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
+        )
+    };
+    let proof =
+        produce(&axioms).expect("the invocation definition cannot hide current conservation");
+    proof_admission::accept_certificate(&context, &goal, &requirements, &axioms, &proof)
+        .expect("all original invocation and current citations replay independently");
+    for (position, replacement) in [
+        (0, Proposition::Truth),
+        (0, Proposition::Equal(value(3), value(5))),
+        (18, Proposition::Truth),
+        (19, Proposition::Equal(value(4), value(6))),
+    ] {
+        let mut changed = axioms.clone();
+        changed[position] = replacement;
+        assert!(
+            produce(&changed).is_none(),
+            "changed current fact {position}"
+        );
+        assert!(
+            proof_admission::accept_certificate(&context, &goal, &requirements, &changed, &proof)
+                .is_err()
+        );
+    }
+}
