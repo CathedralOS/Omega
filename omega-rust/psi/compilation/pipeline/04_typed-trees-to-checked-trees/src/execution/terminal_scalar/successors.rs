@@ -2,11 +2,11 @@
 
 use arena::Arena;
 use checked_trees::{
-    CheckedProofTerm, CheckedScalarBranchDestination, CheckedScalarExpressionPlans,
-    CheckedScalarMachineGraph, CheckedScalarStateGraph, CheckedScalarStateTerminator,
-    CheckedScalarSuccessor, CheckedStructuralAccess, CheckedStructuralControlTransferPlan,
-    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralScalarArgumentSourcePlan,
+    CheckedProofTerm, CheckedScalarBranchDestination, CheckedScalarComputationPlans,
+    CheckedScalarExpressionPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralAccess,
+    CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
 use language_semantics::{Multiplicity, PermissionEventSource};
 use typed_trees::{
@@ -73,6 +73,7 @@ fn iter_mut(
 pub(super) fn resolve_arguments(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
+    computations: &CheckedScalarComputationPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
     graph: &CheckedScalarMachineGraph,
 ) -> Option<Vec<SuccessorArguments>> {
@@ -81,7 +82,15 @@ pub(super) fn resolve_arguments(
         .iter()
         .flat_map(|source| {
             iter(&source.terminator).map(move |successor| {
-                arguments(program, expressions, proof_terms, graph, source, successor)
+                arguments(
+                    program,
+                    expressions,
+                    computations,
+                    proof_terms,
+                    graph,
+                    source,
+                    successor,
+                )
             })
         })
         .collect()
@@ -111,6 +120,7 @@ pub(super) fn commit_arguments(
 pub(super) fn validate(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
+    computations: &CheckedScalarComputationPlans,
     graph: &CheckedScalarMachineGraph,
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
@@ -119,7 +129,15 @@ pub(super) fn validate(
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
-            let expected = arguments(program, expressions, proof_terms, graph, source, successor)?;
+            let expected = arguments(
+                program,
+                expressions,
+                computations,
+                proof_terms,
+                graph,
+                source,
+                successor,
+            )?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
@@ -135,6 +153,7 @@ pub(super) fn validate(
 fn arguments<'a>(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
+    computations: &CheckedScalarComputationPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
     graph: &'a CheckedScalarMachineGraph,
     source: &'a CheckedScalarStateGraph,
@@ -293,6 +312,58 @@ fn arguments<'a>(
         arguments.iter().zip(target_formals.iter().copied())
     {
         let argument_ordinal = u32::try_from(argument_position).ok()?;
+        if let Some(primitive_type) = program.primitive_type_reference(formal.type_reference) {
+            let role = if successor.is_continuation {
+                checked_trees::CheckedScalarExpressionRole::TransitionContinuationArgument {
+                    argument_ordinal,
+                }
+            } else {
+                checked_trees::CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+            };
+            // An Expression argument row promises an executable producer at
+            // this exact edge coordinate. Publishing only the target carrier
+            // would let an incomplete graph preempt the ordinary call planner.
+            let mut roots = computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == source.state
+                        && root.statement_ordinal == successor.statement_ordinal
+                        && root.role == role
+                });
+            if !formal.relevance.is_erased()
+                && let Some(root) = roots.next()
+            {
+                // Computation lowering executes in the dispatch graph's owner;
+                // a fused sibling's root cannot borrow that owner's namespace.
+                if roots.next().is_some()
+                    || root.machine != graph.machine
+                    || !computations.nodes.is_valid(root.root)
+                {
+                    return None;
+                }
+                let computation = computations.nodes.get(root.root);
+                if computation.authored_root != *actual
+                    || computation.primitive_type != primitive_type
+                {
+                    return None;
+                }
+            } else {
+                // Erased scalar lanes are pure values, never runtime effects.
+                let (binding, expression) = expressions.bound_expression_at(
+                    source.state,
+                    successor.statement_ordinal,
+                    role,
+                )?;
+                if binding.expression != *actual
+                    || binding.destination != formal.symbol
+                    || expression.primitive_type() != Some(primitive_type)
+                {
+                    return None;
+                }
+            }
+        }
         if formal.relevance.is_erased() {
             let Some(primitive_type) = program.primitive_type_reference(formal.type_reference)
             else {
