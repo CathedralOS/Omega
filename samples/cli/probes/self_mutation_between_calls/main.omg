@@ -1,37 +1,38 @@
 // Self-field mutation interleaved with value-returning calls that read
-// from self.
+// from main.
 //
-// FRESH COMBINATION: a value-returning machine reads self fields, and
-// self is mutated BETWEEN sequential calls to that machine. Tests that
-// each call observes the correct self state (not a stale cached value).
+// FRESH COMBINATION: a value-returning machine reads subject fields, and
+// the subject is mutated BETWEEN sequential calls to that machine. Tests
+// that each call observes the correct subject state (not a stale cached
+// value).
 //
 // Machines:
-//   scale(n) -> i32 = n * self.st.multiplier
-//   offset_add(n) -> i32 = n + self.st.addend
+//   scale(n) -> i32 = n * main.st.multiplier
+//   offset_add(n) -> i32 = n + main.st.addend
 //
 // Script:
-//   self.st.multiplier = 3
-//   r1 = self.scale(5)        // = 5 * 3 = 15
-//   self.st.multiplier = 7
-//   r2 = self.scale(4)        // = 4 * 7 = 28
-//   self.st.addend = 2
-//   r3 = self.offset_add(10)  // = 10 + 2 = 12
-//   self.st.addend = 15
-//   r4 = self.offset_add(3)   // = 3 + 15 = 18
+//   main.st.multiplier = 3
+//   r1 = main.scale(5)        // = 5 * 3 = 15
+//   main.st.multiplier = 7
+//   r2 = main.scale(4)        // = 4 * 7 = 28
+//   main.st.addend = 2
+//   r3 = main.offset_add(10)  // = 10 + 2 = 12
+//   main.st.addend = 15
+//   r4 = main.offset_add(3)   // = 3 + 15 = 18
 //
 //   total = r1 + r2 + r3 + r4 - (15 + 28 + 12 + 18 - 70)
 //         = 15 + 28 + 12 + 18 = 73 ... not 70.
 //   Let's use: 15 + 28 + 12 + 18 - 3 = 70.
 //   Or: r1 + r2 - r3 + r4 - (8) = 15 + 28 - 12 + 18 - 8 = 41. No.
 //   Or: r1 + r2 + r3 + r4 = 73, not 70. Adjust:
-//   self.st.multiplier=3, r1=scale(5)=15
-//   self.st.multiplier=7, r2=scale(4)=28
-//   self.st.addend=2, r3=offset_add(10)=12
-//   self.st.addend=15, r4=offset_add(2)=17  (changed arg)
+//   main.st.multiplier=3, r1=scale(5)=15
+//   main.st.multiplier=7, r2=scale(4)=28
+//   main.st.addend=2, r3=offset_add(10)=12
+//   main.st.addend=15, r4=offset_add(2)=17  (changed arg)
 //   total = r1 + r2 + r3 + r4 = 15+28+12+17=72. No.
-//   self.st.addend=15, r4=offset_add(1)=16
+//   main.st.addend=15, r4=offset_add(1)=16
 //   total = 15+28+12+16=71. No.
-//   self.st.addend=15, r4=offset_add(0)=15
+//   main.st.addend=15, r4=offset_add(0)=15
 //   total = 15+28+12+15=70.
 //
 // Checks (exit on first wrong):
@@ -62,14 +63,14 @@ data Main {
     pause: [u8; 256];
 }
 
-// Value-returning machine that reads self.st.multiplier.
+// Value-returning machine that reads main.st.multiplier.
 machine Main::scale(main: &mut Main, n: i32 in Wrapping) -> i32 {
     transition {
         _ -> ((n * main.st.multiplier) as i32)
     }
 }
 
-// Value-returning machine that reads self.st.addend.
+// Value-returning machine that reads main.st.addend.
 machine Main::offset_add(main: &mut Main, n: i32 in Wrapping) -> i32 {
     transition {
         _ -> ((n + main.st.addend) as i32)

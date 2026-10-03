@@ -1,10 +1,10 @@
 // Task runner: nested case-payload dispatch through a sub-machine
-// that mutates self across multiple calls.
+// that mutates its subject across multiple calls.
 //
 // Exercises: a case-payload Task dispatched to a sub-machine (run_task),
 // which itself dispatches on the task type and calls ANOTHER sub-machine
 // (apply_result) to accumulate the score. This stresses nested sub-machine
-// calls where each level mutates self, and case-payload values passed
+// calls where each level mutates its subject, and case-payload values passed
 // down multiple levels.
 //
 // Task variants:

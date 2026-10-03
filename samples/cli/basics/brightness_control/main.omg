@@ -10,7 +10,7 @@
 //     arithmetic so `amount * 10` proves EXACT within [0..=100] (no overflow, no
 //     annotation) -- the arithmetic-use narrowing.
 //   * `Off -> apply(0)` -- a literal in range.
-// The store `self.brightness = target` is a proof-carrying bounded write. Every
+// The store `main.brightness = target` is a proof-carrying bounded write. Every
 // arm targets `apply`, whose single bounded parameter is discharged three
 // different ways, so the whole controller is proven with no manual range casts.
 //

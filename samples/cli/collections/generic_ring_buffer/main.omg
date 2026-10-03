@@ -155,7 +155,7 @@ machine Main::pop(main: &mut Main) {
     }
 }
 
-// Dispatch read from const-indexed slot into self.ring.last_pop.
+// Dispatch read from const-indexed slot into main.ring.last_pop.
 machine Main::read_slot(main: &mut Main, idx: i32 in Saturating) {
     transition idx == 0 {
         true -> r0(main)

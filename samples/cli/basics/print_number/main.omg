@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // narrowing yields all of `0..=255`. Writing such a byte into a carrier whose
     // domain `requires valid_utf8(bytes)` cannot re-establish that domain, so each
     // write is dominated by a guard proving the byte is ASCII. A literal write
-    // (`self.out[0] = 49`) needs no guard -- the literal proves itself.
+    // (`main.out[0] = 49`) needs no guard -- the literal proves itself.
     state render(main: &mut Main) {
         main.out = "000";
         main.digit = main.sum / 100;

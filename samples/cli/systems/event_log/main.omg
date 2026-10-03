@@ -2,7 +2,7 @@
 // sub-machine calls.
 //
 // Exercises: case-payload dispatch (3 variants with different payloads),
-// nested struct field updates (self.log.stats.deposits etc.), multi-arm
+// nested struct field updates (main.log.stats.deposits etc.), multi-arm
 // transitions mixed with equality guards, and accumulation across repeated
 // machine calls.
 //

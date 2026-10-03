@@ -4,7 +4,7 @@
 //
 // Exercises: 3 sequential value-returning calls in the same machine scope,
 // all results used together in a final arithmetic expression, with an
-// intermediate mutation of self that tests that the call results survive.
+// intermediate mutation of the subject that tests that the call results survive.
 //
 // Value-returning machines:
 //   double(n) = n * 2               (1 arg, simple)
@@ -12,13 +12,13 @@
 //   clamp_low(n, min) -> n if n>=min, else min  (2 args, uses guard)
 //
 // Scripted:
-//   r1 = self.double(15)     = 30
+//   r1 = main.double(15)     = 30
 //   r2 = add3(5, 10, 7) = 22
 //   r3 = clamp_low(18, 20) = 20   (18 < 20, so clamped to 20)
-//   total = r1 + r2 - r3 + self.offset
+//   total = r1 + r2 - r3 + main.offset
 //         = 30 + 22 - 20 + 38 = 70
 //
-// self.offset is set to 38 before the calls, then the calls complete.
+// main.offset is set to 38 before the calls, then the calls complete.
 // Verifies: results survive a field write between calls.
 //
 // Expected exit: 70.

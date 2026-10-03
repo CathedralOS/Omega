@@ -1,7 +1,7 @@
 // A fixed-capacity table of records: `players: [Player; 3]`, each a struct with an
 // `id` and a `score`. Demonstrates array-of-structs storage -- the building block
 // for records/tables in serious apps -- via constant-index field writes
-// (`self.players[k].score = ...`) and a multi-field read in arithmetic
+// (`main.players[k].score = ...`) and a multi-field read in arithmetic
 // (`players[0].score + players[1].score + players[2].score`). The scores 30 + 25 +
 // 15 total 70 -- fully Exact: `Player`'s `where` clause bounds `score` to 0..=100,
 // so the three-way sum is verifiably bounded (<= 300) and needs no overflow

@@ -76,7 +76,7 @@ machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in 
 }
 
 // ---------------------------------------------------------------------------
-// pop_result(): extract the single remaining value into self.stack.result.
+// pop_result(): extract the single remaining value into main.stack.result.
 // Only called when sp == 1 (one element on the stack).
 // ---------------------------------------------------------------------------
 machine Main::pop_result(main: &mut Main) {
