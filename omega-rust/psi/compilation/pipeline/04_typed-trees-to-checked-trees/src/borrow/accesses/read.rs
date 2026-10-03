@@ -77,20 +77,7 @@ pub(super) fn collect_read_accesses(
             // resolved target determines whether a qualifier is only lexical.
             let no_runtime_receiver = collection
                 .program
-                .machine_holding_state(call.target_symbol)
-                .and_then(|owner| {
-                    collection
-                        .program
-                        .machine_states(owner)
-                        .iter()
-                        .find(|state| state.symbol == call.target_symbol)
-                        .map(|state| {
-                            collection
-                                .program
-                                .call_has_no_runtime_receiver(call, owner, state)
-                        })
-                })
-                .unwrap_or(false);
+                .call_has_no_runtime_receiver_for_target(call);
             if call.receiver.is_valid() && !no_runtime_receiver {
                 collect_read_accesses(collection, call.receiver);
                 collection.retain_receiver_accesses(first_access);
