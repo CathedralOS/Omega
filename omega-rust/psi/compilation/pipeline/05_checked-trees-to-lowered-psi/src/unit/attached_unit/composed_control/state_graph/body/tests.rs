@@ -22,6 +22,124 @@ const SOURCE: &str = "
 ";
 
 #[test]
+fn reference_completions_follow_value_custody_not_borrow_spelling() {
+    for access in ["&", "&mut"] {
+        for completion in [
+            format!("({access} pair.first)"),
+            format!("transition {{ _ -> ({access} pair.first) }}"),
+        ] {
+            let source = format!(
+                "data Item {{ value: u32; }}
+                 data Pair {{ first: Item; second: Item; }}
+                 machine pick(pair: {access} Pair) -> {access} Item {{ {completion} }}"
+            );
+            let checked = crate::front_end::checked_program(&source);
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "pick")
+                .expect("pick machine");
+            assert!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(machine.symbol)
+                    .is_some(),
+                "reference access and completion spelling must not exclude the ordinary graph"
+            );
+            let lowered =
+                crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("pick"))
+                    .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("reference completions retain independently checked custody");
+        }
+    }
+}
+
+#[test]
+fn reference_completion_rejects_changed_path_access_and_position() {
+    for (returned, expression) in [("&mut Item", "(&mut pair.first)"), ("&Pair", "pair")] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Item {{ value: u32; }}
+         data Pair {{ first: Item; second: Item; }}
+         machine pick(pair: &mut Pair) -> {returned} {{ {expression} }}",
+        ));
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("pick"))
+            .expect("projected and weakened reference completions lower");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("independent verification retains the returned access");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "pick")
+            .expect("pick machine");
+        let source = &checked.machine_states(machine)[0];
+        let original = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .expect("reference completion graph");
+        let replay = |plan: &checked_trees::CheckedComposedUnitControlMachinePlan| {
+            let ordinal = super::validate(&checked, machine.symbol, source, &plan.states[0])?;
+            super::super::returns::validate_structural(
+                &checked,
+                plan,
+                source,
+                &plan.states[0],
+                ordinal,
+            )
+        };
+        replay(original).expect("authored completion replays");
+        for mutation in 0..3 {
+            let mut changed = original.clone();
+            let operation = changed.states[0]
+                .operations
+                .iter_mut()
+                .find(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                    )
+                })
+                .expect("reference establishment");
+            let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => source
+                    .path
+                    .push(checked_trees::CheckedUnitStructuralPathSegment::Referent),
+                1 => {
+                    source.access = match source.access {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            checked_trees::CheckedStructuralAccess::MutableBorrow
+                        }
+                        _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    }
+                }
+                2 => result.statement_index += 1,
+                _ => unreachable!(),
+            }
+            assert!(
+                replay(&changed).is_err(),
+                "forged reference completion {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn mutable_prefix_locals_keep_establishment_across_body_effects() {
     let checked = crate::front_end::checked_program(SOURCE);
     let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("write"))

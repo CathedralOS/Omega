@@ -606,32 +606,9 @@ fn build_traced_with(
             &mut operations,
         )?;
         operation_custody::admit(program, state, &mut operations, trace)?;
-        // A single-state body whose completion establishes a shared `&`
-        // result — a whole view, a subslice, or a forwarded named view —
-        // keeps the ordinary sequence's plan, which lowers that completion.
-        // A graph for the same body would displace that plan (structural
-        // results prefer the complete graph), and the composed route replays
-        // only transition-tail `&mut` establishments. Multi-state bodies have
-        // no ordinary plan to displace and keep this route.
-        if states.len() < 2
-            && sequence.structural_result.as_ref().is_some_and(|returned| {
-                operations.iter().any(|operation| {
-                    matches!(
-                        (operation, &returned.source),
-                        (
-                            CheckedUnitEffectOperationPlan::EstablishReference { result, source },
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            },
-                        ) if result.binding_ordinal == *binding_ordinal
-                            && source.access == CheckedStructuralAccess::SharedBorrow
-                    )
-                })
-            })
-        {
-            trace.phase("state graph: operation custody: single-state shared reference completion");
-            return None;
-        }
+        // Completion custody, not state count or borrow spelling, determines
+        // the returned value. The receiving graph rejoins its exact producer
+        // and independently validates the source reference's access and path.
         let terminator = terminator::build(
             program,
             facts,

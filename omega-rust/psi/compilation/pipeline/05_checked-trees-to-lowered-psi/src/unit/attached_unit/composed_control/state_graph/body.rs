@@ -932,54 +932,23 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::reference_results::validate_local_establishment(checked, state.state, result, source)?;
             }
-            // A transition-tail `&mut` return mints its reference custody at
-            // the transition itself: the authored statement is the transition
-            // carrying the `&mut` borrow value.
+            // A returned reference occupies its completion statement, regardless
+            // of borrow access or expression-versus-transition spelling. This
+            // walk checks order and the exact produced binding; `returns` then
+            // independently rejoins the authored source, access, path and type.
+            // Repeating borrow-shape admission here made ordinary mutable
+            // expression tails fail before that semantic replay could run.
             (
                 CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
-                StatementNode::Transition(transition),
+                StatementNode::Expression(_) | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal
                 && matches!(
-                    checked
-                        .typed
-                        .statement_table
-                        .transition_target(transition.target),
-                    typed_trees::statement::TransitionTargetNode::Value(expression)
-                        if matches!(
-                            checked.typed.expression_table.expression(*expression),
-                            typed_trees::expression::ExpressionNode::Borrow(borrow)
-                                if borrow.access == language_core::ReferenceAccess::Mutable
-                        )
-                ) => {}
-            // The shared transition-tail sibling: `_ -> &self.f` mints the
-            // same reference custody at the transition itself.
-            (
-                CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
-                StatementNode::Transition(transition),
-            ) if result.statement_index as usize == ordinal
-                && matches!(
-                    checked
-                        .typed
-                        .statement_table
-                        .transition_target(transition.target),
-                    typed_trees::statement::TransitionTargetNode::Value(expression)
-                        if matches!(
-                            checked.typed.expression_table.expression(*expression),
-                            typed_trees::expression::ExpressionNode::Borrow(borrow)
-                                if borrow.access == language_core::ReferenceAccess::Shared
-                        )
-                ) => {}
-            // The shared sibling: a state's expression tail returning
-            // `&self.f` mints the same reference custody at the expression
-            // statement — the authored `&` borrow is the value it returns.
-            (
-                CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
-                StatementNode::Expression(expression),
-            ) if result.statement_index as usize == ordinal
-                && matches!(
-                    checked.typed.expression_table.expression(*expression),
-                    typed_trees::expression::ExpressionNode::Borrow(borrow)
-                        if borrow.access == language_core::ReferenceAccess::Shared
+                    &state.terminator,
+                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned }
+                        if returned.source
+                            == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal: result.binding_ordinal,
+                            }
                 ) => {}
             // A reference release rejoins either the statement at its expiry
             // boundary or, when the boundary's own operations have not yet
