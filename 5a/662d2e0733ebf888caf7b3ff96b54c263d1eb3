@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: respell fused interval+domain as-cast to explicit qualification edge; corpus_runner-9bc259dd827a10c2 probe checked 9697ms
+ticket: 7965406749242ac40371dbb395d46785
+published_utc: 2026-10-03T13:17:19.815760+00:00
