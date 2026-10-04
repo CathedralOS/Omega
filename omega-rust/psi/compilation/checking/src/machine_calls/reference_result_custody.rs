@@ -722,7 +722,12 @@ fn returned_sources_with_calls(
         let StatementNode::Transition(transition) = statement else {
             continue;
         };
-        if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        // A crash has no normal result and therefore contributes no origin.
+        // Ordinary continuations still require their own completion analysis.
+        if matches!(transition.exit, TransitionExit::Crash(_)) {
+            continue;
+        }
+        if transition.continuation.is_valid() {
             return None;
         }
         let returned = match program.statement_table.transition_target(transition.target) {
@@ -2019,8 +2024,10 @@ fn mutable_view_source_parameter(
     for (ordinal, statement) in statements.iter().enumerate() {
         let next = match statement {
             StatementNode::Transition(transition) => {
-                if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid()
-                {
+                if matches!(transition.exit, TransitionExit::Crash(_)) {
+                    continue;
+                }
+                if transition.continuation.is_valid() {
                     return None;
                 }
                 match program.statement_table.transition_target(transition.target) {
