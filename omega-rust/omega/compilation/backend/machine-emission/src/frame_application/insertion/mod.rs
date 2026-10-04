@@ -2,10 +2,10 @@
 //!
 //! [`apply_frame_protocol_to_fragments`] inserts each function's prologue and
 //! the epilogue before every retained return and shifts block, row and fixup
-//! coordinates (`compute`), re-encodes and widens the branches the insertion
-//! moved (`reflow`), and returns only after the independent checker
-//! (`validation`, decoding every branch through `validation_branch`) accepts
-//! the result. Source-fragment and target-protocol admission belong to the
+//! coordinates (`compute`) and re-encodes and widens the branches the insertion
+//! moved (`reflow`). [`validate_frame_protocol_application`] is the
+//! independent checker (`validation`, decoding every branch through
+//! `validation_branch`) for retained-artifact readers and tests. Source-fragment and target-protocol admission belong to the
 //! frame-application stage above; successful byte insertion alone is not
 //! publication or execution authority.
 
@@ -30,9 +30,7 @@ pub fn apply_frame_protocol_to_fragments(
     protocol: &TargetFrameProtocolEncodingPlan,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionFragmentFrameApplication, FrameApplicationError> {
-    let application = compute::apply(source, source_manifest, protocol, physical)?;
-    validate_frame_protocol_application(source, source_manifest, protocol, physical, &application)?;
-    Ok(application)
+    compute::apply(source, source_manifest, protocol, physical)
 }
 
 pub fn validate_frame_protocol_application(

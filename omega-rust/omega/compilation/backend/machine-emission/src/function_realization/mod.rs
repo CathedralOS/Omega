@@ -6,8 +6,9 @@
 //! storage, the frame layout and its byte protocol), encodes and lays out the
 //! selected forms, runs the phase-local layout optimization, stages the
 //! whole-function exit contract, and seals the manifest defined here with its
-//! custody receipt (`assembly`, `carriers`). Its validator replays each of
-//! those joins against the same immutable inputs. `codec` encodes, decodes
+//! custody receipt (`assembly`, `carriers`). Its validator, kept for
+//! retained-artifact readers and tests, replays each of those joins against
+//! the same immutable inputs. `codec` encodes, decodes
 //! and renders the manifest.
 
 mod assembly;

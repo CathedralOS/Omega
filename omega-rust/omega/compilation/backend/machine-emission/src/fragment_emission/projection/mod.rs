@@ -2,8 +2,9 @@
 //!
 //! [`emit_resolved_function_fragments`] builds each function's fragment bytes,
 //! spans, provenance and unresolved fixups from the resolved layout
-//! (`production`) and returns only after the independent checker
-//! (`validation`) accepts them; `statistics` counts the result. The
+//! (`production`); [`validate_resolved_function_fragments`] is the independent
+//! checker (`validation`) for retained-artifact readers and tests, and
+//! `statistics` counts the result. The
 //! fragment-emission stage above admits the selected program, layout and
 //! realization; neither raw input nor a successful projection grants that
 //! authority.
@@ -37,9 +38,7 @@ impl std::error::Error for ResolvedFragmentEmissionError {}
 pub fn emit_resolved_function_fragments(
     program: &ResolvedMachineProgram,
 ) -> Result<FunctionFragmentEmissionPlan, ResolvedFragmentEmissionError> {
-    let fragments = production::emit(program)?;
-    validate_resolved_function_fragments(program, &fragments)?;
-    Ok(fragments)
+    production::emit(program)
 }
 
 /// Check claimed bytes, spans, provenance, and unresolved fixups without emitting

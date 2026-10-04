@@ -1,11 +1,11 @@
 //! Frame application: the third machine-emission stage.
 //!
-//! [`stage_function_fragment_frame_application`] admits one fragment emission
-//! by replaying its custody, inserts the realized frame protocol's prologue and
-//! epilogue bytes into its fragments (`insertion`), seals the application
-//! receipt, and returns only after
+//! [`stage_function_fragment_frame_application`] inserts the realized frame
+//! protocol's prologue and epilogue bytes into one fragment emission's
+//! fragments (`insertion`) and seals the application receipt.
 //! [`validate_function_fragment_frame_application`] (`validation`) replays the
-//! same join. `insertion` owns the byte insertion and its independent checker
+//! same join, source custody included, for retained-artifact readers and
+//! tests; the stage does not replay what it just produced. `insertion` owns the byte insertion and its independent checker
 //! over current data; this level owns source admission and custody.
 
 mod error;
@@ -19,9 +19,7 @@ pub use machine_code::{
     FunctionFragmentFrameApplicationIdentity,
 };
 
-use crate::fragment_emission::{
-    StagedOptimizedFunctionFragmentEmission, validate_optimized_function_fragment_emission,
-};
+use crate::fragment_emission::StagedOptimizedFunctionFragmentEmission;
 use machine_code::{FunctionFragmentEmissionPlan, TargetFrameProtocolEncodingIdentity};
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
@@ -30,8 +28,6 @@ use optimization_core::{
 pub fn stage_function_fragment_frame_application(
     source: StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
-    validate_optimized_function_fragment_emission(&source)
-        .map_err(FunctionFragmentFrameApplicationError::Source)?;
     let application = {
         let protocol = source.source().frame_protocol();
         insertion::apply_frame_protocol_to_fragments(
@@ -43,13 +39,11 @@ pub fn stage_function_fragment_frame_application(
         .map_err(FunctionFragmentFrameApplicationError::from)?
     };
     let receipt = seal(&application);
-    let staged = StagedFunctionFragmentFrameApplication {
+    Ok(StagedFunctionFragmentFrameApplication {
         source,
         application: std::sync::Arc::new(application),
         receipt,
-    };
-    validate_function_fragment_frame_application(&staged)?;
-    Ok(staged)
+    })
 }
 
 pub fn validate_function_fragment_frame_application(

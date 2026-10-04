@@ -3,10 +3,7 @@ use std::collections::BTreeMap;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use post_allocation_machine_to_selected_form_encoding::{
-    StagedOptimizedSelectedFormEncoding,
-    validate_optimized_layout_independent_selected_form_encoding,
-};
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::StagedOptimizedResolvedSelectedFormLayout;
@@ -20,14 +17,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    validate_optimized_layout_independent_selected_form_encoding(
-        selected,
-        machine,
-        physical,
-        pre_layout.program().frame.as_ref(),
-        pre_layout,
-    )
-    .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
+    // The encoding was produced by stage 07 in this compile; it is not
+    // re-encoded here. The root checks below bind it to these inputs.
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if pre_layout.selected() != selected.selected_identity()

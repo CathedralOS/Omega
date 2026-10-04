@@ -1,7 +1,9 @@
 //! Optimizer module role: executable entrance. Layout-independent selected-form encoding, replay, and optimization custody.
 //!
-//! Encode the current physical instructions, then independently admit the
-//! bytes; replay validates a retained artifact against the same roots.
+//! Encode the current physical instructions. Replay, kept for
+//! retained-artifact readers and tests, independently admits a retained
+//! artifact's bytes against the same roots; the stage does not re-encode what
+//! it just produced (verification placement in `omega-rust/pipeline.md`).
 
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
@@ -23,7 +25,7 @@ use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
 
-/// Encode the current physical instructions and independently admit their bytes.
+/// Encode the current physical instructions.
 pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
@@ -31,7 +33,6 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSel
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let artifact = compute::compute(selected, machine, physical, frame)?;
-    validation::validate(selected, machine, physical, frame, &artifact)?;
     Ok(StagedOptimizedSelectedFormEncoding {
         program: std::sync::Arc::new(artifact),
     })
@@ -51,7 +52,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding<
     validation::validate(selected, machine, physical, frame, artifact.program())
 }
 
-/// Independently admitted encoding data. Raw program data cannot construct this token.
+/// Encoding data produced by this stage. Raw program data cannot construct this token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedSelectedFormEncoding {
     program: std::sync::Arc<SelectedFormEncoding>,

@@ -6,10 +6,7 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use post_allocation_machine_to_selected_form_encoding::{
-    StagedOptimizedSelectedFormEncoding,
-    validate_optimized_layout_independent_selected_form_encoding,
-};
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout};
@@ -27,14 +24,8 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    validate_optimized_layout_independent_selected_form_encoding(
-        selected,
-        machine,
-        physical,
-        pre_layout.program().frame.as_ref(),
-        pre_layout,
-    )
-    .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
+    // The layout is checked against the encoding it was resolved from; the
+    // encoding itself is replayed only by callers that admit a retained one.
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if pre_layout.selected() != selected.selected_identity()

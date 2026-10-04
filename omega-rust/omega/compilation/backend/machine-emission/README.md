@@ -15,9 +15,10 @@ and [stack provisioning](../../../../../wiki/spec/resources/storage.md).
 common entrance for admitted allocation histories, including identity execution.
 It reads the current allocation as produced, derives frame evidence,
 performs selected-form encoding and baseline layout, executes the phase-local
-layout selection, and validates the whole-function exit contract. The retained
-result owns all replay inputs. Its validator reconstructs their complete join;
-it does not select another machine or rerun allocation.
+layout selection, and stages the whole-function exit contract. The retained
+result owns all replay inputs. Its validator reconstructs their complete join
+for retained-artifact readers and tests; the stage does not run it on what it
+just produced, and it does not select another machine or rerun allocation.
 
 Within one fixed-frame validation, exit-record checking reuses the layout replay
 already performed against the same immutable inputs. Encoding remains checked
@@ -67,9 +68,9 @@ return instruction. [Frame application](src/frame_application/mod.rs) admits
 the emitted fragments; its [insertion](src/frame_application/insertion/mod.rs)
 mechanism adds one entry prologue and the required epilogue at each retained
 return, reflows block/row/fixup coordinates, and re-encodes affected branches.
-Its independent checker validates sites and branch bytes. The stage still
-admits the source fragments and protocol: successful byte insertion alone is
-not publication.
+Its independent checker validates sites and branch bytes for retained-artifact
+readers and tests; the stage does not run it on bytes it just inserted.
+Successful byte insertion alone is not publication.
 
 ## Fragments, placement, and reports
 
@@ -78,10 +79,12 @@ function realization and delegates the byte
 [projection](src/fragment_emission/projection/mod.rs).
 [Text placement](src/text_placement/mod.rs) retains the source and applied-frame
 identities while its [placement](src/text_placement/placement/mod.rs) mechanism
-resolves calls and offsets. Each stage keeps admission and custody at its
-folder root and the current-data mechanism with its independent checker one
-level down. Child manifests
-are rebound and replayed; changing a rule does not require copying its custody
+resolves calls and offsets. Each stage keeps custody at its folder root and
+the current-data mechanism with its independent checker one level down. The
+checkers serve retained-artifact readers and tests; no stage replays the
+output the same compile just produced
+([verification placement](../../../../pipeline.md#verification-placement)).
+Child manifests are rebound; changing a rule does not require copying its custody
 fields into parallel object, artifact, and callable schemas.
 
 [Private callback materialization](src/private_callback.rs) projects a placed

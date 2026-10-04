@@ -91,7 +91,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         &exit_contract,
         &manifest,
     );
-    let staged = StagedFixedFrameFunctionRelativeRealization {
+    Ok(StagedFixedFrameFunctionRelativeRealization {
         allocation,
         machine,
         encoding,
@@ -101,11 +101,13 @@ pub fn stage_fixed_frame_function_relative_realization(
         exit_contract,
         manifest,
         custody,
-    };
-    validate_fixed_frame_function_relative_realization(&staged)?;
-    Ok(staged)
+    })
 }
 
+/// Replay every join of a staged realization against its retained inputs.
+/// The stage does not call this on what it just produced (verification
+/// placement in `omega-rust/pipeline.md`); retained-artifact readers and tests
+/// do.
 pub fn validate_fixed_frame_function_relative_realization(
     staged: &StagedFixedFrameFunctionRelativeRealization,
 ) -> Result<

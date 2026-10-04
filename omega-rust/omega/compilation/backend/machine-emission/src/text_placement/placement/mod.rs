@@ -1,9 +1,9 @@
 //! Placement of current fragments into one dense text section.
 //!
-//! [`place_fragment_text_section`] checks relocation eligibility (`source`),
-//! runs the relocation-free or internal-call placement (`production`), and
-//! returns only after the independent checker (`validation`) accepts the
-//! section. Source and frame admission belong to the text-placement stage
+//! [`place_fragment_text_section`] checks relocation eligibility (`source`)
+//! and runs the relocation-free or internal-call placement (`production`).
+//! [`validate_fragment_text_section`] is the independent checker
+//! (`validation`) for retained-artifact readers and tests. Source and frame admission belong to the text-placement stage
 //! above; neither entrance grants publication authority.
 
 mod conversion;
@@ -37,7 +37,6 @@ pub fn place_fragment_text_section(
         TextPlacementInput::RelocationFree(fragments) => production::relocation_free(fragments)?,
         TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments)?,
     };
-    validation::check(input, &section)?;
     Ok(section)
 }
 pub fn validate_fragment_text_section(

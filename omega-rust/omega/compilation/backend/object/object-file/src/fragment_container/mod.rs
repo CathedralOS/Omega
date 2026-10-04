@@ -26,8 +26,8 @@ pub use validation::validate_optimized_relocation_free_object_container;
 pub fn stage_optimized_relocation_free_object_container(
     source: StagedOptimizedFixedFrameTextSection,
 ) -> Result<StagedOptimizedRelocationFreeObjectContainer, RelocationFreeObjectContainerError> {
-    validate_optimized_fixed_frame_text_section(&source)
-        .map_err(RelocationFreeObjectContainerError::Source)?;
+    // The text section was placed by machine emission in this compile; it is
+    // consumed as produced (verification placement in `omega-rust/pipeline.md`).
     let object = construct_relocation_free_object_from_text(
         source.text_section(),
         source.manifest().record().selections,

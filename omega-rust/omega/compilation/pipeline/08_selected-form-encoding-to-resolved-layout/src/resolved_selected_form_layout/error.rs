@@ -3,11 +3,8 @@ use isa_x86_64::X86_64SelectedFormEncodingError;
 use selected_instructions::SelectedInstructionId;
 use semantic_vocabulary::MachineId;
 
-use post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedResolvedSelectedFormLayoutError {
-    PreLayout(OptimizedSelectedFormEncodingError),
     RootMismatch,
     MixedOrdinaryAndStructuralFunctions,
     StructuralReturnRosterMismatch(SelectedInstructionId),

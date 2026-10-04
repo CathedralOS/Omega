@@ -5,9 +5,11 @@
 //! target-owned x86-64 byte recipes emitted outside that route.
 //!
 //! Native realization drives the route one retained stage at a time. Each
-//! `stage_*` operation admits its source by replaying the previous stage's
-//! custody, runs its production, and returns only after its own `validate_*`
-//! replay accepts the result:
+//! `stage_*` operation consumes the previous stage's product as produced and
+//! runs its production. Each stage's `validate_*` replay of that join stays
+//! available to retained-artifact readers and tests; the stages do not replay
+//! what the same compile just produced (verification placement in
+//! `omega-rust/pipeline.md`):
 //!
 //! 1. [`stage_fixed_frame_function_relative_realization`]
 //!    ([`function_realization`]) reads the current allocation, stages the frame,

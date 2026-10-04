@@ -1,11 +1,12 @@
 //! Fragment emission: the second machine-emission stage.
 //!
-//! [`stage_optimized_function_fragment_emission`] admits one function-relative
-//! realization by replaying its custody (`custody`), projects the realized
-//! machine layout into unplaced function fragments and seals their manifest
-//! (`compute`), and returns only after
-//! [`validate_optimized_function_fragment_emission`] replays the join: the
-//! independent fragment checker, then the manifest fields (`validation`).
+//! [`stage_optimized_function_fragment_emission`] projects one
+//! function-relative realization's machine layout into unplaced function
+//! fragments and seals their manifest (`compute`).
+//! [`validate_optimized_function_fragment_emission`] replays the join — the
+//! realization's custody (`custody`), the independent fragment checker, then
+//! the manifest fields (`validation`) — for retained-artifact readers and
+//! tests; the stage does not replay what it just produced.
 //!
 //! `source` is the stage input: the current program (`current`) beside the
 //! producer-stage objects only replay reads (`replay`). `projection` owns the
@@ -43,17 +44,14 @@ use std::sync::Arc;
 pub fn stage_optimized_function_fragment_emission(
     source: StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<StagedOptimizedFunctionFragmentEmission, FunctionFragmentEmissionError> {
-    validate_source(&source)?;
     let (fragments, manifest) = compute(&source)?;
     let custody = receipt(&manifest, &fragments);
-    let staged = StagedOptimizedFunctionFragmentEmission {
+    Ok(StagedOptimizedFunctionFragmentEmission {
         source,
         fragments: std::sync::Arc::new(fragments),
         manifest,
         custody,
-    };
-    validate_optimized_function_fragment_emission(&staged)?;
-    Ok(staged)
+    })
 }
 
 pub fn validate_optimized_function_fragment_emission(
