@@ -1671,7 +1671,7 @@ pass/core/numeric_trapping_conversion_overflow checked 1701ms @2d8ed253669f
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
-pass/core/task_lifecycle_operations rejected 714ms @17f8e1479cf
+pass/core/task_lifecycle_operations rejected 634ms @7a33e4cdc40
 	terminal-artifact production failed: Lowering(Unsupported("receiver-bearing suspension frontier lacks an exact Terminal receiver place join"))
 pass/core/zii_default_composite_exit checked 1479ms @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
