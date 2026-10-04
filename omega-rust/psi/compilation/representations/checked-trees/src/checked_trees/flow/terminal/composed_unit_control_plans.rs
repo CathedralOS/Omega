@@ -534,8 +534,10 @@ impl CheckedConditionalReturnArm {
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
             ) => Some(result.statement_index),
-            Self::Structural(_) => None,
-            Self::Call { operation, .. } => {
+            // A call producer names the arm's transition in its own
+            // coordinate, whether it completes as the arm's invocation
+            // (`Call`) or establishes the arm's returned value (`Structural`).
+            Self::Structural(operation) | Self::Call { operation, .. } => {
                 operation.call().map(|call| call.coordinate.statement_index)
             }
         }
