@@ -8,10 +8,7 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
-use crate::{
-    LegalizationError, SelectedInstructionError, ValidatedLegalizedOperations,
-    ValidatedSelectedInstructions,
-};
+use crate::{LegalizationError, SelectedInstructionError, ValidatedSelectedInstructions};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
@@ -23,13 +20,13 @@ pub struct StagedOptimizedSelectedInstructions {
     pub(super) register_environment: ValidatedTargetRegisterEnvironment,
     pub(super) selections: OptimizationSelections,
     pub(super) budget_per_pass: OptimizationWorkBudget,
-    pub(super) legalized: ValidatedLegalizedOperations,
     pub(super) selected: ValidatedSelectedInstructions,
     pub(super) custody: StagedOptimizedSelectionCustodyReceipt,
 }
 
 impl StagedOptimizedSelectedInstructions {
-    /// Retained upstream proof input, shared without moving it into program data.
+    /// The optimized-target product, shared with the emission stages that
+    /// read its provider installation, manifests and structural types.
     pub fn optimized_target_owner(&self) -> &std::sync::Arc<ValidatedOptimizedTargetOperations> {
         &self.optimized_target
     }
@@ -42,17 +39,13 @@ impl StagedOptimizedSelectedInstructions {
         &self.register_environment
     }
 
-    pub const fn legalized(&self) -> &ValidatedLegalizedOperations {
-        &self.legalized
-    }
-
     pub const fn selected(&self) -> &ValidatedSelectedInstructions {
         &self.selected
     }
 
     /// The governing optimizer selections admitted with this stage. They are
     /// stage-owned admission data copied out of the optimized-target product
-    /// at construction; the retained producer remains replay evidence only.
+    /// at construction.
     pub const fn selections(&self) -> &OptimizationSelections {
         &self.selections
     }
@@ -138,24 +131,10 @@ impl StagedOptimizedSelectionCustodyReceipt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedSelectionCustodyError {
-    RootMismatch,
-    RegisterEnvironmentTargetMismatch,
-    UnitIdentityMismatch,
-    FuelScheduleMismatch,
-    FunctionRosterMismatch,
-    LegalizedPlanRevalidationFailed,
-    LegalizedReceiptMismatch,
-    SelectedPlanRevalidationFailed,
-    SelectedReceiptMismatch,
-}
-
 #[derive(Debug)]
 pub enum OptimizedSelectionPipelineError {
     Legalization(LegalizationError),
     Selection(SelectedInstructionError),
-    Custody(OptimizedSelectionCustodyError),
 }
 
 impl std::fmt::Display for OptimizedSelectionPipelineError {

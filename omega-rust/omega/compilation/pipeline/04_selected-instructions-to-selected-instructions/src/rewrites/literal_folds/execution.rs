@@ -6,7 +6,6 @@ use super::{
 use crate::LiteralFoldPolicy;
 use crate::OptimizedLiteralFoldCustodyError;
 use crate::StagedOptimizedAllocationLegality;
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::StagedOptimizedLiteralFoldAttempt;
 use crate::StagedOptimizedLiteralFoldCustodyReceipt;
 use crate::StagedOptimizedLiteralFoldStep;
@@ -23,7 +22,6 @@ use crate::choose_spill_victims;
 use crate::classify_pressure_recovery;
 use crate::resolve_selected_lowering_rules;
 use crate::rewrites::fold_selected_incoming_literal;
-use crate::validate_optimized_allocation_legality_custody;
 
 use super::accounting::{
     add_usage, applied_action_count, attempt_usage, custody_receipt,
@@ -39,7 +37,7 @@ pub fn stage_first_optimized_literal_fold(
     fold_policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedLiteralFolds, OptimizedLiteralFoldCustodyError> {
-    let upstream = validate_source(&source)?;
+    let upstream = source.custody();
     let selected = source.selected();
     let step = build_step(
         selected,
@@ -80,7 +78,7 @@ pub fn stage_next_optimized_literal_fold(
         budget,
     )?;
     sequence.steps.push(step);
-    let upstream = validate_source(&sequence.source)?;
+    let upstream = sequence.source.custody();
     sequence.custody = custody_receipt(upstream, &sequence.steps);
     Ok(sequence)
 }
@@ -91,7 +89,7 @@ pub(super) fn execute_selected_lowering_optimizations(
     selected_lowering_selections: OptimizationSelections,
     fold_policy: LiteralFoldPolicy,
 ) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
-    let upstream = validate_source(&source)?;
+    let upstream = source.custody();
     let budget = source.budget_per_pass();
 
     let choice_policy = SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1;
@@ -181,7 +179,7 @@ pub(super) fn execute_selected_lowering_optimizations(
 pub fn validate_selected_lowering_optimization_custody(
     run: &StagedSelectedLoweringOptimizationRun,
 ) -> Result<StagedSelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
-    let upstream = validate_source(&run.source)?;
+    let upstream = run.source.custody();
     let expected_budget = run.source.budget_per_pass();
     let selected_lowering = run
         .selections
@@ -306,7 +304,7 @@ pub fn validate_selected_lowering_optimization_custody(
 pub fn validate_optimized_literal_fold_custody(
     sequence: &StagedOptimizedLiteralFolds,
 ) -> Result<StagedOptimizedLiteralFoldCustodyReceipt, OptimizedLiteralFoldCustodyError> {
-    let upstream = validate_source(&sequence.source)?;
+    let upstream = sequence.source.custody();
     let Some(first) = sequence.steps.first() else {
         return Err(OptimizedLiteralFoldCustodyError::EmptySequence);
     };
@@ -336,17 +334,6 @@ pub fn validate_optimized_literal_fold_custody(
         return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 });
     }
     Ok(receipt)
-}
-
-fn validate_source(
-    source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedLiteralFoldCustodyError> {
-    validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
-    )
-    .map_err(OptimizedLiteralFoldCustodyError::UpstreamLegality)
 }
 
 #[allow(clippy::too_many_arguments)]

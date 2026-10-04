@@ -5,8 +5,8 @@ use crate::{
     OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
     OptimizedLivenessCustodyError, OptimizedPreAllocationCustodyError, OwnedSelectedProgram,
     StagedOptimizedLiveRanges, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, validate_optimized_live_range_custody,
-    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
+    StagedSelectedLoweringOptimizationRun, validate_pre_allocation_optimization_custody,
+    validate_selected_lowering_optimization_custody,
 };
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
@@ -49,8 +49,6 @@ impl SelectedInstructionOptimizationEvidence {
     fn replay(&self) -> Result<OwnedSelectedProgram, SelectedInstructionOptimizationError> {
         match self {
             Self::Identity(ranges) => {
-                validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
-                    .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
                 // Identity output admits only selections under executor-less
                 // catalog slices; a selection under any phase the entrance
                 // executes without its rewrite run is a missing execution.

@@ -19,9 +19,8 @@ mod execution;
 
 use crate::{
     AllocationLegalityError, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPolicy,
-    LiveRangeError, LivenessError, MachineEffectStageError,
-    OptimizedAllocationLegalityCustodyError, RecoveryClassificationError, SpillChoiceError,
-    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
+    LiveRangeError, LivenessError, MachineEffectStageError, RecoveryClassificationError,
+    SpillChoiceError, StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
     ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
     ValidatedSpillChoices,
 };
@@ -424,7 +423,6 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedLiteralFoldCustodyError {
-    UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     SpillChoice(SpillChoiceError),
     RecoveryClassification(RecoveryClassificationError),
     MachineEffects(MachineEffectStageError),

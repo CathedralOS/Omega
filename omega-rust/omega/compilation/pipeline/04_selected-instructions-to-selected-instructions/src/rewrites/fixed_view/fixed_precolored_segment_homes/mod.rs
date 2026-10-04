@@ -17,8 +17,8 @@ use crate::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegalityCustodyReceipt,
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedFixedPrecoloredIntervals,
+    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges, ValidatedLiveness,
 };
@@ -37,7 +37,6 @@ pub fn probe_optimized_fixed_precolored_segment_homes(
     source: &StagedOptimizedAllocationLegality,
     budget: OptimizationWorkBudget,
 ) -> Result<(), OptimizedFixedPrecoloredSegmentHomeCustodyError> {
-    validation::validate_source(source)?;
     compute::derive(source, budget)?;
     Ok(())
 }
@@ -49,7 +48,6 @@ pub fn stage_optimized_fixed_precolored_segment_homes(
     StagedOptimizedFixedPrecoloredSegmentHomes,
     OptimizedFixedPrecoloredSegmentHomeCustodyError,
 > {
-    validation::validate_source(&source)?;
     let (fixed, requirements, homes) = compute::derive(&source, budget)?;
     let custody = validate_optimized_fixed_precolored_segment_home_custody(
         &source,
@@ -162,7 +160,6 @@ impl StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedFixedPrecoloredSegmentHomeCustodyError {
-    UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     FixedIntervals(FixedPrecoloredIntervalError),
     SplitRequirements(FixedPrecoloredSplitRequirementError),
     SegmentHomes(FixedPrecoloredSegmentHomeError),

@@ -1,33 +1,20 @@
-use crate::analyses::validate_allocator_availability;
-use crate::{
-    ValidatedAllocatorAvailability, analyze_allocation_legality, validate_allocation_legality,
-};
+use crate::{ValidatedAllocatorAvailability, analyze_allocation_legality};
 
-use crate::{StagedOptimizedLiveRanges, validate_optimized_live_range_custody};
+use crate::StagedOptimizedLiveRanges;
 
 use super::custody::custody_receipt;
 use super::{OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality};
 
+/// Analyze legality over the staged ranges and the availability the chosen
+/// policy just materialized. Both `materialize_allocator_availability` and
+/// `analyze_allocation_legality` return only after their own checkers accept
+/// the result, so the receipt records those identities without replaying the
+/// availability, the legality or the upstream staging chain again.
 pub(super) fn compute_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
     availability: ValidatedAllocatorAvailability,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let upstream = validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
-        .map_err(OptimizedAllocationLegalityCustodyError::UpstreamLiveRanges)?;
     let environment = ranges.register_environment();
-    let replayed_availability = validate_allocator_availability(
-        environment.identity(),
-        environment.target(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-        availability.plan().clone(),
-    )
-    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
-    if replayed_availability.receipt() != availability.receipt() {
-        return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
-    }
     let legality = analyze_allocation_legality(
         ranges.ranges(),
         &availability,
@@ -38,22 +25,8 @@ pub(super) fn compute_allocation_legality(
         &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Analysis)?;
-    let replayed = validate_allocation_legality(
-        ranges.ranges(),
-        &availability,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-        legality.plan().clone(),
-    )
-    .map_err(OptimizedAllocationLegalityCustodyError::Revalidation)?;
-    if replayed.receipt() != legality.receipt() {
-        return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
-    }
     let custody = custody_receipt(
-        upstream,
+        ranges.custody(),
         availability.receipt().identity(),
         legality.receipt(),
     );

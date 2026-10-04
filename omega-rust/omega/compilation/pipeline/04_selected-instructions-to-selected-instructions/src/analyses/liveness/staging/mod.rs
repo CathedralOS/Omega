@@ -1,14 +1,12 @@
 //! Optimizer module role: executable entrance. Selected instructions to validated liveness.
 //!
-//! This crate owns the analysis-to-independent-replay join. No liveness
-//! result receives stage custody before replay reconstructs its exact receipt.
+//! [`analyze_liveness`](crate::analyze_liveness) returns only after its
+//! independent checker accepts the facts; this entrance records their
+//! identity beside the selection receipt it inherits and does not replay
+//! either again.
 
 mod compute;
 mod custody;
-mod validation;
-
-pub use validation::validate_optimized_liveness_custody;
-pub(crate) use validation::validate_staged_optimized_liveness_custody;
 
 use crate::{LivenessError, ValidatedLiveness};
 use optimization_core::{
@@ -19,9 +17,8 @@ use optimization_core::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
 use target_operations_to_selected_instructions::{
-    OptimizedSelectionCustodyError, ValidatedSelectedInstructions,
+    StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
 };
 use terminal_psi::TerminalPsiIdentity;
 
@@ -29,7 +26,7 @@ pub fn stage_optimized_liveness(
     selected: StagedOptimizedSelectedInstructions,
 ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
     let liveness = compute::compute_liveness(&selected)?;
-    let custody = validate_optimized_liveness_custody(&selected, &liveness)?;
+    let custody = custody::liveness_custody_receipt(selected.custody(), liveness.receipt());
     Ok(StagedOptimizedLiveness {
         selected,
         liveness,
@@ -48,8 +45,9 @@ pub struct StagedOptimizedLiveness {
 }
 
 impl StagedOptimizedLiveness {
-    /// The retained producer stage. Replay and custody validation inspect it;
-    /// ordinary consumers read the current program through `selected` below.
+    /// The producer stage, which owns the optimized-target product later
+    /// stages share; ordinary consumers read the current program through
+    /// `selected` below.
     pub const fn selected_stage(&self) -> &StagedOptimizedSelectedInstructions {
         &self.selected
     }
@@ -171,10 +169,7 @@ impl StagedOptimizedLivenessCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedLivenessCustodyError {
-    UpstreamSelection(OptimizedSelectionCustodyError),
     Analysis(LivenessError),
-    Revalidation(LivenessError),
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for OptimizedLivenessCustodyError {

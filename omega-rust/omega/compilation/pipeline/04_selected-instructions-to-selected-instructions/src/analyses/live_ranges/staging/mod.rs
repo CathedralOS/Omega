@@ -1,18 +1,15 @@
 //! Optimizer module role: executable entrance. Validated liveness to validated live ranges.
 //!
-//! This crate owns the analysis-to-independent-replay join over complete
-//! liveness custody. No interval or interference fact escapes before replay.
+//! [`analyze_live_ranges`](crate::analyze_live_ranges) returns only after its
+//! independent checker accepts the ranges; this entrance records their
+//! identity beside the liveness receipt it inherits and does not replay
+//! either again.
 
 mod compute;
 mod custody;
-mod validation;
-
-pub use validation::validate_optimized_live_range_custody;
 
 use crate::StagedOptimizedLiveness;
-use crate::{
-    LiveRangeError, OptimizedLivenessCustodyError, ValidatedLiveRanges, ValidatedLiveness,
-};
+use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
@@ -28,7 +25,7 @@ pub fn stage_optimized_live_ranges(
     liveness: StagedOptimizedLiveness,
 ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
     let ranges = compute::compute_live_ranges(&liveness)?;
-    let custody = validate_optimized_live_range_custody(&liveness, &ranges)?;
+    let custody = custody::live_range_custody_receipt(liveness.custody(), ranges.receipt());
     Ok(StagedOptimizedLiveRanges {
         liveness,
         ranges,
@@ -47,8 +44,9 @@ pub struct StagedOptimizedLiveRanges {
 }
 
 impl StagedOptimizedLiveRanges {
-    /// The retained producer stage. Replay and custody validation inspect it;
-    /// ordinary consumers read the current program and analyses directly.
+    /// The producer stage, which owns the optimized-target product later
+    /// stages share; ordinary consumers read the current program and
+    /// analyses directly.
     pub const fn liveness_stage(&self) -> &StagedOptimizedLiveness {
         &self.liveness
     }
@@ -215,10 +213,7 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedLiveRangeCustodyError {
-    UpstreamLiveness(OptimizedLivenessCustodyError),
     Analysis(LiveRangeError),
-    Revalidation(LiveRangeError),
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for OptimizedLiveRangeCustodyError {

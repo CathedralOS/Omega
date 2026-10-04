@@ -27,8 +27,7 @@ use selected_instructions::{
     LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
 };
 use selected_instructions_to_selected_instructions::{
-    AllocationLegalityError, LiveRangeError, LivenessError,
-    OptimizedAllocationLegalityCustodyError, PressureRematerializationError,
+    AllocationLegalityError, LiveRangeError, LivenessError, PressureRematerializationError,
     PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
@@ -413,7 +412,6 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedActiveResidentRematerializationError {
-    Upstream(OptimizedAllocationLegalityCustodyError),
     UnsupportedPolicy,
     SpillChoice(SpillChoiceError),
     Classification(RecoveryClassificationError),

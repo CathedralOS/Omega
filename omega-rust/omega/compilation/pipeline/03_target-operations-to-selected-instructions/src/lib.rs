@@ -4,9 +4,9 @@
 //!
 //! Start at [`stage_optimized_instruction_selection`] in `optimized.rs`: it
 //! owns the target-register environment, runs [`legalize_target_operations`]
-//! and then [`select_instructions`], and joins their custody in
-//! [`validate_optimized_selection_custody`], which replays both through
-//! [`validate_legalized_operations`] and [`validate_selected_instructions`].
+//! and then [`select_instructions`], each of which returns only after its own
+//! checker ([`validate_legalized_operations`], [`validate_selected_instructions`])
+//! accepts the result, and records their identities in one custody receipt.
 //! `legalization` is the raw-target to legal-operation join, `selection` the
 //! legal-operation to selected-CFG join, and `structural_inputs` the
 //! input-only reconstruction of structural storage, parameter shape and
@@ -19,10 +19,9 @@ mod structural_inputs;
 
 // The stage entry and its custody join.
 pub use optimized::{
-    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
-    StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
-    selection_constraints, stage_optimized_instruction_selection,
-    validate_optimized_selection_custody,
+    OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
+    StagedOptimizedSelectionCustodyReceipt, selection_constraints,
+    stage_optimized_instruction_selection,
 };
 
 // The two joins the entry sequences, each with its independent replay.

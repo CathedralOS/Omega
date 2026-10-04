@@ -1,22 +1,18 @@
 //! Optimizer module role: executable entrance. Live ranges to allocation availability and physical-view legality.
 //!
 //! Each public route chooses one explicit availability policy. This entrance
-//! then owns the shared analysis-to-independent-replay join that grants
-//! allocation-legality custody.
+//! then owns the shared analysis that records allocation-legality custody.
 
 mod compute;
 mod custody;
 mod policies;
-mod validation;
-
-pub use validation::validate_optimized_allocation_legality_custody;
 
 use crate::ValidatedAllocatorAvailability;
 
 use crate::StagedOptimizedLiveRanges;
 use crate::{
-    AllocationLegalityError, AllocatorAvailabilityError, OptimizedLiveRangeCustodyError,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+    AllocationLegalityError, AllocatorAvailabilityError, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedLiveness,
 };
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
@@ -58,16 +54,7 @@ pub fn stage_optimized_allocation_legality_with_availability(
     ranges: StagedOptimizedLiveRanges,
     availability: ValidatedAllocatorAvailability,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let staged = compute::compute_allocation_legality(ranges, availability)?;
-    let custody = validate_optimized_allocation_legality_custody(
-        staged.live_range_stage(),
-        staged.allocator_availability(),
-        staged.legality(),
-    )?;
-    if custody != staged.custody() {
-        return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
-    }
-    Ok(staged)
+    compute::compute_allocation_legality(ranges, availability)
 }
 
 /// Opt-in physical-view legality staging over complete live-range custody.
@@ -82,8 +69,9 @@ pub struct StagedOptimizedAllocationLegality {
 }
 
 impl StagedOptimizedAllocationLegality {
-    /// The retained producer stage. Replay and custody validation inspect it;
-    /// ordinary consumers read the current program and analyses directly.
+    /// The producer stage, which owns the optimized-target product later
+    /// stages share; ordinary consumers read the current program and
+    /// analyses directly.
     pub const fn live_range_stage(&self) -> &StagedOptimizedLiveRanges {
         &self.ranges
     }
@@ -214,13 +202,10 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedAllocationLegalityCustodyError {
-    UpstreamLiveRanges(OptimizedLiveRangeCustodyError),
     Availability(AllocatorAvailabilityError),
     Analysis(AllocationLegalityError),
-    Revalidation(AllocationLegalityError),
     UnsupportedFramelessLeafConvention,
     MissingRequiredActiveResidentRematerializationView(&'static str),
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for OptimizedAllocationLegalityCustodyError {

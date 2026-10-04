@@ -12,7 +12,6 @@ use crate::EquivalentCompareError;
 use crate::LiveRangeError;
 use crate::LivenessError;
 use crate::MachineEffectStageError;
-use crate::OptimizedAllocationLegalityCustodyError;
 use crate::RedundantCompareError;
 use crate::RedundantExtensionError;
 use crate::StagedOptimizedAllocationLegality;
@@ -700,7 +699,6 @@ impl StagedOptimizedPreAllocationAttemptReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPreAllocationCustodyError {
-    UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     CopyRemoval(CopyRemovalError),
     RedundantExtension(RedundantExtensionError),
     AddressFold(AddressFoldError),

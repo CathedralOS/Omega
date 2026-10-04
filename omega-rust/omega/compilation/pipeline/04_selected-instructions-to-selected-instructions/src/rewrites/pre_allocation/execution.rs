@@ -49,7 +49,6 @@ use crate::rewrites::{
     remove_equivalent_compare, remove_redundant_compare, remove_selected_copy,
     remove_selected_redundant_extension,
 };
-use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PreAllocationOptimizationCompletionIdentity,
@@ -1323,7 +1322,7 @@ pub(super) fn execute_pre_allocation_optimizations(
     pre_allocation_selections: OptimizationSelections,
     policy: PreAllocationPolicy,
 ) -> Result<StagedPreAllocationOptimizationRun, OptimizedPreAllocationCustodyError> {
-    let upstream = validate_source(&source)?;
+    let upstream = source.custody();
     let budget = source.budget_per_pass();
     let iteration_bound = measure(
         source.selected().selected_plan(),
@@ -1360,7 +1359,7 @@ pub(super) fn execute_pre_allocation_optimizations(
 pub fn validate_pre_allocation_optimization_custody(
     run: &StagedPreAllocationOptimizationRun,
 ) -> Result<StagedPreAllocationOptimizationCustodyReceipt, OptimizedPreAllocationCustodyError> {
-    let upstream = validate_source(&run.source)?;
+    let upstream = run.source.custody();
     let expected_budget = run.source.budget_per_pass();
     let pre_allocation = run
         .selections
@@ -1406,17 +1405,6 @@ pub fn validate_pre_allocation_optimization_custody(
         return Err(OptimizedPreAllocationCustodyError::ReceiptMismatch);
     }
     Ok(receipt)
-}
-
-fn validate_source(
-    source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedPreAllocationCustodyError> {
-    validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
-    )
-    .map_err(OptimizedPreAllocationCustodyError::UpstreamLegality)
 }
 
 #[allow(clippy::too_many_arguments)]

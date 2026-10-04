@@ -19,15 +19,14 @@ use register_homes::{
 use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 use selected_instructions_to_selected_instructions::{
     AllocationLegalityError, FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy,
-    LiveRangeError, LivenessError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
-    OptimizedSelectedReanalysisError, RuntimeRematerializationError, RuntimeSpillError,
-    RuntimeSplitError, SelectedProgramRef, StagedOptimizedAllocationLegality,
-    StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
-    probe_optimized_fixed_precolored_segment_homes, validate_optimized_allocation_legality_custody,
+    LiveRangeError, LivenessError, OptimizedLiteralFoldCustodyError,
+    OptimizedPreAllocationCustodyError, OptimizedSelectedReanalysisError,
+    RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError, SelectedProgramRef,
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
+    ValidatedLiveness, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedRuntimeSplit, probe_optimized_fixed_precolored_segment_homes,
     validate_optimized_selected_reanalysis_custody, validate_pre_allocation_optimization_custody,
     validate_selected_lowering_optimization_custody,
 };
@@ -351,30 +350,18 @@ impl RuntimeSpillSource {
         &self,
     ) -> Result<RuntimeSpillManifestBase, RuntimeSpillAllocationError> {
         let matches = match self {
-            Self::Legality(source) => {
-                let upstream = validate_optimized_allocation_legality_custody(
-                    source.live_range_stage(),
-                    source.allocator_availability(),
-                    source.legality(),
-                )
-                .map_err(RuntimeSpillAllocationError::Upstream)?;
-                upstream == source.custody()
-            }
+            // Staged legality carries the receipt its own stage recorded; the
+            // legality chain is not replayed again here.
+            Self::Legality(_) => true,
             Self::DeclinedFixedView {
                 legality, decline, ..
             } => {
-                let upstream = validate_optimized_allocation_legality_custody(
-                    legality.live_range_stage(),
-                    legality.allocator_availability(),
-                    legality.legality(),
-                )
-                .map_err(RuntimeSpillAllocationError::Upstream)?;
                 let budget = legality.budget_per_pass();
                 match probe_optimized_fixed_precolored_segment_homes(legality, budget) {
                     Err(error) if error.capacity_decline() == Some(*decline) => {}
                     _ => return Err(RuntimeSpillAllocationError::ProbeMismatch),
                 }
-                upstream == legality.custody()
+                true
             }
             Self::FixedViewCopies(reanalysis) => {
                 let upstream = validate_optimized_selected_reanalysis_custody(
@@ -458,7 +445,6 @@ pub(crate) struct RuntimeSpillFacts {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeSpillAllocationError {
-    Upstream(OptimizedAllocationLegalityCustodyError),
     UpstreamReanalysis(OptimizedSelectedReanalysisError),
     /// The recorded active-resident prefix could not be independently
     /// replayed — the rematerialization custody the recovery claims was

@@ -13,7 +13,6 @@ use selected_instructions_to_selected_instructions::{
 use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegality;
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
-use super::validation::validate_source;
 use super::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationPressure,
@@ -38,7 +37,7 @@ pub(super) fn compute_active_resident_rematerialization_pressure(
     {
         return Err(OptimizedActiveResidentRematerializationError::UnsupportedPolicy);
     }
-    let source_receipt = validate_source(&source)?;
+    let source_receipt = source.custody();
     let environment = source.register_environment();
     let selected = source.selected();
     let source_ranges = source.ranges();

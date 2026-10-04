@@ -11,7 +11,6 @@ use selected_instructions_to_selected_instructions::{
 
 use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
-    validate_optimized_allocation_legality_custody,
 };
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
@@ -43,7 +42,7 @@ fn replay_prefix(
     ),
     OptimizedActiveResidentRematerializationError,
 > {
-    let source_receipt = validate_source(source)?;
+    let source_receipt = source.custody();
     if staged_choices.receipt().policy()
         != SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
         || staged_classifications.receipt().policy()
@@ -235,17 +234,4 @@ pub fn validate_optimized_active_resident_rematerialization(
         return Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch);
     }
     Ok(custody)
-}
-pub(super) fn validate_source(
-    source: &StagedOptimizedAllocationLegality,
-) -> Result<
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    OptimizedActiveResidentRematerializationError,
-> {
-    validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
-    )
-    .map_err(OptimizedActiveResidentRematerializationError::Upstream)
 }

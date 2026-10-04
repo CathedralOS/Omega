@@ -6,7 +6,7 @@ use register_homes::PostAllocationSelectedTransformation;
 
 use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    validate_optimized_allocation_legality_custody, validate_optimized_selected_reanalysis_custody,
+    validate_optimized_selected_reanalysis_custody,
 };
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
@@ -20,12 +20,7 @@ pub fn validate_optimized_register_home_custody(
     homes: &ValidatedRegisterHomes,
     manifest: &ValidatedPostAllocationOptimizationManifest,
 ) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, OptimizedRegisterHomeCustodyError> {
-    let upstream = validate_optimized_allocation_legality_custody(
-        legality.live_range_stage(),
-        legality.allocator_availability(),
-        legality.legality(),
-    )
-    .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
+    let upstream = legality.custody();
     let environment = legality.register_environment();
     let replayed = validate_register_homes(
         legality.legality(),

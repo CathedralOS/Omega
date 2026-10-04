@@ -52,7 +52,7 @@ pub fn analyze_live_ranges_reusing(
 mod staging;
 pub use staging::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
-    StagedOptimizedLiveRanges, stage_optimized_live_ranges, validate_optimized_live_range_custody,
+    StagedOptimizedLiveRanges, stage_optimized_live_ranges,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -28,10 +28,9 @@ use register_homes::{
 };
 use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
 use selected_instructions_to_selected_instructions::{
-    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    StagedOptimizedSelectedReanalysisCustodyReceipt, ValidatedAllocationLegality,
-    ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
+    OptimizedSelectedReanalysisError, StagedOptimizedAllocationLegality,
+    StagedOptimizedSelectedReanalysis, StagedOptimizedSelectedReanalysisCustodyReceipt,
+    ValidatedAllocationLegality, ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
@@ -267,7 +266,6 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedRegisterHomeCustodyError {
-    UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     Assignment(RegisterHomeError),
     Revalidation(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),

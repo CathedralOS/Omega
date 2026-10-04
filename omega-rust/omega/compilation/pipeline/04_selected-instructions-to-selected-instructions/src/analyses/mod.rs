@@ -12,20 +12,17 @@ pub use legality::{
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_allocation_legality_with_availability,
-    validate_optimized_allocation_legality_custody,
 };
 pub use live_ranges::{
     LiveRangeError, LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
     StagedOptimizedLiveRangeCustodyReceipt, StagedOptimizedLiveRanges, ValidatedLiveRanges,
     analyze_live_ranges, analyze_live_ranges_reusing, stage_optimized_live_ranges,
-    validate_live_ranges, validate_optimized_live_range_custody,
+    validate_live_ranges,
 };
-pub(crate) use liveness::validate_staged_optimized_liveness_custody;
 pub use liveness::{
     LivenessError, LivenessValidationReceipt, OptimizedLivenessCustodyError,
     StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt, ValidatedLiveness,
     analyze_liveness, analyze_liveness_reusing, stage_optimized_liveness, validate_liveness,
-    validate_optimized_liveness_custody,
 };
 pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
 pub(crate) use machine_effects::validated_machine_effect_catalog;
@@ -51,7 +48,6 @@ pub use allocation_legality::{
     AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
     analyze_allocation_legality, analyze_allocation_legality_reusing, validate_allocation_legality,
 };
-pub(crate) use allocator_availability::validate_allocator_availability;
 pub use allocator_availability::{
     AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
     ValidatedAllocatorAvailability, materialize_allocator_availability,
