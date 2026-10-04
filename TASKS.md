@@ -1872,28 +1872,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `build_borrow_facts` call per check, unchanged borrow check corpus and
   native restoration results.
 
-- **CHECKER-REPLAYS-DELETED.** (new-scope) Delete the smaller self-checks:
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/monomorphization/identities.rs`
-    `replay_machine_specialization_identity` and the comparison against
-    stored commitments;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/rewrite.rs` `validate_pruned_product`, which re-extracts
-    edges from its own output;
-  - the second kernel check of mathematical declarations: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`
-    elaborates and checks them and discards the result, then `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof.rs`
-    re-runs `check_signature` "for the Terminal evidence encoding". Check once
-    in `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs` and pass the result on;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_scalar` building scalar graphs during facts and
-    again in `finalize_execution`, re-ranking each to confirm it matches;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress/qualification_correspondences.rs`
-    (replays qualification correspondences);
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/reads.rs` re-validating atomic
-    ordering, result custody and desugar shape that typing already decides;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/program_validation.rs` `validate_atomic_result_custody`
-    (re-checks a stage 03 invariant) and the `opaque_property_receipts`
-    rejoin.
-
-  Acceptance: none of the named functions remain; corpus unchanged.
-
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs` re-runs five whole-program validations
   (`validate_conformance_applications`,

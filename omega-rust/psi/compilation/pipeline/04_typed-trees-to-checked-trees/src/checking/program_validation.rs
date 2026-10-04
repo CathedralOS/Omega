@@ -3,7 +3,6 @@ use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
 use proof::obligations::ProofPlan;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct PreparedTypedProgram<'program> {
@@ -18,8 +17,6 @@ pub(crate) fn prepare_typed_program<'program>(
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
 ) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
-    validate_atomic_result_custody(program)?;
-
     let opaque_properties = if allow_pending_opaque_copy {
         validation::OpaquePropertyValidation::PendingBuildSelection
     } else {
@@ -42,31 +39,6 @@ pub(crate) fn prepare_typed_program<'program>(
         validation_facts: validated.facts,
         service_reaches: validated.service_reaches,
     })
-}
-
-fn validate_atomic_result_custody(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let diagnostics = program
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(_, expression)| {
-            let ExpressionNode::Atomic(atomic) = expression else {
-                return None;
-            };
-            (!atomic.result_custody.is_valid_for(atomic.ordering)
-                || (atomic.result_custody.requires_result_destination()
-                    && !atomic.result.is_valid()))
-            .then(|| {
-                Diagnostic::error(
-                    "atomic expression result custody does not match its operation axis",
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
 }
 
 /// A bare boundary trait in value position does not denote a service carrier:
