@@ -8,6 +8,7 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": null, "load1_end": 3.96, "load1_start": 3.96, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
+pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 1630ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/arithmetic/runtime_remainder_result_cast_exit built 1541ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -38,6 +39,7 @@ pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/collections/runtime_shared_array_polynomial_exit built 2652ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/contracts/named_tail_return_contract built 1356ms exit:70 interpreter-exit:70 interpreter:agrees @43a77116e58+wt
+pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1701ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
@@ -55,9 +57,12 @@ pass/drops/core_drop_owner_hook built 622ms exit:0 interpreter-exit:0 interprete
 pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
 pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
+pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
+pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1748ms exit:72 interpreter-exit:72 interpreter:agrees @bf12cd0f89bb+wt
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
+pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
@@ -80,6 +85,7 @@ pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpre
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a0af6064e4c8+wt
 pass/structs/runtime_nonzero_array_elements_exit built 2275ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
+pass/structs/runtime_state_record_array_element_read_exit built 1901ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/structs/runtime_view_array_elements_exit built 4009ms exit:70 interpreter-exit:70 interpreter:agrees @f1b70212c334
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
 pass/structural/runtime_structural_result_crash_branch_exit built 973ms exit:0 interpreter-exit:0 interpreter:agrees @77ccbf115d351847b97e16ff03b4e93c8e7a786f
