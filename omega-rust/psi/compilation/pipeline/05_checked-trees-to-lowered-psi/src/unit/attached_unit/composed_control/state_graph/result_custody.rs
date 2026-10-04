@@ -340,15 +340,30 @@ fn retired_in_body(
             continue;
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
-        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
-        else {
+        // Nested calls mint anonymous operands even inside a local initializer.
+        // Their call occurrence owns the result; the enclosing statement's
+        // local symbol identifies a different value produced by its outer call.
+        let anonymous_call = operation.call().filter(|call| {
+            call.coordinate.call_ordinal != 0
+                && matches!(
+                    call.source_site().flatten(),
+                    Some(checked_trees::NominalMachineUseSite::Expression(_))
+                )
+        });
+        let local = if anonymous_call.is_some() {
+            None
+        } else if let Some(StatementNode::LocalData(local)) =
+            statements.get(result.statement_index as usize)
+        {
+            Some(local)
+        } else {
             continue;
         };
         let uses = inputs.iter().filter(|input| {
             input.argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                || matches!(input.argument.source,
+                || local.is_some_and(|local| matches!(input.argument.source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-                        if symbol == local.symbol)
+                        if symbol == local.symbol))
         }).collect::<Vec<_>>();
         let mut moves = uses.iter().filter(|input| {
             input.argument.access == checked_trees::CheckedStructuralAccess::Owned
@@ -370,6 +385,33 @@ fn retired_in_body(
         {
             return unsupported("Unit graph operand retirement duplicates or precedes its owner");
         }
+        let Some(local) = local else {
+            // The inventory includes calls retained inside selected values.
+            // Only the direct body operation proves this anonymous operand
+            // is consumed on every path before control reaches an exit.
+            let direct_consumer = state.operations[consumer.operation_index]
+                .call()
+                .is_some_and(|call| {
+                    call.structural_arguments
+                        .iter()
+                        .any(|argument| std::ptr::eq(argument, consumer.argument))
+                });
+            if !direct_consumer {
+                return unsupported("Unit graph anonymous operand has no unconditional consumer");
+            }
+            let call = anonymous_call.ok_or(LoweringError::Unsupported(
+                "Unit graph anonymous operand has no authored producer",
+            ))?;
+            crate::emission::call_source_custody::initializers::validate_structural(
+                checked,
+                machine,
+                source.symbol,
+                call.coordinate,
+                result,
+            )?;
+            retired.push(result.binding_ordinal);
+            continue;
+        };
         // A stored-loan record is an owned carrier too: its affine whole moves
         // whole, and the leaves' borrow custody lives in the loan ledger the
         // construction replay already joined. Retiring it demands the same
