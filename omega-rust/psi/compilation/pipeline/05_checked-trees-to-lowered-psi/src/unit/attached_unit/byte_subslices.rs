@@ -54,8 +54,7 @@ fn locate<'a>(
         return unsupported("subslice schedule has no call coordinate");
     };
     let coordinate = call.coordinate;
-    let authored =
-        crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
+    let authored = crate::call_sites::locate(checked, state, coordinate)?;
     let (machine, _) = crate::declarations::state_declaration(checked, state)?;
     let signature =
         crate::declarations::target_signature(checked, machine.symbol, authored.source_target)?;

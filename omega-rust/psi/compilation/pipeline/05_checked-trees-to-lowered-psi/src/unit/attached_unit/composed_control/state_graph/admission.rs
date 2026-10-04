@@ -593,7 +593,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             && call.coordinate.call_ordinal == 0
                     })
                 })
-                && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+                && crate::call_sites::linear_terminal_invocation(
                     checked,
                     state.state,
                     u32::try_from(terminator_ordinal)

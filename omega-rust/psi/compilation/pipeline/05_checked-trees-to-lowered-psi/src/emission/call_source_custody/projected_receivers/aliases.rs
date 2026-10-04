@@ -63,7 +63,7 @@ fn replay_argument_use(
                 LoweringError::Unsupported("receiver argument call ordinal exceeds u32")
             })?,
         };
-        let authored = super::super::authored::locate_source(checked, state, coordinate)?;
+        let authored = crate::call_sites::locate(checked, state, coordinate)?;
         if !authored
             .explicit_arguments
             .iter()

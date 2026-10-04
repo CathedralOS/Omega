@@ -54,7 +54,7 @@ pub(crate) fn construction_expression(
             call_ordinal,
             parameter_position,
         } => {
-            let call = crate::emission::call_source_custody::authored::locate_source(
+            let call = crate::call_sites::locate(
                 checked,
                 state.symbol,
                 CheckedUnitCallCoordinate {

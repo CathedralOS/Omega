@@ -49,6 +49,11 @@ pub struct FlowCallFact {
     pub authored_receiver: typed_trees::expression::ExpressionHandle,
     /// What the authored statement does with the call's result.
     pub authored_result: FlowCallResult,
+    /// A named transition that is the state's only transition: its final,
+    /// unconditional statement, with no continuation, an ordinary exit and a
+    /// selected (not static-parameter) target. A linear operation roster may
+    /// sequence exactly this invocation; a guarded arm's runs in its arm.
+    pub authored_closing_invocation: bool,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,

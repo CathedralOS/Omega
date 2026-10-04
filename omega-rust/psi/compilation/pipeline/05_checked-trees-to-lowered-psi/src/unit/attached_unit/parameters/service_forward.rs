@@ -5,7 +5,6 @@
 //! unrelated arguments and surrounding operations impose no body-shape rule.
 
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::emission::call_source_custody::authored;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -108,14 +107,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                     validate_parameter(checked, source, formal, &declared)?;
                 }
             }
-            let source_call = authored::locate(
-                checked,
-                caller.machine,
-                caller.state,
-                call.coordinate,
-                target.machine,
-                target.state,
-            )?;
+            let source_call = crate::call_sites::locate(checked, caller.state, call.coordinate)?;
             let (source_machine, source_state) =
                 crate::declarations::state_declaration(checked, caller.state)?;
             for (ordinal, (formal, argument)) in target

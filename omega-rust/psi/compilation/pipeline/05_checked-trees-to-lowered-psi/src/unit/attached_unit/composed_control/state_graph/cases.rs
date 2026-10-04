@@ -87,11 +87,7 @@ pub(super) fn computed_subject<'plan>(
         .ok_or(LoweringError::Unsupported(
             "Unit case subject call has no computed case test",
         ))?;
-    let located = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        state.state,
-        call.coordinate,
-    )?;
+    let located = crate::call_sites::locate(checked, state.state, call.coordinate)?;
     // The subject's placement does not change call authority: body replay
     // validates its exact boundary target, receiver, buffers and occurrence
     // through the ordinary call admission. As for a named structural result,

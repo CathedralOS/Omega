@@ -236,11 +236,7 @@ pub(super) fn prepare(
             *coordinate,
             *target_state,
         )?;
-    let authored = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        state.state,
-        *coordinate,
-    )?;
+    let authored = crate::call_sites::locate(checked, state.state, *coordinate)?;
     let (_, caller_state) = crate::declarations::state_declaration(checked, state.state)?;
     let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
     if flow_call.has_receiver || flow_call.service_reach != *service_reach {

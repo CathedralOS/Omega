@@ -1615,12 +1615,13 @@ check corpus and the native corpus unchanged on the slices it names.
   - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
     (5.3k lines): structural operand and place lookups, parameter storage,
     primitive references and dispatch subjects;
-  - `.../src/emission/call_source_custody/` (3.4k lines): the nested call
+  - `.../src/emission/call_source_custody/` (3.1k lines): the nested call
     occurrence walk, named terminal arguments and projected receivers.
 
   Calls already show the pattern: `FlowCallFact` carries each call's
-  authored site, callee, arguments, receiver and result use, recorded where
-  stage 04 joins the call to its source, and `locate_source` reads that row.
+  authored site, callee, arguments, receiver, result use and closing-arm
+  status, recorded where stage 04 joins the call to its source, and
+  `src/call_sites.rs` reads those rows without touching source tables.
 
   Move each value into the stage 04 plan and delete its reader. Some readers
   also refuse shapes stage 05 cannot lower (the nested call walk refuses
@@ -1628,7 +1629,7 @@ check corpus and the native corpus unchanged on the slices it names.
   affine operands); those refusals stay until the route items admit the
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 856 such
+  `StatementNode::` or `ExpressionNode::`; today there are 850 such
   references across 81 files. Acceptance: both modules are gone, the guard
   passes, and the full check corpus and the native corpus are unchanged.
 

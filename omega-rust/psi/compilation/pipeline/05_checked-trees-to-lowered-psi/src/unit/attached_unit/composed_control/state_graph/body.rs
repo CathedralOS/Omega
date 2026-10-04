@@ -92,7 +92,7 @@ pub(super) fn validate(
     ) || returned_scalar
         .is_some_and(|binding| binding.statement_index as usize == end))
         && end < statements.len()
-        && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+        && crate::call_sites::linear_terminal_invocation(
             checked,
             state.state,
             u32::try_from(end)
@@ -276,7 +276,7 @@ pub(super) fn validate(
                     }
                     // A discarded call result occupies its ordinal unclaimed;
                     // only a retained result advances the namespace.
-                    if !crate::emission::call_source_custody::initializers::discards_result(
+                    if !crate::call_sites::discards_result(
                         checked,
                         state.state,
                         call.coordinate,

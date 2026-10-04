@@ -3,7 +3,6 @@
 use super::{CheckedTrees, LoweringError, unsupported};
 pub(crate) mod authored;
 mod boundary_buffers;
-pub(crate) mod initializers;
 pub(crate) mod literal_arguments;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
@@ -24,7 +23,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     caller_state: symbols::SymbolHandle,
     caller_parameters: &'parameters [checked_trees::CheckedUnitStructuralParameterPlan],
     coordinate: checked_trees::CheckedUnitCallCoordinate,
-    call: &authored::AuthoredCall,
+    call: &crate::call_sites::AuthoredCall,
 ) -> Result<Option<ParameterBindingReceiver<'parameters>>, LoweringError> {
     use checked_trees::CheckedUnitStructuralTypeShape;
     use checked_trees::expression::ExpressionNode;

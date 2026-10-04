@@ -210,11 +210,7 @@ pub(super) fn validate(
     }
     let (source_machine, source_state) =
         crate::declarations::state_declaration(checked, caller.state)?;
-    let authored = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        caller.state,
-        *coordinate,
-    )?;
+    let authored = crate::call_sites::locate(checked, caller.state, *coordinate)?;
     if source_site != authored.source_site || source_machine.symbol != caller.machine {
         return unsupported("ordinary structural result disagrees with its authored expression");
     }

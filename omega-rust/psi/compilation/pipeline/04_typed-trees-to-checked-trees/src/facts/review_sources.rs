@@ -136,6 +136,9 @@ pub(crate) fn bind_checked_body_call_source_spans(
                 }
                 _ => FlowCallResult::Operand,
             };
+            checked_call.authored_closing_invocation =
+                matches!(call_site, CallSite::TransitionNamed { .. })
+                    && closing_invocation(program, state, checked_call.statement_index);
             checked_call.authored_site = site;
             checked_call.authored_target = target;
             checked_call.authored_arguments = control
@@ -417,4 +420,35 @@ fn validate_occurrence(
 
 fn nonempty_span(source_span: SourceSpan) -> Option<SourceSpan> {
     (source_span.span.start < source_span.span.end).then_some(source_span)
+}
+
+/// Whether `statement_index` is the state's only transition: its final
+/// statement, unconditional, without continuation, exiting ordinarily to a
+/// selected named target. A paired unconditional arm after guarded ones is a
+/// guarded tail's fallthrough instead.
+fn closing_invocation(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> bool {
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let Some(StatementNode::Transition(transition)) = statements.get(statement_index) else {
+        return false;
+    };
+    statement_index + 1 == statements.len()
+        && !statements[..statement_index]
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        && transition.guard == TransitionGuardNode::Always
+        && !transition.continuation.is_valid()
+        && transition.exit == TransitionExit::Ordinary
+        && program
+            .statement_table
+            .transition_target_is_valid(transition.target)
+        && matches!(
+            program.statement_table.transition_target(transition.target),
+            TransitionTargetNode::Named { static_machine_parameter, .. }
+                if !static_machine_parameter.is_valid()
+        )
 }

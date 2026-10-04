@@ -27,11 +27,7 @@ pub(crate) fn bind_local(
         CheckedUnitEffectOperationPlan::Call(call)
             if let Some(result) = call.structural_result() =>
         {
-            let authored = crate::emission::call_source_custody::authored::locate_source(
-                checked,
-                caller_state,
-                call.coordinate,
-            )?;
+            let authored = crate::call_sites::locate(checked, caller_state, call.coordinate)?;
             let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
                 authored.source_site
             else {

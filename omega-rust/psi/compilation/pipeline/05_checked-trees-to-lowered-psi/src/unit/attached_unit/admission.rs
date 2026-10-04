@@ -211,7 +211,7 @@ fn validate_linear_transition_calls(
                 checked.statement_table.transition_target(transition.target),
                 TransitionTargetNode::Named { .. }
             )
-            && !crate::emission::call_source_custody::authored::linear_terminal_invocation(
+            && !crate::call_sites::linear_terminal_invocation(
                 checked,
                 machine.state,
                 call.coordinate.statement_index,

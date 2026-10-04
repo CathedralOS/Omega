@@ -123,11 +123,7 @@ fn body_inputs<'input>(
                 // Boundary and ordinary calls retire owned operands by the
                 // same authored transfer. Boundary completion receipts govern
                 // returned custody, not ownership of the caller's inputs.
-                let authored = crate::emission::call_source_custody::authored::locate_source(
-                    checked,
-                    state.state,
-                    call.coordinate,
-                )?;
+                let authored = crate::call_sites::locate(checked, state.state, call.coordinate)?;
                 let source = PermissionEventSource::Call {
                     statement_index: call.coordinate.statement_index as usize,
                     call_ordinal: call.coordinate.call_ordinal as usize,

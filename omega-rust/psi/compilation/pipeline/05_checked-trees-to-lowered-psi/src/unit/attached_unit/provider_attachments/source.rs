@@ -38,14 +38,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     }) {
         return Ok(false);
     }
-    let authored = crate::emission::call_source_custody::authored::locate(
-        checked,
-        machine,
-        state,
-        coordinate,
-        planned.target.machine,
-        planned.target.state,
-    )?;
+    let authored = crate::call_sites::locate(checked, state, coordinate)?;
     let parameter_receiver =
         crate::emission::call_source_custody::validate_parameter_binding_receiver(
             checked, machine, state, parameters, coordinate, &authored,

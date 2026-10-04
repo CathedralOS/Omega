@@ -178,8 +178,7 @@ fn validate_linear_result_consumer(
     {
         return unsupported("linear result local changes its producing qualification row");
     }
-    let authored =
-        crate::emission::call_source_custody::authored::locate_source(checked, state, *coordinate)?;
+    let authored = crate::call_sites::locate(checked, state, *coordinate)?;
     let mut arguments = authored
         .structural_arguments
         .iter()
@@ -1264,11 +1263,7 @@ pub(crate) fn validate_consumer(
         .ok_or(LoweringError::Unsupported(
             "structural result consumer has no operation position",
         ))?;
-    let authored = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        caller.state,
-        coordinate,
-    )?;
+    let authored = crate::call_sites::locate(checked, caller.state, coordinate)?;
     super::super::argument_schedule::build_operations(
         checked,
         caller.machine,
@@ -1868,7 +1863,7 @@ fn validate_operand_producers(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
     coordinate: &checked_trees::CheckedUnitCallCoordinate,
-    authored: &crate::emission::call_source_custody::authored::AuthoredCall,
+    authored: &crate::call_sites::AuthoredCall,
     source_machine: &checked_trees::machine::Machine,
     statements: &[StatementNode],
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -2245,11 +2240,7 @@ fn validate_operand_producers(
                 _ => false,
             }
         } else {
-            let source = crate::emission::call_source_custody::authored::locate_source(
-                checked,
-                caller.state,
-                producer_coordinate,
-            )?;
+            let source = crate::call_sites::locate(checked, caller.state, producer_coordinate)?;
             if source.source_site != source_site {
                 return unsupported("nested structural producer has a different authored source");
             }

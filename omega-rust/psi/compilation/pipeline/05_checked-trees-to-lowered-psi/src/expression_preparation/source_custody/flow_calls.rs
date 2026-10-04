@@ -29,11 +29,7 @@ pub(crate) fn retain_exact_flow_call(
     let call_ordinal = usize::try_from(coordinate.call_ordinal).map_err(|_| {
         LoweringError::Unsupported("Unit scalar call ordinal coordinate exceeds usize")
     })?;
-    let authored = crate::emission::call_source_custody::authored::locate_source(
-        checked,
-        source_state,
-        coordinate,
-    )?;
+    let authored = crate::call_sites::locate(checked, source_state, coordinate)?;
     if authored.target_state != target {
         return unsupported("Unit result call disagrees with its authored resolved target");
     }

@@ -107,11 +107,7 @@ impl OperationFrame<'_, '_> {
         staged: bool,
     ) -> Result<Option<ValueDeclaration>, LoweringError> {
         let names_local =
-            crate::emission::call_source_custody::initializers::initializes_immutable_local(
-                self.checked,
-                self.state,
-                coordinate,
-            );
+            crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         let value = if names_local {
             self.refine_scalar_local_value(coordinate.statement_index, value)?
         } else {
@@ -120,11 +116,7 @@ impl OperationFrame<'_, '_> {
         if staged {
             return Ok(Some(value));
         }
-        if !crate::emission::call_source_custody::initializers::discards_result(
-            self.checked,
-            self.state,
-            coordinate,
-        ) {
+        if !crate::call_sites::discards_result(self.checked, self.state, coordinate) {
             let position = self.values.len();
             self.values.push(value);
             if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
@@ -240,11 +232,7 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("structural result has no call coordinate");
         };
-        let authored = crate::emission::call_source_custody::authored::locate_source(
-            self.checked,
-            self.state,
-            coordinate,
-        )?;
+        let authored = crate::call_sites::locate(self.checked, self.state, coordinate)?;
         let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
         // A nested call can have ordinal zero when the initializer itself is
         // a constructor. Only the exact initializer occurrence owns the local.
