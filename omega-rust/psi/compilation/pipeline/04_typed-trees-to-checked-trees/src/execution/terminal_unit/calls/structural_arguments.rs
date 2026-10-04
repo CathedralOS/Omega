@@ -5,7 +5,8 @@ use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
-    ParameterArgument, SourceParameter, ordinary_parameter_path, parameter_is_root,
+    ParameterArgument, SourceParameter, boundary_parameter_path, ordinary_parameter_path,
+    parameter_is_root,
 };
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
@@ -424,12 +425,21 @@ pub(crate) fn structural_call_arguments(
             target: target.type_reference,
             target_identity: &target_identity,
         };
-        let path = ordinary_parameter_path(
-            argument,
-            custody,
-            target_machine.supply_mode,
-            allow_field_path_projection,
-        )?;
+        // Bodyless nominal requirements use the same boundary presentation
+        // as trait requirements. The declared supply owns this distinction;
+        // placing a call in a selected arm does not change its argument ABI.
+        let path = if target_machine.supply_mode.is_boundary_declaration()
+            && !target_machine.body_is_present
+        {
+            boundary_parameter_path(argument, custody, &[])
+        } else {
+            ordinary_parameter_path(
+                argument,
+                custody,
+                target_machine.supply_mode,
+                allow_field_path_projection,
+            )
+        }?;
         arm("call operation: structural arguments: parameter identity");
         if path.is_empty()
             && !argument.whole_parameter_is_admitted(
