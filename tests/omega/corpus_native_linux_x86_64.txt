@@ -287,6 +287,7 @@ pass/control_flow/runtime_compare_pair_dispatch_exit built 926ms exit:70 @2d8ed2
 pass/control_flow/runtime_indexed_case_dispatch_exit built 1239ms exit:2 @2d8ed253669f+wt
 pass/control_flow/runtime_integer_literal_dispatch_exit built 1089ms exit:22 @2d8ed253669f+wt
 pass/control_flow/runtime_loop_patterns_exit built 1575ms exit:70 @2d8ed253669f+wt
+pass/control_flow/runtime_namespace_local_state_loan built 751ms exit:0 stdout:match @2ff81f36a14
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1221ms exit:70 @9baafc0ace88
 pass/control_flow/runtime_string_literal_dispatch_exit built 1213ms exit:11 @9baafc0ace88
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit built 1381ms exit:70 @84c87cb730d8

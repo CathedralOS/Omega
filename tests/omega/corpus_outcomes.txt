@@ -1649,6 +1649,7 @@ pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms @2d8ed253669f
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms @2d8ed253669f
+pass/control_flow/runtime_namespace_local_state_loan checked 834ms @2ff81f36a14
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1271ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 1176ms @59d57ace39f0+wt
 pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit checked 725ms @c260ca98bc09+wt
