@@ -77,6 +77,14 @@ machine Main::main(main: &mut Main) reaches Console {
     let matches: bool = main.verdict == WireVerdict::Sound
         && main.written == 8
         && main.read == 8
+        && main.buffer[0] == 0
+        && main.buffer[1] == 0
+        && main.buffer[2] == 172
+        && main.buffer[3] == 2
+        && main.buffer[4] == 1
+        && main.buffer[5] == 3
+        && main.buffer[6] == 2
+        && main.buffer[7] == 1
         && decoded.counter == 300
         && decoded.delta == 0 - 2
         && decoded.flag;

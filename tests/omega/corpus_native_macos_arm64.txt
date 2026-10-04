@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.14, "load1_start": 6.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 17.03, "load1_start": 18.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1242,8 +1242,7 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4163ms exit:70 @a
 pass/wire/runtime_wire_encode_byte_slice_exit built 2155ms exit:70 @a662ed5de2fd
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4081ms exit:70 @a662ed5de2fd
 pass/wire/runtime_wire_exact_array_without_count_exit built 6346ms exit:70 @1da616075c39+wt
-pass/wire/runtime_wire_policy_authored_plan_exit incomplete 22588ms @6ec9ff444c14+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
+pass/wire/runtime_wire_policy_authored_plan_exit built 32087ms exit:70 @65d86d5aa7a8+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 127821ms exit:70 @011fd400e8c1+wt
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 808ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 9)

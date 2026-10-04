@@ -687,8 +687,10 @@ defines the complete product bar.
   - `wire/runtime_wire_exact_array_without_count_exit`: seven bytes
     `00 00 04 01 02 03 04`, exit 70 on macOS/Linux; remaining Windows
     (**WIRE-RUNTIME-AND-INSTALLATION** owns the operation).
-  - `wire/runtime_wire_policy_authored_plan_exit`: exit 70 on Linux x86-64;
-    remaining macOS ARM64 and Windows.
+  - `wire/runtime_wire_policy_authored_plan_exit`: the independent eight-byte
+    oracle and decoded values exit 70 natively and interpreted on macOS ARM64.
+    Linux x86-64 previously ran the round trip; rerun the strengthened byte
+    oracle there. Windows execution remains unverified.
 
   Route other omissions to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
