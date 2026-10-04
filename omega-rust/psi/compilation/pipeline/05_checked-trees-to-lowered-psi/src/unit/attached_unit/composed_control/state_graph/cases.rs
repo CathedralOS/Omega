@@ -410,6 +410,31 @@ pub(super) fn validate(
     let owner = super::owner(checked, state.state)?;
     let (dispatch_subject, declaration, expected_provenance) =
         result_source(checked, owner, source, state)?;
+    // As on an ordinary return, a preceding owned call transfers a whole
+    // affine parameter's cleanup to its callee. Keep projected parameters and
+    // every unconsumed owner on the existing case-edge custody checks.
+    let consumed_parameters = state
+        .operations
+        .iter()
+        .flat_map(|operation| operation.call_structural_arguments())
+        .filter(|argument| {
+            argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && argument.path.is_empty()
+        })
+        .filter_map(|argument| argument.source_parameter_index())
+        .collect::<Vec<_>>();
+    let consumed_affine_parameter = |index: usize| {
+        state
+            .structural_parameters
+            .get(index)
+            .is_some_and(|parameter| {
+                parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.multiplicity == Multiplicity::Affine
+                    && u32::try_from(index)
+                        .ok()
+                        .is_some_and(|index| consumed_parameters.contains(&index))
+            })
+    };
     // Every parameter beside the dispatched subject must need no cleanup on
     // an arm that leaves it unconsumed. A shared or mutable loan is restored
     // at return, and an owned unrestricted value, such as the by-value `[copy]`
@@ -422,6 +447,7 @@ pub(super) fn validate(
         .enumerate()
         .any(|(index, parameter)| {
             !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index))
+                && !consumed_affine_parameter(index)
                 && (parameter.multiplicity != Multiplicity::Unrestricted
                     || !matches!(
                         parameter.access,
@@ -435,6 +461,7 @@ pub(super) fn validate(
     }
     let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
+    let mut consumed_drops = Vec::new();
     super::result_custody::validate_disposition_roster(checked, owner, source, state)?;
     for (_, event) in checked
         .facts
@@ -453,12 +480,30 @@ pub(super) fn validate(
             .place()
             .is_none_or(|symbol| event.root != facts::PlaceRoot::Symbol(symbol))
         {
-            if checked
+            if let Some(source_position) = checked
                 .state_parameters(source)
                 .iter()
-                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+                .position(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
             {
-                return unsupported("Unit case discards an unrelated entry parameter");
+                let index = state
+                    .structural_parameters
+                    .iter()
+                    .position(|parameter| parameter.position as usize == source_position)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit case cleanup parameter is absent",
+                    ))?;
+                if !consumed_affine_parameter(index)
+                    || event.access != language_semantics::PermissionAccess::Owned
+                    || event.multiplicity != Multiplicity::Affine
+                    || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
+                    || event.provenance != language_semantics::PermissionProvenance::Unknown
+                    || event.obligation_live
+                    || !event.segments.is_empty()
+                    || consumed_drops.contains(&index)
+                {
+                    return unsupported("Unit case discards an unrelated entry parameter");
+                }
+                consumed_drops.push(index);
             }
             continue;
         }

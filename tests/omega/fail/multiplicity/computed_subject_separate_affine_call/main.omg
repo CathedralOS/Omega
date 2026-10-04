@@ -1,0 +1,8 @@
+data Choice { case Left(value: u64); case Right(value: u64); }
+machine forward(choice: Choice) -> Choice { choice }
+machine choose(choice: Choice) -> Choice {
+    transition forward(choice) {
+        Choice::Left { value } -> forward(choice)
+        Choice::Right { value } -> forward(choice)
+    }
+}
