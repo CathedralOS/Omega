@@ -4,9 +4,8 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, ExpressionNode, PrimitiveType, StatementPlanner,
-    TransitionGuardNode, TransitionTargetNode, lower_boolean_guard, lower_call_arguments,
-    lower_return_expression, retain_call_arguments, retain_subslice_endpoints,
+    CheckedScalarExpressionRole, PrimitiveType, StatementPlanner, TransitionGuardNode,
+    TransitionTargetNode, lower_boolean_guard, lower_return_expression, retain_subslice_endpoints,
 };
 
 pub(super) fn plan(
@@ -34,41 +33,6 @@ pub(super) fn plan(
         statement_index,
         ..
     } = planner;
-    // The first arm of a dispatch over a call evaluates that call here, as
-    // the statement's first call. Its scalar operands keep the same source
-    // rows a `let` initializer's call keeps; later arms read its result.
-    if let Some(subject) = crate::semantic::calls::dispatch_subjects::evaluated_case_subject(
-        program,
-        program.statement_table.statements(state.statement_nodes),
-        statement_index,
-    ) && let ExpressionNode::Call(call) = program.expression_table.expression(subject)
-        && let Some(arguments) = lower_call_arguments(
-            program,
-            operators,
-            state,
-            statement_ordinal,
-            0,
-            &crate::semantic::calls::CallSite::Expression {
-                expression: subject,
-                call,
-            },
-            scalar_parameters,
-            parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        )
-    {
-        retain_call_arguments(
-            arguments,
-            scalar_parameters,
-            locals,
-            expressions,
-            proof_terms,
-            source_bindings,
-            binding_symbols,
-        );
-    }
     if let TransitionGuardNode::When(authored_guard) = transition.guard
         && let Some(guard) = lower_boolean_guard(
             program,

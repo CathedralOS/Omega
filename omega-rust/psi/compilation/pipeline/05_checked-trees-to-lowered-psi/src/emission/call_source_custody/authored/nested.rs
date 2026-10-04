@@ -230,12 +230,19 @@ pub(super) fn authored_occurrences(
     };
     let table = &checked.expression_table;
     let mut active = Vec::new();
+    // Descendants of a saved-subject copy retain authored call coordinates,
+    // but none is another evaluation. The depth ends this reservation at the
+    // copied subtree's exit, before independently authored sibling operands.
+    let mut saved_subject_depth = None;
     let mut calls = Vec::new();
     let mut order = Vec::new();
     while let Some(step) = pending.pop() {
         let (expression, direct_argument) = match step {
             Walk::Enter(expression, direct_argument) => (expression, direct_argument),
             Walk::Exit(expression, ordinal) => {
+                if saved_subject_depth == Some(active.len()) {
+                    saved_subject_depth = None;
+                }
                 active.pop();
                 if let Some(ordinal) = ordinal {
                     order.push((ordinal, AuthoredOccurrence::Expression(expression)));
@@ -279,10 +286,23 @@ pub(super) fn authored_occurrences(
         active.push(expression);
         let mut children = Vec::new();
         let ordinal = match table.expression(expression) {
-            ExpressionNode::Call(_)
-                if dispatch_subjects::repeats_subject(checked, dispatch_subject, expression)
-                    && !(next_ordinal == 0 && expression == outer_expression) =>
+            ExpressionNode::Call(call)
+                if saved_subject_depth.is_some()
+                    || (dispatch_subjects::repeats_subject(
+                        checked,
+                        dispatch_subject,
+                        expression,
+                    ) && !(next_ordinal == 0 && expression == outer_expression)) =>
             {
+                saved_subject_depth.get_or_insert(active.len());
+                let arguments = table.expression_handles(call.arguments);
+                if arguments.len() != call.arguments.count() as usize {
+                    return unsupported("saved subject call has an invalid argument span");
+                }
+                if call.receiver.is_valid() {
+                    children.push((call.receiver, true));
+                }
+                children.extend(arguments.iter().map(|argument| (*argument, true)));
                 next_ordinal = next_ordinal
                     .checked_add(1)
                     .ok_or(LoweringError::Unsupported(
