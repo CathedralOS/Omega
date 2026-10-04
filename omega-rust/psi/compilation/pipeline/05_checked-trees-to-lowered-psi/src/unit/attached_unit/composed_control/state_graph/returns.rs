@@ -614,16 +614,69 @@ pub(super) fn validate_structural(
                 .ok_or(LoweringError::Unsupported(
                     "structural return source parameter absent",
                 ))?;
-            if parameter.type_identity != result.type_identity
-                || parameter.multiplicity != result.multiplicity
-                || !matches!(
-                    parameter.access,
-                    checked_trees::CheckedStructuralAccess::Owned
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
-                )
-                || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+            // Borrowed ingress names referent storage; the returned value is
+            // its affine reference carrier. Compare those distinct identities
+            // through exact source custody instead of treating the referent as
+            // an owned result of the same multiplicity.
+            if validation::reference_result_custody::stored_loan_parts(
+                &checked.typed,
+                source.return_type,
+            )
+            .is_some()
             {
-                return unsupported("structural return exchanged its owned parameter");
+                let expected = validation::reference_result_custody::initializer_source(
+                    &checked.typed,
+                    source,
+                    *expression,
+                    source.return_type,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "reference parameter return lost its exact ingress",
+                ))?;
+                let receipt = checked_trees::CheckedReferenceResultSourcePlan {
+                    path: Vec::new(),
+                    source: expected.clone(),
+                };
+                let compatible_access = parameter.access == expected.access
+                    || (parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                        && expected.access == checked_trees::CheckedStructuralAccess::SharedBorrow);
+                if expected.source != result.source
+                    || !expected.path.is_empty()
+                    || expected.type_identity != parameter.type_identity
+                    || !compatible_access
+                    || parameter.multiplicity != Multiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || result.type_identity
+                        != checked
+                            .normalized_type_identity(source.return_type)
+                            .as_str()
+                    || result.multiplicity
+                        != validation::reference_result_custody::result_multiplicity(
+                            &checked.typed,
+                            source.return_type,
+                        )
+                    || result.reference_sources.as_slice() != std::slice::from_ref(&receipt)
+                    || plan
+                        .result_reference_sources
+                        .iter()
+                        .filter(|candidate| **candidate == receipt)
+                        .count()
+                        != 1
+                {
+                    return unsupported("reference parameter return changed its exact custody");
+                }
+            } else {
+                if parameter.type_identity != result.type_identity
+                    || parameter.multiplicity != result.multiplicity
+                    || !matches!(
+                        parameter.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    )
+                    || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
+                {
+                    return unsupported("structural return exchanged its owned parameter");
+                }
             }
         }
         // A literal-backed `&[u8]` return carries its bytes as the whole

@@ -909,105 +909,132 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         state.return_type,
         language_semantics::ReferenceAccess::Mutable,
     )?;
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if borrow.access != language_semantics::ReferenceAccess::Mutable {
-        return None;
-    }
-    let statement_index = usize::try_from(statement_ordinal).ok()?;
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        borrow.target,
-    )?;
-    let authored = program.state_parameters(state);
-    for _ in 0..8 {
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    // An explicit borrow forms a projected loan; a reference-valued place
+    // forwards its existing carrier. Both feed the same reference producer,
+    // retaining the exact source and access from the common custody owner.
+    let source = if let ExpressionNode::Borrow(borrow) =
+        program.expression_table.expression(expression)
+    {
+        if borrow.access != language_semantics::ReferenceAccess::Mutable {
             return None;
-        };
-        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
-            break;
         }
-        // A minted view loan over `self.<field>` publishes the member's own
-        // symbol as its root: resolve it back to the receiver with the field
-        // projection restored ahead of the segments the target added.
-        if let Some(member) = crate::execution::terminal_unit::calls::view_self_member_symbol(
+        let statement_index = usize::try_from(statement_ordinal).ok()?;
+        let mut place = crate::flow::canonical_place_from_expression_in_state(
             program,
-            state,
-            machine.symbol,
-            symbol,
-        ) {
-            let mut segments = Vec::with_capacity(place.segments.len() + 1);
-            segments.push(facts::PlaceSegment::Field { symbol: member });
+            state.symbol,
+            statement_index,
+            borrow.target,
+        )?;
+        let authored = program.state_parameters(state);
+        for _ in 0..8 {
+            let facts::PlaceRoot::Symbol(symbol) = place.root else {
+                return None;
+            };
+            if authored.iter().any(|parameter| parameter.symbol == symbol)
+                || symbol == machine.symbol
+            {
+                break;
+            }
+            // A minted view loan over `self.<field>` publishes the member's own
+            // symbol as its root: resolve it back to the receiver with the field
+            // projection restored ahead of the segments the target added.
+            if let Some(member) = crate::execution::terminal_unit::calls::view_self_member_symbol(
+                program,
+                state,
+                machine.symbol,
+                symbol,
+            ) {
+                let mut segments = Vec::with_capacity(place.segments.len() + 1);
+                segments.push(facts::PlaceSegment::Field { symbol: member });
+                segments.extend(place.segments);
+                place = crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(machine.symbol),
+                    segments,
+                };
+                break;
+            }
+            let borrow_state = facts
+                .borrow
+                .states
+                .iter()
+                .map(|(_, candidate)| candidate)
+                .find(|candidate| {
+                    candidate.machine_symbol == machine.symbol
+                        && candidate.state_symbol == state.symbol
+                })?;
+            let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+                facts.borrow.state_owns_loan(borrow_state, *handle)
+                    && loan.owner_symbol == symbol
+                    && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                    && facts.borrow.loan_owner_path(loan).is_empty()
+            });
+            let (_, loan) = loans.next()?;
+            if loans.next().is_some() {
+                return None;
+            }
+            let mut segments = facts.borrow.loan_segments(loan).to_vec();
             segments.extend(place.segments);
             place = crate::flow::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(machine.symbol),
+                root: facts::PlaceRoot::Symbol(loan.root_symbol),
                 segments,
             };
-            break;
         }
-        let borrow_state = facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, candidate)| candidate)
-            .find(|candidate| {
-                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-            })?;
-        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.owner_symbol == symbol
-                && loan.kind == checked_trees::BorrowAccessKind::Mutable
-                && facts.borrow.loan_owner_path(loan).is_empty()
-        });
-        let (_, loan) = loans.next()?;
-        if loans.next().is_some() {
+        let facts::PlaceRoot::Symbol(root) = place.root else {
+            return None;
+        };
+        let position = if root == machine.symbol {
+            authored.iter().position(|parameter| parameter.is_self)?
+        } else {
+            authored
+                .iter()
+                .position(|parameter| parameter.symbol == root)?
+        };
+        if !crate::execution::terminal_unit::calls::view_source_parameter_is_mutable(
+            program,
+            &authored[position],
+        ) {
             return None;
         }
-        let mut segments = facts.borrow.loan_segments(loan).to_vec();
-        segments.extend(place.segments);
-        place = crate::flow::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(loan.root_symbol),
-            segments,
-        };
-    }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
-    let position = if root == machine.symbol {
-        authored.iter().position(|parameter| parameter.is_self)?
-    } else {
-        authored
+        let (storage, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            &place,
+        )?;
+        if program.normalized_type_identity(storage) != program.normalized_type_identity(referee) {
+            return None;
+        }
+        let parameter_index = parameters
             .iter()
-            .position(|parameter| parameter.symbol == root)?
+            .position(|parameter| parameter.position as usize == position)?;
+        CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: program.normalized_type_identity(referee).into_string(),
+            access: CheckedStructuralAccess::MutableBorrow,
+        }
+    } else {
+        validation::reference_result_custody::initializer_source(
+            program,
+            state,
+            expression,
+            state.return_type,
+        )?
     };
-    if !crate::execution::terminal_unit::calls::view_source_parameter_is_mutable(
-        program,
-        &authored[position],
-    ) {
-        return None;
-    }
-    let (storage, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
-        program,
-        machine.symbol,
-        state.symbol,
-        statement_index,
-        &place,
-    )?;
-    if program.normalized_type_identity(storage) != program.normalized_type_identity(referee) {
-        return None;
-    }
-    let parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
     let type_identity = shapes.add_view_type(
         state.return_type,
         &[],
         language_semantics::ReferenceAccess::Mutable,
     )?;
     let referent_identity = shapes.add_type(referee, &[], &[])?;
+    if source.access != CheckedStructuralAccess::MutableBorrow
+        || source.type_identity != referent_identity
+    {
+        return None;
+    }
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
         binding_ordinal: u32::try_from(*count).ok()?,
@@ -1015,15 +1042,5 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         multiplicity: Multiplicity::Affine,
     };
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        source: CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: referent_identity,
-            access: CheckedStructuralAccess::MutableBorrow,
-        },
-    })
+    Some(CheckedUnitEffectOperationPlan::EstablishReference { result, source })
 }

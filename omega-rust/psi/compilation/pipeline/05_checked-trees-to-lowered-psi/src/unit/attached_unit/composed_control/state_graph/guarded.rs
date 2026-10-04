@@ -394,11 +394,16 @@ fn reference_source(
     state: &CheckedComposedUnitControlStatePlan,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<checked_trees::CheckedUnitStructuralArgumentPlan, LoweringError> {
-    if validation::reference_result_custody::shared_borrowed_parts(
-        &checked.typed,
-        authored.return_type,
-    )
-    .is_some()
+    let carried_reference = !matches!(
+        checked.expression_table.expression(expression),
+        ExpressionNode::Borrow(_)
+    );
+    if carried_reference
+        || validation::reference_result_custody::shared_borrowed_parts(
+            &checked.typed,
+            authored.return_type,
+        )
+        .is_some()
     {
         return validation::reference_result_custody::initializer_source(
             &checked.typed,
@@ -407,7 +412,7 @@ fn reference_source(
             authored.return_type,
         )
         .ok_or(LoweringError::Unsupported(
-            "shared reference return has no exact ingress source",
+            "reference return has no exact carried ingress source",
         ));
     }
     let machine = checked
