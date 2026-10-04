@@ -3323,11 +3323,12 @@ unchanged, except for intended deletions, which its commit lists.
   operands use the shared integer constraint engine rather than an affine
   source-shape recognizer. Value dispatch now checks arm arithmetic under the
   shared comparison facts and joins arm ranges; it no longer falls through
-  to unknown-place analysis. The macOS ARM64 corpus native/interpreter run of
-  `arithmetic/runtime_exact_dispatch_divisor_exit` produces its authored exit
-  70. Its outer command is `omega run --both
-  tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg`;
-  ordinary project package review remains necessary for CLI execution.
+  to unknown-place analysis. At `313d9f2925` on macOS ARM64, the ordinary CLI
+  command `omega run --both
+  tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg`
+  produces its authored exit 70 in both engines after normal package review.
+  The fixture README records preparation; its unconstrained-divisor negative
+  rejects from `omega --check` with the nonzero checking diagnostic.
   Remaining: retain those operation judgments in
   `CheckFacts`, audit and retain the existing shift-count/Boolean/index
   judgments and other bounded-store forms, consume them in lowering, and
