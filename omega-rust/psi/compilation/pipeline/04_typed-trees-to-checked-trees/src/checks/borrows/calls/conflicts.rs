@@ -1,14 +1,11 @@
-use checked_trees::{
-    BorrowAccessKind, BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject,
-    BorrowCallFact, CheckFacts, FlowStateFact,
-};
+use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
-use super::super::overlap::{StatedOrderingPremise, canonical_place_for_loan};
-use super::evidence::{CallCompatibility, argument_operand, loan_operand};
+use super::super::overlap::StatedOrderingPremise;
+use super::super::overlap::{canonical_place_loan_compatibility, captured_place_compatibility};
 
 pub(super) fn check_call_access_conflicts<'p>(
     program: &'p typed_trees::TypedTrees,
@@ -20,7 +17,6 @@ pub(super) fn check_call_access_conflicts<'p>(
     stated_premises: &[StatedOrderingPremise],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
-    recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let accesses: Vec<_> = facts
@@ -52,30 +48,24 @@ pub(super) fn check_call_access_conflicts<'p>(
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();
 
-    for (transfer_ordinal, transferred) in crate::flow::owned_call_operand_places(
+    for transferred in crate::flow::owned_call_operand_places(
         program,
         &facts.operators,
         state_flow.machine_symbol,
         state_flow.state_symbol,
         borrow_call,
-    )
-    .into_iter()
-    .enumerate()
-    {
+    ) {
         for (loan_handle, loan) in &active_loans {
-            if canonical_place_for_loan(&transferred, loan).is_some_and(|place| {
-                recording.non_interfering(
-                    program,
-                    BorrowCallCompatibilityOperand {
-                        subject: BorrowCallCompatibilitySubject::TransferredPlace(transfer_ordinal),
-                        place,
-                        access: BorrowAccessKind::Mutable,
-                    },
-                    loan_operand(&facts.borrow, *loan_handle, loan),
-                    stated_premises,
-                    bound_lookup,
-                )
-            }) {
+            if canonical_place_loan_compatibility(
+                program,
+                &transferred,
+                loan,
+                &facts.borrow,
+                stated_premises,
+                bound_lookup,
+            )
+            .non_interfering
+            {
                 continue;
             }
             let detail =
@@ -114,13 +104,23 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            if recording.non_interfering(
+            if captured_place_compatibility(
                 program,
-                argument_operand(&facts.borrow, index, access),
-                argument_operand(&facts.borrow, other_index, other_access),
+                &CapturedPlace {
+                    root_symbol: access.root_symbol,
+                    segments: facts.borrow.access_segments(access).to_vec(),
+                },
+                &access.kind,
+                &CapturedPlace {
+                    root_symbol: other_access.root_symbol,
+                    segments: facts.borrow.access_segments(other_access).to_vec(),
+                },
+                &other_access.kind,
                 stated_premises,
                 bound_lookup,
-            ) {
+            )
+            .non_interfering
+            {
                 continue;
             }
 
@@ -231,13 +231,23 @@ pub(super) fn check_call_access_conflicts<'p>(
             if data_access == Some(index) {
                 continue;
             }
-            if recording.non_interfering(
+            if captured_place_compatibility(
                 program,
-                argument_operand(&facts.borrow, index, access),
-                loan_operand(&facts.borrow, *loan_handle, loan),
+                &CapturedPlace {
+                    root_symbol: access.root_symbol,
+                    segments: facts.borrow.access_segments(access).to_vec(),
+                },
+                &access.kind,
+                &CapturedPlace {
+                    root_symbol: loan.root_symbol,
+                    segments: facts.borrow.loan_segments(loan).to_vec(),
+                },
+                &loan.kind,
                 stated_premises,
                 bound_lookup,
-            ) {
+            )
+            .non_interfering
+            {
                 continue;
             }
             let detail =

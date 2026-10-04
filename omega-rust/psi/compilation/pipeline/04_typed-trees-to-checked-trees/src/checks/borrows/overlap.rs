@@ -1,54 +1,16 @@
-//! Borrow compatibility judgments: whether two captured places are disjoint,
-//! whether one contains the other, and whether accesses through them can
-//! coexist.
-//!
-//! Every judgment ends in one of two functions:
-//! `captured_place_compatibility_with_selector_snapshot` forms a new
-//! judgment, and `captured_place_compatibility_from_selector_snapshot`
-//! replays a retained one. Places with different valid roots are disjoint,
-//! except that a place rooted at one of a machine's attached fields is first
-//! re-rooted under that machine when the other place is rooted at the machine
-//! itself: the whole `self` receiver contains each attached field
-//! (`receiver_namespace_places`). Places with the same root are compared
-//! segment by segment (`segments`), and index segments by their evaluated
-//! bounds (`indexes`), using stated ordering premises (`premises`) where the
-//! bounds alone do not decide. Two reads never interfere; otherwise the
-//! places must be disjoint and must not name two sibling fields that one data
-//! `where` fact relates.
-//!
-//! A new judgment records the evaluated index bounds (the selector snapshot)
-//! and the premises it consumed; the borrow checks keep both in their
-//! certificates. A replay re-evaluates the pair against those records and
-//! returns `CompatibilityReplayDrift` when a snapshot row or premise no
-//! longer matches.
-//!
-//! The public wrappers adapt their inputs: the `captured_place_*` forms take
-//! two captured places, the `borrow_loan_*` forms two loan rows, and the
-//! `canonical_place_loan_*` forms a mutated place re-rooted against a loan
-//! (`canonical_place_for_loan`). `borrows`, `statements` and `calls` call
-//! them. `stated_ordering_premises` collects the premises a state starts
-//! with from its `requires` and incoming guards, and `append_call_premises`
-//! adds the call `ensures` available at one statement's entry.
+//! Spatial borrow judgments over captured places and their access kinds.
+//! Bounds are evaluated once per comparison and reused by overlap and
+//! containment. Stated premises supply only relations available at this use;
+//! unknown bounds remain conservative. No successful judgment is serialized
+//! for the checker to reconstruct later.
 
 mod indexes;
 mod premises;
 mod segments;
 
-pub(super) use self::indexes::CompatibilityReplayDrift;
-use self::indexes::SelectorSessionClosure;
 pub(super) use self::premises::append_call_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
-use self::segments::{
-    place_segments_compatibility_from_snapshot, place_segments_compatibility_with_snapshot,
-};
-
-pub(super) struct CapturedPlaceCompatibilityEvidence {
-    pub compatibility: checked_trees::CapturedPlaceCompatibility,
-    pub selector_snapshot: Vec<checked_trees::BorrowCompatibilitySelectorSnapshot>,
-    /// Exact stated requires tokens the judgment consumed, in consult order.
-    /// Empty for a purely structural derivation.
-    pub premises: Vec<checked_trees::BorrowCompatibilityPremise>,
-}
+use self::segments::place_segments_compatibility;
 
 pub(super) fn captured_place_compatibility<'p>(
     program: &'p typed_trees::TypedTrees,
@@ -59,86 +21,6 @@ pub(super) fn captured_place_compatibility<'p>(
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> checked_trees::CapturedPlaceCompatibility {
-    captured_place_compatibility_with_selector_snapshot(
-        program,
-        left,
-        left_access,
-        right,
-        right_access,
-        premises,
-        bound_lookup,
-    )
-    .compatibility
-}
-
-pub(super) fn captured_place_compatibility_with_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::CapturedPlace,
-    right_access: &checked_trees::BorrowAccessKind,
-    premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> CapturedPlaceCompatibilityEvidence {
-    let receiver_namespace = receiver_namespace_places(program, left, right);
-    let (left_place, right_place) = receiver_namespace
-        .as_ref()
-        .map_or((left, right), |(left, right)| (left, right));
-    let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
-    let same_root = roots_valid && left_place.root_symbol == right_place.root_symbol;
-    let (segments_may_overlap, containment, closure) = if same_root {
-        place_segments_compatibility_with_snapshot(
-            program,
-            &left_place.segments,
-            &right_place.segments,
-            premises,
-            bound_lookup,
-        )
-    } else {
-        (
-            false,
-            checked_trees::CapturedPlaceContainment::None,
-            SelectorSessionClosure {
-                snapshot: Vec::new(),
-                premises: Vec::new(),
-            },
-        )
-    };
-    let disjoint = roots_valid && (!same_root || !segments_may_overlap);
-    let shares_dependent_fact = same_root
-        && place_segments_share_dependent_fact(
-            program,
-            left_place.root_symbol,
-            &left_place.segments,
-            &right_place.segments,
-        );
-    let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
-        && matches!(right_access, checked_trees::BorrowAccessKind::Read);
-
-    CapturedPlaceCompatibilityEvidence {
-        compatibility: checked_trees::CapturedPlaceCompatibility {
-            left: left.clone(),
-            right: right.clone(),
-            disjoint,
-            containment,
-            non_interfering: both_shared || (disjoint && !shares_dependent_fact),
-        },
-        selector_snapshot: closure.snapshot,
-        premises: closure.premises,
-    }
-}
-
-fn captured_place_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::CapturedPlace,
-    right_access: &checked_trees::BorrowAccessKind,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
-    premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
     let receiver_namespace = receiver_namespace_places(program, left, right);
     let (left_place, right_place) = receiver_namespace
         .as_ref()
@@ -146,22 +28,14 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
     let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
     let same_root = roots_valid && left_place.root_symbol == right_place.root_symbol;
     let (segments_may_overlap, containment) = if same_root {
-        place_segments_compatibility_from_snapshot(
+        place_segments_compatibility(
             program,
             &left_place.segments,
             &right_place.segments,
-            selector_snapshot,
             premises,
-            recorded_premises,
             bound_lookup,
-        )?
+        )
     } else {
-        if !selector_snapshot.is_empty() {
-            return Err(CompatibilityReplayDrift::SelectorSnapshot);
-        }
-        if !recorded_premises.is_empty() {
-            return Err(CompatibilityReplayDrift::Premise);
-        }
         (false, checked_trees::CapturedPlaceContainment::None)
     };
     let disjoint = roots_valid && (!same_root || !segments_may_overlap);
@@ -174,13 +48,14 @@ fn captured_place_compatibility_from_selector_snapshot<'p>(
         );
     let both_shared = matches!(left_access, checked_trees::BorrowAccessKind::Read)
         && matches!(right_access, checked_trees::BorrowAccessKind::Read);
-    Ok(checked_trees::CapturedPlaceCompatibility {
+
+    checked_trees::CapturedPlaceCompatibility {
         left: left.clone(),
         right: right.clone(),
         disjoint,
         containment,
         non_interfering: both_shared || (disjoint && !shares_dependent_fact),
-    })
+    }
 }
 
 /// Borrow access places capture a direct `self.field` at the attached field's
@@ -279,39 +154,6 @@ pub(super) fn canonical_place_for_loan(
     }
 }
 
-/// Capture-session compatibility for one statement-mutated place against an
-/// active loan: the same left join and spatial judgment admission uses, with
-/// the selector snapshot and consumed premise tokens retained for replay.
-pub(super) fn canonical_place_loan_compatibility_with_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    place: &crate::flow::CanonicalPlace,
-    loan: &checked_trees::BorrowLoanFact,
-    borrow: &checked_trees::BorrowFacts,
-    premises: &[StatedOrderingPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> CapturedPlaceCompatibilityEvidence {
-    let right = captured_loan_place(borrow, loan);
-    let Some(left) = canonical_place_for_loan(place, loan) else {
-        return CapturedPlaceCompatibilityEvidence {
-            compatibility: checked_trees::CapturedPlaceCompatibility {
-                right,
-                ..Default::default()
-            },
-            selector_snapshot: Vec::new(),
-            premises: Vec::new(),
-        };
-    };
-    captured_place_compatibility_with_selector_snapshot(
-        program,
-        &left,
-        &checked_trees::BorrowAccessKind::Mutable,
-        &right,
-        &loan.kind,
-        premises,
-        bound_lookup,
-    )
-}
-
 pub(super) fn canonical_place_loan_compatibility<'p>(
     program: &'p typed_trees::TypedTrees,
     place: &crate::flow::CanonicalPlace,
@@ -320,41 +162,20 @@ pub(super) fn canonical_place_loan_compatibility<'p>(
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> checked_trees::CapturedPlaceCompatibility {
-    canonical_place_loan_compatibility_with_selector_snapshot(
+    let right = captured_loan_place(borrow, loan);
+    let Some(left) = canonical_place_for_loan(place, loan) else {
+        return checked_trees::CapturedPlaceCompatibility {
+            right,
+            ..Default::default()
+        };
+    };
+    captured_place_compatibility(
         program,
-        place,
-        loan,
-        borrow,
+        &left,
+        &checked_trees::BorrowAccessKind::Mutable,
+        &right,
+        &loan.kind,
         premises,
-        bound_lookup,
-    )
-    .compatibility
-}
-
-/// Replays one judged captured-place/loan pair from its frozen selector
-/// snapshot. The left side arrives already re-rooted exactly as the retained
-/// certificate judged it; the right side is re-captured from the loan row.
-pub(super) fn captured_place_loan_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &checked_trees::CapturedPlace,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::BorrowLoanFact,
-    right_access: &checked_trees::BorrowAccessKind,
-    borrow: &checked_trees::BorrowFacts,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
-    premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
-    captured_place_compatibility_from_selector_snapshot(
-        program,
-        left,
-        left_access,
-        &captured_loan_place(borrow, right),
-        right_access,
-        selector_snapshot,
-        premises,
-        recorded_premises,
         bound_lookup,
     )
 }
@@ -473,46 +294,21 @@ fn expression_mentions_field(
     }
 }
 
-pub(super) fn borrow_loan_compatibility_with_selector_snapshot<'p>(
+pub(super) fn borrow_loan_compatibility<'p>(
     program: &'p typed_trees::TypedTrees,
     facts: &checked_trees::CheckFacts,
     left: &checked_trees::BorrowLoanFact,
     right: &checked_trees::BorrowLoanFact,
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> CapturedPlaceCompatibilityEvidence {
-    captured_place_compatibility_with_selector_snapshot(
+) -> checked_trees::CapturedPlaceCompatibility {
+    captured_place_compatibility(
         program,
         &captured_loan_place(&facts.borrow, left),
         &left.kind,
         &captured_loan_place(&facts.borrow, right),
         &right.kind,
         premises,
-        bound_lookup,
-    )
-}
-
-pub(super) fn borrow_loan_compatibility_from_selector_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    left: &checked_trees::BorrowLoanFact,
-    left_access: &checked_trees::BorrowAccessKind,
-    right: &checked_trees::BorrowLoanFact,
-    right_access: &checked_trees::BorrowAccessKind,
-    selector_snapshot: &[checked_trees::BorrowCompatibilitySelectorSnapshot],
-    premises: &[StatedOrderingPremise],
-    recorded_premises: &[checked_trees::BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<checked_trees::CapturedPlaceCompatibility, CompatibilityReplayDrift> {
-    captured_place_compatibility_from_selector_snapshot(
-        program,
-        &captured_loan_place(&facts.borrow, left),
-        left_access,
-        &captured_loan_place(&facts.borrow, right),
-        right_access,
-        selector_snapshot,
-        premises,
-        recorded_premises,
         bound_lookup,
     )
 }

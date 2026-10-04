@@ -1,25 +1,6 @@
-//! Borrow compatibility at each call: every explicit argument access
-//! against the loans active at the call, and the writability of
-//! each `&mut` argument. Each comparison is recorded as a call compatibility
-//! certificate in the borrow facts.
-//!
-//! Two entries share `collect_compatibility`. `initialize_compatibility`
-//! fills the certificate ledger before the check pass (through
-//! `borrows::initialize_checked_borrow_call_certificates`).
-//! `validate_compatibility`, run by `borrows::check_flow_call_borrows`,
-//! rebuilds the certificates and reports drift when the retained ledger
-//! differs from them in any row or in order.
-//!
-//! `collect_compatibility` first matches the borrow call roster against the
-//! typed source (`correspondence`). For each state with borrow facts it
-//! matches the state's entry loans (`correspondence`) and gathers the
-//! state's stated ordering premises (`borrows::overlap`); for each call it
-//! adds the call's premises and runs `check_call_borrows`: argument accesses
-//! against active loans (`conflicts`), then mutable argument writability
-//! (`writability`). `evidence` records the
-//! comparisons. `receiver::check_exclusive_place_use`,
-//! `receiver::check_receiver_footprint_against_argument_loans` are also used by
-//! `borrows::statements`.
+//! Call arguments are checked once against each other and the active loans.
+//! Flow supplies the left-to-right access lifetimes; this pass judges overlap
+//! and mutable argument writability over the original borrow facts.
 
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -27,8 +8,6 @@ use diagnostics::Diagnostic;
 use crate::labels::call_target_label;
 
 mod conflicts;
-mod correspondence;
-mod evidence;
 mod receiver;
 mod writability;
 
@@ -37,102 +16,22 @@ pub(super) use receiver::{
 };
 
 use self::conflicts::check_call_access_conflicts;
-use self::evidence::CallCompatibility;
 use self::writability::check_mutable_argument_writability;
 use super::overlap::StatedOrderingPremise;
-use crate::checks::ranges::incoming_guards::{IncomingGuardIndex, IncomingGuardIndexCache};
+use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
-/// Initial construction is deliberately separate from replay: a checked
-/// program with deleted evidence must not be mistaken for an unbuilt ledger.
-pub(super) fn initialize_compatibility(
-    program: &typed_trees::TypedTrees,
-    facts: &mut CheckFacts,
-    guard_index: &IncomingGuardIndexCache,
+pub(super) fn check_compatibility<'p>(
+    program: &'p typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    incoming_guards: &IncomingGuardIndex,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    diagnostics: &mut Vec<Diagnostic>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let mut diagnostics = Vec::new();
-    let call_frames = validation::CallFrameResolver::new(program);
-    let incoming_guards = guard_index.index(program, call_frames.as_ref());
-    let mut bound_lookup = None;
-    let certificates = collect_compatibility(
-        program,
-        facts,
-        incoming_guards,
-        call_frames.as_ref(),
-        &mut diagnostics,
-        &mut bound_lookup,
-    );
-    // Initial construction retains successful comparisons, not an admission.
-    // The ordinary check pass repeats every obligation and aggregates failures
-    // with statement/resource diagnostics before checked trees can be returned.
-    facts
-        .borrow
-        .call_compatibility_certificates
-        .reset_retain_capacity();
-    facts
-        .borrow
-        .call_compatibility_certificates
-        .insert_many(certificates);
-}
-
-pub(super) fn validate_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &CheckFacts,
-    incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Vec<Diagnostic> {
-    let reconstructed = collect_compatibility(
-        program,
-        facts,
-        incoming_guards,
-        call_frames,
-        diagnostics,
-        bound_lookup,
-    );
-    let mut retained_diagnostics = Vec::new();
-    // Rebuild every invocation's comparisons in semantic order. Exact equality
-    // verifies the full roster as well as each frozen selector and premise:
-    // missing, extra, reordered or retargeted rows cannot pass independently.
-    if !facts
-        .borrow
-        .call_compatibility_certificates
-        .iter()
-        .map(|(_, certificate)| certificate)
-        .eq(reconstructed.iter())
-    {
-        retained_diagnostics.push(Diagnostic::error(
-            "checked borrow call compatibility ledger drifted from exact invocation replay",
-        ));
-    }
-    retained_diagnostics
-}
-
-fn collect_compatibility<'p>(
-    program: &'p typed_trees::TypedTrees,
-    facts: &CheckFacts,
-    incoming_guards: &IncomingGuardIndex,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
-    let mut certificates = Vec::new();
-    if !correspondence::matches_source(program, facts, call_frames) {
-        diagnostics.push(Diagnostic::error(
-            "checked borrow call roster drifted from typed source or state-owned flow",
-        ));
-        return certificates;
-    }
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
             continue;
         };
-        if !correspondence::matches_entry_loans(program, facts, state_flow, call_frames) {
-            diagnostics.push(Diagnostic::error(
-                "checked borrow call entry loans drifted from source lifecycle",
-            ));
-            continue;
-        }
         let premises = crate::semantic::calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
@@ -153,9 +52,7 @@ fn collect_compatibility<'p>(
             )
         })
         .unwrap_or_default();
-        for (ordinal, call) in (0..borrow_state.calls.count())
-            .zip(facts.borrow.calls.span_or_empty(borrow_state.calls))
-        {
+        for call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
             let mut available_premises = premises.clone();
             super::overlap::append_call_premises(
                 program,
@@ -166,24 +63,6 @@ fn collect_compatibility<'p>(
                 &mut available_premises,
                 bound_lookup,
             );
-            let Some(call_index) = borrow_state
-                .calls
-                .start()
-                .arena_index()
-                .checked_add(ordinal)
-            else {
-                diagnostics.push(Diagnostic::error("borrow call span exceeds its arena"));
-                continue;
-            };
-            let mut recording = CallCompatibility {
-                state: state_flow,
-                handle: arena::Handle::from_parts(
-                    call_index,
-                    borrow_state.calls.start().generation(),
-                ),
-                call,
-                certificates: &mut certificates,
-            };
             check_call_borrows(
                 program,
                 facts,
@@ -192,12 +71,10 @@ fn collect_compatibility<'p>(
                 &available_premises,
                 call_frames,
                 diagnostics,
-                &mut recording,
                 bound_lookup,
             );
         }
     }
-    certificates
 }
 
 fn check_call_borrows<'p>(
@@ -208,7 +85,6 @@ fn check_call_borrows<'p>(
     stated_premises: &[StatedOrderingPremise],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
-    recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let target_name = call_target_label(program, borrow_call.target_symbol);
@@ -223,7 +99,6 @@ fn check_call_borrows<'p>(
         stated_premises,
         call_frames,
         diagnostics,
-        recording,
         bound_lookup,
     );
     check_mutable_argument_writability(

@@ -3,12 +3,8 @@
 //! borrow, ownership transfer, crash route, operator use, indexed access or
 //! ranked cycle fails its obligation.
 //!
-//! `checking::lower_typed_trees` enters here three times: it calls
-//! `initialize_checked_direct_borrow_resources` and
-//! `initialize_checked_borrow_call_certificates` to fill the borrow evidence
-//! ledgers, then `check_checked_facts_recording_with_mutation_summaries` to
-//! run the checks. `replay_checked_borrow_certificates`, re-exported from the
-//! crate root, runs only the borrow check, on a copy of published facts.
+//! `checking::lower_typed_trees` prepares the lowering-consumed borrow
+//! resources, then enters the checks once over the constructed fact tables.
 //!
 //! `check_checked_facts_recording_with_crash_admission` runs every check and
 //! collects all diagnostics instead of stopping at the first failure. It
@@ -17,8 +13,7 @@
 //!
 //! 1. `contracts::bind_call_evidence_arguments` binds the evidence arguments
 //!    of contract expressions and calls;
-//! 2. `borrows` checks call and statement borrows and replays the retained
-//!    borrow certificates;
+//! 2. `borrows` checks call and statement borrows;
 //! 3. `contracts::check_flow_call_contracts` checks call requirements, exit
 //!    guarantees, arrival requirements and domain field writes;
 //! 4. `multiplicity` checks linear obligations;
@@ -81,44 +76,10 @@ pub(crate) fn initialize_checked_direct_borrow_resources(
     borrows::initialize_checked_direct_borrow_resources(program, facts, mutation_summaries)
 }
 
-pub(crate) fn initialize_checked_borrow_call_certificates(
-    program: &typed_trees::TypedTrees,
-    facts: &mut checked_trees::CheckFacts,
-    guard_index: &IncomingGuardIndexCache,
-) {
-    borrows::initialize_checked_borrow_call_certificates(program, facts, guard_index)
-}
-
-/// Independently replay the borrow evidence retained in one published
-/// checked fact table. The certificate ledgers and loan resource rows cross
-/// the publication boundary inside the checked trees as records, not as
-/// trusted authority: this entry rebuilds the pass's auxiliary indexes from
-/// the typed program, re-derives every formation's subjects and consulted
-/// premise scope, and consumes each retained row exactly once. The replay
-/// runs on a scratch copy of the published facts, so the consumer's record
-/// stays read-only; a drifted, duplicated, retargeted or unconsumed row is
-/// an ordinary diagnostic, never a rebuild in place.
-pub fn replay_checked_borrow_certificates(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut scratch = facts.clone();
-    let call_frames = validation::CallFrameResolver::new(program);
-    let guard_index = IncomingGuardIndexCache::default();
-    let incoming_guards = guard_index.index(program, call_frames.as_ref());
-    borrows::check_flow_call_borrows(
-        program,
-        &mut scratch,
-        &crate::flow::StateMutationSummaryCache::default(),
-        call_frames.as_ref(),
-        incoming_guards,
-    )
-}
-
 /// Check-stage entry for callers that already retain the pass's shared
 /// mutation summary table. The summaries depend only on the immutable typed
 /// program and the borrow facts, so the same table answers fact construction,
-/// resource replay, borrow statements, and range indexing in one check pass.
+/// resource construction, borrow statements, and range indexing in one check pass.
 pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,

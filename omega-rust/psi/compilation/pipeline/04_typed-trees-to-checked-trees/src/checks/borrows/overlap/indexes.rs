@@ -1,12 +1,22 @@
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
-use checked_trees::{
-    BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
-    BorrowCompatibilitySelectorPosition, BorrowCompatibilitySelectorSnapshot,
-    BorrowCompatibilitySelectorValue,
-};
 use symbols::SymbolHandle;
 
-use super::premises::{StatedOrderingPremise, premise_chain_proves, premise_proves};
+use super::premises::{
+    BorrowCompatibilityPremiseRelation, StatedOrderingPremise, premise_chain_proves, premise_proves,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BorrowCompatibilityPlaceSide {
+    Forming,
+    Active,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BorrowCompatibilitySelectorPosition {
+    Index,
+    RangeStart,
+    RangeExclusiveEnd,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
@@ -19,8 +29,7 @@ pub(super) enum NormalizedBound {
     /// storage name is a query coordinate, never positive evidence: storage
     /// bounds never order structurally (the storage may hold a different
     /// occurrence at each statement), so stated evidence can only claim them
-    /// in a scope where the establishment binding is version-pinned. The row
-    /// retains in the serialized vocabulary as the plain `Symbol` form.
+    /// in a scope where the establishment binding is version-pinned.
     Storage {
         symbol: SymbolHandle,
     },
@@ -62,42 +71,6 @@ pub(super) enum NormalizedBound {
         expression: ExpressionHandle,
         segments: Vec<facts::PlaceSegment>,
     },
-}
-
-/// Record one normalized bound in the retained selector-value vocabulary.
-/// Symbolic rows with a zero offset canonicalize to the plain `Symbol` form so
-/// replay compares one spelling of each bound.
-pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelectorValue {
-    match bound {
-        NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
-        NormalizedBound::Symbol { symbol, offset: 0 } => {
-            BorrowCompatibilitySelectorValue::Symbol(symbol)
-        }
-        NormalizedBound::Symbol { symbol, offset } => {
-            BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
-        }
-        NormalizedBound::Storage { symbol } => BorrowCompatibilitySelectorValue::Symbol(symbol),
-        NormalizedBound::Projected { symbol, segments }
-        | NormalizedBound::StorageProjected { symbol, segments } => {
-            BorrowCompatibilitySelectorValue::Segmented { symbol, segments }
-        }
-        NormalizedBound::SymbolSum {
-            first,
-            second,
-            offset,
-        } => BorrowCompatibilitySelectorValue::SymbolSum {
-            first,
-            second,
-            offset,
-        },
-        NormalizedBound::CallResult {
-            expression,
-            segments,
-        } => BorrowCompatibilitySelectorValue::CallResult {
-            expression,
-            segments,
-        },
-    }
 }
 
 /// The term identity two bounds must share before their constant offsets can
@@ -165,16 +138,6 @@ fn bound_offset(bound: NormalizedBound) -> Option<i64> {
     }
 }
 
-/// Which recorded ledger an independent replay could not reproduce.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompatibilityReplayDrift {
-    /// A frozen selector row drifted from its re-derived value or position.
-    SelectorSnapshot,
-    /// A recorded premise token is missing, reordered, or no longer
-    /// re-derives from the formation scope's stated contracts.
-    Premise,
-}
-
 /// The normalized extent of one `Index` segment expression as evaluated inside
 /// a selector session. A non-range expression is a single point bound; a range
 /// expression is a half-open `[start, end)` window. `None` bounds are
@@ -194,136 +157,42 @@ pub(super) struct SelectorLocation {
     pub segment_index: usize,
 }
 
-/// The closed replay ledger of one selector session: every normalized bound
-/// row the judgments recorded or consumed, plus every stated premise token in
-/// consult order.
-pub struct SelectorSessionClosure {
-    pub snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
-    pub premises: Vec<BorrowCompatibilityPremise>,
-}
-
-pub(super) struct SelectorSnapshotEvaluation<'a> {
-    frozen: Option<&'a [BorrowCompatibilitySelectorSnapshot]>,
-    snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
-    next_frozen: usize,
-    /// The first drift observed while replaying either recorded ledger.
-    /// Capture sessions never set it.
-    drift: Option<CompatibilityReplayDrift>,
-    /// Values already produced inside this session, keyed by exact selector
-    /// position. Every selector position has exactly one producer -- the
-    /// extent evaluator normalizes the same segment's expression at a
-    /// `RangeStart`/`RangeExclusiveEnd`/`Index` coordinate -- so a repeated
-    /// consult reuses the recorded row as the canonical evidence for both
-    /// the overlap and containment judgments instead of recording a
-    /// duplicate.
+/// One comparison's bound cache. Overlap and containment share values, not
+/// serialized snapshots. Mutable storage remains a query coordinate and can
+/// only be ordered with premises whose availability was established at use.
+pub(super) struct SelectorEvaluation<'a> {
     recorded: Vec<(
         SelectorLocation,
         BorrowCompatibilitySelectorPosition,
         Option<NormalizedBound>,
     )>,
-    /// Ordering premises the formation scope's stated contracts make
-    /// available to this judgment. Consults are re-derived during replay, not
-    /// trusted from the certificate.
     premises: &'a [StatedOrderingPremise],
-    /// Premise tokens this capture consumed, in consult order.
-    used_premises: Vec<BorrowCompatibilityPremise>,
-    /// The recorded premise ledger a replay must reproduce positionally.
-    frozen_premises: Option<&'a [BorrowCompatibilityPremise]>,
-    next_frozen_premise: usize,
 }
 
-impl<'a> SelectorSnapshotEvaluation<'a> {
-    pub(super) fn capture(premises: &'a [StatedOrderingPremise]) -> Self {
+impl<'a> SelectorEvaluation<'a> {
+    pub(super) fn new(premises: &'a [StatedOrderingPremise]) -> Self {
         Self {
-            frozen: None,
-            snapshot: Vec::new(),
-            next_frozen: 0,
-            drift: None,
             recorded: Vec::new(),
             premises,
-            used_premises: Vec::new(),
-            frozen_premises: None,
-            next_frozen_premise: 0,
         }
     }
 
-    pub(super) fn replay(
-        snapshot: &'a [BorrowCompatibilitySelectorSnapshot],
-        premises: &'a [StatedOrderingPremise],
-        frozen_premises: &'a [BorrowCompatibilityPremise],
-    ) -> SelectorSnapshotEvaluation<'a> {
-        SelectorSnapshotEvaluation {
-            frozen: Some(snapshot),
-            snapshot: Vec::new(),
-            next_frozen: 0,
-            drift: None,
-            recorded: Vec::new(),
-            premises,
-            used_premises: Vec::new(),
-            frozen_premises: Some(frozen_premises),
-            next_frozen_premise: 0,
-        }
-    }
-
-    /// Close the session. Replay succeeds only when every recorded selector
-    /// row and every recorded premise token was consumed exactly once.
-    pub(super) fn finish(self) -> Result<SelectorSessionClosure, CompatibilityReplayDrift> {
-        if let Some(drift) = self.drift {
-            return Err(drift);
-        }
-        if self
-            .frozen
-            .is_some_and(|frozen| self.next_frozen != frozen.len())
-        {
-            return Err(CompatibilityReplayDrift::SelectorSnapshot);
-        }
-        if self
-            .frozen_premises
-            .is_some_and(|frozen| self.next_frozen_premise != frozen.len())
-        {
-            return Err(CompatibilityReplayDrift::Premise);
-        }
-        Ok(SelectorSessionClosure {
-            snapshot: self.frozen.map_or(self.snapshot, |frozen| frozen.to_vec()),
-            premises: self
-                .frozen_premises
-                .map_or(self.used_premises, |frozen| frozen.to_vec()),
-        })
-    }
-
-    /// Record the first replay drift observed; later failures preserve the
-    /// earliest diagnostic so it names the first unreproducible evidence.
-    fn mark_drift(&mut self, drift: CompatibilityReplayDrift) {
-        if self.drift.is_none() {
-            self.drift = Some(drift);
-        }
-    }
-
-    /// Consult the formation scope's stated ordering premises for one bound
-    /// relation the structural order could not prove. The first premise that
-    /// proves the query is recorded (capture) or matched positionally against
-    /// the recorded ledger (replay); when no single premise names both
-    /// bounds, one ordered premise pair may still prove the query through a
-    /// shared middle bound and is recorded as two tokens in consult order.
-    /// A consult the recorded ledger does not reproduce marks the session
-    /// drifted and stays unproven.
+    /// Ask only the current scope's established integer relations.
     fn prove_ordering(
         &mut self,
         left: NormalizedBound,
         relation: BorrowCompatibilityPremiseRelation,
         right: NormalizedBound,
     ) -> bool {
-        if let Some(index) = self
+        if self
             .premises
             .iter()
-            .position(|premise| premise_proves(premise, left.clone(), relation, right.clone()))
+            .any(|premise| premise_proves(premise, left.clone(), relation, right.clone()))
         {
-            let token = self.premises[index].token();
-            return self.record_premise(token);
+            return true;
         }
         // No single premise names both bounds; a two-premise chain through
-        // one shared middle bound may still derive the relation. Tokens are
-        // recorded in consult order so replay reproduces the same derivation.
+        // one shared middle bound may still derive the relation.
         for first_index in 0..self.premises.len() {
             for second_index in 0..self.premises.len() {
                 if first_index == second_index {
@@ -338,30 +207,10 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                 ) {
                     continue;
                 }
-                return self.record_premise(self.premises[first_index].token())
-                    && self.record_premise(self.premises[second_index].token());
+                return true;
             }
         }
         false
-    }
-
-    /// Record one consulted premise token against the frozen replay ledger
-    /// (or append it to the captured ledger on first derivation).
-    fn record_premise(&mut self, token: BorrowCompatibilityPremise) -> bool {
-        if let Some(frozen) = self.frozen_premises {
-            match frozen.get(self.next_frozen_premise) {
-                Some(recorded) if *recorded == token => {
-                    self.next_frozen_premise += 1;
-                }
-                _ => {
-                    self.mark_drift(CompatibilityReplayDrift::Premise);
-                    return false;
-                }
-            }
-        } else {
-            self.used_premises.push(token);
-        }
-        true
     }
 
     fn bound(
@@ -379,41 +228,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
         {
             return value.clone();
         }
-        if let Some(frozen) = self.frozen {
-            let current = current();
-            let Some(row) = frozen.get(self.next_frozen) else {
-                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                return None;
-            };
-            if row.side != location.side
-                || row.segment_index != location.segment_index
-                || row.position != position
-            {
-                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                return None;
-            }
-            let current_value = current.clone().map(selector_value);
-            if row.value != current_value {
-                self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
-                return None;
-            }
-            self.next_frozen += 1;
-            // The verified row matches the re-derived value in the retained
-            // vocabulary, so the fresh bound is the canonical one to use: it
-            // keeps storage-bound mutability the serialized row cannot spell.
-            if self.drift.is_none() {
-                self.recorded.push((location, position, current.clone()));
-            }
-            return current;
-        }
-
         let value = current();
-        self.snapshot.push(BorrowCompatibilitySelectorSnapshot {
-            side: location.side,
-            segment_index: location.segment_index,
-            position,
-            value: value.clone().map(selector_value),
-        });
         self.recorded.push((location, position, value.clone()));
         value
     }
@@ -434,7 +249,7 @@ pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
     left_location: SelectorLocation,
     right: ExpressionHandle,
     right_location: SelectorLocation,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     if left == right {
@@ -465,7 +280,7 @@ pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
 pub(super) fn index_extents_may_overlap(
     left: EvaluatedIndexExtent,
     right: EvaluatedIndexExtent,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (left, right) {
         (EvaluatedIndexExtent::Point(Some(left)), EvaluatedIndexExtent::Point(Some(right))) => {
@@ -517,7 +332,7 @@ fn index_window_may_contain_point(
     start: Option<NormalizedBound>,
     end: Option<NormalizedBound>,
     point: Option<NormalizedBound>,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     if index_window_provably_empty(start.clone(), end.clone(), selectors) {
         return false;
@@ -541,7 +356,7 @@ fn index_windows_may_overlap(
     left_end: Option<NormalizedBound>,
     right_start: Option<NormalizedBound>,
     right_end: Option<NormalizedBound>,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     if index_window_provably_empty(left_start.clone(), left_end.clone(), selectors)
         || index_window_provably_empty(right_start.clone(), right_end.clone(), selectors)
@@ -569,7 +384,7 @@ fn index_windows_may_overlap(
 fn index_window_provably_empty(
     start: Option<NormalizedBound>,
     end: Option<NormalizedBound>,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (start, end) {
         (Some(start), Some(end)) => bound_is_at_or_before(end, start, selectors),
@@ -582,7 +397,7 @@ fn range_integer_bounds(
     lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> (Option<NormalizedBound>, Option<NormalizedBound>) {
     (
         selectors.bound(
@@ -600,7 +415,7 @@ fn range_integer_bounds(
 pub(super) fn bound_is_at_or_before(
     left: NormalizedBound,
     right: NormalizedBound,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     if structural_bound_is_at_or_before(left.clone(), right.clone()) {
         return true;
@@ -621,7 +436,7 @@ fn structural_bound_is_at_or_before(left: NormalizedBound, right: NormalizedBoun
 pub(super) fn bound_is_strictly_before(
     left: NormalizedBound,
     right: NormalizedBound,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     if structural_bound_is_strictly_before(left.clone(), right.clone()) {
         return true;
@@ -647,7 +462,7 @@ fn structural_bound_is_strictly_before(left: NormalizedBound, right: NormalizedB
 pub(super) fn bound_equal(
     left: NormalizedBound,
     right: NormalizedBound,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     if structural_bound_equal(left.clone(), right.clone()) {
         return true;
@@ -664,14 +479,13 @@ fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool
 }
 
 /// Evaluates an `Index` segment's normalized extent through the selector
-/// session, recording or replaying its bounds at the segment's exact path
-/// location. The bound positions match the overlap selectors: `Index` for a
+/// session, reusing its bounds at the segment's exact path location. The bound positions match the overlap selectors: `Index` for a
 /// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
 pub(super) fn index_expression_extent_with_selectors<'p>(
     program: &'p typed_trees::TypedTrees,
     expression: ExpressionHandle,
     location: SelectorLocation,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> EvaluatedIndexExtent {
     // The bound index scans the whole program once; the caller shares one
@@ -726,7 +540,7 @@ fn exclusive_end_bound(
     lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> Option<NormalizedBound> {
     selectors.bound(
         location,

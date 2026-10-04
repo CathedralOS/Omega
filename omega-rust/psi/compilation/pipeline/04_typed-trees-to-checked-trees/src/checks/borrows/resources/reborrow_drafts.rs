@@ -1,9 +1,8 @@
 //! Draft rows for reborrow loan resources, disposition events, containment
 //! certificates and restored call uses.
 
-use crate::checks::borrows::resources::retained_validation::reborrow_resource_drift;
 use checked_trees::{
-    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckedBorrowResourceDispositionTarget,
+    BorrowFacts, BorrowLoanFact, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
     CheckedParentBorrowResource, CheckedReborrowAccessEffect,
     CheckedReborrowContainmentCertificate, CheckedReborrowContainmentKind,
@@ -13,7 +12,6 @@ use checked_trees::{
     CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
     FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
-use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckedReborrowLoanResourceDraft {
@@ -81,58 +79,6 @@ impl CheckedReborrowLoanResourceDraft {
                 child_weakening_reason: self.weakening_reason,
             },
         }
-    }
-}
-
-pub(crate) fn validate_retained_reborrow_resources(
-    borrow: &BorrowFacts,
-    expected: &[CheckedReborrowLoanResourceDraft],
-) -> Result<(), Vec<Diagnostic>> {
-    let retained = borrow.reborrow_loan_resources.iter().collect::<Vec<_>>();
-    if retained.len() != expected.len() {
-        return Err(reborrow_resource_drift());
-    }
-
-    let mut prior_reborrows = Vec::new();
-    for ((resource_handle, retained), draft) in retained.into_iter().zip(expected) {
-        let parent_resource = retained_parent_resource(borrow, draft.parent_loan, &prior_reborrows)
-            .ok_or_else(reborrow_resource_drift)?;
-        if retained != &draft.close(parent_resource) {
-            return Err(reborrow_resource_drift());
-        }
-        prior_reborrows.push((draft.loan, resource_handle));
-    }
-    Ok(())
-}
-
-fn retained_parent_resource(
-    borrow: &BorrowFacts,
-    parent_loan: arena::Handle<BorrowLoanFact>,
-    prior_reborrows: &[(
-        arena::Handle<BorrowLoanFact>,
-        arena::Handle<CheckedReborrowLoanResource>,
-    )],
-) -> Option<CheckedParentBorrowResource> {
-    match &borrow.loans.get(parent_loan).lineage {
-        BorrowLoanLineage::DirectRoot => {
-            let mut matches = borrow
-                .direct_loan_resources
-                .iter()
-                .filter(|(_, resource)| resource.loan == parent_loan);
-            let handle = matches.next()?.0;
-            matches
-                .next()
-                .is_none()
-                .then_some(CheckedParentBorrowResource::DirectRoot { resource: handle })
-        }
-        BorrowLoanLineage::Reborrow { .. } => {
-            prior_reborrows.iter().find_map(|(loan, resource)| {
-                (*loan == parent_loan).then_some(CheckedParentBorrowResource::Reborrow {
-                    resource: *resource,
-                })
-            })
-        }
-        BorrowLoanLineage::UnretainedDerived => None,
     }
 }
 

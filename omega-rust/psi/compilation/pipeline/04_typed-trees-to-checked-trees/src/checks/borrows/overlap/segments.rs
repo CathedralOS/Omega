@@ -1,23 +1,20 @@
+use super::indexes::BorrowCompatibilityPlaceSide;
 use super::indexes::{
-    CompatibilityReplayDrift, EvaluatedIndexExtent, NormalizedBound, SelectorLocation,
-    SelectorSessionClosure, SelectorSnapshotEvaluation, bound_equal, bound_is_at_or_before,
-    bound_is_strictly_before, fixed_index_extent, fixed_range_extent,
+    EvaluatedIndexExtent, NormalizedBound, SelectorEvaluation, SelectorLocation, bound_equal,
+    bound_is_at_or_before, bound_is_strictly_before, fixed_index_extent, fixed_range_extent,
     index_expression_extent_with_selectors, index_expressions_may_overlap_with_selectors,
     index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
 use crate::flow::place_segment_has_unresolved_identity;
-use checked_trees::{
-    BorrowCompatibilityPlaceSide, BorrowCompatibilityPremise, BorrowCompatibilitySelectorSnapshot,
-    CapturedPlaceContainment,
-};
+use checked_trees::CapturedPlaceContainment;
 
 /// One segment containment traversal. Evaluated `Index` extents are cached by
 /// exact selector location so the equality check and both containment
 /// directions observe each selector's bound through one recorded value.
-struct SegmentContainmentEvaluation<'program, 'session, 'frozen> {
+struct SegmentContainmentEvaluation<'program, 'session, 'premises> {
     program: &'program typed_trees::TypedTrees,
-    selectors: &'session mut SelectorSnapshotEvaluation<'frozen>,
+    selectors: &'session mut SelectorEvaluation<'premises>,
     extents: Vec<(SelectorLocation, EvaluatedIndexExtent)>,
     bound_lookup: &'session mut Option<validation::ImmutableBoundLookup<'program>>,
 }
@@ -255,7 +252,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
 fn index_extent_contains(
     container: EvaluatedIndexExtent,
     contained: EvaluatedIndexExtent,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (container, contained) {
         (
@@ -295,7 +292,7 @@ fn index_extent_contains(
 fn index_extents_equal(
     left: EvaluatedIndexExtent,
     right: EvaluatedIndexExtent,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (left, right) {
         (EvaluatedIndexExtent::Point(left), EvaluatedIndexExtent::Point(right)) => {
@@ -330,7 +327,7 @@ fn index_window_contains_point(
     container_start: Option<NormalizedBound>,
     container_end: Option<NormalizedBound>,
     point: Option<NormalizedBound>,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (container_start, container_end, point) {
         (Some(start), Some(end), Some(point)) => {
@@ -350,7 +347,7 @@ fn index_window_contains_window(
     container_end: Option<NormalizedBound>,
     contained_start: Option<NormalizedBound>,
     contained_end: Option<NormalizedBound>,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
 ) -> bool {
     match (
         container_start,
@@ -376,7 +373,7 @@ fn place_segments_containment_evaluated<'p>(
     program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceContainment {
     if left
@@ -461,19 +458,16 @@ fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegmen
     }
 }
 
-/// Runs the disjointness and containment judgments inside one selector
-/// session so every normalized bound either judgment consumed is recorded in
-/// the same snapshot. Containment only runs when the segments may overlap:
-/// contained places overlap by construction, so a disjoint verdict already
-/// fixes containment to `None` without evaluating more selectors.
-pub(super) fn place_segments_compatibility_with_snapshot<'p>(
+/// Share evaluated bounds between overlap and containment. A disjoint result
+/// already fixes containment to None and needs no further evaluation.
+pub(super) fn place_segments_compatibility<'p>(
     program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> (bool, CapturedPlaceContainment, SelectorSessionClosure) {
-    let mut selectors = SelectorSnapshotEvaluation::capture(premises);
+) -> (bool, CapturedPlaceContainment) {
+    let mut selectors = SelectorEvaluation::new(premises);
     let may_overlap =
         place_segments_may_overlap_evaluated(program, left, right, &mut selectors, bound_lookup);
     let containment = if may_overlap {
@@ -481,43 +475,14 @@ pub(super) fn place_segments_compatibility_with_snapshot<'p>(
     } else {
         CapturedPlaceContainment::None
     };
-    (
-        may_overlap,
-        containment,
-        selectors
-            .finish()
-            .expect("captured selector evaluation is always complete"),
-    )
-}
-
-/// Replays both judgments against the frozen snapshot. Every selector value
-/// the capture consumed is re-derived and positionally verified; a missing,
-/// reordered, or drifted row rejects the replay.
-pub(super) fn place_segments_compatibility_from_snapshot<'p>(
-    program: &'p typed_trees::TypedTrees,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
-    snapshot: &[BorrowCompatibilitySelectorSnapshot],
-    premises: &[StatedOrderingPremise],
-    recorded_premises: &[BorrowCompatibilityPremise],
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) -> Result<(bool, CapturedPlaceContainment), CompatibilityReplayDrift> {
-    let mut selectors = SelectorSnapshotEvaluation::replay(snapshot, premises, recorded_premises);
-    let may_overlap =
-        place_segments_may_overlap_evaluated(program, left, right, &mut selectors, bound_lookup);
-    let containment = if may_overlap {
-        place_segments_containment_evaluated(program, left, right, &mut selectors, bound_lookup)
-    } else {
-        CapturedPlaceContainment::None
-    };
-    selectors.finish().map(|_| (may_overlap, containment))
+    (may_overlap, containment)
 }
 
 fn place_segments_may_overlap_evaluated<'p>(
     program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     for (segment_index, (&left_segment, &right_segment)) in left.iter().zip(right).enumerate() {
@@ -547,7 +512,7 @@ fn place_segment_pair_may_overlap<'p>(
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
     segment_index: usize,
-    selectors: &mut SelectorSnapshotEvaluation<'_>,
+    selectors: &mut SelectorEvaluation<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let left_location = SelectorLocation {

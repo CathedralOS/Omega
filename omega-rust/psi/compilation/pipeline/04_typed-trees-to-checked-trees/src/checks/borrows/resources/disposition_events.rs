@@ -6,11 +6,11 @@ use crate::checks::borrows::resources::lifecycle::{
     apply_activation_batch, apply_weakening_batch, exact_resource_lifecycle_handles,
     weakening_event_boundary,
 };
+use crate::checks::borrows::resources::reborrow_disposition_drift;
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, DispositionTargetIndex,
     ParentResourceIndex,
 };
-use crate::checks::borrows::resources::retained_validation::reborrow_disposition_drift;
 use checked_trees::{
     CheckedDirectBorrowLoanResource, CheckedReborrowAccessEffect,
     CheckedReborrowResourceDisposition, FlowFacts,

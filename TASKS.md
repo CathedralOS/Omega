@@ -1833,27 +1833,29 @@ check-corpus verdict and diagnostic family unchanged unless the item says
 otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
 the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
 
-- **BORROW-CERTIFICATES-DELETED.** (new-scope) Borrow checking builds
-  `BorrowFacts` once (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs` → `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/borrow/`), writes compatibility,
-  mutation and call-compatibility "certificates", and then rebuilds the facts
-  from scratch to replay the certificates and report drift or forgery
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/correspondence.rs`: "A forged activation/weakening
-  plus a deleted certificate must not erase a comparison"). Nothing outside
-  the borrow checker reads the certificates. Delete:
-  - `initialize_checked_borrow_call_certificates` and the certificate fields
-    in checked trees;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/correspondence.rs`, `calls/evidence.rs` and
-    `calls.rs`'s `validate_compatibility`;
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/resources/{retained_validation,lineage_replay,resource_reconstruction,certificate_planning}.rs`;
-  - the snapshot/replay half of `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/overlap/` and
-    `CompatibilityReplayDrift`;
-  - the dead export `replay_checked_borrow_certificates`.
+- **BORROW-CERTIFICATES-DELETED.** (new-scope) Remaining work is the
+  lowering-consumed reborrow resource certificates, not borrow admission.
+  Stage 04 now checks compatibility, mutation and calls directly over one
+  `BorrowFacts`, without source reconstruction, selector snapshots or
+  certificate replay. On macOS ARM64, the `borrows/,borrow/,references/`
+  check slice retains all 176 baseline outcomes (114 checked, 62 rejected);
+  the positive native slice executes 91 programs with matching authored
+  oracles.
 
-  Keep the conflict, writability, escape and persistence judgments, run once
-  over the single `BorrowFacts`, and keep the `direct_loan_resources` rows that
-  stage 05 consumes. Acceptance: `build_borrow_facts` runs once per check; the
-  borrow pass/fail corpus slices (`--filter borrows/,borrow/,references/`) are
-  unchanged.
+  Retire `checks/borrows/resources/{resource_reconstruction,certificate_planning}.rs`
+  only with their remaining consumers: stage 04
+  `execution/terminal_unit/{receiver_aliases,calls/structural_arguments.rs}`
+  and stage 05 `retention/{reborrow_root_handoff,reborrow_restored_call_use}.rs`
+  and `machine_lowering/reborrow_handoffs.rs`. These consume
+  `reborrow_containment_certificates` and
+  `reborrow_restored_call_use_certificates`; deleting their construction
+  alone removes required lowering inputs. Coordinate those currently assigned
+  paths with **REFERENCE-LOCAL-BINDING-ROUTES**. Keep direct loan resources and
+  access attenuation, parent/child lifetimes, conflict, writability, escape
+  and persistence judgments in the single production route. Acceptance:
+  no checker self-replay or obsolete resource-certificate consumers, one
+  `build_borrow_facts` call per check, unchanged borrow check corpus and
+  native restoration results.
 
 - **PERMISSION-REPLAY-DELETED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs` records permission
   events (`prepare_permission_events`), and

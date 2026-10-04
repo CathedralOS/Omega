@@ -7,7 +7,7 @@ use crate::checks::borrows::resources::reborrow_drafts::{
     DispositionTargetIndex, ParentResourceIndex,
 };
 use crate::checks::borrows::resources::resource_reconstruction::span_handle;
-use crate::checks::borrows::resources::retained_validation::{
+use crate::checks::borrows::resources::{
     reborrow_containment_drift, reborrow_resource_drift, reborrow_restored_call_use_drift,
 };
 use checked_trees::{

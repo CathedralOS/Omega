@@ -580,16 +580,16 @@ assignment, initializer, aggregate, operand, call, and transition producers.
 Broader diagnostic-backed acceptance records and backend boundary-policy joins
 remain separate work; accepted evidence counts cannot stand in for them.
 
-## Borrow evidence production
+## Borrow checking and resource production
 
-[resources.rs](src/checks/borrows/resources.rs) owns checked resource lifecycle
-and restored-use planning. Resource and compatibility arenas remain separate.
-Automatic non-interference retains structural or premised certificates with
-formation coordinates, state-owned loan identities, frozen places, normalized
-conclusions, and ordered selector snapshots. Replay normalizes the original
-typed expression and reconstructs spatial relations and access compatibility.
-Selector snapshots retain shared immutable-symbol boundaries with constant
-offsets, ordered as mathematical integers only under Exact arithmetic.
+[borrows.rs](src/checks/borrows.rs) judges calls, statements, returned views and
+persistent carriers over the single `BorrowFacts` built by fact production.
+Compatibility results are transient: there are no retained compatibility,
+mutation or call-comparison certificates. The overlap and containment judgments
+share a local selector cache, not a serialized snapshot to replay.
+[resources.rs](src/checks/borrows/resources.rs) constructs the loan lifecycle
+and restored-use rows once; execution planning and stage 05 still consume them.
+
 Stated entry/state `requires` and incoming guards can supply integer ordering,
 equality, or disequality over those immutable bounds. Incoming guards use the
 shared range-checking edge analysis, including external entry and self backedges.
@@ -597,14 +597,12 @@ Queries cross named-state edges only through immutable owned integer bindings
 at every hop; a composed place identity alone is not value-preservation evidence.
 Disequality separates singleton
 elements, not windows, and survives only equal translation of both bounds.
-Premised certificates retain the exact contract or guard/polarity tokens; replay
-reconstructs availability, evaluation scope, and parameter transport and rejects
-altered selectors or premises. The source witness is
+The checker establishes availability, evaluation scope and parameter transport
+at the use. The source witness is
 `tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg`.
 Required membership in a concrete, non-indexed integer domain also supplies
 comparisons between that definition's exact `self` and integer literals.
-The same Boolean decomposer starts at each declared predicate root, retaining
-the membership row, domain symbol, and predicate handle in its token. Domain
+The same Boolean decomposer starts at each declared predicate root. Domain
 `self` binds the immutable membership subject, not the caller's receiver.
 Aliases use typed lowering's atomic membership expansion. This does not
 establish routed membership or lend any resource authority. Indexed theories,
@@ -618,26 +616,22 @@ must retain the callee's declared `ensures` and its operand captures.
 Whole immutable result bindings additionally rejoin live assignment provenance
 to the exact supplying call; a same-spelled or repeated call is not its result.
 The common Boolean decomposer binds formals to immutable actuals and reserved
-`result` to that capture. Tokens retain the source fact, call coordinates, and
-result binding; replay reconstructs statement-local availability. The source
+`result` to that capture, using statement-local availability. The source
 witness is `tests/omega/pass/borrows/borrow_returned_window_write_and_call/main.omg`.
 Mutable results, result-field selectors, same-statement nested call establishment,
 and theorem-only invocations need their own version/substitution support.
-Call comparisons retain a separate ledger naming the exact state-owned call,
-argument-access ordinal, receiver, transferred place, or live loan. Replay
-recollects the call/access roster from typed source, checks the call-entry loan
-set against source-derived lifecycle boundaries, and compares every retained judgment
-in order. Construction and replay are distinct: deleting a ledger cannot ask
-replay to regenerate it. Lexical calls omitted by short-circuit flow still
-receive the conservative statement-entry check. These records are visible in
-state and statement admissibility; they are not a Terminal wire format.
-Broader callee establishment, mutable/computed guard transport, general proof
-admission, and portable compatibility evidence remain unfinished.
+Call comparisons read the state-owned access roster and flow's active-loan
+constraints directly. They keep left-to-right access lifetimes, transfer and
+writability judgments; lexical calls omitted by short-circuit flow still receive
+the conservative statement-entry check. Neither the source roster nor successful
+comparisons are rebuilt to authenticate the compiler against itself.
+Broader callee establishment, mutable/computed guard transport and general proof
+admission remain unfinished.
 
 Direct reference-local reborrows require one exact prior parent. Resource rows
 retain typed parent handles, activation, weakening, formation availability,
-lexical end disposition, and separately checked containment. Rebuild/remap the
-complete graph transactionally in loan order. Aggregate/helper transfers,
+lexical end disposition, and separately checked containment. Construct the
+complete graph once in loan order, preserving its handles for lowering. Aggregate/helper transfers,
 ambiguous or reassigned aliases, and write-only local loans cannot gain inferred
 resource authority from these cases.
 

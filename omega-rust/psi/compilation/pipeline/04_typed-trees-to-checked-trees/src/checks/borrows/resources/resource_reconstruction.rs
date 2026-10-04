@@ -1,13 +1,13 @@
 //! Rebuilding the direct-borrow and reborrow resource arenas from the loan
 //! and flow-lifetime ledgers.
 
+use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::checks::borrows::resources::lifecycle::weakening_boundary_key;
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowContainmentCertificateDraft, CheckedReborrowDispositionEventDraft,
     CheckedReborrowLoanResourceDraft, CheckedReborrowRestoredCallUseCertificateDraft,
     ParentResourceIndex, ResourceHandles,
 };
-use crate::checks::borrows::resources::retained_validation::invalid_reborrow_attenuation_diagnostic;
 use checked_trees::{
     BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,

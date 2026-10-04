@@ -3,14 +3,14 @@
 Borrow admission joins resource authority with relational evidence. Neither
 substitutes for the other.
 
-| Record | Required content |
+| Judgment input | Required content |
 | --- | --- |
 | Loan resource | Exact occurrence, owner lineage, captured place, access, parent lifetime, and restoration obligation. |
-| Compatibility certificate | Formation event, captured loan/place identities, normalized relational conclusion, exact premise tokens, and checked derivation. |
+| Compatibility | Formation event, captured loan/place identities, access kinds, and the ordering premises available at that use. |
 
 A live exclusive loan does not prove projections disjoint. A proof of
 non-interference cannot create a loan, repair missing resource custody, extend
-its lifetime, or widen access. Circular justification between these records
+its lifetime, or widen access. Circular justification between these judgments
 rejects before either can authorize execution.
 
 The split is a criterion, not a closed list of obligations. Disjointness,
@@ -24,19 +24,20 @@ remains an ordinary borrow diagnostic unless source explicitly uses proof
 vocabulary. No public `footprint(...)` surface is implied; abstract footprints
 for opaque modular APIs remain a separate future facility.
 
-## Frozen places and proof replay
+## Captured places and available premises
 
 Loan formation captures a place, not a live selector expression. Retain exact
 dynamic-selector coordinates and their checked interpretation at formation.
-Replaying compatibility checks those frozen places against the resource rows,
-including authoritative access and the exact formation event.
+Compatibility checks those captured places against the loan facts, including
+access and the exact formation event. The compiler establishes path availability,
+value/place versions and validity scopes when it uses a premise. A premise may
+expire after formation without retargeting an already-captured loan.
 
-The verifier reconstructs dominance, path availability, value/place versions,
-and validity scopes from premise establishment points. It does not trust a
-serialized assertion that a premise dominates or is valid. Replay the derivation
-and its exact conclusion. A premise may expire after formation without
-retargeting an already-captured loan or invalidating the established relation
-between those frozen occurrences.
+These are source-language obligations, not a requirement to serialize successful
+comparisons and replay them inside the same compile. Under
+[verification placement](../../../omega-rust/pipeline.md#verification-placement),
+the borrow checker judges the producer's facts once. Proof-carrying artifact
+verification is removed; authored mathematics and refinement reasoning remain.
 
 Logical place footprints, semantic `Content<A>` projections, and physical effect
 footprints are different subjects. Relating them requires an explicit checked
@@ -73,8 +74,8 @@ with, or after a child is not by itself evidence that authority returned.
 Suspension/freeze containment binds exact child and parent resources, accesses,
 activation, parent-entry formation, weakening boundaries, captured places, and
 projection remainder. Shared-to-shared release needs no exclusive containment
-row. Replayed rosters reject omissions, duplicates, reordering, amplification,
-and retargeting before committing resource changes.
+row. Resource construction preserves the complete lineage and cohort before
+committing resource changes; logical ordering facts cannot supply missing members.
 
 Same-boundary lineage closure and state-exit direct-root handoff are distinct
 outcomes. The former proves that the final carrier ends at the child's exact
@@ -82,15 +83,14 @@ boundary; the latter requires state exit and an exact direct-root lifetime.
 Neither label alone establishes restored use, cleanup, transfer, or linear
 discharge.
 
-Terminal publication independently replays lineage, access, semantic boundaries,
-projection, and containment. A restored-use row additionally binds the exact
-later operation, source call coordinate, callee, root lifetime, restoration
-class, child interval, and complete shared cohort where applicable. Its authority
-is limited to that named use. Committed source-call identity is not reconstructed
-from machine bytes. Checked arenas alone are not portable authority.
+Lowering consumes the checked lifetime and restoration relationships. The
+implementation still carries containment and restored-use records joining a
+later operation to its exact source call, parent lifetime and child interval.
+Their retirement must migrate those consumers without weakening source borrow
+checks; see **BORROW-CERTIFICATES-DELETED** in [the execution board](../../../TASKS.md).
 
-General proof-derived compatibility and broader restoration publication remain
-implementation work. Current supported forms and source correspondence live
-beside [borrow checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md).
+General proof-derived compatibility and broader restoration remain implementation
+work. Current supported forms live beside
+[borrow checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md).
 The [structural access contract](structural_access.md) governs permitted operations
 and original-referent preservation independently of these relational proofs.

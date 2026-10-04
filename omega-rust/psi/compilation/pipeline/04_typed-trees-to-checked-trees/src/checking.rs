@@ -358,12 +358,6 @@ fn lower_typed_trees_uncached(
             .map(|plan| plan.checked_summary.clone())
     })?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
-    checks::initialize_checked_borrow_call_certificates(
-        &program,
-        &mut facts,
-        &incoming_guard_index,
-    );
-
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,
     // validate the recorded relation, and make those identities part of the

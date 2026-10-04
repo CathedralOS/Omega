@@ -50,10 +50,7 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
             .sum::<usize>();
 
         AcceptanceSummary::accepted(
-            state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits)
-                + self.borrow_compatibility_certificates().count()
-                + self.borrow_mutation_certificates().count()
-                + self.borrow_call_compatibility_certificates().count(),
+            state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
             state_proof_evidence_count(calls, exits)
                 + operator_proof_evidence
                 + self.qualification_correspondences().count(),
@@ -101,55 +98,6 @@ impl<'facts> StateAcceptance<'facts> {
             .control
             .statements
             .span_or_empty(self.state.statements)
-    }
-
-    /// Already-validated borrow-compatibility certificates formed in this
-    /// exact state. The checked borrow pass remains their sole validator; this
-    /// acceptance view only publishes its retained evidence.
-    pub fn borrow_compatibility_certificates(
-        &self,
-    ) -> impl Iterator<Item = &'facts crate::CheckedBorrowCompatibilityCertificate> + '_ {
-        self.facts
-            .borrow
-            .compatibility_certificates
-            .iter()
-            .filter_map(|(_, certificate)| {
-                (certificate.formation.machine_symbol == self.state.machine_symbol
-                    && certificate.formation.state_symbol == self.state.state_symbol)
-                    .then_some(certificate)
-            })
-    }
-
-    /// Already-validated borrow-mutation certificates formed in this exact
-    /// state. The checked borrow pass remains their sole validator; this
-    /// acceptance view only publishes its retained evidence.
-    pub fn borrow_mutation_certificates(
-        &self,
-    ) -> impl Iterator<Item = &'facts crate::CheckedBorrowMutationCertificate> + '_ {
-        self.facts
-            .borrow
-            .mutation_certificates
-            .iter()
-            .filter_map(|(_, certificate)| {
-                (certificate.formation.machine_symbol == self.state.machine_symbol
-                    && certificate.formation.state_symbol == self.state.state_symbol)
-                    .then_some(certificate)
-            })
-    }
-
-    /// Already-validated invocation comparisons in this exact state.
-    pub fn borrow_call_compatibility_certificates(
-        &self,
-    ) -> impl Iterator<Item = &'facts crate::CheckedBorrowCallCompatibilityCertificate> + '_ {
-        self.facts
-            .borrow
-            .call_compatibility_certificates
-            .iter()
-            .filter_map(|(_, certificate)| {
-                (certificate.formation.machine_symbol == self.state.machine_symbol
-                    && certificate.formation.state_symbol == self.state.state_symbol)
-                    .then_some(certificate)
-            })
     }
 
     /// Already-validated qualification correspondences formed in this exact

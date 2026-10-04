@@ -8,13 +8,9 @@
 //! inline `requires i != j` would supply. Primitive and witness propositions
 //! own no formula and contribute nothing; an application whose argument
 //! cannot normalize to an immutable integer bound supplies no premise either.
-//! The recorded source stays the exact requires row, so replay re-derives the
-//! same premises from the typed program instead of trusting recorded bounds.
 
 use super::super::indexes::{NormalizedBound, normalized_bound};
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
-use arena::Handle;
-use checked_trees::{BorrowCompatibilityPremiseSource, ContractProofFact};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -29,7 +25,6 @@ pub(super) fn append_proposition_premises(
     lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
-    fact: Handle<ContractProofFact>,
     application: &PropositionApplication,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
@@ -64,7 +59,6 @@ pub(super) fn append_proposition_premises(
         },
         *formula,
         false,
-        BorrowCompatibilityPremiseSource::Requires(fact),
         &None,
         premises,
     );

@@ -2,11 +2,10 @@
 //!
 //! A premised compatibility derivation consumes the same establishment point
 //! as the range checker: authored preconditions and surviving incoming
-//! guards. Tokens retain the establishment identity, not a trusted dominance
-//! assertion. Guard queries are transported back through immutable scalar
+//! guards. Guard queries are transported back through immutable scalar
 //! parameter bindings to the guard's evaluation scope. This direction also
 //! handles multiple destination parameters carrying the same source value.
-//! Replay reconstructs availability and transport from the typed program.
+//! Availability and transport are established from the typed program.
 //! Premises prove bound ordering, equality or disequality the structural
 //! judgment could not. Disequality distinguishes singleton elements without
 //! choosing an ordering; it says nothing about overlap of wider windows.
@@ -27,18 +26,24 @@
 //! declared parameter bound to its actual argument's normalized bound;
 //! primitive and witness propositions carry no formula and supply nothing.
 
-use checked_trees::{
-    BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
-    BorrowCompatibilityPremiseSource, ContractProofFactKind,
-};
+use checked_trees::ContractProofFactKind;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
-use super::indexes::{NormalizedBound, normalized_bound, selector_value};
+use super::indexes::{NormalizedBound, normalized_bound};
 use crate::checks::contracts::prover::call_guarantees::{self, AvailableGuarantee};
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 use crate::checks::ranges::requirements::state_requires_facts;
+
+/// Integer ordering relations; disequality separates points, not windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BorrowCompatibilityPremiseRelation {
+    LessOrEqual,
+    StrictlyBefore,
+    Equal,
+    NotEqual,
+}
 
 mod domains;
 mod propositions;
@@ -319,24 +324,10 @@ fn projected_immutable_bound(
 /// Transport is local checking state, never serialized proof authority.
 #[derive(Debug, Clone)]
 pub struct StatedOrderingPremise {
-    source: BorrowCompatibilityPremiseSource,
     relation: BorrowCompatibilityPremiseRelation,
     left: NormalizedBound,
     right: NormalizedBound,
     parameter_arguments: Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
-}
-
-impl StatedOrderingPremise {
-    /// The exact recorded identity of this premise in a `Premised`
-    /// derivation, in the order the contract row stated the relation.
-    pub fn token(&self) -> BorrowCompatibilityPremise {
-        BorrowCompatibilityPremise {
-            source: self.source,
-            relation: self.relation,
-            left: selector_value(self.left.clone()),
-            right: selector_value(self.right.clone()),
-        }
-    }
 }
 
 /// Collect the ordering premises available at one formation scope.
@@ -356,7 +347,7 @@ pub fn stated_ordering_premises<'p>(
     // The bound index scans the whole program once; the caller shares one
     // cell across every formation scope this pass visits.
     let mut premises = Vec::new();
-    for (fact, row) in facts.proof.contract_facts.iter() {
+    for (_, row) in facts.proof.contract_facts.iter() {
         if row.kind != ContractProofFactKind::Requires || row.inherited_scope.is_some() {
             continue;
         }
@@ -373,7 +364,6 @@ pub fn stated_ordering_premises<'p>(
                     PremiseScope::State { machine, state },
                     *expression,
                     false,
-                    BorrowCompatibilityPremiseSource::Requires(fact),
                     &None,
                     &mut premises,
                 );
@@ -384,7 +374,6 @@ pub fn stated_ordering_premises<'p>(
                     bound_lookup,
                     machine,
                     state,
-                    fact,
                     membership,
                     &mut premises,
                 );
@@ -395,7 +384,6 @@ pub fn stated_ordering_premises<'p>(
                     bound_lookup,
                     machine,
                     state,
-                    fact,
                     application,
                     &mut premises,
                 );
@@ -434,10 +422,6 @@ pub fn stated_ordering_premises<'p>(
             },
             guard.guard(),
             guard.is_negated(),
-            BorrowCompatibilityPremiseSource::IncomingGuard {
-                expression: guard.guard(),
-                negated: guard.is_negated(),
-            },
             &bindings,
             &mut premises,
         );
@@ -488,7 +472,6 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
         let (result, result_mutable) = guarantee
             .result_binding(program, &facts.semantic, &contexts, state)
             .unwrap_or_default();
-        let (statement_index, call_ordinal) = guarantee.coordinates();
         decompose_premise_expression(
             program,
             bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
@@ -499,12 +482,6 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
             },
             guarantee.expression,
             false,
-            BorrowCompatibilityPremiseSource::CallEnsures {
-                fact: guarantee.fact,
-                statement_index,
-                call_ordinal,
-                result,
-            },
             &None,
             premises,
         );
@@ -523,7 +500,6 @@ fn decompose_premise_expression(
     scope: PremiseScope<'_>,
     expression: ExpressionHandle,
     negated: bool,
-    source: BorrowCompatibilityPremiseSource,
     parameter_arguments: &Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
@@ -540,7 +516,6 @@ fn decompose_premise_expression(
             scope,
             unary.operand,
             !negated,
-            source,
             parameter_arguments,
             premises,
         );
@@ -570,7 +545,6 @@ fn decompose_premise_expression(
                 scope,
                 operand,
                 equality_negated == value,
-                source,
                 parameter_arguments,
                 premises,
             );
@@ -585,7 +559,6 @@ fn decompose_premise_expression(
                 scope.clone(),
                 binary.left,
                 negated,
-                source,
                 parameter_arguments,
                 premises,
             );
@@ -595,7 +568,6 @@ fn decompose_premise_expression(
                 scope,
                 binary.right,
                 negated,
-                source,
                 parameter_arguments,
                 premises,
             );
@@ -628,7 +600,6 @@ fn decompose_premise_expression(
         return;
     };
     premises.push(StatedOrderingPremise {
-        source,
         relation,
         left,
         right,

@@ -1,11 +1,10 @@
 //! Required membership supplies a theory for one immutable captured subject.
-//! The exact predicate root is replayed through the common Boolean decomposer;
+//! The exact predicate root is checked through the common Boolean decomposer;
 //! finding a comparison somewhere inside a predicate is not an entailment.
 //! This consumes membership, including routed membership, without minting it.
 
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
 use arena::Handle;
-use checked_trees::{BorrowCompatibilityPremiseSource, ContractProofFact};
 use typed_trees::TypedTrees;
 use typed_trees::domain::{ProofFact, ProofMembershipFact};
 use typed_trees::machine::Machine;
@@ -16,7 +15,6 @@ pub(super) fn append_membership_premises(
     lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
-    fact: Handle<ContractProofFact>,
     membership: &ProofMembershipFact,
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
@@ -72,11 +70,6 @@ pub(super) fn append_membership_premises(
             },
             *expression,
             false,
-            BorrowCompatibilityPremiseSource::RequiresDomain {
-                membership: fact,
-                domain: domain.symbol,
-                predicate,
-            },
             &None,
             premises,
         );

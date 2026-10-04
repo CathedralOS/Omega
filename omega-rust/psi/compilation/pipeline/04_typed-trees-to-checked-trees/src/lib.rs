@@ -64,13 +64,9 @@ pub use checking::{
     CheckingRequest, RepeatedCheckRetention, lower_typed_trees, normalize_open_index_identities,
     retain_repeated_checks, specialize_static_machine_calls,
 };
-// The borrow certificate ledgers published inside the checked fact arenas
-// replay independently for any consumer of the published record: the
-// producing pass keeps the checker itself public so post-publication
-// evidence is checkable, not just inspectable.
 pub use checks::{
     derive_contract_entailment_exit_membership_discharges,
-    recheck_contract_entailment_exit_membership_discharge, replay_checked_borrow_certificates,
+    recheck_contract_entailment_exit_membership_discharge,
 };
 
 pub use package_review::{

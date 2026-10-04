@@ -1,11 +1,11 @@
 //! Resource lifecycle phases, boundaries, events and the ephemeral statuses
 //! the activation and weakening batches update.
 
+use crate::checks::borrows::resources::reborrow_disposition_drift;
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowLoanResourceDraft, ParentResourceIndex,
 };
 use crate::checks::borrows::resources::resource_reconstruction::span_handle;
-use crate::checks::borrows::resources::retained_validation::reborrow_disposition_drift;
 use checked_trees::{
     BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, CheckedReborrowAccessEffect, FlowFacts,
     FlowInvalidationSource,
