@@ -59,6 +59,8 @@ pass/calls/runtime_guarded_terminal_reference_result_exit built 2336ms exit:0 in
 pass/calls/runtime_guarded_terminal_reference_write_exit built 1443ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @4f20c0c110be
 pass/calls/runtime_indexed_scalar_calls_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
+pass/calls/runtime_linear_state_owner_disposition_exit built 2580ms exit:0 interpreter-exit:0 interpreter:agrees @5663362aa12f
+pass/calls/runtime_linear_terminal_owner_disposition_exit built 2384ms exit:0 interpreter-exit:0 interpreter:agrees @5663362aa12f
 pass/calls/runtime_local_case_terminal_payload_result_exit built 875ms exit:0 interpreter-exit:0 interpreter:agrees @cbbe113c2c24
 pass/calls/runtime_nested_case_subject_operand_order_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @3daca3fd87c2
 pass/calls/runtime_nested_value_call_guard_exit built 3472ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
