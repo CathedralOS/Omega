@@ -6,9 +6,10 @@ heat; the seeded cell at `(2, 3)` goes from 40 to 45. The required process exit
 is **45**. The source uses ordinary initialization, indexed reads/writes,
 conversion calls and state transfers—none needs a sample-specific compiler path.
 
-The static entry owns a local `Grid`. Each state receives an explicit borrow;
-coordinates and per-cell calculations are parameters or locals, not persistent
-receiver scratch fields.
+The static entry owns a local `Grid`. Walking states receive an explicit borrow;
+coordinates and the running maximum travel as state parameters, while per-cell
+calculations are locals. `Grid` contains only the cells and grid dimensions.
+The final state takes only the maximum, not the grid borrow.
 
 From the repository root on macOS ARM64:
 
@@ -24,11 +25,15 @@ exit 45. Omit `--target` from `omega run` to execute on the current host.
 The former receiver-based sample produced native and interpreted exit 45 on
 macOS ARM64. That result is not execution evidence for the static migration.
 
-The migrated sample passes `omega --check` on Windows. `omega run --both`
-currently stops at missing local package acceptance before execution; its review
-includes the standard library's `FilesystemHost` authority. Complete the explicit
-package review before running either execution check above; do not infer approval
-from the earlier sample's result. Native and interpreted exit 45 remain required.
+On Windows at compiler revision `c252be7fa2d1`, the migrated sample passes
+`omega --check` after package review. Native production stops in stage 05's
+certificate search with `proof_search_integer_certificate_work` exhausted at
+65,536 work units. The original field-based accumulator also fails certificate
+production on this compiler, so this is not a new failure introduced by moving
+the maximum into state parameters. The approved PCC removal must retain the
+source checker's decisions instead of re-proving them during lowering; raising
+the search limit is not the intended repair. Native and interpreted exit 45
+remain required.
 
 On Windows PowerShell, use `python`, `target/release/omega.exe`, and the gate's
 `--target windows_x86_64`. Matching-host Windows and Linux execution remain

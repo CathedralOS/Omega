@@ -21,23 +21,22 @@ data Grid where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     cells: [u8; 12];
     max_y: u32;
     max_x: u32;
-    hottest: u32;
 }
 machine main() reaches Console {
     let mut grid: Grid;
     grid.max_y = 2;
     grid.max_x = 3;
     grid.cells[11] = 40;
-    transition { _ -> row(&mut grid, 0) }
+    transition { _ -> row(&mut grid, 0, 0) }
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    state row(grid: &mut Grid, y: u32)
+    state row(grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
-        transition { _ -> cell(grid, y, 0) }
+        transition { _ -> cell(grid, y, 0, hottest) }
     }
-    state cell(grid: &mut Grid, y: u32, x: u32)
+    state cell(grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
@@ -47,35 +46,29 @@ machine main() reaches Console {
         let next: u8 = ((cur as u8 in Wrapping) + (bump as u8 in Wrapping)) as u8;
         grid.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
-        transition heat > grid.hottest {
-            true -> hotter(grid, y, x, heat)
-            _ -> step(grid, y, x)
+        transition heat > hottest {
+            true -> step(grid, y, x, heat)
+            _ -> step(grid, y, x, hottest)
         }
     }
-    state hotter(grid: &mut Grid, y: u32, x: u32, heat: u32)
-        requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
-    {
-        grid.hottest = heat;
-        transition { _ -> step(grid, y, x) }
-    }
-    state step(grid: &mut Grid, y: u32, x: u32)
+    state step(grid: &mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         transition x + 1 <= grid.max_x {
-            true -> cell(grid, y, x + 1)
-            _ -> next_row(grid, y)
+            true -> cell(grid, y, x + 1, hottest)
+            _ -> next_row(grid, y, hottest)
         }
     }
-    state next_row(grid: &mut Grid, y: u32)
+    state next_row(grid: &mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition y + 1 <= grid.max_y {
-            true -> row(grid, y + 1)
-            _ -> done(grid)
+            true -> row(grid, y + 1, hottest)
+            _ -> done(hottest)
         }
     }
-    state done(grid: &mut Grid) {
-        let code: i32 = narrow_u32_to_i32_trapping(grid.hottest);
+    state done(hottest: u32) {
+        let code: i32 = narrow_u32_to_i32_trapping(hottest);
         Console::exit_process(code);
     }
 }

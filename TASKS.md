@@ -215,8 +215,13 @@ helper that passes does not close an item.
     (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`),
     but the state graph still declines it when the subject's operands call or
     the subject is a boundary call.
-  - Open sample legs: `samples/cli/collections/heat_grid` needs native and
-    interpreted exit 45 after its package review;
+  - Open sample legs: `samples/cli/collections/heat_grid` now carries its running
+    maximum as a state parameter rather than a `Grid` field. On Windows at
+    `c252be7fa2d1`, package review and `omega --check` succeed; the native gate
+    stops at stage 05's integer certificate search capacity (65,536), also red
+    before this scratch migration. Follow **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
+    and **PCC-CERTIFICATES-DELETED**, not another certificate-search extension;
+    native and interpreted exit 45 remain required.
     `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the
