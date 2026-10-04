@@ -27,8 +27,8 @@ evaluate a callee body during descriptor planning, duplicate an endpoint call,
 or grant access to the backing storage beyond the checked loan.
 
 On macOS ARM64, all four programs execute with exit 70 in both corpus engines.
-The public CLI still stops during fresh package
-review: `omega_language_std` rejects `Filesystem::read_all` because a performed
-integer write has unknown destination origins. This prerequisite is also
-recorded upstream in the filesystem corpus; native fixture execution does not
-establish that package preparation is working.
+Standard-library checking now completes through the public CLI as well: an
+explicit reborrow preserves its reference's storage origin. On a fresh project,
+the command then presents 52 pending package-review decisions for the bundled
+standard library. These project trust decisions remain unaccepted; corpus
+execution does not establish that this public command has completed.

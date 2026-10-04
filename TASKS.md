@@ -349,10 +349,12 @@ defines the complete product bar.
     effects and projected state transfer). Keep
     `python3 tools/corpus_gate.py --both --filter runtime_call_endpoint`.
     Finish inclusive endpoint/window transport through the shared range route,
-    preserving checked loans and exact captured endpoints. The public command
-    in the stored-view README still needs standard-package preparation to
-    accept `Filesystem::read_all`'s performed integer write (unknown destination
-    origins, also recorded upstream at `25735fa7b39`). Carry exact
+    preserving checked loans and exact captured endpoints. Explicit reborrows
+    now preserve address origins across shared-value and write-prefix queries;
+    `layouts/runtime_reborrow_preserves_store_origin_exit` returns 70 in both
+    engines. The public stored-view command checks the standard library, then
+    awaits 52 fresh project package-review decisions, not a compiler waiver.
+    Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.

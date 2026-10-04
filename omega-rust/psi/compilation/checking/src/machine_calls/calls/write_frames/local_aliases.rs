@@ -1,7 +1,7 @@
 //! Pure local-alias queries for caller-visible write frames.
 //!
 //! This leaf rebases relative paths through already-canonical alias origins
-//! and detects syntactic mutable reborrows or reference-shaped replacements of
+//! and detects unresolved referent reborrows or reference-shaped replacements of
 //! stable parameter/local aliases. It also resolves direct place expressions
 //! through those established origins. It neither recursively infers origins,
 //! mutates alias bindings, nor resolves call frames.
@@ -123,25 +123,6 @@ pub(super) fn expression_reborrows_unresolved_reference_binding(
         .is_none()
             && super::caller_aliases::caller_binding_type(program, machine, target)
                 .is_none_or(|reference| type_reference_is_reference(program, reference))
-    })
-}
-
-pub(super) fn expression_reborrows_stable_alias_binding(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, FramePlaceOrigin)],
-) -> bool {
-    expression_reborrows_reference_binding(program, expression, &|target| {
-        frame_place_path(program, target).is_some_and(|place| {
-            let (root, suffix) = split_place_root(&place.path);
-            suffix.is_empty()
-                && (parameters.iter().any(|parameter| {
-                    type_reference_is_reference(program, parameter.type_reference)
-                        && (parameter.is_self && is_self_receiver(root)
-                            || root == parameter.name.as_str())
-                }) || aliases.iter().any(|(name, _)| root == name))
-        })
     })
 }
 

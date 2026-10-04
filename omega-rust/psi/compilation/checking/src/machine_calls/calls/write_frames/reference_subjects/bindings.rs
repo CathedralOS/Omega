@@ -1,5 +1,9 @@
 //! Exact reference transport checks exposure independently of may-write frames.
 //! An earlier operand can expose a slot even when its helper frame is empty.
+//! A named reference's explicit reborrow observes its established referent,
+//! not the binding slot. Use the write summary's origin join here too; tracking
+//! shared contents must not turn a proven address into an opaque one. Frozen
+//! carrier-leaf replacement and loan-access validity remain separate checks.
 
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::{
@@ -18,9 +22,12 @@ use symbols::SymbolKeyMap as HashMap;
 /// needs its own exposure fence, independently of the call's write frame.
 pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
     program: &TypedTrees,
+    machine: &Machine,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
+    divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
 ) -> bool {
     caller_aliases::expression_any(program, expression, |expression| {
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -33,8 +40,14 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
             .copied()
             .chain(call.receiver.is_valid().then_some(call.receiver))
             .any(|operand| {
-                local_aliases::expression_reborrows_stable_alias_binding(
-                    program, operand, parameters, aliases,
+                local_aliases::expression_reborrows_unresolved_reference_binding(
+                    program,
+                    machine,
+                    operand,
+                    parameters,
+                    isolated_local_roots,
+                    aliases,
+                    divergent_aliases,
                 )
             })
     })
@@ -52,11 +65,14 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
     let (state, _, index) = caller_statement_at_site(program, machine, symbols, site)?;
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
     let reference_binding_exposed = |expression| {
-        local_aliases::expression_reborrows_stable_alias_binding(
+        local_aliases::expression_reborrows_unresolved_reference_binding(
             program,
+            machine,
             expression,
             program.state_parameters(state),
+            &[],
             &prefix.aliases,
+            &prefix.divergent,
         )
     };
     let exposed = match site {

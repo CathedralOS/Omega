@@ -764,24 +764,19 @@ fn walk_state_write_prefix_inner(
                 expression,
                 &divergent_alias_origins,
             )?;
-            let exposes_reference_binding = if include_shared {
-                local_aliases::expression_reborrows_stable_alias_binding(
-                    program,
-                    expression,
-                    parameters,
-                    &local_alias_origins,
-                )
-            } else {
-                expression_reborrows_unresolved_reference_binding(
-                    program,
-                    machine,
-                    expression,
-                    parameters,
-                    &isolated_local_roots,
-                    &local_alias_origins,
-                    &divergent_alias_origins,
-                )
-            };
+            // Shared-value observation and write summaries use the same
+            // referent identity. A resolved reborrow cannot replace its root
+            // binding merely because this query also tracks shared values.
+            // Stored carrier replacement remains checked independently above.
+            let exposes_reference_binding = expression_reborrows_unresolved_reference_binding(
+                program,
+                machine,
+                expression,
+                parameters,
+                &isolated_local_roots,
+                &local_alias_origins,
+                &divergent_alias_origins,
+            );
             if exposes_reference_binding
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
@@ -789,9 +784,12 @@ fn walk_state_write_prefix_inner(
                     && declared_stored_origins.is_some()
                     && !reference_subjects::bindings::calls_expose_bindings(
                         program,
+                        machine,
                         expression,
                         parameters,
+                        &isolated_local_roots,
                         &local_alias_origins,
+                        &divergent_alias_origins,
                     ))
                 && !alias_bindings::statement_returns_reference_without_effects(
                     program, state, statement,
