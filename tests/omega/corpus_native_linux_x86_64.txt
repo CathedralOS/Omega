@@ -647,6 +647,7 @@ pass/operators/runtime_xorshift_prng_exit built 816ms exit:70 @2d8ed253669f+wt
 pass/operators/slice_index_bounds_from_operator_contract checked 292ms @2d8ed253669f+wt
 pass/operators/slice_range_bounds_from_operator_contract checked 290ms @2d8ed253669f+wt
 pass/operators/unary_negation_exit built 812ms exit:70 @2d8ed253669f+wt
+pass/optimizer/address_offset_selection_exit built 2936ms exit:0 @eca6cafd32e7
 pass/optimizer/constant_branch_selection_compile built 604ms exit:0 @f7f623460021+wt
 pass/optimizer/copied_call_operand_selection_exit built 1338ms exit:70 @f7f623460021+wt
 pass/optimizer/dead_compare_selection_compile built 592ms exit:0 @f7f623460021+wt

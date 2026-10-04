@@ -1,0 +1,40 @@
+// `SelectedAddressOffsetFoldV1` fires on real source code here: passing the
+// bounded byte field `context.out` as a shared `[u8]` view stages its call
+// descriptor by projecting the field with `AddressOffset`, then reading its
+// live length through `Load64` and forming its data pointer with a second
+// `AddressOffset` — two displaced consumers of one producer. The fold joins
+// each consumer's displacement with the producer's, so the staged descriptor
+// still reads `out`'s true length and bytes. A misfold reads the wrong
+// record bytes and the observed value misses the authored oracle.
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Context {
+    flag: u64;
+    out: [u8; 8] in Utf8;
+    tail: u64;
+}
+
+machine measure(bytes: &[u8]) -> u64 {
+    transition bytes.len >= 1 && bytes[0] == 71 {
+        true -> read(bytes)
+        _ -> (0)
+    }
+
+    state read(bytes: &[u8]) -> u64 {
+        transition { _ -> (bytes.len) }
+    }
+}
+
+machine main(context: &mut Context) crashes Trap {
+    context.flag = 5;
+    context.out = "Gate";
+    context.tail = 9;
+    let observed: u64 = measure(&context.out);
+    transition observed == 4
+        && context.flag == 5 && context.tail == 9 && context.out.len == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
