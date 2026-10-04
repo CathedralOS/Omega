@@ -759,50 +759,6 @@ pub(super) fn checked_whole_affine_discard_parameters(
     checked_whole_affine_discard_parameters_excluding_results(program, facts, machine, state, &[])
 }
 
-/// A lexical cleanup roster describes owners, while permission production now
-/// records a drop on each selected normal exit. Rejoin equal owner facts across
-/// distinct exits without treating two events on the same exit as one disposal.
-/// The selected-edge plans keep the actual order and outgoing coordinates.
-fn state_exit_cleanup_roots<'facts>(
-    facts: &'facts CheckFacts,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-) -> Option<Vec<&'facts checked_trees::FlowPermissionEventFact>> {
-    let mut roots = Vec::<&checked_trees::FlowPermissionEventFact>::new();
-    let mut occurrences = Vec::new();
-    for (_, event) in facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-        })
-    {
-        let occurrence = (event.root, event.segments, event.evaluation);
-        if occurrences.contains(&occurrence) {
-            return None;
-        }
-        occurrences.push(occurrence);
-        if let Some(prior) = roots
-            .iter()
-            .find(|prior| prior.root == event.root && prior.segments == event.segments)
-        {
-            let mut same_exit = (**prior).clone();
-            same_exit.evaluation = event.evaluation;
-            if same_exit != *event {
-                return None;
-            }
-        } else {
-            roots.push(event);
-        }
-    }
-    Some(roots)
-}
-
 fn checked_whole_affine_discard_parameters_excluding_results(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -931,7 +887,11 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         })
         .collect::<Vec<_>>();
     let mut discard_parameters = Vec::new();
-    for event in state_exit_cleanup_roots(facts, machine, state.symbol)? {
+    for event in facts
+        .flow
+        .ownership
+        .state_exit_cleanup_roots(machine, state.symbol)?
+    {
         if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if result_locals.contains(&symbol))
         {
             continue;
@@ -989,7 +949,11 @@ pub(super) fn state_exit_result_locals(
         .primitive_type_reference(state.return_type)
         .is_some();
     let mut results = Vec::new();
-    for drop in state_exit_cleanup_roots(facts, machine.symbol, state.symbol)? {
+    for drop in facts
+        .flow
+        .ownership
+        .state_exit_cleanup_roots(machine.symbol, state.symbol)?
+    {
         let facts::PlaceRoot::Symbol(symbol) = drop.root else {
             return None;
         };
@@ -1276,4 +1240,3 @@ pub(super) fn state_exit_result_locals(
     }
     Some(results)
 }
-

@@ -1,4 +1,8 @@
-//! Exact authored successor operands and exact-complement fallback pairing.
+//! Authored successor operands and ownership cleanup at edges and returns.
+//!
+//! Cleanup owner rosters use the shared ownership-facts query: a root can die
+//! on several mutually exclusive exits without being disposed twice. Edge
+//! bindings and return transfers select the actual residual cleanup below.
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
@@ -1566,10 +1570,7 @@ pub(super) fn return_discards(
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<usize>, LoweringError> {
-    use language_semantics::{
-        PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-        PermissionProvenance,
-    };
+    use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionProvenance};
     let parameters = checked.state_parameters(source);
     // Admission rejoins each Unit arm to an ordinary Terminal target. These
     // selected completions transfer no result, just like a direct Unit return;
@@ -1607,18 +1608,14 @@ pub(super) fn return_discards(
         Vec::new()
     };
     let mut drops = Vec::new();
-    for (_, event) in checked
+    for event in checked
         .facts
         .flow
         .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state.state
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-        })
+        .state_exit_cleanup_roots(machine, state.state)
+        .ok_or(LoweringError::Unsupported(
+            "Unit return exit cleanup is inconsistent",
+        ))?
     {
         if state.operations.iter().filter_map(result_custody::result).any(|result| {
             local_discards.contains(&result.binding_ordinal)

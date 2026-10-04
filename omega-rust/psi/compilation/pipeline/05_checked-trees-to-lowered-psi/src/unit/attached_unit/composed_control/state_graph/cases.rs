@@ -463,18 +463,14 @@ pub(super) fn validate(
     let mut has_result_discard = false;
     let mut consumed_drops = Vec::new();
     super::result_custody::validate_disposition_roster(checked, owner, source, state)?;
-    for (_, event) in checked
+    for event in checked
         .facts
         .flow
         .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == owner
-                && event.state_symbol == state.state
-                && event.source == language_semantics::PermissionEventSource::StateExit
-                && event.kind == language_semantics::PermissionEventKind::AffineDrop
-        })
+        .state_exit_cleanup_roots(owner, state.state)
+        .ok_or(LoweringError::Unsupported(
+            "Unit case exit cleanup is inconsistent",
+        ))?
     {
         if dispatch_subject
             .place()

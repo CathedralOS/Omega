@@ -11,10 +11,10 @@ use super::super::{
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventKind,
-    PermissionEventSource, ScalarCalleePlans, ShapeCollector, Signature, StatementNode,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    returns, terminal_calls,
+    CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventSource,
+    ScalarCalleePlans, ShapeCollector, Signature, StatementNode, TransitionExit,
+    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees, returns,
+    terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
@@ -571,17 +571,10 @@ pub(super) fn build(
         .collect::<Vec<_>>();
     let mut consumed_drops = Vec::new();
     let mut found = false;
-    for (_, event) in facts
+    for event in facts
         .flow
         .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-        })
+        .state_exit_cleanup_roots(machine.symbol, state.symbol)?
     {
         if !dispatch.is_symbol_root(event.root) {
             if let Some(source_position) = program

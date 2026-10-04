@@ -104,6 +104,46 @@ pub struct FlowOwnedSelectionClaim {
 }
 
 impl super::FlowOwnershipFacts {
+    /// Candidate cleanup owners in first-occurrence order, not an executable
+    /// drop stream. Permission production records each selected exit separately;
+    /// planning and lowering must agree that equal rows on distinct exits name
+    /// one owner, while two rows on the same exit remain a duplicate disposal.
+    /// Selected-edge plans still decide which owners die and in what order.
+    /// The original permission stream retains every outgoing coordinate.
+    pub fn state_exit_cleanup_roots(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> Option<Vec<&FlowPermissionEventFact>> {
+        let mut roots = Vec::<&FlowPermissionEventFact>::new();
+        let mut occurrences = Vec::new();
+        for (_, event) in self.permissions.iter().filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source == language_semantics::PermissionEventSource::StateExit
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop
+        }) {
+            let occurrence = (event.root, event.segments, event.evaluation);
+            if occurrences.contains(&occurrence) {
+                return None;
+            }
+            occurrences.push(occurrence);
+            if let Some(prior) = roots
+                .iter()
+                .find(|prior| prior.root == event.root && prior.segments == event.segments)
+            {
+                let mut same_exit = (**prior).clone();
+                same_exit.evaluation = event.evaluation;
+                if same_exit != *event {
+                    return None;
+                }
+            } else {
+                roots.push(event);
+            }
+        }
+        Some(roots)
+    }
+
     pub fn owned_selection_at(
         &self,
         state: SymbolHandle,
