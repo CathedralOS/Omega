@@ -114,7 +114,6 @@ impl Candidate<'_> {
 
 struct CalleeState {
     symbol: SymbolHandle,
-    name: String,
     candidate_index: usize,
     return_type: TypeReferenceHandle,
     parameter_types: Vec<TypeReferenceHandle>,

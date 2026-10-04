@@ -223,11 +223,12 @@ pub(crate) fn lower_statement_node(
             // Preserve expression custody to finalize the operand occurrences;
             // the statement-call form retains only its callee occurrence.
             // Retain the same operand custody for statement and value uses.
-            if BuildOperation::from_call_target(call.target.as_str())
-                == Some(BuildOperation::ProviderSelection)
-                && !call.discards_result
+            if matches!(
+                BuildOperation::from_call_target(call.target.as_str()),
+                Some(BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion)
+            ) && !call.discards_result
             {
-                let expression = retain_provider_call_expression(lowerer, lowered_call);
+                let expression = retain_build_declaration_call_expression(lowerer, lowered_call);
                 hoisted.push(Statement::Expression(expression));
             } else {
                 hoisted.push(Statement::Call(lowered_call));
@@ -495,7 +496,7 @@ pub(crate) fn lower_statement_node(
     }
 }
 
-fn retain_provider_call_expression(lowerer: &mut Lowerer, call: Call) -> ExpressionHandle {
+fn retain_build_declaration_call_expression(lowerer: &mut Lowerer, call: Call) -> ExpressionHandle {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
     use symbol_resolved_trees::expression::{TableCallExpression, TableNamePath};
 

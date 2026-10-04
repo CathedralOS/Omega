@@ -37,8 +37,31 @@ pub fn typed_provider_selection_expressions(
     authored_selections::provider_selection_expressions(program, machine)
 }
 
-/// Resolve a designated product operand after the caller has established the
-/// exact Build operation. Ordinary declaration selection must not use this API.
+/// Whether an exact Build operation designates product-declaration operands.
+/// Ordinary same-spelled machines never acquire this authority.
+pub fn typed_build_declaration_selection(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    authored_selections::is_build_declaration_selection(program, expression)
+}
+
+/// Exact product declaration authorized by a checked Build call's operand.
+pub fn typed_build_declaration_operand(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    argument_index: usize,
+    occurrence: source::SourceSpan,
+) -> Option<symbols::SymbolHandle> {
+    authored_selections::resolve_build_declaration_operand(
+        program,
+        expression,
+        argument_index,
+        occurrence,
+    )
+}
+
+/// Resolve a provider subject or implementation in the product namespace.
 pub fn typed_product_provider_selection_operand(
     program: &typed_trees::TypedTrees,
     argument: &typed_trees::expression::StaticMachineArgument,

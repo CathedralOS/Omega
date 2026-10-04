@@ -55,7 +55,9 @@ enum BuildOperationForm {
 
 fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
     match operation {
-        BuildOperation::ProviderSelection => BuildOperationForm::StaticBuildArgument,
+        BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion => {
+            BuildOperationForm::StaticBuildArgument
+        }
         BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
@@ -65,7 +67,6 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
             BuildOperationForm::PreludeDataReceiver("Optimizations")
         }
         BuildOperation::RepresentationSelection
-        | BuildOperation::ServiceExclusion
         | BuildOperation::BoundaryAcceptance
         | BuildOperation::WireCompatibilityRequest => BuildOperationForm::Marker,
     }
@@ -138,6 +139,18 @@ pub(crate) fn checked_expression_call_intrinsic(
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     if super::provider_selection::is_provider_selection_call(program, call) {
         return Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection);
+    }
+    if BuildOperation::from_call_target(call.target.as_str())
+        == Some(BuildOperation::ServiceExclusion)
+        && super::provider_selection::has_explicit_build_argument(program, call)
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len()
+            == 1
+        && call.machine_arguments.len() == 1
+    {
+        return Some(AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion);
     }
     checked_call_intrinsic(
         program,

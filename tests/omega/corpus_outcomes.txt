@@ -353,11 +353,20 @@ fail/build/retired_provider_selection_receiver rejected 5ms expected @944ee0efb3
 	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
 fail/build/retired_root_binding_receiver rejected 1ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)
+fail/build/retired_service_exclusion_receiver rejected 1ms expected @6fa34b94762b+wt
+	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b09f66e07ebd+wt
 	root binding names `launch`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace
 fail/build/static_machine_parameter_contract_mismatch rejected 71ms expected @2d8ed253669f
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
+fail/build/static_service_exclusion_invoked rejected 3841ms expected @6fa34b94762b+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 2)
+	the selected composition retains service `Sink` through machine `Main::main` (Terminal machine 1) declared here
+fail/build/static_service_exclusion_missing_activation rejected 393ms expected @6fa34b94762b+wt
+	machine `build` state `entry`: value call `Build.exclude_service(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+	machine `build` state `entry` has a terminal expression but no return type
 fail/build/structural_equation_conflicting_argument rejected 18ms expected @ae8939e231af+wt
 	generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7
 fail/build/uefi_program_entry_missing_storage_roots rejected 1050ms expected @2d8ed253669f
@@ -1555,6 +1564,7 @@ pass/build/product_description_paths_exit checked 959ms @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit checked 570ms @d7dd90112d31
 pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
+pass/build/runtime_static_service_exclusion_exit checked 3456ms @6fa34b94762b+wt
 pass/build/same_leaf_runner_entry_left_exit checked 1023ms @d7dd90112d31
 pass/build/same_leaf_runner_entry_right_exit checked 1015ms @d7dd90112d31
 pass/build/selected_const_array_length_exit checked 12131ms @ae8939e231af+wt

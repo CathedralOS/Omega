@@ -147,10 +147,11 @@ helper that passes does not close an item.
     (owner questions Q3 `trait-requirement-subject-binding` and Q1
     `provider-private-state-home`) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
-    for boundary acceptance, representation/service selection, assumed bindings,
+    for boundary acceptance, representation selection, assumed bindings,
     and facets such as test groups. Move their producers and consumers to
-    namespace-qualified calls with explicit arguments, following `Build::bind`
-    and `Build::select_provider`. Do not restore implicit builder insertion.
+    namespace-qualified calls with explicit arguments, following `Build::bind`,
+    `Build::select_provider`, and `Build::exclude_service`. Do not restore
+    implicit builder insertion.
   - Compiler remainder: receiver-specific signatures, lookup, argument
     insertion, state carry and evidence flags remain (`is_self` in stages
     02-07, checking, Terminal Psi, Omega stages and review evidence). Replace

@@ -20,14 +20,13 @@ pub(crate) fn selection_for_call(
     callee_states: &[CalleeState],
     site: CallSite,
     target_symbol: SymbolHandle,
-    target_name: &str,
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
     receiver_type: Option<TypeReferenceHandle>,
     expected_return: Option<TypeReferenceHandle>,
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
-    let callee = resolve_callee(callee_states, target_symbol, target_name)?;
+    let callee = resolve_callee(callee_states, target_symbol)?;
     let candidate = &candidates[callee.candidate_index];
     let mut machine_proposals = Vec::new();
     let mut evidence_proposals = Vec::new();
@@ -46,7 +45,6 @@ pub(crate) fn selection_for_call(
         candidates,
         callee_states,
         target_symbol,
-        target_name,
         machine_arguments,
         arguments,
         receiver_type,

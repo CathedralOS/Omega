@@ -1,4 +1,4 @@
-//! Typed authority for designated product operands of Build provider selection.
+//! Typed authority for Build operations selecting product declarations.
 //!
 //! `Build::` identifies the toolchain namespace; it supplies no receiver value.
 //! The first ordinary argument must be a mutable Build borrow. Execution checks
@@ -10,6 +10,55 @@ use language_semantics::declaration_selection::BuildOperation;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+
+pub(crate) fn is_build_declaration_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    matches!(
+        super::intrinsic_calls::checked_expression_call_intrinsic(program, call),
+        Some(Intrinsic::BuildProviderSelection | Intrinsic::BuildServiceExclusion)
+    )
+}
+
+/// Rejoin a designated product operand only after exact operation admission.
+/// Provider slots admit boundary requirements and operator families; service
+/// exclusions admit only a boundary trait, never its implementation.
+pub(crate) fn resolve_build_declaration_operand(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    argument_index: usize,
+    occurrence: source::SourceSpan,
+) -> Option<SymbolHandle> {
+    if !is_build_declaration_selection(program, expression) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let service = BuildOperation::from_call_target(call.target.as_str())
+        == Some(BuildOperation::ServiceExclusion);
+    let selected = resolve_product_operand(
+        program,
+        call.machine_arguments.get(argument_index)?,
+        occurrence,
+        service || argument_index == 0,
+    )?;
+    if service
+        && !program
+            .product_declarations()
+            .traits()
+            .iter()
+            .any(|definition| definition.symbol == selected && definition.is_boundary)
+    {
+        return None;
+    }
+    Some(selected)
+}
 
 pub(crate) fn provider_selection_expressions(
     program: &TypedTrees,
@@ -50,13 +99,31 @@ pub(crate) fn is_provider_selection_call(
 ) -> bool {
     BuildOperation::from_call_target(call.target.as_str())
         == Some(BuildOperation::ProviderSelection)
-        && !call.target_symbol.is_valid()
+        && has_explicit_build_argument(program, call)
+        && (1..=2).contains(
+            &program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+        )
+        && call.machine_arguments.len() == 2
+}
+
+/// Namespace identity selects the operation; its first value operand carries
+/// the activation. Never infer that operand from a receiver or a local name.
+pub(super) fn has_explicit_build_argument(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    !call.target_symbol.is_valid()
         && call.receiver.is_valid()
         && matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path)
             if exact_build_prelude_data(program, path.symbol, "Build"))
-        && matches!(program.expression_table.expression_handles(call.arguments), [builder] | [builder, _]
-            if exact_mutable_build_receiver(program, *builder))
-        && call.machine_arguments.len() == 2
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .first()
+            .is_some_and(|builder| exact_mutable_build_receiver(program, *builder))
         && call.evidence_arguments.is_empty()
 }
 

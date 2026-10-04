@@ -4,10 +4,10 @@
 //! Exclusions are evaluated Build selections
 //! (wiki/spec/build/behavior_exclusions.md): recording the call as it
 //! executes — not scanning the spelled text — is what makes a statically
-//! present but unexecuted call not a selection. The receiver must be the
+//! present but unexecuted call not a selection. The explicit argument must be the
 //! activation's original Build cell, the same authority `Build::bind`
 //! requires: a helper may assemble a selection only because the root Build
-//! value reaches its frame. A call evaluated on any other receiver claims
+//! value reaches its frame. A call evaluated on any other Build value claims
 //! an authority it does not have and traps rather than silently applying
 //! or silently dropping.
 use crate::interpreter::evaluator::{
@@ -21,8 +21,8 @@ use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::StatementHandle;
 
 impl<'program> Evaluator<'program> {
-    /// Service selections are parser-owned markers; enum selections are ordinary
-    /// resolved static calls. Both record their executed source coordinate.
+    /// Both declaration and enum selections carry an explicit Build argument
+    /// and record their executed source coordinate.
     pub(in crate::interpreter::evaluator) fn try_behavior_exclusion_statement(
         &mut self,
         statement: StatementHandle,
@@ -33,9 +33,11 @@ impl<'program> Evaluator<'program> {
             == Some(BuildOperation::ServiceExclusion)
             && !call.target_symbol.is_valid()
         {
-            self.require_root_build_receiver(
-                self.statement_receiver_cell(call, frame)?,
-                call.target.as_str(),
+            self.evaluate_service_exclusion(
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
             )?;
             ExecutedBehaviorExclusionKind::Service
         } else {
@@ -67,14 +69,12 @@ impl<'program> Evaluator<'program> {
             == Some(BuildOperation::ServiceExclusion)
             && !call.target_symbol.is_valid()
         {
-            let receiver = if call.receiver.is_valid() {
-                self.resolve_place(call.receiver, frame)
-                    .ok()
-                    .map(|cell| self.deref_cell(cell))
-            } else {
-                None
-            };
-            self.require_root_build_receiver(receiver, call.target.as_str())?;
+            self.evaluate_service_exclusion(
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?;
             ExecutedBehaviorExclusionKind::Service
         } else {
             let arguments = self
@@ -93,6 +93,18 @@ impl<'program> Evaluator<'program> {
             frame,
         )?;
         Ok(Some(Value::Unit))
+    }
+
+    fn evaluate_service_exclusion(
+        &mut self,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<()> {
+        let [builder] = arguments else {
+            return trap("service exclusion requires one explicit mutable Build argument");
+        };
+        let builder = self.eval_argument(*builder, frame)?;
+        self.require_root_build_argument(self.deref_cell(builder), "exclude_service")
     }
 
     /// Static Build operations carry their authority as the first argument,
@@ -129,8 +141,8 @@ impl<'program> Evaluator<'program> {
         };
         // Ordinary argument evaluation preserves reference forwarding; value
         // evaluation would read a copy and erase the activation's identity.
-        let receiver = self.eval_argument(*builder, frame)?;
-        self.require_root_build_receiver(Some(self.deref_cell(receiver)), method_name)?;
+        let builder = self.eval_argument(*builder, frame)?;
+        self.require_root_build_argument(self.deref_cell(builder), method_name)?;
         let case_symbol =
             self.evaluated_exclusion_case(*argument, frame, method_name, type_name)?;
         Ok(Some(match type_name {
@@ -200,17 +212,13 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    /// The receiver must dereference to the activation's original Build cell
+    /// The argument must dereference to the activation's original Build cell
     /// — the same authority `execute_root_binding` requires.
-    fn require_root_build_receiver(
-        &self,
-        receiver: Option<Cell>,
-        spelling: &str,
-    ) -> EvalResult<()> {
-        if receiver
+    fn require_root_build_argument(&self, builder: Cell, spelling: &str) -> EvalResult<()> {
+        if self
+            .root_build
             .as_ref()
-            .zip(self.root_build.as_ref())
-            .is_some_and(|(receiver, root)| Cell::ptr_eq(receiver, root))
+            .is_some_and(|root| Cell::ptr_eq(&builder, root))
         {
             return Ok(());
         }

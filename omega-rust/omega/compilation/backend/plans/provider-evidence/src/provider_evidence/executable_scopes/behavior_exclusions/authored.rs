@@ -26,7 +26,7 @@ pub enum AuthoredBehaviorExclusionKind {
         class: TerminalAuthorityClass,
         case_symbol: SymbolHandle,
     },
-    /// `builder.exclude_service<Trait>()`: the exact boundary-trait symbol
+    /// `Build::exclude_service<Trait>(builder)`: the exact boundary-trait symbol
     /// the authored type path resolved to. The Terminal service identity it
     /// names exists only per module, so the row resolves at the
     /// product-admission join against that module's service catalog.

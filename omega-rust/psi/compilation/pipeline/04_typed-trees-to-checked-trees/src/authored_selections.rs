@@ -29,7 +29,8 @@ pub(crate) use operator_targets::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
 pub(crate) use provider_selection::{
-    is_build_provider_selection, provider_selection_expressions, resolve_product_operand,
+    is_build_declaration_selection, is_build_provider_selection, provider_selection_expressions,
+    resolve_build_declaration_operand, resolve_product_operand,
 };
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
@@ -212,10 +213,8 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => provider_selection::is_build_provider_selection(program, expression)
-                    .then_some(CheckedResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
-                    ))
+                ) => intrinsic_calls::checked_expression_call_intrinsic(program, call)
+                    .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| {
                         exact_named_operator_call(program, call)
                             .and_then(|operator| declaration_target(operator.symbol))

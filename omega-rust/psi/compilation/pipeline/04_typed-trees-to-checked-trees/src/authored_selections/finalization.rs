@@ -172,23 +172,17 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
-                ) if BuildOperation::from_call_target(call.target.as_str())
-                    == Some(BuildOperation::ProviderSelection) =>
+                ) if matches!(BuildOperation::from_call_target(call.target.as_str()),
+                    Some(BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion)) =>
                 {
                     let argument_index = late_binding_ordinal(program, &occurrences[..occurrence_offset], binding);
                     let argument = call.machine_arguments.get(argument_index);
-                    if super::provider_selection::is_build_provider_selection(program, expression) {
-                        if call.machine_arguments.len() != 2 {
-                            return Err(Diagnostic::error("provider selection requires exactly two product declaration operands")
-                                .with_source_span(selection.source_span()));
-                        }
-                        let selected = argument.and_then(|argument| {
-                            super::provider_selection::resolve_product_operand(
-                                program, argument, selection.source_span(), argument_index == 0,
-                            )
-                        });
+                    if super::provider_selection::is_build_declaration_selection(program, expression) {
+                        let selected = super::provider_selection::resolve_build_declaration_operand(
+                            program, expression, argument_index, selection.source_span(),
+                        );
                         let Some(selected) = selected else {
-                            return Err(Diagnostic::error("provider selection operand does not resolve to one visible product declaration")
+                            return Err(Diagnostic::error("Build declaration operand does not resolve to one visible product declaration of the required kind")
                                 .with_source_span(selection.source_span()));
                         };
                         declaration_target(selected)

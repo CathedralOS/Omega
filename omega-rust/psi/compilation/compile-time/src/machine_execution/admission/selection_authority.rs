@@ -427,17 +427,13 @@ fn expression_occurrence_violation(
             // not host generic arguments. Keep every authored occurrence, but
             // establish its lexical product authority without consulting the
             // caller's Build-import namespace or executing the declaration.
-            if typed_trees_to_checked_trees::typed_build_provider_selection(program, expression) {
+            if typed_trees_to_checked_trees::typed_build_declaration_selection(program, expression)
+            {
                 use typed_trees::AuthoredDeclarationSelectionKind as Kind;
                 if selection.kind() == Kind::Call {
                     continue;
                 }
                 if selection.kind() == Kind::StaticArgument {
-                    let ExpressionNode::Call(call) =
-                        program.expression_table.expression(expression)
-                    else {
-                        return Some(located("provider selection lost its exact call".to_owned()));
-                    };
                     let argument_index = occurrences[..occurrence_offset]
                         .iter()
                         .filter(|occurrence| {
@@ -447,25 +443,20 @@ fn expression_occurrence_violation(
                                 .is_some_and(|earlier| earlier.kind() == Kind::StaticArgument)
                         })
                         .count();
-                    let selected = (call.machine_arguments.len() == 2)
-                        .then(|| call.machine_arguments.get(argument_index))
-                        .flatten()
-                        .and_then(|argument| {
-                            typed_trees_to_checked_trees::typed_product_provider_selection_operand(
-                                program,
-                                argument,
-                                selection.source_span(),
-                                argument_index == 0,
-                            )
-                        });
+                    let selected = typed_trees_to_checked_trees::typed_build_declaration_operand(
+                        program,
+                        expression,
+                        argument_index,
+                        selection.source_span(),
+                    );
                     if selected.is_none() {
-                        return Some(located("provider selection operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));
+                        return Some(located("Build declaration operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));
                     }
                     if let typed_trees::AuthoredDeclarationSelectionTarget::Resolved(retained) =
                         selection.target()
                         && Some(retained.selected_symbol()) != selected
                     {
-                        return Some(located("provider selection occurrence does not retain its exact product declaration".to_owned()));
+                        return Some(located("Build declaration occurrence does not retain its exact product declaration".to_owned()));
                     }
                     continue;
                 }

@@ -3,7 +3,7 @@
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 /// Behavior exclusions (wiki/spec/build/behavior_exclusions.md):
@@ -27,38 +27,23 @@ pub fn harvest_behavior_exclusions(
     for row in executed {
         // Rejoin the executed coordinate to its authored call for the
         // retained source span and the `exclude_service` type argument.
-        struct ExecutedExclusionCall<'a> {
-            source_span: source::SourceSpan,
-            machine_arguments: &'a [typed_trees::expression::StaticMachineArgument],
-            arguments: &'a [typed_trees::expression::ExpressionHandle],
-        }
-        let call = match row.site {
+        let source_span = match row.site {
             checked_interpreter::ExecutedBehaviorExclusionSite::Statement(handle) => {
                 match typed.statement_table.statement(handle) {
-                    typed_trees::statement::StatementNode::Call(call) => {
-                        Some(ExecutedExclusionCall {
-                            source_span: call.source_span,
-                            machine_arguments: &call.machine_arguments,
-                            arguments: typed.statement_table.expression_handles(call.arguments),
-                        })
-                    }
+                    typed_trees::statement::StatementNode::Call(call) => Some(call.source_span),
                     _ => None,
                 }
             }
             checked_interpreter::ExecutedBehaviorExclusionSite::Expression(handle) => {
                 match typed.expression_table.expression(handle) {
-                    typed_trees::expression::ExpressionNode::Call(call) => {
-                        Some(ExecutedExclusionCall {
-                            source_span: typed.expression_table.source_span(handle),
-                            machine_arguments: &call.machine_arguments,
-                            arguments: typed.expression_table.expression_handles(call.arguments),
-                        })
+                    typed_trees::expression::ExpressionNode::Call(_) => {
+                        Some(typed.expression_table.source_span(handle))
                     }
                     _ => None,
                 }
             }
         };
-        let Some(call) = call else {
+        let Some(source_span) = source_span else {
             diagnostics.push(Diagnostic::error(
                 "executed behavior exclusion did not rejoin its authored call",
             ));
@@ -69,16 +54,16 @@ pub fn harvest_behavior_exclusions(
                 match evaluated_crash_cause(typed, case_symbol) {
                     Ok(cause) => AuthoredBehaviorExclusionKind::CrashCause { cause, case_symbol },
                     Err(diagnostic) => {
-                        diagnostics.push(diagnostic.with_source_span(call.source_span));
+                        diagnostics.push(diagnostic.with_source_span(source_span));
                         continue;
                     }
                 }
             }
             checked_interpreter::ExecutedBehaviorExclusionKind::Service => {
-                match authored_service_exclusion(typed, call.machine_arguments, call.arguments) {
+                match authored_service_exclusion(typed, row.site, source_span) {
                     Ok(trait_symbol) => AuthoredBehaviorExclusionKind::Service { trait_symbol },
                     Err(diagnostic) => {
-                        diagnostics.push(diagnostic.with_source_span(call.source_span));
+                        diagnostics.push(diagnostic.with_source_span(source_span));
                         continue;
                     }
                 }
@@ -90,7 +75,7 @@ pub fn harvest_behavior_exclusions(
                     AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, case_symbol }
                 }
                 Err(diagnostic) => {
-                    diagnostics.push(diagnostic.with_source_span(call.source_span));
+                    diagnostics.push(diagnostic.with_source_span(source_span));
                     continue;
                 }
             },
@@ -98,7 +83,7 @@ pub fn harvest_behavior_exclusions(
         let exclusion = AuthoredBehaviorExclusion {
             kind,
             selecting_machine: row.machine,
-            source_span: call.source_span,
+            source_span,
         };
         if !exclusions.iter().any(|existing| {
             existing.kind == exclusion.kind && existing.source_span == exclusion.source_span
@@ -113,46 +98,24 @@ pub fn harvest_behavior_exclusions(
     }
 }
 
-/// The exact boundary trait an `exclude_service<Trait>()` marker names.
-/// The parser retains exactly one plain type path; ordinary resolution
-/// assigned its symbol, which must be a boundary trait declaration. Data,
+/// The exact boundary trait a `Build::exclude_service<Trait>(builder)` call names.
+/// The call retains exactly one plain type path in its product namespace. Data,
 /// ordinary traits, machines and unresolved paths reject: a service name is
 /// an authorized declaration, never a label.
 fn authored_service_exclusion(
     typed: &TypedTrees,
-    machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-    arguments: &[typed_trees::expression::ExpressionHandle],
+    site: checked_interpreter::ExecutedBehaviorExclusionSite,
+    occurrence: source::SourceSpan,
 ) -> Result<SymbolHandle, Diagnostic> {
-    if !arguments.is_empty() {
+    let checked_interpreter::ExecutedBehaviorExclusionSite::Expression(expression) = site else {
         return Err(Diagnostic::error(
-            "service exclusion takes no value arguments",
-        ));
-    }
-    let [argument] = machine_arguments else {
-        return Err(Diagnostic::error(
-            "service exclusion must retain exactly one resolved boundary-trait type path",
+            "service exclusion must retain its checked static Build call",
         ));
     };
-    let authored_path = argument
-        .path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
-    let symbol = argument.symbol;
-    if symbol.is_valid()
-        && typed.symbols.get(symbol).kind == SymbolKind::Trait
-        && typed
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == symbol && definition.is_boundary)
-    {
-        Ok(symbol)
-    } else {
-        Err(Diagnostic::error(format!(
-            "service exclusion `{authored_path}` does not resolve to an exact boundary trait declaration"
-        )))
-    }
+    typed_trees_to_checked_trees::typed_build_declaration_operand(typed, expression, 0, occurrence)
+        .ok_or_else(|| Diagnostic::error(
+            "service exclusion does not resolve to an exact visible product boundary trait declaration",
+        ))
 }
 
 /// Map the `CrashCause` variant one EXECUTED `exclude_crash` selection

@@ -602,10 +602,10 @@ fn provider_selection_retains_two_structural_type_paths() {
 }
 
 #[test]
-fn service_exclusion_retains_one_structural_type_path_and_no_value_arguments() {
+fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.exclude_service<host::Console>();
+            Build::exclude_service<host::Console>(builder);
         }
     "#;
     let tokens = Lexer::new(source)
@@ -631,25 +631,23 @@ fn service_exclusion_retains_one_structural_type_path_and_no_value_arguments() {
         ["host", "Console"]
     );
     assert!(call.machine_arguments[0].application.is_none());
-    assert!(
-        parsed
-            .expressions
-            .expression_handles(call.arguments)
-            .is_empty(),
-        "the marker carries no value argument"
+    assert!(call.target_is_static);
+    assert_eq!(
+        parsed.expressions.expression_handles(call.arguments).len(),
+        1
     );
 }
 
 #[test]
-fn service_exclusion_rejects_extra_paths_and_value_arguments() {
+fn service_exclusion_rejects_retired_receiver_calls() {
     for (source, expected) in [
         (
             "machine build(builder: &mut Build) { builder.exclude_service<host::Console, other::Log>(); }",
-            "exactly one plain type path",
+            "receiver-style service exclusion is retired",
         ),
         (
             "machine build(builder: &mut Build) { builder.exclude_service<host::Console>(1); }",
-            "takes no value arguments",
+            "receiver-style service exclusion is retired",
         ),
         (
             "machine build(builder: &mut Build) { builder.exclude_service<>(); }",

@@ -48,7 +48,6 @@ pub(super) fn collect_call_proposals(
     candidates: &[Candidate],
     callee_states: &[CalleeState],
     target_symbol: SymbolHandle,
-    target_name: &str,
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
     receiver_type: Option<TypeReferenceHandle>,
@@ -60,7 +59,7 @@ pub(super) fn collect_call_proposals(
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
 ) -> ExplicitArgumentCapacity {
-    let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
+    let Some(callee) = resolve_callee(callee_states, target_symbol) else {
         return ExplicitArgumentCapacity::WithinBounds;
     };
     let explicit_arguments = collect_machine_proposals_for_callee(
@@ -229,7 +228,6 @@ pub(super) fn collect_call_selections(
                             callee_states,
                             CallSite::Statement(handle),
                             call.target_symbol,
-                            call.target.as_str(),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             statement_receiver_type(
@@ -259,7 +257,6 @@ pub(super) fn collect_call_selections(
                                 callee_states,
                                 CallSite::Expression(local.initial_value),
                                 call.target_symbol,
-                                call.target.as_str(),
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
                                 expression_receiver_type(program, machine, state, call.receiver),
@@ -288,7 +285,6 @@ pub(super) fn collect_call_selections(
                                 callee_states,
                                 CallSite::Expression(*expression),
                                 call.target_symbol,
-                                call.target.as_str(),
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
                                 expression_receiver_type(program, machine, state, call.receiver),
@@ -378,7 +374,6 @@ pub(super) fn collect_call_selections(
                     callee_states,
                     CallSite::Expression(expression),
                     call.target_symbol,
-                    call.target.as_str(),
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
                     expression_receiver_type(program, machine, state, call.receiver),
@@ -424,8 +419,7 @@ pub(super) fn collect_call_selections(
         if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
             continue;
         }
-        let Some(callee) = resolve_callee(callee_states, call.target_symbol, call.target.as_str())
-        else {
+        let Some(callee) = resolve_callee(callee_states, call.target_symbol) else {
             continue;
         };
         let candidate = &candidates[callee.candidate_index];

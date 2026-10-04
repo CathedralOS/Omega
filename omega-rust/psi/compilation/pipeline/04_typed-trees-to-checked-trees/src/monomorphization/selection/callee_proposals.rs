@@ -185,23 +185,19 @@ pub(crate) fn collect_machine_proposals_for_callee(
     Ok(())
 }
 
-pub(crate) fn resolve_callee<'a>(
-    callee_states: &'a [CalleeState],
+/// Specialization consumes resolved declaration identity; it never resolves
+/// names. An unresolved qualified call may denote an intrinsic or an invalid
+/// member, not a same-spelled generic machine from another owner.
+pub(crate) fn resolve_callee(
+    callee_states: &[CalleeState],
     target_symbol: SymbolHandle,
-    target_name: &str,
-) -> Option<&'a CalleeState> {
-    if target_symbol.is_valid() {
-        return callee_states
-            .iter()
-            .find(|callee| callee.symbol == target_symbol);
+) -> Option<&CalleeState> {
+    if !target_symbol.is_valid() {
+        return None;
     }
-    let mut matching = callee_states
+    callee_states
         .iter()
-        .filter(|callee| callee.name == target_name);
-    match (matching.next(), matching.next()) {
-        (Some(only), None) => Some(only),
-        _ => None,
-    }
+        .find(|callee| callee.symbol == target_symbol)
 }
 
 pub(crate) fn state_by_symbol(

@@ -106,7 +106,6 @@ pub(super) fn callees(program: &TypedTrees, candidates: &[Candidate]) -> Vec<Cal
                     let parameters = program.state_parameters(state);
                     CalleeState {
                         symbol: state.symbol,
-                        name: state.name.as_str().to_owned(),
                         candidate_index,
                         return_type: state.return_type,
                         parameter_types: parameters

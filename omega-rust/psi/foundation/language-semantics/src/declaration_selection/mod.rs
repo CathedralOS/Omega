@@ -220,7 +220,7 @@ pub enum BuildOperation {
     AssumedBindingContract,
     /// `select_representation<Type, Representation>()`.
     RepresentationSelection,
-    /// `b.exclude_service<BoundaryTrait>()`.
+    /// `Build::exclude_service<BoundaryTrait>(b)`.
     ServiceExclusion,
     /// `Optimizations::enable`.
     OptimizationSelection,
@@ -401,7 +401,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// owns compatibility and acceptance before any runtime installation.
     BuildAssumedBindingContract,
     BuildRepresentationSelection,
-    /// `b.exclude_service<BoundaryTrait>()`: a build behavior exclusion of
+    /// `Build::exclude_service<BoundaryTrait>(b)`: a build behavior exclusion of
     /// one abstract service (wiki/spec/build/behavior_exclusions.md). The
     /// marker classifies declaration provenance only; the admission
     /// requirement it selects is harvested and enforced by Omega's build

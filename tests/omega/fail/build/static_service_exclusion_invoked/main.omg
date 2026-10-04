@@ -1,0 +1,9 @@
+use logger_kit::main::Sink;
+use omega::language::core::binding;
+
+data Main { sink: Binding<Sink>; }
+machine Main::main(main: &mut Main)
+reaches Sink
+{
+    main.sink.emit("an invocation, even with a silent provider");
+}

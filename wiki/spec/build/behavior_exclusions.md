@@ -57,6 +57,24 @@ contract. Versioned encoding and installation-envelope coverage remain separate
 from source authoring; an available Build method does not establish portable
 wire or replacement support.
 
+### Service exclusion authoring
+
+```omega
+machine configure(builder: &mut Build) {
+    Build::exclude_service<Console>(builder);
+}
+```
+
+The namespace identifies the compiler-owned operation. Its one explicit value
+argument borrows the activation's original Build value; authorized helpers may
+forward that borrow. The single static operand identifies an exact boundary
+trait, not an executable dependency or a string label. A user-authored machine
+with the same spelling remains an ordinary machine. Missing activation arguments
+and receiver-style calls reject; no implicit builder argument is inserted.
+
+Only executing the call selects the exclusion. An uncalled helper imposes none.
+The selected product must then satisfy that exclusion under the checks below.
+
 ### Physical exclusion authoring
 
 The compiler-owned Build prelude provides:

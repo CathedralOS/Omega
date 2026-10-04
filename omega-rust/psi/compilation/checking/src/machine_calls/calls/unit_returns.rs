@@ -61,7 +61,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    if admitted_provider_selection(program, expression) {
+    if admitted_build_declaration_call(program, expression) {
         return true;
     }
     if !call.target_symbol.is_valid()
@@ -102,10 +102,10 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         && results.next().is_none()
 }
 
-/// The checker establishes exact Build receiver identity before validation;
+/// The checker establishes the Build namespace and explicit argument before validation;
 /// the target owner separately admits default declaration operations. Neither
 /// token authorizes execution on a fabricated Build value.
-pub(super) fn admitted_provider_selection(
+pub(super) fn admitted_build_declaration_call(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> bool {
@@ -116,12 +116,24 @@ pub(super) fn admitted_provider_selection(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
+    let (intrinsic, static_count, value_count) =
+        match BuildOperation::from_call_target(call.target.as_str()) {
+            Some(BuildOperation::ProviderSelection) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
+                2,
+                1..=2,
+            ),
+            Some(BuildOperation::ServiceExclusion) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
+                1,
+                1..=1,
+            ),
+            _ => return false,
+        };
     if call.target_symbol.is_valid()
-        || BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::ProviderSelection)
         || !call.receiver.is_valid()
-        || call.machine_arguments.len() != 2
-        || !(1..=2).contains(
+        || call.machine_arguments.len() != static_count
+        || !value_count.contains(
             &program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -138,10 +150,7 @@ pub(super) fn admitted_provider_selection(
         .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call);
     selections.next().is_some_and(|selection| {
-        selection.target()
-            == AuthoredDeclarationSelectionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
-            )
+        selection.target() == AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic)
     }) && selections.next().is_none()
 }
 

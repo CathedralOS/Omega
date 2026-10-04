@@ -194,7 +194,6 @@ fn forwarded_result_selection(
         candidates,
         callees,
         call.target_symbol,
-        call.target.as_str(),
         &call.machine_arguments,
         program.expression_table.expression_handles(call.arguments),
         // The receiver place carries the same `self` evidence here as it

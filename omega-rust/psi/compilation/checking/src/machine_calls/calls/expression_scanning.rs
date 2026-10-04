@@ -299,7 +299,7 @@ fn validate_expression_call_bounds(
         )));
         return;
     }
-    if super::unit_returns::admitted_provider_selection(program, expression) {
+    if super::unit_returns::admitted_build_declaration_call(program, expression) {
         // The exact admitted intrinsic returns Unit. The branch above still
         // rejects value uses, and the outer scanner visits every operand.
         return;

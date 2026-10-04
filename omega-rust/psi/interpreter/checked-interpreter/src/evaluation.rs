@@ -426,7 +426,7 @@ pub enum ExecutedBehaviorExclusionKind {
     /// Omega admission maps this source identity to its physical vocabulary;
     /// the target-neutral evaluator does not classify mechanisms.
     PhysicalAuthorityClass { case_symbol: symbols::SymbolHandle },
-    /// `builder.exclude_service<Trait>()`: the marker executed; the retained
+    /// `Build::exclude_service<Trait>(builder)`: the call executed; the retained
     /// call node still carries the resolved trait identity admission
     /// validates.
     Service,

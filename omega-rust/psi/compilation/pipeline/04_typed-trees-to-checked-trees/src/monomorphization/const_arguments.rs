@@ -72,8 +72,8 @@ pub(super) fn validate_authored(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     validate_structural_type_arguments(program, callees, &mut diagnostics);
-    let mut validate = |target, name: &str, arguments: &[StaticMachineArgument]| {
-        let Some(callee) = resolve_callee(callees, target, name) else {
+    let mut validate = |target, arguments: &[StaticMachineArgument]| {
+        let Some(callee) = resolve_callee(callees, target) else {
             return;
         };
         let candidate = &candidates[callee.candidate_index];
@@ -83,22 +83,14 @@ pub(super) fn validate_authored(
     };
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            validate(
-                call.target_symbol,
-                call.target.as_str(),
-                &call.machine_arguments,
-            );
+            validate(call.target_symbol, &call.machine_arguments);
         }
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
-                    validate(
-                        call.target_symbol,
-                        call.target.as_str(),
-                        &call.machine_arguments,
-                    );
+                    validate(call.target_symbol, &call.machine_arguments);
                 }
             }
         }
@@ -719,7 +711,7 @@ fn validate_structural_type_arguments(
         if let ExpressionNode::Call(call) = node
             && contains_type(&call.machine_arguments)
             && !owned.contains(&expression)
-            && resolve_callee(callees, call.target_symbol, call.target.as_str()).is_some()
+            && resolve_callee(callees, call.target_symbol).is_some()
         {
             diagnostics.push(Diagnostic::error(
                 "structural static type argument has no retained caller type/lifetime context",
