@@ -841,15 +841,22 @@ defines the complete product bar.
     gitlink.
 
   Compiler-side frontier:
-  - Package review of `squalr-tests` for `linux_x86_64` completes with exit 3
-    (pending source-replacement and capability decisions), taking about 13
-    minutes and 9.5 GB. Review those decisions, then `omega update --project
-    samples/apps/squalr/squalr-tests --target linux_x86_64 --resume`; never
-    manufacture approval or transplant another checkout's lock.
-  - The next known compile stop is the `requires ... position < name.len`
-    arrival into `ProcessInfo::set_name`'s `store` state (see
-    **GENERAL-CYCLIC-EXECUTION**; same-view length join:
-    **TERMINAL-SLICE-VIEW-VOCABULARY**).
+  - Fresh integration on macOS ARM64 at Omega `6ba9c43af356`, published
+    application `b166d0f`: `python3.13 samples/apps/squalr/tools/verify.py check
+    --target linux_x86_64 --omega <omega-binary>` rejects its version-3 lock.
+    With that lock temporarily set aside, `omega update --project
+    samples/apps/squalr/squalr-tests --target linux_x86_64` rejects retired
+    receiver-style Build dependency calls. The original lock was restored.
+    Migrate application Build and machine calls under **STATIC-MACHINE-MIGRATION**,
+    then perform ordinary package review; never restore implicit receivers,
+    manufacture approval, or transplant another checkout's lock. Application
+    write access still returns HTTP 403; keep the gitlink unchanged.
+  - The explicit-parameter form of `ProcessInfo::set_name` now checks and
+    executes on macOS ARM64: `pass/slices/runtime_guarded_view_copy_cycle_exit`
+    exits 70, checking copied bytes, untouched tail, zero limit, and input
+    extent. Its guarded `requires ... position < name.len` arrival is not a
+    reproduced compiler blocker. This control does not establish execution of
+    the unmigrated application; rerun its command after source migration.
   - Unverified: the earlier result-store stop in stage 04
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_results.rs`
     (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); empty
@@ -1140,11 +1147,14 @@ defines the complete product bar.
   calls. Each needs stage 04 to check the arrival/custody relation and stage
   05 to lower it; deleting the fence alone is not the repair.
   `samples/cli/games/dungeon_crawler_cli` stops at `ControlCycleIneligible`.
-  Squalr's `squalr-tests` (linux_x86_64) stops at the authored
-  `requires ... position < name.len ...` arrival into `ProcessInfo::set_name`'s
-  `store` state: the guard's `name.len` has no equation to the transferred
-  view's extent (**TERMINAL-SLICE-VIEW-VOCABULARY**; discharge moves to
-  checking under **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**).
+  Squalr's earlier `ProcessInfo::set_name` arrival failure is no longer
+  reproduced by its explicit-parameter copy graph:
+  `pass/slices/runtime_guarded_view_copy_cycle_exit` checks and runs with exit
+  70 on macOS ARM64 at `6ba9c43af356`. The loop transports the shared input,
+  mutable fixed-buffer owner, index and limit through a four-conjunct arrival
+  contract; the oracle covers limited, zero-limit and input-extent termination.
+  Full application acceptance remains with **SQUALR-HEADLESS**, whose published
+  source currently stops before this graph at retired Build call syntax.
 
   Acceptance: the controls above and the unchanged samples run across the
   hosted matrix with exact caller/callee resources and ranking where declared;

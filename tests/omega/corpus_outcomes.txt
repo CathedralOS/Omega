@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 15.71, "load1_start": 5.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 1.97, "load1_start": 1.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2403,6 +2403,7 @@ pass/slices/runtime_direct_view_requires_index_exit rejected 1393ms @45782ade0cb
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
 pass/slices/runtime_element_view_requires_index_exit checked 1657ms @0991904fed3b+wt
 pass/slices/runtime_forwarded_view_runtime_index_exit checked 3837ms @cfe60a3a242
+pass/slices/runtime_guarded_view_copy_cycle_exit checked 2015ms @6ba9c43af356+wt
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 1689ms @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 1707ms @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 7001ms @d10c66094158
