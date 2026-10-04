@@ -1,3 +1,5 @@
+use omega_language_std::console;
+
 data Node { value: u64; }
 data Pair { left: Node; right: Node; }
 data Outer { anchor: u64; pair: Pair; }
@@ -53,7 +55,7 @@ machine observe_shared(pair: &Pair, second: bool) -> u64 {
     selected.value
 }
 
-machine main() crashes Trap {
+machine main() reaches Console {
     let mut pair: Pair = Pair { left: Node { value: 17 }, right: Node { value: 43 } };
     let right: u64 = observe(&mut pair, true);
     let left: u64 = observe(&mut pair, false);
@@ -71,9 +73,7 @@ machine main() crashes Trap {
         && shared_right == 43 && shared_left == 17
         && pair.left.value == 18 && pair.right.value == 44
         && nested_left == 101 && nested_right == 103 && outer.anchor == 91 {
-        true -> passed()
-        false -> failed()
+        true -> Console::exit_process(0)
+        false -> Console::exit_process(1)
     }
-    state passed() {}
-    state failed() { crash Trap; }
 }
