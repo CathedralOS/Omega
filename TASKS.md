@@ -2039,10 +2039,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `calls/runtime_local_case_terminal_payload_result_exit` also exits **0** in
   both engines: a call-produced local sum forwards each selected scalar payload
   into a terminal record result, retaining case and local source identity.
+  `calls/runtime_computed_case_terminal_payload_result_exit` exits **0** in both
+  engines: each computed subject runs once, and the selected terminal call
+  returns its saved payload. Expression and local storage share field reads;
+  source-call accounting retains the exact evaluated subject occurrence.
   Whole-reference result origins still need transport from terminal calls into
-  the composed return roster. Computed-subject terminal arms still stop at an
-  unconsumed nested transition call; range-constrained result compatibility and
-  claim-transferring arm calls remain unfinished.
+  the composed return roster. A computed subject that consumes an affine
+  argument still repeats that argument's ownership transfer during checking;
+  range-constrained result compatibility and claim-transferring arm calls
+  remain unfinished.
   Nested receiver terminal calls still need the exact receiver leaf identity
   retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
