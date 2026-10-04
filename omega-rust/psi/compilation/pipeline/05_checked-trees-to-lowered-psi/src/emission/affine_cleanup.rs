@@ -186,6 +186,31 @@ fn complete_carriers(
             {
                 Vec::new()
             }
+            // A structural result transfers one place to the caller and then
+            // runs the same ordered cleanup list a scalar return runs, so it
+            // is an exit on the same terms. The transferred place itself is
+            // the one thing this pass cannot schedule: it leaves here instead
+            // of being disposed, and the live-set walk consumes a managed
+            // place only through an operation operand, never through a
+            // terminator. Refuse that exact case by name rather than through
+            // the shape catch-all, which reported it as a missing scalar exit.
+            Terminator::ReturnStructural {
+                source,
+                cleanup_actions,
+                ..
+            } if cleanup_actions.iter().all(|action| {
+                matches!(action,
+                    TerminalAffineCleanupAction::DiscardRoot(place) if !affine.contains(place)
+                )
+            }) =>
+            {
+                if managed.contains(source) {
+                    return unsupported(
+                        "scalar graph structural result transfers a managed affine carrier",
+                    );
+                }
+                Vec::new()
+            }
             Terminator::Crash { .. } => Vec::new(),
             _ => {
                 return unsupported(
@@ -352,6 +377,9 @@ fn complete_carriers(
                 merge_discards(trivial_affine_discards, exits[position].clone(), &producers);
             }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnStructural {
                 cleanup_actions, ..
             } => {
                 let mut places = cleanup_actions
