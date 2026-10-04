@@ -52,8 +52,7 @@ pub(crate) fn validate_stored_integer_write(
     let Some(state) = state else {
         return Vec::new();
     };
-    let projections =
-        stored_integer_destination_projections(program, machine, state, destination, origins);
+    let projections = destination_projections(program, machine, state, destination, origins);
     let Ok(projections) = projections else {
         diagnostics.push(Diagnostic::error(format!(
             "IntegerAt store in {owner} has no exact stored field geometry or reference origin"
@@ -93,7 +92,7 @@ pub(crate) fn validate_stored_integer_write(
 /// The alias inventory belongs to the existing statement-prefix reference
 /// traversal. This operation only substitutes its exact coordinates; it does
 /// not rediscover initializers, pick one conditional origin, or use path text.
-pub fn stored_integer_destination_projections(
+fn destination_projections(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

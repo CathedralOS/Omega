@@ -707,51 +707,35 @@ fn write_only_call_subloan(
         };
     }
 
-    if let Some(field_type) = write_only_record_field_type(program, target, roots) {
+    // A projected loan lends an address, not its previous value. Fields and
+    // fixed-array elements share the same content-independent place walk;
+    // aggregate leaves owe the same exact referee contract as whole roots.
+    if let Some((_, referee, attached_root)) = receiver::projected(
+        program,
+        target,
+        roots,
+        receiver::ProjectionAdmission::LiteralIndexes,
+    ) {
+        if attached_root {
+            return false;
+        }
         return match declared_referee {
             Some(declared) => {
-                // Lending a field does not displace its current value. Use
-                // the same referent contract as a whole-parameter loan; the
-                // callee's actual stores still owe discardability and validity.
-                // Requiring replacement here incorrectly rejects affine records
-                // whose fields can be written without replacing the whole record.
-                is_supported_checked_referee(program, field_type)
-                    && (subloan_referee_matches(program, field_type, declared)
+                is_supported_checked_referee(program, referee)
+                    && (subloan_referee_matches(program, referee, declared)
                         || reject_subloan_referee_mismatch(
                             program,
                             machine,
                             state,
                             target,
-                            field_type,
+                            referee,
                             declared,
                             diagnostics,
                         ))
             }
-            // Without a resolvable `&write` referee the callee's own checks
-            // own the argument; only the legacy unrestricted leaf kinds keep
-            // their callee-agnostic admission.
-            None => is_unrestricted_write_only_field_leaf(program, field_type),
-        };
-    }
-
-    if let Some(leaf) = write_only_literal_indexed_subloan_leaf(program, target, roots) {
-        if !is_unrestricted_scalar(program, leaf) {
-            return false;
-        }
-        return match declared_referee {
-            Some(declared) => {
-                subloan_referee_matches(program, leaf, declared)
-                    || reject_subloan_referee_mismatch(
-                        program,
-                        machine,
-                        state,
-                        target,
-                        leaf,
-                        declared,
-                        diagnostics,
-                    )
-            }
-            None => true,
+            // The call's own access and arity checks still own unresolved
+            // targets; this judgment only establishes a non-observing place.
+            None => is_unrestricted_write_only_field_leaf(program, referee),
         };
     }
 
@@ -1235,45 +1219,6 @@ fn write_only_element_assignment_index(
     }
 }
 
-/// The exact leaf type of one literal-indexed subloan shape: an admitted
-/// write-only place reached through member hops plus at least one indexed
-/// hop. The shared non-observing projection walk — the same judgment local
-/// formation applies through `captured_type` — owns root and bare-field
-/// bases, relevant-field identity, builtin index meaning, and in-bounds
-/// literal coordinates. The call gate above keeps only the rung's shape
-/// rules: an unrestricted primitive leaf, and exact referee identity against
-/// the declared parameter. Dynamic indices, ranges, and aggregate elements
-/// remain excluded.
-fn write_only_literal_indexed_subloan_leaf(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> Option<TypeReferenceHandle> {
-    let mut cursor = expression;
-    let mut visited = Vec::new();
-    let has_indexed_hop = loop {
-        if visited.contains(&cursor) || !program.expression_table.expression_is_valid(cursor) {
-            break false;
-        }
-        visited.push(cursor);
-        cursor = match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
-            ExpressionNode::Indexed(_) => break true,
-            _ => break false,
-        };
-    };
-    if !has_indexed_hop {
-        return None;
-    }
-    receiver::projected(
-        program,
-        expression,
-        roots,
-        receiver::ProjectionAdmission::LiteralIndexes,
-    )
-    .map(|(_, leaf, _)| leaf)
-}
-
 fn diagnose_unsupported_write_only_assignment_target(
     program: &TypedTrees,
     machine: &str,
@@ -1477,7 +1422,7 @@ fn validate_expression(
                     )));
                 } else if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or one eligible content-independent common-field path optionally followed by a finite nonempty suffix of in-bounds literal fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type"
+                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and in-bounds literal fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type"
                     )));
                 }
             }

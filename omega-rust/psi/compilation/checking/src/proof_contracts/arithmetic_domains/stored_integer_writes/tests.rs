@@ -365,7 +365,7 @@ fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() 
     source.root = program.state_parameters(state)[1].symbol;
     source.segments.clear();
     source.representation = None;
-    let projections = super::stored_integer_destination_projections(
+    let projections = super::destination_projections(
         &program,
         machine,
         state,
@@ -382,7 +382,7 @@ fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() 
     let mut unknown = encoded.clone();
     unknown.source = None;
     assert!(
-        super::stored_integer_destination_projections(
+        super::destination_projections(
             &program,
             machine,
             state,
@@ -481,7 +481,7 @@ fn assert_returned_record_field_is_ordinary(source: &str) {
             })
             .collect::<Vec<_>>()
     });
-    let result = super::stored_integer_destination_projections(
+    let result = super::destination_projections(
         &program,
         machine,
         state,
@@ -515,14 +515,7 @@ fn declaration_field_projection_does_not_cross_unknown_stored_references() {
         panic!("store");
     };
     assert!(
-        super::stored_integer_destination_projections(
-            &program,
-            machine,
-            state,
-            assignment.target,
-            None,
-        )
-        .is_err(),
+        super::destination_projections(&program, machine, state, assignment.target, None,).is_err(),
         "a stored reference needs its contents' origin, not the enclosing declaration"
     );
 }

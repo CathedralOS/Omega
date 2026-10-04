@@ -1503,15 +1503,7 @@ fn explicit_reference_alias_arguments_cross_guarded_call_graph() {
         "/../../../../../tests/omega/pass/calls/runtime_explicit_reference_alias_argument_exit/main.omg"
     )));
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .unwrap_or_else(|error| {
-            let arguments = checked.facts.flow.terminal_unit_effects.composed_machines
-                .iter().flat_map(|machine| &machine.states)
-                .flat_map(|state| &state.operations)
-                .filter_map(|operation| operation.call())
-                .map(|call| (call.coordinate, call.structural_arguments.to_vec()))
-                .collect::<Vec<_>>();
-            panic!("guarded ordinary calls must retain alias backing: {error:?}; composed arguments: {arguments:?}");
-        });
+        .expect("guarded ordinary calls retain the original alias backing");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

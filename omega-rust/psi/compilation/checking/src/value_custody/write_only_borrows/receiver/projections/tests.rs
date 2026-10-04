@@ -170,3 +170,65 @@ fn captured_projection_rejects_stale_and_cyclic_paths() {
         );
     }
 }
+
+#[test]
+fn checked_call_subloans_preserve_aggregate_element_identity_and_bounds() {
+    for (declarations, root_type, projection) in [
+        ("", "[Record; 2]", "root[1]"),
+        (
+            "data Container { records: [[Record; 2]; 2]; }",
+            "Container",
+            "root.records[0][1]",
+        ),
+    ] {
+        let source = format!(
+            "data Record [copy] {{ value: u16; }}
+             data Other [copy] {{ value: u16; }} {declarations}
+             machine invoke(root: &write {root_type}, other: &write Other) {{
+                 let held: &write Record = &write {projection};
+             }}"
+        );
+        let (original, target, roots) = capture_fixture(&source);
+        let replay = |program: &TypedTrees, wrong_referee: bool| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "invoke")
+                .unwrap();
+            let state = &program.machine_states(machine)[0];
+            let StatementNode::LocalData(local) =
+                &program.statement_table.statements(state.statement_nodes)[0]
+            else {
+                panic!("captured place");
+            };
+            let declared = if wrong_referee {
+                program.state_parameters(state)[1].type_reference
+            } else {
+                local.type_reference
+            };
+            let mut diagnostics = Vec::new();
+            let resolved = super::super::super::write_only_call_subloan(
+                program,
+                machine,
+                state,
+                target,
+                Some(declared),
+                &roots,
+                &mut diagnostics,
+            );
+            resolved && diagnostics.is_empty()
+        };
+        assert!(replay(&original, false), "{source}");
+        assert!(!replay(&original, true), "same-shaped other declaration");
+        let ExpressionNode::Indexed(indexed) = original.expression_table.expression(target) else {
+            panic!("final element");
+        };
+        let index = indexed.index;
+        for value in [-1, 2] {
+            let mut changed = original.clone();
+            *changed.expression_table.expression_mut(index) =
+                ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(value));
+            assert!(!replay(&changed, false), "invalid element index {value}");
+        }
+    }
+}

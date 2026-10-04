@@ -645,9 +645,6 @@ pub(crate) fn parameter_source(
         if derived_parent {
             return Ok(Some(captured));
         }
-        if !formation && reason != FlowBorrowWeakeningReason::StateExit {
-            return unsupported("receiver alias chain has no state-exit root handoff");
-        }
         let [(parent_handle, _)] = parent_loans.as_slice() else {
             return unsupported("receiver alias has no exact parent loan");
         };

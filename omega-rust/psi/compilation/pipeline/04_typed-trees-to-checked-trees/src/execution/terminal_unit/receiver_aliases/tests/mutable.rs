@@ -8,7 +8,7 @@ fn chain() -> checked_trees::CheckedTrees {
         "let parent: &mut [Record; 2] = &mut records;
          let middle: &mut [Record; 2] = &mut parent;
          let child: &write Record = &write middle[1];",
-        "child.replace(17); child.replace(value);",
+        "Record::replace(&write child, 17); Record::replace(&write child, value);",
     )
 }
 

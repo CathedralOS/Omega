@@ -12,6 +12,7 @@
 mod certificate_planning;
 mod disposition_events;
 mod lifecycle;
+pub(crate) use lifecycle::{LifecyclePhase, weakening_event_boundary};
 mod lineage_replay;
 mod reborrow_drafts;
 mod resource_reconstruction;

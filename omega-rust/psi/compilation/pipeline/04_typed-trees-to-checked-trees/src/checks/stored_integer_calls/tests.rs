@@ -313,3 +313,71 @@ fn spelled_operator_effects_are_checked_at_their_actual_storage() {
         }
     }
 }
+
+#[test]
+fn token_machine_bodies_share_ordinary_write_admission() {
+    for (body, accepted) in [
+        ("destination.value = 127;", true),
+        ("destination.value = 128; destination.value = 0;", false),
+    ] {
+        let source = format!(
+            "data Cell {{ value: i64; }}
+             machine + Cell::write(destination: &mut Cell, ignored: i64) -> i64 {{
+                 {body}
+                 0
+             }}
+             machine run(destination: &mut Cell) {{
+                 let observed: i64 = destination + 1;
+             }}"
+        );
+        let result = checked(&source);
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{source}\n{:?}",
+            result.as_ref().err()
+        );
+        match result {
+            Ok(checked) => {
+                let machine = checked
+                    .typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "Cell::write")
+                    .expect("selected token machine");
+                let entry = checked
+                    .typed
+                    .machine_states(machine)
+                    .first()
+                    .expect("ordinary executable entry");
+                assert!(
+                    checked
+                        .facts
+                        .flow
+                        .control
+                        .calls
+                        .iter()
+                        .any(|(_, call)| { call.target_symbol == entry.symbol }),
+                    "the token expression must become an ordinary call to its body"
+                );
+                assert_eq!(
+                    checked
+                        .facts
+                        .mutation
+                        .integer_writes
+                        .iter()
+                        .filter(|(_, write)| write.machine == machine.symbol)
+                        .count(),
+                    1,
+                    "ordinary body inventory retains the performed store"
+                );
+            }
+            Err(errors) => assert!(
+                errors.iter().any(|error| {
+                    error.message.contains("IntegerAt") && error.message.contains("fit")
+                }),
+                "{errors:?}"
+            ),
+        }
+    }
+}

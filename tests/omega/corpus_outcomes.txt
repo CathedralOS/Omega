@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 7.52, "load1_start": 7.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.47, "load1_start": 3.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 123ms expected @229377b75447
@@ -754,6 +754,12 @@ fail/inline_asm/asm_where_contract rejected 73ms expected @c08960bee2b1+wt
 	machine `Main::main` state `main` asm `requires` fact `main.value` is not boolean-shaped
 fail/inline_asm/asm_where_missing_clobber rejected 1ms expected @2d8ed253669f
 	tests/omega/fail/inline_asm/asm_where_missing_clobber/main.omg:10:1: asm where `clobbers` must exactly match the realized instruction contract: missing `r11`, `r15`
+fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 251ms expected @bf12cd0f89bb+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 251ms expected @bf12cd0f89bb+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/callee_integer_at_write_requires_fit rejected 250ms expected @bf12cd0f89bb+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f
 	plan-laid value type `Streamy<Pairish>`: policy `Streamy::plan` produced a dynamic plan; a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed253669f

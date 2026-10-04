@@ -274,8 +274,8 @@ pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{
-    standing_integer_bounds, stored_integer_bounds, stored_integer_destination_projections,
-    stored_integer_source_may_require_fit, stored_integer_source_projection,
+    standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
+    stored_integer_source_projection,
 };
 pub use proof_contracts::contract_entailment::instantiated_value_call_requires_proven;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;

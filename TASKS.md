@@ -3368,28 +3368,37 @@ unchanged, except for intended deletions, which its commit lists.
 
   The draft call consumer checks each retained integer assignment, including
   overwritten values and pre-crash writes, against captured caller storage.
-  Storage origins now follow named-state parameters, and recasts preserve
-  earlier physical coordinates. Normalized controls cover repeated writes,
-  forwarding, guarded assignments and ordinary owned builders. The direct,
-  intermediate and named-state invalid-write fixtures produce the intended
-  caller-width diagnostic. Recheck the public runtime customers after the
-  latest assignment-decision and builder-origin repairs; their last run still
-  rejected unrelated library writes. Selected operators capture actual
-  operand origins but still need complete performed-write coverage.
+  Storage origins follow named-state parameters, and recasts preserve earlier
+  physical coordinates. The direct, intermediate and named-state invalid-write
+  fixtures now reject only for the intended caller-width reason. The fitting
+  call customer clears source checking, and direct encoded-store execution
+  remains correct. Token-machine operators rewrite to ordinary calls and share
+  their performed-write inventory; opaque operators cannot substitute a final
+  value contract for evidence about every intermediate write.
 
-  `runtime_callee_integer_at_fitting_write_exit` is the execution customer:
-  direct and forwarding helpers write -128 and 127 through a legal `&mut i64`
-  loan to signed eight-bit storage, and neighboring byte 85 must survive.
-  Explicit alias argument custody replay passes its focused controls, but
-  `runtime_explicit_reference_alias_argument_exit` still fails lowering:
-  composed calls retain an erased alias as `StructuralLocal` rather than
-  capturing its original backing. Repair that source planning handoff, then
-  retain physical geometry through ordinary calls or a checked adapter.
-  A raw carrier-width pointer or delayed copy-out cannot establish that
-  contract. Complete those dependencies, retain and consume all other operation
-  decisions, and replace conditional-cleanup proof search before deleting any
-  late gate. Public layout literals remain separate unsupported syntax;
-  normalized constructor checks do not establish source-literal support.
+  `runtime_explicit_reference_alias_argument_exit` now runs through the ordinary
+  CLI in both engines with exit 0. Call planning consumes the exact loan closure
+  at its actual last-use boundary rather than requiring state exit; helpers
+  modify the original caller field and preserve neighboring value 85.
+
+  `runtime_callee_integer_at_fitting_write_exit` remains the encoded-storage
+  execution customer: helpers write -128 and 127 through a legal `&mut i64`
+  loan to signed eight-bit storage, and neighboring byte 85 must survive. Its
+  current lowering failure is a dropped/added body effect at the recast alias.
+  Reference formation and transport must retain the actual backing address
+  together with its canonical storage encoding. Calls, joins, returns,
+  recursion and reference-bearing records must keep that pair correlated;
+  specialization alone cannot handle a runtime choice of backing encodings.
+  Extend the shared reference representation and its internal ABI, native
+  accesses, checked interpreter and terminal interpreter consistently. Preserve
+  logical carrier type and permissions, and consume retained fit decisions.
+  A raw carrier-width pointer or delayed copy-out cannot establish this
+  contract; foreign raw-pointer boundaries need a compatible checked adapter.
+
+  Retain and consume all other operation decisions and replace conditional
+  cleanup proof search before deleting any late gate. Public layout literals
+  remain separate unsupported syntax; normalized constructor checks do not
+  establish source-literal support.
 
   Boolean recast admission already enforces the exact representation set
   (shared implication, mutable equivalence), and source checking already owns
@@ -4410,8 +4419,12 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   writeback, an untouched neighbor, opposite branches and projected record
   subloans. Receiving checks reject readable widening, retired names and reads
   of backing storage still pinned by an exclusive loan. This is not closure of
-  aggregate replacement or the other host executions. The public `omega run
-  --both` command still requires ordinary package review in this checkout.
+  aggregate replacement or the other host executions. Literal-indexed record
+  subloans now use the same non-observing projection judgment as field subloans,
+  retaining exact declaration identity and bounds. On macOS ARM64,
+  `borrow/runtime_write_only_record_array_argument_exit` executes in both engines
+  with exit **0**: repeated calls through three captured write-only aliases
+  update the selected record and preserve its neighbor.
 
   Remaining: general aggregate and `[copy]` sum replacement beyond scalar-field
   record literals; runtime domain-qualified byte-field replacement with encoding

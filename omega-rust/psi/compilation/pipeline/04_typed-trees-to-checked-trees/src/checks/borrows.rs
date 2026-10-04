@@ -43,6 +43,7 @@ mod persistent;
 // statement borrows and direct-borrow resources.
 pub(crate) mod calls;
 mod resources;
+pub(crate) use resources::{LifecyclePhase, weakening_event_boundary};
 mod statements;
 
 // Shared by the checks: compatibility judgments, and binding and loan

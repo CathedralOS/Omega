@@ -3,15 +3,14 @@
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckFacts,
-    CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect,
-    CheckedReborrowContainmentCertificate, CheckedReborrowContainmentKind,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
-    FlowConstraintKind, FlowInvalidationSource, FlowStateFact, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    CheckedBorrowResourceDispositionTarget, CheckedParentBorrowResource,
+    CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
+    CheckedReborrowContainmentKind, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, FlowBorrowActivationFact, FlowBorrowWeakeningFact,
+    FlowBorrowWeakeningReason, FlowConstraintKind, FlowInvalidationSource, FlowStateFact,
+    ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 use symbols::SymbolHandle;
 
@@ -316,11 +315,19 @@ pub(super) fn closures(
         };
         let (child_activation, child_weakening) = lifecycle(facts, flow, loan)?;
         let weakening = facts.flow.borrow_lifetimes.weakenings.get(child_weakening);
+        let boundary =
+            crate::checks::weakening_event_boundary(weakening.source, weakening.reason).ok()?;
         let mut retired_parent_path = Vec::new();
         let mut ancestor = *parent_position;
-        let root_lifetime = loop {
+        let (root_lifetime, root_boundary) = loop {
             let parent_resource = resource(facts, loans[ancestor].0)?;
             let (_, weakening) = lifecycle(facts, flow, loans[ancestor].0)?;
+            let retired = facts.flow.borrow_lifetimes.weakenings.get(weakening);
+            let retired_boundary =
+                crate::checks::weakening_event_boundary(retired.source, retired.reason).ok()?;
+            if retired_boundary > boundary {
+                return None;
+            }
             retired_parent_path.push(CheckedRetiredParentResourceDispositionStep {
                 resource: parent_resource.clone(),
                 weakening,
@@ -334,21 +341,28 @@ pub(super) fn closures(
                 let CheckedParentBorrowResource::DirectRoot { resource } = parent_resource else {
                     return None;
                 };
-                break facts
-                    .borrow
-                    .direct_loan_resources
-                    .get(resource)
-                    .parent_lifetime
-                    .clone();
+                break (
+                    facts
+                        .borrow
+                        .direct_loan_resources
+                        .get(resource)
+                        .parent_lifetime
+                        .clone(),
+                    retired_boundary,
+                );
             }
         };
-        let (boundary_phase, disposition) = match weakening.reason {
-            FlowBorrowWeakeningReason::StateExit => (
-                CheckedBorrowResourceLifecyclePhase::StateExit,
-                CheckedReborrowResourceDisposition::StateExitDirectRootHandoff,
-            ),
-            _ => return None,
+        // The alias still denotes its captured storage when its last use
+        // precedes a later statement. Consume the checker's exact closure at
+        // that boundary; state exit is one disposition, not an erasure rule.
+        let disposition = if boundary.phase == crate::checks::LifecyclePhase::StateExit {
+            CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+        } else if root_boundary == boundary {
+            CheckedReborrowResourceDisposition::SameBoundaryLineageClosure
+        } else {
+            CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
         };
+        let boundary_phase = boundary.phase.retained();
         let expected = CheckedReborrowResourceDispositionEvent {
             machine_symbol: flow.machine_symbol,
             state_symbol: flow.state_symbol,
