@@ -178,6 +178,6 @@ fn unserved_qualified_requirement_value_call_declines() {
     let outcome = run(&program, "main", &[]);
     assert_eq!(
         outcome.error.as_deref(),
-        Some("qualified call target `sample` has no resolved state")
+        Some("call target `sample` has no resolved state")
     );
 }

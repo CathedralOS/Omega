@@ -257,8 +257,7 @@ impl<'program> Evaluator<'program> {
     /// name or attached data. Service fields need no separate establishment
     /// here: the interpreter dispatches boundary calls by their resolved
     /// requirement, not by a runtime binding value, so their ZII placeholder is
-    /// never read. A legacy `&mut self` context is the machine instance, whose
-    /// fields are the attached record's zero defaults already.
+    /// never read. Namespace attachment never supplies implicit storage.
     ///
     /// Every other runtime parameter is arrival the interpreter cannot supply
     /// (freestanding image/initial-storage roots, placed-view custody inputs).
@@ -589,16 +588,11 @@ impl<'program> Evaluator<'program> {
 
     // ---- machine / data instantiation --------------------------------------
 
-    /// Build a machine instance as a `Struct` whose fields are the attached data's
-    /// fields (with their defaults) plus the machine's contained sub-objects.
+    /// Allocate only explicitly machine-owned cells. A declaration namespace
+    /// is not an instance: its fields exist only when a value is constructed
+    /// or the entry bridge provisions an explicit context argument.
     fn instantiate_machine(&mut self, machine: &Machine) -> EvalResult<Cell> {
         let mut fields: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
-
-        if let Some(data_name) = machine.attached_data.as_ref()
-            && let Some(data) = self.find_data_by_name(data_name.as_str())
-        {
-            self.populate_data_fields(data, &mut fields)?;
-        }
 
         // Machine-owned data (the `owned_data` span) are additional named cells.
         for owned in self.program.machine_owned_data(machine) {

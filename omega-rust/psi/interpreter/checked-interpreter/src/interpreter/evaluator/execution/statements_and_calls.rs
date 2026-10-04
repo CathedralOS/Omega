@@ -4,7 +4,6 @@ use crate::interpreter::evaluator::{
     TableTransition, TransitionDecision, TransitionGuardNode, TransitionTargetNode,
     TypeReferenceNode, Value, trap,
 };
-use language_core::is_self_receiver;
 use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::TransitionExit;
 
@@ -547,12 +546,8 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        let (machine, state, instance) = if call.receiver.is_empty() {
-            self.resolve_entry_state_symbol(call.target_symbol, frame)
-                .map_or_else(|| self.resolve_state_call(call, frame), Ok)?
-        } else {
-            self.resolve_state_call(call, frame)?
-        };
+        let (machine, state, instance) =
+            self.resolve_static_call(call.target_symbol, call.target.as_str(), frame)?;
 
         let arguments = self.eval_state_arguments(
             state,
@@ -566,10 +561,8 @@ impl<'program> Evaluator<'program> {
             .map(|value| value.unwrap_or(Value::Unit))
     }
 
-    /// Resolve a receiverless direct call through its exact entry-state
-    /// symbol. Selected checked adapters and static-machine specialization
-    /// retain this identity specifically so attached/plural realizations do
-    /// not fall back to ambiguous display-name lookup.
+    /// Checked target identity selects the declaration or state. Qualification
+    /// contributes no storage; all runtime operands are explicit arguments.
     pub(in crate::interpreter::evaluator) fn resolve_entry_state_symbol(
         &self,
         target_symbol: SymbolHandle,
@@ -578,70 +571,28 @@ impl<'program> Evaluator<'program> {
         if !target_symbol.is_valid() {
             return None;
         }
-        self.program.machines().iter().find_map(|machine| {
-            self.program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == target_symbol)
-                .map(|state| (machine, state, frame.self_cell.clone()))
-        })
+        let (machine, state) = if let Some(machine) = self.program.machine_by_symbol(target_symbol)
+        {
+            (machine, self.machine_entry_state(machine)?)
+        } else {
+            let machine = self.program.machine_holding_state(target_symbol)?;
+            (machine, self.find_state_by_symbol(machine, target_symbol)?)
+        };
+        Some((machine, state, frame.self_cell.clone()))
     }
 
-    /// Resolve a call target -- a state name with an optional receiver path -- to the
-    /// (machine, state, instance) it runs against. Priority:
-    /// 0. A declaration namespace selects its exact resolved static target;
-    ///    qualification supplies no runtime instance or implicit argument.
-    /// 1. An explicit receiver path naming a CONTAINED sub-machine instance field whose
-    ///    type defines the target state (`self.dungeon.foo()`): run on that sub-instance.
-    ///    A resolved `target_symbol` (specialization rewrite or checked selection) picks
-    ///    the exact entry state on that instance before any name matching.
-    /// 2. A SIBLING state of the current machine (`self.foo()` where `foo` is a state of
-    ///    the machine currently executing): run that state on the same `self`.
-    /// 3. A free helper machine named `<group>::<target>` or any machine with that state:
-    ///    run its entry state on the current `self`.
-    fn resolve_state_call(
+    /// Missing checked selection is malformed input, not a request to search
+    /// receiver values, sibling spellings, or unrelated machine declarations.
+    pub(in crate::interpreter::evaluator) fn resolve_static_call(
         &self,
-        call: &TableCall,
+        target_symbol: SymbolHandle,
+        target: &str,
         frame: &Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
-        let target = call.target.as_str();
-        // `Counter::record` retains a receiver path for the namespace, not
-        // for storage. Generic specialization can leave the authored leaf
-        // unchanged while selecting a different entry symbol for each
-        // application. Never reselect that machine by its display name or
-        // mistake the namespace for a field on the caller's instance.
-        if self.statement_receiver_is_namespace(call) {
-            return self.resolve_namespace_call(
-                call.target_symbol,
-                target,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .len(),
-                frame,
-            );
-        }
-
-        // (1) Explicit receiver path to a contained sub-machine instance.
-        if let Some(resolved) = self.resolve_receiver_state_call(call, frame)? {
-            return Ok(resolved);
-        }
-
-        // (2) Sibling state of the current machine.
-        if let Some(machine) = self.current_machine(frame)
-            && let Some(state) = self.find_state(machine, target)
-        {
-            return Ok((machine, state, frame.self_cell.clone()));
-        }
-
-        // (3) A free helper machine.
-        let machine = self
-            .find_machine_for_call(target, frame)
-            .ok_or_else(|| Halt::Unsupported(format!("unknown call target `{target}`")))?;
-        let entry_state = self
-            .machine_entry_state(machine)
-            .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
-        Ok((machine, entry_state, frame.self_cell.clone()))
+        self.resolve_entry_state_symbol(target_symbol, frame)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!("call target `{target}` has no resolved state"))
+            })
     }
 
     fn statement_receiver_is_namespace(&self, call: &TableCall) -> bool {
@@ -675,156 +626,6 @@ impl<'program> Evaluator<'program> {
             )
     }
 
-    /// A namespace contributes neither an instance nor an argument. Missing
-    /// target identity declines instead of selecting a same-spelled machine.
-    pub(in crate::interpreter::evaluator) fn resolve_namespace_call(
-        &self,
-        target_symbol: SymbolHandle,
-        target: &str,
-        argument_count: usize,
-        frame: &Frame,
-    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
-        let resolved = self
-            .resolve_entry_state_symbol(target_symbol, frame)
-            .ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "qualified call target `{target}` has no resolved state"
-                ))
-            })?;
-        // Namespace qualification supplies no operand. The ordinary evaluator
-        // and frame binder consume every explicit formal, including legacy self.
-        if argument_count != self.program.state_parameters(resolved.1).len() {
-            return Err(Halt::Unsupported(format!(
-                "qualified call target `{target}` requires all declared arguments"
-            )));
-        }
-        Ok(resolved)
-    }
-
-    /// If the call has a receiver path that resolves (relative to `self`) to a CONTAINED
-    /// sub-machine instance whose machine defines the target state, return that instance and
-    /// machine. The receiver path's leaf is the field; the head may be `self`.
-    fn resolve_receiver_state_call(
-        &self,
-        call: &TableCall,
-        frame: &Frame,
-    ) -> EvalResult<Option<(&'program Machine, &'program State, Cell)>> {
-        let target = call.target.as_str();
-        let target_symbol = call.target_symbol;
-        let members: Vec<String> = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .iter()
-            .map(|name| name.as_str().to_owned())
-            .collect();
-        if members.is_empty() {
-            return Ok(None);
-        }
-
-        // Walk the receiver path to a cell, starting at `self` (an implicit-self leaf like
-        // `console` is a single-member path; `self.dungeon` is `[self, dungeon]`).
-        let mut cell = frame.self_cell.clone();
-        let mut start = 0;
-        if is_self_receiver(&members[0]) {
-            start = 1;
-        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
-            cell = local;
-            start = 1;
-        }
-        for member in &members[start..] {
-            cell = self.deref_cell(cell);
-            match self.field_cell(&cell, member) {
-                Ok(next) => cell = next,
-                Err(_) => return Ok(None),
-            }
-        }
-        cell = self.deref_cell(cell);
-
-        // A resolved target symbol (checked selection or a specialization
-        // rewrite such as `self.put<n>(v)` targeting the `put$specialized`
-        // entry) selects the exact state; the receiver cell supplies the
-        // instance. Mirrors the expression-call path in
-        // `resolve_value_call_target`, which prefers the symbol over name
-        // matching for any resolvable receiver including bare `self`.
-        if let Some((machine, state, _)) = self.resolve_entry_state_symbol(target_symbol, frame) {
-            return Ok(Some((machine, state, cell)));
-        }
-
-        // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
-        // self receiver is handled by the sibling-state path).
-        let bare_self = members.len() == 1 && is_self_receiver(&members[0]);
-        if bare_self {
-            return Ok(None);
-        }
-        Ok(self
-            .machine_for_instance_state(&cell, target)
-            .and_then(|machine| {
-                self.find_state(machine, target)
-                    .map(|state| (machine, state, cell))
-            }))
-    }
-
-    /// Find the machine that operates on `instance` and defines `target` as a state. The
-    /// instance is a `Struct` whose `type_name` is the data/machine type (e.g. `Circle`); a
-    /// free machine `Circle::code` lives in that type's group. Matches by machine symbol, by
-    /// attached-data name, or by the `<type>::<target>` group-qualified machine name.
-    pub(in crate::interpreter::evaluator) fn machine_for_instance_state(
-        &self,
-        instance: &Cell,
-        target: &str,
-    ) -> Option<&'program Machine> {
-        let (type_symbol, type_name) = match &*instance.borrow() {
-            Value::Struct {
-                type_symbol,
-                type_name,
-                ..
-            } => (*type_symbol, type_name.clone()),
-            // An ENUM receiver (`self.s.go_value()` where `s: Signal`): the
-            // enum-attached machine group is the declaring data type, whose
-            // NAME resolves from the value's type_symbol. Without this arm the
-            // method call silently failed to find its machine and returned ZII.
-            Value::Enum { type_symbol, .. } => {
-                let name = self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| type_symbol.is_valid() && data.symbol == *type_symbol)
-                    .map(|data| crate::value::ValueName::from(data.name.as_str()))?;
-                (*type_symbol, name)
-            }
-            _ => return None,
-        };
-        // The group is the leading segment of the type name (e.g. `Circle` from `Circle`).
-        let group = type_name
-            .split("::")
-            .next()
-            .unwrap_or(&type_name)
-            .to_owned();
-        for machine in self.program.machines() {
-            if self.find_state(machine, target).is_none() {
-                continue;
-            }
-            let machine_group = machine
-                .name
-                .as_str()
-                .split("::")
-                .next()
-                .unwrap_or("")
-                .to_owned();
-            let by_symbol = type_symbol.is_valid() && machine.symbol == type_symbol;
-            let by_attached = machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|data| data.as_str() == group);
-            let by_group = machine_group == group;
-            if by_symbol || by_attached || by_group {
-                return Some(machine);
-            }
-        }
-        None
-    }
-
     pub(in crate::interpreter::evaluator) fn current_machine(
         &self,
         frame: &Frame,
@@ -836,56 +637,6 @@ impl<'program> Evaluator<'program> {
             .machines()
             .iter()
             .find(|machine| machine.symbol == frame.machine_symbol)
-    }
-
-    /// Find the machine invoked by a call whose `target` is a state name. A free helper
-    /// machine is named `<group>::<target>` (e.g. `Main::bump`); resolve by that name, or
-    /// by any machine that contains a state of that name and shares the receiver group.
-    pub(in crate::interpreter::evaluator) fn find_machine_for_call(
-        &self,
-        target: &str,
-        frame: &Frame,
-    ) -> Option<&'program Machine> {
-        // The receiver's machine-group prefix (e.g. "Main" from "Main::main").
-        let group = {
-            let self_name = match &*frame.self_cell.borrow() {
-                Value::Struct { type_name, .. } => type_name.clone(),
-                _ => "".into(),
-            };
-            self_name
-                .split("::")
-                .next()
-                .map(|prefix| prefix.to_owned())
-                .unwrap_or_default()
-        };
-
-        let qualified = format!("{group}::{target}");
-        if let Some(machine) = self.find_machine_by_name(&qualified) {
-            return Some(machine);
-        }
-        // A FREE top-level machine named exactly `target` (`machine pick(x: i32)
-        // -> i32`): its body state is the generated `entry`, so the state-name
-        // scan below would miss it.
-        if let Some(machine) = self.find_machine_by_name(target)
-            && machine.attached_data.is_none()
-        {
-            return Some(machine);
-        }
-        // Otherwise a machine that simply has a state named `target` -- but only when that
-        // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait
-        // machine), guessing the first would silently dispatch to the wrong type; decline
-        // instead so the caller reports unsupported (dispatch by the RECEIVER's runtime
-        // type is handled earlier, in `machine_for_instance_state`).
-        let mut candidates = self
-            .program
-            .machines()
-            .iter()
-            .filter(|machine| self.find_state(machine, target).is_some());
-        let first = candidates.next();
-        if candidates.next().is_some() {
-            return None;
-        }
-        first
     }
 
     pub(in crate::interpreter::evaluator) fn machine_entry_state(
