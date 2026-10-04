@@ -808,12 +808,61 @@ impl StateGraphEmission<'_, '_> {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => {
-                        state_parameters
+                        let parameter = state_parameters
                             .get(parameter_index as usize)
                             .ok_or(LoweringError::Unsupported(
                                 "structural graph return parameter missing",
-                            ))?
-                            .place
+                            ))?;
+                        let result_type = crate::terminal_identities::lookup_type_id(
+                            &self.catalogs.type_ids,
+                            &result.type_identity,
+                        )?;
+                        if self.catalogs.structural_types.iter().any(|declaration| {
+                            declaration.id == result_type
+                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Reference { .. })
+                        }) {
+                            // A borrowed formal is referent storage, whereas
+                            // this result is an owned reference carrier. The
+                            // exact admitted ingress receipt supplies its loan;
+                            // use ordinary materialization rather than return
+                            // the differently typed referent place itself.
+                            let [reference] = result.reference_sources.as_slice() else {
+                                return unsupported("reference parameter return lost its single ingress");
+                            };
+                            if !reference.path.is_empty()
+                                || reference.source.source != result.source
+                            {
+                                return unsupported("reference parameter return exchanged its ingress");
+                            }
+                            let access = match reference.source.access {
+                                checked_trees::CheckedStructuralAccess::SharedBorrow => terminal_psi::StructuralAccess::SharedBorrow,
+                                checked_trees::CheckedStructuralAccess::MutableBorrow => terminal_psi::StructuralAccess::MutableBorrow,
+                                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                                checked_trees::CheckedStructuralAccess::Owned => return unsupported("reference parameter return has owned referent access"),
+                            };
+                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                &reference.source.path,
+                                parameter.structural_type,
+                                &self.catalogs.structural_types,
+                                None,
+                                &mut std::iter::empty(),
+                                None,
+                            )?;
+                            let declaration = crate::unit::attached_unit::reference_results::emit_carrier(
+                                result_type,
+                                terminal_psi::StructuralArgument {
+                                    place: evaluation.current_structural_place(parameter.place),
+                                    path,
+                                    access,
+                                },
+                                &mut self.catalogs.next_place,
+                                &mut operations,
+                            )?;
+                            self.structural_places.push(declaration);
+                            declaration.id
+                        } else {
+                            parameter.place
+                        }
                     }
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
                         ref bytes,
