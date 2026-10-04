@@ -13,9 +13,9 @@ use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -80,6 +80,7 @@ pub(crate) fn validate_implicit_domain_weakening(
         target_type,
         owner,
         false,
+        None,
         diagnostics,
     );
 }
@@ -87,6 +88,11 @@ pub(crate) fn validate_implicit_domain_weakening(
 /// A sealed primitive Float operation may retain its evaluated operand policy
 /// through its adapter. All other calls obey their declared parameter policy;
 /// no semantic or provenance atom is exempted by primitive adaptation.
+///
+/// `callee_parameter` names the declared parameter an ARGUMENT fills, so the
+/// callee's own `requires` premises about it join the parameter's declared type
+/// as the atom surface the argument lands on. Ordinary stores, returns and
+/// field initializers have no callee contract and pass `None`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_argument_domain_weakening(
     program: &TypedTrees,
@@ -96,6 +102,7 @@ pub(crate) fn validate_argument_domain_weakening(
     target_type: TypeReferenceHandle,
     owner: &str,
     retains_primitive_float_policy: bool,
+    callee_parameter: Option<&StateParameter>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !value.is_valid() || !target_type.is_valid() {
@@ -115,6 +122,9 @@ pub(crate) fn validate_argument_domain_weakening(
     }
     let mut target = Vec::new();
     append_type_atoms(program, target_type, &mut target, &mut Vec::new());
+    let premises = callee_parameter
+        .map(|parameter| parameter_premise_atoms(program, parameter))
+        .unwrap_or_default();
 
     let dropped = source
         .iter()
@@ -122,6 +132,17 @@ pub(crate) fn validate_argument_domain_weakening(
             !(retains_primitive_float_policy && matches!(atom, DomainAtom::Arithmetic(_)))
         })
         .filter(|atom| atom_requires_explicit_removal(program, atom))
+        // A domain the callee states as a `requires` premise about this exact
+        // parameter is CONSUMED by the call, not erased by it: the caller must
+        // establish that contract for its actual argument at this occurrence,
+        // so a qualified argument discharges the premise instead of forgetting
+        // the atom. Every atom the premises do not name still needs an
+        // explicit `as`.
+        .filter(|atom| {
+            !premises
+                .iter()
+                .any(|premise| atoms_equivalent(program, atom, premise))
+        })
         // PDI3 same-family indexed mismatches are equality obligations, not
         // implicit semantic removal. Their exact closed/normalization/local-
         // fact judgment runs after semantic flow contexts exist in checked
@@ -186,6 +207,52 @@ pub(crate) fn validate_argument_domain_weakening(
     }
 }
 
+/// The domains a callee's `requires` rows assert about one declared parameter.
+/// `requires guard in InterruptMaskGuard::Active` states the entry contract
+/// hypothetically: the parameter's declared type stays the plain carrier, and
+/// the caller establishes the membership for its actual argument. Only an exact
+/// `<parameter> in <Domain>` conjunct of a `requires` clause contributes —
+/// authored `&` conjunctions lower to one membership fact each, and a
+/// projection, another binding, or an `ensures` row names no premise here. The
+/// declared-atom expansion is the same one a declared qualification gets, so an
+/// alias premise contributes its constituents and a refinement its parents.
+fn parameter_premise_atoms(program: &TypedTrees, parameter: &StateParameter) -> Vec<DomainAtom> {
+    if !parameter.symbol.is_valid() {
+        return Vec::new();
+    }
+    let owner = program.symbols.get(parameter.symbol).parent;
+    let Some(contracts) = callable_signature_contracts(program, owner) else {
+        return Vec::new();
+    };
+    let mut atoms = Vec::new();
+    for contract in contracts {
+        if !matches!(contract.kind, SignatureContractKind::Requires) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            if !program
+                .expression_table
+                .names_parameter(membership.value, parameter)
+            {
+                continue;
+            }
+            append_declared_atom(
+                program,
+                membership.domain_symbol,
+                membership.semantic_domain,
+                !membership.domain_arguments.is_empty(),
+                None,
+                &mut atoms,
+                &mut Vec::new(),
+            );
+        }
+    }
+    atoms
+}
+
 /// A declared atom with no predicate body and no establishment route is an
 /// assumption, not a provable obligation: no checker downstream can discharge
 /// it from the store itself, so the value must already carry it. Indexed
@@ -226,7 +293,7 @@ fn append_call_ensured_domain_atoms(
             _ => return,
         }
     };
-    let Some(contracts) = call_signature_contracts(program, call) else {
+    let Some(contracts) = callable_signature_contracts(program, call.target_symbol) else {
         return;
     };
     for contract in contracts {
@@ -261,16 +328,17 @@ fn append_call_ensured_domain_atoms(
     }
 }
 
-/// The contract rows of the callable a value-position call resolves to,
-/// mirroring `resolved_call_result_type`'s resolution: a machine body's
-/// states and their machine-level rows, or the closed requirement signature a
-/// boundary call targets.
-fn call_signature_contracts<'program>(
+/// The contract rows of the callable one state symbol names, mirroring
+/// `resolved_call_result_type`'s resolution: a machine body's states and their
+/// machine-level rows, or the closed requirement signature a boundary call
+/// targets. A value-position call passes its target symbol; an argument passes
+/// the parameter's owning callable.
+fn callable_signature_contracts<'program>(
     program: &'program TypedTrees,
-    call: &TableCallExpression,
+    target: SymbolHandle,
 ) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
     if let Some((machine, state)) =
-        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+        crate::machine_calls::calls::machine_state_by_symbol(program, target)
     {
         return Some(
             program
@@ -280,7 +348,6 @@ fn call_signature_contracts<'program>(
                 .collect(),
         );
     }
-    let target = call.target_symbol;
     if !target.is_valid() {
         return None;
     }

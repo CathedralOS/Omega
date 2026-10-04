@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
 pub(crate) fn validate_qualification_authorization(
@@ -219,21 +219,15 @@ fn mutable_parameter<'a>(
     signature: &'a typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<&'a typed_trees::signature::StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
-        return None;
-    };
     program
         .state_signature_parameters(signature)
         .iter()
         .find(|parameter| {
             !parameter.is_self
                 && is_mutable_reference(program, parameter.type_reference)
-                && (parameter.name.as_str() == name.as_str()
-                    || parameter.symbol == path.symbol
-                    || parameter.symbol == path.head_symbol)
+                && program
+                    .expression_table
+                    .names_parameter(expression, parameter)
         })
 }
 

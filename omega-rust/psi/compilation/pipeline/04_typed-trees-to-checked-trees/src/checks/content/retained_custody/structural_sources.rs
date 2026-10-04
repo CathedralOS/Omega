@@ -5,7 +5,7 @@
 //! element type once, and reports incomplete expansion explicitly. These are
 //! declaration subjects, not live claims or authority evidence.
 
-use super::{DomainApplication, expression_names_parameter};
+use super::DomainApplication;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataMember, TypeParameterKind};
@@ -46,7 +46,9 @@ pub(super) fn parameter_sources(
             if let ProofFact::Membership(membership) = fact
                 && membership.domain_symbol.is_valid()
                 && membership.semantic_domain.is_valid()
-                && expression_names_parameter(program, membership.value, parameter)
+                && program
+                    .expression_table
+                    .names_parameter(membership.value, parameter)
             {
                 let source = ContentSource {
                     domain: DomainApplication {

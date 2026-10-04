@@ -551,6 +551,29 @@ impl ExpressionTable {
                 .all(|symbol| !symbol.is_valid())
     }
 
+    /// Whether `expression` is the exact bare occurrence of `parameter`: a
+    /// single-member name path bound to that parameter's symbol, or spelled
+    /// with its exact name when resolution left the occurrence unbound. A
+    /// projection (`parameter.field`) and a qualified path are both longer
+    /// than one member, so neither names the parameter itself. The zero symbol
+    /// is absence, so an invalid parameter symbol never matches an unbound
+    /// occurrence by handle — only the authored spelling can.
+    pub fn names_parameter(
+        &self,
+        expression: ExpressionHandle,
+        parameter: &crate::signature::StateParameter,
+    ) -> bool {
+        let ExpressionNode::Name(path) = self.expression(expression) else {
+            return false;
+        };
+        let [name] = self.name_path_members(path.members) else {
+            return false;
+        };
+        (parameter.symbol.is_valid()
+            && (path.symbol == parameter.symbol || path.head_symbol == parameter.symbol))
+            || name.as_str() == parameter.name.as_str()
+    }
+
     /// Whether two expressions in this table are structurally identical: same node
     /// shapes, literals, names/symbols, and operators, recursively. Lowering copies
     /// expression trees per use site, so a SHARED source expression (e.g. the subject

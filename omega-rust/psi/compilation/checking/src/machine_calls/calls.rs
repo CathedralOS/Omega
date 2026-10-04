@@ -821,6 +821,7 @@ fn validate_call_arguments_with_type_correspondence(
             parameter.type_reference,
             &slot_context,
             retains_primitive_float_policy,
+            Some(parameter),
             diagnostics,
         );
         // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
@@ -1089,6 +1090,7 @@ fn validate_value_call_argument_classes(
             parameter.type_reference,
             &slot_context,
             retains_primitive_float_policy,
+            Some(parameter),
             diagnostics,
         );
         // (No array/scalar shape check here -- see the note in

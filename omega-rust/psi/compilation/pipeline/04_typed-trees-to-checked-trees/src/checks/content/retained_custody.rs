@@ -22,7 +22,6 @@ use language_semantics::{Multiplicity, ReferenceAccess, SemanticDomainId};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -93,7 +92,9 @@ pub(crate) fn check_callable(
                     let ProofFact::Membership(membership) = fact else {
                         continue;
                     };
-                    if expression_names_parameter(program, membership.value, parameter)
+                    if program
+                        .expression_table
+                        .names_parameter(membership.value, parameter)
                         && let Some(domain) =
                             nominal_domain_application(program, membership.domain_symbol)
                     {
@@ -511,17 +512,6 @@ fn nominal_domain_application(
 
 fn type_contains_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     type_reference.is_valid() && crate::borrow::view_link::returns_borrow(program, type_reference)
-}
-fn expression_names_parameter(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameter: &StateParameter,
-) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    matches!(program.expression_table.name_path_members(path.members), [name]
-        if path.symbol == parameter.symbol || name.as_str() == parameter.name.as_str())
 }
 
 fn push_unique_domain_application(domains: &mut Vec<DomainApplication>, domain: DomainApplication) {
