@@ -1832,8 +1832,8 @@ pass/expressions/runtime_numeric_cast_exit checked 4281ms @2d8ed253669f
 pass/expressions/runtime_widened_comparison_exit checked 1648ms @2d8ed253669f
 pass/expressions/scalar_match_boundary_composition_exit checked 5240ms @2d8ed253669f
 pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
-pass/filesystem/dir_walk_wrappers_exit rejected 12421ms @c47f8652484
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::read_dir_is_empty`), which was itself omitted at local construction at `statement sequence: structural result: returned value` (state 3)
+pass/filesystem/dir_walk_wrappers_exit rejected 5402ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/native_canonicalize rejected 1211ms @c47f8652484
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close checked 1246ms @9b253f5667e5
@@ -1858,16 +1858,17 @@ pass/filesystem/native_wrapper_write_all_result rejected 31736ms @c47f8652484
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/runtime_local_host_result_dispatch_exit rejected 1822ms @c47f8652484
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/windows_canonicalize_exit rejected 22467ms @c47f8652484
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/windows_canonicalize_exit rejected 8562ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/windows_raw_breadth_exit rejected 2340ms @c47f8652484
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 2454ms @c47f8652484
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_wrapper_results_exit rejected 34360ms @c47f8652484
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/wrapper_lock_metadata_exit rejected 22389ms @c47f8652484
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/wrapper_lock_metadata_exit rejected 5254ms @5737de9116a
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/wrapper_open_with_exit rejected 152284ms @ec34f1c63c
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 10492ms @c47f8652484
