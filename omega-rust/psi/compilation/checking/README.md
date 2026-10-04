@@ -320,14 +320,22 @@ cannot become an empty frame. Slot/carrier replacement or mutable exposure
 invalidates frozen relations. Payload writes do not replace their enclosing case.
 Ordinary transfer, cycle equations, and public closure share this evidence.
 
-`result_origins.rs` derives helper result leaves from the complete body transfer.
-It requires an exact target, arity, normalized result type, and a final expression
-or unconditional value transition. Substitute actual origins only after body
-validation; helper writes remain separate producer effects. Frozen local copies,
-input carrier moves, nested literals/helpers, and exact projections compose.
-Possible input cases do not authorize a payload projection in the body; actual
-case substitution replaces the complete proven result subtree, including absent
-leaves. Conditional body refinement and graph-level result routes remain open.
+`result_origins.rs` derives helper result leaves from complete body transfers.
+Exact targets, arity, normalized result types and captured statement prefixes
+remain required. `result_origins/state_equations.rs` collects ordinary return
+routes and internal state edges. Moved subtrees settle before reference and case
+origins propagate under those fixed substitutions. Actual normal returns seed the relation; an unseeded cycle supplies
+no result and unknown returned leaves remain explicit. Root substitutions must
+prove that paths cannot grow around a cycle before iteration begins. This is
+normal-return provenance, not a termination proof or permission to borrow.
+
+Substitute actual origins only after body validation; helper writes remain
+separate producer effects. Frozen local copies, input carrier moves, nested
+literals/helpers, exact projections and finite internal state cycles compose.
+Actual machine recursion retains its body guard. Possible input cases do not
+authorize a payload projection in the body; actual case substitution replaces
+the complete proven result subtree, including absent leaves. Conditional body
+refinement remains separate work.
 
 `reference_subjects.rs` enables shared-leaf discovery only for exact storage
 identity queries, not ordinary write caches. It retains one validated Field/Case

@@ -84,63 +84,111 @@ pub(super) fn solve<'program>(
         include_shared,
     )?;
 
-    let mut known = equations
+    // A whole moved subtree masks the destination's symbolic reference/case
+    // rows. Solve that finite monotone relation first; its actuals and captured
+    // prefixes do not depend on any provisional returned reference rows.
+    let move_seeds = equations
         .iter()
-        .map(|equation| equation.direct.clone())
-        .collect::<Vec<_>>();
-    let mut edge_results = equations
+        .map(|equation| {
+            equation.direct.as_ref().map(|direct| AggregateOrigins {
+                moves: direct.moves.clone(),
+                ..Default::default()
+            })
+        })
+        .collect();
+    let moves = propagate(
+        &equations,
+        &successors,
+        move_seeds,
+        |source, edge, target| {
+            let mut output = AggregateOrigins::default();
+            instantiate(
+                program,
+                machine,
+                &equations[source],
+                edge,
+                target,
+                &mut output,
+                symbols,
+                inference,
+                include_shared,
+            )?;
+            output.references.clear();
+            output.cases.clear();
+            Some(output)
+        },
+    )?;
+    // Start references and cases afresh under the stable move masks. Otherwise
+    // a leaf discovered before its mask could circulate through a positive
+    // cycle after the original seed is suppressed, yielding a larger fixed point.
+    let seeds = equations
         .iter()
-        .map(|equation| vec![None::<AggregateOrigins>; equation.edges.len()])
-        .collect::<Vec<_>>();
+        .zip(&moves)
+        .map(|(equation, moved)| {
+            moved.as_ref().map(|moved| {
+                let mut seed = equation.direct.clone().unwrap_or_default();
+                seed.moves = moved.moves.clone();
+                seed
+            })
+        })
+        .collect();
+    let complete = propagate(&equations, &successors, seeds, |source, edge, target| {
+        let mut output = AggregateOrigins::default();
+        instantiate(
+            program,
+            machine,
+            &equations[source],
+            edge,
+            target,
+            &mut output,
+            symbols,
+            inference,
+            include_shared,
+        )?;
+        // The second relation cannot invent a moved subtree absent from the
+        // completed first relation. Keep the phase boundary independently exact.
+        let held = moves[source].as_ref()?;
+        if output.moves.iter().any(|moved| {
+            !held.moves.iter().any(|other| {
+                moved.local_segments == other.local_segments
+                    && moved.source == other.source
+                    && moved.type_reference == other.type_reference
+            })
+        }) {
+            return None;
+        }
+        Some(output)
+    })?;
+    // An unseeded component has no proven normal result. Its declared reference
+    // type cannot manufacture an identity return route.
+    complete.into_iter().next()?
+}
+
+/// Worklist scheduling for each monotone relation, without re-reading source
+/// statements. Unknown leaves are ordinary relation members, never missing work.
+fn propagate(
+    equations: &[Equation<'_>],
+    successors: &[Vec<usize>],
+    mut known: Vec<Option<AggregateOrigins>>,
+    mut transfer: impl FnMut(usize, &Edge<'_>, &mut AggregateOrigins) -> Option<AggregateOrigins>,
+) -> Option<Vec<Option<AggregateOrigins>>> {
     let mut pending = known
         .iter()
         .enumerate()
         .filter_map(|(index, result)| result.as_ref().map(|_| index))
         .collect::<std::collections::VecDeque<_>>();
-    // Moved-subtree substitutions use only fixed actuals and prefix evidence,
-    // so their finite set grows monotonically. Once those governing moves
-    // stabilize, reference/case propagation is monotone too. Replacements below
-    // handle the finite earlier retirements without a depth/iteration cutoff.
     while let Some(target_index) = pending.pop_front() {
         for (source_index, equation) in equations.iter().enumerate() {
-            for (edge_index, (edge, target)) in equation
-                .edges
-                .iter()
-                .zip(&successors[source_index])
-                .enumerate()
-            {
+            for (edge, target) in equation.edges.iter().zip(&successors[source_index]) {
                 if *target != target_index {
                     continue;
                 }
-                // Moves mask their destination's symbolic leaf/case inventory.
-                // Always substitute the complete target relation, never a delta
-                // whose missing move row could resurrect an absent payload.
                 let mut target = known[target_index].as_ref()?.clone();
-                let mut incoming = AggregateOrigins::default();
-                instantiate(
-                    program,
-                    machine,
-                    equation,
-                    edge,
-                    &mut target,
-                    &mut incoming,
-                    symbols,
-                    inference,
-                    include_shared,
-                )?;
-                // A newly discovered whole move can replace an earlier symbolic
-                // leaf. Keep one current contribution per authored edge so that
-                // its superseded output does not survive in an append-only union.
-                edge_results[source_index][edge_index] = Some(incoming);
-                let mut replacement = equation.direct.clone();
-                for contribution in edge_results[source_index].iter().flatten() {
-                    append_new(
-                        replacement.get_or_insert_with(AggregateOrigins::default),
-                        contribution.clone(),
-                    );
-                }
-                if !same_relation(known[source_index].as_ref(), replacement.as_ref()) {
-                    known[source_index] = replacement;
+                let incoming = transfer(source_index, edge, &mut target)?;
+                let mut replacement = known[source_index].clone().unwrap_or_default();
+                append_new(&mut replacement, incoming);
+                if !same_relation(known[source_index].as_ref(), Some(&replacement)) {
+                    known[source_index] = Some(replacement);
                     if !pending.contains(&source_index) {
                         pending.push_back(source_index);
                     }
@@ -148,9 +196,7 @@ pub(super) fn solve<'program>(
             }
         }
     }
-    // An unseeded component has no proven normal result. In particular, its
-    // declared reference type cannot manufacture an identity return route.
-    known.into_iter().next()?
+    Some(known)
 }
 
 fn same_relation(left: Option<&AggregateOrigins>, right: Option<&AggregateOrigins>) -> bool {
