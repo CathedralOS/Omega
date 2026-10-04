@@ -773,6 +773,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        default_body_trait: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
@@ -922,6 +923,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        default_body_trait: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
@@ -1057,6 +1059,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
+        default_body_trait: Default::default(),
         where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,

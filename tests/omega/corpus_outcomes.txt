@@ -1391,6 +1391,9 @@ fail/traits/static_subject_wrong_data_rejected rejected 848ms expected @c5d32a00
 	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter 0: expected `subject: &mut Self`, got `other: &mut Other`
 fail/traits/trait_contract_undeclared_self_member rejected 1172ms expected @c5d32a00863
 	authored MemberAccess declaration selection occurrence 0 (`value` in tests/omega/fail/traits/trait_contract_undeclared_self_member/main.omg) remained unresolved after successful checking (CheckedMember)
+fail/traits/trait_default_outside_requirement_call rejected 22ms expected @c4e45d3dda38+wt
+	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `Gauge` cannot name what that conformance adds
+	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `Value` cannot name what that conformance adds
 fail/traits/trait_requirement_cycle rejected 237ms expected @2d8ed253669f
 	trait requirement cycle detected: A -> B -> A
 fail/traits/trait_satisfies_parameter_mismatch rejected 119ms expected @474542aa7f86
@@ -2736,13 +2739,13 @@ pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+w
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1375ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
-pass/traits/runtime_inherited_trait_default_exit rejected 1539ms @b5d8c6882a8
-	authored Call declaration selection occurrence 4879 (`set` in tests/omega/pass/traits/runtime_inherited_trait_default_exit/main.omg) remained unresolved after successful checking (CheckedCall)
+pass/traits/runtime_inherited_trait_default_exit checked 3274ms @c4e45d3dda38+wt
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1357ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms @2d8ed253669f
+pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms @c4e45d3dda38+wt
 pass/traits/static_subject_satisfies_receiver_requirement_exit checked 638ms @125b05ae4947+wt
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms @2d8ed253669f

@@ -23,6 +23,7 @@ pub(super) fn assign_contract_reference_symbols(
     symbols: &SymbolTable,
 ) {
     let attached_machines = super::scope::attached_machines(program);
+    let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let SymbolResolvedTrees { roots, tables, .. } = program;
     let data_definitions = &roots.data_definitions;
     let data_members = &tables.declarations.data_members;
@@ -45,6 +46,8 @@ pub(super) fn assign_contract_reference_symbols(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: machine.symbol,
+            lexical_requirements: trait_scopes
+                .requirements_of(machine.trait_default_origin.declaring_trait),
             type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
             attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,
@@ -102,6 +105,7 @@ pub(super) fn assign_contract_reference_symbols(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: trait_definition.symbol,
+            lexical_requirements: trait_scopes.requirements_of(trait_definition.symbol),
             type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),
@@ -146,6 +150,7 @@ pub(super) fn assign_contract_reference_symbols(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: operator.symbol,
+            lexical_requirements: super::scope::LexicalRequirements::none(),
             type_parameters: data_type_parameters.span_or_empty(operator.type_parameters),
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),
@@ -187,6 +192,7 @@ pub(super) fn assign_contract_reference_symbols(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: signature.symbol,
+            lexical_requirements: super::scope::LexicalRequirements::none(),
             type_parameters: data_type_parameters.span_or_empty(signature.type_parameters),
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),

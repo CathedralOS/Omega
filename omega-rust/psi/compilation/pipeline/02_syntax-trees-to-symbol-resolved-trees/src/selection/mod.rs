@@ -47,7 +47,7 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
 /// compatibility, machine-parameter requirements, evidence forwardings,
 /// closed conformance rows and their reference selections, establishment
 /// routes and service reaches. Resolution then normalizes the selected table
-/// work and routes inline member calls over those tables.
+/// work and routes conformance member requirement calls over those tables.
 pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let compatibility =
         signature_free_requirements::validate_signature_free_requirement_compatibility(

@@ -22,6 +22,7 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub generic_data_origin: GenericDataMachineOrigin,
+    pub trait_default_origin: TraitDefaultOrigin,
     pub attached_data: Option<DiagnosticName>,
     /// Exact nominal declaration named by `attached_data`. Spelling remains
     /// diagnostic only; semantic consumers must use this symbol.
@@ -122,6 +123,19 @@ pub struct GenericDataMachineOrigin {
     pub template_source: DiagnosticName,
     pub template: SymbolHandle,
     pub closed_owner: SymbolHandle,
+}
+
+/// Compiler-owned derivation of one trait default instantiation, separate
+/// from its selection partition. The instantiated body was authored inside
+/// `declaring_trait`, so bare requirement names in it keep that trait's
+/// lexical scope instead of the instantiating carrier's. Both fields are empty
+/// on authored machines and other synthesis families.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TraitDefaultOrigin {
+    /// Logical trait path spelled by default synthesis.
+    pub trait_source: DiagnosticName,
+    /// Exact trait selected by `trait_source` at declaration assignment.
+    pub declaring_trait: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -379,8 +379,7 @@ fn drive_recorded(
 fn finish_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     settle_resolution(lowerer, syntax)?;
     lowerer.symbol_resolved_trees.rebuild_tables();
-    finish_resolved_tables(lowerer);
-    Ok(())
+    finish_resolved_tables(lowerer)
 }
 
 /// Shared name, obligation and declaration settlement precedes both complete
@@ -410,8 +409,11 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
-fn finish_resolved_tables(lowerer: &mut Lowerer) {
-    selection::conformance_blocks::route_inline_member_calls(&mut lowerer.symbol_resolved_trees);
+fn finish_resolved_tables(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
+    selection::conformance_blocks::route_conformance_requirement_calls(
+        &mut lowerer.symbol_resolved_trees,
+    )?;
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees);
     crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
+    Ok(())
 }

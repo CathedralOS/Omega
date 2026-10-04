@@ -232,6 +232,10 @@ pub(crate) fn lower_machine_into(
             template_source: crate::lowering::name::lower_name(&machine.generic_data_template),
             ..Default::default()
         },
+        trait_default_origin: symbol_resolved_trees::machine::TraitDefaultOrigin {
+            trait_source: crate::lowering::name::lower_name(&machine.default_body_trait),
+            ..Default::default()
+        },
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
         attached_data_application: None,

@@ -40,6 +40,7 @@ fn assign_machine_references(
     lexical_inputs: &mut [crate::lowering::state::StateLexicalInputs],
 ) {
     let attached_machines = super::scope::attached_machines(program);
+    let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let SymbolResolvedTrees {
         roots:
             symbol_resolved_trees::SymbolResolvedRoots {
@@ -87,6 +88,10 @@ fn assign_machine_references(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: machine_symbol,
+            // An instantiated trait default body keeps its authoring trait's
+            // requirement names; every other machine is outside any trait.
+            lexical_requirements: trait_scopes
+                .requirements_of(machine.trait_default_origin.declaring_trait),
             type_parameters: data_type_parameters.span_or_empty(machine_type_parameters),
             attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,

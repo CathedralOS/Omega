@@ -90,8 +90,136 @@ fn attached_machine_list(
         .collect()
 }
 
+/// For every trait, the requirements it inherits through `requires` and
+/// header parents, built once per assignment batch from declaration
+/// identities. A trait's own requirements are its symbol children and need no
+/// roster.
+pub(super) struct TraitLexicalScopes {
+    inherited: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+}
+
+impl TraitLexicalScopes {
+    pub(super) fn of(program: &symbol_resolved_trees::SymbolResolvedTrees) -> Self {
+        let inherited = program
+            .traits
+            .iter()
+            .map(|trait_definition| {
+                let mut visited = vec![trait_definition.symbol];
+                let mut requirements = Vec::new();
+                for parent in program.trait_requirements(trait_definition.requires) {
+                    collect_trait_requirements(
+                        program,
+                        parent.symbol,
+                        &mut visited,
+                        &mut requirements,
+                    );
+                }
+                (trait_definition.symbol, requirements)
+            })
+            .collect();
+        Self { inherited }
+    }
+
+    /// The bare requirement names visible in `owner`'s lexical scope; an
+    /// invalid owner sees none.
+    pub(super) fn requirements_of(&self, owner: SymbolHandle) -> LexicalRequirements<'_> {
+        LexicalRequirements {
+            owner,
+            inherited: self
+                .inherited
+                .iter()
+                .find(|(trait_symbol, _)| owner.is_valid() && *trait_symbol == owner)
+                .map_or(&[], |(_, requirements)| requirements.as_slice()),
+        }
+    }
+}
+
+fn collect_trait_requirements(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    trait_symbol: SymbolHandle,
+    visited: &mut Vec<SymbolHandle>,
+    requirements: &mut Vec<SymbolHandle>,
+) {
+    if !trait_symbol.is_valid() || visited.contains(&trait_symbol) {
+        return;
+    }
+    visited.push(trait_symbol);
+    let Some(trait_definition) = program
+        .traits
+        .iter()
+        .find(|candidate| candidate.symbol == trait_symbol)
+    else {
+        return;
+    };
+    for requirement in program.trait_machine_signatures(trait_definition.machines) {
+        if requirement.symbol.is_valid() && !requirements.contains(&requirement.symbol) {
+            requirements.push(requirement.symbol);
+        }
+    }
+    for parent in program.trait_requirements(trait_definition.requires) {
+        collect_trait_requirements(program, parent.symbol, visited, requirements);
+    }
+}
+
+/// Requirements a receiverless call may name inside one trait's lexical scope:
+/// a requirement contract written in the trait, or a default body the trait
+/// authored. Default synthesis instantiates that body onto each conforming
+/// carrier, but the body stays the trait's text, so its bare names keep the
+/// trait's scope rather than the carrier's
+/// ([complete rows](../../../../../../../wiki/spec/language/conformances.md#complete-row-identity):
+/// "Default bodies call other requirements through this same selected map").
+/// Selection names the requirement declaration itself; each instantiation's
+/// conformance row is chosen later, after the authored-selection ledger
+/// records the requirement as the trait author's own selection.
+#[derive(Clone, Copy)]
+pub(super) struct LexicalRequirements<'program> {
+    /// The trait whose own requirements are visible; invalid outside a trait.
+    owner: SymbolHandle,
+    /// Requirements `owner` inherits, each once.
+    inherited: &'program [SymbolHandle],
+}
+
+impl LexicalRequirements<'_> {
+    pub(super) fn none() -> Self {
+        Self {
+            owner: SymbolHandle::invalid(),
+            inherited: &[],
+        }
+    }
+
+    /// The trait's own requirement wins, as its own declaration shadows an
+    /// inherited one of the same name. An inherited name must select one
+    /// requirement: a short name is not a row identity, so a name several
+    /// parents declare stays with ordinary resolution.
+    pub(super) fn select(&self, symbols: &SymbolTable, name: &str) -> SymbolHandle {
+        if !self.owner.is_valid() {
+            return SymbolHandle::invalid();
+        }
+        let own = super::lookup::child_symbol_by_kinds(
+            symbols,
+            self.owner,
+            &[symbols::SymbolKind::State],
+            name,
+        );
+        if own.is_valid() {
+            return own;
+        }
+        let mut matching = self
+            .inherited
+            .iter()
+            .copied()
+            .filter(|requirement| symbols.name(*requirement) == name);
+        match (matching.next(), matching.next()) {
+            (Some(selected), None) => selected,
+            _ => SymbolHandle::invalid(),
+        }
+    }
+}
+
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
+    /// Bare requirement names of the trait this scope is lexically inside.
+    pub(super) lexical_requirements: LexicalRequirements<'program>,
     pub(super) attached_machines: &'program AttachedMachines,
     /// The program's owned position indexes — local-statement, parameter,
     /// and data-definition positions resolve through these instead of

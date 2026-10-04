@@ -130,6 +130,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         Machine {
             name,
             generic_data_template: Default::default(),
+            default_body_trait: Default::default(),
             attached_data,
             spelling,
             is_public: false,

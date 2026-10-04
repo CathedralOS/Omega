@@ -6,7 +6,7 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol_for_source;
-use crate::symbols::scope::MachineScope;
+use crate::symbols::scope::{LexicalRequirements, MachineScope};
 use crate::symbols::targets::assign_static_argument_symbols;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::{
@@ -306,6 +306,7 @@ pub(super) fn assign_machine_symbols(
                         attached_machines: &attached_machines,
                         resolution_indexes: &program.resolution_indexes,
                         symbol: machine_symbol,
+                        lexical_requirements: LexicalRequirements::none(),
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
                         attached_data_symbol: machine.attached_data_symbol,
@@ -324,6 +325,17 @@ pub(super) fn assign_machine_symbols(
                     owned_data.initial_value,
                 );
             }
+        }
+
+        // Default synthesis spells the authoring trait's logical path, as it
+        // does for the instantiation's requirement edge, so the same lookup
+        // rejoins that exact declaration in its own package.
+        if !machine.trait_default_origin.trait_source.is_empty() {
+            machine.trait_default_origin.declaring_trait = top_level_symbol_for_source(
+                symbols,
+                SymbolKind::Trait,
+                &machine.trait_default_origin.trait_source,
+            );
         }
 
         for conformance in machine_trait_conformances.span_mut_or_empty(machine.satisfies) {
@@ -420,6 +432,7 @@ pub(super) fn assign_machine_symbols(
                         attached_machines: &attached_machines,
                         resolution_indexes: &program.resolution_indexes,
                         symbol: machine_symbol,
+                        lexical_requirements: LexicalRequirements::none(),
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
                         attached_data_symbol: machine.attached_data_symbol,

@@ -23,6 +23,7 @@ pub(super) fn assign_measure_expression_symbols(
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             symbol: SymbolHandle::invalid(),
+            lexical_requirements: super::scope::LexicalRequirements::none(),
             type_parameters: &[],
             attached_data: None,
             attached_data_symbol: SymbolHandle::invalid(),

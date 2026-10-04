@@ -29,6 +29,7 @@ pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
         let members = declarations.data_members.span_or_empty(definition.members);
         let mut scope = MachineScope {
             symbol: definition.symbol,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
             attached_machines: &attached_machines,
             resolution_indexes: &program.resolution_indexes,
             type_parameters: declarations

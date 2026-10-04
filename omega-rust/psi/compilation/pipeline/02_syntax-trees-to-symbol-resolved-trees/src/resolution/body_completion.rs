@@ -216,7 +216,7 @@ impl DeferredResolvedFrontier {
         lowerer
             .symbol_resolved_trees
             .append_completed_body_tables(&predecessor, selected);
-        super::finish_resolved_tables(&mut lowerer);
+        super::finish_resolved_tables(&mut lowerer)?;
         let hoist_counter = lowerer.hoist_counter;
         self.pending.append(&mut lowerer.pending_machine_bodies);
         self.equation_sources = lowerer.equation_sources.take().map(|mut links| {

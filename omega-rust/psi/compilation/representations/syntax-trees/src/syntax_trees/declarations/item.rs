@@ -764,6 +764,12 @@ pub struct Machine {
     /// Exact authored template token for a method cloned onto closed generic
     /// data. Empty on authored declarations and other synthesis families.
     pub generic_data_template: Identifier,
+    /// Logical path of the trait whose authored default body this
+    /// compiler-instantiated machine carries. That body stays lexically inside
+    /// its trait, so its bare requirement names select the trait's
+    /// requirements rather than the instantiating carrier's machines. Empty on
+    /// authored declarations and other synthesis families.
+    pub default_body_trait: Identifier,
     pub attached_data: Option<Identifier>,
     /// The optional fixed operator token written immediately after `machine`
     /// (`machine + Name(...)`, `boundary machine + Name(...);`). `None` is an

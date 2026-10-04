@@ -446,6 +446,7 @@ pub(crate) fn assign_constant_expression_symbols(
         attached_machines: &attached_machines,
         resolution_indexes: &program.resolution_indexes,
         symbol: symbols::SymbolHandle::invalid(),
+        lexical_requirements: scope::LexicalRequirements::none(),
         type_parameters: &[],
         attached_data: None,
         attached_data_symbol: symbols::SymbolHandle::invalid(),

@@ -1,10 +1,12 @@
-//! Closed conformance blocks: exact requirement rows and inline member
-//! routing.
+//! Closed conformance blocks: exact requirement rows, and routing of the
+//! requirement calls conformance member bodies make.
 //!
 //! Each closed block's rows resolve against the trait catalog, including
 //! inherited defaults and same-named overloads. Calls an inline member makes
 //! to inherited requirements select this block's rows, never an ambient
-//! attached machine sharing the leaf name.
+//! attached machine sharing the leaf name. Every trait default instantiation,
+//! closed or bodyless, dispatches its authoring trait's requirements through
+//! its own conformance's rows.
 
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -142,15 +144,90 @@ struct ConformanceRoutingPlan {
     machine: SymbolHandle,
     routes: Vec<RequirementRoute>,
     subject_states: Vec<SymbolHandle>,
+    /// Whether a bare name may select a row by spelling. Only an inline
+    /// member is lexically inside the block whose rows it names; a default
+    /// body's names were already bound to its authoring trait's requirements.
+    routes_by_name: bool,
+    /// Present when `machine` instantiates a trait default body.
+    default_body: Option<DefaultBodyScope>,
 }
 
-/// An inline member is lexically part of one closed conformance. Calls it
-/// makes to inherited requirements therefore select this conformance's exact
-/// rows, never an ambient attached machine that happens to share the leaf
-/// name. Existing-machine reference rows remain ordinary machines: they have
-/// no enclosing conformance context and may be shared by several blocks.
-pub(crate) fn route_inline_member_calls(program: &mut SymbolResolvedTrees) {
+/// What a default body may not name: the rows and carrier machines its
+/// conformance supplies beyond the authoring trait's requirement surface.
+#[derive(Clone)]
+struct DefaultBodyScope {
+    declaring_trait: SymbolHandle,
+    /// The conformance subject this instantiation serves, for diagnostics.
+    subject: String,
+    hidden_names: Vec<DiagnosticName>,
+}
+
+impl DefaultBodyScope {
+    fn new(
+        declaring_trait: SymbolHandle,
+        subject: String,
+        trait_catalog: &[TraitCatalogEntry],
+        conformance_names: impl IntoIterator<Item = DiagnosticName>,
+    ) -> Self {
+        let mut surface = Vec::new();
+        collect_requirement_closure(
+            declaring_trait,
+            trait_catalog,
+            &mut Vec::new(),
+            &mut surface,
+        );
+        let mut hidden_names = Vec::<DiagnosticName>::new();
+        for name in conformance_names {
+            if !surface
+                .iter()
+                .any(|requirement| requirement.requirement_name.as_str() == name.as_str())
+                && !hidden_names
+                    .iter()
+                    .any(|hidden| hidden.as_str() == name.as_str())
+            {
+                hidden_names.push(name);
+            }
+        }
+        Self {
+            declaring_trait,
+            subject,
+            hidden_names,
+        }
+    }
+}
+
+/// Calls a conformance's own member bodies make to its requirements select
+/// that conformance's exact rows, never an ambient attached machine that
+/// happens to share the leaf name.
+///
+/// An inline member is lexically part of one closed block, so its bare names
+/// select the block's rows by spelling. A trait default body is lexically part
+/// of its authoring trait instead: symbol assignment already bound its bare
+/// names to that trait's exact requirements (`LexicalRequirements` in the
+/// symbols scope), so every instantiation re-points those requirements to its
+/// own conformance's rows. A closed block supplies its row realization; a
+/// bodyless conformance's row is the carrier's attached machine named by the
+/// requirement, the same row conformance checking validates. A default body
+/// that names a row or carrier machine outside its trait's surface is
+/// rejected here, where that conformance is known: the trait author cannot
+/// see what a particular conformer adds. Existing-machine reference rows
+/// remain ordinary machines: they have no enclosing conformance context and
+/// may be shared by several blocks.
+pub(crate) fn route_conformance_requirement_calls(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let trait_catalog = build_trait_catalog(program);
+    let default_body_trait = |machine: SymbolHandle| {
+        program
+            .machines
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+            .map_or_else(SymbolHandle::invalid, |candidate| {
+                candidate.trait_default_origin.declaring_trait
+            })
+    };
     let mut plans = Vec::new();
+    let mut closed_realizations = Vec::new();
     for conformance in program.conformances.iter() {
         let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
             continue;
@@ -185,43 +262,200 @@ pub(crate) fn route_inline_member_calls(program: &mut SymbolResolvedTrees) {
             }
             symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => Vec::new(),
         };
-        plans.extend(
-            rows.iter()
-                .filter(|row| {
-                    matches!(
-                        row.source,
-                        ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
-                    ) && row.realization_machine.is_valid()
-                })
-                .map(|row| ConformanceRoutingPlan {
-                    machine: row.realization_machine,
-                    routes: routes.clone(),
-                    subject_states: subject_states.clone(),
+        for row in rows {
+            if !matches!(
+                row.source,
+                ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
+            ) || !row.realization_machine.is_valid()
+            {
+                continue;
+            }
+            closed_realizations.push(row.realization_machine);
+            let declaring_trait = default_body_trait(row.realization_machine);
+            plans.push(ConformanceRoutingPlan {
+                machine: row.realization_machine,
+                routes: routes.clone(),
+                subject_states: subject_states.clone(),
+                routes_by_name: row.source == ConformanceRowSource::Inline,
+                default_body: declaring_trait.is_valid().then(|| {
+                    DefaultBodyScope::new(
+                        declaring_trait,
+                        conformance
+                            .carrier_name()
+                            .or(conformance.alias.as_ref())
+                            .map_or_else(String::new, |name| name.as_str().to_owned()),
+                        &trait_catalog,
+                        rows.iter().map(|row| row.requirement_name.clone()),
+                    )
                 }),
-        );
+            });
+        }
     }
 
+    for machine in program.machines.iter() {
+        let declaring_trait = machine.trait_default_origin.declaring_trait;
+        if !declaring_trait.is_valid()
+            || machine.target.is_some()
+            || closed_realizations.contains(&machine.symbol)
+        {
+            continue;
+        }
+        let mut surface = Vec::new();
+        collect_requirement_closure(
+            declaring_trait,
+            &trait_catalog,
+            &mut Vec::new(),
+            &mut surface,
+        );
+        let routes = surface
+            .into_iter()
+            .filter_map(|requirement| {
+                Some(RequirementRoute {
+                    realization_state: attached_requirement_realization(
+                        program,
+                        machine.attached_data_symbol,
+                        &closed_realizations,
+                        requirement.requirement_name.as_str(),
+                    )?,
+                    requirement: requirement.requirement,
+                    requirement_name: requirement.requirement_name,
+                })
+            })
+            .collect();
+        plans.push(ConformanceRoutingPlan {
+            machine: machine.symbol,
+            routes,
+            subject_states: Vec::new(),
+            routes_by_name: false,
+            default_body: Some(DefaultBodyScope::new(
+                declaring_trait,
+                machine
+                    .attached_data
+                    .as_ref()
+                    .map_or_else(String::new, |carrier| carrier.as_str().to_owned()),
+                &trait_catalog,
+                ambient_carrier_entries(
+                    program,
+                    machine.attached_data_symbol,
+                    &closed_realizations,
+                )
+                .map(|entry| entry.name.clone()),
+            )),
+        });
+    }
+
+    let mut hidden_calls = Vec::new();
     for plan in plans {
         crate::selection::body_calls::retarget_machine_calls(
             program,
             plan.machine,
             &plan.subject_states,
             &mut |site| {
-                routed_target(
+                let routed = routed_target(
                     site.target_symbol,
                     site.target,
-                    site.local_receiver,
+                    plan.routes_by_name && site.local_receiver,
                     &plan.routes,
-                )
+                );
+                if routed.is_none()
+                    && !site.target_symbol.is_valid()
+                    && site.local_receiver
+                    && let Some(scope) = &plan.default_body
+                    && scope
+                        .hidden_names
+                        .iter()
+                        .any(|hidden| hidden.as_str() == site.target.as_str())
+                {
+                    hidden_calls.push((
+                        scope.declaring_trait,
+                        scope.subject.clone(),
+                        site.target.clone(),
+                    ));
+                }
+                routed
             },
         );
     }
+    let diagnostics = hidden_calls
+        .into_iter()
+        .filter(|(_, _, call)| {
+            // A visible declaration of the same spelling may still be
+            // selected by typed arity selection; only a name nothing else
+            // can supply is a default body reaching outside its trait.
+            program
+                .symbols
+                .find_top_level_declaration_or_operator_family_from_source(
+                    call.as_str(),
+                    &[
+                        symbols::SymbolKind::Machine,
+                        symbols::SymbolKind::Operator,
+                        symbols::SymbolKind::BuiltinFunction,
+                    ],
+                    call.source_span(),
+                )
+                .is_none()
+        })
+        .map(|(declaring_trait, subject, call)| {
+            let trait_name = program.symbols.display_path(declaring_trait, "::");
+            Diagnostic::error(format!(
+                "default body in trait `{trait_name}` calls `{}`, which is not a requirement of `{trait_name}` or a trait it inherits; its instantiation for `{subject}` cannot name what that conformance adds",
+                call.as_str()
+            ))
+            .with_source_span(call.source_span())
+        })
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Entry states of the machines ambiently attached to `carrier`. Closed-block
+/// realizations belong to their own map and target siblings to their own
+/// target, so neither is an ambient member of the carrier.
+fn ambient_carrier_entries<'program>(
+    program: &'program SymbolResolvedTrees,
+    carrier: SymbolHandle,
+    closed_realizations: &'program [SymbolHandle],
+) -> impl Iterator<Item = &'program State> + 'program {
+    program
+        .machines
+        .iter()
+        .filter(move |machine| {
+            carrier.is_valid()
+                && machine.attached_data_symbol == carrier
+                && machine.target.is_none()
+                && !closed_realizations.contains(&machine.symbol)
+        })
+        .filter_map(|machine| {
+            program
+                .machine_state_handles(machine.states)
+                .first()
+                .map(|entry| program.machine_state(*entry))
+        })
+}
+
+/// A bodyless conformance's row for one requirement: the carrier's ambient
+/// machine whose entry state carries the requirement's name. Several
+/// candidates leave the row unrouted for conformance checking to reject.
+fn attached_requirement_realization(
+    program: &SymbolResolvedTrees,
+    carrier: SymbolHandle,
+    closed_realizations: &[SymbolHandle],
+    requirement_name: &str,
+) -> Option<SymbolHandle> {
+    let mut matching = ambient_carrier_entries(program, carrier, closed_realizations)
+        .filter(|entry| entry.name.as_str() == requirement_name)
+        .map(|entry| entry.symbol);
+    let realization = matching.next()?;
+    matching.next().is_none().then_some(realization)
 }
 
 fn routed_target(
     current: SymbolHandle,
     target_name: &DiagnosticName,
-    local_receiver: bool,
+    routes_by_name: bool,
     routes: &[RequirementRoute],
 ) -> Option<SymbolHandle> {
     if current.is_valid()
@@ -229,7 +463,7 @@ fn routed_target(
     {
         return Some(route.realization_state);
     }
-    if !local_receiver {
+    if !routes_by_name {
         return None;
     }
     let mut matching = routes

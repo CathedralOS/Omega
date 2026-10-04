@@ -215,16 +215,14 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
 
     // Trait requirements share the State symbol representation, but are
     // callable contracts, not a machine's private control-flow destinations.
-    if symbols.get(machine.symbol).kind == SymbolKind::Trait {
-        let requirement = child_symbol_by_kinds(
-            symbols,
-            machine.symbol,
-            &[SymbolKind::State],
-            target.as_str(),
-        );
-        if requirement.is_valid() {
-            return requirement;
-        }
+    // Inside a trait, including a default body instantiated onto a carrier,
+    // a requirement name takes precedence over every outer receiverless
+    // candidate below.
+    let requirement = machine
+        .lexical_requirements
+        .select(symbols, target.as_str());
+    if requirement.is_valid() {
+        return requirement;
     }
 
     // A receiverless call to a static machine parameter (`F(value)`) denotes

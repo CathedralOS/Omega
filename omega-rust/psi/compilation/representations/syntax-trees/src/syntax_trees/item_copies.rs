@@ -437,6 +437,7 @@ impl SyntaxTrees {
         Machine {
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
+            default_body_trait: machine.default_body_trait.clone(),
             where_facts: self.copy_domain_fact_span(other, machine.where_facts),
             attached_data: machine.attached_data.clone(),
             spelling: machine.spelling,

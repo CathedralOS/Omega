@@ -67,6 +67,8 @@ struct TraitRequirementInput {
 #[derive(Clone)]
 struct DefaultCandidate {
     origin: String,
+    /// Logical path of the trait that authored this default body.
+    declaring_trait_path: String,
     requirement_owner: Option<String>,
     signature: StateSignatureNode,
     substitution: HashMap<String, TypeReferenceHandle>,
@@ -313,21 +315,23 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 if existing_defaults.contains(&key) || !requirement.signature.is_default {
                     continue;
                 }
-                let signature = if requirement.substitution.is_empty() {
-                    requirement.signature
-                } else {
-                    instantiate_default_signature(
-                        syntax,
-                        &requirement.signature,
-                        &requirement.substitution,
-                    )
+                let subject = match &conformance.declaration.subject {
+                    syntax_trees::item::ConformanceSubject::Carrier(type_name) => Some(type_name),
+                    syntax_trees::item::ConformanceSubject::Subjectless => None,
                 };
+                let signature = instantiate_default_signature(
+                    syntax,
+                    &requirement.signature,
+                    &requirement.substitution,
+                    subject,
+                );
                 let machine = machine_from_signature(
                     syntax,
                     attached_subject(&conformance.declaration),
                     Identifier::generated(signature.name.as_str()),
                     &signature,
                     exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
+                    Identifier::generated(declaring_path.as_str()),
                 );
                 closed_members.push(ConformanceMember::TraitDefault {
                     declaring_trait: Identifier::generated(declaring_path),
@@ -398,17 +402,19 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 continue;
             };
             attached_methods.insert(attached_method);
-            let signature = if candidate.substitution.is_empty() {
-                candidate.signature.clone()
-            } else {
-                instantiate_default_signature(syntax, &candidate.signature, &candidate.substitution)
-            };
+            let signature = instantiate_default_signature(
+                syntax,
+                &candidate.signature,
+                &candidate.substitution,
+                Some(subject_name),
+            );
             synthesize_default_machine(
                 syntax,
                 subject_name,
                 &subject_path,
                 &signature,
                 candidate.requirement_owner.as_deref(),
+                &candidate.declaring_trait_path,
             );
         }
     }
@@ -581,6 +587,7 @@ fn synthesize_equatable_machine(
         )),
         &signature,
         None,
+        Identifier::default(),
     );
     true
 }
@@ -655,6 +662,7 @@ fn collect_effective_defaults(
                 method_name,
                 vec![DefaultCandidate {
                     origin: trait_instance_label(syntax, &trait_definition.path, substitution),
+                    declaring_trait_path: trait_definition.path.clone(),
                     requirement_owner: exact_unargumented_requirement_owner(traits, owner)
                         .map(str::to_owned),
                     signature: signature.clone(),
@@ -846,11 +854,27 @@ fn substitute_type_reference(
     }
 }
 
+/// Copy one default for one conformance, binding the trait's generic
+/// parameters to that conformance's arguments and `Self` to its subject.
+///
+/// `Self` in a requirement denotes the conformance's subject type, so a default
+/// instantiated for `RequiredValue` declares `subject: &mut RequiredValue`
+/// exactly as a written satisfier would. Leaving `Self` in the instantiation
+/// would bind it to the attached machine rather than its carrier, and every
+/// requirement call passing the subject onward would then mismatch the
+/// satisfier's parameter. A subjectless conformance has no carrier to bind;
+/// its default keeps `Self` as written. The copy includes the body, so each
+/// instantiation owns its type nodes while its authored identifiers keep their
+/// source custody.
 fn instantiate_default_signature(
     syntax: &mut SyntaxTrees,
     signature: &StateSignatureNode,
     substitution: &HashMap<String, TypeReferenceHandle>,
+    subject: Option<&Identifier>,
 ) -> StateSignatureNode {
+    if substitution.is_empty() && subject.is_none() {
+        return signature.clone();
+    }
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let copied = syntax.copy_state_signature_node_from(&snapshot, signature);
@@ -863,6 +887,13 @@ fn instantiate_default_signature(
             .type_references
             .replace_type_reference(handle, replacement);
     }
+    if let Some(subject) = subject {
+        for handle in syntax.type_references.self_type_nodes_from(type_watermark) {
+            syntax
+                .type_references
+                .replace_type_reference(handle, TypeReferenceNode::Named(subject.clone()));
+        }
+    }
     copied
 }
 
@@ -872,6 +903,7 @@ fn synthesize_default_machine(
     subject_path: &str,
     signature: &StateSignatureNode,
     requirement_owner: Option<&str>,
+    declaring_trait_path: &str,
 ) {
     synthesize_machine_named(
         syntax,
@@ -879,6 +911,7 @@ fn synthesize_default_machine(
         Identifier::generated(format!("{subject_path}::{}", signature.name.as_str())),
         signature,
         requirement_owner,
+        Identifier::generated(declaring_trait_path),
     );
 }
 
@@ -888,9 +921,16 @@ fn synthesize_machine_named(
     machine_name: Identifier,
     signature: &StateSignatureNode,
     requirement_owner: Option<&str>,
+    default_body_trait: Identifier,
 ) {
-    let machine =
-        machine_from_signature(syntax, attached, machine_name, signature, requirement_owner);
+    let machine = machine_from_signature(
+        syntax,
+        attached,
+        machine_name,
+        signature,
+        requirement_owner,
+        default_body_trait,
+    );
     syntax.push_root_item(Item::Machine(machine));
 }
 
@@ -927,12 +967,16 @@ fn attached_subject(declaration: &ConformanceItem) -> Identifier {
     }
 }
 
+/// `default_body_trait` names the trait that authored `signature`'s body. The
+/// body keeps that trait's lexical scope for bare requirement names; it is
+/// empty for compiler-written bodies such as synthesized structural equality.
 fn machine_from_signature(
     syntax: &mut SyntaxTrees,
     attached: Identifier,
     machine_name: Identifier,
     signature: &StateSignatureNode,
     requirement_owner: Option<&str>,
+    default_body_trait: Identifier,
 ) -> Machine {
     let state = State {
         // This state belongs to the synthesized implementation, not to the
@@ -963,6 +1007,7 @@ fn machine_from_signature(
     });
     Machine {
         name: machine_name,
+        default_body_trait,
         attached_data: Some(attached),
         // A synthesized default body is an implementation of the requirement,
         // which owns any token binding (`StateSignature::spelling`); the
