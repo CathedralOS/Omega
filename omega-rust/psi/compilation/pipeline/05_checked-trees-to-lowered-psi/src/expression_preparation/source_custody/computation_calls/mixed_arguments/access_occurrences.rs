@@ -157,15 +157,7 @@ pub(crate) fn replay(
             .get(statement as usize),
         Some(checked_trees::statement::StatementNode::Transition(_))
     )
-        && crate::emission::call_source_custody::authored::transition_target_at_call(
-            checked,
-            state,
-            checked_trees::CheckedUnitCallCoordinate {
-                statement_index: statement,
-                call_ordinal: call.call_ordinal as u32,
-            },
-        )
-        .is_ok()
+        && named_transition_call(checked, state, statement, call.call_ordinal)
     {
         validation::DispatchExtraction::of_transition_arm(
             &checked.typed,
@@ -699,4 +691,20 @@ fn is_array_value_projection(checked: &CheckedTrees, mut expression: ExpressionH
         }
     }
     false
+}
+
+/// Whether the call at this coordinate is the named transition target itself,
+/// as stage 04 recorded on its flow row, rather than a guard or operand call.
+fn named_transition_call(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    call_ordinal: usize,
+) -> bool {
+    checked
+        .facts
+        .flow
+        .control
+        .call_at(state, statement as usize, call_ordinal)
+        .is_some_and(|call| call.authored_site == checked_trees::FlowCallSite::NamedTransition)
 }

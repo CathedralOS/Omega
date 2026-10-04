@@ -62,51 +62,6 @@ pub(crate) fn locate(
     Ok(call)
 }
 
-/// Select the exact named transition occurrence at a call coordinate. Guard
-/// and operand calls can name the same callee; their ordinals do not identify
-/// the arm's invocation unless the authored walk retains its target handle.
-pub(crate) fn transition_target_at_call(
-    checked: &CheckedTrees,
-    caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
-) -> Result<checked_trees::statement::TransitionTargetHandle, LoweringError> {
-    let occurrences =
-        nested::authored_occurrences(checked, caller_state, coordinate.statement_index)?;
-    let mut selected = occurrences
-        .into_iter()
-        .filter(|(ordinal, _)| *ordinal == coordinate.call_ordinal);
-    let (_, occurrence) = selected.next().ok_or(LoweringError::Unsupported(
-        "terminal call has no exact authored occurrence",
-    ))?;
-    if selected.next().is_some() {
-        return unsupported("terminal call has duplicate authored occurrence coordinates");
-    }
-    match occurrence {
-        nested::AuthoredOccurrence::TransitionTarget(target) => Ok(target),
-        nested::AuthoredOccurrence::StatementRoot => {
-            // An unconditional named invocation owns the statement root in the
-            // same occurrence walk. Recover its handle from that exact statement.
-            let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
-            match checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(coordinate.statement_index as usize)
-            {
-                Some(StatementNode::Transition(transition))
-                    if transition.guard
-                        == checked_trees::statement::TransitionGuardNode::Always =>
-                {
-                    Ok(transition.target)
-                }
-                _ => unsupported("terminal call occurrence names a non-transition root"),
-            }
-        }
-        nested::AuthoredOccurrence::Expression => {
-            unsupported("terminal call occurrence names a guard or operand expression")
-        }
-    }
-}
-
 /// The invocation stage 04 bound at `coordinate`. Its row names the callee as
 /// spelled, the explicit arguments and the syntax that spells the call, so
 /// lowering never walks the statement again to find the occurrence.

@@ -8,28 +8,6 @@ use crate::declarations::target_signature;
 use crate::expression_preparation::source_custody::dispatch_subjects;
 use checked_trees::statement::{TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode};
 
-pub(super) enum AuthoredOccurrence {
-    Expression,
-    StatementRoot,
-    TransitionTarget(TransitionTargetHandle),
-}
-
-/// The scalar computation walker checks membership, not preorder identity.
-/// Structural calls may be argument roots or the roots of exact projections.
-/// Scalar computations retain
-/// their own selective evaluator; this walk numbers their authored occurrences
-/// without imposing an unconditional execution schedule on their branches.
-pub(super) fn authored_occurrences(
-    checked: &CheckedTrees,
-    caller_state: SymbolHandle,
-    statement_index: u32,
-) -> Result<Vec<(u32, AuthoredOccurrence)>, LoweringError> {
-    Ok(authored_execution(checked, caller_state, statement_index)?
-        .into_iter()
-        .map(|(ordinal, occurrence, _)| (ordinal, occurrence))
-        .collect())
-}
-
 /// Postorder execution position while retaining the original preorder identity.
 pub(crate) fn authored_call_position(
     checked: &CheckedTrees,
@@ -40,7 +18,7 @@ pub(crate) fn authored_call_position(
     let mut matches = occurrences
         .iter()
         .enumerate()
-        .filter(|(_, (ordinal, _, _))| *ordinal == coordinate.call_ordinal);
+        .filter(|(_, (ordinal, _))| *ordinal == coordinate.call_ordinal);
     let (position, _) = matches.next().ok_or(LoweringError::Unsupported(
         "result consumer has no authored occurrence",
     ))?;
@@ -75,8 +53,8 @@ pub(crate) fn unconditional_call_position(
     let mut matches = occurrences
         .iter()
         .enumerate()
-        .filter(|(_, (ordinal, _, _))| *ordinal == coordinate.call_ordinal);
-    let (position, (_, _, unconditional)) = matches.next().ok_or(LoweringError::Unsupported(
+        .filter(|(_, (ordinal, _))| *ordinal == coordinate.call_ordinal);
+    let (position, (_, unconditional)) = matches.next().ok_or(LoweringError::Unsupported(
         "result consumer has no authored occurrence",
     ))?;
     if matches.next().is_some() || !unconditional {
@@ -89,7 +67,7 @@ fn authored_execution(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
     statement_index: u32,
-) -> Result<Vec<(u32, AuthoredOccurrence, bool)>, LoweringError> {
+) -> Result<Vec<(u32, bool)>, LoweringError> {
     let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let statement = statements
@@ -311,11 +289,7 @@ fn authored_execution(
                 }
                 active.pop();
                 if let Some(ordinal) = ordinal {
-                    order.push((
-                        ordinal,
-                        AuthoredOccurrence::Expression,
-                        selection_depth == 0,
-                    ));
+                    order.push((ordinal, selection_depth == 0));
                 }
                 continue;
             }
@@ -328,7 +302,7 @@ fn authored_execution(
                     .ok_or(LoweringError::Unsupported(
                         "nested authored call ordinal space is exhausted",
                     ))?;
-                pending.push(Walk::ExitNamedTarget(target, ordinal));
+                pending.push(Walk::ExitNamedTarget(ordinal));
                 pending.extend(
                     arguments
                         .iter()
@@ -337,12 +311,8 @@ fn authored_execution(
                 );
                 continue;
             }
-            Walk::ExitNamedTarget(target, ordinal) => {
-                order.push((
-                    ordinal,
-                    AuthoredOccurrence::TransitionTarget(target),
-                    selection_depth == 0,
-                ));
+            Walk::ExitNamedTarget(ordinal) => {
+                order.push((ordinal, selection_depth == 0));
                 continue;
             }
             Walk::InternalJump => {
@@ -635,7 +605,7 @@ fn authored_execution(
         }
     }
     if statement_root {
-        order.push((0, AuthoredOccurrence::StatementRoot, true));
+        order.push((0, true));
     }
     Ok(order)
 }
@@ -699,7 +669,7 @@ enum Walk {
     /// Leave an operand, recording its preorder ordinal when it is a call.
     Exit(Option<u32>),
     NamedTarget(TransitionTargetHandle),
-    ExitNamedTarget(TransitionTargetHandle, u32),
+    ExitNamedTarget(u32),
     /// A jump to one of this machine's internal states. It invokes nothing,
     /// but the call-site traversal numbers its named target between the
     /// guard's calls and its operands', so it holds one ordinal.

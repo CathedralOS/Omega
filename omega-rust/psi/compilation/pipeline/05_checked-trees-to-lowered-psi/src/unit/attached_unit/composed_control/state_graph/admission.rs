@@ -1515,14 +1515,6 @@ pub(super) fn validate_arm_call(
     {
         return unsupported("Unit graph call arm is not its arm's terminal invocation");
     }
-    if crate::emission::call_source_custody::authored::transition_target_at_call(
-        checked,
-        state.state,
-        call.coordinate,
-    )? != transition.target
-    {
-        return unsupported("Unit graph call arm names a different authored target");
-    }
     crate::unit::attached_unit::argument_schedule::validate_operand_preparation(
         checked,
         plan.machine,
