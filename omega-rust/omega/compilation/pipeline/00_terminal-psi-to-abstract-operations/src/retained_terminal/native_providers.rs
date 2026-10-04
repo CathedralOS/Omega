@@ -100,13 +100,13 @@ impl TerminalNativeRealizationProposal {
         debug_assert_eq!(callback_placements.len(), native_callbacks.len());
         debug_assert_eq!(callback_placements.len(), callback_thunks.len());
 
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+        let module = artifact.semantic_module().map_err(|error| {
             diagnostic(
                 "Terminal native proposal",
                 format!("canonical semantics could not be decoded: {error}"),
             )
         })?;
-        let demanded = crate::provider_admission::demanded_boundary_identities(&module)?;
+        let demanded = crate::provider_admission::demanded_boundary_identities(module)?;
         let bindings = prepare_source_evaluated_bindings(
             self.providers().selection.plans(),
             &demanded,

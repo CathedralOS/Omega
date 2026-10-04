@@ -5,23 +5,32 @@ use crate::artifact_admission::ArtifactLoweringError;
 use crate::lowering::lower_decoded_verified_module;
 use abstract_operations::AbstractOperationPlan;
 
-pub(super) fn admit_provider_installation_with_projection(
+/// Admit one provider installation against an already decoded module and the
+/// exact bytes it was decoded from.
+///
+/// `module` is always the output of `terminal_codec::decode_module` — either
+/// run on `semantic_bytes` by the loose-bytes entrance or retained by
+/// `CanonicalTerminalArtifact::semantic_module`, which is that same decode kept
+/// after its first reader. No validation the codec performs is skipped on
+/// either route, and a module that did not come from `semantic_bytes` cannot
+/// pass unnoticed: the proof seal below names this module's reconstructed
+/// identity, and the Psi admission further down re-derives everything from
+/// `semantic_bytes` alone and must agree with the plan's Terminal identity.
+pub(crate) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,
+    module: &terminal_psi::TerminalModule,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    let module = terminal_codec::decode_module(semantic_bytes)
-        .map_err(ArtifactLoweringError::SemanticDecode)
-        .map_err(ProviderInstallationError::ArtifactReplay)?;
     // Provider admission requires the sealed proof section: the seal must
     // name this module's reconstructed identity, so a proof sealed for
     // another artifact cannot underwrite this installation.
-    let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
+    let proof = terminal_codec::decode_proof_section_for(module, proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
-    let verified = terminal_verifier::verify_module(&module, &proof, profile)
+    let verified = terminal_verifier::verify_module(module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)
         .map_err(ProviderInstallationError::ArtifactReplay)?;
     let replayed = lower_decoded_verified_module(&verified)

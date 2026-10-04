@@ -76,7 +76,9 @@ pub fn build_native_proof_sidecar(
     // The omitted-dependency inventory is the retained module's own
     // installation-reach enumeration, exactly identified — a receiver must
     // independently possess the same material under either product.
-    let module = terminal_codec::decode_module(artifact.psi_artifact().semantic_bytes())
+    let module = artifact
+        .psi_artifact()
+        .semantic_module()
         .map_err(|error| format!("cannot decode the retained terminal module: {error}"))?;
     let dependencies = module
         .root_service_reach

@@ -36,28 +36,45 @@ pub fn lower_artifact(
     sections: ArtifactSections<'_>,
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let (module, proof) = prepare_artifact(sections)?;
-    native::lower_decoded_native_module(&module, &proof, profile)
-}
-
-/// Decode the module, replay any offered obligation ledger, and decode the
-/// subject-sealed proof section: the seal must name this module's
-/// reconstructed identity, so a bare proof bundle or a section sealed to
-/// another subject is rejected here.
-fn prepare_artifact(
-    sections: ArtifactSections<'_>,
-) -> Result<(terminal_psi::TerminalModule, terminal_verifier::ProofBundle), ArtifactLoweringError> {
+    // Loose section bytes carry no decoded module, so this is the one place
+    // that runs canonical module decoding for them. A consumer holding the
+    // whole `CanonicalTerminalArtifact` reads the artifact's own decoded
+    // module instead and reaches the identical admission below.
     let module = terminal_codec::decode_module(sections.semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
-    if let Some(ledger_bytes) = sections.obligation_ledger_bytes {
+    lower_decoded_artifact(
+        &module,
+        sections.proof_bytes,
+        sections.obligation_ledger_bytes,
+        profile,
+    )
+}
+
+/// Replay any offered obligation ledger against this exact decoded module,
+/// decode the subject-sealed proof section, verify ordinary native authority,
+/// and lower. The proof seal must name this module's reconstructed identity,
+/// so a bare proof bundle or a section sealed to another subject is rejected
+/// here.
+///
+/// `module` must be the canonical decoding of the artifact's semantic bytes —
+/// the only two producers of such a module are `terminal_codec::decode_module`
+/// and `CanonicalTerminalArtifact::semantic_module`, which is that same decode
+/// retained. Admission therefore replays identically whichever caller arrives.
+pub(crate) fn lower_decoded_artifact(
+    module: &terminal_psi::TerminalModule,
+    proof_bytes: &[u8],
+    obligation_ledger_bytes: Option<&[u8]>,
+    profile: &proof_admission::AdmissionProfile,
+) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
+    if let Some(ledger_bytes) = obligation_ledger_bytes {
         let ledger = terminal_codec::decode_terminal_obligation_ledger(ledger_bytes)
             .map_err(ArtifactLoweringError::ObligationLedgerDecode)?;
         let trust_graph = terminal_codec::current_terminal_trust_graph()
             .map_err(ArtifactLoweringError::TrustGraph)?;
-        terminal_codec::validate_terminal_obligation_ledger(&ledger, &module, &trust_graph)
+        terminal_codec::validate_terminal_obligation_ledger(&ledger, module, &trust_graph)
             .map_err(ArtifactLoweringError::ObligationReplay)?;
     }
-    let proof = terminal_codec::decode_proof_section_for(&module, sections.proof_bytes)
+    let proof = terminal_codec::decode_proof_section_for(module, proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
-    Ok((module, proof))
+    native::lower_decoded_native_module(module, &proof, profile)
 }

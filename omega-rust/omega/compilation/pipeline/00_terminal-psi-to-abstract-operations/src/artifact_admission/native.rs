@@ -32,15 +32,14 @@ impl VerifiedNativeArtifactInput {
         artifact
             .validate()
             .map_err(ArtifactLoweringError::CanonicalArtifact)?;
-        super::lower_artifact(
-            super::ArtifactSections {
-                semantic_bytes: artifact.semantic_bytes(),
-                proof_bytes: artifact.proof_bytes(),
-                obligation_ledger_bytes: None,
-            },
-            profile,
-        )?
-        .try_into_native_input(establishments)
+        // The replay above already decoded this artifact's canonical module
+        // through the codec; admission reads that retained decoding rather
+        // than running the same validations over the same bytes again.
+        let module = artifact
+            .semantic_module()
+            .map_err(ArtifactLoweringError::SemanticDecode)?;
+        super::lower_decoded_artifact(module, artifact.proof_bytes(), None, profile)?
+            .try_into_native_input(establishments)
     }
 
     pub fn plan(&self) -> &AbstractOperationPlan {

@@ -168,7 +168,7 @@ impl TerminalNativeRealizationProposal {
             &self.providers.compiler_builtins,
             self.providers.selection.plans(),
         )?;
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
+        let module = artifact.semantic_module().map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;
         if module.entry != self.program_entry.checked_entry().terminal_entry() {
@@ -177,7 +177,7 @@ impl TerminalNativeRealizationProposal {
             );
         }
         program_entry_plan::validate_terminal_fused_service_establishments(
-            &module,
+            module,
             self.program_entry.source(),
             self.program_entry.checked_entry().receiver_eligibility(),
             self.program_entry.fused_service_establishments(),
@@ -198,7 +198,7 @@ impl TerminalNativeRealizationProposal {
         // adjudication waits for the mechanism-closure review at native
         // realization, which consumes this same retained union.
         match effects::establish_behavior_exclusions(
-            &module,
+            module,
             &[module.entry],
             &self.behavior_exclusions,
             &self.providers.selection,
@@ -232,11 +232,11 @@ impl TerminalNativeRealizationProposal {
             }
         }
         backend_plan::validate_callback_occurrences_for_module(
-            &module,
+            module,
             &self.occurrences.callbacks,
         )?;
         crate::validate_terminal_comparison_coverage(
-            &module,
+            module,
             self.providers.selection.plans(),
             &self.occurrences.ieee_float_comparisons,
             &self.occurrences.integer_comparisons,

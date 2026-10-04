@@ -92,11 +92,10 @@ pub struct AdmittedTerminalMechanism {
 
 pub fn admit_native_providers<'request>(
     input: &NativeRealizationInput,
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    terminal_artifact_identity: [u8; 32],
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
+    let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request)?;
     let mut settlements = settlements;
@@ -104,12 +103,7 @@ pub fn admit_native_providers<'request>(
         compiler_builtins::settle_compiler_builtins(input, request)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
-    let installation = installation::admit_checked_provider_installation(
-        input,
-        semantic_bytes,
-        proof_bytes,
-        request,
-    )?;
+    let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
     // leaves join the supplied receiving rows into the effective policy the
     // closure review and the artifact identity bind. A byte-identical supplied

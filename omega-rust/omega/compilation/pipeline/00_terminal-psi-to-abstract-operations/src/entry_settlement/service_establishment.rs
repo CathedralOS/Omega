@@ -144,11 +144,11 @@ pub fn validate_for_artifact_and_selected_plans(
     artifact.validate().map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+    let module = artifact.semantic_module().map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
     validate_terminal_rows(
-        &module,
+        module,
         settlement,
         settlement
             .checked_entry

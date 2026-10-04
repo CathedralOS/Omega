@@ -85,7 +85,8 @@ pub(crate) fn derive_physical_evidence(
     {
         publication.validate_object(object)?;
     }
-    let module = terminal_codec::decode_module(terminal_artifact.semantic_bytes())
+    let module = terminal_artifact
+        .semantic_module()
         .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
@@ -95,7 +96,7 @@ pub(crate) fn derive_physical_evidence(
         NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => {
             derive_identity_projection(
                 terminal_artifact.manifest().semantic(),
-                &module,
+                module,
                 boundary_application_coverage,
             )?
         }
@@ -240,7 +241,7 @@ pub(crate) fn derive_physical_evidence(
                         installed,
                     )?);
                 } else if let Some(child) = derive_admitted_provider_settlement_child(
-                    &module,
+                    module,
                     object,
                     image,
                     occurrence,
@@ -269,7 +270,7 @@ pub(crate) fn derive_physical_evidence(
                     selected_plan,
                     provider_executions,
                     target,
-                    &module,
+                    module,
                     object,
                     image,
                     final_image_symbol_digest,
@@ -291,7 +292,7 @@ pub(crate) fn derive_physical_evidence(
                 // it emitted an ordinary resolved internal call, and that
                 // retained custody binds the occurrence here.
                 if let Some(child) = derive_installed_provider_internal_call_child(
-                    &module,
+                    module,
                     object,
                     image,
                     occurrence,
@@ -362,7 +363,7 @@ pub(crate) fn derive_physical_evidence(
         let Some(span) = derive_operator_physical_span(
             occurrence,
             realization.realization(),
-            &module,
+            module,
             target,
             object,
             image,
@@ -414,7 +415,7 @@ pub(crate) fn derive_physical_evidence(
         // The dispatch catalog row is the occurrence's semantic parent; the
         // emitted call record supplies the span. Either failing names the
         // occurrence as the exact blocked subject.
-        let parent_identity = dynamic_call_dispatch_identity(&module, occurrence)?;
+        let parent_identity = dynamic_call_dispatch_identity(module, occurrence)?;
         let Some(span) = derive_dynamic_call_span(occurrence, target, object, image)? else {
             return Ok(blocked(
                 NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan {

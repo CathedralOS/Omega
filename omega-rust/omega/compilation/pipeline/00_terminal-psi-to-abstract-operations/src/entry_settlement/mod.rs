@@ -43,10 +43,10 @@ pub fn validate_native_program_entry_settlement(
     artifact.validate().map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+    let module = artifact.semantic_module().map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
-    let psi = terminal_codec::terminal_psi_identity(&module).map_err(|error| {
+    let psi = terminal_codec::terminal_psi_identity(module).map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
     if psi != checked_entry.terminal_psi_identity()
@@ -65,9 +65,9 @@ pub fn validate_native_program_entry_settlement(
     if entry_count != 1 {
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
-    validate_receiver_eligibility(&module, checked_entry, program_entry)?;
+    validate_receiver_eligibility(module, checked_entry, program_entry)?;
     service_establishment::validate_terminal_rows(
-        &module,
+        module,
         program_entry,
         checked_entry.receiver_eligibility(),
     )?;

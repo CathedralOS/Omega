@@ -240,16 +240,18 @@ impl DynamicElfNativeArtifact {
                 "dynamic native artifact closure receipt drifted from its exact realization inputs",
             );
         }
-        let module = terminal_codec::decode_module(self.psi_artifact.semantic_bytes())
+        let module = self
+            .psi_artifact
+            .semantic_module()
             .map_err(|_| "dynamic native artifact canonical semantics failed to decode")?;
-        mixed_structural_scalar::validate(&module, &self.object)?;
+        mixed_structural_scalar::validate(module, &self.object)?;
         validate_boundary_application_coverage(
-            &module,
+            module,
             semantic,
             self.boundary_application_coverage.as_ref(),
             &self.physical_evidence_scope,
         )?;
-        validate_ieee_float_fma_occurrences(&module, &self.object, &self.selected_provider_plans)?;
+        validate_ieee_float_fma_occurrences(module, &self.object, &self.selected_provider_plans)?;
         if module.entry != self.object.entry() {
             return Err("dynamic native artifact entry disagrees with canonical semantics");
         }
@@ -260,7 +262,7 @@ impl DynamicElfNativeArtifact {
         }
 
         super::provider_execution::replay_provider_executions(
-            &module,
+            module,
             self.object.boundary_settlements(),
             self.object.foreign_calls(),
             &self.selected_provider_plans,

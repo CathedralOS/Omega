@@ -33,7 +33,8 @@ impl TerminalCallbackThunkArtifact {
         artifact
             .validate()
             .map_err(|_| "Terminal callback thunk contains an invalid canonical artifact")?;
-        let module = terminal_codec::decode_module(artifact.semantic_bytes())
+        let module = artifact
+            .semantic_module()
             .map_err(|_| "Terminal callback thunk semantics could not be decoded")?;
         // The artifact is the isolated module of the placement's selected
         // machine; its call closure may lower additional callee machines. The

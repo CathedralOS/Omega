@@ -24,7 +24,15 @@ const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
 const ARTIFACT_FORMAT_MARKER: u16 = 2;
 
 /// One exact canonical Terminal-Psi semantic/proof artifact.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// `Clone` copies the private section bytes and the manifest verbatim. The
+/// artifact's invariant is a property of exactly those bytes, so a clone
+/// satisfies it for the same reason the original does, and it carries the
+/// original's replay and decode conclusions rather than re-deriving them. A
+/// caller that needs an owned artifact beside a borrowed one clones it; it
+/// does not reproduce it through `from_bytes(&artifact.to_bytes())`, which
+/// would re-run the whole envelope admission to reach the identical value.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "a canonical Terminal artifact owns the Psi-to-Omega handoff bytes"]
 pub struct CanonicalTerminalArtifact {
     semantic_bytes: Vec<u8>,
@@ -39,28 +47,47 @@ pub struct CanonicalTerminalArtifact {
     /// fingerprint rather than joining `ProofBundle`.
     mathematical_signature_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
-    replayed: SectionReplay,
+    replayed: ReplayMemo<()>,
+    /// The canonical semantic module this artifact's bytes decode to, retained
+    /// from the first reader onwards. Decoding is the artifact's most
+    /// expensive admission step and every custody, settlement and realization
+    /// check needs the same module, so the decode is paid once per artifact
+    /// rather than once per reader.
+    semantic_module: ReplayMemo<TerminalModule>,
 }
 
-/// Set once `validate` has replayed an artifact's sections successfully.
-/// The sections are private and never change after construction, so a later
-/// replay of the same artifact reaches the same verdict; the compiler's
-/// custody checks revalidate one artifact many times per compilation.
-/// Equality ignores it, and its debug form carries no state.
-#[derive(Default)]
-struct SectionReplay(std::sync::OnceLock<()>);
+/// One conclusion derived from an artifact's sections and retained for later
+/// readers. `replayed: ReplayMemo<()>` holds a successful section replay;
+/// `semantic_module: ReplayMemo<TerminalModule>` holds the decoded module.
+/// The sections are private and never change after construction, so deriving
+/// the same conclusion from the same artifact again reaches the same answer;
+/// the compiler's custody checks interrogate one artifact many times per
+/// compilation. Equality ignores a memo, and its debug form carries no state.
+struct ReplayMemo<Conclusion>(std::sync::OnceLock<Conclusion>);
 
-impl PartialEq for SectionReplay {
+impl<Conclusion> Default for ReplayMemo<Conclusion> {
+    fn default() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+}
+
+impl<Conclusion> PartialEq for ReplayMemo<Conclusion> {
     fn eq(&self, _: &Self) -> bool {
         true
     }
 }
 
-impl Eq for SectionReplay {}
+impl<Conclusion> Eq for ReplayMemo<Conclusion> {}
 
-impl std::fmt::Debug for SectionReplay {
+impl<Conclusion> std::fmt::Debug for ReplayMemo<Conclusion> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("SectionReplay")
+        formatter.write_str("ReplayMemo")
+    }
+}
+
+impl<Conclusion: Clone> Clone for ReplayMemo<Conclusion> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -129,7 +156,8 @@ impl CanonicalTerminalArtifact {
             debug_bytes,
             mathematical_signature_bytes: mathematical_signature.map(<[u8]>::to_vec),
             manifest,
-            replayed: SectionReplay::default(),
+            replayed: ReplayMemo::default(),
+            semantic_module: ReplayMemo::default(),
         };
         artifact.validate()?;
         Ok(artifact)
@@ -148,9 +176,10 @@ impl CanonicalTerminalArtifact {
     }
 
     fn replay_sections(&self) -> Result<(), CanonicalTerminalArtifactError> {
-        let semantic_module = decode_module(&self.semantic_bytes)
+        let semantic_module = self
+            .semantic_module()
             .map_err(CanonicalTerminalArtifactError::Semantic)?;
-        let proof_bundle = decode_proof_section_for(&semantic_module, &self.proof_bytes)
+        let proof_bundle = decode_proof_section_for(semantic_module, &self.proof_bytes)
             .map_err(CanonicalTerminalArtifactError::Proof)?;
         let optimization = decode_psi_optimization_execution_record(&self.optimization_bytes)
             .map_err(CanonicalTerminalArtifactError::Optimization)?;
@@ -158,7 +187,7 @@ impl CanonicalTerminalArtifact {
             return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
         }
         if let Some(debug_bytes) = self.debug_bytes.as_deref() {
-            decode_debug_map(&semantic_module, debug_bytes)
+            decode_debug_map(semantic_module, debug_bytes)
                 .map_err(CanonicalTerminalArtifactError::Debug)?;
         }
         // The signature wire decodes into a fresh arena, must re-encode to
@@ -169,7 +198,7 @@ impl CanonicalTerminalArtifact {
                 .map_err(CanonicalTerminalArtifactError::MathematicalSignature)?;
         }
         validate_artifact_manifest_with_mathematical_signature(
-            &semantic_module,
+            semantic_module,
             &proof_bundle,
             &optimization,
             None,
@@ -323,6 +352,24 @@ impl CanonicalTerminalArtifact {
 
     pub fn semantic_bytes(&self) -> &[u8] {
         &self.semantic_bytes
+    }
+
+    /// The canonical semantic module these bytes decode to.
+    ///
+    /// The module is produced by [`crate::decode_module`], which replays every
+    /// codec validation — scalar qualification, canonical ordering, the
+    /// structural foundation, the module representation — and re-encodes the
+    /// result to reject any non-canonical byte sequence. A reader of this
+    /// module therefore holds exactly the evidence a direct
+    /// `decode_module(artifact.semantic_bytes())` would establish; the only
+    /// difference is that the artifact pays for that decode once and retains
+    /// the conclusion, because its bytes are private and immutable.
+    pub fn semantic_module(&self) -> Result<&TerminalModule, CodecError> {
+        if let Some(module) = self.semantic_module.0.get() {
+            return Ok(module);
+        }
+        let module = decode_module(&self.semantic_bytes)?;
+        Ok(self.semantic_module.0.get_or_init(|| module))
     }
 
     pub fn proof_bytes(&self) -> &[u8] {

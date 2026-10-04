@@ -72,13 +72,7 @@ pub fn admit_native_realization<'request>(
         None => VerifiedNativeArtifactInput::prepare(artifact, request.providers.profile, &[])
             .map_err(artifact_lowering_error)?,
     };
-    let providers = admit_native_providers(
-        &input,
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        *artifact.manifest().identity().as_bytes(),
-        &request.providers,
-    )?;
+    let providers = admit_native_providers(&input, artifact, &request.providers)?;
     // Exclusions constrain the exercised mechanism closure even when the
     // caller makes no receiver-permission claim.
     request

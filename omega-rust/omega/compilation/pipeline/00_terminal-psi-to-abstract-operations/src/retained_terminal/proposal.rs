@@ -93,14 +93,13 @@ pub fn project_terminal_native_realization_proposal(
             "Terminal native proposal ProgramEntry settlement failed: {error}"
         ))]
     })?;
-    let terminal_module =
-        terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "Terminal native proposal could not replay canonical semantics: {error}",
-            ))]
-        })?;
+    let terminal_module = artifact.semantic_module().map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "Terminal native proposal could not replay canonical semantics: {error}",
+        ))]
+    })?;
     let demanded_intrinsics =
-        crate::provider_admission::demanded_boundary_identities(&terminal_module)?;
+        crate::provider_admission::demanded_boundary_identities(terminal_module)?;
     let builtin_proposals =
         crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
             request.boundaries.selected_provider_plans.plans(),
@@ -135,14 +134,14 @@ pub fn project_terminal_native_realization_proposal(
     )?;
     let ieee_float_comparison_occurrences = crate::settle_ieee_float_comparison_occurrences(
         request.boundaries.checked,
-        &terminal_module,
+        terminal_module,
         request.boundaries.selected_provider_plans,
         request.boundaries.selected_provider_provenance,
         selected_ieee_float_comparison_occurrences,
     )?;
     let integer_comparison_occurrences = crate::settle_integer_comparison_occurrences(
         request.boundaries.checked,
-        &terminal_module,
+        terminal_module,
         request.boundaries.selected_provider_plans,
         request.boundaries.selected_provider_provenance,
         selected_integer_comparison_occurrences,
@@ -151,7 +150,7 @@ pub fn project_terminal_native_realization_proposal(
         .boundaries
         .settle(artifact, &checked_boundary_operator_scope)?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
-        &terminal_module,
+        terminal_module,
         callback_placements,
         callback_occurrences
             .iter()
@@ -185,7 +184,7 @@ pub fn project_terminal_native_realization_proposal(
         request.package_terminal_authority_permissions,
         effects::authored_behavior_exclusion_set_in(
             request.behavior_exclusions,
-            &terminal_module,
+            terminal_module,
             &|symbol| effects::boundary_trait_identity(request.boundaries.checked, symbol),
         ),
     )

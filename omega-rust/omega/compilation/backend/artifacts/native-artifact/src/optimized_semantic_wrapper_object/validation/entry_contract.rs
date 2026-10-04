@@ -411,10 +411,9 @@ pub fn validate_entry_shape(
     settlement: &ValidatedNativeProgramEntrySettlement,
     contract: &OptimizedProgramStorageSemanticEntryContract,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
-    let module =
-        terminal_codec::decode_module(source.terminal().semantic_bytes()).map_err(|_| {
-            OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch
-        })?;
+    let module = source.terminal().semantic_module().map_err(|_| {
+        OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch
+    })?;
     let entry = module
         .machines
         .iter()

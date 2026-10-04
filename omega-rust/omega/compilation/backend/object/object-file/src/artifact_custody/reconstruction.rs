@@ -19,12 +19,13 @@ pub(super) fn validate_terminal_join(
     if terminal_manifest.installation().is_some() {
         return Err(OptimizedObjectArtifactError::InstallationAlreadyPresent);
     }
-    let module = terminal_codec::decode_module(terminal.semantic_bytes())
+    let module = terminal
+        .semantic_module()
         .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
-    let proof = terminal_codec::decode_proof_section_for(&module, terminal.proof_bytes())
+    let proof = terminal_codec::decode_proof_section_for(module, terminal.proof_bytes())
         .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
     let input = source.verified_input();
-    if module != *input.context().module() || terminal_manifest.semantic() != source.object().psi {
+    if module != input.context().module() || terminal_manifest.semantic() != source.object().psi {
         return Err(OptimizedObjectArtifactError::SemanticMismatch);
     }
     if proof != *input.context().proof_bundle()

@@ -100,5 +100,5 @@ pub use verified_program::{
 pub use sections::semantic_module::{
     decode_canonical_proposition, decode_crash_route_buckets, decode_module,
     encode_crash_route_buckets, encode_module, encode_structural_type_declaration,
-    semantic_fingerprint, terminal_psi_identity,
+    module_decode_count, semantic_fingerprint, terminal_psi_identity,
 };

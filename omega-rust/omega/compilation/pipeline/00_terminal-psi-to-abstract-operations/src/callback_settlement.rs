@@ -38,7 +38,7 @@ pub fn validate_callback_thunk_settlement(
     backend_plan::validate_bound_nominal_callback_placement(placement).map_err(|error| {
         format!("callback thunk placement failed boundary entry plan replay: {error}")
     })?;
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+    let module = artifact.semantic_module().map_err(|error| {
         format!("callback thunk custody replay could not decode canonical semantics: {error}")
     })?;
     let Some(machine) = module

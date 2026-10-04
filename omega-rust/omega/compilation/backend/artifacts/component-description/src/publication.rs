@@ -12,10 +12,12 @@ use terminal_psi::TerminalPsiIdentity;
 pub fn publish_component_description(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<(TerminalPsiIdentity, Vec<u8>), DescribeError> {
-    let module = terminal_codec::decode_module(facts.artifact.semantic_bytes())
+    let module = facts
+        .artifact
+        .semantic_module()
         .map_err(DescribeError::ArtifactDecode)?;
-    let description = describe_decoded_component_facts(facts, &module)?;
+    let description = describe_decoded_component_facts(facts, module)?;
     let subject =
-        terminal_codec::terminal_psi_identity(&module).map_err(DescribeError::ArtifactIdentity)?;
+        terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)?;
     Ok((subject, encode_component_description(&description)))
 }

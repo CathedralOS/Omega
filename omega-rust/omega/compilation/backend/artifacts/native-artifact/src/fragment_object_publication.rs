@@ -86,14 +86,15 @@ pub fn publish_fragment_object(
             // x86-64 template, joined object, manifest and custody receipt —
             // and retain it for the settlement's caller.
             let terminal = request.terminal;
+            // Staging owns its Terminal artifact, and this publication only
+            // borrows one, so it hands over a clone of the same bytes. It
+            // previously reproduced the artifact through
+            // `from_bytes(&terminal.to_bytes())`, which reached the identical
+            // value by re-running the whole envelope admission — four module
+            // validations, a canonical re-encode, proof, debug and manifest
+            // replay — purely to obtain ownership.
             let source_artifact = object_file::stage_validated_optimized_object_artifact_shared(
-                terminal_codec::CanonicalTerminalArtifact::from_bytes(&terminal.to_bytes())
-                    .map_err(|error| {
-                        publication_error(
-                            "semantic entry object staging",
-                            format!("canonical artifact reproduction failed: {error:?}"),
-                        )
-                    })?,
+                terminal.clone(),
                 std::sync::Arc::clone(&source),
             )
             .map_err(|error| {

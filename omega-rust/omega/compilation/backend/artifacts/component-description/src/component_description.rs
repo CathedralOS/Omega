@@ -1025,9 +1025,11 @@ pub struct ComponentDescriptionFacts<'a> {
 pub fn describe_component_facts(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<ComponentDescription, DescribeError> {
-    let module = terminal_codec::decode_module(facts.artifact.semantic_bytes())
+    let module = facts
+        .artifact
+        .semantic_module()
         .map_err(DescribeError::ArtifactDecode)?;
-    describe_decoded_component_facts(facts, &module)
+    describe_decoded_component_facts(facts, module)
 }
 
 /// Both in-memory description and serialized publication use the same inventory
@@ -1697,9 +1699,10 @@ pub fn description_subject(
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&description.artifact_bytes)
             .map_err(DescribeError::ArtifactFormat)?;
-    let module = terminal_codec::decode_module(artifact.semantic_bytes())
+    let module = artifact
+        .semantic_module()
         .map_err(DescribeError::ArtifactDecode)?;
-    terminal_codec::terminal_psi_identity(&module).map_err(DescribeError::ArtifactIdentity)
+    terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)
 }
 
 /// Subject reconstruction helper for callers that only hold the raw parts.

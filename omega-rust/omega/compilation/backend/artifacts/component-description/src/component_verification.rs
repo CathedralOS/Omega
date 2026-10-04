@@ -643,9 +643,10 @@ pub fn verify_component(
             schema: description.schema,
         });
     }
-    let module = terminal_codec::decode_module(artifact.semantic_bytes())
+    let module = artifact
+        .semantic_module()
         .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
-    let reconstructed = terminal_codec::terminal_psi_identity(&module)
+    let reconstructed = terminal_codec::terminal_psi_identity(module)
         .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
     if reconstructed != request.expected_subject {
         return Err(ComponentVerificationRejection::WrongSubject {
@@ -657,10 +658,10 @@ pub fn verify_component(
     // module, and the module must verify against it under the request's
     // admission profile: a decoded, subject-matched module whose obligations
     // go undischargeable is not a verified component.
-    let proof_bundle = terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes())
+    let proof_bundle = terminal_codec::decode_proof_section_for(module, artifact.proof_bytes())
         .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
     let verified_module =
-        terminal_verifier::verify_module(&module, &proof_bundle, &request.admission_profile)
+        terminal_verifier::verify_module(module, &proof_bundle, &request.admission_profile)
             .map_err(|error| {
                 ComponentVerificationRejection::ModuleVerification(error.to_string())
             })?;
@@ -703,7 +704,11 @@ pub fn verify_component(
         description,
         description_identity,
         closure,
-        module,
+        // The verdict outlives the borrowed artifact, so it keeps its own
+        // copy of the artifact's decoded module. Copying the decoded value
+        // is not the same cost as decoding the bytes again: no validation,
+        // canonical re-encode or byte comparison runs here.
+        module: module.clone(),
         export_contracts: inventory.export_contracts,
     })
 }

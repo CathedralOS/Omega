@@ -81,7 +81,21 @@ pub fn encode_structural_type_declaration(
     Ok(writer.finish())
 }
 
+/// How many times this process has run [`decode_module`] to completion or
+/// rejection. Canonical decoding replays every module validation and re-encodes
+/// the module to compare bytes, so it is the compiler's most expensive repeated
+/// admission step; this counter is the instrument that keeps a realization
+/// honest about how often it pays for it. It is a measurement, not control
+/// state: nothing branches on its value.
+static MODULE_DECODES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The running [`decode_module`] count for this process.
+pub fn module_decode_count() -> u64 {
+    MODULE_DECODES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
+    MODULE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = Reader::new(bytes);
     if reader.take(MAGIC.len())? != MAGIC {
         return Err(CodecError::InvalidMagic);

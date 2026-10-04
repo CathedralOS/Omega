@@ -7,8 +7,7 @@ use super::adapters::project_selected_provider_adapters;
 
 pub fn admit_checked_provider_installation(
     input: &NativeRealizationInput,
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_>,
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {
     let plan = input.plan();
@@ -20,10 +19,18 @@ pub fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let installation = crate::admit_provider_installation(
+    // The artifact replayed its sections before admission reached here, so
+    // its canonical module is already decoded; installation reads that
+    // retained decoding rather than running the same codec validations over
+    // the same bytes a second time.
+    let module = artifact.semantic_module().map_err(|error| {
+        realization_error("checked-provider installation", format!("{error:?}"))
+    })?;
+    let installation = crate::provider_installation::admit_provider_installation_with_projection(
         plan,
-        semantic_bytes,
-        proof_bytes,
+        module,
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
         request.profile,
         &selected,
     )
