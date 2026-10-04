@@ -15,7 +15,7 @@ use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
 use super::{
     reference_results, retain_admitted_unit_boundary, retain_exact_unit_boundary,
-    scalar_completion, structural_completion, validate_unit_operation_sequence,
+    structural_completion, validate_unit_operation_sequence,
 };
 use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;
@@ -177,12 +177,10 @@ fn validate_ordinary(
         .any(|nominal| nominal.machine == *machine);
     if !synthetic_cleanup {
         if machine.scalar_result.is_some() || machine.scalar_control.is_some() {
-            scalar_completion::validate(checked, machine)?;
         } else {
             structural_completion::validate(checked, machine)?;
         }
     }
-    crate::emission::structural_scalar_store_source::validate(checked, machine)?;
     validate_linear_transition_calls(checked, machine)?;
 
     Ok(())

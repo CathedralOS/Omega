@@ -6,8 +6,8 @@ use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
     Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
-    arrays, cases, literals, lower_scalar_call, parameter, source_custody, storage,
-    structural_arguments, subslices, unsupported,
+    arrays, cases, literals, lower_scalar_call, parameter, storage, structural_arguments,
+    subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
@@ -253,18 +253,6 @@ pub(crate) fn lower_inline_call(
             "scalar computation calls need exact named proof-output operation custody",
         );
     }
-    source_custody::validate(
-        checked,
-        machine,
-        &Site {
-            state,
-            statement,
-            bindings,
-        },
-        role,
-        root.root,
-        symbols::SymbolHandle::invalid(),
-    )?;
     lower_scalar_call(
         checked,
         qualifications,

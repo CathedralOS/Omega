@@ -77,10 +77,9 @@ mod ordinary_machine;
 mod provider_attachments;
 
 // The operations a body lowers, each with its exact source custody.
+pub(crate) mod byte_locals;
 mod byte_subslices;
 mod field_replacement;
-pub(crate) use field_replacement::{replaced_array_literal, validate_array_element_replacements};
-pub(crate) mod byte_locals;
 mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;

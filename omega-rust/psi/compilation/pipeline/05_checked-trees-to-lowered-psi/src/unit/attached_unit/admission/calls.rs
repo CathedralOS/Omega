@@ -29,15 +29,14 @@ use super::super::super::{
 };
 use super::super::bodies::{UnitBody, UnitEntry, UnitPlans};
 use super::super::{
-    checked_unit_target_reach_matches, primitive_locals, retain_exact_flow_call,
-    retain_exact_unit_boundary, scalar_structural_calls, structural_calls, unique_unit_boundary,
+    checked_unit_target_reach_matches, retain_exact_flow_call, retain_exact_unit_boundary,
+    structural_calls, unique_unit_boundary,
 };
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
 };
 use symbols::SymbolHandle;
 
@@ -56,9 +55,6 @@ pub(in crate::unit::attached_unit) struct CallerView<'a> {
     /// The value the sequence returns whole, if it completes with one.
     pub(in crate::unit::attached_unit) structural_result:
         Option<&'a CheckedUnitStructuralReturnPlan>,
-    /// An ordinary body's empty-record affine locals; a state declares none.
-    pub(in crate::unit::attached_unit) trivial_affine_locals:
-        &'a [CheckedTrivialAffineStructuralLocalPlan],
 }
 
 impl<'a> CallerView<'a> {
@@ -70,7 +66,6 @@ impl<'a> CallerView<'a> {
             structural_parameters: &plan.structural_parameters,
             entry_claims: &plan.entry_claims,
             structural_result: plan.structural_result.as_ref(),
-            trivial_affine_locals: &plan.trivial_affine_locals,
         }
     }
 
@@ -90,7 +85,6 @@ impl<'a> CallerView<'a> {
                 }
                 _ => None,
             },
-            trivial_affine_locals: &[],
         }
     }
 }
@@ -195,12 +189,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 planned.target.state,
             )?;
             let target = unit_target(checked, plans, operation)?;
-            primitive_locals::unit_calls::validate(
-                checked,
-                caller,
-                operation,
-                target.structural_parameters,
-            )?;
             structural_calls::validate_consumer(
                 checked,
                 caller,
@@ -316,8 +304,6 @@ fn scalar_call(
     let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
     let service_reach = &call.target.service_reach;
     let scalar_arguments = &call.scalar_arguments;
-    let structural_arguments = &call.structural_arguments;
-    let claim_transfers = call.claim_transfers();
     let source_call = retain_exact_flow_call(
         checked,
         caller.machine,
@@ -326,14 +312,6 @@ fn scalar_call(
         *target_state,
     )?;
     let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
-    if matches!(
-        target,
-        CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_)
-    ) || !structural_arguments.is_empty()
-        || !claim_transfers.is_empty()
-    {
-        scalar_structural_calls::validate_call_source(checked, caller, operation, &target)?;
-    }
     let contract = checked
         .facts
         .contract_plans

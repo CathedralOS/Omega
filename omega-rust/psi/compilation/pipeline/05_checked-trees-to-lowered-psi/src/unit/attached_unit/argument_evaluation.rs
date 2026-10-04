@@ -911,7 +911,7 @@ impl Evaluation {
         let Some(call) = operation.call() else {
             return Ok(None);
         };
-        let (coordinate, arguments, boundary) = (
+        let (coordinate, arguments, _) = (
             call.coordinate,
             call.scalar_arguments.as_slice(),
             call.is_boundary(),
@@ -995,7 +995,6 @@ impl Evaluation {
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
-            boundary,
             arguments,
             argument_ordinal_start,
             &source_bindings,
@@ -1151,7 +1150,6 @@ impl Evaluation {
             state,
             statement_index,
             computation_role.unwrap_or(CheckedScalarExpressionRole::AssignmentValue),
-            symbols::SymbolHandle::invalid(),
             &bindings,
             &source_types,
             scalar_type.into(),

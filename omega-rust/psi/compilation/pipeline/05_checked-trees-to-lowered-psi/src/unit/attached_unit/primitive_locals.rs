@@ -12,17 +12,15 @@
 //! place with the rest of the body's places.
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
-    ScalarType, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, allocate_dense, lookup_type_id, parameters, place_id,
-    terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
+    Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeShape, allocate_dense, lookup_type_id, place_id, terminal_scalar_type,
+    unsupported,
 };
 use crate::unit::StructuralTypeDeclaration;
 use checked_trees::CheckedCallScalarArgument;
 use checked_trees::statement::{StatementNode, TableLocalData};
-
-use super::admission::CallerView;
 
 pub(super) mod unit_calls;
 
@@ -30,15 +28,6 @@ pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub declaration: StructuralPlaceDeclaration,
     pub scalar_type: ScalarType,
-}
-
-pub(crate) fn source<'checked>(
-    checked: &'checked CheckedTrees,
-    plan: &CheckedUnitEffectMachinePlan,
-    symbol: symbols::SymbolHandle,
-    before: u32,
-) -> Result<&'checked TableLocalData, LoweringError> {
-    declaration(checked, plan.state, symbol, before)
 }
 
 /// The one authored mutable primitive declaration of `symbol` in `state`
@@ -85,54 +74,6 @@ fn declaration(
         return unsupported("primitive local does not have exact mutable primitive custody");
     }
     Ok(local)
-}
-
-pub(crate) fn validate_roster(
-    checked: &CheckedTrees,
-    plan: &CheckedUnitEffectMachinePlan,
-) -> Result<(), LoweringError> {
-    let (_, state) = crate::declarations::state_declaration(checked, plan.state)?;
-    for (ordinal, statement) in checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-    {
-        let StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        if !local.is_mutable
-            || checked
-                .primitive_type_reference(local.type_reference)
-                .is_none()
-        {
-            continue;
-        }
-        if plan
-            .operations
-            .iter()
-            .filter(|operation| {
-                matches!(operation,
-            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { statement_index, .. }
-                if *statement_index as usize == ordinal)
-            })
-            .count()
-            != 1
-        {
-            return unsupported(
-                "primitive local roster omits or duplicates an authored declaration",
-            );
-        }
-    }
-    for operation in &plan.operations {
-        if matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-        ) {
-            validate_establishment(checked, plan.machine, plan.state, operation)?;
-        }
-    }
-    Ok(())
 }
 
 /// Rejoin one establishment to its authored declaration, declared type and
@@ -229,44 +170,6 @@ fn validate_establishment(
         }
     }
     Ok(())
-}
-
-pub(super) fn validate_argument_source(
-    checked: &CheckedTrees,
-    caller: &CallerView<'_>,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> Result<bool, LoweringError> {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
-        argument.source
-    else {
-        return Ok(false);
-    };
-    // Ordinary bodies and composed states establish the same primitive home.
-    // Rejoin its authored state and borrow occurrence, not the body's family.
-    let local = declaration(checked, caller.state, symbol, coordinate.statement_index)?;
-    let (machine, _) = crate::declarations::state_declaration(checked, caller.state)?;
-    let (root, path, access) =
-        parameters::source_path(checked, machine, None, local.type_reference, expression)?;
-    if machine.symbol != caller.machine
-        || root != symbol
-        || !path.is_empty()
-        || !argument.path.is_empty()
-        || access != Some(argument.access)
-        || argument.access == checked_trees::CheckedStructuralAccess::Owned
-        || argument.type_identity
-            != checked
-                .typed
-                .normalized_type_identity(validation::peel_arithmetic_policy(
-                    &checked.typed,
-                    local.type_reference,
-                ))
-                .into_string()
-    {
-        return unsupported("primitive local argument substituted its authored borrow");
-    }
-    Ok(true)
 }
 
 pub(super) fn find(

@@ -6,7 +6,6 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
-use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::statement::StatementNode;
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 
@@ -491,9 +490,6 @@ pub(super) fn validate(
             (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Assignment(assignment))
                 if kept_structural_call_at(call, ordinal) =>
             {
-                validate_displaced_field_replacement(
-                    checked, machine, source, state, ordinal, assignment,
-                )?;
             }
             // `place = <construction>` over the same kind of field: the
             // establishment replaces the call as the replacing value's
@@ -506,18 +502,13 @@ pub(super) fn validate(
                 },
                 StatementNode::Assignment(assignment),
             ) if result.statement_index as usize == ordinal => {
-                validate_displaced_field_replacement(
-                    checked, machine, source, state, ordinal, assignment,
-                )?;
             }
             (
                 CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. },
-                StatementNode::Assignment(assignment),
-            ) => validate_displaced_field_replacement(
-                checked, machine, source, state, ordinal, assignment,
-            )?,
+                StatementNode::Assignment(_),
+            ) => {}
             // A result or a borrowed argument owner dies at the exact call's
             // continuation, regardless of the statement's surface spelling.
             // Operand custody independently rejoins this immediate cleanup.
@@ -526,52 +517,24 @@ pub(super) fn validate(
                 _,
             ) => {}
             (
-                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
-                StatementNode::Assignment(assignment),
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(_),
+                StatementNode::Assignment(_),
             ) => {
-                indexed_write::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    assignment,
-                    IndexedWriteLeaf::ByteView(write),
-                )?;
             }
             (
-                CheckedUnitEffectOperationPlan::ElementViewWrite(write),
-                StatementNode::Assignment(assignment),
+                CheckedUnitEffectOperationPlan::ElementViewWrite(_),
+                StatementNode::Assignment(_),
             ) => {
-                indexed_write::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    assignment,
-                    IndexedWriteLeaf::ElementView(write),
-                )?;
             }
             (
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store),
-                StatementNode::Assignment(assignment),
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_),
+                StatementNode::Assignment(_),
             ) => {
-                indexed_write::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    assignment,
-                    IndexedWriteLeaf::ByteField(store),
-                )?;
             }
             (
                 CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
-                crate::emission::structural_byte_sequence_store::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    assignment,
-                    store,
-                )?;
                 // A record literal made only of view members has no scalar
                 // store to own its roster; its first member store does.
                 let view_members = record_view_members(state, store.statement_index);
@@ -589,28 +552,12 @@ pub(super) fn validate(
                         checked_trees::expression::ExpressionNode::StructLiteral(_)
                     )
                 {
-                    crate::emission::structural_scalar_store_source::validate_assignment_stores(
-                        checked,
-                        machine,
-                        state.state,
-                        store.statement_index,
-                        assignment,
-                        &[],
-                        &view_members,
-                    )?;
                 }
             }
             (
-                CheckedUnitEffectOperationPlan::RepresentationViewStore(store),
-                StatementNode::Assignment(assignment),
+                CheckedUnitEffectOperationPlan::RepresentationViewStore(_),
+                StatementNode::Assignment(_),
             ) => {
-                crate::emission::representation_view_store::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    assignment,
-                    store,
-                )?;
             }
             // One atomic event occupies its carrier statement: the assignment
             // for a writing event, the local for a load. Emission rejoins the
@@ -703,7 +650,7 @@ pub(super) fn validate(
             }
             (
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-                StatementNode::Assignment(assignment),
+                StatementNode::Assignment(_),
             ) => {
                 // The statement's first store validates the whole roster the
                 // assignment planned: one field, or every member of a record
@@ -720,20 +667,11 @@ pub(super) fn validate(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let view_members = record_view_members(state, store.statement_index);
+                let _ = record_view_members(state, store.statement_index);
                 if statement_stores
                     .first()
                     .is_some_and(|first| std::ptr::eq(*first, store))
                 {
-                    crate::emission::structural_scalar_store_source::validate_assignment_stores(
-                        checked,
-                        machine,
-                        state.state,
-                        store.statement_index,
-                        assignment,
-                        &statement_stores,
-                        &view_members,
-                    )?;
                 }
             }
             (
@@ -741,14 +679,6 @@ pub(super) fn validate(
                 | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_),
                 StatementNode::Assignment(_),
             ) => {
-                crate::emission::structural_scalar_store_source::validate_case_store(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.operations,
-                    &state.structural_parameters,
-                )?;
             }
             // A Unit call retains its exact occurrence and ordinary argument
             // custody. Boundary receipts and ordinary claim transfers are
@@ -1417,316 +1347,10 @@ fn own_establishment(operation: &CheckedUnitEffectOperationPlan) -> bool {
     )
 }
 
-/// A whole-root replacement writes the complete place: admitted only when
-/// the place names a parameter borrowed exclusively (`&mut`), whose entire
-/// formal is the writable window. Every other carrier still requires a
-/// nonempty field path beneath it.
-fn exclusive_borrowed_whole_parameter(
-    state: &CheckedComposedUnitControlStatePlan,
-    place: &checked_trees::CheckedUnitStructuralArgumentPlan,
-) -> bool {
-    let Some(position) = place.source_parameter_index() else {
-        return false;
-    };
-    state
-        .structural_parameters
-        .get(position as usize)
-        .is_some_and(|parameter| {
-            parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-        })
-}
-
 /// A structural construction authored as one of its statement's call
 /// arguments rather than bound to a local or returned.
 fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
     super::super::super::argument_schedule::argument_construction(operation).is_some()
-}
-
-/// Rejoin `place = value` where `value` is a whole owned structural value and
-/// `place` is a structural field beneath an exclusive borrowed parameter.
-/// The checked sequencer plans it as one statement roster, in this order:
-/// the value's producer -- the statement's call, or the establishment of its
-/// authored construction -- binding the replacing value; `MoveStructuralField`
-/// binding the displaced old value and opening the window at `place`;
-/// `StoreStructuralField` closing that exact window with the whole produced
-/// value; and, for an affine field, the statement's continuation discarding
-/// the displaced value.
-/// Emission reconstructs the window through `BorrowedWindowLedger`; this
-/// check ties every member to the authored assignment so none can be
-/// substituted, reordered, or detached from its place.
-fn validate_displaced_field_replacement(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    ordinal: usize,
-    assignment: &checked_trees::statement::TableAssignment,
-) -> Result<(), LoweringError> {
-    let roster = state
-        .operations
-        .iter()
-        .filter(|operation| {
-            authored_statement(operation).map(|index| index as usize) == Some(ordinal)
-        })
-        .collect::<Vec<_>>();
-    // A whole array literal of structural elements replaces its array one
-    // element window at a time; its roster has its own exact order.
-    if let Some(literal) = crate::unit::attached_unit::replaced_array_literal(
-        checked,
-        state.state,
-        ordinal,
-        assignment,
-    ) {
-        return crate::unit::attached_unit::validate_array_element_replacements(
-            checked,
-            state.state,
-            &state.structural_parameters,
-            ordinal,
-            assignment,
-            &roster,
-            literal,
-        );
-    }
-    // Argument values precede the call that replaces the field. Each has
-    // already rejoined its own exact call/formal above; it is not the field's
-    // replacing producer and must not shift the producer/window relationship.
-    let operand_count = roster
-        .iter()
-        .take_while(|operation| argument_construction(operation))
-        .count();
-    let roster = &roster[operand_count..];
-    // An unrestricted byte owner replaces length and live payload together;
-    // it has no displaced affine value or move-out window. Its two effects
-    // still belong to exactly one authored assignment and one completed call.
-    if let [
-        CheckedUnitEffectOperationPlan::Call(call),
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
-    ] = roster
-        && let Some(result) = call.structural_result()
-        && let Some(binding_ordinal) =
-            crate::emission::structural_byte_sequence_store::completed_call_binding(
-                store,
-                state.state,
-            )?
-        && store.statement_index as usize == ordinal
-        && call.coordinate.statement_index == store.statement_index
-        && call.coordinate.call_ordinal == 0
-        && result.statement_index == store.statement_index
-        && result.binding_ordinal == binding_ordinal
-        && result.multiplicity == language_semantics::Multiplicity::Unrestricted
-        && call.discard_result_on_return() == Some(false)
-    {
-        return crate::emission::structural_byte_sequence_store::validate_assignment(
-            checked,
-            machine,
-            state.state,
-            assignment,
-            store,
-        );
-    }
-    let (moved, place, destination, value, cleanup, produced) = match roster {
-        [
-            producer,
-            CheckedUnitEffectOperationPlan::MoveStructuralField {
-                result: moved,
-                source: place,
-            },
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            },
-            cleanup @ ..,
-        ] => {
-            // The producer is the value the authored right-hand side denotes:
-            // the statement's own call, or the establishment of its rooted
-            // construction.
-            let produced = match (
-                producer,
-                checked.expression_table.expression(assignment.value),
-            ) {
-                // Any call with a kept structural result, ordinary or
-                // boundary.
-                (
-                    CheckedUnitEffectOperationPlan::Call(call),
-                    checked_trees::expression::ExpressionNode::Call(_),
-                ) if let Some(result) = call.structural_result()
-                    && call.discard_result_on_return() == Some(false)
-                    && call.coordinate.call_ordinal == 0 =>
-                {
-                    result.clone()
-                }
-                (
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        value: established,
-                        discard_result_on_return: false,
-                        ..
-                    },
-                    _,
-                ) if checked
-                    .facts
-                    .values
-                    .structural_values
-                    .root_for_expression(state.state, result.statement_index, assignment.value)
-                    .is_some_and(|root| root.root == *established) =>
-                {
-                    result.clone()
-                }
-                _ => return unsupported("Unit graph field replacement has no authored producer"),
-            };
-            let value_source =
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: produced.binding_ordinal,
-                };
-            (
-                moved,
-                place,
-                destination,
-                value,
-                cleanup,
-                (
-                    produced.type_identity,
-                    produced.multiplicity,
-                    produced.statement_index,
-                    value_source,
-                ),
-            )
-        }
-        // A bound value already has storage: no new producer belongs to this
-        // statement. Rejoin the same parameter/local registry used by ordinary
-        // field replacement, then validate this window and its cleanup below.
-        [
-            CheckedUnitEffectOperationPlan::MoveStructuralField {
-                result: moved,
-                source: place,
-            },
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            },
-            cleanup @ ..,
-        ] => {
-            let (identity, multiplicity) =
-                crate::unit::attached_unit::field_replacement::bound_value_type(
-                    checked,
-                    source,
-                    ordinal,
-                    assignment.value,
-                    value,
-                    &state.structural_parameters,
-                    &state.operations,
-                )?;
-            (
-                moved,
-                place,
-                destination,
-                value,
-                cleanup,
-                (
-                    identity,
-                    multiplicity,
-                    moved.statement_index,
-                    value.source.clone(),
-                ),
-            )
-        }
-        _ => {
-            return unsupported("Unit graph field replacement is not one producer and window pair");
-        }
-    };
-    let (identity, multiplicity, statement_index, value_source) = produced;
-    if place != destination
-        || place.access != checked_trees::CheckedStructuralAccess::Owned
-        || (place.path.is_empty() && !exclusive_borrowed_whole_parameter(state, place))
-        || place.type_identity != identity
-        || moved.type_identity != identity
-        || moved.multiplicity != multiplicity
-        || moved.statement_index != statement_index
-    {
-        return unsupported("Unit graph field replacement window names another place or type");
-    }
-    if value.source != value_source
-        || !value.path.is_empty()
-        || value.access != checked_trees::CheckedStructuralAccess::Owned
-        || value.type_identity != identity
-    {
-        return unsupported("Unit graph field replacement stores another value than its call");
-    }
-    // The displaced value is disposed exactly as the checked plan retires it:
-    // an affine value dies whole on the call continuation; a copy value has
-    // no disposal obligation and no continuation.
-    let displaced = checked_trees::CheckedUnitPartialAffineDiscardPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: moved.binding_ordinal,
-        },
-        path: Vec::new(),
-        type_identity: identity.clone(),
-    };
-    let disposal = match (moved.multiplicity, cleanup) {
-        (language_semantics::Multiplicity::Unrestricted, []) => true,
-        (
-            language_semantics::Multiplicity::Affine,
-            [
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-                    affine_discards,
-                },
-            ],
-        ) => {
-            coordinate.statement_index == statement_index
-                && coordinate.call_ordinal == 0
-                && affine_discards.as_slice() == std::slice::from_ref(&displaced)
-        }
-        _ => false,
-    };
-    if !disposal {
-        return unsupported("Unit graph displaced field value lost its planned disposal");
-    }
-    let mut target = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine,
-        state.state,
-        Some(ordinal),
-        assignment.target,
-    )?;
-    // A whole-element store through a view local writes the referent's
-    // element: the checked window names `bag.nodes[i]`, not the `nodes`
-    // descriptor the receiver walk binds. Re-anchor the authored target the
-    // same way `resolve_storage_place` rebased it at check time.
-    if let Some((_, local)) = checked.state_local_declaration(source, target.root)
-        && let checked_trees::expression::ExpressionNode::Call(call) =
-            checked.expression_table.expression(local.initial_value)
-        && validation::reference_result_custody::mutable_borrowed_parts(
-            &checked.typed,
-            local.type_reference,
-        )
-        .is_some()
-    {
-        let mut referent =
-            crate::emission::call_source_custody::projected_receivers::store_destination(
-                checked,
-                machine,
-                state.state,
-                Some(ordinal),
-                call.receiver,
-            )?;
-        target.root = referent.root;
-        referent.path.append(&mut target.path);
-        target.path = referent.path;
-    }
-    let root = place
-        .source_parameter_index()
-        .and_then(|index| state.structural_parameters.get(index as usize))
-        .and_then(|parameter| {
-            checked
-                .state_parameters(source)
-                .get(parameter.position as usize)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph field replacement has no authored parameter root",
-        ))?;
-    if target.root != root.symbol || target.path != place.path {
-        return unsupported("Unit graph field replacement drifted from its authored place");
-    }
-    Ok(())
 }
 
 /// The descriptor stores one record literal assignment planned for its shared

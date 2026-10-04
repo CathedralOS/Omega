@@ -211,14 +211,6 @@ pub(super) fn validate(
     if !returns_local {
         return unsupported("boundary scalar return plan does not read its established result");
     }
-    let call =
-        super::retained_boundary_call(plan, "boundary scalar return has no boundary operation")?;
-    let scalar_arguments = &call.scalar_arguments;
-    if scalar_arguments.iter().any(|argument| {
-        matches!(
-            argument,
-            checked_trees::CheckedCallScalarArgument::Computation(_)
-        )
-    }) {}
+    super::retained_boundary_call(plan, "boundary scalar return has no boundary operation")?;
     Ok(())
 }

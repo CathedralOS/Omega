@@ -173,11 +173,6 @@ impl Evaluation {
         let source =
             crate::expression_preparation::source_custody::locate(checked, state, statement, role)?;
         let scalar_type = terminal_scalar_type(source.primitive_type)?;
-        if matches!(
-            role,
-            CheckedScalarExpressionRole::ReturnCaseField { .. }
-                | CheckedScalarExpressionRole::StructuralValueField { .. }
-        ) {}
         match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let (_, retained) = checked
@@ -278,16 +273,6 @@ impl Evaluation {
                 state,
                 statement,
                 role,
-                if matches!(
-                    role,
-                    CheckedScalarExpressionRole::StorageInitializer
-                        | CheckedScalarExpressionRole::AssignmentValue
-                        | CheckedScalarExpressionRole::ArrayElement { .. }
-                ) {
-                    source.destination
-                } else {
-                    symbols::SymbolHandle::invalid()
-                },
                 &bindings,
                 &source_types,
                 scalar_type.into(),

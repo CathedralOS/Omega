@@ -32,7 +32,7 @@ use crate::expression_preparation::source_custody;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::TableAssignment;
 use checked_trees::{
-    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreRoot, CheckedStoreValue,
+    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreValue,
     CheckedStructuralByteSequenceFieldByteStorePlan,
 };
 use symbols::SymbolHandle;
@@ -78,17 +78,10 @@ pub(crate) enum IndexedWriteTarget<'a> {
 /// messages so every rejection keeps its established `&'static str` text.
 struct Wording {
     lost_index: &'static str,
-    index_meaning: &'static str,
     lost_operand: &'static str,
-    substituted_operand: &'static str,
-    result_replaced_selection: &'static str,
-    result_without_call: &'static str,
     result_position: &'static str,
     result_not_established: &'static str,
     result_type: &'static str,
-    /// Replay's refusal of a computation value. The shared store vocabulary
-    /// can carry one for every leaf; none of these leaves lowers it.
-    kept_computation: &'static str,
     /// Lowering's refusal of the same computation value.
     keeps_computation: &'static str,
     /// Emission's operand rejection. The byte leaves' destination custody
@@ -98,45 +91,30 @@ struct Wording {
 
 const BYTE_VIEW: Wording = Wording {
     lost_index: "byte-view write lost its authored index",
-    index_meaning: "byte-view write changed its selected index meaning",
     lost_operand: "byte-view write lost its operand source",
-    substituted_operand: "byte-view write substituted an authored operand",
-    result_replaced_selection: "byte-view write replaced a selected RHS with a result",
-    result_without_call: "byte-view write call result has no authored call",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     result_type: "byte store call result differs from its element type",
-    kept_computation: "byte-view write kept a computation value",
     keeps_computation: "byte-view write keeps a computation value",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
 
 const BYTE_FIELD: Wording = Wording {
     lost_index: "byte replacement lost its authored index",
-    index_meaning: "byte replacement changed its selected index meaning",
     lost_operand: "byte replacement lost a scalar source binding",
-    substituted_operand: "byte replacement substituted its evaluated scalar operand",
-    result_replaced_selection: "byte replacement replaced a selected RHS with a result",
-    result_without_call: "byte replacement call result has no authored call",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     result_type: "byte store call result differs from its element type",
-    kept_computation: "byte replacement kept a computation value",
     keeps_computation: "byte replacement keeps a computation value",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
 
 const ELEMENT_VIEW: Wording = Wording {
     lost_index: "element-view write lost its authored index",
-    index_meaning: "element-view write changed its selected index meaning",
     lost_operand: "element-view write lost its operand source",
-    substituted_operand: "element-view write substituted an authored operand",
-    result_replaced_selection: "element-view write replaced a selected RHS with a result",
-    result_without_call: "element-view write call result has no authored call",
     result_position: "element-view store result position exceeds usize",
     result_not_established: "element-view store call result is not this statement's established scalar result",
     result_type: "element-view store call result differs from its element type",
-    kept_computation: "element-view write kept a computation value",
     keeps_computation: "element-view write keeps a computation value",
     operands: "element-view write requires scalar operands",
 };
@@ -377,408 +355,6 @@ fn element_view_local_indexed(
         return None;
     };
     matches!(borrow.access, language_core::ReferenceAccess::Mutable).then_some(borrow.target)
-}
-
-/// The index coordinate a `&mut collection[index]` establishment names,
-/// resolved the way the checker folded the same selector: a literal or
-/// constant local is a fixed integer, a parameter or pure field selector is
-/// its runtime coordinate. The plan's scalar expression must name the same
-/// coordinate — nothing else was offered to the write.
-fn element_view_local_coordinate(
-    checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
-    expression: checked_trees::expression::ExpressionHandle,
-    actual: &checked_trees::CheckedScalarExpression,
-) -> Result<(), LoweringError> {
-    let folded = checked
-        .expression_table
-        .constant_integer_value(expression)
-        .or_else(|| {
-            let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
-                return None;
-            };
-            crate::expression_preparation::source_custody::structural_places::constant_local_index(
-                checked,
-                state,
-                name.symbol,
-            )
-            .and_then(|index| i64::try_from(index).ok())
-        });
-    if let Some(index) = folded {
-        let valid = matches!(
-            actual,
-            checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
-            if literal.value_bignum().and_then(|value| value.to_i64()) == Some(index)
-        );
-        return valid.then_some(()).ok_or(LoweringError::Unsupported(
-            "element-view write substituted its view local index",
-        ));
-    }
-    let selector =
-        crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
-            checked, machine, state, expression,
-        )?;
-    if same_index_coordinate(actual, &selector) {
-        return Ok(());
-    }
-    unsupported("element-view write substituted its view local index")
-}
-
-/// One runtime index coordinate spelled in the checked plan's scalar
-/// vocabulary and the selector vocabulary share a position and path — the
-/// leaf types either side resolved identically at mint time.
-fn same_index_coordinate(
-    expression: &checked_trees::CheckedScalarExpression,
-    selector: &checked_trees::CheckedRuntimeIndex,
-) -> bool {
-    match (expression, selector) {
-        (
-            checked_trees::CheckedScalarExpression::Parameter { position, .. },
-            checked_trees::CheckedRuntimeIndex::Parameter { position: expected },
-        )
-        | (
-            checked_trees::CheckedScalarExpression::Local { position, .. },
-            checked_trees::CheckedRuntimeIndex::Local { position: expected },
-        ) => usize::try_from(*expected).ok() == Some(*position),
-        (
-            checked_trees::CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
-                path,
-                ..
-            },
-            checked_trees::CheckedRuntimeIndex::StructuralField(field),
-        ) => *parameter_position == field.parameter_position && *path == field.path,
-        _ => false,
-    }
-}
-
-/// Rejoin one indexed write's checked plan to its authored assignment. Each
-/// leaf checks its own destination ahead of the index meaning, except the byte
-/// field's carrier path and field, which follow it.
-pub(crate) fn validate_assignment(
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state_symbol: SymbolHandle,
-    assignment: &TableAssignment,
-    leaf: IndexedWriteLeaf<'_>,
-) -> Result<(), LoweringError> {
-    let wording = leaf.wording();
-    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    let indexed_expression = indexed_target(checked, state_symbol, assignment, leaf)?;
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(indexed_expression)
-    else {
-        return unsupported(wording.lost_index);
-    };
-    let collection = || {
-        crate::emission::call_source_custody::projected_receivers::store_destination(
-            checked,
-            machine,
-            state_symbol,
-            None,
-            indexed.collection,
-        )
-    };
-    let builtin_coordinates = || {
-        validation::place_has_builtin_coordinates(
-            &checked.typed,
-            owner,
-            Some(state),
-            assignment.target,
-        )
-    };
-    match leaf {
-        IndexedWriteLeaf::ByteView(write) => {
-            if let CheckedStoreRoot::Local { symbol } = write.destination {
-                validate_owned_byte_local(
-                    checked,
-                    state_symbol,
-                    write.statement_index,
-                    symbol,
-                    indexed.collection,
-                )?;
-                if owner.symbol != machine || !builtin_coordinates() {
-                    return unsupported("byte-view write changed its authored mutable destination");
-                }
-            } else {
-                let Some(position) = write.destination.parameter_position() else {
-                    return unsupported("byte-view write has no parameter root");
-                };
-                let parameter = checked
-                    .state_parameters(state)
-                    .get(position as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte-view write has no authored parameter",
-                    ))?;
-                let source = collection()?;
-                if owner.symbol != machine
-                    || source.root != parameter.symbol
-                    || !source.path.is_empty()
-                    || !builtin_coordinates()
-                    || !matches!(
-                        checked
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        checked_trees::types::TypeReferenceNode::Reference {
-                            access: language_core::ReferenceAccess::Mutable,
-                            ..
-                        }
-                    )
-                {
-                    return unsupported("byte-view write changed its authored mutable destination");
-                }
-            }
-        }
-        IndexedWriteLeaf::ByteField(_) => {
-            if owner.symbol != machine
-                || !builtin_coordinates()
-                || matches!(
-                    checked.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                )
-            {
-                return unsupported("byte replacement requires exact builtin indexed custody");
-            }
-        }
-        IndexedWriteLeaf::ElementView(write) => {
-            let (destination_root, source_root, source_path_is_empty) = match write.destination {
-                CheckedStoreRoot::Parameter { position } => {
-                    let parameter_symbol = checked
-                        .state_parameters(state)
-                        .get(position as usize)
-                        .map(|parameter| parameter.symbol)
-                        .ok_or(LoweringError::Unsupported(
-                            "element-view write has no authored parameter",
-                        ))?;
-                    let source = collection()?;
-                    (parameter_symbol, source.root, source.path.is_empty())
-                }
-                CheckedStoreRoot::Local { symbol } => {
-                    authored_view_local(
-                        checked,
-                        checked.statement_table.statements(state.statement_nodes),
-                        symbol,
-                    )?;
-                    // The view local is the destination's own carrier: the
-                    // indexed collection must be its bare authored name, which
-                    // the projected receiver walk has no arm for since it is
-                    // neither owned storage nor a shared-borrow loan.
-                    let ExpressionNode::Name(name) =
-                        checked.expression_table.expression(indexed.collection)
-                    else {
-                        return unsupported(
-                            "element-view write substituted its view local collection",
-                        );
-                    };
-                    if !name.symbol.is_valid()
-                        || name.head_symbol != name.symbol
-                        || name.symbol != symbol
-                        || checked
-                            .expression_table
-                            .name_path_members(name.members)
-                            .len()
-                            != 1
-                    {
-                        return unsupported(
-                            "element-view write substituted its view local collection",
-                        );
-                    }
-                    (symbol, symbol, true)
-                }
-            };
-            if owner.symbol != machine
-                || source_root != destination_root
-                || !source_path_is_empty
-                || !builtin_coordinates()
-            {
-                return unsupported("element-view write changed its authored mutable destination");
-            }
-        }
-    }
-    if checked.facts.operators.uses.iter().any(|(_, selected)| {
-        selected.expression == indexed_expression
-            && (selected.spelling != language_core::OperatorSpelling::Index
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
-    }) {
-        return unsupported(wording.index_meaning);
-    }
-    if let IndexedWriteLeaf::ByteField(store) = leaf {
-        let source = collection()?;
-        // A byte-field element has no local-rooted lowering.
-        let Some(position) = store.destination.parameter_position() else {
-            return unsupported("byte replacement has no parameter root");
-        };
-        let parameter = checked
-            .state_parameters(state)
-            .get(position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "byte replacement has no authored parameter",
-            ))?;
-        let mut path = store.carrier_path.clone();
-        path.push(CheckedUnitStructuralPathSegment::Field(
-            store.field_identity.clone(),
-        ));
-        if source.root != parameter.symbol || source.path != path {
-            return unsupported("byte replacement differs from its authored field");
-        }
-    }
-    let statement_index = leaf.statement_index();
-    if let Some(index_role) = leaf.index_role(checked, state_symbol)? {
-        let (binding, expression) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(state_symbol, statement_index, index_role)
-            .ok_or(LoweringError::Unsupported(wording.lost_operand))?;
-        if binding.expression != indexed.index || expression != leaf.index() {
-            return unsupported(wording.substituted_operand);
-        }
-    } else {
-        element_view_local_coordinate(checked, owner, state, indexed.index, leaf.index())?;
-    }
-    match leaf.value() {
-        // A store reading its own statement's call result has no authored
-        // scalar expression to select: the right-hand side is the call. The
-        // producing call is rejoined where the operation order and the value
-        // are lowered; a selected expression here would mean the checked
-        // stage chose a different source.
-        CheckedStoreValue::ScalarResult { .. } => {
-            if checked
-                .facts
-                .values
-                .scalar_expressions
-                .expressions
-                .iter()
-                .any(|expression| {
-                    expression.state == state_symbol
-                        && expression.statement_ordinal == statement_index
-                        && expression.role == CheckedScalarExpressionRole::AssignmentValue
-                })
-            {
-                return unsupported(wording.result_replaced_selection);
-            }
-            if !matches!(
-                checked.expression_table.expression(assignment.value),
-                ExpressionNode::Call(_)
-            ) {
-                return unsupported(wording.result_without_call);
-            }
-        }
-        CheckedStoreValue::Pure(retained) => {
-            let (binding, expression) = checked
-                .facts
-                .values
-                .scalar_expressions
-                .bound_expression_at(
-                    state_symbol,
-                    statement_index,
-                    CheckedScalarExpressionRole::AssignmentValue,
-                )
-                .ok_or(LoweringError::Unsupported(wording.lost_operand))?;
-            if binding.expression != assignment.value || expression != retained {
-                return unsupported(wording.substituted_operand);
-            }
-        }
-        CheckedStoreValue::Computation(_) => {
-            return unsupported(wording.kept_computation);
-        }
-    }
-    Ok(())
-}
-
-/// Owned mutation must rejoin an earlier mutable declaration of this exact
-/// bounded byte carrier. A plan cannot replace a parameter with an arbitrary
-/// local symbol, or gain mutation authority from an immutable literal view.
-fn validate_owned_byte_local(
-    checked: &CheckedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: u32,
-    symbol: SymbolHandle,
-    collection: checked_trees::expression::ExpressionHandle,
-) -> Result<(), LoweringError> {
-    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    let ExpressionNode::Name(name) = checked.expression_table.expression(collection) else {
-        return unsupported("byte write local differs from its authored collection");
-    };
-    if !symbol.is_valid()
-        || name.symbol != symbol
-        || name.head_symbol != symbol
-        || checked
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return unsupported("byte write local differs from its authored collection");
-    }
-    let mut declarations = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some((ordinal, local))
-            }
-            _ => None,
-        });
-    let Some((ordinal, local)) = declarations.next() else {
-        return unsupported("byte write names an unknown owned local");
-    };
-    if declarations.next().is_some()
-        || ordinal >= statement_index as usize
-        || !local.is_mutable
-        || checked.type_multiplicity(local.type_reference)
-            != language_semantics::Multiplicity::Unrestricted
-        || validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference).is_none()
-    {
-        return unsupported("byte write local lost its authored owned custody");
-    }
-    Ok(())
-}
-
-/// A mutable-view local's authored establishment: the statement binding its
-/// symbol must still carry a `&mut` declared type, the same rejoin a
-/// `&mut`-borrowed destination parameter gets through its authored parameter.
-fn authored_view_local(
-    checked: &CheckedTrees,
-    statements: &[typed_trees::statement::StatementNode],
-    symbol: SymbolHandle,
-) -> Result<(), LoweringError> {
-    let mut found = false;
-    for statement in statements {
-        let checked_trees::statement::StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        if local.symbol != symbol {
-            continue;
-        }
-        if found {
-            return unsupported("element-view write names a duplicated view local");
-        }
-        found = true;
-        if !matches!(
-            checked
-                .type_reference_table
-                .type_reference(local.type_reference),
-            checked_trees::types::TypeReferenceNode::Reference {
-                access: language_core::ReferenceAccess::Mutable,
-                ..
-            }
-        ) {
-            return unsupported("element-view write local lost its authored mutability");
-        }
-    }
-    if !found {
-        return unsupported("element-view write names an unknown view local");
-    }
-    Ok(())
 }
 
 /// A leaf's destination after its emission-time check.

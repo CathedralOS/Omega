@@ -68,7 +68,6 @@ fn push_arm_target(
             state,
             *statement_ordinal,
             role,
-            symbols::SymbolHandle::invalid(),
             bindings,
             source_types,
             result_type,

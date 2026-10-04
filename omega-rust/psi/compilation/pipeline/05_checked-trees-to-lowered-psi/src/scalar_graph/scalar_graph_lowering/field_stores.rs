@@ -25,28 +25,19 @@ pub(super) struct Prepared {
 
 pub(super) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
     let (_, source) = crate::declarations::state_declaration(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
+    let Some(checked_trees::statement::StatementNode::Assignment(_)) = checked
         .statement_table
         .statements(source.statement_nodes)
         .get(store.statement_index as usize)
     else {
         return unsupported("record store lost its authored assignment");
     };
-    crate::emission::structural_scalar_store_source::validate_assignment(
-        checked,
-        machine,
-        state,
-        store.statement_index,
-        assignment,
-        store,
-    )?;
     let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
         return unsupported("scalar graph field store needs its local storage join");
     };
@@ -175,7 +166,6 @@ impl Prepared {
                 state,
                 self.statement,
                 CheckedScalarExpressionRole::AssignmentValue,
-                symbols::SymbolHandle::invalid(),
                 bindings,
                 prefix,
                 self.result_type,

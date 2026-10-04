@@ -53,7 +53,6 @@ struct PendingComputation {
     scalar_bindings: storage::ScalarBindings,
     statement_ordinal: u32,
     role: CheckedScalarExpressionRole,
-    destination: symbols::SymbolHandle,
     result_type: QualifiedScalarType,
     value: PendingValue,
     store: Option<crate::emission::store_destination::StoreDestination>,
@@ -431,11 +430,6 @@ pub(super) fn prepare(
                 scalar_bindings: scalar_bindings.clone(),
                 statement_ordinal: binding.statement_ordinal,
                 role,
-                destination: match binding.destination {
-                    CheckedScalarBindingDestination::StorageInitialize { symbol }
-                    | CheckedScalarBindingDestination::StorageAssign { symbol } => symbol,
-                    CheckedScalarBindingDestination::Immutable => symbols::SymbolHandle::default(),
-                },
                 result_type: binding_type,
                 value: PendingValue::Computation,
                 refinements: refinements.clone(),
@@ -501,13 +495,6 @@ pub(super) fn prepare(
                 scalar_bindings: scalar_bindings.clone(),
                 statement_ordinal: binding.statement_ordinal,
                 role,
-                destination: match binding.destination {
-                    CheckedScalarBindingDestination::StorageInitialize { symbol }
-                    | CheckedScalarBindingDestination::StorageAssign { symbol } => symbol,
-                    CheckedScalarBindingDestination::Immutable => {
-                        return unsupported("primitive store lost its destination");
-                    }
-                },
                 result_type: binding_type,
                 value: PendingValue::Binding(LoweredScalarBinding::Expression(expression)),
                 refinements: Vec::new(),
@@ -526,7 +513,6 @@ pub(super) fn prepare(
                 scalar_bindings: scalar_bindings.clone(),
                 statement_ordinal: binding.statement_ordinal,
                 role,
-                destination: symbols::SymbolHandle::default(),
                 result_type: binding_type,
                 value: PendingValue::Binding(value),
                 refinements,
@@ -603,7 +589,7 @@ fn prepare_operation(
     if let checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
         operation
     {
-        return field_stores::prepare(checked, machine, state.state, store, bindings, types)
+        return field_stores::prepare(checked, state.state, store, bindings, types)
             .map(PreparedOperation::FieldStore);
     }
     if matches!(
@@ -746,7 +732,6 @@ impl Prepared {
                     state,
                     prefix.statement_ordinal,
                     prefix.role,
-                    prefix.destination,
                     &prefix.scalar_bindings,
                     &prefix.value_types,
                     prefix.result_type,

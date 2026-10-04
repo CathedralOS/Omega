@@ -15,12 +15,8 @@ use super::{
     CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::expression_preparation::source_custody::structural::selected_drop_evaluations;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::{StatementNode, TransitionTargetNode};
-use language_semantics::{
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-};
+use checked_trees::statement::StatementNode;
+use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
 
 /// A call or constructed-value result that no automatic return discard
 /// retires: the selected edge owns its disposal.
@@ -477,177 +473,6 @@ fn retired_in_body(
     Ok(retired)
 }
 
-/// Match each selected death to its existing outgoing source coordinate.
-/// Distinct exit lanes may retire the same lexical owner; duplicate deaths on
-/// one lane or a death on a different state/statement are not interchangeable.
-/// Validate the complete disposal roster, not the producer's representation.
-///
-/// Construction replay and call-source replay independently check result type,
-/// multiplicity and exact source before publication. Repeating that judgment
-/// from the local's syntax confuses a shared alias of existing storage with a
-/// materialized reference result: both spell `&T`, but only the latter creates
-/// a carrier to retire. This layer checks the resulting ownership receipts;
-/// the loan ledger separately owns reference lifetimes and restored access.
-pub(super) fn validate_disposition(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    local: &checked_trees::statement::TableLocalData,
-    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-) -> Result<(), LoweringError> {
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    let events = || {
-        checked
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .map(|(_, event)| event)
-            .filter(|event| {
-                event.machine_symbol == machine
-                    && event.state_symbol == source.symbol
-                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
-                    // Loan access may name the same home without establishing
-                    // or consuming its owned value. Borrow custody validates
-                    // those records; this roster rejoins owned dispositions.
-                    && event.access == PermissionAccess::Owned
-            })
-    };
-    // Source copy payloads retain producer dominance, not owned receipts.
-    // Stored references can still make their materialized carrier affine;
-    // construction replay validates that custody and cleanup ends the loans.
-    if checked.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted {
-        return if events().next().is_none() {
-            Ok(())
-        } else {
-            unsupported("Unit graph copy local acquired ownership debt")
-        };
-    }
-    // A view local's exclusivity is the loan ledger's -- its establish,
-    // transfer and weakening are the reference custody ops, not ownership
-    // events, so the ownership roster is exactly empty. A shared record loan
-    // carries the same accounting read-side.
-    if validation::reference_shell(&checked.typed, local.type_reference).is_some() {
-        return if events().next().is_none() {
-            Ok(())
-        } else {
-            unsupported("Unit graph view local acquired ownership debt")
-        };
-    }
-    let role = selection_role(
-        checked,
-        machine,
-        source.symbol,
-        local.symbol,
-        result.statement_index,
-    );
-    let mut expected = Vec::new();
-    if role != Some(SelectionRole::Destination) {
-        expected.push((
-            PermissionEventKind::Establish,
-            PermissionEventSource::Statement {
-                statement_index: result.statement_index as usize,
-            },
-            checked_trees::FlowPermissionEvaluation::Statement,
-        ));
-    }
-    match role {
-        Some(SelectionRole::Source) => {}
-        role => {
-            if role.is_none() && result.multiplicity != Multiplicity::Affine {
-                return unsupported("Unit graph local requires an explicit linear disposition");
-            }
-            for evaluation in selected_drop_evaluations(checked, machine, source, local.symbol)? {
-                expected.push((
-                    PermissionEventKind::AffineDrop,
-                    PermissionEventSource::StateExit,
-                    evaluation,
-                ));
-            }
-        }
-    }
-    for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::Transition(transition) = statement else {
-            continue;
-        };
-        let TransitionTargetNode::Named {
-            path, arguments, ..
-        } = checked.statement_table.transition_target(transition.target)
-        else {
-            continue;
-        };
-        for expression in checked.statement_table.expression_handles(*arguments) {
-            if matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(name)
-                if name.symbol == local.symbol && name.head_symbol == local.symbol
-                    && checked.expression_table.name_path_members(name.members).len() == 1)
-            {
-                expected.push((
-                    PermissionEventKind::Transfer,
-                    PermissionEventSource::Call {
-                        statement_index,
-                        call_ordinal: 0,
-                        target_symbol: path.symbol,
-                    },
-                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target),
-                ));
-            }
-        }
-        // An operand call of this edge that takes the local whole moves it
-        // at the call's own occurrence, after the edge is selected.
-        let operand_moves = validation::transition_operand_moves(
-            &checked.typed,
-            &checked.facts,
-            machine,
-            source,
-            statement_index,
-            local.symbol,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph local operand call lost its authored occurrence",
-        ))?;
-        expected.extend(operand_moves.into_iter().map(|source| {
-            (
-                PermissionEventKind::Transfer,
-                source,
-                checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target),
-            )
-        }));
-    }
-    // A local's initializer can conserve an earlier value's origin. Reuse
-    // the ordinary construction replay rather than manufacturing provenance
-    // from the destination declaration's location.
-    let provenance =
-        crate::expression_preparation::source_custody::structural::local_value_provenance(
-            checked,
-            machine,
-            source.symbol,
-            result.statement_index as usize,
-        )?;
-    if events().count() != expected.len() {
-        return unsupported("Unit graph local ownership roster drifted");
-    }
-    for (kind, source, evaluation) in expected {
-        let mut matching = events().filter(|event| {
-            event.kind == kind && event.source == source && event.evaluation == evaluation
-        });
-        let event = matching.next().ok_or(LoweringError::Unsupported(
-            "Unit graph local ownership evidence missing",
-        ))?;
-        if matching.next().is_some()
-            || event.multiplicity != result.multiplicity
-            || event.access != PermissionAccess::Owned
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != provenance
-            || event.obligation_live
-            || !event.segments.is_empty()
-        {
-            return unsupported("Unit graph local ownership origin or disposition drifted");
-        }
-    }
-    Ok(())
-}
-
 /// Locals already disposed at a checked statement entry must not be disposed
 /// again at return. Stage 04 owns the lifetime decision; lowering consumes its
 /// result ordinals directly instead of reconstructing source ownership rows.
@@ -709,7 +534,6 @@ pub(super) fn local_discards(
             if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
                 return unsupported("Unit graph edge precedes local establishment");
             }
-            validate_disposition(checked, machine, source, local, result)?;
             if selection_role(
                 checked,
                 machine,
@@ -897,7 +721,6 @@ pub(super) fn selection_edge_discards(
             local.symbol,
             result.statement_index,
         );
-        validate_disposition(checked, machine, source, local, result)?;
         let transferred = operand_moves(checked, machine, source, Some(local), result, edge)?
             + edge
                 .transfers

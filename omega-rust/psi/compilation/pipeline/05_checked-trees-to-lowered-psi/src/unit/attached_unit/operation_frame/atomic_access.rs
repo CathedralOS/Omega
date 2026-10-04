@@ -33,7 +33,7 @@ impl OperationFrame<'_, '_> {
             LoweringError::Unsupported("atomic event parameter is absent"),
         )?;
         let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let authored_destination = self
+        let _ = self
             .checked
             .state_parameters(state)
             .get(parameter.position as usize)
@@ -41,13 +41,6 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "atomic event parameter has no authored binding",
             ))?;
-        crate::emission::atomic_sources::validate(
-            self.checked,
-            self.machine,
-            self.state,
-            authored_destination,
-            access,
-        )?;
         // Atomic identity, rather than exclusive access to the containing
         // record, grants mutation. Ordinary fields retain their own rules.
         let authorized = matches!(

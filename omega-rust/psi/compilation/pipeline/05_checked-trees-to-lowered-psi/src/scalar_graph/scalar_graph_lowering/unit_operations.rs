@@ -472,7 +472,6 @@ impl Prepared {
         computations.call_arguments(
             state,
             self.coordinate,
-            false,
             &self.arguments,
             0,
             bindings,

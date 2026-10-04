@@ -630,7 +630,6 @@ impl PreparedValue {
                 } => computations.call_arguments(
                     state,
                     coordinate,
-                    false,
                     std::slice::from_ref(&argument),
                     ordinal,
                     bindings,
@@ -686,7 +685,6 @@ impl PreparedValue {
                     state,
                     self.statement,
                     role,
-                    symbols::SymbolHandle::invalid(),
                     bindings,
                     &prefix,
                     result_type,

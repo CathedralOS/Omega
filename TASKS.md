@@ -1627,23 +1627,25 @@ and others) lands in the shared operations, never as a new per-route case.
 Each item lands in one commit, deletes the code it supersedes, and keeps the
 check corpus and the native corpus unchanged on the slices it names.
 
-- **STAGE05-SOURCE-REREAD-DELETED.** (new-scope) Stage 05 confirms each
-  stage 04 plan row by re-reading the authored typed program.
+- **STAGE05-SOURCE-REREAD-DELETED.** (new-scope) Stage 05 re-reads the
+  authored typed program to obtain values its stage 04 plan rows do not
+  carry. The validators that only re-confirmed a row against its source are
+  deleted. What remains:
   - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
-    (20.7k lines) says so in its header: "each function here re-reads the
-    authored typed program … to confirm that a retained checked plan row
-    names the exact authored state, statement, expression … and rejects the
-    row".
-  - `.../src/emission/call_source_custody/` (5.2k lines) does the same for
-    calls.
+    (6.6k lines): `locate`, structural operand and place lookups, parameter
+    storage, primitive references and dispatch subjects;
+  - `.../src/emission/call_source_custody/` (3.7k lines): authored call
+    location, the nested call occurrence walk and projected receivers.
 
-  Delete both. Where stage 05 used them to obtain a value it needs to emit,
-  stage 04 records that value in the plan instead. Add a source-scanning
-  guard in stage 05 that lists the few files allowed to read
-  `statement_table`, `expression_table`, `StatementNode::` or
-  `ExpressionNode::`; today there are 1,637 such references across 116 files.
-  Acceptance: both modules are gone, the guard passes, and the full check
-  corpus and the native corpus are unchanged.
+  Move each value into the stage 04 plan and delete its reader. Some readers
+  also refuse shapes stage 05 cannot lower (the nested call walk refuses
+  runtime receivers and boundary results that are not direct plain-owned
+  affine operands); those refusals stay until the route items admit the
+  shapes. Then add a source-scanning guard in stage 05 that lists the few
+  files allowed to read `statement_table`, `expression_table`,
+  `StatementNode::` or `ExpressionNode::`; today there are 953 such
+  references across 84 files. Acceptance: both modules are gone, the guard
+  passes, and the full check corpus and the native corpus are unchanged.
 
 - **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on
   **STAGE05-SOURCE-REREAD-DELETED**. Delete stage 05's validation of the plan

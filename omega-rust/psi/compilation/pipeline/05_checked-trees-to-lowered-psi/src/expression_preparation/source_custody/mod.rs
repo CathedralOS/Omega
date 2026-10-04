@@ -1,36 +1,25 @@
-//! Source custody checks: each function here re-reads the authored typed
-//! program (`checked.typed`) and the checked facts to confirm that a retained
-//! checked plan row names the exact authored state, statement, expression,
-//! call, place or successor it claims, and rejects the row (usually with
-//! `LoweringError::Unsupported`) when it does not.
+//! Source custody: lookups that still re-read the authored typed program
+//! (`checked.typed`) because stage 04 does not yet record the value lowering
+//! needs. Under the 2026-10-04 lowering simplification ruling each value moves
+//! into the stage 04 plan and its reader here is deleted; the module goes with
+//! the last of them (TASKS.md STAGE05-SOURCE-REREAD-DELETED). Do not add a
+//! reader here: record the value in the plan instead.
 //!
-//! No coordinator runs the children in sequence. The plan families (`unit`,
-//! `scalar_graph`, `returns`), `emission` and the rest of
-//! `expression_preparation` call the check each plan row needs, through the
-//! entries in this file or a child module directly:
+//! What remains:
 //!
-//! - `authored_state` finds the one authored machine and state that own a
-//!   state symbol. Most checks here and across the crate start from it.
-//! - `locate` resolves a statement ordinal and a
-//!   `CheckedScalarExpressionRole` to a `SourceRoot`: the authored
-//!   expression, its destination symbol and its primitive type. It selects
-//!   by role: `structural` for structural operands, `array_sources` for
-//!   array elements, the statement's subslice range for subslice endpoints,
-//!   the authored call for Unit and boundary call arguments, `successors` to
-//!   resolve transition targets, and `direct_calls` for direct call
-//!   arguments; other roles read the authored statement directly.
-//! - `validate_pure` checks one pure scalar binding: `locate`, then a
-//!   comparison of the located expression, destination and scalar type with
-//!   the binding, then `validate_namespace` (the state's non-erased primitive
-//!   parameters followed by the preceding immutable primitive locals) and
-//!   `storage_reads::validate` (the binding's reads).
-//! - `validate_successor` checks a scalar successor through `successors`.
-//!
-//! The re-exports after the module list name the storage-read,
-//! parameter-storage and computation-call checks callers use directly.
-//! Several children also call each other; for example, `guarded_exits` uses
-//! `guard_complement` and `storage_reads`, and `computation_calls` uses
-//! `case_sources`, `record_fields`, `comparisons` and `value_correspondence`.
+//! - `locate` resolves a statement ordinal and a `CheckedScalarExpressionRole`
+//!   to a `SourceRoot`: the authored expression, its destination symbol and its
+//!   primitive type. It selects by role: `structural` for structural operands,
+//!   `array_sources` for array elements, the statement's subslice range for
+//!   subslice endpoints, the authored call for Unit and boundary call
+//!   arguments, `successors` for transition targets and `direct_calls` for
+//!   direct call arguments; other roles read the authored statement directly.
+//! - `parameter_storage`, `borrowed_parameter_custody`, `primitive_references`,
+//!   `structural_places`, `dispatch_subjects` and `view_ranges` answer storage,
+//!   borrow, place and dispatch questions from the authored source.
+//! - Some children still refuse shapes stage 05 cannot lower. Those refusals
+//!   stay until the route items admit the shapes; the validators that only
+//!   re-confirmed a plan row against its source are gone.
 
 use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};

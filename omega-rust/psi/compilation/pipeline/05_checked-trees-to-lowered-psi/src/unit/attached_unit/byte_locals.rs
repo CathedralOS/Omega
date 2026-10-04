@@ -24,7 +24,7 @@ pub(crate) fn validate(
     else {
         return unsupported("literal local has no establishment");
     };
-    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (reference, expression, is_mutable, _local) = match statements
         .get(result.statement_index as usize)
@@ -113,16 +113,6 @@ pub(crate) fn validate(
         if checked.normalized_type_identity(reference).as_str() != result.type_identity {
             return unsupported("owned byte value changed its authored carrier");
         }
-        crate::emission::structural_byte_sequence_store::validate_value(
-            checked,
-            owner.symbol,
-            state,
-            result.statement_index as usize,
-            expression,
-            value,
-            value.root,
-            0,
-        )?;
         return Ok(());
     }
     let bytes = value.literal_bytes().ok_or(LoweringError::Unsupported(

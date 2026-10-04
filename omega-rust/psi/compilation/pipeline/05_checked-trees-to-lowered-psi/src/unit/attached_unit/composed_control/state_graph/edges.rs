@@ -365,13 +365,6 @@ pub(super) fn validate_bindings(
                     target.access,
                 )?;
             } else {
-                result_custody::validate_disposition(
-                    checked,
-                    super::owner(checked, state.state)?,
-                    source,
-                    local,
-                    result,
-                )?;
             }
             continue;
         }
@@ -904,13 +897,6 @@ pub(super) fn validate_bindings(
                     if local.is_mutable {
                         return unsupported("Unit graph case-payload result local is mutable");
                     }
-                    result_custody::validate_disposition(
-                        checked,
-                        plan.machine,
-                        source,
-                        local,
-                        result,
-                    )?;
                     (
                         local.symbol,
                         local.type_reference,
@@ -1479,96 +1465,6 @@ fn validate_cleanup(
     Ok(())
 }
 
-/// Only stable place reads may be compared as repeated case observations.
-pub(super) fn case_subject_is_place(
-    checked: &CheckedTrees,
-    mut expression: checked_trees::expression::ExpressionHandle,
-) -> bool {
-    loop {
-        match checked.expression_table.expression(expression) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                expression = member.receiver;
-            }
-            ExpressionNode::Name(name) => return name.symbol.is_valid(),
-            // Equal call syntax does not establish equal observations; calls
-            // may have effects or produce a different case on each evaluation.
-            _ => return false,
-        }
-    }
-}
-
-/// Rejoin exact case coverage or the ordinary pure guard-complement proof.
-pub(super) fn validate_fallback(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    guard_ordinal: usize,
-    when_false: &TableTransition,
-) -> Result<(), LoweringError> {
-    if when_false.guard == TransitionGuardNode::Always {
-        return Ok(());
-    }
-    let guard_ordinal = u32::try_from(guard_ordinal)
-        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
-    // Case tests on a local result are computations, not pure guard rows.
-    // Reconstruct their complement from the authored pair and the closed sum
-    // declaration rather than trusting a retained coverage flag. The ordinary
-    // guard rejoin still authenticates the value actually emitted.
-    let (_, source) = crate::declarations::state_declaration(checked, state)?;
-    if let Some(StatementNode::Transition(when_true)) = checked.statement_table
-        .statements(source.statement_nodes).get(guard_ordinal as usize)
-        && let (TransitionGuardNode::When(first), TransitionGuardNode::When(second)) =
-            (when_true.guard, when_false.guard)
-        && let (Some((first_subject, first_case)), Some((second_subject, second_case))) =
-            (super::cases::case_test(checked, first), super::cases::case_test(checked, second))
-        && first_case != second_case
-        && case_subject_is_place(checked, first_subject)
-        && checked.expression_table.expressions_structurally_equal(first_subject, second_subject)
-        && checked.data_definitions().iter().any(|data| {
-            let members = checked.data_members(data);
-            matches!(members, [checked_trees::data::DataMember::Variant(first), checked_trees::data::DataMember::Variant(second)]
-                if (first.symbol == first_case && second.symbol == second_case)
-                    || (first.symbol == second_case && second.symbol == first_case))
-        })
-    {
-        return Ok(());
-    }
-    if crate::expression_preparation::source_custody::guard_complement::complementary(
-        checked,
-        state,
-        guard_ordinal,
-    )? {
-        return Ok(());
-    }
-    // A retained guarded pair with no authored fallback is covering by the
-    // shared roster's own proof; the second guard is the vacuous else.
-    let covering_pair = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .guarded_tails
-        .iter()
-        .filter(|tail| tail.state == state)
-        .any(|retained| {
-            retained.fallback.is_none()
-                && checked
-                    .facts
-                    .flow
-                    .terminal_scalar_graphs
-                    .guarded_exits
-                    .span(retained.arms)
-                    .is_some_and(|exits| {
-                        exits.len() == 2
-                            && exits[0].guard_statement_ordinal == guard_ordinal
-                            && exits[1].guard_statement_ordinal == guard_ordinal + 1
-                    })
-        });
-    if covering_pair {
-        Ok(())
-    } else {
-        unsupported("Unit graph fallback is not the exact complement of its guard")
-    }
-}
-
 /// Reconstruct the remaining whole-parameter drops at an ordinary return.
 /// Call consumption and return disposal are separate uses of the same source root.
 pub(super) fn return_discards(
@@ -1851,7 +1747,6 @@ fn validate_projected_loan_source(
             else {
                 return unsupported("Unit graph projected loan source local missing");
             };
-            result_custody::validate_disposition(checked, machine.symbol, source, local, result)?;
             (
                 local.symbol,
                 None,

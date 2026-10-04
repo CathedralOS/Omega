@@ -740,7 +740,6 @@ pub(crate) fn replay(
             }
             CheckedCallScalarArgument::Pure(selected.clone())
         };
-        if let CheckedCallScalarArgument::Computation(_) = selected {}
         if retained.is_some_and(|retained| retained.as_ref() != Some(&selected)) {
             return unsupported("view subslice substituted its retained endpoint");
         }

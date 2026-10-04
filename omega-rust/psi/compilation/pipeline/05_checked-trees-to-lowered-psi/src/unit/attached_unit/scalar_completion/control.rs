@@ -2,70 +2,9 @@
 //! Prefix coverage and selected return roles prevent a plausible Boolean value
 //! from authorizing swapped arms, omitted statements, or a different return.
 use super::super::CheckedScalarExpressionRole;
-use super::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
-    StatementNode, unsupported,
-};
+use super::{CheckedTrees, LoweringError, StatementNode, unsupported};
 use checked_trees::statement::{TransitionExit, TransitionGuardNode};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
-
-pub(super) fn validate(
-    checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-) -> Result<(), LoweringError> {
-    let control = machine
-        .scalar_control
-        .as_ref()
-        .ok_or(LoweringError::Unsupported(
-            "scalar control completion is absent",
-        ))?;
-    if machine.scalar_result.is_some() || machine.structural_result.is_some() {
-        return unsupported("ordinary body has conflicting completion owners");
-    }
-    let prefix = validate_contracted_tail(checked, machine.machine, machine.state, control)?;
-    let (_, state) = crate::declarations::state_declaration(checked, machine.state)?;
-    let statements = checked.statement_table.statements(state.statement_nodes);
-    if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
-        statement_index, ..
-    }) if *statement_index as usize == statements.len())
-    {
-        return unsupported("ordered scalar completion omitted its final cleanup frontier");
-    }
-    for (statement, node) in statements.iter().enumerate().take(prefix) {
-        // Union-match arm markers occupy authored prefix slots but carry only
-        // the match's provenance: the dispatch machinery resolves the case
-        // bindings, so no unit operation is expected for them.
-        if matches!(
-            node,
-            StatementNode::LocalData(local)
-                if local.name.as_str().starts_with("__arm_destructure#")
-        ) || !super::super::statement_custody::statement_owes_operation(
-            checked,
-            machine.machine,
-            machine.state,
-            statement,
-            node,
-        ) {
-            continue;
-        }
-        if !matches!(
-            node,
-            StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Assignment(_)
-        ) || !machine.operations.iter().any(|operation| {
-            super::super::statement_custody::covered_statements(operation)
-                .any(|covered| covered == statement as u32)
-        }) {
-            return unsupported("ordered scalar control omitted an authored prefix statement");
-        }
-    }
-    for operation in &machine.operations[..machine.operations.len() - 1] {
-        let mut covered = super::super::statement_custody::covered_statements(operation).peekable();
-        if covered.peek().is_none() || covered.any(|statement| statement as usize >= prefix) {
-            return unsupported("ordered scalar control moved a tail effect into its prefix");
-        }
-    }
-    Ok(())
-}
 
 /// Completion is independent of how a body establishes its prefix values.
 /// Descriptor calls and ordinary effects must replay the same authored exits.
@@ -81,38 +20,6 @@ pub(crate) fn validate_tail(
     if !checked.machine_contracts(source).is_empty() || !checked.state_contracts(state).is_empty() {
         return unsupported("ordered scalar control lost its exact source signature");
     }
-    validate_signature_and_exits(checked, machine, state_symbol, control)
-}
-
-/// The ordinary completion's tail. Its machine emission turns the checked
-/// contract into entry requirements and one normal-return guarantee over the
-/// controlled result (`ordinary_machine`, `normal_guarantees`), exactly as a
-/// scalar-result completion does, so `requires`, `ensures` and `crashes`
-/// clauses are admitted under the same rules `scalar_completion` applies.
-fn validate_contracted_tail(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
-    control: &checked_trees::CheckedUnitScalarControlPlan,
-) -> Result<usize, LoweringError> {
-    let (source, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    if checked
-        .machine_contracts(source)
-        .iter()
-        .chain(checked.state_contracts(state))
-        .any(|contract| {
-            !matches!(
-                contract.kind,
-                checked_trees::signature::SignatureContractKind::Crashes { .. }
-                    | checked_trees::signature::SignatureContractKind::Requires
-                    | checked_trees::signature::SignatureContractKind::Ensures
-            ) || contract.binding.is_some()
-        })
-    {
-        return unsupported("ordered scalar control cannot erase authored scalar contracts");
-    }
-    crate::unit::runtime_requirements::validate_scalar_source(checked, source, state)?;
-    crate::scalar_graph::scalar_contracts::validate_guarantees(checked, source, state)?;
     validate_signature_and_exits(checked, machine, state_symbol, control)
 }
 

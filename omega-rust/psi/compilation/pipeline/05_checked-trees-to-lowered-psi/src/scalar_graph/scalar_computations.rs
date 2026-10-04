@@ -199,7 +199,6 @@ impl<'a> Expansion<'a> {
         &mut self,
         state: symbols::SymbolHandle,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
-        boundary: bool,
         arguments: &[checked_trees::CheckedCallScalarArgument],
         argument_ordinal_start: usize,
         bindings: &storage::ScalarBindings,
@@ -219,33 +218,14 @@ impl<'a> Expansion<'a> {
                     .ok_or(LoweringError::Unsupported(
                         "scalar call argument ordinal overflows",
                     ))?;
-            let argument_ordinal = u32::try_from(ordinal).map_err(|_| {
+            let _ = u32::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
             })?;
-            let role = if boundary {
-                CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal,
-                }
-            } else {
-                CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal,
-                }
-            };
             operands.push(match argument {
                 checked_trees::CheckedCallScalarArgument::Pure(expression) => {
                     Argument::Value(bindings.expression(expression)?)
                 }
                 checked_trees::CheckedCallScalarArgument::Computation(root) => {
-                    source_custody::validate(
-                        self.checked,
-                        self.machine,
-                        &site,
-                        role,
-                        *root,
-                        symbols::SymbolHandle::invalid(),
-                    )?;
                     Argument::Computation(*root)
                 }
             });
@@ -363,7 +343,6 @@ impl<'a> Expansion<'a> {
         state: symbols::SymbolHandle,
         statement: u32,
         role: CheckedScalarExpressionRole,
-        destination: symbols::SymbolHandle,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
         result_type: QualifiedScalarType,
@@ -405,14 +384,6 @@ impl<'a> Expansion<'a> {
                 "scalar computation calls need exact named proof-output operation custody",
             );
         }
-        source_custody::validate(
-            self.checked,
-            self.machine,
-            &site,
-            role,
-            root.root,
-            destination,
-        )?;
         if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = role {
             calls::consume_pure_call_arguments(
                 self.checked,
@@ -479,14 +450,6 @@ impl<'a> Expansion<'a> {
                         "scalar computation root custody is duplicated or mismatched",
                     );
                 }
-                source_custody::validate(
-                    self.checked,
-                    self.machine,
-                    &site,
-                    role,
-                    root.root,
-                    symbols::SymbolHandle::default(),
-                )?;
                 Argument::Computation(root.root)
             } else {
                 Argument::Value(site.bindings.expression_at(

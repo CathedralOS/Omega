@@ -1316,13 +1316,7 @@ pub(crate) fn validate_consumer(
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
         if let Some(expression) = expression
             && super::super::reference_results::validate_consumer(
-                checked,
-                caller,
-                coordinate,
-                argument,
-                parameter,
-                expression,
-                source_position,
+                checked, caller, coordinate, argument, parameter, expression,
             )?
         {
             if authored.boundary
@@ -2250,10 +2244,6 @@ fn validate_operand_producers(
                             "Unit result projection disagrees with its authored path",
                         );
                     }
-                    if authored_access == checked_trees::CheckedStructuralAccess::Owned
-                        && !path.is_empty()
-                        && result.multiplicity == Multiplicity::Affine
-                    {}
                     true
                 }
                 _ => false,
@@ -2316,15 +2306,6 @@ fn validate_operand_producers(
                     return unsupported(
                         "anonymous result projection disagrees with its authored source",
                     );
-                }
-                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-                    super::shared_temporary::validate(
-                        checked,
-                        caller,
-                        producer_coordinate,
-                        *coordinate,
-                        source_expression,
-                    )?;
                 }
             }
             matches

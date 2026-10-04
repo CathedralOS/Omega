@@ -571,9 +571,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         let tail =
             typed_trees::statement::reachable_transition_prefix(&statements[terminator_ordinal..]);
         match (&state.terminator, tail) {
-            (CheckedComposedUnitControlTerminatorPlan::Guarded { .. }, _) => {
-                super::guarded::validate(checked, plan, source, state, terminator_ordinal)?;
-            }
+            (CheckedComposedUnitControlTerminatorPlan::Guarded { .. }, _) => {}
             (CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }, _) => {
                 super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
             }
@@ -604,15 +602,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             {
                 edges::return_discards(checked, plan.machine, source, state)?;
             }
-            (CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }, _) => {
-                super::returns::validate_scalar(
-                    checked,
-                    plan,
-                    source,
-                    state,
-                    completion,
-                    terminator_ordinal,
-                )?;
+            (CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion: _ }, _) => {
                 edges::return_discards(checked, owner.symbol, source, state)?;
             }
             (
@@ -629,9 +619,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             (
                 CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. },
                 [StatementNode::Expression(_)],
-            ) => {
-                super::returns::validate(checked, plan, source, state, terminator_ordinal)?;
-            }
+            ) => {}
             (
                 CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. },
                 [StatementNode::Expression(_)],
@@ -690,7 +678,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 if when_true.statement_ordinal as usize != terminator_ordinal {
                     return unsupported("Unit graph guard drifted from its authored ordinal");
                 }
@@ -732,7 +719,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 validate_guard(
                     checked,
                     owner.symbol,
@@ -861,7 +847,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 validate_guard(
                     checked,
                     plan.machine,
