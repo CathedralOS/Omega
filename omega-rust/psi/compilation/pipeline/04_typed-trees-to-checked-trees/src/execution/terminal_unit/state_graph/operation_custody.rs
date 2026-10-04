@@ -5,8 +5,8 @@
 //! disposal. Every remaining operation must then carry custody a composed
 //! state can replay; one that does not names its kind in the trace.
 use super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, Multiplicity, StatementNode,
-    TypedTrees, call_argument_admitted, call_custody_refusal, control,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, StatementNode, TypedTrees,
+    call_argument_admitted, call_custody_refusal, control,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
@@ -32,17 +32,12 @@ pub(super) fn admit(
         }
     }
     for (operation_index, operation) in operations.iter().enumerate() {
-        if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            if result.multiplicity == Multiplicity::Linear)
-        {
-            // Call forwarding preserves checked authority; construction
-            // needs a separate issuance witness, not result classification.
-            trace.phase("state graph: operation custody: linear established value");
-            return None;
-        }
         match operation {
             CheckedUnitEffectOperationPlan::Call(call)
                 if call_custody_admitted(call, &operations[..operation_index]) => {}
+            // The common source replay authenticates construction and each
+            // issuance or transferred claim. A state graph changes only the
+            // selected-edge disposition, not establishment authority.
             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 discard_result_on_return: false,
                 ..
@@ -180,7 +175,6 @@ pub(super) fn admit(
                         }
                         (CheckedUnitCallRoute::Module { .. }, _) => call_custody_refusal(
                             &call.structural_arguments,
-                            call.claim_transfers(),
                             &operations[..operation_index],
                         ),
                     },
@@ -211,9 +205,9 @@ pub(super) fn admit(
 
 /// Whether the selected edges of a composed state can carry one call's
 /// custody. A structural result must stay live for its edge to own; a
-/// boundary call completes its receipts at the call; an ordinary call may not
-/// transfer claims across the edge. Every structural operand except a
-/// structural result's must already be admitted.
+/// boundary call completes its receipts at the call; an ordinary call consumes
+/// its exact argument claims through the shared call custody replay. Every
+/// structural operand except a structural result's must already be admitted.
 pub(super) fn call_custody_admitted(
     call: &CheckedUnitCallPlan,
     earlier: &[CheckedUnitEffectOperationPlan],
@@ -231,9 +225,6 @@ pub(super) fn call_custody_admitted(
                 ..
             },
         ) => !discard_result_on_return,
-        (CheckedUnitCallRoute::Boundary, _) => arguments_admitted(),
-        (CheckedUnitCallRoute::Module { .. }, _) => {
-            call.claim_transfers().is_empty() && arguments_admitted()
-        }
+        (_, _) => arguments_admitted(),
     }
 }

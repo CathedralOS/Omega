@@ -6,17 +6,16 @@ use super::super::super::super::{
     MachineId, StructuralArgument, StructuralParameterDeclaration, block_id,
 };
 use super::super::super::{
-    Block, MachineContract, Multiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
-    TerminalMachine, Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id,
-    lookup_claim_id, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_installation_machine_service_ceiling, lower_unit_parameters, obligation_id,
-    terminal_scalar_type, unsupported, value_id,
+    Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
+    Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_claim_id,
+    lookup_type_id, lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
+    lower_unit_parameters, obligation_id, terminal_scalar_type, unsupported, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
-use crate::unit::{PermissionClaimIdentity, claim_id};
+use crate::unit::claim_id;
 use checked_trees::CheckedErasedProofParameterPlan;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
@@ -120,7 +119,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // Fresh linear establishments mint their caller bindings while the graph
     // publishes its claim roster: a composed state reads the machine-wide
     // table and cannot mint while it emits, so every claim a local
-    // construction establishes joins here before any state runs.
+    // construction establishes joins here before any state runs. Only an
+    // authenticated birth may allocate: moved-local establishment rows retain
+    // their source identity and resolve its existing binding during emission.
     let mut next_claim = u64::try_from(claims.entry_claims.len())
         .map_err(|_| LoweringError::Unsupported("Unit entry claim count exceeds u64"))?
         .checked_add(1)
@@ -135,26 +136,19 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .iter()
         .map(|(_, event)| event)
     {
-        if event.machine_symbol != plan.machine
-            || event.kind != language_semantics::PermissionEventKind::Establish
-            || event.access != language_semantics::PermissionAccess::Owned
-            || event.multiplicity != Multiplicity::Linear
-            || !event.obligation_live
-            || !matches!(
-                event.source,
-                language_semantics::PermissionEventSource::Statement { .. }
-            )
-            || !matches!(
-                event.claim_identity,
-                PermissionClaimIdentity::Established {
-                    source: language_semantics::PermissionEventSource::Statement { .. },
-                    ..
-                }
-            )
-            || claims
-                .source_claims
-                .iter()
-                .any(|(identity, _)| *identity == event.claim_identity)
+        let language_semantics::PermissionEventSource::Statement { statement_index } = event.source
+        else {
+            continue;
+        };
+        if !crate::unit::attached_unit::operation_frame::claim_established_here(
+            plan.machine,
+            event.state_symbol,
+            statement_index,
+            event,
+        ) || claims
+            .source_claims
+            .iter()
+            .any(|(identity, _)| *identity == event.claim_identity)
         {
             continue;
         }

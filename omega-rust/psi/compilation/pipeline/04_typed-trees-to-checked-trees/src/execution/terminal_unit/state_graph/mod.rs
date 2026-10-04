@@ -1512,12 +1512,8 @@ fn call_argument_admitted(
 /// as the operation guard, then distinguish its unsupported custody.
 fn call_custody_refusal(
     structural_arguments: &[CheckedUnitStructuralArgumentPlan],
-    claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     earlier: &[CheckedUnitEffectOperationPlan],
 ) -> &'static str {
-    if !claim_transfers.is_empty() {
-        return "state graph: operation custody: call claim transfers";
-    }
     for argument in structural_arguments {
         if call_argument_admitted(argument, earlier) {
             continue;

@@ -234,29 +234,48 @@ pub(super) fn resolve_established_claim(
     if let Ok(bound) = lookup_claim_id(claims.bindings(), event.claim_identity) {
         return Ok(bound);
     }
-    let established_here = matches!(
-        event.claim_identity,
-        PermissionClaimIdentity::Established {
-            machine_symbol,
-            state_symbol,
-            source:
-                language_semantics::PermissionEventSource::Statement {
-                    statement_index: establishment,
-                },
-            ..
-        } if machine_symbol == machine
-            && state_symbol == state
-            && establishment == statement_index
-    ) && event.provenance
-        == (language_semantics::PermissionProvenance::Established {
-            machine_symbol: machine,
-            state_symbol: state,
-            source: language_semantics::PermissionEventSource::Statement { statement_index },
-        });
-    if !established_here {
+    if !claim_established_here(machine, state, statement_index, event) {
         return lookup_claim_id(claims.bindings(), event.claim_identity);
     }
     claims.mint(event.claim_identity)
+}
+
+/// Authenticate a fresh claim at its actual establishment coordinate. Graph
+/// publication and ordinary emission share this minting boundary; transported
+/// claims instead resolve the identity their original establishment published.
+pub(super) fn claim_established_here(
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    event: &checked_trees::FlowPermissionEventFact,
+) -> bool {
+    event.machine_symbol == machine
+        && event.state_symbol == state
+        && event.source == language_semantics::PermissionEventSource::Statement { statement_index }
+        && event.kind == language_semantics::PermissionEventKind::Establish
+        && event.access == language_semantics::PermissionAccess::Owned
+        && event.multiplicity == Multiplicity::Linear
+        && event.obligation_live
+        && matches!(
+            event.claim_identity,
+            PermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source:
+                    language_semantics::PermissionEventSource::Statement {
+                        statement_index: establishment,
+                    },
+                ..
+            } if machine_symbol == machine
+                && state_symbol == state
+                && establishment == statement_index
+        )
+        && event.provenance
+            == (language_semantics::PermissionProvenance::Established {
+                machine_symbol: machine,
+                state_symbol: state,
+                source: language_semantics::PermissionEventSource::Statement { statement_index },
+            })
 }
 
 /// The structural type roster a frame reads.
