@@ -18,14 +18,14 @@ use omega::language::core::binding;
 use omega::language::core::float_operations;
 pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Gui {
-    machine window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+    machine window_create(gui: &mut Self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
         invokes ObjectiveC; invokes CoreGraphics;
-    machine get_dc(&mut self, window: u64) -> u64;
-    machine msg_peek(&mut self, message: [u64; 6]) -> u32 invokes ObjectiveC;
-    machine msg_translate(&mut self, message: [u64; 6]) -> u32;
-    machine msg_dispatch(&mut self, message: [u64; 6]) -> u64 invokes ObjectiveC;
-    machine is_window(&mut self, window: u64) -> u32 invokes ObjectiveC;
-    machine blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine get_dc(gui: &mut Self, window: u64) -> u64;
+    machine msg_peek(gui: &mut Self, message: [u64; 6]) -> u32 invokes ObjectiveC;
+    machine msg_translate(gui: &mut Self, message: [u64; 6]) -> u32;
+    machine msg_dispatch(gui: &mut Self, message: [u64; 6]) -> u64 invokes ObjectiveC;
+    machine is_window(gui: &mut Self, window: u64) -> u32 invokes ObjectiveC;
+    machine blit(gui: &mut Self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         invokes ObjectiveC; invokes CoreGraphics;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
