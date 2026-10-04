@@ -25,7 +25,6 @@ pub(in crate::symbols) fn assign_static_argument_type_symbols(
             machine.symbol,
             &mut reference,
         );
-        *child_type_references.get_mut(argument.type_reference) = reference.clone();
         crate::symbols::type_references::assign_type_value_expression_symbols(
             symbols,
             machine,
@@ -33,8 +32,9 @@ pub(in crate::symbols) fn assign_static_argument_type_symbols(
             state_symbol,
             expression_table,
             child_type_references,
-            &reference,
+            &mut reference,
         );
+        *child_type_references.get_mut(argument.type_reference) = reference;
     }
     if let Some(application) = &argument.application {
         for nested in &application.arguments {
@@ -226,8 +226,6 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 machine.symbol,
                 &mut target_type,
             );
-            *child_type_references.get_mut(cast.target_type) = target_type;
-            let target_type = child_type_references.get(cast.target_type).clone();
             crate::symbols::type_references::assign_type_value_expression_symbols(
                 symbols,
                 machine,
@@ -235,8 +233,9 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &target_type,
+                &mut target_type,
             );
+            *child_type_references.get_mut(cast.target_type) = target_type;
             for offset in 0..cast.semantic_domain_arguments.count() {
                 let start = cast.semantic_domain_arguments.start();
                 let handle =
@@ -249,8 +248,6 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                     machine.symbol,
                     &mut argument,
                 );
-                *child_type_references.get_mut(handle) = argument;
-                let argument = child_type_references.get(handle).clone();
                 crate::symbols::type_references::assign_type_value_expression_symbols(
                     symbols,
                     machine,
@@ -258,8 +255,9 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                     state_symbol,
                     expression_table,
                     child_type_references,
-                    &argument,
+                    &mut argument,
                 );
+                *child_type_references.get_mut(handle) = argument;
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
@@ -442,8 +440,6 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 machine.symbol,
                 &mut target_type,
             );
-            *child_type_references.get_mut(type_reference) = target_type;
-            let target_type = child_type_references.get(type_reference).clone();
             crate::symbols::type_references::assign_type_value_expression_symbols(
                 symbols,
                 machine,
@@ -451,8 +447,9 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &target_type,
+                &mut target_type,
             );
+            *child_type_references.get_mut(type_reference) = target_type;
         }
     }
 }

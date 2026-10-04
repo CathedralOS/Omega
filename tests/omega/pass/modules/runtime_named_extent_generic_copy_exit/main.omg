@@ -1,0 +1,24 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+const Observed: u64 = extent();
+const Count: u64 = count();
+data Main { console: Binding<Console>; }
+
+machine count() -> u64 { 3 }
+machine identity<T [copy]>(value: T) -> T { value }
+machine extent() -> u64 {
+    let bytes: [u8; Count] = identity<[u8; Count]>([1u8, 2u8, 3u8]);
+    bytes.len
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // Observe the evaluated generic invocation. The substituted T row must
+    // retain Count's origin even though its structural extent is already 3.
+    transition Observed == 3 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

@@ -44,6 +44,7 @@ pub(super) fn resolve_base_symbol(
             member.as_str(),
             &[
                 SymbolKind::BuiltinType,
+                SymbolKind::Const,
                 SymbolKind::Data,
                 SymbolKind::Machine,
                 SymbolKind::Trait,

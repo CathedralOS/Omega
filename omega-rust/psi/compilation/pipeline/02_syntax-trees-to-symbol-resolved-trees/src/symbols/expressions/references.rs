@@ -341,6 +341,49 @@ pub(in crate::symbols) fn assign_membership_symbol(
     }
 }
 
+/// Select only bindings already in the lexical value frontier. Later locals
+/// in the state arena must not capture an earlier reference.
+pub(in crate::symbols) fn lexical_value_head(
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    member: &str,
+    has_suffix: bool,
+) -> SymbolHandle {
+    machine
+        .prior_statements
+        .iter()
+        .rev()
+        .find_map(|statement| match statement {
+            symbol_resolved_trees::statement::Statement::LocalData(local)
+                if local.name.as_str() == member =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .or_else(|| {
+            parameters
+                .iter()
+                .find(|parameter| parameter.name.as_str() == member)
+                .map(|parameter| parameter.symbol)
+        })
+        .or_else(|| {
+            machine
+                .type_parameters
+                .iter()
+                .find(|parameter| {
+                    parameter.name.as_str() == member
+                        && (matches!(
+                            parameter.kind,
+                            symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                                | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
+                        ) || has_suffix)
+                })
+                .map(|parameter| parameter.symbol)
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
 pub(in crate::symbols) fn assign_name_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
@@ -354,42 +397,8 @@ pub(in crate::symbols) fn assign_name_symbol(
     if !path.is_self_value
         && let [member, suffix @ ..] = expression_table.name_path_members(path.members)
     {
-        // Only preceding locals belong to this value frontier. The whole
-        // state arena also contains later locals and the current initializer's
-        // binding, neither of which may capture this reference.
-        let symbol = machine
-            .prior_statements
-            .iter()
-            .rev()
-            .find_map(|statement| match statement {
-                symbol_resolved_trees::statement::Statement::LocalData(local)
-                    if local.name.as_str() == member.as_str() =>
-                {
-                    Some(local.symbol)
-                }
-                _ => None,
-            })
-            .or_else(|| {
-                parameters
-                    .iter()
-                    .find(|parameter| parameter.name.as_str() == member.as_str())
-                    .map(|parameter| parameter.symbol)
-            })
-            .or_else(|| {
-                machine
-                    .type_parameters
-                    .iter()
-                    .find(|parameter| {
-                        parameter.name.as_str() == member.as_str()
-                            && (matches!(
-                                parameter.kind,
-                                symbol_resolved_trees::data::TypeParameterKind::Const { .. }
-                                    | symbol_resolved_trees::data::TypeParameterKind::Value { .. }
-                            ) || !suffix.is_empty())
-                    })
-                    .map(|parameter| parameter.symbol)
-            });
-        if let Some(symbol) = symbol {
+        let symbol = lexical_value_head(machine, parameters, member.as_str(), !suffix.is_empty());
+        if symbol.is_valid() {
             let member_symbols = resolve_path_members_from_head(symbols, symbol, suffix);
             let leaf = member_symbols
                 .last()

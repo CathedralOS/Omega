@@ -1,0 +1,2 @@
+module settings;
+const Count: u64 = 8;

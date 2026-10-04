@@ -687,7 +687,14 @@ fn assign_fixed_array_length_symbol(
 ) {
     match length {
         symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
-            *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+            // A named extent is a value selection. Lexical binders shadow
+            // declaration constants, including an invalid type-valued binder;
+            // never fall through to a same-spelled global after selecting one.
+            *symbol = local_type_parameters
+                .iter()
+                .find(|parameter| parameter.name.as_str() == name.as_str())
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_else(|| top_level_symbol_for_source(symbols, SymbolKind::Const, name));
         }
         symbol_resolved_trees::types::FixedArrayLength::ConstCall { machine, name } => {
             // The pending call carries the same source-qualified selection as

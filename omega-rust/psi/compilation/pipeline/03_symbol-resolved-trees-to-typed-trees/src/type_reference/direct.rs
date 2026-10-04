@@ -60,12 +60,13 @@ pub(super) fn lower_type_reference_handle_with_context(
                 source_trees.child_type_reference(fixed_array.element_type),
                 exposure,
             )?;
-            Ok(typed_trees.type_reference_table.insert(
-                typed::types::TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: lower_fixed_array_length(&fixed_array.length),
-                },
-            ))
+            lower_fixed_array_type(
+                source_trees,
+                typed_trees,
+                element_type,
+                &fixed_array.length,
+                exposure,
+            )
         }
         resolved::types::TypeReference::Slice(slice) => {
             let element_type = lower_type_reference_handle_with_context(
@@ -199,17 +200,77 @@ pub(super) fn lower_type_reference_handle_with_context(
     Ok(reference)
 }
 
-pub(super) fn lower_fixed_array_length(
+pub(super) fn lower_fixed_array_type(
+    source_trees: &SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    element_type: typed::types::TypeReferenceHandle,
     length: &resolved::types::FixedArrayLength,
-) -> typed::types::FixedArrayLength {
-    match length {
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    let mut origin = None;
+    let length = match length {
         resolved::types::FixedArrayLength::Literal(value) => {
             typed::types::FixedArrayLength::Literal(*value)
         }
         resolved::types::FixedArrayLength::ConstParameter { symbol, name } => {
-            typed::types::FixedArrayLength::ConstParameter {
-                symbol: *symbol,
-                name: crate::lowerer::name::lower_name(name),
+            if symbol.is_valid()
+                && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+            {
+                // Resolution already chose the declaration in the occurrence's
+                // source scope and checked its initializer. Consume that exact
+                // value, not the spelling or a fresh evaluation in caller scope.
+                // Both signature and body type routes retain selection custody
+                // before erasing the constant into an ordinary fixed extent.
+                let declaration = source_trees
+                    .roots
+                    .const_declarations
+                    .iter()
+                    .find(|declaration| declaration.symbol == *symbol)
+                    .ok_or_else(|| {
+                        Diagnostic::error("array length constant has no resolved declaration")
+                            .with_source_span(name.source_span())
+                    })?;
+                let value = declaration
+                    .evaluated_value
+                    .as_ref()
+                    .and_then(|value| value.encoding())
+                    .and_then(|encoding| {
+                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
+                            .decode_encoding()
+                    });
+                let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                }) = value
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "fixed-array length `{name}` requires an evaluated integer constant"
+                    ))
+                    .with_source_span(name.source_span()));
+                };
+                let value = usize::try_from(value).map_err(|_| Diagnostic::error(format!(
+                    "fixed-array length `{name}` must be nonnegative and fit the supported array extent"
+                )).with_source_span(name.source_span()))?;
+                super::retain_type_reference_selection(
+                    source_trees,
+                    typed_trees,
+                    name,
+                    *symbol,
+                    exposure,
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+                )?;
+                origin = Some(typed::types::TypeConstantOrigin {
+                    declaration: *symbol,
+                    reference: name.source_span(),
+                });
+                typed::types::FixedArrayLength::Literal(value)
+            } else {
+                typed::types::FixedArrayLength::ConstParameter {
+                    symbol: *symbol,
+                    name: crate::lowerer::name::lower_name(name),
+                }
             }
         }
         resolved::types::FixedArrayLength::ConstCall { machine, name } => {
@@ -219,5 +280,20 @@ pub(super) fn lower_fixed_array_length(
                 source_span: name.source_span(),
             }
         }
-    }
+    };
+    let reference =
+        typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            });
+    // The numeric extent is sufficient for layout, not for declaration
+    // reachability or evaluation custody. Keep the selected constant attached
+    // to this type use after folding, including when the type is copied.
+    typed_trees
+        .type_reference_table
+        .attach_constant_origins(reference, origin)
+        .map_err(Diagnostic::error)?;
+    Ok(reference)
 }

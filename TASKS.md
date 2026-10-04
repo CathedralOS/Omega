@@ -4115,14 +4115,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
     Computed payloads cannot establish qualifications; routed constraints need
     establishment even for unused initializers.
-    Bare named array extents also remain open: `const Count: u64 = 8;`
-    followed by `data Storage { bytes: [u8; Count]; }` is kept as
-    `FixedArrayLength::ConstParameter`, then rejected as an unresolved length.
-    `lowering/type_reference.rs` in Psi02 preserves that form;
-    `compile-time/src/const_evaluation/const_lengths.rs` evaluates only calls.
-    Normalize a selected constant declaration with its exact value/source
-    custody while retaining genuine generic parameters and lexical shadowing.
-    Requiring a wrapper machine is not acceptance for this named-value form.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.

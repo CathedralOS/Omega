@@ -55,7 +55,7 @@ fn assign_machine_references(
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
-    let state_parameters = &tables.declarations.state_parameters;
+    let state_parameters = &mut tables.declarations.state_parameters;
     let statement_path_members = &mut tables.declarations.statement_path_members;
     let expression_table = &mut tables.bodies.expressions;
     let state_statements = &mut tables.declarations.state_statements;
@@ -142,12 +142,27 @@ fn assign_machine_references(
         for state_handle in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state_handle);
             let state_symbol = state.symbol;
-            let parameters = state_parameters.span_or_empty(state.parameters);
-            for type_reference in parameters
-                .iter()
-                .map(|parameter| &parameter.type_reference)
-                .chain(state.return_type.iter())
-            {
+            let parameter_frontier = state_parameters.span_or_empty(state.parameters).to_vec();
+            let parameters = parameter_frontier.as_slice();
+            for (offset, parameter) in parameters.iter().enumerate() {
+                let mut type_reference = parameter.type_reference.clone();
+                super::type_references::assign_type_value_expression_symbols(
+                    symbols,
+                    &machine_scope,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    &mut type_reference,
+                );
+                let start = state.parameters.start();
+                let handle = arena::Handle::from_parts(
+                    start.arena_index() + offset as u32,
+                    start.generation(),
+                );
+                state_parameters.get_mut(handle).type_reference = type_reference;
+            }
+            if let Some(type_reference) = &mut state.return_type {
                 super::type_references::assign_type_value_expression_symbols(
                     symbols,
                     &machine_scope,

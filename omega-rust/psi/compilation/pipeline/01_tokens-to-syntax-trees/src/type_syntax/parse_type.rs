@@ -20,6 +20,28 @@ use syntax_trees::types::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
+/// Type, extent and domain names share the ordinary static-path grammar.
+/// Keep one source span so later selection retains the authored occurrence.
+fn parse_static_name<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Identifier> {
+    let (first, mut input) = input.take_identifier()?;
+    if !input.at_punctuation(PunctuationKind::ColonColon) {
+        return Ok((first, input));
+    }
+    let mut name = first.as_str().to_owned();
+    let mut source_span = first.source_span();
+    while input.at_punctuation(PunctuationKind::ColonColon) {
+        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (member, rest) = input.take_identifier()?;
+        name.push_str("::");
+        name.push_str(member.as_str());
+        source_span.span.end = member.source_span().span.end;
+        input = rest;
+    }
+    Ok((Identifier::new(name, source_span), input))
+}
+
 pub(crate) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -79,7 +101,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 .first()
                 .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
             {
-                let (name, input) = input.take_identifier()?;
+                let (name, input) = parse_static_name(input)?;
                 // `[T; table_size()]`: a zero-argument machine call in length
                 // position is CONST-EVALUATED at compile time (comptime stage 1).
                 if input.at_punctuation(PunctuationKind::LeftParen) {
@@ -156,22 +178,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         ));
     }
 
-    let (first_name, mut input) = input.take_identifier()?;
-    let base_name = if input.at_punctuation(PunctuationKind::ColonColon) {
-        let mut name = first_name.as_str().to_owned();
-        let mut source_span = first_name.source_span();
-        while input.at_punctuation(PunctuationKind::ColonColon) {
-            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (member, rest) = input.take_identifier()?;
-            name.push_str("::");
-            name.push_str(member.as_str());
-            source_span.span.end = member.source_span().span.end;
-            input = rest;
-        }
-        Identifier::new(name, source_span)
-    } else {
-        first_name
-    };
+    let (base_name, mut input) = parse_static_name(input)?;
 
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
@@ -521,22 +528,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     let mut cursor = input.take_contextual("in")?;
     let mut constraints = Vec::new();
     loop {
-        let (first_domain_name, mut rest) = cursor.take_identifier()?;
-        let mut qualified_domain_name = first_domain_name.as_str().to_owned();
-        let mut qualified_domain_span = first_domain_name.source_span();
-        while rest.at_punctuation(PunctuationKind::ColonColon) {
-            rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let (member, next) = rest.take_identifier()?;
-            qualified_domain_name.push_str("::");
-            qualified_domain_name.push_str(member.as_str());
-            qualified_domain_span.span.end = member.source_span().span.end;
-            rest = next;
-        }
-        let domain_name = if qualified_domain_name == first_domain_name.as_str() {
-            first_domain_name
-        } else {
-            Identifier::new(qualified_domain_name, qualified_domain_span)
-        };
+        let (domain_name, rest) = parse_static_name(cursor)?;
         let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
         if domain_name.as_str() == "Carry::Portable" {
             if !arguments.is_empty() {

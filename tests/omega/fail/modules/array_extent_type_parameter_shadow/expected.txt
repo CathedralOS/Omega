@@ -1,0 +1,1 @@
+uses type parameter `Count` as a fixed-array length

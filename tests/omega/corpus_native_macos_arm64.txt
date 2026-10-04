@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 2.06, "load1_start": 1.98, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 3.09, "load1_start": 3.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -779,6 +779,8 @@ pass/modules/qualified_constants checked 189ms
 pass/modules/qualified_declarations checked 192ms
 pass/modules/rational_boolean_indices checked 204ms
 pass/modules/repeated_exact_declaration_selection_compile checked 185ms
+pass/modules/runtime_named_constant_array_extent_exit built 2671ms exit:70 @226c4c4b57b1+wt
+pass/modules/runtime_named_extent_generic_copy_exit built 2633ms exit:70 @226c4c4b57b1+wt
 pass/modules/runtime_qualified_static_mutation_exit built 734ms exit:70 @e0a76f438a35+wt
 pass/modules/same_name_requirement_field_calls_exit built 2011ms exit:70 stdout:match @90e2c919eb74+wt
 pass/modules/use_imports_sibling_trait checked 197ms

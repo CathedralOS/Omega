@@ -39,14 +39,11 @@ pub(crate) fn substitute_cloned_type_parameters(
             binding.expect("complete specialization"),
             &[],
         );
-        let replacement = program
-            .type_reference_table
-            .type_reference(replacement_handle)
-            .clone();
         for occurrence in occurrences {
             program
                 .type_reference_table
-                .substitute_node(occurrence, replacement.clone());
+                .substitute_from(occurrence, replacement_handle)
+                .map_err(Diagnostic::error)?;
         }
         // Clone-owned compounds whose child still names the binder point at
         // the template's interned leaf — out of the occurrence scan's reach.
@@ -83,14 +80,11 @@ pub(crate) fn substitute_cloned_type_parameters(
             binding.expect("complete const specialization"),
             &[],
         );
-        let replacement = program
-            .type_reference_table
-            .type_reference(replacement_handle)
-            .clone();
         for occurrence in occurrences {
             program
                 .type_reference_table
-                .substitute_node(occurrence, replacement.clone());
+                .substitute_from(occurrence, replacement_handle)
+                .map_err(Diagnostic::error)?;
         }
         program.type_reference_table.substitute_shared_children(
             type_start,

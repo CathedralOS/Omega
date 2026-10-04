@@ -68,6 +68,10 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         true
     }
+    /// Expressions owned by type work, distinct from executable body roots.
+    fn type_expression(&mut self, _: ExpressionHandle) -> bool {
+        true
+    }
     fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
         true
     }
@@ -789,13 +793,21 @@ fn visit_contract(
 
 /// Retain every machine symbol appearing in one type reference, including
 /// const-expression index payloads that can call machines.
-fn visit_type_reference(
+pub fn visit_type_reference(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     type_reference: TypeReferenceHandle,
 ) {
     if !type_reference.is_valid() || !retained.type_reference(type_reference) {
         return;
+    }
+    for origin in program
+        .type_reference_table
+        .constant_origins(type_reference)
+        .into_iter()
+        .flatten()
+    {
+        visit_symbol(retained, origin.declaration);
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -811,8 +823,12 @@ fn visit_type_reference(
                     crate::types::TypeConstraintNode::Range {
                         minimum, maximum, ..
                     } => {
-                        visit_expression(program, retained, *minimum);
-                        visit_expression(program, retained, *maximum);
+                        if retained.type_expression(*minimum) {
+                            visit_expression(program, retained, *minimum);
+                        }
+                        if retained.type_expression(*maximum) {
+                            visit_expression(program, retained, *maximum);
+                        }
                     }
                     crate::types::TypeConstraintNode::Domain(domain) => {
                         visit_symbol(retained, domain.symbol);
@@ -855,7 +871,9 @@ fn visit_type_reference(
             }
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            visit_expression(program, retained, *expression);
+            if retained.type_expression(*expression) {
+                visit_expression(program, retained, *expression);
+            }
         }
         TypeReferenceNode::DynamicTrait {
             symbol,
@@ -875,7 +893,7 @@ fn visit_type_reference(
 }
 
 /// Retain every machine referenced by one typed expression node, recursively.
-fn visit_expression(
+pub fn visit_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     expression: ExpressionHandle,

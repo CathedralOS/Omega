@@ -9,6 +9,8 @@ use symbol_resolved_trees::{
 };
 use symbols::{SymbolHandle, SymbolKind};
 
+mod types;
+
 /// Exact source occurrence/declaration pairs. Body dependencies are retained
 /// even when execution later selects another branch.
 #[derive(Debug, Default)]
@@ -90,6 +92,10 @@ struct Collector<'program> {
     dependencies: ConstInitializerDependencies,
     expressions: Vec<ExpressionHandle>,
     machines: Vec<SymbolHandle>,
+    types: Vec<&'program symbol_resolved_trees::types::TypeReference>,
+    visited_type_children: Vec<arena::Handle<symbol_resolved_trees::types::TypeReference>>,
+    visited_type_declarations: Vec<SymbolHandle>,
+    expanded_constants: Vec<SymbolHandle>,
     visited_expressions: Vec<ExpressionHandle>,
     visited_machines: Vec<SymbolHandle>,
     /// Only a retained-body owner can request an incomplete dependency frontier.
@@ -105,6 +111,10 @@ impl<'program> Collector<'program> {
             dependencies: ConstInitializerDependencies::default(),
             expressions: Vec::new(),
             machines: Vec::new(),
+            types: Vec::new(),
+            visited_type_children: Vec::new(),
+            visited_type_declarations: Vec::new(),
+            expanded_constants: Vec::new(),
             visited_expressions: Vec::new(),
             visited_machines: Vec::new(),
             deferred_machines: None,
@@ -113,7 +123,7 @@ impl<'program> Collector<'program> {
     }
 
     fn collect(&mut self) -> Result<(), String> {
-        while !self.expressions.is_empty() || !self.machines.is_empty() {
+        while !self.expressions.is_empty() || !self.machines.is_empty() || !self.types.is_empty() {
             if let Some(expression) = self.expressions.pop() {
                 if self.visited_expressions.contains(&expression) {
                     continue;
@@ -126,6 +136,8 @@ impl<'program> Collector<'program> {
                 }
                 self.visited_machines.push(machine);
                 self.machine(machine)?;
+            } else if let Some(reference) = self.types.pop() {
+                self.type_reference(reference)?;
             }
         }
         Ok(())
@@ -249,17 +261,6 @@ impl<'program> Collector<'program> {
             if self.program.symbols.get(selected.selected_symbol()).kind != SymbolKind::Const {
                 continue;
             }
-            let declaration = self
-                .program
-                .const_declarations
-                .iter()
-                .find(|declaration| declaration.symbol == selected.selected_symbol())
-                .ok_or("constant dependency lost its retained declaration")?;
-            let source = self
-                .program
-                .symbols
-                .symbol_source_span(declaration.symbol)
-                .ok_or("constant dependency lost its declaration source")?;
             // The authored ledger records individual path segments, while
             // substitution and initializer receipts name the whole use. Join
             // only this Name's exact terminal selection to its full path;
@@ -270,21 +271,11 @@ impl<'program> Collector<'program> {
                         && terminal_segment == Some(selection.source_span())
                 })
                 .map_or(selection.source_span(), |(reference, _)| reference);
-            let dependency = (reference, source);
-            if !self.dependencies.constants.contains(&dependency) {
-                self.dependencies.constants.push(dependency);
-            }
-            if self.follow_dependencies {
-                self.expressions
-                    .push(if declaration.authored_initializer.is_valid() {
-                        declaration.authored_initializer
-                    } else {
-                        declaration.initializer
-                    });
-            }
+            self.constant(selected.selected_symbol(), reference)?;
         }
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
+                self.static_arguments(&call.machine_arguments)?;
                 // `size_of<T>()`/`align_of<T>()` carry no callee: the
                 // compiler answers them from the selected target's layout
                 // after constant dependency ordering has already run.
@@ -306,7 +297,11 @@ impl<'program> Collector<'program> {
             }
             ExpressionNode::Binary(binary) => self.expressions.extend([binary.right, binary.left]),
             ExpressionNode::Unary(unary) => self.expressions.push(unary.operand),
-            ExpressionNode::Cast(cast) => self.expressions.push(cast.value),
+            ExpressionNode::Cast(cast) => {
+                self.type_child(cast.target_type)?;
+                self.type_arguments(cast.semantic_domain_arguments)?;
+                self.expressions.push(cast.value);
+            }
             ExpressionNode::Member(member) => self.expressions.push(member.receiver),
             ExpressionNode::Borrow(borrow) => self.expressions.push(borrow.target),
             ExpressionNode::Indexed(indexed) => {
@@ -329,6 +324,7 @@ impl<'program> Collector<'program> {
                 self.expressions.extend(values.iter().rev().copied());
             }
             ExpressionNode::StructLiteral(literal) => {
+                self.type_declaration(literal.type_symbol)?;
                 let fields = table.struct_fields(literal.fields);
                 if fields.len() != literal.fields.len() {
                     return Err("constant constructor dependency has a stale span".to_owned());
@@ -353,35 +349,19 @@ impl<'program> Collector<'program> {
                 if let Some((reference, selected)) =
                     super::selected_expression_constant(program, expression)
                 {
-                    let declaration = program
-                        .const_declarations
-                        .iter()
-                        .find(|declaration| declaration.symbol == selected)
-                        .ok_or("body constant lost its declaration")?;
-                    let source = program
-                        .symbols
-                        .symbol_source_span(selected)
-                        .ok_or("body constant lost its source")?;
-                    let dependency = (reference, source);
-                    if !self.dependencies.constants.contains(&dependency) {
-                        self.dependencies.constants.push(dependency);
-                    }
-                    if self.follow_dependencies {
-                        self.expressions
-                            .push(if declaration.authored_initializer.is_valid() {
-                                declaration.authored_initializer
-                            } else {
-                                declaration.initializer
-                            });
-                    }
+                    self.constant(selected, reference)?;
+                } else if let ExpressionNode::Name(path) = table.expression(expression)
+                    && program.symbols.get(path.symbol).kind == SymbolKind::Variant
+                {
+                    self.type_declaration(program.symbols.get(path.symbol).parent)?;
                 }
             }
+            ExpressionNode::ZeroValue(reference) => self.type_child(*reference)?,
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Boolean(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            | ExpressionNode::String(_) => {}
         }
         Ok(())
     }
@@ -398,6 +378,10 @@ impl<'program> Collector<'program> {
             .ok_or("constant dependency call lost its machine body")?;
         if machines.next().is_some() {
             return Err("constant dependency machine is ambiguous".to_owned());
+        }
+        self.type_parameters(machine.type_parameters)?;
+        if let Some(reference) = &machine.attached_data_application {
+            self.types.push(reference);
         }
         if machine.body_status == MachineBodyStatus::Deferred {
             let Some(deferred) = &mut self.deferred_machines else {
@@ -419,6 +403,7 @@ impl<'program> Collector<'program> {
             return Err("constant dependency machine has stale owned initializers".to_owned());
         }
         for owned in owned_values {
+            self.types.push(&owned.type_reference);
             if owned.initial_value.is_valid() {
                 self.expressions.push(owned.initial_value);
             }
@@ -426,6 +411,10 @@ impl<'program> Collector<'program> {
         let expressions = &program.tables.bodies.expressions;
         for handle in states {
             let state = program.machine_state(*handle);
+            self.state_parameters(state.parameters)?;
+            if let Some(reference) = &state.return_type {
+                self.types.push(reference);
+            }
             if !state.symbol.is_valid()
                 || program.symbols.get(state.symbol).parent != machine.symbol
             {
@@ -441,6 +430,7 @@ impl<'program> Collector<'program> {
                 match statement {
                     Statement::Expression(expression) => self.expressions.push(*expression),
                     Statement::LocalData(local) => {
+                        self.types.push(&local.type_reference);
                         if local.initial_value.is_valid() {
                             self.expressions.push(local.initial_value);
                         }
@@ -459,6 +449,7 @@ impl<'program> Collector<'program> {
                         self.expressions.push(binding.call)
                     }
                     Statement::Call(call) => {
+                        self.static_arguments(&call.machine_arguments)?;
                         self.call(call.target_symbol, call.target.source_span())?;
                         let arguments = expressions.expression_handles(call.arguments);
                         if arguments.len() != call.arguments.len() {

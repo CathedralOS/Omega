@@ -1,0 +1,3 @@
+const Count: u64 = 8;
+data Storage<Count> { bytes: [u8; Count]; }
+machine main() {}

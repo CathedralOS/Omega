@@ -1,0 +1,3 @@
+const Count: bool = true;
+data Storage { bytes: [u8; Count]; }
+machine main() {}

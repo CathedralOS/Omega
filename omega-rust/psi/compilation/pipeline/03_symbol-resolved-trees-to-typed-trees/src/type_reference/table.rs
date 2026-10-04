@@ -5,7 +5,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
 
 use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
-use crate::type_reference::direct::lower_fixed_array_length;
+use crate::type_reference::direct::lower_fixed_array_type;
 
 pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
@@ -74,12 +74,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 *element_type,
                 exposure,
             )?;
-            Ok(typed_trees.type_reference_table.insert(
-                typed::types::TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: lower_fixed_array_length(length),
-                },
-            ))
+            lower_fixed_array_type(source_trees, typed_trees, element_type, length, exposure)
         }
         resolved::types::TypeReferenceNode::Slice { element_type } => {
             let element_type = lower_type_reference_handle_from_table_with_context(

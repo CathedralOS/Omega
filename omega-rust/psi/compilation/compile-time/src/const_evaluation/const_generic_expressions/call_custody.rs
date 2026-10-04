@@ -14,6 +14,8 @@ use typed_trees::{
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
 };
 
+mod types;
+
 #[derive(Default)]
 pub(super) struct Custody {
     pub origins: Vec<ConstArgumentOrigin>,
@@ -317,6 +319,7 @@ fn collect_internal(
         expressions: roots.iter().rev().map(|root| (*root, context)).collect(),
         machines: Vec::new(),
         retained_call_targets: Vec::new(),
+        expanded_constants: Vec::new(),
     };
     let mut visited_expressions = Vec::new();
     let mut visited_machines = Vec::new();
@@ -357,6 +360,7 @@ struct Collector<'program> {
     expressions: Vec<(ExpressionHandle, Context<'program>)>,
     machines: Vec<SymbolHandle>,
     retained_call_targets: Vec<(SourceSpan, SymbolHandle)>,
+    expanded_constants: Vec<SymbolHandle>,
 }
 
 impl<'program> Collector<'program> {
@@ -601,6 +605,11 @@ impl<'program> Collector<'program> {
                 }
             }
         }
+        if self.expanded_constants.contains(&symbol) {
+            return Ok(());
+        }
+        self.expanded_constants.push(symbol);
+        self.type_dependencies(types::Root::Type(declaration.declared_type), context)?;
         if declaration.authored_initializer.is_valid() {
             self.expressions.push((
                 declaration.authored_initializer,
@@ -623,6 +632,7 @@ impl<'program> Collector<'program> {
         if !table.expression_is_valid(expression) {
             return Err("constant call closure contains a stale expression".into());
         }
+        self.type_dependencies(types::Root::Expression(expression), context)?;
         for occurrence in table.authored_selection_occurrences(expression) {
             let selection = program
                 .authored_declaration_selections()
@@ -757,6 +767,14 @@ impl<'program> Collector<'program> {
         let entry = states
             .first()
             .ok_or("constant call closure has no entry state")?;
+        self.type_dependencies(
+            types::Root::Machine(machine),
+            Context {
+                machine,
+                state: entry,
+                initializer: false,
+            },
+        )?;
         let owned = program.machine_owned_data(machine);
         if owned.len() != machine.owned_data.len() {
             return Err("constant call closure has stale owned initializers".into());

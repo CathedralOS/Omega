@@ -377,8 +377,6 @@ fn assign_contract_call_symbols(
                 machine.symbol,
                 &mut target_type,
             );
-            *child_type_references.get_mut(cast.target_type) = target_type;
-            let target_type = child_type_references.get(cast.target_type).clone();
             crate::symbols::type_references::assign_type_value_expression_symbols(
                 symbols,
                 machine,
@@ -386,8 +384,9 @@ fn assign_contract_call_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &target_type,
+                &mut target_type,
             );
+            *child_type_references.get_mut(cast.target_type) = target_type;
             for offset in 0..cast.semantic_domain_arguments.count() {
                 let start = cast.semantic_domain_arguments.start();
                 let handle =
@@ -557,8 +556,6 @@ fn assign_contract_call_symbols(
                 machine.symbol,
                 &mut target_type,
             );
-            *child_type_references.get_mut(type_reference) = target_type;
-            let target_type = child_type_references.get(type_reference).clone();
             crate::symbols::type_references::assign_type_value_expression_symbols(
                 symbols,
                 machine,
@@ -566,8 +563,9 @@ fn assign_contract_call_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &target_type,
+                &mut target_type,
             );
+            *child_type_references.get_mut(type_reference) = target_type;
         }
         ExpressionNode::Name(path) => {
             // A bare `result` is the contract owner's reserved result binder

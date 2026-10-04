@@ -8,11 +8,23 @@ mod display;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
+/// Exact declaration use erased into a structural type, such as a named array
+/// extent. This is initializer/selection custody, not runtime constant storage.
+/// It is independent of public exposure: generated type copies need the same
+/// dependency without inventing another authored visibility occurrence.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TypeConstantOrigin {
+    pub declaration: SymbolHandle,
+    pub reference: source::SourceSpan,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
+    constant_origin_spans: Arena<HandleSpan<TypeConstantOrigin>>,
+    constant_origins: Arena<TypeConstantOrigin>,
     named_rows: NamedRowIndex,
 }
 
@@ -24,6 +36,8 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("type_references", &self.type_references)
             .field("type_reference_handles", &self.type_reference_handles)
             .field("constraints", &self.constraints)
+            .field("constant_origin_spans", &self.constant_origin_spans)
+            .field("constant_origins", &self.constant_origins)
             .finish()
     }
 }
@@ -50,6 +64,8 @@ impl TypeReferenceTable {
             type_references,
             type_reference_handles,
             constraints,
+            constant_origin_spans,
+            constant_origins,
             named_rows: _,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(
@@ -61,6 +77,12 @@ impl TypeReferenceTable {
         ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             constraints,
             &self.constraints,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            constant_origin_spans,
+            &self.constant_origin_spans,
+        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+            constant_origins,
+            &self.constant_origins,
         )
     }
 
@@ -69,6 +91,8 @@ impl TypeReferenceTable {
             type_references: Arena::new(),
             type_reference_handles: Arena::new(),
             constraints: Arena::new(),
+            constant_origin_spans: Arena::new(),
+            constant_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
         }
     }
@@ -80,6 +104,8 @@ impl TypeReferenceTable {
             .revision()
             .wrapping_add(self.type_reference_handles.revision())
             .wrapping_add(self.constraints.revision())
+            .wrapping_add(self.constant_origins.revision())
+            .wrapping_add(self.constant_origin_spans.revision())
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -88,10 +114,54 @@ impl TypeReferenceTable {
             _ => None,
         };
         let handle = self.type_references.insert(type_reference);
+        let origins = self.constant_origin_spans.insert(HandleSpan::empty());
+        debug_assert_eq!(handle.arena_index(), origins.arena_index());
+        debug_assert_eq!(handle.generation(), origins.generation());
         if let Some(symbol) = named {
             self.note_named_row(symbol, handle);
         }
         handle
+    }
+
+    /// Preserve the original selected declaration at its actual receiving type
+    /// row. Distinct uses can have equal structural types and different origins.
+    pub fn attach_constant_origins(
+        &mut self,
+        reference: TypeReferenceHandle,
+        origins: impl IntoIterator<Item = TypeConstantOrigin>,
+    ) -> Result<(), &'static str> {
+        let mut origins = origins.into_iter().peekable();
+        if origins.peek().is_none() {
+            return Ok(());
+        }
+        let mut combined = self.constant_origins(reference)?.to_vec();
+        for origin in origins {
+            if !combined.contains(&origin) {
+                combined.push(origin);
+            }
+        }
+        *self.constant_origin_spans.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = self.constant_origins.insert_many(combined);
+        Ok(())
+    }
+
+    pub fn constant_origins(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Result<&[TypeConstantOrigin], &'static str> {
+        let owner = Handle::from_parts(reference.arena_index(), reference.generation());
+        if !self.type_references.is_valid(reference) || !self.constant_origin_spans.is_valid(owner)
+        {
+            return Err("constant type origin has a stale receiving type");
+        }
+        let span = *self.constant_origin_spans.get(owner);
+        let origins = self.constant_origins.span_or_empty(span);
+        if origins.len() != span.len() {
+            return Err("constant type origin has a stale occurrence span");
+        }
+        Ok(origins)
     }
 
     /// Record `handle` as a `Named` row for `symbol` in a built index, where
@@ -254,10 +324,9 @@ impl TypeReferenceTable {
             })
     }
 
-    /// Replace a type reference's node wholesale -- the machine-monomorphization
-    /// substitution: a `Named` type-parameter reference becomes a copy of the
-    /// inferred argument's node. Compound argument nodes share their child
-    /// handles, which is sound (children are never mutated by the pass).
+    /// Rewrite this occurrence's structure, preserving its original custody.
+    /// When the replacement comes from another retained row, use
+    /// `substitute_from` to preserve that row's origins as well.
     pub fn substitute_node(&mut self, handle: TypeReferenceHandle, node: TypeReferenceNode) {
         let replaced = std::mem::replace(self.type_references.get_mut(handle), node);
         let replaced_named = match replaced {
@@ -265,6 +334,22 @@ impl TypeReferenceTable {
             _ => None,
         };
         self.renamed_row(handle, replaced_named);
+    }
+
+    /// Replace an occurrence with another row in this same arena. Child handles
+    /// remain shared; both the receiving use's origins and the selected
+    /// argument's origins survive the structural substitution.
+    pub fn substitute_from(
+        &mut self,
+        occurrence: TypeReferenceHandle,
+        replacement: TypeReferenceHandle,
+    ) -> Result<(), &'static str> {
+        self.constant_origins(occurrence)?;
+        let origins = self.constant_origins(replacement)?.to_vec();
+        let node = self.type_reference(replacement).clone();
+        self.attach_constant_origins(occurrence, origins)?;
+        self.substitute_node(occurrence, node);
+        Ok(())
     }
 
     /// Keep a built named-row index exact after the row at `handle`, which
@@ -720,7 +805,7 @@ impl TypeReferenceTable {
         target_expressions: &mut crate::expression::ExpressionTable,
         type_reference: TypeReferenceHandle,
     ) -> TypeReferenceHandle {
-        match source.type_reference(type_reference) {
+        let copied = match source.type_reference(type_reference) {
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -816,7 +901,18 @@ impl TypeReferenceTable {
                 name: name.clone(),
             }),
             TypeReferenceNode::Unit => self.insert(TypeReferenceNode::Unit),
-        }
+        };
+        // Copying retains the same authored declaration identities, like the
+        // expression table's occurrence metadata. Lexical remapping below must
+        // not turn these original selections into generated local selections.
+        let source_owner =
+            Handle::from_parts(type_reference.arena_index(), type_reference.generation());
+        let target_owner = Handle::from_parts(copied.arena_index(), copied.generation());
+        let span = *source.constant_origin_spans.get(source_owner);
+        *self.constant_origin_spans.get_mut(target_owner) = self
+            .constant_origins
+            .insert_many(source.constant_origins.span_or_empty(span).iter().copied());
+        copied
     }
 
     /// Remap lexical symbols reachable from a type reference copied into a
