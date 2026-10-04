@@ -64,37 +64,34 @@ pub(super) fn check(
         .collect::<Vec<_>>();
     let mut diagnostics = Vec::new();
     let mut decisions = Vec::new();
-    for (_, state) in facts.flow.control.states.iter() {
-        for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            // Named states are covered by their owning machine's complete
-            // state inventory and shared entry-storage fixed point.
-            if internal_state_call(program, state, call) {
-                continue;
+    let proof_only = validation::proof_only_classification(program);
+    for machine in program.machines() {
+        if proof_only.is_proof_machine(program, machine) {
+            continue;
+        }
+        let mut admission = Admission {
+            program,
+            facts,
+            frames,
+            entry_origins: &entry_origins,
+            stack: Vec::new(),
+            decisions: Vec::new(),
+            recursive: false,
+            all_ranges_fit: true,
+        };
+        let result = admission.visit_body(machine).and_then(|()| {
+            if admission.recursive && !admission.all_ranges_fit {
+                Err("recursive write values have no occurrence-wide fitting bounds")
+            } else {
+                Ok(())
             }
-            let mut admission = Admission {
-                program,
-                facts,
-                frames,
-                entry_origins: &entry_origins,
-                stack: Vec::new(),
-                decisions: Vec::new(),
-                recursive: false,
-                all_ranges_fit: true,
-            };
-            let result = admission.visit(state, call).and_then(|()| {
-                if admission.recursive && !admission.all_ranges_fit {
-                    Err("recursive write values have no occurrence-wide fitting bounds")
-                } else {
-                    Ok(())
-                }
-            });
-            match result {
-                Ok(()) => decisions.extend(admission.decisions),
-                Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                    "IntegerAt call in {} at statement {} requires every performed value to fit its physical storage: {reason}",
-                    program.symbols.name(state.machine_symbol), call.statement_index,
-                ))),
-            }
+        });
+        match result {
+            Ok(()) => decisions.extend(admission.decisions),
+            Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                "IntegerAt call in {} requires every performed value to fit its physical storage: {reason}",
+                program.symbols.name(machine.symbol),
+            ))),
         }
     }
     if diagnostics.is_empty() {
@@ -190,10 +187,28 @@ impl<'a> Admission<'a> {
             .argument_accesses
             .span_or_empty(call.accesses)
             .iter()
-            .any(|access| access.kind.is_exclusive());
+            .any(|access| access.kind.is_exclusive() && access.end_before_access.is_none());
+        let declared_writable =
+            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)
+                .is_some_and(|parameters| {
+                    parameters
+                        .iter()
+                        .any(|parameter| self.runtime_write_parameter(parameter))
+                });
+        if !writable && !declared_writable {
+            return Ok(());
+        }
+        if call_values::target_machine(self.program, call)
+            .and_then(|symbol| self.program.machine_by_symbol(symbol))
+            .is_some_and(|machine| {
+                validation::proof_only_classification(self.program)
+                    .is_proof_machine(self.program, machine)
+            })
+        {
+            return Ok(());
+        }
         let origins = match self.call_origins(state, call) {
             Some(origins) => origins,
-            None if !writable => return Ok(()),
             None => return Err("invocation storage origins are unknown"),
         };
         if !self.call_may_require_fit(state, call, &origins)? {
@@ -231,36 +246,102 @@ impl<'a> Admission<'a> {
         result
     }
 
-    fn visit_body(&mut self, machine: &'a Machine) -> Result<(), &'static str> {
-        // Selected operators with write-capable operands have no ordinary
-        // machine-call occurrence to traverse. Until their body is represented
-        // in the same performed-write inventory, retain that coverage gap.
-        for (_, operator_use) in self.facts.operators.uses.iter() {
+    fn check_operator_invocations(&self, machine: &'a Machine) -> Result<(), &'static str> {
+        for (handle, operator_use) in self.facts.operators.uses.iter() {
             if operator_use.origin.machine_symbol() != Some(machine.symbol)
                 || operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved
             {
                 continue;
             }
-            let operator = self
-                .program
-                .operators()
+            let operator = typed_trees::operator::declaration_by_symbol(
+                self.program,
+                operator_use.selected_operator_symbol,
+            )
+            .ok_or("selected operator has no exact declaration")?;
+            let parameters = self.program.operator_parameters(operator);
+            if !parameters
                 .iter()
-                .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
-                .ok_or("selected operator has no exact declaration")?;
-            if self
-                .program
-                .operator_parameters(operator)
-                .iter()
-                .any(|parameter| {
-                    self.frames
-                        .local_requires_write_origin(parameter.type_reference)
-                })
+                .any(|parameter| self.runtime_write_parameter(parameter))
             {
-                return Err(
-                    "write-capable selected operator has no complete performed-write inventory",
-                );
+                continue;
+            }
+            let checked_trees::CheckedValueOrigin::StateStatement { state_symbol, .. } =
+                operator_use.origin
+            else {
+                return Err("write-capable operator has no runtime occurrence owner");
+            };
+            let body = self
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)
+                .ok_or("selected operator state is absent")?;
+            let operands = operator_use
+                .operands(self.program)
+                .ok_or("selected operator has no exact operand roster")?;
+            let mut invocations = self
+                .facts
+                .flow
+                .control
+                .operator_invocations
+                .iter()
+                .filter(|(_, invocation)| invocation.operator_use == handle);
+            let (_, invocation) = invocations
+                .next()
+                .ok_or("write-capable operator has no captured invocation")?;
+            if invocations.next().is_some()
+                || self
+                    .facts
+                    .flow
+                    .control
+                    .operands
+                    .span_or_empty(invocation.operands)
+                    .iter()
+                    .map(|operand| operand.expression)
+                    .ne(operands.iter().copied())
+                || parameters.len() != operands.len()
+            {
+                return Err("selected operator operand custody disagrees with its invocation");
+            }
+            let types = parameters
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .collect::<Vec<_>>();
+            let origins = self
+                .frames
+                .operator_write_origins(machine, operator_use, &types)
+                .ok_or("write-capable operator has unknown operand storage")?;
+            for (position, parameter) in parameters.iter().enumerate() {
+                if !self.runtime_write_parameter(parameter) {
+                    continue;
+                }
+                let sources = actual_origins(parameters, position, &origins)
+                    .ok_or("write-capable operator has unknown actual storage")?;
+                for source in sources {
+                    for (owner, state, destination) in
+                        self.destinations(machine, body, source, self.stack.len())?
+                    {
+                        if validation::stored_integer_source_may_require_fit(
+                            self.program,
+                            owner,
+                            state,
+                            &destination,
+                        )
+                        .map_err(|()| "write-capable operator has unknown encoded reach")?
+                        {
+                            return Err(
+                                "write-capable selected operator has no complete performed-write inventory",
+                            );
+                        }
+                    }
+                }
             }
         }
+        Ok(())
+    }
+
+    fn visit_body(&mut self, machine: &'a Machine) -> Result<(), &'static str> {
+        self.check_operator_invocations(machine)?;
         for body in self.program.machine_states(machine) {
             let flow = self
                 .facts
@@ -315,6 +396,9 @@ impl<'a> Admission<'a> {
                         let sources = self
                             .frames
                             .assignment_destination_origins(machine, statement)
+                            .or_else(|| {
+                                self.owned_destination(machine, body, ordinal, assignment.target)
+                            })
                             .ok_or("performed write has unknown destination origins")?;
                         for source in sources {
                             let destinations =
@@ -366,6 +450,51 @@ impl<'a> Admission<'a> {
         Ok(())
     }
 
+    /// Owned storage has its declaration's geometry even when the alias
+    /// inventory has no entry for it. This fallback cannot turn a reference
+    /// endpoint into ordinary storage: the whole owner must contain no loans.
+    fn owned_destination(
+        &self,
+        _machine: &Machine,
+        state: &State,
+        ordinal: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<Vec<LocalWriteSource>> {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            state.symbol,
+            ordinal,
+            expression,
+        )?;
+        let facts::PlaceRoot::Symbol(root) = place.root else {
+            return None;
+        };
+        let reference = self
+            .program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == root)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                self.program
+                    .state_local_declaration(state, root)
+                    .map(|(_, local)| local.type_reference)
+            })?;
+        if is_reference(self.program, reference)
+            || !validation::has_cleanup_owned_contents(self.program, reference)
+        {
+            return None;
+        }
+        Some(vec![LocalWriteSource {
+            root,
+            segments: place.segments,
+            representation: None,
+            recasts: Vec::new(),
+            collection_coarse: false,
+            path: String::new(),
+        }])
+    }
+
     fn destinations(
         &self,
         machine: &'a Machine,
@@ -373,9 +502,6 @@ impl<'a> Admission<'a> {
         source: &LocalWriteSource,
         depth: usize,
     ) -> Result<Vec<(&'a Machine, &'a State, LocalWriteSource)>, &'static str> {
-        if depth == 0 {
-            return Ok(vec![(machine, state, source.clone())]);
-        }
         let solved = self
             .entry_origins
             .iter()
@@ -390,6 +516,24 @@ impl<'a> Admission<'a> {
             .machine_states(machine)
             .first()
             .ok_or("callee entry is absent")?;
+        if depth == 0 {
+            return Ok(sources
+                .into_iter()
+                .map(|source| {
+                    let owner_state = if self
+                        .program
+                        .state_parameters(entry)
+                        .iter()
+                        .any(|parameter| parameter.symbol == source.root)
+                    {
+                        entry
+                    } else {
+                        state
+                    };
+                    (machine, owner_state, source)
+                })
+                .collect());
+        }
         let parameters = self.program.state_parameters(entry);
         let invocation = &self.stack[depth - 1];
         if invocation.target.symbol != machine.symbol {
@@ -429,6 +573,16 @@ impl<'a> Admission<'a> {
         Ok(result)
     }
 
+    fn runtime_write_parameter(&self, parameter: &typed_trees::signature::StateParameter) -> bool {
+        !parameter.relevance.is_erased()
+            && !self
+                .frames
+                .proof_value_is_caller_isolated(parameter.type_reference)
+            && self
+                .frames
+                .local_requires_write_origin(parameter.type_reference)
+    }
+
     fn call_may_require_fit(
         &self,
         state: &FlowStateFact,
@@ -441,10 +595,7 @@ impl<'a> Admission<'a> {
         let (machine, body) = self.owner(state)?;
         let mut needs_fit = false;
         for (position, parameter) in parameters.iter().enumerate() {
-            if !self
-                .frames
-                .local_requires_write_origin(parameter.type_reference)
-            {
+            if !self.runtime_write_parameter(parameter) {
                 continue;
             }
             let sources = actual_origins(parameters, position, origins)
@@ -501,10 +652,7 @@ impl<'a> Admission<'a> {
         let (caller, body) = self.owner(state)?;
         let (prior_caller, prior_body) = self.owner(prior.state)?;
         for (position, parameter) in parameters.iter().enumerate() {
-            if !self
-                .frames
-                .local_requires_write_origin(parameter.type_reference)
-            {
+            if !self.runtime_write_parameter(parameter) {
                 continue;
             }
             let current = actual_origins(parameters, position, origins)
@@ -550,8 +698,27 @@ impl<'a> Admission<'a> {
         field: SymbolHandle,
         stored: semantic_vocabulary::IntegerType,
     ) -> Result<(), &'static str> {
-        let mut predicate = crate::facts::integer_write_obligation(write, stored)
-            .ok_or("performed integer value has no fitting bounds or entry relation")?;
+        // Ordinary assignment checking already owns occurrence arithmetic,
+        // guards, and physical landing. Reuse that exact source judgment when
+        // its destination, value, field and width all match this transported
+        // write; a weaker entry-only value summary must not invalidate it.
+        let established = self.facts.stored_integer_writes.iter().any(|(_, checked)| {
+            checked.machine == write.machine
+                && checked.state == write.state
+                && checked.site
+                    == StoredIntegerWriteSite::Assignment {
+                        destination: write.destination,
+                    }
+                && checked.value == write.value
+                && checked.field == field
+                && checked.stored_type == stored
+        });
+        let mut predicate = if established {
+            Boolean::Constant(true)
+        } else {
+            crate::facts::integer_write_obligation(write, stored)
+                .ok_or("performed integer value has no fitting bounds or entry relation")?
+        };
         self.all_ranges_fit &= predicate == Boolean::Constant(true);
         for invocation in self.stack.iter().rev() {
             if predicate == Boolean::Constant(true) {
@@ -598,22 +765,41 @@ impl<'a> Admission<'a> {
         if predicate != Boolean::Constant(true) {
             return Err("performed integer value is not proven to fit");
         }
-        let root = self
-            .stack
-            .first()
-            .ok_or("write has no consuming invocation")?;
-        self.decisions.push(CheckedStoredIntegerWrite {
-            machine: root.state.machine_symbol,
-            state: root.state.state_symbol,
-            site: StoredIntegerWriteSite::Call {
-                statement_index: root.call.statement_index,
-                call_ordinal: root.call.call_ordinal,
-                write: handle,
-            },
+        let (machine, state, site) = match self.stack.first() {
+            Some(root) => (
+                root.state.machine_symbol,
+                root.state.state_symbol,
+                StoredIntegerWriteSite::Call {
+                    statement_index: root.call.statement_index,
+                    call_ordinal: root.call.call_ordinal,
+                    write: handle,
+                },
+            ),
+            None => (
+                write.machine,
+                write.state,
+                StoredIntegerWriteSite::Assignment {
+                    destination: write.destination,
+                },
+            ),
+        };
+        let decision = CheckedStoredIntegerWrite {
+            machine,
+            state,
+            site,
             value: write.value,
             field,
             stored_type: stored,
-        });
+        };
+        if !self
+            .facts
+            .stored_integer_writes
+            .iter()
+            .any(|(_, row)| row == &decision)
+            && !self.decisions.contains(&decision)
+        {
+            self.decisions.push(decision);
+        }
         Ok(())
     }
 }
@@ -653,5 +839,6 @@ fn same_source(left: &LocalWriteSource, right: &LocalWriteSource) -> bool {
     left.root == right.root
         && left.segments == right.segments
         && left.representation == right.representation
+        && left.recasts == right.recasts
         && left.collection_coarse == right.collection_coarse
 }

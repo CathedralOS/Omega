@@ -407,6 +407,7 @@ fn solve_parameter_origins<'program>(
 
 fn root_storage(program: &typed_trees::TypedTrees, root: SymbolHandle) -> LocalWriteSource {
     LocalWriteSource {
+        recasts: Vec::new(),
         root,
         segments: Vec::new(),
         representation: None,

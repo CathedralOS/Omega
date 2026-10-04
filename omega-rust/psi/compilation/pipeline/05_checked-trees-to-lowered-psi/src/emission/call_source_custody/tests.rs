@@ -1371,3 +1371,149 @@ fn folded_local_selectors_keep_their_exact_captured_occurrences() {
         "a different equally valued local selector cannot replace this occurrence"
     );
 }
+
+#[test]
+fn explicit_reference_alias_arguments_retain_exact_call_custody() {
+    for declaration in [
+        "let leaf: &mut i64 = &mut cell.value;",
+        "let parent: &mut Cell = &mut cell; let leaf: &mut i64 = &mut parent.value;",
+    ] {
+        let checked = checked_binding_context(&format!(
+            "data Cell {{ value: i64; }}
+             machine set(dst: &mut i64, value: i64) {{ dst = value; }}
+             machine run(cell: &mut Cell) {{
+                 {declaration}
+                 set(leaf, 7);
+                 set(leaf, 9);
+             }}"
+        ));
+        let run = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .unwrap();
+        let state = &checked.machine_states(run)[0];
+        let (loan_handle, loan) = checked
+            .facts
+            .borrow
+            .loans
+            .iter()
+            .find(|(_, loan)| checked.symbols.name(loan.owner_symbol) == "leaf")
+            .expect("the exact leaf loan");
+        let owner = loan.owner_symbol;
+        let last_use = loan.last_use_statement_index;
+        let replay = |source: &checked_trees::CheckedTrees| {
+            super::projected_receivers::aliases::parameter_source(
+                source,
+                run.symbol,
+                state.symbol,
+                last_use,
+                owner,
+                true,
+            )
+        };
+        assert!(
+            replay(&checked)
+                .expect("ordinary calls borrow the live alias")
+                .is_some()
+        );
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+            .expect("ordinary reference actuals lower without representation adaptation");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("ordinary alias calls verify independently");
+
+        let (call_handle, call) = checked
+            .facts
+            .borrow
+            .calls
+            .iter()
+            .find(|(_, call)| {
+                call.statement_index == last_use
+                    && checked
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .span_or_empty(call.accesses)
+                        .iter()
+                        .any(|access| access.root_symbol == owner)
+            })
+            .expect("the final explicit alias argument");
+        let accesses = call.accesses;
+        for mutation in 0..5 {
+            let mut changed = checked.clone();
+            match mutation {
+                0 => {
+                    changed
+                        .facts
+                        .borrow
+                        .calls
+                        .get_mut(call_handle)
+                        .target_symbol = symbols::SymbolHandle::invalid()
+                }
+                1 => {
+                    changed
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .span_mut_or_empty(accesses)[0]
+                        .kind = checked_trees::BorrowAccessKind::Read
+                }
+                2 => {
+                    changed
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .span_mut_or_empty(accesses)[0]
+                        .root_symbol = checked.state_parameters(state)[0].symbol
+                }
+                3 => {
+                    changed
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .span_mut_or_empty(accesses)[0]
+                        .end_before_access = Some(1)
+                }
+                4 => {
+                    changed
+                        .facts
+                        .borrow
+                        .loans
+                        .get_mut(loan_handle)
+                        .last_use_statement_index -= 1
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                replay(&changed).is_err(),
+                "changed call/loan custody {mutation} must reject"
+            );
+        }
+    }
+}
+
+#[test]
+fn explicit_reference_alias_arguments_cross_guarded_call_graph() {
+    let checked = checked_binding_context(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/calls/runtime_explicit_reference_alias_argument_exit/main.omg"
+    )));
+    for machine in &checked.facts.flow.terminal_unit_effects.machines {
+        for operation in &machine.operations {
+            if let Some(call) = operation.call() {
+                eprintln!("ALIAS_CALL {} -> {} {:?}", checked.symbols.name(machine.machine), checked.symbols.name(call.target.machine), call.structural_arguments);
+            }
+        }
+    }
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("main"))
+        .expect("guarded ordinary calls retain the original alias backing");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    ).expect("guarded alias calls verify independently");
+}

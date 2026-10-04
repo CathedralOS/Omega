@@ -14,6 +14,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod recast_history;
 mod source_geometry;
 pub use source_geometry::stored_integer_source_may_require_fit;
 
@@ -51,7 +52,8 @@ pub(crate) fn validate_stored_integer_write(
     let Some(state) = state else {
         return Vec::new();
     };
-    let projections = destination_projections(program, machine, state, destination, origins);
+    let projections =
+        stored_integer_destination_projections(program, machine, state, destination, origins);
     let Ok(projections) = projections else {
         diagnostics.push(Diagnostic::error(format!(
             "IntegerAt store in {owner} has no exact stored field geometry or reference origin"
@@ -91,7 +93,7 @@ pub(crate) fn validate_stored_integer_write(
 /// The alias inventory belongs to the existing statement-prefix reference
 /// traversal. This operation only substitutes its exact coordinates; it does
 /// not rediscover initializers, pick one conditional origin, or use path text.
-fn destination_projections(
+pub fn stored_integer_destination_projections(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -191,9 +193,7 @@ pub fn stored_integer_source_projection(
     if source.collection_coarse && !suffix.is_empty() {
         return Err(());
     }
-    let (carrier, mut path) = source_coordinates(program, machine, state, source)?;
-    path.extend_from_slice(suffix);
-    typed_projection(program, carrier, &path)
+    recast_history::projection(program, machine, state, source, suffix)
 }
 
 fn source_coordinates(

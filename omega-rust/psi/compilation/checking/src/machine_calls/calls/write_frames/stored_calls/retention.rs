@@ -27,6 +27,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         stored_reference_transfer(program, machine, source, symbols, &mut inference)?;
     let prefix = prefixes.get(statement_index)?.as_ref()?;
     let initial = vec![FrameSourcePlace {
+        recasts: Vec::new(),
         representation: None,
         kind: Default::default(),
         root: backing,
@@ -249,6 +250,7 @@ fn transferred_slots(
         )?;
         for segments in slots {
             let slot = FrameSourcePlace {
+                recasts: Vec::new(),
                 representation: None,
                 kind: Default::default(),
                 root: parameter.symbol,

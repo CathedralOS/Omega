@@ -402,3 +402,105 @@ fn typed_call_origins_storage_substitution_cannot_refine_coarse_collection() {
         .push(facts::PlaceSegment::FixedIndex { index: 0 });
     assert!(collection.substitute_storage(&projected).is_none());
 }
+
+#[test]
+fn typed_operator_origins_share_operand_chronology_and_recast_history() {
+    for first_is_reference in [true, false] {
+        let (parameters, expression) = if first_is_reference {
+            (
+                "left: &mut i64, right: i64",
+                "view.value + mutate(&mut view.value)",
+            )
+        } else {
+            (
+                "left: i64, right: &mut i64",
+                "mutate(&mut view.value) + view.value",
+            )
+        };
+        let program = crate::front_end::typed_program(&format!(
+            "data Carrier {{ value: i64; }}
+             operator + i64::combine({parameters}) -> i64;
+             machine mutate(value: &mut i64) -> i64 {{ value = 0; 0 }}
+             machine exercise(raw: &mut [u8; 8]) -> i64 {{
+                 let view: &mut Carrier = &mut raw[0] as &mut Carrier;
+                 let result: i64 = {expression}; result
+             }}"
+        ));
+        let machine = exercise(&program);
+        let state = &program.machine_states(machine)[0];
+        let (ordinal, expression) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+            .find_map(|(ordinal, statement)| match statement {
+                StatementNode::LocalData(local) if local.name.as_str() == "result" => {
+                    Some((ordinal, local.initial_value))
+                }
+                _ => None,
+            })
+            .unwrap();
+        let operator = &program.operators()[0];
+        let selected = checked_trees::CheckedOperatorUseFact {
+            expression,
+            origin: checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index: ordinal,
+                role: checked_trees::CheckedValueStatementRole::LocalInitializer,
+            },
+            occurrence: checked_trees::CheckedOperatorOccurrence::Expression,
+            spelling: language_core::operator_spelling::OperatorSpelling::Add,
+            policy_adapter: checked_trees::CheckedArithmeticPolicyAdapter::None,
+            selected_operator_symbol: operator.symbol,
+            candidates: arena::HandleSpan::empty(),
+            candidate_count: 1,
+            status: checked_trees::CheckedOperatorResolutionStatus::Resolved,
+        };
+        let types = program
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect::<Vec<_>>();
+        let resolver = CallFrameResolver::new(&program).unwrap();
+        let origins = resolver
+            .operator_write_origins(machine, &selected, &types)
+            .expect("exact occurrence");
+        if first_is_reference {
+            let first = origins.arguments[0]
+                .as_ref()
+                .expect("earlier captured reference");
+            assert_eq!(first.len(), 1);
+            assert_eq!(first[0].root, program.state_parameters(state)[0].symbol);
+            assert_eq!(first[0].recasts.len(), 1);
+            assert!(matches!(
+                first[0].representation.as_ref().unwrap().1.as_slice(),
+                [facts::PlaceSegment::Field { .. }]
+            ));
+            assert!(origins.arguments[1].as_ref().unwrap().is_empty());
+        } else {
+            assert!(origins.arguments[0].as_ref().unwrap().is_empty());
+            assert!(
+                origins.arguments[1].is_none(),
+                "an earlier operand effect cannot supply a later reference's stale prefix"
+            );
+        }
+        assert!(
+            resolver
+                .operator_write_origins(machine, &selected, &types[..1])
+                .is_none()
+        );
+        let mut changed = selected;
+        changed.origin = checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            statement_index: ordinal + 1,
+            role: checked_trees::CheckedValueStatementRole::LocalInitializer,
+        };
+        assert!(
+            resolver
+                .operator_write_origins(machine, &changed, &types)
+                .is_none()
+        );
+    }
+}

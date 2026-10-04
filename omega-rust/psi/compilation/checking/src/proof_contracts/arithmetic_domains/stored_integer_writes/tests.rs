@@ -365,7 +365,7 @@ fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() 
     source.root = program.state_parameters(state)[1].symbol;
     source.segments.clear();
     source.representation = None;
-    let projections = super::destination_projections(
+    let projections = super::stored_integer_destination_projections(
         &program,
         machine,
         state,
@@ -382,7 +382,7 @@ fn stored_integer_write_preserves_all_candidate_encodings_and_unknown_origins() 
     let mut unknown = encoded.clone();
     unknown.source = None;
     assert!(
-        super::destination_projections(
+        super::stored_integer_destination_projections(
             &program,
             machine,
             state,
@@ -481,7 +481,7 @@ fn assert_returned_record_field_is_ordinary(source: &str) {
             })
             .collect::<Vec<_>>()
     });
-    let result = super::destination_projections(
+    let result = super::stored_integer_destination_projections(
         &program,
         machine,
         state,
@@ -515,7 +515,14 @@ fn declaration_field_projection_does_not_cross_unknown_stored_references() {
         panic!("store");
     };
     assert!(
-        super::destination_projections(&program, machine, state, assignment.target, None,).is_err(),
+        super::stored_integer_destination_projections(
+            &program,
+            machine,
+            state,
+            assignment.target,
+            None,
+        )
+        .is_err(),
         "a stored reference needs its contents' origin, not the enclosing declaration"
     );
 }
@@ -544,6 +551,7 @@ fn stored_integer_source_geometry_authenticates_fields_and_recast_coordinates() 
         field.symbol
     };
     let mut source = crate::LocalWriteSource {
+        recasts: Vec::new(),
         representation: None,
         path: "not a source of declaration identity".to_owned(),
         collection_coarse: false,
@@ -609,6 +617,7 @@ fn stored_integer_source_effect_reach_includes_owned_descendants_and_unknown_ref
         .state_parameters(state)
         .iter()
         .map(|parameter| crate::LocalWriteSource {
+            recasts: Vec::new(),
             representation: None,
             path: String::new(),
             collection_coarse: false,
@@ -640,5 +649,177 @@ fn stored_integer_source_effect_reach_includes_owned_descendants_and_unknown_ref
         stored_integer_source_may_require_fit(&total, machine, state, &sources[0]),
         Ok(false),
         "normalized total encoding requires no narrower concrete-value obligation"
+    );
+}
+
+#[test]
+fn stored_integer_source_recasts_retain_prior_declared_and_raw_view_encoding() {
+    for (prefix, backing, carrier, expected_history) in [
+        ("", "cell.value", "i64", 1),
+        (
+            "let view: &mut Cell = &mut raw[0] as &mut Cell;",
+            "view.value",
+            "i64",
+            2,
+        ),
+        (
+            "let view: &mut Cell = &mut raw[0] as &mut Cell;",
+            "view.value",
+            "u64",
+            2,
+        ),
+    ] {
+        let program = program_with_storage(
+            &format!(
+                "data Cell {{ value: i64; }}
+             machine store(cell: &mut Cell, raw: &mut [u8; 8]) {{
+                 {prefix}
+                 let leaf: &mut i64 = &mut {backing};
+                 let bits: &mut {carrier} = &mut leaf as &mut {carrier};
+                 bits = 127;
+             }}"
+            ),
+            8,
+            IntegerSign::Signed,
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+            .unwrap();
+        let frames = crate::CallFrameResolver::new(&program).unwrap();
+        let sources = frames
+            .assignment_destination_origins(machine, statement)
+            .expect("typed view address");
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].recasts.len(), expected_history);
+        assert_eq!(
+            stored_integer_source_may_require_fit(&program, machine, state, &sources[0]),
+            Ok(true)
+        );
+        let projection =
+            stored_integer_source_projection(&program, machine, state, &sources[0], &[]);
+        if carrier == "i64" {
+            assert_eq!(
+                projection.unwrap().unwrap().1,
+                IntegerType::new(IntegerSign::Signed, 8).unwrap()
+            );
+        } else {
+            assert!(
+                projection.is_err(),
+                "unsigned reinterpretation cannot silently erase the signed physical predecessor"
+            );
+        }
+    }
+}
+
+#[test]
+fn stored_integer_source_recast_history_survives_invocation_substitution() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         machine reinterpret(destination: &mut i64) {
+             let bits: &mut u64 = &mut destination as &mut u64;
+             bits = 256u64;
+         }
+         machine store(cell: &mut Cell) { reinterpret(&mut cell.value); }",
+        8,
+        IntegerSign::Signed,
+    );
+    let callee = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "reinterpret")
+        .unwrap();
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")
+        .unwrap();
+    let callee_state = &program.machine_states(callee)[0];
+    let caller_state = &program.machine_states(caller)[0];
+    let frames = crate::CallFrameResolver::new(&program).unwrap();
+    let relative = frames
+        .assignment_destination_origins(
+            callee,
+            program
+                .statement_table
+                .statements(callee_state.statement_nodes)
+                .last()
+                .unwrap(),
+        )
+        .unwrap();
+    let StatementNode::Call(call) = &program
+        .statement_table
+        .statements(caller_state.statement_nodes)[0]
+    else {
+        panic!("call");
+    };
+    let captured = frames.call_write_origins(caller, call).unwrap();
+    let actual = &captured.arguments[0].as_ref().unwrap()[0];
+    assert!(
+        !frames
+            .storage_origin_substitutions_are_finite(&[(relative[0].root, relative[0].clone(),)]),
+        "a recursive recast history cannot grow without a finite representation solution"
+    );
+    let substituted = actual.substitute_storage(&relative[0]).unwrap();
+    assert_eq!(substituted.recasts.len(), 1);
+    assert_eq!(substituted.recasts[0].root, actual.root);
+    assert_eq!(substituted.recasts[0].segments, actual.segments);
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, caller, caller_state, &substituted),
+        Ok(true)
+    );
+    assert!(
+        stored_integer_source_projection(&program, caller, caller_state, &substituted, &[])
+            .is_err()
+    );
+}
+
+#[test]
+fn stored_integer_source_reach_excludes_proof_only_recursive_values() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         data Nat { case Zero; case Succ(previous: Nat); }
+         machine inspect(value: Nat, ordinary: &mut i64) {
+             let bits: &mut u64 = &mut ordinary as &mut u64;
+             bits = 256u64;
+         }",
+        8,
+        IntegerSign::Signed,
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let source = crate::LocalWriteSource {
+        root: program.state_parameters(state)[0].symbol,
+        path: String::new(),
+        segments: Vec::new(),
+        representation: None,
+        recasts: Vec::new(),
+        collection_coarse: false,
+    };
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, machine, state, &source),
+        Ok(false)
+    );
+    let frames = crate::CallFrameResolver::new(&program).unwrap();
+    let source = frames
+        .assignment_destination_origins(
+            machine,
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .last()
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, machine, state, &source[0]),
+        Ok(false)
+    );
+    assert_eq!(
+        stored_integer_source_projection(&program, machine, state, &source[0], &[]),
+        Ok(None)
     );
 }

@@ -90,6 +90,7 @@ mod tests {
         outer.moves.push(AggregateMove {
             local_segments: Vec::new(),
             source: super::super::FrameSourcePlace {
+                recasts: Vec::new(),
                 representation: None,
                 kind: Default::default(),
                 root: source,

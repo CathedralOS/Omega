@@ -12,6 +12,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 mod source_places;
 
 pub(super) use source_places::FrameSourcePlace;
+pub use source_places::RecastSource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FramePathPrecision {

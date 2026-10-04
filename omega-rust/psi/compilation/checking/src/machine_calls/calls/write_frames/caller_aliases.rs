@@ -4,6 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
+pub use super::place_paths::RecastSource;
 use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
@@ -127,6 +128,7 @@ pub struct CallWriteOrigins {
 /// acquire a field or index suffix when a consumer transports a write.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
+    pub recasts: Vec<RecastSource>,
     /// Logical recast carrier and selectors, separate from the raw backing.
     pub representation: Option<(super::TypeReferenceHandle, Vec<facts::PlaceSegment>)>,
     pub path: String,
@@ -150,6 +152,7 @@ impl LocalWriteSource {
             return None;
         }
         let coordinate = |source: &Self| super::place_paths::FrameSourcePlace {
+            recasts: source.recasts.clone(),
             root: source.root,
             segments: source.segments.clone(),
             representation: source.representation.clone(),
@@ -158,6 +161,7 @@ impl LocalWriteSource {
         };
         let source = coordinate(self).append_relative(&coordinate(relative));
         Some(Self {
+            recasts: source.recasts,
             root: source.root,
             segments: source.segments,
             representation: source.representation,
@@ -171,6 +175,7 @@ impl LocalWriteSource {
 impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
+            recasts: origin.source.recasts,
             representation: origin.source.representation,
             path: origin.path,
             collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,

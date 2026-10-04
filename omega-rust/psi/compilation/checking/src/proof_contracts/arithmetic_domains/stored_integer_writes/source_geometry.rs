@@ -11,7 +11,21 @@ pub fn stored_integer_source_may_require_fit(
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
     let (carrier, path) = source_coordinates(program, machine, state, source)?;
-    let projection = typed_storage_projection(program, carrier, &path)?;
+    let mut needs_fit = coordinate_requires_fit(program, carrier, &path)?;
+    for recast in &source.recasts {
+        let (carrier, path) =
+            recast_history::predecessor_coordinates(program, machine, state, recast)?;
+        needs_fit |= coordinate_requires_fit(program, carrier, &path)?;
+    }
+    Ok(needs_fit)
+}
+
+pub(super) fn coordinate_requires_fit(
+    program: &TypedTrees,
+    carrier: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Result<bool, ()> {
+    let projection = typed_storage_projection(program, carrier, path)?;
     if let Some((field, _)) = projection.stored {
         return field_requires_fit(program, field);
     }
@@ -49,12 +63,22 @@ fn descendants_require_fit(
     if !program
         .type_reference_table
         .contains_type_reference(reference)
-        || active.contains(&reference)
         || crate::reference_shell(program, reference).is_some()
     {
         return Err(());
     }
     let reference = places::unwrapped_type_reference(program, reference).ok_or(())?;
+    if crate::proof_only_classification(program)
+        .proof_only_mention(program, reference)
+        .is_some()
+    {
+        return Ok(false);
+    }
+    // This is a may-reach union over declared owned edges. A backedge adds
+    // no new fields; siblings on the active walk are still inspected.
+    if active.contains(&reference) {
+        return Ok(false);
+    }
     if program.primitive_type_reference(reference).is_some() {
         return Ok(false);
     }
@@ -80,6 +104,9 @@ fn descendants_require_fit(
                 }
             };
             for field in fields {
+                if field.relevance.is_erased() {
+                    continue;
+                }
                 if stored_integer_field_type(program, reference, field.symbol)?.is_some()
                     && field_requires_fit(program, field.symbol)?
                 {

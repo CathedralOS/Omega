@@ -22,6 +22,17 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
     ImageStorage,
 }
 
+/// One evaluated recast's source interpretation. This is a flat coordinate
+/// snapshot, not a recursively cloned origin graph. Later projections extend
+/// only the current view; they cannot rewrite this predecessor's selectors.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecastSource {
+    pub root: SymbolHandle,
+    pub segments: Vec<PlaceSegment>,
+    pub representation: Option<(typed_trees::types::TypeReferenceHandle, Vec<PlaceSegment>)>,
+    pub target_type: typed_trees::types::TypeReferenceHandle,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
     pub(in crate::machine_calls::calls::write_frames) kind: FrameSourceKind,
@@ -30,6 +41,7 @@ pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
     /// The logical carrier selected by a recast, independent of raw backing.
     pub(in crate::machine_calls::calls::write_frames) representation:
         Option<(typed_trees::types::TypeReferenceHandle, Vec<PlaceSegment>)>,
+    pub(in crate::machine_calls::calls::write_frames) recasts: Vec<RecastSource>,
     /// Permission to interpret candidate selectors as primitive coordinates.
     /// False retains possible-source metadata for the coarse frame consumers.
     pub(in crate::machine_calls::calls::write_frames) builtin_coordinates: bool,
@@ -69,8 +81,22 @@ impl FrameSourcePlace {
             root,
             segments: segments.to_vec(),
             representation: None,
+            recasts: Vec::new(),
             builtin_coordinates,
         }
+    }
+
+    pub(in crate::machine_calls::calls::write_frames) fn recast(
+        &mut self,
+        target_type: typed_trees::types::TypeReferenceHandle,
+    ) {
+        self.recasts.push(RecastSource {
+            root: self.root,
+            segments: self.segments.clone(),
+            representation: self.representation.clone(),
+            target_type,
+        });
+        self.representation = Some((target_type, Vec::new()));
     }
 
     /// Append schema-derived selectors. Expression-derived selectors must
@@ -155,6 +181,30 @@ impl FrameSourcePlace {
         }
         let mut result = self.clone();
         result.builtin_coordinates &= relative.builtin_coordinates;
+        let base_coordinate = Self {
+            kind: self.kind,
+            root: self.root,
+            segments: self.segments.clone(),
+            representation: self.representation.clone(),
+            builtin_coordinates: self.builtin_coordinates,
+            recasts: Vec::new(),
+        };
+        for recast in &relative.recasts {
+            let predecessor = Self {
+                root: recast.root,
+                segments: recast.segments.clone(),
+                representation: recast.representation.clone(),
+                builtin_coordinates: relative.builtin_coordinates,
+                ..Self::default()
+            };
+            let rebased = base_coordinate.append_relative(&predecessor);
+            result.recasts.push(RecastSource {
+                root: rebased.root,
+                segments: rebased.segments,
+                representation: rebased.representation,
+                target_type: recast.target_type,
+            });
+        }
         result
             .segments
             .extend(relative.segments.iter().map(|segment| match segment {

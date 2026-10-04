@@ -422,7 +422,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 stored,
             )?;
             for origin in &mut origins {
-                origin.source.representation = Some((cast.target_type, Vec::new()));
+                origin.source.recast(cast.target_type);
             }
             origins
         }
@@ -519,7 +519,7 @@ fn stable_alias_expression_origins(
                 allow_isolated_local,
             )?;
             for origin in &mut origins {
-                origin.source.representation = Some((cast.target_type, Vec::new()));
+                origin.source.recast(cast.target_type);
             }
             origins
         }

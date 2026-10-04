@@ -163,3 +163,110 @@ fn unrelated_encoded_types_do_not_constrain_ordinary_reference_calls() {
         "an ordinary scalar reference does not acquire another type's physical width"
     );
 }
+
+#[test]
+fn named_state_storage_origins_cover_calls_and_direct_writes() {
+    for (value, accepted) in [(127, true), (128, false)] {
+        for statement in [
+            format!("output = {value};"),
+            format!("store(output, {value});"),
+        ] {
+            let source = format!(
+                "data Cell {{ value: i64; }}
+                 machine store(destination: &mut i64, value: i64) {{ destination = value; }}
+                 machine run(cell: &mut Cell) {{
+                     transition {{ _ -> write(&mut cell.value) }}
+                     state write(output: &mut i64) {{ {statement} }}
+                 }}"
+            );
+            let result = checked(&source);
+            assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
+        }
+    }
+}
+
+#[test]
+fn recursive_calls_cannot_hide_an_invalid_store() {
+    for (value, accepted) in [(127, true), (128, false)] {
+        let source = format!(
+            "data Cell {{ value: i64; }}
+             machine repeat(destination: &mut i64) {{
+                 destination = {value}; repeat(destination);
+             }}
+             machine run(cell: &mut Cell) {{ repeat(&mut cell.value); }}"
+        );
+        let result = checked(&source);
+        assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
+    }
+}
+
+#[test]
+fn ordinary_named_state_reference_writes_stay_unencoded() {
+    let source = "data Cell { value: i64; }
+        machine run(input: &mut i64) {
+            transition { _ -> write(input) }
+            state write(output: &mut i64) { output = 128; }
+        }";
+    let result = checked(source);
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn direct_guarded_assignment_reuses_its_established_landing() {
+    let source = "data Cell { value: i64; }
+        machine run(cell: &mut Cell, input: i64) {
+            transition input >= -128 && input <= 127 {
+                true -> write(cell, input)
+                _ -> done()
+            }
+            state write(cell: &mut Cell, value: i64) { cell.value = value; }
+            state done() {}
+        }";
+    let result = checked(source);
+    assert!(result.is_ok(), "{result:?}");
+    let checked = result.unwrap();
+    let rows = checked
+        .facts
+        .stored_integer_writes
+        .iter()
+        .filter(|(_, row)| matches!(row.site, StoredIntegerWriteSite::Assignment { .. }))
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1, "one source assignment, one landing decision");
+}
+
+#[test]
+fn owned_builder_array_writes_do_not_need_reference_origins() {
+    let source = "data Cell { value: i64; }
+        data Entry { offset: i64; }
+        machine build() -> i64 {
+            let mut entries: [Entry; 2];
+            entries[0] = Entry { offset: 128 };
+            entries[1] = Entry { offset: 256 };
+            entries[0].offset = 512;
+            entries[1].offset
+        }";
+    let result = checked(source);
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn spelled_operator_effects_are_checked_at_their_actual_storage() {
+    for (parameter, actual, accepted) in [
+        ("cell: &mut Cell", "&mut cell.value", false),
+        ("value: &mut i64", "value", true),
+    ] {
+        let source = format!(
+            "data Cell {{ value: i64; }}
+             boundary operator + Store::write(destination: &mut i64, value: i64) -> i64;
+             machine run({parameter}) {{ let observed: i64 = ({actual}) + 128; }}"
+        );
+        let result = checked(&source);
+        assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
+        if !accepted {
+            assert!(result.unwrap_err().iter().any(|error| {
+                error.message.contains("IntegerAt call") && error.message.contains("operator")
+            }));
+        }
+    }
+}

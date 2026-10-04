@@ -177,6 +177,7 @@ pub(super) fn substitutions_are_finite(
                             target_root,
                             source_root,
                             !suffix.is_empty()
+                                || !source.source.recasts.is_empty()
                                 || origin.precision == FramePathPrecision::CollectionCoarse
                                 || source.precision == FramePathPrecision::CollectionCoarse,
                         );

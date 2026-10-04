@@ -21,6 +21,96 @@ use symbols::SymbolHandle;
 mod reborrow;
 use reborrow::reborrow_resource;
 
+/// An explicit operand lends the alias through an ordinary checked call. The
+/// ordered observation replay owns its exact place, formal access and operand
+/// lifetime; the alias pass below still owns the enclosing loan's lifecycle.
+fn replay_argument_use(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    owner: SymbolHandle,
+    access: &BorrowAccessKind,
+) -> Result<(), LoweringError> {
+    let borrow = &checked.facts.borrow;
+    let mut states = borrow
+        .states
+        .iter()
+        .map(|(_, row)| row)
+        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
+    let source_state = states.next().ok_or(LoweringError::Unsupported(
+        "receiver argument lost its borrow state",
+    ))?;
+    if states.next().is_some() {
+        return unsupported("receiver argument has duplicate borrow states");
+    }
+    let calls = borrow
+        .calls
+        .span(source_state.calls)
+        .ok_or(LoweringError::Unsupported(
+            "receiver argument lost its call roster",
+        ))?;
+    let mut observed = false;
+    for call in calls
+        .iter()
+        .filter(|call| call.statement_index == statement_index)
+    {
+        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+            statement_index: u32::try_from(statement_index).map_err(|_| {
+                LoweringError::Unsupported("receiver argument statement exceeds u32")
+            })?,
+            call_ordinal: u32::try_from(call.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("receiver argument call ordinal exceeds u32")
+            })?,
+        };
+        let authored = super::super::authored::locate_source(checked, state, coordinate)?;
+        if !authored
+            .explicit_arguments
+            .iter()
+            .any(|argument| contains_owner(checked, *argument, owner))
+        {
+            continue;
+        }
+        let call = crate::expression_preparation::source_custody::borrow_occurrences::call(
+            checked,
+            machine,
+            state,
+            coordinate,
+            authored.source_target,
+        )?;
+        crate::expression_preparation::source_custody::computation_calls::replay_call_accesses(
+            checked,
+            machine,
+            state,
+            coordinate.statement_index,
+            call,
+            &authored.explicit_arguments,
+        )?;
+        let rows =
+            borrow
+                .argument_accesses
+                .span(call.accesses)
+                .ok_or(LoweringError::Unsupported(
+                    "receiver argument lost its observations",
+                ))?;
+        let mut owner_observed = false;
+        for row in rows.iter().filter(|row| row.root_symbol == owner) {
+            if access.direct_reborrow_effect(&row.kind).is_none() {
+                return unsupported("receiver argument widens its alias access");
+            }
+            owner_observed = true;
+        }
+        if !owner_observed {
+            return unsupported("receiver argument has no captured alias observation");
+        }
+        observed = true;
+    }
+    if !observed {
+        return unsupported("receiver alias argument has no exact checked call");
+    }
+    Ok(())
+}
+
 pub(crate) fn parameter_source(
     checked: &CheckedTrees,
     machine: SymbolHandle,
@@ -354,7 +444,7 @@ pub(crate) fn parameter_source(
     let mut last_use = None;
     let mut current_use = false;
     for (position, statement) in statements.iter().enumerate().skip(*declaration_index + 1) {
-        let (receiver, arguments) = match statement {
+        let (mut receiver, arguments) = match statement {
             StatementNode::LocalData(child) => {
                 if !contains_owner(checked, child.initial_value, owner) {
                     continue;
@@ -460,7 +550,8 @@ pub(crate) fn parameter_source(
             .iter()
             .any(|argument| contains_owner(checked, *argument, owner))
         {
-            return unsupported("receiver alias escapes through an explicit argument");
+            replay_argument_use(checked, machine, state, position, owner, &access)?;
+            receiver = owner;
         }
         if receiver != owner {
             continue;

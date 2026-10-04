@@ -117,6 +117,7 @@ pub(super) fn instantiate_source(
         }
         let suffix = place_suffix(&boundary.local_path, &relative.path).unwrap_or("");
         let remaining = FrameSourcePlace {
+            recasts: relative.source.recasts.clone(),
             representation: relative.source.representation.clone(),
             kind: Default::default(),
             root: relative.source.root,

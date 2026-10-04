@@ -468,7 +468,11 @@ impl<'program> CallFrameResolver<'program> {
             let from = substitutions.parameter(self.program.symbols.get(*target).parent, *target);
             let to =
                 substitutions.parameter(self.program.symbols.get(source.root).parent, source.root);
-            substitutions.insert(from, to, !source.segments.is_empty());
+            substitutions.insert(
+                from,
+                to,
+                !source.segments.is_empty() || !source.recasts.is_empty(),
+            );
         }
         substitutions.is_finite()
     }

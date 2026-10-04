@@ -126,8 +126,9 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    frame_paths_overlap, generic_bound_call_requirement, generic_bound_value_call_requirement,
-    operand_call_plans, state_reference_parameter_binding_is_stable,
+    RecastSource, frame_paths_overlap, generic_bound_call_requirement,
+    generic_bound_value_call_requirement, operand_call_plans,
+    state_reference_parameter_binding_is_stable,
 };
 pub use crate::proof_contracts::slice_ranking::{
     slice_tail_strictly_decreases, slice_tail_strictly_decreases_with_bound_lookup,
@@ -273,8 +274,8 @@ pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{
-    standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
-    stored_integer_source_projection,
+    standing_integer_bounds, stored_integer_bounds, stored_integer_destination_projections,
+    stored_integer_source_may_require_fit, stored_integer_source_projection,
 };
 pub use proof_contracts::contract_entailment::instantiated_value_call_requires_proven;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;

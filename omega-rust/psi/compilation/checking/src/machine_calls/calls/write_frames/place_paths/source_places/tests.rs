@@ -239,6 +239,7 @@ fn source_composition_conjoins_permission_without_changing_candidates() {
     for left in [false, true] {
         for right in [false, true] {
             let parent = FrameSourcePlace {
+                recasts: Vec::new(),
                 representation: None,
                 kind: Default::default(),
                 root: symbols[0],
@@ -246,6 +247,7 @@ fn source_composition_conjoins_permission_without_changing_candidates() {
                 builtin_coordinates: left,
             };
             let suffix = FrameSourcePlace {
+                recasts: Vec::new(),
                 representation: None,
                 kind: Default::default(),
                 root: symbols[3],
@@ -303,6 +305,7 @@ fn helper_result_projection_keeps_metadata_when_index_meaning_is_unknown() {
             ExpressionNode::Call(_)
         ));
         let origin = FrameSourcePlace {
+            recasts: Vec::new(),
             representation: None,
             kind: Default::default(),
             root: program.state_parameters(state)[0].symbol,
@@ -382,6 +385,7 @@ fn structural_projection_appends_only_the_normalized_suffix() {
     let index = name(&mut program, "index", symbols[1]);
     let (indexed, whole) = field_after_index(&mut program, collection, index, symbols[2]);
     let source = FrameSourcePlace {
+        recasts: Vec::new(),
         representation: None,
         kind: Default::default(),
         root: symbols[3],
@@ -391,6 +395,7 @@ fn structural_projection_appends_only_the_normalized_suffix() {
     assert_eq!(
         source.projected(&program, whole, indexed),
         FrameSourcePlace {
+            recasts: Vec::new(),
             representation: None,
             kind: Default::default(),
             root: symbols[3],
@@ -421,6 +426,7 @@ fn relative_source_erases_only_callee_runtime_index_handles() {
     let (mut program, symbols) = fixture();
     let index = name(&mut program, "index", symbols[1]);
     let caller = FrameSourcePlace {
+        recasts: Vec::new(),
         representation: None,
         kind: Default::default(),
         root: symbols[3],
@@ -428,6 +434,7 @@ fn relative_source_erases_only_callee_runtime_index_handles() {
         builtin_coordinates: true,
     };
     let relative = FrameSourcePlace {
+        recasts: Vec::new(),
         representation: None,
         kind: Default::default(),
         root: symbols[0],
@@ -441,6 +448,7 @@ fn relative_source_erases_only_callee_runtime_index_handles() {
     assert_eq!(
         caller.append_relative(&relative),
         FrameSourcePlace {
+            recasts: Vec::new(),
             representation: None,
             kind: Default::default(),
             root: symbols[3],

@@ -291,7 +291,11 @@ fn solve_state_effects<'program>(
                             }
                             let from = substitutions.parameter(target.symbol, parameter.symbol);
                             let to = substitutions.parameter(state.symbol, source.root);
-                            substitutions.insert(from, to, !source.segments.is_empty());
+                            substitutions.insert(
+                                from,
+                                to,
+                                !source.segments.is_empty() || !source.recasts.is_empty(),
+                            );
                         }
                         exits.push(SlotExit::Edge {
                             target: target_index,
@@ -506,6 +510,7 @@ fn instantiate(
             return None;
         }
         Some(base.append_relative(&FrameSourcePlace {
+            recasts: Vec::new(),
             representation: None,
             kind: Default::default(),
             root,
@@ -655,6 +660,7 @@ pub(super) fn apply(
                 local_path: path(
                     program,
                     &FrameSourcePlace {
+                        recasts: Vec::new(),
                         representation: None,
                         kind: Default::default(),
                         root: effect.root,

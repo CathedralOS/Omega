@@ -32,8 +32,8 @@ mod cast_ranges;
 mod cited_element_bounds;
 mod dependent_products;
 mod dependent_relations;
-mod domain_exclusions;
 mod division_definedness;
+mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
 mod float_arithmetic;
@@ -99,11 +99,12 @@ pub(crate) use return_ranges::{
     call_return_type, enforce_declared_return_range, enforce_symbolic_range,
     validate_return_value_range,
 };
+pub use stored_integer_writes::{
+    stored_integer_destination_projections, stored_integer_source_may_require_fit,
+    stored_integer_source_projection,
+};
 pub(crate) use stored_integer_writes::{
     stored_integer_field_type, stored_integer_value_fits, validate_stored_integer_write,
-};
-pub use stored_integer_writes::{
-    stored_integer_source_may_require_fit, stored_integer_source_projection,
 };
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,

@@ -1,0 +1,1 @@
+A derived field loan is passed to direct and forwarding calls. Both writes must reach the original owner while its disjoint neighbor remains 85. Call custody must retain the alias through its last use.

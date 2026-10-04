@@ -1,6 +1,6 @@
 //! Typed invocation storage, using the same caller prefix as write frames.
 use super::super::caller_aliases::{
-    CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
+    CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
     with_caller_origin_context,
 };
 use super::{CallFrameResolver, ExpressionHandle, ExpressionNode, Machine, TableCall};
@@ -32,6 +32,61 @@ impl<'program> CallFrameResolver<'program> {
         target: typed_trees::statement::TransitionTargetHandle,
     ) -> Option<CallWriteOrigins> {
         self.invocation_write_origins(machine, CallerWriteSite::Transition(target))
+    }
+
+    /// Resolve the exact operand roster retained by operator selection through
+    /// the same chronological origin capture as ordinary invocations. This
+    /// query supplies storage, not permission or operator-selection authority.
+    pub fn operator_write_origins(
+        &self,
+        machine: &'program Machine,
+        operator_use: &checked_trees::CheckedOperatorUseFact,
+        parameter_types: &[typed_trees::types::TypeReferenceHandle],
+    ) -> Option<CallWriteOrigins> {
+        let arguments = operator_use.operands(self.program)?;
+        if arguments.len() != parameter_types.len()
+            || operator_use
+                .origin
+                .machine_symbol()
+                .is_some_and(|owner| owner != machine.symbol)
+        {
+            return None;
+        }
+        let site = CallerWriteSite::Expression(operator_use.expression);
+        let (state, statement, ordinal) = caller_statement_owner(self.program, machine, site)?;
+        if let checked_trees::CheckedValueOrigin::StateStatement {
+            state_symbol,
+            statement_index,
+            ..
+        } = operator_use.origin
+            && (state_symbol != state.symbol || statement_index != ordinal)
+        {
+            return None;
+        }
+        let preceding_effect = !matches!(
+            operator_use.occurrence,
+            checked_trees::CheckedOperatorOccurrence::Expression
+        ) || self.prefix_may_change_origins(machine, statement, site);
+        with_caller_origin_context(
+            self.program,
+            machine,
+            &self.symbols,
+            site,
+            &self.caches.state_write_collections,
+            |inference, prefix| {
+                Some(CallWriteOrigins {
+                    receiver: Some(Vec::new()),
+                    arguments: self.capture_operand_origins(
+                        machine,
+                        inference,
+                        prefix,
+                        &arguments,
+                        parameter_types,
+                        preceding_effect,
+                    )?,
+                })
+            },
+        )
     }
 
     fn invocation_write_origins(
@@ -135,30 +190,8 @@ impl<'program> CallFrameResolver<'program> {
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
                 // rediscover an evaluation order from rendered paths.
-                let nested_effect = match site {
-                    CallerWriteSite::Expression(expression) => {
-                        let roots = frames::statement_value_expression_roots(program, statement);
-                        !roots.contains(&expression)
-                            && !self
-                                .statement_value_may_write_paths(machine, statement)
-                                .is_some_and(|paths| paths.is_empty())
-                    }
-                    CallerWriteSite::Transition(_) => {
-                        let typed_trees::statement::StatementNode::Transition(transition) =
-                            statement
-                        else {
-                            return None;
-                        };
-                        match transition.guard {
-                            typed_trees::statement::TransitionGuardNode::When(condition) => {
-                                self.operand_may_change_origins(machine, condition)
-                            }
-                            _ => false,
-                        }
-                    }
-                    _ => false,
-                };
-                let mut preceding_effect = nested_effect
+                let nested_effect = self.prefix_may_change_origins(machine, statement, site);
+                let preceding_effect = nested_effect
                     || (receiver_expression.is_valid()
                         && self.operand_may_change_origins(machine, receiver_expression));
                 if has_receiver != Some(false)
@@ -189,42 +222,93 @@ impl<'program> CallFrameResolver<'program> {
                         None
                     };
                 }
-                for (index, argument) in arguments.iter().enumerate() {
-                    let changes_origins = self.operand_may_change_origins(machine, *argument);
-                    let reference = argument_types.get(index).copied();
-                    let detached = reference.is_some_and(|reference| {
-                        frames::type_is_caller_isolated_local(program, reference)
-                            && !frames::type_reference_is_reference(program, reference)
-                    });
-                    let origins = if detached {
-                        Some(Vec::new())
-                    } else if preceding_effect || changes_origins {
-                        // The prefix predates operand execution. Never pretend
-                        // a later operand still sees that prefix after a write.
-                        // Earlier captured referents remain unchanged.
-                        None
-                    } else {
-                        prefix
-                            .argument_origins(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                &self.symbols,
-                                inference,
-                                &[*argument],
-                                &reference.into_iter().collect::<Vec<_>>(),
-                            )
-                            .and_then(|mut origins| origins.pop().flatten())
-                            .map(|origins| {
-                                origins.into_iter().map(LocalWriteSource::from).collect()
-                            })
-                    };
-                    result.arguments.push(origins);
-                    preceding_effect |= changes_origins;
-                }
+                result.arguments = self.capture_operand_origins(
+                    machine,
+                    inference,
+                    prefix,
+                    arguments,
+                    &argument_types,
+                    preceding_effect,
+                )?;
                 Some(result)
             },
         )
+    }
+
+    fn capture_operand_origins(
+        &self,
+        machine: &'program Machine,
+        inference: &mut frames::FrameInference,
+        prefix: &CallOriginContext<'_>,
+        arguments: &[ExpressionHandle],
+        argument_types: &[typed_trees::types::TypeReferenceHandle],
+        mut preceding_effect: bool,
+    ) -> Option<Vec<Option<Vec<LocalWriteSource>>>> {
+        let program = self.program;
+        let machine_symbols = self.machine_symbols(machine)?;
+        let mut result = Vec::with_capacity(arguments.len());
+        for (index, argument) in arguments.iter().enumerate() {
+            let changes_origins = self.operand_may_change_origins(machine, *argument);
+            let reference = argument_types.get(index).copied();
+            let detached = reference.is_some_and(|reference| {
+                frames::type_is_caller_isolated_local(program, reference)
+                    && !frames::type_reference_is_reference(program, reference)
+            });
+            let origins = if detached {
+                Some(Vec::new())
+            } else if preceding_effect || changes_origins {
+                // The prefix predates operand execution. Never pretend
+                // a later operand still sees that prefix after a write.
+                // Earlier captured referents remain unchanged.
+                None
+            } else {
+                prefix
+                    .argument_origins(
+                        program,
+                        machine,
+                        &machine_symbols,
+                        &self.symbols,
+                        inference,
+                        &[*argument],
+                        &reference.into_iter().collect::<Vec<_>>(),
+                    )
+                    .and_then(|mut origins| origins.pop().flatten())
+                    .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
+            };
+            result.push(origins);
+            preceding_effect |= changes_origins;
+        }
+        Some(result)
+    }
+
+    fn prefix_may_change_origins(
+        &self,
+        machine: &'program Machine,
+        statement: &typed_trees::statement::StatementNode,
+        site: CallerWriteSite<'_>,
+    ) -> bool {
+        match site {
+            CallerWriteSite::Expression(expression) => {
+                let roots = frames::statement_value_expression_roots(self.program, statement);
+                !roots.contains(&expression)
+                    && !self
+                        .statement_value_may_write_paths(machine, statement)
+                        .is_some_and(|paths| paths.is_empty())
+            }
+            CallerWriteSite::Transition(_) => {
+                let typed_trees::statement::StatementNode::Transition(transition) = statement
+                else {
+                    return true;
+                };
+                match transition.guard {
+                    typed_trees::statement::TransitionGuardNode::When(condition) => {
+                        self.operand_may_change_origins(machine, condition)
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
     }
 
     fn operand_may_change_origins(
@@ -324,6 +408,7 @@ impl<'program> CallFrameResolver<'program> {
         // stored reference without its retained origin.
         frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
         Some(vec![LocalWriteSource {
+            recasts: Vec::new(),
             root,
             segments,
             representation: None,
