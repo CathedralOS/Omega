@@ -443,8 +443,12 @@ pub(crate) fn parameter_shape(
     }
     let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {
-        // Receiver spelling does not change the owned payload's ABI geometry.
-        (StructuralAccess::Owned, StructuralMultiplicity::Affine) => Some(referent),
+        // Restricted owners retain their exact claim and disposal obligations
+        // in source custody; those obligations do not change payload geometry.
+        (
+            StructuralAccess::Owned,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear,
+        ) => Some(referent),
         (
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
