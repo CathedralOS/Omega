@@ -1462,6 +1462,7 @@ pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 2466ms @2d8ed253669f
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
+pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms @3daca3fd87c2
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms @2b2f058c0e38+wt
