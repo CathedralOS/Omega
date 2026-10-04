@@ -127,6 +127,24 @@ seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
 regression signal. Include affected crate and integration
 checks. Reuse successful results on unchanged inputs, including at landing.
 
+Before landing, challenge the assumptions that make this change correct, even
+when working alone. For each assumption the change's correctness depends on,
+trace where the code establishes it and construct a realistic source case that
+could falsify it. Exercise that case through the public entrypoint where
+practical, choosing checks from the affected behavior and consumers.
+
+Review the premise that justified a decision, not just whether the code follows
+that premise. For example, a call spelled `abs` need not select the builtin:
+a callback with the same name challenges that assumption, and resolution must
+establish the callable's identity before a builtin rewrite. Check that the
+mechanism handles the general operation rather than only the reproduction's
+spelling or arrangement.
+
+Passing existing tests establishes their covered cases, not untested premises.
+Report which assumptions were challenged, the observed evidence, and any that
+remain unverified. If the change's correctness still depends on an unsupported
+assumption, resolve it or name the missing dependency before claiming completion.
+
 Attribute unexpected failures using a focused baseline comparison on the base
 commit. A failure that reproduces on the base is outside this change; record
 its command and revision. A failure introduced by this change blocks landing.
