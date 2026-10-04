@@ -1,0 +1,31 @@
+data Node { value: u64; }
+data Pair { left: Node; right: Node; }
+
+machine pick(pair: &mut Pair, second: bool) -> &mut Node {
+    transition second {
+        true -> &mut pair.right
+        false -> &mut pair.left
+    }
+}
+
+machine relay(pair: &mut Pair, second: bool) -> &mut Node {
+    let selected: &mut Node = pick(pair, second);
+    selected
+}
+
+machine observe(pair: &mut Pair, second: bool) -> u64 {
+    let selected: &mut Node = relay(pair, second);
+    selected.value
+}
+
+machine main() crashes Trap {
+    let mut pair: Pair = Pair { left: Node { value: 17 }, right: Node { value: 43 } };
+    let right: u64 = observe(&mut pair, true);
+    let left: u64 = observe(&mut pair, false);
+    transition right == 43 && left == 17 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

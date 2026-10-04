@@ -1,0 +1,1 @@
+A helper selects an exclusive reference to either field of one caller-owned pair. An ordinary wrapper returns that call-produced reference through a local. Both selections must retain their exact field, observing 17 and 43, and both engines must exit zero.
