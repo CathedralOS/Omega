@@ -1624,8 +1624,8 @@ pass/control_flow/element_view_enum_equality_exit checked 1671ms @27950676fa31+w
 pass/control_flow/explicit_state_value_frontier checked 306ms @2d8ed253669f
 pass/control_flow/field_subject_named_arm_chain checked 1463ms @2d8ed253669f
 pass/control_flow/field_view_transfer_exit checked 1421ms @2d8ed253669f
-pass/control_flow/guarded_jump_field_view_forward rejected 648ms @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: state signature: parameter signature: attached data shape, state 0)") })
+pass/control_flow/guarded_jump_field_view_forward rejected 594ms @2ff81f36a14
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: guarded jump successors: roster, state 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
