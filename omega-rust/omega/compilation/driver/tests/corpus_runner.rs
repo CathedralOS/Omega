@@ -50,6 +50,26 @@
 //! as well, the record gains `interpreter:agrees` or `interpreter:disagrees`
 //! comparing the two exit codes.
 //!
+//! A `rollback.txt` beside `main.omg` declares a release rollback overlay for
+//! the fixture: one exact optimization case name per line, the spelling
+//! `--disable-optimization` takes. The declared `OptimizationRollback` rides
+//! every leg that compiles the fixture -- the check leg's realization, the
+//! native build, the checked-compile fail and interpreter routes -- so a
+//! published receipt names the overlay the run actually applied. On the
+//! check leg it additionally compiles the fixture to its retained Terminal
+//! artifact twice, once with and once without the overlay, and reports the
+//! pair as facts: `rollback:` is the settled receipt the rolled build's
+//! report publishes, `unrolled-receipt:` is `none` when the ordinary build
+//! settles no overlay, `unrolled-semantic:`/`rolled-back-semantic:` are the
+//! manifest fingerprints of the two semantic modules, and `module:differs`
+//! or `module:same` answers whether the rolled-back rules actually rewrote
+//! the module -- a `same` row names an overlay that proves nothing on that
+//! source. Comparing semantic bytes (not executables) is the point: Omega
+//! realization normalizes Psi rewrites away, so the Terminal artifact is
+//! the last product where the rules' work is still visible. A malformed
+//! `rollback.txt` becomes the fixture's own diagnostic rather than silently
+//! running the ordinary path.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed
@@ -59,8 +79,8 @@
 //! `\n`, `\r` and `\t`.
 
 use compiler::{
-    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
-    compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
+    RequestedCompileProduct, compile_to_checked,
 };
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
@@ -259,6 +279,144 @@ fn unique_build_dir(sequence: usize) -> PathBuf {
     env::temp_dir().join(format!("omega-corpus-runner-{}-{sequence}", process::id()))
 }
 
+/// The exact optimization rules one fixture asks the release rollback to
+/// subtract from its authored build selection: `rollback.txt` beside
+/// `main.omg`, one exact case name per line -- the spelling
+/// `--disable-optimization` takes. `Some(Ok)` supplies the overlay every leg
+/// shares; `Some(Err)` is a malformed declaration and becomes the fixture's
+/// own diagnostic so a typo cannot silently run the ordinary path; `None` is
+/// an ordinary fixture with no declared overlay.
+fn declared_optimization_rollback(
+    fixture_dir: &Path,
+) -> Option<Result<OptimizationRollback, String>> {
+    let text = fs::read_to_string(fixture_dir.join("rollback.txt")).ok()?;
+    Some(
+        OptimizationRollback::from_exact_names(
+            text.lines().map(str::trim).filter(|line| !line.is_empty()),
+        )
+        .map_err(|error| format!("rollback.txt: {error}")),
+    )
+}
+
+/// One `key:value` fact carries no spaces, so the receipt's `; ` and `, `
+/// separators collapse: `requested=[A, B]` records as `requested=[A,B]`.
+fn space_free(text: &str) -> String {
+    text.split(' ').collect()
+}
+
+/// Semantic bytes and report evidence one Terminal-artifact build retains.
+/// The pair's two builds differ only in the declared overlay, so comparing
+/// their modules isolates the rolled-back rules' own work.
+struct TerminalSemanticLeg {
+    /// The manifest's semantic program fingerprint, shortened to the 16-hex
+    /// spelling the corpus already uses for plan fingerprints.
+    fingerprint: String,
+    semantic: Vec<u8>,
+    /// The settled rollback receipt this build's report publishes: `Some`
+    /// exactly when the request carried a non-empty overlay.
+    receipt: Option<String>,
+}
+
+/// Compile one fixture to its retained Terminal artifact for `target` and
+/// keep its semantic bytes, manifest fingerprint and rollback receipt. The
+/// Terminal product is the last boundary whose semantic module still shows
+/// the Psi rules' rewrites -- Omega realization normalizes them away -- so
+/// the rollback pair compares here rather than at the executable.
+fn produce_terminal_semantic(
+    root_path: &Path,
+    build_dir: PathBuf,
+    target: Option<String>,
+    rollback: Option<&OptimizationRollback>,
+) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
+    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
+    let options = CompileOptions {
+        root_path: root_path.to_path_buf(),
+        build_dir: Some(build_dir.clone()),
+        target_name: target,
+    };
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    if let Some(rollback) = rollback {
+        request = request.with_optimization_rollback(rollback.clone());
+    }
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let receipt = report
+        .optimization_rollback_receipt()
+        .map(std::string::ToString::to_string);
+    let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
+        vec![diagnostics::Diagnostic::error(
+            "Terminal-artifact product retained no artifact",
+        )]
+    })?;
+    let artifact = retained.artifact();
+    let fingerprint = artifact
+        .manifest()
+        .semantic()
+        .program_fingerprint
+        .to_string();
+    let leg = TerminalSemanticLeg {
+        fingerprint: fingerprint[..16].to_owned(),
+        semantic: artifact.semantic_bytes().to_vec(),
+        receipt,
+    };
+    let _ = fs::remove_dir_all(&build_dir);
+    Ok(leg)
+}
+
+/// A fixture declaring `rollback.txt` runs the check leg as a
+/// Terminal-artifact pair: the same compile with and without the declared
+/// overlay, for the first target its own `build.omg` binds a program entry
+/// for. A fixture that binds no entry answers with the product's own
+/// missing-entry diagnostic. The pair's facts pin the whole contract:
+/// `rollback:` and `unrolled-receipt:` name the evidence each build's report
+/// publishes, `unrolled-semantic:`/`rolled-back-semantic:` let the golden
+/// record the module identities side by side, and `module:differs` versus
+/// `module:same` states whether the rolled-back rules actually rewrote the
+/// module -- on a selected-rule fixture `differs` is the vacuity guard that
+/// makes the receipt's `applied` meaningful.
+fn rollback_pair_facts(
+    root_path: &Path,
+    rollback: &OptimizationRollback,
+    sequence: usize,
+) -> (Vec<String>, Result<(), Vec<diagnostics::Diagnostic>>) {
+    let build_dir = unique_build_dir(sequence);
+    let target = declared_realization_target(root_path);
+    let rolled = produce_terminal_semantic(
+        root_path,
+        build_dir.join("rolled"),
+        target.clone(),
+        Some(rollback),
+    );
+    let unrolled = produce_terminal_semantic(root_path, build_dir.join("unrolled"), target, None);
+    let _ = fs::remove_dir_all(&build_dir);
+    let (rolled, unrolled) = match (rolled, unrolled) {
+        (Ok(rolled), Ok(unrolled)) => (rolled, unrolled),
+        (Err(errors), _) | (_, Err(errors)) => return (Vec::new(), Err(errors)),
+    };
+    let facts = vec![
+        format!(
+            "rollback:{}",
+            space_free(rolled.receipt.as_deref().unwrap_or("none"))
+        ),
+        format!(
+            "unrolled-receipt:{}",
+            space_free(unrolled.receipt.as_deref().unwrap_or("none"))
+        ),
+        format!("unrolled-semantic:{}", unrolled.fingerprint),
+        format!("rolled-back-semantic:{}", rolled.fingerprint),
+        if rolled.semantic == unrolled.semantic {
+            "module:same".to_owned()
+        } else {
+            "module:differs".to_owned()
+        },
+    ];
+    (facts, Ok(()))
+}
+
 /// The pass/run tier of `production_compile` restricted to the Check product:
 /// reviewed package inputs plus `compiler::compile`, targetless.
 fn check_pass_fixture(
@@ -317,8 +475,14 @@ fn interpreter_leg() -> bool {
 }
 
 /// Interpret one fixture's selected program entry, as `omega run --both`
-/// does, and report its exit and stdout facts.
-fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
+/// does, and report its exit and stdout facts. A declared rollback prunes
+/// the checked tree the interpreter runs, so the executed program is the
+/// rolled-back one.
+fn interpret_fixture(
+    root_path: &Path,
+    fixture_dir: &Path,
+    rollback: Option<&OptimizationRollback>,
+) -> Vec<String> {
     let Some(target) = native_target()
         .map(str::to_owned)
         .or_else(|| {
@@ -335,6 +499,9 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
         return vec!["interpreter:unchecked".to_owned()];
     };
     request.package_inputs = package_inputs;
+    if let Some(rollback) = rollback {
+        request.optimization_rollback = rollback.clone();
+    }
     let Ok(checked) = compile_to_checked(request) else {
         return vec!["interpreter:unchecked".to_owned()];
     };
@@ -395,12 +562,17 @@ fn interpreter_agreement(facts: &[String]) -> Option<String> {
     )
 }
 
-/// Build one fixture as a published native executable for `target`.
+/// Build one fixture as a published native executable for `target`, under
+/// the fixture's declared rollback overlay when it carries one. The second
+/// return is the settled rollback receipt the build's report publishes --
+/// `None` when the request carried no overlay -- so the record names the
+/// subtraction the executable was realized from.
 fn build_native_fixture(
     root_path: &Path,
     build_dir: &Path,
     target: &str,
-) -> Result<PathBuf, Vec<diagnostics::Diagnostic>> {
+    rollback: Option<&OptimizationRollback>,
+) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
     let options = CompileOptions {
         root_path: root_path.to_path_buf(),
         build_dir: Some(build_dir.to_path_buf()),
@@ -409,16 +581,22 @@ fn build_native_fixture(
     let package_inputs = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let mut request = CompileRequest::new(options)
         .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    if let Some(rollback) = rollback {
+        request = request.with_optimization_rollback(rollback.clone());
+    }
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let receipt = report
+        .optimization_rollback_receipt()
+        .map(std::string::ToString::to_string);
     let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
     published
         .checked_native_executable_path()
-        .map(Path::to_path_buf)
+        .map(|path| (path.to_path_buf(), receipt))
         .ok_or_else(|| {
             vec![diagnostics::Diagnostic::error(
                 "published native artifact names no executable",
@@ -496,8 +674,7 @@ fn execute_fixture(
                 // child the whole native leg stopped making progress. Give
                 // the kill a short grace, then abandon the child unreaped.
                 let grace = std::time::Instant::now() + std::time::Duration::from_secs(5);
-                while std::time::Instant::now() < grace
-                    && !matches!(child.try_wait(), Ok(Some(_)))
+                while std::time::Instant::now() < grace && !matches!(child.try_wait(), Ok(Some(_)))
                 {
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
@@ -524,9 +701,18 @@ fn execute_fixture(
 }
 
 /// `check_canary`: reviewed repository package inputs plus `compile_to_checked`.
-fn check_fail_fixture(root_path: &Path) -> Result<(), Vec<diagnostics::Diagnostic>> {
+/// A declared rollback rides the checked route too: the checked tree's own
+/// rules subtract there, and Psi-phase names settle inertly so a shared
+/// `rollback.txt` cannot fail the fixture on the wrong axis.
+fn check_fail_fixture(
+    root_path: &Path,
+    rollback: Option<&OptimizationRollback>,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut request = CheckedCompileRequest::new(root_path, None);
     request.package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    if let Some(rollback) = rollback {
+        request.optimization_rollback = rollback.clone();
+    }
     compile_to_checked(request).map(|_| ())
 }
 
@@ -547,6 +733,7 @@ fn realize_fixture(
     root_path: &Path,
     build_dir: PathBuf,
     target_name: Option<String>,
+    rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let package_inputs =
         reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
@@ -557,6 +744,9 @@ fn realize_fixture(
     };
     let mut request = CompileRequest::new(options)
         .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    if let Some(rollback) = rollback {
+        request = request.with_optimization_rollback(rollback.clone());
+    }
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
@@ -707,34 +897,75 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     // place, reports this harness's own selection rather than the fixture's
     // behavior.
     let realization = native_target().and_then(|host| pass_realization_target(main, host));
+    // A declared rollback overlay rides every leg the fixture compiles on.
+    // A malformed declaration becomes the fixture's own rejected record.
+    let (declared_rollback, rollback_error) = match declared_optimization_rollback(&fixture_dir) {
+        Some(Ok(rollback)) => (Some(rollback), None),
+        Some(Err(message)) => (None, Some(message)),
+        None => (None, None),
+    };
     let mut realized = false;
-    let mut outcome = match (tier, &realization) {
-        ("fail", _) => check_fail_fixture(main),
-        (_, Some((target, executes_here))) => {
+    let mut outcome = match (&rollback_error, tier, &realization) {
+        (Some(message), _, _) => Err(vec![diagnostics::Diagnostic::error(message.clone())]),
+        (_, "fail", _) => check_fail_fixture(main, declared_rollback.as_ref()),
+        (_, _, Some((target, executes_here))) => {
             realized = true;
             let build_dir = unique_build_dir(sequence);
-            let built = build_native_fixture(main, &build_dir, target);
-            if let Ok(executable) = &built
-                && *executes_here
-                && runnable
-                && let Some(launcher) = native_launcher(target)
-            {
-                facts = execute_fixture(executable, &launcher, &fixture_dir, sequence);
+            let built = build_native_fixture(main, &build_dir, target, declared_rollback.as_ref());
+            if let Ok((executable, receipt)) = &built {
+                if let Some(receipt) = receipt {
+                    facts.push(format!("rollback:{}", space_free(receipt)));
+                }
+                if *executes_here
+                    && runnable
+                    && let Some(launcher) = native_launcher(target)
+                {
+                    facts.extend(execute_fixture(
+                        executable,
+                        &launcher,
+                        &fixture_dir,
+                        sequence,
+                    ));
+                }
             }
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())
         }
-        // A pass or run fixture that binds a program-entry root claims an
-        // executable roster the targetless `Check` product never demands:
-        // `omega --check` on the same root selects that entry and refuses
-        // when its unit plan is omitted, while this route would record
-        // `checked`. Realize the fixture for the target the native leg
-        // would choose -- its bound host target when it declares one, else
-        // its first declared -- so the roster is accounted before the row
-        // reads as executable.
-        _ => match check_leg_realization_target(main) {
-            Some(target) => realize_fixture(main, unique_build_dir(sequence), Some(target)),
-            None => check_pass_fixture(main, unique_build_dir(sequence)),
+        (_, _, _) => match &declared_rollback {
+            // A declared rollback runs the check leg as a Terminal-artifact
+            // pair whose facts pin the overlay contract, then still realizes
+            // the fixture's bound-entry roster the `Check` product never
+            // demands, under the same overlay the legs share.
+            Some(rollback) => {
+                let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
+                facts.extend(pair_facts);
+                match pair {
+                    Err(errors) => Err(errors),
+                    Ok(()) => match check_leg_realization_target(main) {
+                        Some(target) => realize_fixture(
+                            main,
+                            unique_build_dir(sequence),
+                            Some(target),
+                            Some(rollback),
+                        ),
+                        None => Ok(()),
+                    },
+                }
+            }
+            // A pass or run fixture that binds a program-entry root claims an
+            // executable roster the targetless `Check` product never demands:
+            // `omega --check` on the same root selects that entry and refuses
+            // when its unit plan is omitted, while this route would record
+            // `checked`. Realize the fixture for the target the native leg
+            // would choose -- its bound host target when it declares one, else
+            // its first declared -- so the roster is accounted before the row
+            // reads as executable.
+            None => match check_leg_realization_target(main) {
+                Some(target) => {
+                    realize_fixture(main, unique_build_dir(sequence), Some(target), None)
+                }
+                None => check_pass_fixture(main, unique_build_dir(sequence)),
+            },
         },
     };
     if tier == "fail" && outcome.is_ok() {
@@ -742,10 +973,15 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             main,
             unique_build_dir(sequence),
             declared_realization_target(main),
+            declared_rollback.as_ref(),
         );
     }
     if interpreter_leg() && tier != "fail" && runnable {
-        facts.extend(interpret_fixture(main, &fixture_dir));
+        facts.extend(interpret_fixture(
+            main,
+            &fixture_dir,
+            declared_rollback.as_ref(),
+        ));
         if let Some(agreement) = interpreter_agreement(&facts) {
             facts.push(agreement);
         }

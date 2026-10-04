@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 3.02, "load1_start": 3.11, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 4.55, "load1_start": 3.9, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
@@ -19,7 +19,21 @@ pass/optimizer/copied_call_operand_selection_exit built 2139ms exit:70 interpret
 pass/optimizer/dead_compare_selection_compile built 750ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
 pass/optimizer/equivalent_compare_selection_compile built 761ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
 pass/optimizer/redundant_compare_selection_compile built 769ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
-pass/optimizer/rollback_to_no_selection_empty_entry built 598ms @f7f623460021+wt
+pass/optimizer/rollback_composed_partial_control built 5004ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_composed_partial_selected built 5696ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_control built 7063ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_selected built 7528ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_control built 6650ms rollback:requested=[CopyPropagation];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_selected built 4953ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_control built 5805ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected built 6514ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_control built 8106ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_selected built 7407ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_control built 8003ms rollback:requested=[ProofCheckElision];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_selected built 8109ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control built 3853ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 3801ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] exit:0 interpreter-exit:0 interpreter:agrees @3aa9587aec19+wt
+pass/optimizer/rollback_to_no_selection_empty_entry built 3169ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @3aa9587aec19+wt
 pass/optimizer/stored_load_forwarding_selection_exit built 824ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
 pass/recast/runtime_bool_representation_recast_exit built 2795ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_float_range_representation_recast_exit built 6494ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt

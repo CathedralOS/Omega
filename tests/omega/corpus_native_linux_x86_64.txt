@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 2.76, "load1_start": 0.99, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 3.9, "load1_start": 3.28, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -653,7 +653,21 @@ pass/optimizer/copied_call_operand_selection_exit built 1338ms exit:70 @f7f62346
 pass/optimizer/dead_compare_selection_compile built 592ms exit:0 @f7f623460021+wt
 pass/optimizer/equivalent_compare_selection_compile built 598ms exit:0 @f7f623460021+wt
 pass/optimizer/redundant_compare_selection_compile built 605ms exit:0 @f7f623460021+wt
-pass/optimizer/rollback_to_no_selection_empty_entry built 565ms @f7f623460021+wt
+pass/optimizer/rollback_composed_partial_control built 4624ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_composed_partial_selected built 4257ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_control built 5521ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_selected built 5741ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_control built 5255ms rollback:requested=[CopyPropagation];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_selected built 4869ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_control built 4159ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected built 4838ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_control built 4358ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_selected built 4757ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_control built 4160ms rollback:requested=[ProofCheckElision];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_selected built 4901ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control built 2892ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected built 2826ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] exit:0 @3aa9587aec19+wt
+pass/optimizer/rollback_to_no_selection_empty_entry built 2750ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] @3aa9587aec19+wt
 pass/optimizer/stored_load_forwarding_selection_exit built 590ms exit:0 @f7f623460021+wt
 pass/ownership/conditional_linear_sum checked 289ms @2d8ed253669f+wt
 pass/ownership/linear_ambiguous_state_result_mapping rejected 345ms @2d8ed253669f+wt
@@ -699,8 +713,6 @@ pass/proofs/proof_congruence_add_constant checked 275ms @2d8ed253669f+wt
 pass/proofs/proof_constant_arithmetic_identity checked 278ms @2d8ed253669f+wt
 pass/proofs/proof_inductive_climbing_sum checked 279ms @2d8ed253669f+wt
 pass/proofs/proof_inductive_gauss_sum checked 288ms @2d8ed253669f+wt
-pass/proofs/runtime_inductive_gauss_sum_exit rejected 1614ms @5fac9b57088
-	state `gauss_sum` receives `main` as both mutable and read-only
 pass/proofs/proof_integer_embedding checked 283ms @2d8ed253669f+wt
 pass/proofs/proof_integer_quotient_remainder checked 291ms @2d8ed253669f+wt
 pass/proofs/proof_linear_range_sum checked 282ms @2d8ed253669f+wt
@@ -719,6 +731,8 @@ pass/proofs/quotient_lift_managed_compile rejected 476ms @2d8ed253669f+wt
 pass/proofs/ring_full_polynomial_compile built 766ms @2d8ed253669f+wt
 pass/proofs/ring_law_conformance built 772ms @2d8ed253669f+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 932ms exit:70 @2d8ed253669f+wt
+pass/proofs/runtime_inductive_gauss_sum_exit rejected 1614ms @5fac9b57088
+	state `gauss_sum` receives `main` as both mutable and read-only
 pass/proofs/runtime_nat_structural_recursion_exit built 754ms exit:70 @2d8ed253669f+wt
 pass/proofs/runtime_ranked_accumulator_early_exit built 1014ms exit:70 @2d8ed253669f+wt
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 990ms exit:70 @2d8ed253669f+wt
@@ -784,8 +798,8 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 280ms @2d8ed253669
 pass/slices/local_array_element_view_exit built 1375ms exit:70 @2d8ed253669f+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/slices/requires_field_count_alias_index_compile checked 281ms @2d8ed253669f+wt
-pass/slices/runtime_indexed_record_field_range_exit built 12267ms exit:0 @15c77983aab0
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1458ms exit:3 @34627c25182b
+pass/slices/runtime_indexed_record_field_range_exit built 12267ms exit:0 @15c77983aab0
 pass/slices/runtime_join_meet_bound_exit built 826ms exit:70 @2d8ed253669f+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 801ms exit:21 @2d8ed253669f+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit built 904ms exit:215 @2d8ed253669f+wt

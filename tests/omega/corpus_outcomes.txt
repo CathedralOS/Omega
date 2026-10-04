@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 10.88, "load1_start": 11.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 3.28, "load1_start": 2.17, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2310,14 +2310,28 @@ pass/operators/runtime_xorshift_prng_exit checked 1292ms @2d8ed253669f
 pass/operators/slice_index_bounds_from_operator_contract checked 295ms @2d8ed253669f
 pass/operators/slice_range_bounds_from_operator_contract checked 317ms @2d8ed253669f
 pass/operators/unary_negation_exit checked 1266ms @2d8ed253669f
-pass/optimizer/address_offset_selection_exit checked 2981ms @eca6cafd32e7
-pass/optimizer/constant_branch_selection_compile checked 442ms @2d8ed253669f
-pass/optimizer/copied_call_operand_selection_exit checked 1299ms @2d8ed253669f
-pass/optimizer/dead_compare_selection_compile checked 425ms @2d8ed253669f
-pass/optimizer/equivalent_compare_selection_compile checked 459ms @2d8ed253669f
-pass/optimizer/redundant_compare_selection_compile checked 477ms @2d8ed253669f
-pass/optimizer/rollback_to_no_selection_empty_entry checked 379ms @2d8ed253669f
-pass/optimizer/stored_load_forwarding_selection_exit checked 452ms @a65d52709b8a+wt
+pass/optimizer/address_offset_selection_exit checked 5957ms @3aa9587aec19+wt
+pass/optimizer/constant_branch_selection_compile checked 4163ms @3aa9587aec19+wt
+pass/optimizer/copied_call_operand_selection_exit checked 4538ms @3aa9587aec19+wt
+pass/optimizer/dead_compare_selection_compile checked 6066ms @3aa9587aec19+wt
+pass/optimizer/equivalent_compare_selection_compile checked 4762ms @3aa9587aec19+wt
+pass/optimizer/redundant_compare_selection_compile checked 5276ms @3aa9587aec19+wt
+pass/optimizer/rollback_composed_partial_control checked 10553ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:18df686bc3cb918c rolled-back-semantic:18df686bc3cb918c module:same @3aa9587aec19+wt
+pass/optimizer/rollback_composed_partial_selected checked 11893ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:d1eaced1be4ee93b rolled-back-semantic:18df686bc3cb918c module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_control checked 8674ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:16e4a37b3b4a75e8 rolled-back-semantic:16e4a37b3b4a75e8 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_control_flow_cleanup_selected checked 9252ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:446a23be3d7c2984 rolled-back-semantic:16e4a37b3b4a75e8 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_control checked 10527ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:a653736d59cdf4e8 rolled-back-semantic:a653736d59cdf4e8 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_copy_propagation_selected checked 6386ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:305fb3c93e8e4ee3 rolled-back-semantic:a653736d59cdf4e8 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 11463ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:3f550750409ea670 rolled-back-semantic:3f550750409ea670 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 8756ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:4307ac24884057da rolled-back-semantic:3f550750409ea670 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_control checked 8250ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:1282bd48afb23c97 rolled-back-semantic:1282bd48afb23c97 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_global_value_numbering_selected checked 9148ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:6c38482f92db028b rolled-back-semantic:1282bd48afb23c97 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_control checked 6120ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2b8930f406a15181 rolled-back-semantic:2b8930f406a15181 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_proof_check_elision_selected checked 9496ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:d22f002f1818bb7b rolled-back-semantic:2b8930f406a15181 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 5343ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:8c52c82cf03f3980 rolled-back-semantic:8c52c82cf03f3980 module:same @3aa9587aec19+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 6240ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:81d4d26469c919ab rolled-back-semantic:8c52c82cf03f3980 module:differs @3aa9587aec19+wt
+pass/optimizer/rollback_to_no_selection_empty_entry checked 4563ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:0a709b2e2a4a0fde rolled-back-semantic:0a709b2e2a4a0fde module:same @3aa9587aec19+wt
+pass/optimizer/stored_load_forwarding_selection_exit checked 4919ms @3aa9587aec19+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
 pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms @82ec69a91ce
 	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))
