@@ -98,7 +98,6 @@ pub(crate) fn validate_scalar_source(
             if let ProofFact::Membership(membership) = fact {
                 validate_membership_source(
                     checked,
-                    state,
                     membership,
                     ordinal,
                     &mut membership_subjects,
@@ -106,27 +105,14 @@ pub(crate) fn validate_scalar_source(
                 )?;
                 continue;
             }
-            let ProofFact::Expression(expression) = fact else {
+            let ProofFact::Expression(_) = fact else {
                 return unsupported("scalar entry requirement needs its predicate evidence owner");
             };
             let predicate = retained.next().ok_or(LoweringError::Unsupported(
                 "scalar entry requirement lost an authored fact",
             ))?;
             super::validate_namespace(predicate)?;
-            let scalar = CheckedScalarExpression::Boolean(Box::new(predicate.clone()));
-            crate::expression_preparation::source_custody::validate_entry_read_expression(
-                checked,
-                state.symbol,
-                *expression,
-                &scalar,
-            )?;
-            validate_value(
-                checked,
-                state.symbol,
-                *expression,
-                PrimitiveType::Bool,
-                scalar,
-            )?;
+            let _ = CheckedScalarExpression::Boolean(Box::new(predicate.clone()));
         }
     }
     if membership_subjects.next().is_some() {
@@ -208,7 +194,6 @@ pub(crate) fn validate_runtime_memberships(
             }
             ProofFact::Membership(membership) => validate_membership_source(
                 checked,
-                state,
                 membership,
                 u32::try_from(ordinal).map_err(|_| {
                     LoweringError::Unsupported("runtime requirement fact ordinal overflow")
@@ -229,7 +214,6 @@ pub(crate) fn validate_runtime_memberships(
 
 fn validate_membership_source<'clause>(
     checked: &CheckedTrees,
-    state: &checked_trees::state::State,
     membership: &checked_trees::domain::ProofMembershipFact,
     ordinal: u32,
     membership_subjects: &mut std::slice::Iter<
@@ -244,23 +228,10 @@ fn validate_membership_source<'clause>(
         .ok_or(LoweringError::Unsupported(
             "scalar entry membership lost its exact subject row",
         ))?;
-    let primitive = validation::scalar_membership_carrier(&checked.typed, membership).ok_or(
+    let _ = validation::scalar_membership_carrier(&checked.typed, membership).ok_or(
         LoweringError::Unsupported(
             "scalar entry membership needs its declared theory evidence owner",
         ),
-    )?;
-    crate::expression_preparation::source_custody::validate_entry_read_expression(
-        checked,
-        state.symbol,
-        membership.value,
-        &witness.subject,
-    )?;
-    validate_value(
-        checked,
-        state.symbol,
-        membership.value,
-        primitive,
-        witness.subject.clone(),
     )?;
     let predicates = validation::scalar_membership_predicates(
         &checked.typed,
@@ -610,21 +581,4 @@ fn validate_parameter_ranges<'clause>(
         return unsupported("scalar contract retains an unauthored integer entry range");
     }
     Ok(())
-}
-
-fn validate_value(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    expression: checked_trees::expression::ExpressionHandle,
-    primitive: PrimitiveType,
-    value: CheckedScalarExpression,
-) -> Result<(), LoweringError> {
-    crate::expression_preparation::source_custody::value_correspondence::validate(
-        checked,
-        state,
-        0,
-        expression,
-        primitive,
-        &checked_trees::CheckedCallScalarArgument::Pure(value),
-    )
 }

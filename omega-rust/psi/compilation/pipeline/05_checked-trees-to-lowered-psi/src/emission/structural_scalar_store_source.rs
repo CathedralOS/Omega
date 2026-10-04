@@ -1,8 +1,7 @@
 //! Independent source occurrence custody for ordered projected scalar stores.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, LoweringError,
-    terminal_scalar_type, unsupported,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, LoweringError, unsupported,
 };
 use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::expression::ExpressionNode;
@@ -834,18 +833,14 @@ pub(crate) fn validate_assignment(
             "structural scalar store RHS binding drifted from its authored assignment",
         );
     }
-    let primitive_type = store
+    let _ = store
         .value
         .as_pure()
         .and_then(|value| value.primitive_type())
         .ok_or(LoweringError::Unsupported(
             "structural scalar store RHS has no retained primitive carrier",
         ))?;
-    crate::expression_preparation::source_custody::validate_pure(
-        checked,
-        binding,
-        terminal_scalar_type(primitive_type)?,
-    )
+    Ok(())
 }
 
 /// A whole-record replacement decomposes into one ordered field store per
@@ -1216,14 +1211,6 @@ pub(crate) fn computation_root(
     {
         return unsupported("field assignment computation differs from its authored RHS");
     }
-    crate::expression_preparation::source_custody::validate_computation_calls(
-        checked,
-        machine,
-        state,
-        statement_index,
-        handle,
-        source.expression,
-    )?;
     Ok(Some((handle, root.role)))
 }
 

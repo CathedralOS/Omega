@@ -89,14 +89,7 @@ pub(in crate::unit::attached_unit) fn validate(
             *coordinate,
             *target_state,
         )?;
-        if !super::validate_argument_source(
-            checked,
-            caller,
-            *coordinate,
-            authored.source_target,
-            argument,
-            expression,
-        )? {
+        if !super::validate_argument_source(checked, caller, *coordinate, argument, expression)? {
             return unsupported("primitive local Unit actual changed its source owner");
         }
     }

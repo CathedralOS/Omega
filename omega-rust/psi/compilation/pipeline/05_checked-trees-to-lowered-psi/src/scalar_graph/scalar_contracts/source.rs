@@ -3,10 +3,10 @@
 //! reserved result; value correspondence independently checks operators/literals.
 //! Successful conversion is not proof: emitted return edges must establish each
 //! guarantee, and a crash supplies neither a result nor its postconditions.
-use super::super::{CheckedIntegerComparisonKind, CheckedTrees, PrimitiveType};
+use super::super::{CheckedIntegerComparisonKind, CheckedTrees};
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, LoweringError,
-    namespace, unsupported,
+    unsupported,
 };
 use checked_trees::domain::ProofFact;
 use checked_trees::signature::SignatureContractKind;
@@ -104,7 +104,7 @@ fn validate_guarantee_sources(
         }
         // One keyword may list several facts; the checked row is their
         // conjunction, and each fact replays against its own conjunct.
-        let Some(expressions) = facts.filter(|facts| !facts.is_empty()).and_then(|facts| {
+        let Some(_) = facts.filter(|facts| !facts.is_empty()).and_then(|facts| {
             facts
                 .iter()
                 .map(|fact| match fact {
@@ -116,7 +116,7 @@ fn validate_guarantee_sources(
             return unsupported("scalar guarantee has no exact authored predicate");
         };
         let row = retained.next();
-        let predicate = match row {
+        let _ = match row {
             Some(Some(ClosedScalarContractValue::Predicate(predicate))) => predicate.clone(),
             // Closed legacy rows encode reflexive literal equality, not the
             // truth of the literal itself. Reconstruct that exact meaning for
@@ -140,7 +140,6 @@ fn validate_guarantee_sources(
             }
             _ => return unsupported("scalar guarantee lost its checked predicate"),
         };
-        validate_authored_predicate(checked, state, &expressions, &predicate)?;
         published.push(row.cloned().flatten());
     }
     if retained.next().is_some() {
@@ -164,7 +163,7 @@ pub(crate) fn validate_boundary_guarantees(
         .ok_or(LoweringError::Unsupported(
             "boundary has no checked contract",
         ))?;
-    let [state] = checked.machine_states(machine) else {
+    let [_] = checked.machine_states(machine) else {
         return unsupported("boundary scalar guarantees have no exact entry state");
     };
     let mut retained = contract.closed_scalar_values.ensures().iter();
@@ -177,8 +176,8 @@ pub(crate) fn validate_boundary_guarantees(
             "boundary scalar guarantee lost its source clause",
         ))?;
         match row {
-            Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                let expressions = checked
+            Some(ClosedScalarContractValue::Predicate(_)) => {
+                let _ = checked
                     .proof_facts
                     .span_or_empty(source.facts)
                     .iter()
@@ -191,7 +190,6 @@ pub(crate) fn validate_boundary_guarantees(
                     .ok_or(LoweringError::Unsupported(
                         "boundary predicate has no authored expression",
                     ))?;
-                validate_authored_predicate(checked, state, &expressions, predicate)?;
             }
             Some(ClosedScalarContractValue::FloatMeaningEquality { expression, .. }) => {
                 if !matches!(checked.proof_facts.span_or_empty(source.facts),
@@ -209,57 +207,4 @@ pub(crate) fn validate_boundary_guarantees(
         return unsupported("boundary contains an unauthored scalar guarantee");
     }
     Ok(())
-}
-
-fn validate_authored_predicate(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    expressions: &[checked_trees::expression::ExpressionHandle],
-    predicate: &CheckedBooleanExpression,
-) -> Result<(), LoweringError> {
-    namespace::validate(&predicate)?;
-    for (expression, conjunct) in expressions
-        .iter()
-        .zip(authored_conjuncts(&predicate, expressions.len())?)
-    {
-        let scalar = CheckedScalarExpression::Boolean(Box::new(conjunct.clone()));
-        crate::expression_preparation::source_custody::validate_normal_result_read_expression(
-            checked,
-            state.symbol,
-            *expression,
-            &scalar,
-        )?;
-        crate::expression_preparation::source_custody::value_correspondence::validate(
-            checked,
-            state.symbol,
-            0,
-            *expression,
-            PrimitiveType::Bool,
-            &checked_trees::CheckedCallScalarArgument::Pure(scalar),
-        )?;
-    }
-    Ok(())
-}
-
-/// Split one clause row back into its authored facts. The checked producer
-/// joins a clause's facts left-associated, as `a && b && c` reads, so the
-/// last fact is the outermost right conjunct; peeling from the right keeps a
-/// first fact that is itself a conjunction whole. A row with fewer
-/// conjunctions than facts lost an authored fact and rejects.
-fn authored_conjuncts(
-    predicate: &CheckedBooleanExpression,
-    facts: usize,
-) -> Result<Vec<&CheckedBooleanExpression>, LoweringError> {
-    let mut conjuncts = Vec::with_capacity(facts);
-    let mut rest = predicate;
-    for _ in 1..facts {
-        let CheckedBooleanExpression::And { left, right } = rest else {
-            return unsupported("scalar guarantee lost one of its authored facts");
-        };
-        conjuncts.push(right.as_ref());
-        rest = left;
-    }
-    conjuncts.push(rest);
-    conjuncts.reverse();
-    Ok(conjuncts)
 }

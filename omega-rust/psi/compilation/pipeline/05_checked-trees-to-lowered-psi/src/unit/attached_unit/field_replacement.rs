@@ -365,7 +365,6 @@ pub(crate) fn replaced_array_literal(
 pub(crate) struct ArrayLiteralLeaf {
     pub(crate) indices: Vec<u64>,
     pub(crate) value: checked_trees::CheckedStructuralValueHandle,
-    pub(crate) expression: checked_trees::expression::ExpressionHandle,
     pub(crate) type_reference: checked_trees::types::TypeReferenceHandle,
 }
 
@@ -422,7 +421,6 @@ pub(crate) fn array_literal_leaves(
                 leaves.push(ArrayLiteralLeaf {
                     indices: indices.clone(),
                     value: element,
-                    expression: authored,
                     type_reference: *element_type,
                 });
             }

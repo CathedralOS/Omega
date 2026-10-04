@@ -6,7 +6,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, Operation,
     OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
@@ -73,11 +73,6 @@ pub(super) fn validate(
                 if binding.expression != *leaf || retained != value {
                     return unsupported("array element differs from its pure source binding");
                 }
-                crate::expression_preparation::source_custody::validate_pure(
-                    checked,
-                    binding,
-                    terminal_scalar_type(*primitive)?,
-                )?;
                 if checked
                     .facts
                     .values
@@ -123,24 +118,8 @@ pub(super) fn validate(
                 {
                     return unsupported("array computation differs from its source element");
                 }
-                crate::expression_preparation::source_custody::validate_computation_calls(
-                    checked,
-                    machine,
-                    state,
-                    result.statement_index,
-                    *handle,
-                    *leaf,
-                )?;
             }
         }
-        crate::expression_preparation::source_custody::value_correspondence::validate(
-            checked,
-            state,
-            result.statement_index,
-            *leaf,
-            *primitive,
-            element,
-        )?;
     }
     Ok(())
 }

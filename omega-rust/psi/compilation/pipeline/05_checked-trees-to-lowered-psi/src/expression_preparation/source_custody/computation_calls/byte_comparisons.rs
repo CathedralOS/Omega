@@ -44,24 +44,6 @@ pub(crate) fn operands(
     }
 }
 
-pub(crate) fn validate(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement: u32,
-    expression: ExpressionHandle,
-    operand_type: checked_trees::types::TypeReferenceHandle,
-    subject: &CheckedUnitStructuralArgumentPlan,
-) -> Result<
-    Vec<(
-        ExpressionHandle,
-        checked_trees::CheckedScalarComputationHandle,
-    )>,
-    LoweringError,
-> {
-    let (operand, _, _) = operands(checked, expression)?;
-    validate_operand_provenance(checked, state, statement, operand, operand_type, subject)
-}
-
 /// Every byte-content query re-derives its operand's authored provenance the
 /// same way: the comparison or predicate cannot substitute the operand's
 /// type reference, storage root, projection path, carrier identity, or

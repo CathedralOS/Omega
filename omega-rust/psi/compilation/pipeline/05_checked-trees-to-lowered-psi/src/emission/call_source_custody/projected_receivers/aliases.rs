@@ -759,7 +759,6 @@ fn call_result_source(
             root_symbol: local.symbol,
             segments: Vec::new(),
         },
-        erased_alias: false,
         alias_bridges: Vec::new(),
     }))
 }

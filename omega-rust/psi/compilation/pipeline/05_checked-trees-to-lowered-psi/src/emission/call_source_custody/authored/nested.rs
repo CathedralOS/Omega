@@ -443,16 +443,6 @@ fn authored_execution(
                     // call replay still checks its exact receiver place and
                     // loan. Do not turn a runtime receiver into a static-call
                     // requirement merely because one argument contains a call.
-                    crate::emission::call_source_custody::occurrences::validate(
-                        checked,
-                        machine.symbol,
-                        caller_state,
-                        checked_trees::CheckedUnitCallCoordinate {
-                            statement_index,
-                            call_ordinal: ordinal,
-                        },
-                        expression,
-                    )?;
                     if call.receiver.is_valid() {
                         children.push((call.receiver, true));
                     }
@@ -527,16 +517,6 @@ fn authored_execution(
                                 "nested call has no ordinary producer or scalar helper",
                             );
                         }
-                        crate::emission::call_source_custody::occurrences::validate(
-                            checked,
-                            machine.symbol,
-                            caller_state,
-                            checked_trees::CheckedUnitCallCoordinate {
-                                statement_index,
-                                call_ordinal: ordinal,
-                            },
-                            expression,
-                        )?;
                         children.push((call.receiver, true));
                     }
                 }

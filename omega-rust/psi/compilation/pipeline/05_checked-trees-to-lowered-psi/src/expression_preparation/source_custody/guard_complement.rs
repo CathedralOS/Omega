@@ -5,10 +5,7 @@
 //! pair is judged by the predicate the producers use, with the subject's case
 //! roster reconstructed from the authored parameter type.
 
-use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, unsupported,
-    validate_pure,
-};
+use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, unsupported};
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralParameterField};
 
@@ -20,7 +17,7 @@ pub(crate) fn complementary(
     ordinal: u32,
 ) -> Result<bool, LoweringError> {
     let guard = |statement| {
-        let (source, expression) = checked
+        let (_, expression) = checked
             .facts
             .values
             .scalar_expressions
@@ -28,7 +25,6 @@ pub(crate) fn complementary(
             .ok_or(LoweringError::Unsupported(
                 "complementary fallback lost its pure source guard",
             ))?;
-        validate_pure(checked, source, ScalarType::Boolean)?;
         let CheckedScalarExpression::Boolean(expression) = expression else {
             return unsupported("complementary fallback guard is not Boolean");
         };

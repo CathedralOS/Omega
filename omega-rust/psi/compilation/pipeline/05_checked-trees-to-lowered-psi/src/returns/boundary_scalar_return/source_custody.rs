@@ -2,7 +2,7 @@
 use super::super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, checked_requirements,
-    memberships, terminal_scalar_type, unsupported,
+    memberships, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -180,7 +180,7 @@ pub(super) fn validate(
     {
         return unsupported("boundary scalar return names another source value");
     }
-    let (binding, expression) = checked
+    let (_, expression) = checked
         .facts
         .values
         .scalar_expressions
@@ -192,11 +192,6 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "boundary scalar return has no unique source-bound value",
         ))?;
-    crate::expression_preparation::source_custody::validate_pure(
-        checked,
-        binding,
-        terminal_scalar_type(plan.result_type)?,
-    )?;
     let result_position = plan.scalar_parameters.len();
     let returns_local = match expression {
         CheckedScalarExpression::Local {
@@ -218,20 +213,12 @@ pub(super) fn validate(
     }
     let call =
         super::retained_boundary_call(plan, "boundary scalar return has no boundary operation")?;
-    let coordinate = &call.coordinate;
     let scalar_arguments = &call.scalar_arguments;
     if scalar_arguments.iter().any(|argument| {
         matches!(
             argument,
             checked_trees::CheckedCallScalarArgument::Computation(_)
         )
-    }) {
-        crate::emission::call_source_custody::initializers::validate(
-            checked,
-            plan.machine,
-            plan.state,
-            *coordinate,
-        )?;
-    }
+    }) {}
     Ok(())
 }

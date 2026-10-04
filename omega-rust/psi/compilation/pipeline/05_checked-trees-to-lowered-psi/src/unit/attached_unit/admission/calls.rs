@@ -130,14 +130,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             };
             for operand in call.operands().iter() {
                 match operand {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                        crate::expression_preparation::source_custody::structural::validate(
-                            checked,
-                            caller.machine,
-                            caller.state,
-                            operand,
-                        )?;
-                    }
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
                     CheckedUnitEffectOperationPlan::EstablishScalarArray {
                         source,
                         result,
@@ -181,13 +174,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     let Some(planned) = operation.call() else {
         return Ok(());
     };
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        caller.machine,
-        caller.state,
-        operation,
-        caller.structural_parameters,
-    )?;
     structural_calls::validate_custody(checked, caller.machine, caller.state, operation)?;
     match (planned.route(), planned.result()) {
         // A structural call whose target is not a Unit body is a claim-free
@@ -212,15 +198,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             primitive_locals::unit_calls::validate(
                 checked,
                 caller,
-                operation,
-                target.structural_parameters,
-            )?;
-            crate::emission::call_source_custody::projected_receivers::validate(
-                checked,
-                caller.machine,
-                caller.state,
-                caller.operations,
-                caller.structural_parameters,
                 operation,
                 target.structural_parameters,
             )?;

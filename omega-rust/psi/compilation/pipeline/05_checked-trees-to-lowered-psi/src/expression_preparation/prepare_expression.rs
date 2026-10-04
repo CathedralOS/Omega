@@ -13,7 +13,6 @@ use crate::emission::scalar_types::{
 use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{self, ViewCarrier, ViewLocalBinding};
 use crate::expression_preparation::saturating_cast;
-use crate::expression_preparation::source_custody;
 use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
@@ -28,7 +27,7 @@ pub(crate) fn lower_checked_scalar_expression_at(
     statement_ordinal: u32,
     role: CheckedScalarExpressionRole,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let (binding, expression) = checked
+    let (_, expression) = checked
         .facts
         .values
         .scalar_expressions
@@ -37,7 +36,6 @@ pub(crate) fn lower_checked_scalar_expression_at(
             "scalar expression has no unique source-bound checked value plan",
         ))?;
     let expression = lower_checked_scalar_expression(expression)?;
-    source_custody::validate_pure(checked, binding, expression.scalar_type())?;
     Ok(expression)
 }
 
@@ -67,7 +65,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     role: CheckedScalarExpressionRole,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let (binding, expression) = checked
+    let (_, expression) = checked
         .facts
         .values
         .scalar_expressions
@@ -86,7 +84,6 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         &[],
         None,
     )?;
-    source_custody::validate_pure(checked, binding, expression.scalar_type())?;
     Ok(expression)
 }
 

@@ -345,7 +345,6 @@ pub(super) fn validate(
     {
         return unsupported("primitive store return result differs from its authored expression");
     }
-    crate::expression_preparation::source_custody::validate_namespace(checked, binding)?;
     Ok(true)
 }
 

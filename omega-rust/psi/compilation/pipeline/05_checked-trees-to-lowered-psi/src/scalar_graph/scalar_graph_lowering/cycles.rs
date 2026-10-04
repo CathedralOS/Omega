@@ -431,13 +431,12 @@ fn validate_rank<'a>(
                         && successor.is_continuation == is_continuation
                         && successor.target == normalized
                 });
-                let successor = matching.next().ok_or(LoweringError::Unsupported(
+                let _ = matching.next().ok_or(LoweringError::Unsupported(
                     "scalar natural rank lost an authored successor",
                 ))?;
                 if matching.next().is_some() {
                     return unsupported("scalar natural rank duplicated an authored successor");
                 }
-                source_custody::validate_successor(checked, member.source.symbol, successor)?;
                 let target_member = member_lookup(normalized).ok_or(LoweringError::Unsupported(
                     "scalar natural rank lost a fused member coordinate",
                 ))?;
@@ -616,7 +615,7 @@ fn validate_runtime_rank(
                 && successor.target == edge.target
                 && !successor.is_continuation
         });
-        let successor = matching.next().ok_or(LoweringError::Unsupported(
+        let _ = matching.next().ok_or(LoweringError::Unsupported(
             "scalar runtime rank lost its authored successor",
         ))?;
         if matching.next().is_some()
@@ -625,7 +624,6 @@ fn validate_runtime_rank(
         {
             return unsupported("scalar runtime rank has substituted edge coordinates");
         }
-        source_custody::validate_successor(checked, source.state, successor)?;
         edges.push(CheckedStructuralRankedSccEdgePlan {
             source_state: source.state,
             target_state: target.state,

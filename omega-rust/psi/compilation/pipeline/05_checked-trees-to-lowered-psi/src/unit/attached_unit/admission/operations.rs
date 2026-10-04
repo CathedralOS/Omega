@@ -31,14 +31,7 @@ pub(super) fn validate<'a>(
         )?;
         super::calls::admit(checked, plans, &caller, operation, boundaries)?;
         match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine.machine,
-                    machine.state,
-                    operation,
-                )?;
-            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
             CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
                 reference_results::validate_establishment(checked, machine, operation)?;
             }

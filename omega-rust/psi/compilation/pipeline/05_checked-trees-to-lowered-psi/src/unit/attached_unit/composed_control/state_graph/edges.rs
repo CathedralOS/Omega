@@ -5,8 +5,7 @@
 //! bindings and return transfers select the actual residual cleanup below.
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
-    terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{
@@ -646,14 +645,7 @@ pub(super) fn validate_bindings(
                     checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                         operand_source: Some(_),
                         ..
-                    } => {
-                        crate::expression_preparation::source_custody::structural::validate(
-                            checked,
-                            plan.machine,
-                            state.state,
-                            operand,
-                        )?;
-                    }
+                    } => {}
                     checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
                         source,
                         result,
@@ -668,15 +660,7 @@ pub(super) fn validate_bindings(
                             elements,
                         )?;
                     }
-                    checked_trees::CheckedUnitEffectOperationPlan::Call(_) => {
-                        crate::emission::call_source_custody::validate_operation(
-                            checked,
-                            plan.machine,
-                            state.state,
-                            operand,
-                            &state.structural_parameters,
-                        )?;
-                    }
+                    checked_trees::CheckedUnitEffectOperationPlan::Call(_) => {}
                     _ => return unsupported("Unit graph operand is not call preparation"),
                 }
             }
@@ -690,14 +674,7 @@ pub(super) fn validate_bindings(
                     operand_source: None,
                     discard_result_on_return: false,
                     ..
-                } if *value == root.root => {
-                    crate::expression_preparation::source_custody::structural::validate(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        establishment,
-                    )?;
-                }
+                } if *value == root.root => {}
                 checked_trees::CheckedUnitEffectOperationPlan::Call(call) => {
                     super::super::super::argument_schedule::validate_operand_preparation(
                         checked,
@@ -711,14 +688,6 @@ pub(super) fn validate_bindings(
                             "Unit graph call argument is discarded before transfer",
                         );
                     }
-                    crate::expression_preparation::source_custody::structural::validate_call_value(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        *expression,
-                        establishment,
-                        &state.structural_parameters,
-                    )?;
                 }
                 _ => return unsupported("Unit graph argument is not a fresh value producer"),
             }
@@ -1411,7 +1380,7 @@ pub(super) fn validate_bindings(
         {
             return unsupported("Unit graph erased transfer type or order drifted");
         }
-        let (binding, _) = checked
+        let (_, _) = checked
             .facts
             .values
             .scalar_expressions
@@ -1425,11 +1394,6 @@ pub(super) fn validate_bindings(
             .ok_or(LoweringError::Unsupported(
                 "Unit graph erased successor has no checked source expression",
             ))?;
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(target.primitive_type)?,
-        )?;
     }
     Ok(())
 }

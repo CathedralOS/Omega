@@ -196,11 +196,6 @@ fn validate_establishment(
             {
                 return unsupported("primitive local substituted its initializer");
             }
-            crate::expression_preparation::source_custody::validate_pure(
-                checked,
-                binding,
-                terminal_scalar_type(*primitive_type)?,
-            )?;
         }
         CheckedCallScalarArgument::Computation(handle) => {
             let computations = &checked.facts.values.scalar_computations;
@@ -231,14 +226,6 @@ fn validate_establishment(
             {
                 return unsupported("primitive local substituted its initializer computation");
             }
-            crate::expression_preparation::source_custody::validate_computation_calls(
-                checked,
-                machine,
-                state,
-                *statement_index,
-                *handle,
-                local.initial_value,
-            )?;
         }
     }
     Ok(())
@@ -248,7 +235,6 @@ pub(super) fn validate_argument_source(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
-    source_target: symbols::SymbolHandle,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<bool, LoweringError> {
@@ -280,15 +266,6 @@ pub(super) fn validate_argument_source(
     {
         return unsupported("primitive local argument substituted its authored borrow");
     }
-    crate::expression_preparation::source_custody::borrow_occurrences::validate(
-        checked,
-        caller.machine,
-        caller.state,
-        coordinate,
-        source_target,
-        symbol,
-        argument.access,
-    )?;
     Ok(true)
 }
 

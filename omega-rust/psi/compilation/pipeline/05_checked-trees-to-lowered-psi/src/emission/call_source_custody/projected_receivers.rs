@@ -3,9 +3,9 @@
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
+use checked_trees::CheckedUnitStructuralPathSegment;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use symbols::SymbolHandle;
 
 pub(crate) mod aliases;
@@ -20,7 +20,6 @@ pub(crate) struct ReceiverSource {
     /// Authored carrier and capture remain distinct from normalized self paths.
     owner: SymbolHandle,
     captured_place: checked_trees::CapturedPlace,
-    erased_alias: bool,
     /// An erased alias (`let v = &mut place[...] as &mut T`) folds the view's
     /// declared type into the path without a segment. Each entry names the
     /// final-path position where that alias's declared referee takes over
@@ -39,16 +38,6 @@ impl ReceiverSource {
     /// the captured prefix replay selected.
     pub(crate) fn alias_bridges(&self) -> &[(usize, TypeReferenceHandle)] {
         &self.alias_bridges
-    }
-
-    /// Storage is selected by `root`; the call captures the authored endpoint.
-    /// Whole self may spell the machine namespace while its root is a formal.
-    pub(crate) fn endpoint(&self) -> SymbolHandle {
-        if self.stamp.is_valid() {
-            self.stamp
-        } else {
-            self.owner
-        }
     }
 }
 
@@ -133,7 +122,6 @@ fn resolve_source(
     let mut path = Vec::new();
     let mut visited = Vec::new();
     let mut stamp = SymbolHandle::invalid();
-    let mut erased_alias = false;
     let mut alias_bridges = Vec::new();
     let mut captured_segments = Vec::new();
     let owner;
@@ -540,7 +528,6 @@ fn resolve_source(
                         formation,
                     )?
                 {
-                    erased_alias = true;
                     let alias_prefix = alias.path.len();
                     alias_bridges.extend(alias.alias_bridges);
                     if let Some((_, local)) = checked.state_local_declaration(state, name.symbol) {
@@ -609,7 +596,6 @@ fn resolve_source(
             root_symbol: captured_root,
             segments: captured_segments,
         },
-        erased_alias,
         alias_bridges,
     })
 }
@@ -709,264 +695,4 @@ fn assignment_selector_depth(
 
 fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {
     CheckedUnitStructuralPathSegment::Field(field.path_identity())
-}
-
-/// Statement calls retain the root and endpoint symbols, with the intervening
-/// field spellings. Resolve that suffix beneath the already-replayed alias
-/// declaration using the same exact field owner as expression receivers.
-fn statement_alias_source(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    call: &checked_trees::statement::TableCall,
-    alias: ReceiverSource,
-) -> Result<ReceiverSource, LoweringError> {
-    let members = checked.statement_table.name_path_members(call.receiver);
-    let (_, local) = checked
-        .state_local_declaration(state, call.receiver_root_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "receiver alias statement lost its declaration",
-        ))?;
-    if members.first() != Some(&local.name) || !call.receiver_symbol.is_valid() {
-        return unsupported("receiver alias statement changed its root or endpoint identity");
-    }
-    let mut reference = local.type_reference;
-    let mut endpoint = local.symbol;
-    let mut path = alias.path;
-    let mut captured_place = alias.captured_place;
-    for (position, member) in members.iter().enumerate().skip(1) {
-        let nominal = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
-            LoweringError::Unsupported("receiver alias field lost its nominal type"),
-        )?;
-        let TypeReferenceNode::Named { symbol, .. } =
-            checked.type_reference_table.type_reference(nominal)
-        else {
-            return unsupported("receiver alias field has no declared record owner");
-        };
-        let owner = checked
-            .data_definitions()
-            .iter()
-            .find(|owner| owner.symbol == *symbol)
-            .ok_or(LoweringError::Unsupported(
-                "receiver alias field owner is absent",
-            ))?;
-        // Intermediate field symbols are not separately retained by TableCall.
-        // Its exact nominal owner must select one field, and the final field
-        // must additionally match the captured receiver endpoint.
-        let retained = if position + 1 == members.len() {
-            call.receiver_symbol
-        } else {
-            SymbolHandle::invalid()
-        };
-        let field = validation::exact_data_member_field(
-            &checked.typed,
-            owner,
-            retained,
-            member.as_str(),
-            None,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "receiver alias field disagrees with its declaration",
-        ))?;
-        if field.relevance.is_erased() {
-            return unsupported("receiver alias cannot select an erased field");
-        }
-        path.push(field_segment(field));
-        captured_place.segments.push(facts::PlaceSegment::Field {
-            symbol: field.symbol,
-        });
-        reference = field.type_reference;
-        endpoint = field.symbol;
-    }
-    if endpoint != call.receiver_symbol {
-        return unsupported("receiver alias statement changed its captured endpoint");
-    }
-    Ok(ReceiverSource {
-        root: alias.root,
-        path,
-        stamp: endpoint,
-        owner: local.symbol,
-        captured_place,
-        erased_alias: alias.erased_alias,
-        alias_bridges: alias.alias_bridges,
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate(
-    checked: &CheckedTrees,
-    caller_machine: SymbolHandle,
-    caller_state: SymbolHandle,
-    caller_operations: &[CheckedUnitEffectOperationPlan],
-    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    operation: &CheckedUnitEffectOperationPlan,
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-) -> Result<(), LoweringError> {
-    // Only ordinary calls rejoin a projected receiver here.
-    let Some(planned) = operation.call().filter(|planned| !planned.is_boundary()) else {
-        return Ok(());
-    };
-    let coordinate = planned.coordinate;
-    let structural_arguments = &planned.structural_arguments;
-    let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
-    let mut targets = target_parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self);
-    let Some((index, target)) = targets.next() else {
-        // An unused receiver may be erased by the existing attachment planner.
-        // No implicit operand remains to grant storage or borrow authority.
-        return Ok(());
-    };
-    let source = match authored.source_site {
-        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
-            let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-                return unsupported("receiver call lost its authored expression");
-            };
-            if !matches!(
-                checked.expression_table.expression(call.receiver),
-                ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Name(_)
-            ) {
-                return Ok(());
-            }
-            source(
-                checked,
-                caller_machine,
-                caller_state,
-                coordinate.statement_index as usize,
-                call.receiver,
-            )?
-        }
-        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
-            let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
-            let Some(checked_trees::statement::StatementNode::Call(call)) = checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(coordinate.statement_index as usize)
-            else {
-                return unsupported("receiver alias lost its authored statement call");
-            };
-            let local = locals::declaration(
-                checked,
-                state,
-                coordinate.statement_index as usize,
-                call.receiver_root_symbol,
-            )
-            .map(|_| ReceiverSource {
-                root: call.receiver_root_symbol,
-                path: Vec::new(),
-                stamp: call.receiver_root_symbol,
-                owner: call.receiver_root_symbol,
-                captured_place: checked_trees::CapturedPlace {
-                    root_symbol: call.receiver_root_symbol,
-                    segments: Vec::new(),
-                },
-                erased_alias: false,
-                alias_bridges: Vec::new(),
-            });
-            let alias = if local.is_some() {
-                local
-            } else {
-                aliases::parameter_source(
-                    checked,
-                    caller_machine,
-                    caller_state,
-                    coordinate.statement_index as usize,
-                    call.receiver_root_symbol,
-                    false,
-                )?
-            };
-            let Some(alias) = alias else {
-                return Ok(());
-            };
-            statement_alias_source(checked, state, call, alias)?
-        }
-        None => return Ok(()),
-    };
-    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
-    if let Some((ordinal, local)) = locals::returned_reference(
-        checked,
-        state,
-        coordinate.statement_index as usize,
-        source.root,
-    ) {
-        if targets.next().is_some() {
-            return unsupported("returned-reference receiver selected multiple self parameters");
-        }
-        let argument = structural_arguments
-            .get(index)
-            .ok_or(LoweringError::Unsupported(
-                "returned-reference receiver argument missing",
-            ))?;
-        return locals::validate_returned_reference(
-            checked,
-            caller_machine,
-            caller_state,
-            caller_operations,
-            coordinate,
-            planned.target.state,
-            authored.source_target,
-            target,
-            argument,
-            &source,
-            ordinal,
-            local,
-        );
-    }
-    if locals::declaration(
-        checked,
-        state,
-        coordinate.statement_index as usize,
-        source.root,
-    )
-    .is_some()
-    {
-        if targets.next().is_some() {
-            return unsupported("local receiver selected multiple self parameters");
-        }
-        let argument = structural_arguments
-            .get(index)
-            .ok_or(LoweringError::Unsupported(
-                "local receiver argument missing",
-            ))?;
-        return locals::validate(
-            checked,
-            caller_machine,
-            caller_state,
-            caller_operations,
-            coordinate,
-            authored.source_target,
-            target,
-            argument,
-            &source,
-        );
-    }
-    let position = checked
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == source.root)
-        .ok_or(LoweringError::Unsupported(
-            "projected receiver lost its source parameter",
-        ))?;
-    let parameter = caller_parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)
-        .ok_or(LoweringError::Unsupported(
-            "projected receiver lost its retained parameter",
-        ))?;
-    let argument = structural_arguments
-        .get(index)
-        .ok_or(LoweringError::Unsupported(
-            "projected receiver operand is absent",
-        ))?;
-    if targets.next().is_some()
-        || (source.erased_alias
-            && target.access != checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
-        || argument.source_parameter_index() != u32::try_from(parameter).ok()
-        || argument.path != source.path
-        || argument.type_identity != target.type_identity
-        || argument.access != target.access
-    {
-        return unsupported("projected receiver operand disagrees with its authored place");
-    }
-    Ok(())
 }

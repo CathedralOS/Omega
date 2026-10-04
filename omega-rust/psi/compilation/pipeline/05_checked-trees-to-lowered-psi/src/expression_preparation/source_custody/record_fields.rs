@@ -8,43 +8,19 @@ use checked_trees::types::TypeReferenceHandle;
 use checked_trees::{CheckedStructuralValueHandle, CheckedTrees};
 use symbols::SymbolHandle;
 
-pub(crate) fn receiver_operands(
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement: u32,
-    receiver_value: CheckedStructuralValueHandle,
-    source_type: TypeReferenceHandle,
-) -> Result<
-    Vec<(
-        checked_trees::CheckedScalarComputationHandle,
-        checked_trees::expression::ExpressionHandle,
-    )>,
-    LoweringError,
-> {
-    match field_receiver_source(checked, statement, receiver_value, source_type) {
-        Some(source) => super::structural::validate_value(checked, machine, state, source),
-        None => Ok(Vec::new()),
-    }
-}
-
 fn field_receiver_source(
     checked: &CheckedTrees,
-    statement: u32,
     receiver_value: CheckedStructuralValueHandle,
     source_type: TypeReferenceHandle,
-) -> Option<StructuralValueSource<'_>> {
+) -> Option<StructuralValueSource> {
     if !receiver_value.is_valid() {
         return None;
     }
     let plans = &checked.facts.values.structural_values;
     Some(StructuralValueSource {
-        statement_index: statement,
         expression: plans.nodes.get(receiver_value).expression,
         type_reference: source_type,
         value: receiver_value,
-        operand_calls: plans.calls_for_root(receiver_value).unwrap_or(&[]),
-        selection: None,
     })
 }
 
@@ -54,7 +30,7 @@ pub(crate) fn field_receiver_sources(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: u32,
-) -> Result<Vec<StructuralValueSource<'_>>, LoweringError> {
+) -> Result<Vec<StructuralValueSource>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans
         .roots
@@ -64,7 +40,7 @@ pub(crate) fn field_receiver_sources(
         })
         .map(|(_, root)| root.root)
         .collect::<Vec<_>>();
-    let mut sources: Vec<StructuralValueSource<'_>> = Vec::new();
+    let mut sources: Vec<StructuralValueSource> = Vec::new();
     for handle in
         crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
     {
@@ -77,8 +53,7 @@ pub(crate) fn field_receiver_sources(
         else {
             continue;
         };
-        let Some(source) = field_receiver_source(checked, statement, *receiver_value, *source_type)
-        else {
+        let Some(source) = field_receiver_source(checked, *receiver_value, *source_type) else {
             continue;
         };
         if !sources

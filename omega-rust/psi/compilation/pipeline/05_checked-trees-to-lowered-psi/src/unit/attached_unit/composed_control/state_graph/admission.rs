@@ -2,7 +2,7 @@
 use super::super::super::super::{CheckedComposedUnitControlTerminatorPlan, PrimitiveType};
 use super::super::super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
-    Multiplicity, ScalarType, unsupported,
+    Multiplicity, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{
@@ -1547,14 +1547,7 @@ pub(super) fn validate_arm_call(
     )?;
     for operand in operands.iter() {
         match operand {
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    operand,
-                )?;
-            }
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
             checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source,
                 result,
@@ -1574,13 +1567,6 @@ pub(super) fn validate_arm_call(
             _ => {}
         }
     }
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        plan.machine,
-        state.state,
-        operation,
-        &state.structural_parameters,
-    )?;
     edges::return_discards(checked, plan.machine, source, state)?;
     Ok(ordinal)
 }
@@ -1604,17 +1590,12 @@ fn validate_guard(
             if pure != Some(expression) {
                 return unsupported("Unit graph guard disagrees with checked expression");
             }
-            let (binding, _) = values
+            let (_, _) = values
                 .scalar_expressions
                 .bound_expression_at(state, statement, role)
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph guard has no exact source binding",
                 ))?;
-            crate::expression_preparation::source_custody::validate_pure(
-                checked,
-                binding,
-                ScalarType::Boolean,
-            )?;
             if expression.primitive_type() != Some(PrimitiveType::Bool) {
                 return unsupported("Unit graph guard is not Boolean");
             }

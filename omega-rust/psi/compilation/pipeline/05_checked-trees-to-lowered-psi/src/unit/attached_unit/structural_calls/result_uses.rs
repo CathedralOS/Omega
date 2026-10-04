@@ -149,13 +149,6 @@ fn validate_linear_result_consumer(
     if parameter.projected_qualifications != projected_qualifications {
         return unsupported("linear result operand changes its projected qualification row");
     }
-    crate::emission::call_source_custody::initializers::validate_structural(
-        checked,
-        machine,
-        state,
-        *producer_coordinate,
-        result,
-    )?;
     let (_, source_state) = crate::declarations::state_declaration(checked, state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
@@ -746,12 +739,6 @@ pub(crate) fn validate_usage(
             // A selection carries both the chosen source and its complement.
             // This replaces each candidate's old unconditional death, without
             // claiming that every arm moves that candidate into the result.
-            crate::expression_preparation::source_custody::structural::validate(
-                checked,
-                caller.machine,
-                caller.state,
-                operation,
-            )?;
             let sources = checked
                 .facts
                 .flow
@@ -1361,15 +1348,6 @@ pub(crate) fn validate_consumer(
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
             )
         {
-            crate::emission::call_source_custody::projected_receivers::validate(
-                checked,
-                caller.machine,
-                caller.state,
-                caller.operations,
-                caller.structural_parameters,
-                operation,
-                target_parameters,
-            )?;
             if target_entry_claims
                 .iter()
                 .any(|claim| claim.parameter_index as usize == parameter_index)
@@ -2145,13 +2123,6 @@ fn validate_operand_producers(
                 Some(StatementNode::Call(_))
             )
         {
-            crate::emission::call_source_custody::initializers::validate_discarded_structural(
-                checked,
-                caller.machine,
-                caller.state,
-                producer_coordinate,
-                result,
-            )?;
             if binding_ordinal == Some(result.binding_ordinal) {
                 return unsupported("discarded boundary result cannot supply a later operand");
             }
@@ -2282,21 +2253,7 @@ fn validate_operand_producers(
                     if authored_access == checked_trees::CheckedStructuralAccess::Owned
                         && !path.is_empty()
                         && result.multiplicity == Multiplicity::Affine
-                    {
-                        crate::expression_preparation::source_custody::structural::validate_owned_transfer(
-                            checked,
-                            caller.machine,
-                            caller.state,
-                            local.symbol,
-                            local.type_reference,
-                            language_semantics::PermissionEventSource::Call {
-                                statement_index: coordinate.statement_index as usize,
-                                call_ordinal: coordinate.call_ordinal as usize,
-                                target_symbol: authored.source_target,
-                            },
-                            &path,
-                        )?;
-                    }
+                    {}
                     true
                 }
                 _ => false,

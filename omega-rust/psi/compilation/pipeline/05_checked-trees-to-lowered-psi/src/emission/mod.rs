@@ -10,7 +10,6 @@ use checked_trees::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
 };
-use language_semantics::Multiplicity;
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };

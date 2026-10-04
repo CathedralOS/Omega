@@ -2,12 +2,9 @@
 
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
-    ScalarType, SourceRoot, terminal_scalar_type, unsupported,
+    unsupported,
 };
 pub(super) struct DirectCall<'a> {
-    source: SourceRoot,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
     /// The retained authored actuals, in dense argument-ordinal order. An
     /// `[erased]` parameter's actual is proof material with no `CallArgument`
     /// role (contracts.md#explicit-erased-bindings), so it is absent here,
@@ -46,7 +43,7 @@ pub(super) fn locate(
                 .then_some((machine, entry))
         })
     });
-    let (machine, entry) = targets.next().ok_or(LoweringError::Unsupported(
+    let (_, entry) = targets.next().ok_or(LoweringError::Unsupported(
         "direct scalar binding has no authored callee entry",
     ))?;
     if targets.next().is_some() {
@@ -79,36 +76,7 @@ pub(super) fn locate(
         .map(|(argument, parameter)| (*argument, parameter))
         .unzip();
     Ok(DirectCall {
-        source,
-        target_machine: machine.symbol,
-        target_state: entry.symbol,
         arguments,
         parameters,
     })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate(
-    checked: &CheckedTrees,
-    caller_machine: symbols::SymbolHandle,
-    caller_state: symbols::SymbolHandle,
-    statement: u32,
-    binding_ordinal: u32,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
-    call_ordinal: u32,
-    argument_count: u32,
-    result_type: ScalarType,
-) -> Result<(), LoweringError> {
-    let call = locate(checked, caller_state, statement, binding_ordinal)?;
-    if call.source.machine != caller_machine
-        || call.target_machine != target_machine
-        || call.target_state != target_state
-        || call_ordinal != 0
-        || usize::try_from(argument_count).ok() != Some(call.arguments.len())
-        || terminal_scalar_type(call.source.primitive_type)? != result_type
-    {
-        return unsupported("direct scalar call disagrees with its authored declaration or target");
-    }
-    Ok(())
 }

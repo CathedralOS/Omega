@@ -182,13 +182,6 @@ pub(crate) fn locate_source(
                 ))?;
         match occurrence {
             nested::AuthoredOccurrence::Expression(expression) => {
-                super::occurrences::validate(
-                    checked,
-                    machine.symbol,
-                    caller_state,
-                    coordinate,
-                    expression,
-                )?;
                 expression_call(checked, expression)?
             }
             nested::AuthoredOccurrence::TransitionTarget(target) => {
@@ -202,13 +195,6 @@ pub(crate) fn locate_source(
     } else {
         match statement {
             StatementNode::Transition(_) if let Some(subject) = dispatch_subject => {
-                super::occurrences::validate(
-                    checked,
-                    machine.symbol,
-                    caller_state,
-                    coordinate,
-                    subject,
-                )?;
                 expression_call(checked, subject)?
             }
             StatementNode::Transition(_) if coordinate.call_ordinal == 0 => {
@@ -248,13 +234,6 @@ pub(crate) fn locate_source(
                 expression_call(checked, local.initial_value)?
             }
             StatementNode::Assignment(assignment) if coordinate.call_ordinal == 0 => {
-                super::occurrences::validate(
-                    checked,
-                    machine.symbol,
-                    caller_state,
-                    coordinate,
-                    assignment.value,
-                )?;
                 expression_call(checked, assignment.value)?
             }
             StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
@@ -264,13 +243,6 @@ pub(crate) fn locate_source(
                     state,
                     *expression,
                 ) {
-                    super::occurrences::validate(
-                        checked,
-                        machine.symbol,
-                        state.symbol,
-                        coordinate,
-                        *expression,
-                    )?;
                 } else if !state.return_type.is_valid()
                     || matches!(
                         program

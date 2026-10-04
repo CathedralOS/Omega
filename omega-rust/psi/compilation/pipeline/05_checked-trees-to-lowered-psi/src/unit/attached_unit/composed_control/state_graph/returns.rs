@@ -353,11 +353,6 @@ pub(super) fn validate_case(
         {
             return unsupported("case return field expression disagrees with source");
         }
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(field.primitive_type)?,
-        )?;
     }
     Ok(())
 }
@@ -540,23 +535,10 @@ pub(super) fn validate_structural(
                         state.state,
                         operation,
                     )?;
-                    crate::emission::call_source_custody::validate_operation(
-                        checked,
-                        super::owner(checked, state.state)?,
-                        state.state,
-                        operation,
-                        &state.structural_parameters,
-                    )?;
                 } else if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 ) {
-                    crate::expression_preparation::source_custody::structural::validate(
-                        checked,
-                        super::owner(checked, state.state)?,
-                        state.state,
-                        operation,
-                    )?;
                 } else if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }

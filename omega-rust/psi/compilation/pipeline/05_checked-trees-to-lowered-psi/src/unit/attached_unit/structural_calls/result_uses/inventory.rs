@@ -66,13 +66,6 @@ pub(crate) fn with_expression_consumers(
             if !uses_body_result {
                 continue;
             }
-            crate::emission::call_source_custody::validate_operation(
-                checked,
-                caller.machine,
-                caller.state,
-                operation,
-                &caller.structural_parameters,
-            )?;
             // Shared observation keeps its backing debt. Whole owned transfer
             // cannot use a selected-only occurrence as unconditional retirement.
             let retires_body_result = call.structural_arguments.iter().any(|argument| {

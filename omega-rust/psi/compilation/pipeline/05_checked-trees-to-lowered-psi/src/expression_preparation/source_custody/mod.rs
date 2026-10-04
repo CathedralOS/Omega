@@ -32,10 +32,7 @@
 //! `guard_complement` and `storage_reads`, and `computation_calls` uses
 //! `case_sources`, `record_fields`, `comparisons` and `value_correspondence`.
 
-use super::{
-    CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
-    PrimitiveType, ScalarType, terminal_scalar_type, unsupported,
-};
+use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
@@ -75,38 +72,7 @@ pub(crate) mod guard_complement;
 pub(crate) mod guarded_exits;
 pub(crate) mod successors;
 
-pub(crate) use computation_calls::validate_computation_calls;
 pub(crate) use parameters::{borrowed_parameter_custody, parameter_storage};
-pub(crate) use storage_reads::validate_entry_read_expression;
-pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
-pub(crate) use storage_reads::validate_normal_result_read_expression;
-
-/// The erased carrier for `let slots: &mut [T] = self.items
-/// .as_mut_slice()`: the compiler-owned mutable view call lends the exact
-/// collection it views, so the local binds no storage and each write through
-/// it rejoins that place. The typed call node keeps its authored spelling;
-/// the `target_symbol` stays invalid because the language owns the
-/// operation, so a declared callee spelled the same way is not this carrier.
-pub(crate) fn is_exclusive_view_call_loan_marker(
-    checked: &CheckedTrees,
-    local: &checked_trees::statement::TableLocalData,
-) -> bool {
-    matches!(
-        checked.expression_table.expression(local.initial_value),
-        checked_trees::expression::ExpressionNode::Call(call)
-            if !call.target_symbol.is_valid()
-                && call.receiver.is_valid()
-                && checked
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .is_empty()
-                && language_semantics::declaration_selection::CollectionViewOperation::from_authored_spelling(
-                    call.target.as_str(),
-                ) == Some(
-                    language_semantics::declaration_selection::CollectionViewOperation::MutableSlice,
-                )
-    )
-}
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
     matches!(
@@ -692,132 +658,6 @@ pub(crate) fn locate(
         destination,
         primitive_type,
     })
-}
-
-pub(crate) fn validate_pure(
-    checked: &CheckedTrees,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
-    scalar_type: ScalarType,
-) -> Result<(), LoweringError> {
-    let source = locate(
-        checked,
-        binding.state,
-        binding.statement_ordinal,
-        binding.role,
-    )?;
-    if source.expression != binding.expression
-        || source.destination != binding.destination
-        || terminal_scalar_type(source.primitive_type)? != scalar_type
-    {
-        return unsupported(
-            "pure scalar plan disagrees with its authored expression or destination",
-        );
-    }
-    validate_namespace(checked, binding)?;
-    if !source.expression.is_valid() {
-        // `locate` admits absence only for a zero-valid mutable primitive's own
-        // declaration. Reconstruct its default value independently, rather
-        // than treating a missing expression as an unconstrained value.
-        let (_, value) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(binding.state, binding.statement_ordinal, binding.role)
-            .ok_or(LoweringError::Unsupported(
-                "implicit primitive initializer lost its value",
-            ))?;
-        let is_zero = match value {
-            checked_trees::CheckedScalarExpression::IntegerLiteral { literal } => {
-                literal.value_bignum().is_some_and(|value| value.is_zero())
-                    && literal.landing().is_some_and(|landing| {
-                        landing.domain == numerics::arithmetic::ArithmeticDomain::Exact
-                    })
-            }
-            checked_trees::CheckedScalarExpression::Boolean(value) => matches!(
-                value.as_ref(),
-                checked_trees::CheckedBooleanExpression::Constant(false)
-            ),
-            checked_trees::CheckedScalarExpression::IeeeFloatLiteral { value } => matches!(
-                value,
-                semantic_vocabulary::IeeeFloatValue::Binary32(0)
-                    | semantic_vocabulary::IeeeFloatValue::Binary64(0)
-            ),
-            _ => false,
-        };
-        if value.primitive_type() != Some(source.primitive_type) || !is_zero {
-            return unsupported("implicit primitive initializer substituted its declared zero");
-        }
-        return Ok(());
-    }
-    storage_reads::validate(checked, binding, &source)
-}
-
-pub(crate) fn validate_namespace(
-    checked: &CheckedTrees,
-    binding: &checked_trees::CheckedScalarExpressionBindings,
-) -> Result<(), LoweringError> {
-    let program = &checked.typed;
-    let (machine, state) = crate::declarations::state_declaration(checked, binding.state)?;
-    let preceding = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..binding.statement_ordinal as usize)
-        .ok_or(LoweringError::Unsupported(
-            "scalar source custody has no authored statement prefix",
-        ))?;
-    let expected = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
-            // An `[erased]` binding occupies no position in this namespace.
-            !parameter.relevance.is_erased()
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-        })
-        .map(|parameter| parameter.symbol)
-        .chain(preceding.iter().filter_map(|statement| {
-            match statement {
-                StatementNode::LocalData(local)
-                    if !local.is_mutable
-                        && local.initial_value.is_valid()
-                        && program
-                            .primitive_type_reference(structural::declared_view_binding_type(
-                                checked,
-                                machine,
-                                state,
-                                local.type_reference,
-                                local.initial_value,
-                            ))
-                            .is_some() =>
-                {
-                    Some(local.symbol)
-                }
-                _ => None,
-            }
-        }));
-    let retained = checked
-        .facts
-        .values
-        .scalar_expressions
-        .binding_symbols
-        .span(binding.symbols)
-        .ok_or(LoweringError::Unsupported(
-            "pure scalar plan has an invalid declaration namespace",
-        ))?;
-    if !expected.eq(retained.iter().copied()) {
-        return unsupported("pure scalar plan disagrees with its authored declaration namespace");
-    }
-    Ok(())
-}
-
-/// A successor selects the authored target even when it carries no values.
-pub(crate) fn validate_successor(
-    checked: &CheckedTrees,
-    source_state: symbols::SymbolHandle,
-    successor: &CheckedScalarSuccessor,
-) -> Result<(), LoweringError> {
-    successors::validate(checked, source_state, successor)
 }
 
 /// The authored range expression one subslice site names in `authored`: a

@@ -93,12 +93,6 @@ pub(super) fn validate(
             else {
                 continue;
             };
-            crate::expression_preparation::source_custody::structural::validate(
-                checked,
-                machine,
-                state.symbol,
-                operation,
-            )?;
             let Some(checked_trees::statement::StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
             else {

@@ -67,7 +67,6 @@ pub(crate) use entry_requirements::lower as lower_entry_requirements;
 // with the provider attachment roots a body establishes first.
 pub(crate) mod argument_evaluation;
 pub(crate) mod argument_schedule;
-pub(crate) use argument_schedule::validate_operand_preparation;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;
@@ -80,9 +79,7 @@ mod provider_attachments;
 // The operations a body lowers, each with its exact source custody.
 mod byte_subslices;
 mod field_replacement;
-pub(crate) use field_replacement::{
-    array_literal_leaves, replaced_array_literal, validate_array_element_replacements,
-};
+pub(crate) use field_replacement::{replaced_array_literal, validate_array_element_replacements};
 pub(crate) mod byte_locals;
 mod ordinary_calls;
 mod parameters;

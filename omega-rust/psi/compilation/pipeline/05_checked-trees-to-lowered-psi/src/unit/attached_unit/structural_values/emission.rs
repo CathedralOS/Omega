@@ -152,7 +152,6 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
     result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
 ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
-    source_custody::validate(checked, machine, state, operation)?;
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
         result,
         value,

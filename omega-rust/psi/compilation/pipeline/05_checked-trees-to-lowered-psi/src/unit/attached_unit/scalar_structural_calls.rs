@@ -92,7 +92,6 @@ pub(super) fn validate_call_source(
             checked,
             caller,
             *coordinate,
-            authored.source_target,
             argument,
             expression,
         )? {

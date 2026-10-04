@@ -26,8 +26,6 @@ enum ObservationStep {
 /// Argument evaluation may read selectors before retaining its operand loan.
 #[derive(Clone, Copy)]
 pub(crate) struct ArgumentAccessExtent {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
     operand: Option<usize>,
 }
 
@@ -210,7 +208,6 @@ pub(crate) fn replay(
     )?;
     let parameters = explicit_parameters(signature.parameters, arguments.len())?;
     for (argument, parameter) in arguments.iter().zip(parameters) {
-        let start = position;
         let mut operand = None;
         let forwarded_access = selected_access(*argument, parameter.type_reference);
         let mut pending = vec![ObservationStep::Enter(*argument, true, forwarded_access)];
@@ -592,11 +589,7 @@ pub(crate) fn replay(
                 pending.push(ObservationStep::Enter(receiver, false, None));
             }
         }
-        positions.push(ArgumentAccessExtent {
-            start,
-            end: position,
-            operand,
-        });
+        positions.push(ArgumentAccessExtent { operand });
     }
     if position != rows.len() {
         return unsupported("computed shared borrow has extra observation rows");

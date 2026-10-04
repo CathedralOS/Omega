@@ -270,11 +270,6 @@ pub(crate) fn validate(
                 {
                     return unsupported("case field store substituted or reordered an operand");
                 }
-                crate::expression_preparation::source_custody::validate_pure(
-                    checked,
-                    binding,
-                    super::terminal_scalar_type(field.primitive_type)?,
-                )?;
             }
         }
         _ => return unsupported("case store source replay received another operation"),

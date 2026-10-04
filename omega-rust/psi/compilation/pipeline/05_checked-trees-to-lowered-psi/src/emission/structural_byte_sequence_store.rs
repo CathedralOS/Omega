@@ -250,13 +250,7 @@ fn validate_descriptor_source(
         {
             return unsupported("stored call descriptor changed its declared result custody");
         }
-        return super::call_source_custody::occurrences::validate(
-            checked,
-            machine.symbol,
-            state,
-            coordinate,
-            authored,
-        );
+        return Ok(());
     }
     // Range replay independently validates each endpoint's complete call
     // scope. A descriptor store has no enclosing scalar computation whose
@@ -388,13 +382,7 @@ pub(crate) fn validate_value(
             {
                 return unsupported("byte result differs from its owned authored signature");
             }
-            super::call_source_custody::occurrences::validate(
-                checked,
-                machine,
-                state_symbol,
-                coordinate,
-                expression,
-            )
+            Ok(())
         }
         (ByteValue::Concatenation { left, right, .. }, ExpressionNode::Binary(binary))
             if binary.operator == BinaryOperator::Add

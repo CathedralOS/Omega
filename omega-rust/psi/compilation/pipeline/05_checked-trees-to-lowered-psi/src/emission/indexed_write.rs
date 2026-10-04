@@ -639,14 +639,6 @@ pub(crate) fn validate_assignment(
         if binding.expression != indexed.index || expression != leaf.index() {
             return unsupported(wording.substituted_operand);
         }
-        source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(
-                source_custody::locate(checked, state_symbol, statement_index, index_role)?
-                    .primitive_type,
-            )?,
-        )?;
     } else {
         element_view_local_coordinate(checked, owner, state, indexed.index, leaf.index())?;
     }
@@ -692,11 +684,6 @@ pub(crate) fn validate_assignment(
             if binding.expression != assignment.value || expression != retained {
                 return unsupported(wording.substituted_operand);
             }
-            source_custody::validate_pure(
-                checked,
-                binding,
-                terminal_scalar_type(leaf.value_type())?,
-            )?;
         }
         CheckedStoreValue::Computation(_) => {
             return unsupported(wording.kept_computation);

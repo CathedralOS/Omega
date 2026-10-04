@@ -217,14 +217,6 @@ fn source_checked_computation_targets(
         {
             return unsupported("embedded computation disagrees with its authored source root");
         }
-        crate::expression_preparation::source_custody::validate_computation_calls(
-            checked,
-            machine,
-            root.state,
-            root.statement_ordinal,
-            root.root,
-            source.expression,
-        )?;
     }
     crate::expression_preparation::computation_graph::call_targets(checked, machine)
 }

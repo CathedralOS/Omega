@@ -64,7 +64,6 @@ pub(super) fn coordinate(
 /// Borrow the actual published caller signature, independently of its result representation.
 pub(super) struct Caller<'a> {
     pub(super) state: symbols::SymbolHandle,
-    pub(super) structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
     pub(super) erased_proof_parameters: &'a [checked_trees::CheckedErasedProofParameterPlan],
 }
 
@@ -85,7 +84,6 @@ impl<'a> Caller<'a> {
         {
             return Ok(Self {
                 state,
-                structural_parameters: &plan.structural_parameters,
                 erased_proof_parameters: &plan.erased_proof_parameters,
             });
         }
@@ -95,7 +93,6 @@ impl<'a> Caller<'a> {
         )? {
             UnitBody::Ordinary(plan) if plan.state == state => Ok(Self {
                 state,
-                structural_parameters: &plan.structural_parameters,
                 erased_proof_parameters: &plan.erased_proof_parameters,
             }),
             UnitBody::Composed(plan) => {
@@ -104,7 +101,6 @@ impl<'a> Caller<'a> {
                 )?;
                 Ok(Self {
                     state,
-                    structural_parameters: &plan.structural_parameters,
                     erased_proof_parameters: &plan.erased_proof_parameters,
                 })
             }
@@ -240,13 +236,6 @@ pub(super) fn prepare(
             *coordinate,
             *target_state,
         )?;
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        machine,
-        state.state,
-        operation,
-        state.structural_parameters,
-    )?;
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
         state.state,

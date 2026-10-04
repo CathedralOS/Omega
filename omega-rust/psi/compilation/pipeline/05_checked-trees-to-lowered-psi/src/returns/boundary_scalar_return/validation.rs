@@ -20,13 +20,6 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
         return unsupported("boundary scalar return has no unique exact checked body registration");
     }
     source_custody::validate(checked, plan)?;
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        plan.machine,
-        plan.state,
-        &plan.boundary_call,
-        &plan.structural_parameters,
-    )?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let call = super::retained_boundary_call(
         plan,

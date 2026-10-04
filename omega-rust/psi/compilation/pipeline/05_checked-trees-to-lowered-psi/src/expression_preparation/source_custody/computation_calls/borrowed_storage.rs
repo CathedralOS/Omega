@@ -13,7 +13,6 @@ use language_core::ReferenceAccess;
 
 pub(super) struct Source {
     pub(super) place: ReceiverSource,
-    pub(super) declared_endpoint: TypeReferenceHandle,
     pub(super) carrier: TypeReferenceHandle,
 }
 
@@ -234,7 +233,6 @@ pub(super) fn source(
     }
     Ok(Source {
         place: source,
-        declared_endpoint: reference,
         carrier,
     })
 }

@@ -183,7 +183,6 @@ fn validate_ordinary(
         }
     }
     crate::emission::structural_scalar_store_source::validate(checked, machine)?;
-    crate::emission::call_source_custody::validate_store_and_initializer_calls(checked, machine)?;
     validate_linear_transition_calls(checked, machine)?;
 
     Ok(())

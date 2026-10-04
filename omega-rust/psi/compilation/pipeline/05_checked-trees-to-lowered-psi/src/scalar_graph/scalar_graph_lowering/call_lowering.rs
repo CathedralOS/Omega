@@ -8,7 +8,6 @@ use crate::emission::operation_emission::calls::{
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
-use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
@@ -35,18 +34,6 @@ pub(crate) fn lower_checked_direct_call_binding(
     scalar_bindings: &storage::ScalarBindings,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
-    source_custody::direct_calls::validate(
-        checked,
-        caller_machine,
-        caller_state,
-        statement_ordinal,
-        binding_ordinal,
-        target_machine,
-        target_state,
-        call_ordinal,
-        argument_count,
-        result_type.scalar_type,
-    )?;
     let arguments = (0..argument_count)
         .map(|argument_ordinal| {
             scalar_bindings.expression_at(
@@ -272,7 +259,6 @@ pub(crate) fn lower_scalar_graph_successor(
     ),
     LoweringError,
 > {
-    source_custody::validate_successor(checked, source_state, successor)?;
     let Some(target) = states
         .iter()
         .position(|candidate| candidate.state == successor.target)

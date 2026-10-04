@@ -87,12 +87,6 @@ fn selected_roots(
                 result, calls, ..
             } = operation
             {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                )?;
                 // A member call's scalar arguments are computations in the
                 // same statement; only their roots join the pending set, the
                 // member's statement custody belongs to the construction.
@@ -194,13 +188,6 @@ fn selected_roots(
                 }
             };
             let arguments = &call.scalar_arguments;
-            crate::emission::call_source_custody::validate_operation(
-                checked,
-                machine,
-                state.state,
-                operation,
-                &state.structural_parameters,
-            )?;
             for argument in arguments {
                 let CheckedCallScalarArgument::Computation(handle) = argument else {
                     continue;

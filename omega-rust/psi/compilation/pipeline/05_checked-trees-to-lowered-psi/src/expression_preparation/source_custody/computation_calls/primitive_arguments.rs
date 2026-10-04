@@ -101,13 +101,6 @@ pub(crate) fn validate(
             expected_kind.clone(),
         )?,
     };
-    borrow_rows::validate_place_argument_at(
-        checked,
-        borrow_call,
-        position,
-        borrowed.place.captured_place(),
-        expected_kind,
-    )?;
     Ok(position)
 }
 

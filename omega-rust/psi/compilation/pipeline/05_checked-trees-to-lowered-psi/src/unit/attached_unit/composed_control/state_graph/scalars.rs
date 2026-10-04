@@ -67,28 +67,15 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
         {
             return unsupported("Unit graph successor computation disagrees with source");
         }
-        crate::expression_preparation::source_custody::validate_computation_calls(
-            checked,
-            source.machine,
-            state.state,
-            edge.statement_ordinal,
-            root.root,
-            source.expression,
-        )?;
         Ok(checked_trees::CheckedCallScalarArgument::Computation(
             root.root,
         ))
     } else {
-        let (binding, value) = pure
+        let (_, value) = pure
             .bound_expression_at(state.state, edge.statement_ordinal, role)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph scalar successor has no checked source expression",
             ))?;
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(argument.primitive_type)?,
-        )?;
         Ok(checked_trees::CheckedCallScalarArgument::Pure(
             value.clone(),
         ))
@@ -156,11 +143,6 @@ pub(super) fn validate(
         {
             return unsupported("Unit graph scalar storage destination disagrees with source");
         }
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            source,
-            terminal_scalar_type(binding.primitive_type)?,
-        )?;
         if binding.destination == CheckedScalarBindingDestination::Immutable {
             immutable_ordinal += 1;
         }

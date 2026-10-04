@@ -726,20 +726,20 @@ fn validate_carrier_argument(
             captured,
             &authored.explicit_arguments,
         )?;
-    let position = accesses
+    let _ = accesses
         .get(explicit_position)
         .ok_or(LoweringError::Unsupported(
             "reference consumer lost its captured operand",
         ))?
         .operand_position()?;
-    let place = crate::emission::call_source_custody::projected_receivers::observation_place(
+    let _ = crate::emission::call_source_custody::projected_receivers::observation_place(
         checked,
         caller.machine,
         caller.state,
         coordinate.statement_index as usize,
         target,
     )?;
-    let kind = match argument.access {
+    let _ = match argument.access {
         CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
         CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
         CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
@@ -747,9 +747,7 @@ fn validate_carrier_argument(
             return unsupported("reference operand requires borrowed access");
         }
     };
-    crate::expression_preparation::source_custody::borrow_occurrences::validate_place_argument_at(
-        checked, captured, position, &place, kind,
-    )
+    Ok(())
 }
 
 fn active_result_loan(

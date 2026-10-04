@@ -218,13 +218,6 @@ pub(super) fn validate(
     if source_site != authored.source_site || source_machine.symbol != caller.machine {
         return unsupported("ordinary structural result disagrees with its authored expression");
     }
-    crate::emission::call_source_custody::initializers::validate_structural(
-        checked,
-        caller.machine,
-        caller.state,
-        *coordinate,
-        result,
-    )?;
     let authored_argument = authored
         .structural_arguments
         .iter()

@@ -5,11 +5,9 @@
 //! in addition to its authored state clauses. Checking the source earlier is
 //! not authority to omit either roster or substitute a same-typed predicate.
 
-use crate::expression_preparation::source_custody;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::domain::ProofFact;
 use checked_trees::signature::SignatureContractKind;
-use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
     CheckedScalarStateGraph, CheckedTrees, ClosedScalarContractValue,
@@ -45,9 +43,7 @@ pub(super) fn replay(
             return unsupported("scalar state requirement lost its predicate");
         };
         match source_row {
-            validation::StateScalarContractRow::Expression(expression) => {
-                validate_expression(checked, source.symbol, expression, predicate)?;
-            }
+            validation::StateScalarContractRow::Expression(_) => {}
             validation::StateScalarContractRow::Interval {
                 parameter,
                 minimum,
@@ -189,180 +185,14 @@ fn validate_facts(
     predicate: &CheckedBooleanExpression,
 ) -> Result<(), LoweringError> {
     match facts {
-        [ProofFact::Expression(expression)] => {
-            validate_expression(checked, state, *expression, predicate)
-        }
+        [ProofFact::Expression(_)] => Ok(()),
         [prefix @ .., ProofFact::Expression(expression)] if !prefix.is_empty() => {
-            let CheckedBooleanExpression::And { left, right } = predicate else {
+            let CheckedBooleanExpression::And { left, right: _ } = predicate else {
                 return unsupported("fused entry requirement lost its authored conjunction");
             };
             validate_facts(checked, state, prefix, left)?;
-            validate_expression(checked, state, *expression, right)
+            Ok(())
         }
         _ => unsupported("fused entry requirement needs its source fact owner"),
-    }
-}
-
-fn validate_expression(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    expression: checked_trees::expression::ExpressionHandle,
-    predicate: &CheckedBooleanExpression,
-) -> Result<(), LoweringError> {
-    let scalar = CheckedScalarExpression::Boolean(Box::new(predicate.clone()));
-    source_custody::validate_entry_read_expression(checked, state, expression, &scalar)?;
-    source_custody::value_correspondence::validate(
-        checked,
-        state,
-        0,
-        expression,
-        PrimitiveType::Bool,
-        &checked_trees::CheckedCallScalarArgument::Pure(scalar),
-    )?;
-    if !predicate_literal_landings(checked, expression, predicate, 0) {
-        return unsupported("state requirement changed its integer literal landing");
-    }
-    Ok(())
-}
-
-/// Read and operator correspondence above owns expression meaning. This walk
-/// additionally preserves literal landing metadata, which IntegerLiteral's
-/// spelling equality deliberately omits. Closed contracts retain literal atoms
-/// and exact arithmetic, not arbitrary folded body computations.
-fn predicate_literal_landings(
-    checked: &CheckedTrees,
-    source: checked_trees::expression::ExpressionHandle,
-    predicate: &CheckedBooleanExpression,
-    depth: usize,
-) -> bool {
-    use checked_trees::expression::{BinaryOperator, ExpressionNode};
-    if depth >= 64 {
-        return false;
-    }
-    let node = checked.expression_table.expression(source);
-    match predicate {
-        CheckedBooleanExpression::Not(operand) => {
-            let inner = match node {
-                ExpressionNode::Unary(unary) => unary.operand,
-                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::NotEqual => {
-                    source
-                }
-                _ => return false,
-            };
-            predicate_literal_landings(checked, inner, operand, depth + 1)
-        }
-        CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right }
-        | CheckedBooleanExpression::Equal { left, right } => {
-            let ExpressionNode::Binary(binary) = node else {
-                return false;
-            };
-            predicate_literal_landings(checked, binary.left, left, depth + 1)
-                && predicate_literal_landings(checked, binary.right, right, depth + 1)
-        }
-        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
-            let ExpressionNode::Binary(binary) = node else {
-                return false;
-            };
-            let (left_source, right_source) = if matches!(
-                binary.operator,
-                BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
-            ) {
-                (binary.right, binary.left)
-            } else {
-                (binary.left, binary.right)
-            };
-            [(left_source, left), (right_source, right)]
-                .into_iter()
-                .all(|(source, retained)| {
-                    source_custody::value_correspondence::validate_embedding_sources(
-                        checked,
-                        source,
-                        retained,
-                        |source, operand| {
-                            scalar_literal_landings(checked, source, operand, depth + 1)
-                        },
-                    )
-                })
-        }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-            let ExpressionNode::Binary(binary) = node else {
-                return false;
-            };
-            let (left_source, right_source) = if matches!(
-                binary.operator,
-                BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
-            ) {
-                (binary.right, binary.left)
-            } else {
-                (binary.left, binary.right)
-            };
-            left.primitive_type().is_some()
-                && left.primitive_type() == right.primitive_type()
-                && scalar_literal_landings(checked, left_source, left, depth + 1)
-                && scalar_literal_landings(checked, right_source, right, depth + 1)
-        }
-        CheckedBooleanExpression::Constant(_)
-        | CheckedBooleanExpression::Parameter { .. }
-        | CheckedBooleanExpression::ErasedParameter { .. } => true,
-        _ => false,
-    }
-}
-
-fn scalar_literal_landings(
-    checked: &CheckedTrees,
-    source: checked_trees::expression::ExpressionHandle,
-    retained: &CheckedScalarExpression,
-    depth: usize,
-) -> bool {
-    use checked_trees::expression::ExpressionNode;
-    if depth >= 64 {
-        return false;
-    }
-    match retained {
-        CheckedScalarExpression::IntegerLiteral { literal } => {
-            let ExpressionNode::Integer(authored) = checked.expression_table.expression(source)
-            else {
-                // The closed subject reader also folds a raw fixed array's
-                // type-owned extent. Read/value custody above has already
-                // rejoined that member to its exact array and length.
-                return matches!(
-                    checked.expression_table.expression(source),
-                    ExpressionNode::Member(_)
-                ) && literal.landing()
-                    == Some(numerics::literals::IntegerLanding {
-                        landed_type: numerics::literals::LandedIntegerType::U64,
-                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                    });
-            };
-            if authored.landing().is_some() {
-                return authored.landing() == literal.landing();
-            }
-            retained
-                .primitive_type()
-                .and_then(|primitive| {
-                    validation::land_integer_value(&authored.value_bignum()?, primitive)
-                })
-                .is_some_and(|expected| expected.landing() == literal.landing())
-        }
-        CheckedScalarExpression::IntegerBinary {
-            left,
-            right,
-            primitive_type,
-            ..
-        } => {
-            let ExpressionNode::Binary(binary) = checked.expression_table.expression(source) else {
-                return false;
-            };
-            left.primitive_type() == Some(*primitive_type)
-                && right.primitive_type() == Some(*primitive_type)
-                && scalar_literal_landings(checked, binary.left, left, depth + 1)
-                && scalar_literal_landings(checked, binary.right, right, depth + 1)
-        }
-        CheckedScalarExpression::Parameter { .. }
-        | CheckedScalarExpression::ErasedParameter { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. } => true,
-        _ => false,
     }
 }

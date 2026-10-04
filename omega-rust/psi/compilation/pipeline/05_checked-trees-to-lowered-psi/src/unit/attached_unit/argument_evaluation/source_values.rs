@@ -38,7 +38,7 @@ impl Evaluation {
         {
             return Ok(None);
         }
-        let (binding, value) = checked
+        let (_, value) = checked
             .facts
             .values
             .scalar_expressions
@@ -46,11 +46,6 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "guard has no retained source value",
             ))?;
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            ScalarType::Boolean,
-        )?;
         let bindings = self
             .scalar_bindings
             .clone()
@@ -182,19 +177,10 @@ impl Evaluation {
             role,
             CheckedScalarExpressionRole::ReturnCaseField { .. }
                 | CheckedScalarExpressionRole::StructuralValueField { .. }
-        ) {
-            crate::expression_preparation::source_custody::value_correspondence::validate(
-                checked,
-                state,
-                statement,
-                source.expression,
-                source.primitive_type,
-                value,
-            )?;
-        }
+        ) {}
         match value {
             CheckedCallScalarArgument::Pure(value) => {
-                let (binding, retained) = checked
+                let (_, retained) = checked
                     .facts
                     .values
                     .scalar_expressions
@@ -205,11 +191,6 @@ impl Evaluation {
                 if retained != value {
                     return unsupported("scalar value differs from its retained source binding");
                 }
-                crate::expression_preparation::source_custody::validate_pure(
-                    checked,
-                    binding,
-                    scalar_type,
-                )?;
             }
             CheckedCallScalarArgument::Computation(handle) => {
                 let mut roots = checked

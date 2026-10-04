@@ -149,9 +149,6 @@ pub(super) fn prepare(
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Prepared, LoweringError> {
-    crate::expression_preparation::source_custody::structural::validate(
-        checked, machine, state, operation,
-    )?;
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
         result,
         value,

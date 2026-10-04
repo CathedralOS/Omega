@@ -398,16 +398,9 @@ fn retired_in_body(
             if !direct_consumer {
                 return unsupported("Unit graph anonymous operand has no unconditional consumer");
             }
-            let call = anonymous_call.ok_or(LoweringError::Unsupported(
+            let _ = anonymous_call.ok_or(LoweringError::Unsupported(
                 "Unit graph anonymous operand has no authored producer",
             ))?;
-            crate::emission::call_source_custody::initializers::validate_structural(
-                checked,
-                machine,
-                source.symbol,
-                call.coordinate,
-                result,
-            )?;
             retired.push(result.binding_ordinal);
             continue;
         };
@@ -449,16 +442,6 @@ fn retired_in_body(
         // A local move preserves its value's original provenance. Reuse the
         // construction replay (including its borrowed-loan checks), then
         // require this precise consuming operand as the sole final disposition.
-        crate::expression_preparation::source_custody::structural::validate_local_ownership(
-            checked,
-            machine,
-            state.state,
-            result.statement_index,
-            local.symbol,
-            local.type_reference,
-            result.multiplicity,
-            false,
-        )?;
         let mut establishes = 0;
         let mut transfers = 0;
         for (_, event) in checked

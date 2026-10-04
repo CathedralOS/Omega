@@ -33,7 +33,6 @@ use crate::emission::operation_emission::integer::{
 };
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::expression_preparation::bindings::ScalarBindings;
-use crate::expression_preparation::source_custody;
 use crate::expression_preparation::wrapping_cast::wrapping_cast;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::TableAssignment;
@@ -233,7 +232,6 @@ pub(crate) fn validate_assignment(
             if binding.expression != assignment.value || expression != retained {
                 return unsupported("representation view store substituted its authored value");
             }
-            source_custody::validate_pure(checked, binding, terminal_scalar_type(write.view)?)?;
         }
         CheckedStoreValue::Computation(_) => {
             return unsupported("representation view store kept a computation");

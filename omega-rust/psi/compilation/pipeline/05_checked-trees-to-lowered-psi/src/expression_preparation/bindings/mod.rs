@@ -7,7 +7,6 @@ use super::{
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::expression_preparation::source_custody;
 
 pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
@@ -28,14 +27,6 @@ pub(crate) enum LoanAccess {
 }
 
 impl LoanAccess {
-    /// The access the checked plan records for this loan.
-    pub(crate) fn planned_access(self) -> checked_trees::CheckedStructuralAccess {
-        match self {
-            Self::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
-            Self::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
-        }
-    }
-
     /// The access the Terminal structural argument carries for this loan.
     pub(crate) fn structural_access(self) -> StructuralAccess {
         match self {
@@ -1367,7 +1358,7 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (binding, expression) = checked
+        let (_, expression) = checked
             .facts
             .values
             .scalar_expressions
@@ -1376,7 +1367,6 @@ impl ScalarBindings {
                 "scalar computation needs one checked expression and one source binding",
             ))?;
         let expression = self.expression(expression)?;
-        source_custody::validate_pure(checked, binding, expression.scalar_type())?;
         Ok(expression)
     }
 

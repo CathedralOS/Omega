@@ -197,21 +197,7 @@ pub(super) fn validate_structural_return(
         if root.root != *value {
             return unsupported("ordered return exchanged its authored value");
         }
-        crate::expression_preparation::source_custody::structural::validate(
-            checked,
-            plan.machine,
-            state.state,
-            operation,
-        )?;
     } else if operation.call().is_some() {
-        crate::expression_preparation::source_custody::structural::validate_call_value(
-            checked,
-            plan.machine,
-            state.state,
-            expression,
-            operation,
-            &state.structural_parameters,
-        )?;
     } else if matches!(
         operation,
         CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }

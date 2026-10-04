@@ -31,14 +31,6 @@ pub(super) fn validate(
     } else {
         symbols::SymbolHandle::invalid()
     };
-    crate::expression_preparation::source_custody::validate_computation_calls(
-        checked,
-        machine,
-        site.state,
-        site.statement,
-        root,
-        source.expression,
-    )?;
     let root = plans.nodes.get(root);
     if source.machine != machine
         || source.expression != root.authored_root

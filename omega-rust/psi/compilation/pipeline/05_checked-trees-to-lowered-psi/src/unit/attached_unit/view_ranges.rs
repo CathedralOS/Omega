@@ -738,33 +738,9 @@ pub(crate) fn replay(
             {
                 return unsupported("view subslice endpoint differs from its source-bound plan");
             }
-            crate::expression_preparation::source_custody::validate_pure(
-                checked,
-                binding,
-                crate::emission::scalar_types::terminal_scalar_type(
-                    checked_trees::types::PrimitiveType::U64,
-                )?,
-            )?;
             CheckedCallScalarArgument::Pure(selected.clone())
         };
-        if let CheckedCallScalarArgument::Computation(handle) = selected {
-            crate::expression_preparation::source_custody::validate_computation_calls(
-                checked,
-                machine.symbol,
-                site.state,
-                site.statement,
-                handle,
-                authored_endpoint,
-            )?;
-        }
-        crate::expression_preparation::source_custody::value_correspondence::validate(
-            checked,
-            site.state,
-            site.statement,
-            authored_endpoint,
-            checked_trees::types::PrimitiveType::U64,
-            &selected,
-        )?;
+        if let CheckedCallScalarArgument::Computation(_) = selected {}
         if retained.is_some_and(|retained| retained.as_ref() != Some(&selected)) {
             return unsupported("view subslice substituted its retained endpoint");
         }

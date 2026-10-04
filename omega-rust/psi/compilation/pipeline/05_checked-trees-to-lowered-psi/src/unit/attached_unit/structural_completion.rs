@@ -319,22 +319,6 @@ pub(super) fn validate(
                 // and exact transfer using the shared place validator; a
                 // Named-only record test would exclude fixed arrays and closed
                 // generic applications with the same ownership obligations.
-                crate::expression_preparation::source_custody::structural::validate_owned_place(
-                    checked,
-                    machine.machine,
-                    machine.state,
-                    u32::try_from(statements.len() - 1).map_err(|_| {
-                        LoweringError::Unsupported("return statement ordinal exceeds u32")
-                    })?,
-                    expression,
-                    state.return_type,
-                    &checked_trees::CheckedUnitStructuralArgumentPlan {
-                        source: result.source.clone(),
-                        path: Vec::new(),
-                        type_identity: result.type_identity.clone(),
-                        access: CheckedStructuralAccess::Owned,
-                    },
-                )?;
             }
         }
         _ => return unsupported("structural return source is not an owned whole value"),

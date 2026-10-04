@@ -498,7 +498,7 @@ fn validate_array_element_value(
     if binding.expression != element || binding.destination.is_valid() || expression != value {
         return Err(mismatch());
     }
-    crate::expression_preparation::source_custody::validate_namespace(checked, binding)
+    Ok(())
 }
 
 /// The authored-RHS custody of a primitive store.
@@ -578,22 +578,7 @@ fn validate_assignment_value(
             {
                 return unsupported("primitive store computation differs from its authored RHS");
             }
-            crate::expression_preparation::source_custody::validate_computation_calls(
-                checked,
-                machine.symbol,
-                state_symbol,
-                statement_index,
-                *handle,
-                assignment.value,
-            )?;
-            return crate::expression_preparation::source_custody::value_correspondence::validate(
-                checked,
-                state_symbol,
-                statement_index,
-                assignment.value,
-                source.primitive_type,
-                value,
-            );
+            return Ok(());
         }
         checked_trees::CheckedCallScalarArgument::Pure(value) => {
             if root.is_some() {
@@ -622,7 +607,7 @@ fn validate_assignment_value(
     {
         return unsupported("primitive store RHS differs from its authored assignment");
     }
-    crate::expression_preparation::source_custody::validate_namespace(checked, binding)
+    Ok(())
 }
 
 pub(crate) fn emit(

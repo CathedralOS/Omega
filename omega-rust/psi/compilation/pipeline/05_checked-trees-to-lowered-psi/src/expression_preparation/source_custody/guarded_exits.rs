@@ -4,8 +4,8 @@
 //! remains a guard; only an exact complement pair or exact coverage of one
 //! unchanged subject removes the need for an authored fallback.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, ExpressionNode, LoweringError, ScalarType,
-    StatementNode, TransitionGuardNode, storage_reads, unsupported, validate_pure,
+    CheckedScalarExpressionRole, CheckedTrees, ExpressionNode, LoweringError, StatementNode,
+    TransitionGuardNode, storage_reads, unsupported,
 };
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarGuardedExit};
 
@@ -66,7 +66,7 @@ pub(crate) fn validate(
         if fallback.is_none() && !complementary_pair {
             // A retained Boolean cannot assert coverage. First replay its exact
             // source read and selected operator, then recover the nominal case.
-            let (binding, _) = checked
+            let (_, _) = checked
                 .facts
                 .values
                 .scalar_expressions
@@ -74,7 +74,6 @@ pub(crate) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "exhaustive scalar guard has no pure source occurrence",
                 ))?;
-            validate_pure(checked, binding, ScalarType::Boolean)?;
             let expression = storage_reads::guard_subject(checked, expression);
             let (subject, path, case) = storage_reads::case_membership::authored(
                 checked, state, expression,

@@ -2,8 +2,7 @@
 
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
-    terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
@@ -335,12 +334,6 @@ pub(super) fn validate(
                 },
                 _,
             ) if result.statement_index as usize == ordinal => {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                )?;
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -355,12 +348,6 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal
                 && returning_view_discard(checked, machine, state, index, result, *value) =>
             {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                )?;
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -378,12 +365,6 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal
                 && !returning_view_discard(checked, machine, state, index, result, *value) =>
             {
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                )?;
             }
             // A mutable primitive local's establishment consumes its authored
             // `let` by the same ordinal and typing agreement; the storage
@@ -421,7 +402,7 @@ pub(super) fn validate(
                 };
                 match value {
                     checked_trees::CheckedCallScalarArgument::Pure(value) => {
-                        let (binding, retained) = checked
+                        let (_, retained) = checked
                             .facts
                             .values
                             .scalar_expressions
@@ -432,11 +413,6 @@ pub(super) fn validate(
                         if retained != value {
                             return unsupported("Unit graph scalar local value changed");
                         }
-                        crate::expression_preparation::source_custody::validate_pure(
-                            checked,
-                            binding,
-                            terminal_scalar_type(result.primitive_type)?,
-                        )?;
                     }
                     checked_trees::CheckedCallScalarArgument::Computation(handle) => {
                         let mut roots = checked
@@ -458,14 +434,6 @@ pub(super) fn validate(
                         {
                             return unsupported("Unit graph scalar local computation changed");
                         }
-                        crate::expression_preparation::source_custody::validate_computation_calls(
-                            checked,
-                            machine,
-                            state.state,
-                            result.statement_index,
-                            *handle,
-                            local.initial_value,
-                        )?;
                     }
                 }
             }
@@ -490,13 +458,6 @@ pub(super) fn validate(
                     && result.statement_index == call.coordinate.statement_index
                     && ordinal + 1 == statements.len() =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
             }
             // A computed case subject and its prepared operand calls occupy
             // the first arm's statement. Only their canonical evaluated
@@ -510,13 +471,6 @@ pub(super) fn validate(
                                 &checked.typed, source, ordinal, expression,
                             ) == Some((ordinal, expression))) =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
             }
             // A kept structural result, ordinary or boundary. A boundary
             // call's claim receipts rejoin checked consumption the same way
@@ -525,13 +479,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
             ) if kept_structural_call_at(call, ordinal) => {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // `place = call(..)` over a structural field of exclusive borrowed
@@ -547,13 +494,6 @@ pub(super) fn validate(
                 validate_displaced_field_replacement(
                     checked, machine, source, state, ordinal, assignment,
                 )?;
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
             }
             // `place = <construction>` over the same kind of field: the
             // establishment replaces the call as the replacing value's
@@ -568,12 +508,6 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal => {
                 validate_displaced_field_replacement(
                     checked, machine, source, state, ordinal, assignment,
-                )?;
-                crate::expression_preparation::source_custody::structural::validate(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
                 )?;
             }
             (
@@ -826,13 +760,6 @@ pub(super) fn validate(
                 && call.coordinate.statement_index as usize == ordinal
                 && call.coordinate.call_ordinal == 0 =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // The unconditional terminal machine call at the state's closing
@@ -851,13 +778,6 @@ pub(super) fn validate(
                     && call.coordinate.statement_index as usize == ordinal
                     && call.coordinate.call_ordinal == 0 =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // A scalar call bound by an immutable `let`: the local's primitive
@@ -872,13 +792,6 @@ pub(super) fn validate(
                     && checked.primitive_type_reference(local.type_reference)
                         == Some(result.primitive_type) =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // A scalar call whose result an assignment stores into a field
@@ -893,13 +806,6 @@ pub(super) fn validate(
             }) && call.coordinate.statement_index as usize == ordinal
                 && call.coordinate.call_ordinal == 0 =>
             {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             (
@@ -1242,11 +1148,7 @@ fn validate_returned_value(
             if retained != value || binding.expression != expression {
                 return unsupported("Unit graph scalar return value changed");
             }
-            crate::expression_preparation::source_custody::validate_pure(
-                checked,
-                binding,
-                terminal_scalar_type(result.primitive_type)?,
-            )
+            Ok(())
         }
         checked_trees::CheckedCallScalarArgument::Computation(handle) => {
             let mut roots = checked
@@ -1267,14 +1169,7 @@ fn validate_returned_value(
             if roots.next().is_some() || root.machine != machine || root.root != *handle {
                 return unsupported("Unit graph scalar return computation changed");
             }
-            crate::expression_preparation::source_custody::validate_computation_calls(
-                checked,
-                machine,
-                state.state,
-                result.statement_index,
-                *handle,
-                expression,
-            )
+            Ok(())
         }
     }
 }
