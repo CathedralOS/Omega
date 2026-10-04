@@ -231,7 +231,7 @@ fn body_inputs<'input>(
 /// assignment's destination or passed whole into its enclosing call has no
 /// edge disposal or authored local. The call consumer independently rejoins
 /// each occurrence, result contract and evaluation order before emission.
-/// Named affine locals also retire at calls when
+/// Named owned locals also retire at calls when
 /// their unique whole move rejoins exact establishment and transfer evidence.
 /// Shared call admission checks each authored operand before emission.
 fn retired_in_body(
@@ -333,7 +333,8 @@ fn retired_in_body(
         let Some(result) = result(operation) else {
             continue;
         };
-        if result.multiplicity != Multiplicity::Affine || retired.contains(&result.binding_ordinal)
+        if result.multiplicity == Multiplicity::Unrestricted
+            || retired.contains(&result.binding_ordinal)
         {
             continue;
         }
@@ -426,13 +427,14 @@ fn retired_in_body(
             result.statement_index,
         )
         .is_some();
-        if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine
+        if checked.type_multiplicity(local.type_reference) != result.multiplicity
             || checked
                 .normalized_type_identity(local.type_reference)
                 .as_str()
                 != result.type_identity
             || !(stored_loan_record
                 || validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
+                || validation::has_linear_owned_contents(&checked.typed, local.type_reference)
                 || validation::has_owned_or_shared_view_contents(
                     &checked.typed,
                     local.type_reference,
