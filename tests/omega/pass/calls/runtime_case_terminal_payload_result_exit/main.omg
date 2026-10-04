@@ -14,12 +14,22 @@ machine choose_nested(choice: Choice) -> Output {
         Choice::Right { value } -> make(identity(value))
     }
 }
+machine choose_guarded(choice: Choice) -> Output {
+    transition choice {
+        Choice::Left { value } if value == 99 -> make(1)
+        Choice::Left { value } if value == 74 -> make(identity(value))
+        Choice::Right { value } if value == 75 -> make(identity(value))
+        _ -> make(0)
+    }
+}
 machine main() crashes Trap {
     let first: Output = choose(Choice::Left { value: 70 });
     let second: Output = choose(Choice::Right { value: 71 });
     let third: Output = choose_nested(Choice::Left { value: 72 });
     let fourth: Output = choose_nested(Choice::Right { value: 73 });
-    transition first.value == 70 && second.value == 71 && third.value == 72 && fourth.value == 73 {
+    let fifth: Output = choose_guarded(Choice::Left { value: 74 });
+    let sixth: Output = choose_guarded(Choice::Right { value: 75 });
+    transition first.value == 70 && second.value == 71 && third.value == 72 && fourth.value == 73 && fifth.value == 74 && sixth.value == 75 {
         true -> done()
         _ -> bad()
     }

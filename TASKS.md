@@ -2025,10 +2025,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
   bindings and shared structural return cleanup:
   `calls/runtime_guarded_terminal_structural_result_exit` exits **0** in both
   engines, as does its ordinary record-return prerequisite beside a crash exit
-  (`structural/runtime_structural_result_crash_branch_exit`). Whole-reference
-  result origins still need transport from terminal calls into the composed
-  return roster. Closed-sum case arms, range-constrained result compatibility,
-  and claim-transferring arm calls remain declined there.
+  (`structural/runtime_structural_result_crash_branch_exit`). Selected scalar
+  case payloads now feed terminal record results through direct calls, nested
+  operands, and ordered case guards; `calls/runtime_case_terminal_payload_result_exit`
+  checks values 70 through 75 and exits **0** in both engines. Dispatch extraction
+  and completion blocks share exact selected payload custody, and native case
+  dispatch retains its incoming parameter storage.
+  Whole-reference result origins still need transport from terminal calls into
+  the composed return roster. Computed-subject terminal arms still stop at an
+  unconsumed nested transition call; range-constrained result compatibility and
+  claim-transferring arm calls remain unfinished.
   Nested receiver terminal calls still need the exact receiver leaf identity
   retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
