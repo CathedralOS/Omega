@@ -1,0 +1,4 @@
+owner: z1
+provenance: {"fixtures":"sysv_small_aggregate_import_compile+win64_pointer_length_vs_descriptor_compile checked on d797e30b85a","probe_ms":[1985,2282],"receipt":"verify exit 0 04:07Z lineage + rebase onto 3313672d758"}
+ticket: 27923c36e3b14113bbd266150dfc2e90
+published_utc: 2026-10-04T04:25:16.525921+00:00
