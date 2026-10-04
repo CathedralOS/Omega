@@ -2697,7 +2697,9 @@ deletions, which its commit lists.
     05 consume it without proof search; do not add duplicate provers. Arithmetic
     expression analysis now returns exact-cast decisions from its branch-local
     walk; extend that output to the remaining primitive conditions, rather than
-    rebuilding decisions with a separate syntax traversal;
+    rebuilding decisions with a separate syntax traversal. Concrete contract
+    arithmetic uses that same formation walk; abstract declaration contracts
+    still have a separate carrier-resolution path to unify;
   - cover nested expressions, compiler-generated semantic-to-storage casts,
     assignment targets, abstract proposition carrier resolution, and the
     formation audit across aggregate and proposition positions before

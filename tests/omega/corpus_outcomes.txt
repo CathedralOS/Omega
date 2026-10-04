@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 3.28, "load1_start": 2.17, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -104,6 +104,14 @@ fail/arithmetic/suffix_magnitude_overflow_rejected rejected 288ms expected @2d8e
 fail/arithmetic/suffix_type_disagrees_rejected rejected 281ms expected @2d8ed253669f
 	literal `5` is suffixed `i8` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 	store in machine `Main::main` state `main` local `x` implicitly converts `i8` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/arithmetic/total_contract_division_wrong_arm rejected 415ms expected @f2ab4f931c37+wt
+	division by zero in machine `invalid` requires contract: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/arithmetic/total_contract_guarded_trapping_division rejected 402ms expected @f2ab4f931c37+wt
+	direct Trapping arithmetic `/` is illegal in machine `invalid` requires contract: specification terms are total and cannot transfer runtime control. Use `embed(..)` for unbounded proof `Int` mathematics, or explicitly cast the operands to the same unqualified carrier and discharge the resulting Exact formation obligations
+fail/arithmetic/total_contract_signed_division_unproven rejected 394ms expected @f2ab4f931c37+wt
+	partial exact division in machine `invalid` requires contract: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/total_contract_wrapping_division_unguarded rejected 392ms expected @f2ab4f931c37+wt
+	partial wrapping division in machine `invalid` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/undeclared_bare_name_rejected rejected 299ms expected @2d8ed253669f
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -1472,6 +1480,7 @@ pass/arithmetic/runtime_wrapping_mutable_local_exit checked 1171ms @ca8c127c90c5
 pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 1407ms @2d8ed253669f
 pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 1593ms @8778c440081
 pass/arithmetic/suffix_landed_operand_position_exit checked 2050ms @2d8ed253669f
+pass/arithmetic/total_contract_guarded_division checked 747ms @f2ab4f931c37+wt
 pass/arithmetic/typed_integer_remainder checked 285ms @2d8ed253669f
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1656ms @8778c440081
 pass/arrays/local_record_array_guard_exit checked 1631ms @cfe60a3a242

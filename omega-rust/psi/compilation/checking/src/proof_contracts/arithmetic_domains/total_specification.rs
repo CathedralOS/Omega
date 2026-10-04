@@ -34,18 +34,11 @@ pub(crate) fn validate_total_specification_arithmetic(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    division_definedness::validate_concrete(
-        program,
-        machine,
-        state,
-        expression,
-        environment,
-        owner,
-        diagnostics,
-    );
-    // Proposition terms retain the ordinary Exact formation judgment. Run it
-    // before admitting this fact into `environment`: a bound written around the very
-    // operation being formed cannot prove that operation total.
+    // The ordinary branch-sensitive walk owns integer formation for every
+    // policy, including nonzero divisors under Wrapping and Saturating. Run it
+    // before admitting this fact into `environment`: an operation cannot use
+    // its own proposed contract to establish its definedness. A second walk
+    // from the outer environment would lose the facts of a selected match arm.
     let mut formation_diagnostics = Vec::new();
     analyze(
         program,
@@ -117,7 +110,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
     owner: &str,
     expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
     expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
-    provably_zero_is_prevalidated: bool,
+    integer_formation_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn selected_domain(
@@ -163,7 +156,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         owner: &str,
         expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
         expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
-        provably_zero_is_prevalidated: bool,
+        integer_formation_prevalidated: bool,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
@@ -179,7 +172,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 owner,
                 expression_domain,
                 expression_interval,
-                provably_zero_is_prevalidated,
+                integer_formation_prevalidated,
                 diagnostics,
                 visited,
             );
@@ -227,17 +220,23 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                         arithmetic_operator_spelling(binary.operator),
                     )));
                 }
-                if matches!(
-                    selected,
-                    Some(ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating)
-                ) && matches!(
-                    binary.operator,
-                    BinaryOperator::Divide | BinaryOperator::Modulo
-                ) {
+                // Concrete formation already checked the operation under its
+                // branch-local environment. Rechecking its divisor here would
+                // discard that environment. Abstract declaration carriers use
+                // their separate formation lookup until they share that walk.
+                if !integer_formation_prevalidated
+                    && matches!(
+                        selected,
+                        Some(ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating)
+                    )
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Divide | BinaryOperator::Modulo
+                    )
+                {
                     let divisor = expression_interval(binary.right);
                     let proven_nonzero = divisor.is_some_and(Interval::excludes_zero);
-                    let provably_zero = divisor.is_some_and(Interval::is_exactly_zero);
-                    if !(proven_nonzero || provably_zero_is_prevalidated && provably_zero) {
+                    if !proven_nonzero {
                         let operation = if binary.operator == BinaryOperator::Divide {
                             "division"
                         } else {
@@ -300,7 +299,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         owner,
         expression_domain,
         expression_interval,
-        provably_zero_is_prevalidated,
+        integer_formation_prevalidated,
         diagnostics,
         &mut Vec::new(),
     );
