@@ -398,55 +398,6 @@ defines the complete product bar.
   truncation (`4097u32` gives 4096), signed quotient/remainder laws and
   zero-divisor rejection.
 
-- **LOWERING-ROUTE-CONSOLIDATION.** Replace competing whole-machine
-  recognizers with composable checked operations and one shared lowering
-  catalog, within the [pipeline](omega-rust/pipeline.md) boundaries. Owners:
-  stage 04 execution planning, checked-tree plan rosters, and stage 05
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`.
-  Plan precedence (`CheckedReturnPlan`, scalar/Unit body precedence) and
-  `CheckedUnitPlanOmissionStage::CompetingCandidates` still choose among
-  overlapping bodies. Prioritize gaps blocking **STATE-LOCAL-VALUE-FRONTIER**
-  and maintained programs; each replacement deletes its superseded route.
-  - **Ordinary/state-graph parity.** Finish claim transfers through
-    state-graph calls and linear boundary-result custody: `ClaimBindings::Fixed`
-    (`.../unit/attached_unit/operation_frame/calls.rs`) cannot mint a result
-    claim, and `establish_structural_result`
-    (`.../unit/attached_unit/argument_evaluation.rs`) accepts linear locals
-    only from ordinary structural-call producers. Keep
-    `pass/calls/runtime_value_call_literal_len_arm_guard_exit` (exit 70).
-  - **Multi-state body ownership.** Move multi-state bodies off scalar-owner
-    precedence only with continuation-arm custody, later-state mutable scalar
-    stores, crash predicates, float prefix initializers and debug maps
-    accounted for. `CheckedStructuralControlSuccessorPlan` lacks continuation
-    identity. Keep distinct exits returning 20 and 30 under
-    `ensures result >= 20`, constant-stack mutual tail fusion, and
-    `pass/calls/mutual_cycle_tail_admitted_exit` (exit 70).
-  - **Returns and structural control.** Replace the structural-scalar,
-    boundary-scalar, structural, claim-free affine, trait-operator and
-    guarded payloadless return rosters (`.../05_checked-trees-to-lowered-psi/src/returns/`)
-    with ordinary operations plus result completion, keeping
-    outcome-selected evidence and proof-only tail arguments. Coordinate
-    operator returns with **OPERATOR-BOUNDARY-CALLS**;
-    `pass/providers/specialized_structural_fixed_operator_terminal_custody`
-    has an unused `exercise` beside an empty entry, so its build does not
-    prove operator execution. Fold `.../unit/structural_unit_control.rs` into
-    the general graph, keeping ranked loops, transfer/cleanup frontiers,
-    diamond joins and resumable execution; add corpus fixtures for those
-    cases since the Rust suite is gone.
-  - **Shared custody and namespaces.** Embed dynamic-call custody in scalar
-    and Unit plans instead of `DynamicCallCustody`
-    (`.../04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls/call_plans.rs`),
-    builder macros and separate join views; relaxing the dynamic join's `_`
-    check alone does not admit a two-case sum dispatch. Build nominal cleanup
-    once rather than in both Unit candidates and `finalize_execution`.
-    Replace per-roster `ShapeCollector` namespaces and the manual
-    `UnitPlans::with_staged` union (`.../unit/attached_unit/bodies.rs`) with
-    shared type ownership in the existing representations.
-  Acceptance: each removed route's programs lower through the common path
-  and keep interpreter/native outcomes; the affected corpus and execution
-  oracles pass. Fewer dispatch branches or an empty entry compiling does not
-  establish closure.
-
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform and replacement execution under
   [ownership windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
@@ -1632,6 +1583,238 @@ crash and native exit behavior.
   Terminal-request mode, so cover Terminal and artifact-only admission
   directly rather than counting a check/native corpus pass.
 
+## Lowering simplification
+
+Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of
+stage 04's plans. Three things go:
+- **Re-checking.** Stage 05 re-reads the typed program and re-validates the
+  plan it is handed. That is the in-process self-validation the
+  [Trust ceremony](#trust-ceremony) ruling removes.
+- **Parallel routes.** Bodies are lowered by 13 leaf routes, chosen in
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`,
+  and each route re-implements calls, stores and transitions.
+- **Shape-specific plans and rungs** where a general operation would work.
+
+Stage 05 is 178k lines with 5,684 refusal sites; only 3 of its 5,250
+distinct refusal messages appear in any recorded corpus rejection. An audit
+sampling 42 refusals in `unit/attached_unit` found 34 checking stage 04's
+invariants, 7 route-specific shape gaps and 1 unsupported feature.
+
+Order: the deletions (first three items) shrink the surface, then the shared
+operations, then the route retirements. The vocabulary items can run at any
+time after the deletions. New capability work (**STATE-LOCAL-VALUE-FRONTIER**
+and others) lands in the shared operations, never as a new per-route case.
+Each item lands in one commit, deletes the code it supersedes, and keeps the
+check corpus and the native corpus unchanged on the slices it names.
+
+- **STAGE05-SOURCE-REREAD-DELETED.** (new-scope) Stage 05 confirms each
+  stage 04 plan row by re-reading the authored typed program.
+  - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
+    (20.7k lines) says so in its header: "each function here re-reads the
+    authored typed program … to confirm that a retained checked plan row
+    names the exact authored state, statement, expression … and rejects the
+    row".
+  - `.../src/emission/call_source_custody/` (5.2k lines) does the same for
+    calls.
+
+  Delete both. Where stage 05 used them to obtain a value it needs to emit,
+  stage 04 records that value in the plan instead. Add a source-scanning
+  guard in stage 05 that lists the few files allowed to read
+  `statement_table`, `expression_table`, `StatementNode::` or
+  `ExpressionNode::`; today there are 1,637 such references across 116 files.
+  Acceptance: both modules are gone, the guard passes, and the full check
+  corpus and the native corpus are unchanged.
+
+- **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on
+  **STAGE05-SOURCE-REREAD-DELETED**. Delete stage 05's validation of the plan
+  it receives:
+  - `.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission/`
+    and `admission.rs`;
+  - `unit/attached_unit/domain_replay.rs` and `statement_custody.rs`;
+  - `unit/dynamic_composed_unit/plan_validation.rs`;
+  - every refusal whose message asserts a stage 04 invariant ("disagrees
+    with its checked …", "omits or duplicates", "declared more than once",
+    "not canonical source order", "substituted", "rejoin").
+
+  A plan that violates an invariant is a stage 04 bug, found by the corpus.
+  Refusals for genuinely unsupported constructs stay until the route items
+  below remove them. Acceptance: the listed files are gone; a source-scanning
+  guard rejects new refusal messages matching those phrasings; the full check
+  corpus and the native corpus are unchanged.
+
+- **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope) Today stage 04 drops an
+  unsupported body silently:
+  - its builders return `Option` (`return None` appears 1,459 times under
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/`);
+  - `OmissionLedger` (`.../terminal_unit/mod.rs`) records the drop;
+  - fallback builders retry with a different plan;
+  - the compile finally fails at entry establishment with "the machine's
+    unit plan was omitted at <phase>".
+
+  Make the builders return `Result` carrying the unsupported construct and its
+  source span, report it from `omega --check`, and delete `OmissionLedger`,
+  `CheckedUnitPlanOmissionStage` and the retry paths. Acceptance:
+  - `pass/text/runtime_local_struct_string_field_concat_exit`,
+    `pass/traits/runtime_dyn_two_impl_dispatch_exit` and
+    `pass/ownership/linear_transparent_record_frontier` fail `--check` with a
+    diagnostic at the construct's span instead of an entry-establishment
+    error;
+  - no corpus outcome changes otherwise.
+
+- **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
+  parameter transfer are lowered in about six places:
+  - `unit/attached_unit/composed_control/state_graph/edges.rs` and
+    `state_graph/emission/successor_edge.rs`;
+  - `unit/structural_unit_control.rs`;
+  - `scalar_graph/scalar_graph_module/state_emission.rs`;
+  - `unit/dynamic_composed_unit/join.rs` and `continuation.rs`.
+
+  Stage 04 builds successor plans in `execution/terminal_unit/state_graph/mod.rs`,
+  `control/structural_unit_machine.rs`, `execution/terminal_scalar/successors.rs`,
+  `composed_control/topology.rs` and `state_graph/closed_sum.rs`. Make one
+  successor-plan builder in stage 04 and one lowering in the shared
+  `unit/attached_unit/operation_frame.rs`, used by every route. Acceptance:
+  a source-scanning guard finds a single constructor and a single lowering
+  of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
+  is unchanged in check and native.
+
+- **ONE-CALL-LOWERING.** (new-scope) Calls are emitted by about ten routes:
+  - `unit/attached_unit/operation_frame/calls.rs`, plus its ordinary,
+    structural and scalar-structural call modules;
+  - `composed_control` `emit_call_operations` and `emit_call_leaf`;
+  - `scalar_graph_lowering/call_lowering.rs`;
+  - `scalar_computations/calls.rs`;
+  - both `boundary_calls.rs`;
+  - the return routes.
+
+  Structural arguments are assembled in 24 files. Stage 04 shares
+  `calls/call_operations.rs::build_call_operation` at 9 sites but keeps
+  separate builders in `terminal_scalar`, `dynamic_scalar_calls` and
+  `returns/guarded_call_returns`. Make one argument preparation and one call
+  emitter, fed by `build_call_operation` alone. Include the claim-transfer
+  parity the ordinary route lacks:
+  - `ClaimBindings::Fixed` (`operation_frame/calls.rs`) cannot mint a result
+    claim;
+  - `establish_structural_result` (`argument_evaluation.rs`) accepts linear
+    locals only from ordinary structural-call producers.
+
+  Acceptance: a source-scanning guard finds one call emitter and one
+  `StructuralArgument` constructor in stage 05; corpus
+  `--filter calls/,boundary/,providers/` is unchanged;
+  `pass/calls/runtime_value_call_literal_len_arm_guard_exit` exits 70.
+
+- **STRUCTURAL-UNIT-CONTROL-RETIRED.** (new-scope) Depends on
+  **ONE-TRANSITION-LOWERING**. Fold
+  `.../05_checked-trees-to-lowered-psi/src/unit/structural_unit_control.rs`
+  into the composed state-graph route and delete it. That includes the
+  `lower_ranked_structural_unit_countdown` rung, which requires exactly a
+  header and an exit state with one scalar parameter. Ranked loops then
+  lower through the general rank plans, without the
+  `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
+  case. Acceptance: the file is gone; add corpus fixtures for ranked loops,
+  transfer and cleanup frontiers, diamond joins and resumable execution
+  (their Rust tests were cut); each executes natively with its oracle.
+
+- **RETURN-ROUTES-RETIRED.** (new-scope) Depends on **ONE-CALL-LOWERING**.
+  Replace the six return rosters in
+  `.../05_checked-trees-to-lowered-psi/src/returns/` (structural-scalar,
+  boundary-scalar, structural, claim-free affine, trait-operator and guarded
+  payloadless) with ordinary body operations plus result completion, keeping
+  outcome-selected evidence and proof-only tail arguments. Coordinate operator
+  returns with **OPERATOR-BOUNDARY-CALLS**.
+  `pass/providers/specialized_structural_fixed_operator_terminal_custody` has
+  an unused `exercise` beside an empty entry, so its build proves nothing:
+  give it an entry that executes the operator. Acceptance: `returns/` holds
+  no route of its own, `CheckedReturnPlan` is gone, and corpus
+  `--filter returns/,operators/,providers/` is unchanged in check and native.
+
+- **DYNAMIC-UNIT-ROUTE-RETIRED.** (new-scope) Depends on
+  **ONE-CALL-LOWERING**. Lower dynamic dispatch as an ordinary call operation
+  inside the body route and delete
+  `.../05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/`
+  (4.9k lines, Scalar and Unit variants across four binding kinds). Embed
+  dynamic-call custody in the ordinary call plan instead of
+  `DynamicCallCustody`
+  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls/call_plans.rs`)
+  and its separate join views. Relaxing the dynamic join's `_` check alone
+  does not admit a two-case sum dispatch. Acceptance: the directory is gone;
+  `pass/traits/` and the dyn dispatch run fixtures are unchanged in check and
+  native.
+
+- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Depends on
+  **STRUCTURAL-UNIT-CONTROL-RETIRED**, **RETURN-ROUTES-RETIRED** and
+  **DYNAMIC-UNIT-ROUTE-RETIRED**. Lower scalar machines through the same body
+  route as Unit machines and delete
+  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (19.4k lines) and
+  the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Account
+  for:
+  - continuation-arm custody (`CheckedStructuralControlSuccessorPlan` lacks
+    continuation identity);
+  - later-state mutable scalar stores;
+  - crash predicates, float prefix initializers and debug maps.
+
+  Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
+  exits returning 20 and 30 under `ensures result >= 20` still hold;
+  constant-stack mutual tail fusion and `pass/calls/mutual_cycle_tail_admitted_exit`
+  (exit 70) still hold; and the full check corpus and the native corpus are
+  unchanged.
+
+- **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 assembles the Unit plan
+  twice in places:
+  - nominal cleanup is built both in the Unit candidates and in
+    `finalize_execution`;
+  - each roster keeps its own `ShapeCollector` namespace;
+  - `UnitPlans::with_staged` (`.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/bodies.rs`)
+    unions them by hand.
+
+  Build nominal cleanup once and keep one type namespace in the existing
+  representations. Acceptance: `with_staged` and the per-roster namespaces are
+  gone; corpus `--filter drops,ownership/,cleanup` is unchanged.
+
+- **STORE-OPERATIONS-GENERALIZED.** (new-scope) The checked plan vocabulary
+  splits stores by shape into nine variants
+  (`omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/terminal/unit_effect_plans.rs`):
+  - `WriteOnlyPrimitiveStore`;
+  - `StructuralScalarFieldStore`, `StructuralCaseFieldStore` and
+    `StructuralCaseLiteralFieldStore`;
+  - `ByteSequenceStore` and `StructuralByteSequenceFieldByteStore`;
+  - `ElementViewWrite`, `RepresentationViewStore` and `StoreStructuralField`.
+
+  Each variant has its own stage 04 builder and stage 05 `operation_frame`
+  arm. Replace them with one store operation over a place path and a value,
+  where the representation decides the emitted bytes. Acceptance: one store
+  variant remains; corpus `--filter structs/,collections/,slices/,text/,layouts/`
+  is unchanged in check and native.
+
+- **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
+  into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,
+  `EstablishStructuralLocal` and `TrivialAffineLocal`, plus byte-sequence,
+  scalar-array and structural-value forms. Stage 05 handles them at about
+  eight sites (`operation_frame::establish_scalar_local` and
+  `establish_structural_local`, `primitive_locals`, `ordinary_machine/locals`,
+  `structural_values/locals`, `byte_locals`, `scalar_graph_lowering/bindings.rs`,
+  `emission::emit_scalar_binding`). Replace them with one local-binding
+  operation keyed by the value's representation. Acceptance: one binding
+  variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
+  is unchanged.
+
+- **SHAPE-RUNGS-GENERALIZED.** (new-scope) Replace these stage 04 shape
+  recognizers with their general operation:
+  - `exact_two_field_record_projection`
+    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs`,
+    used by `execution/terminal_cleanup.rs`), "the first checked
+    projected-transition cleanup rung";
+  - `first_unsupported_statement` in
+    `.../execution/terminal_unit/control/statement_sequence.rs`, which admits
+    a trailing expression only through about ten shape disjuncts;
+  - the per-shape completion producers in the same file (`returned_parameter`,
+    `returned_named_view`, `returned_subslice`, `returned_mutable_view`,
+    `returned_byte_sequence_literal`).
+
+  Acceptance: these functions are gone. New corpus fixtures cover a
+  three-field projected-transition cleanup and a trailing expression outside
+  the old disjuncts; both check and execute. Existing outcomes are unchanged.
+
 ## Data-flow defects
 
 Each item removes one verified copy, rescan or repeated validation in the
@@ -2002,8 +2185,8 @@ lands alone with its corpus slice unchanged and no fallback path.
   - the captured source inventory is served from memory, which
     `wiki/spec/build/scoped_execution.md` allows, instead of a temp-directory
     copy;
-  - `ReviewBuildSession`
-    (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation/session.rs`)
+  - `PackageBuildSession`
+    (`omega-rust/omega/packages/package-manager/src/build_session.rs`)
     creates its write root once per invocation, not once per pass.
 
   Acceptance: none of the named functions exists; the
@@ -4570,7 +4753,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   then stable-slot replacement. Runtime packages or Cathedral own deployment
   and update policy.
   - Package review publishes the dependency description
-    (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation/component_publication.rs`),
+    (`omega-rust/omega/packages/package-manager/src/build_session/component_publication.rs`),
     and provider planning checks it, but
     `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/composition_modes.rs`
     rejects every `Independent` edge before production. Replace that fence
