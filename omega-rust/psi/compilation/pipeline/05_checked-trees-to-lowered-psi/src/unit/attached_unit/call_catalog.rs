@@ -137,6 +137,23 @@ pub(super) fn discover(
             &structural_scalar_roots,
         )?;
 
+        for source in closure.iter().chain(&scalar_closure) {
+            for operation in
+                crate::expression_preparation::computation_graph::value_call_operations(
+                    checked, *source,
+                )?
+            {
+                if let Some(call) = operation
+                    .call()
+                    .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+                {
+                    let target = call.target.machine;
+                    if !closure.contains(&target) && !new_roots.contains(&target) {
+                        new_roots.push(target);
+                    }
+                }
+            }
+        }
         for source in &scalar_closure {
             if let Some(graph) = checked
                 .facts
@@ -144,7 +161,12 @@ pub(super) fn discover(
                 .terminal_scalar_graphs
                 .for_machine(*source)
             {
-                for operation in graph.states.iter().flat_map(|state| &state.unit_operations) {
+                for operation in graph
+                    .states
+                    .iter()
+                    .flat_map(|state| &state.unit_operations)
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                {
                     if matches!(
                         operation,
                         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
@@ -154,17 +176,19 @@ pub(super) fn discover(
                         // ordered lowering independently validates its destination.
                         continue;
                     }
-                    if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } if calls.is_empty())
-                    {
-                        // Scalar field calls already belong to the computation
-                        // closure. A fresh record adds storage, not a callee.
+                    if matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                    ) {
+                        // Construction adds storage; its retained call dependencies
+                        // are separate entries in this same operation inventory.
                         continue;
                     }
-                    // A scalar graph retains only ordinary Unit calls.
-                    let Some(call) = operation.call().filter(|call| {
-                        !call.is_boundary()
-                            && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-                    }) else {
+                    // Non-scalar call results belong to ordinary operation bodies.
+                    let Some(call) = operation
+                        .call()
+                        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+                    else {
                         return unsupported("scalar graph retained an unsupported Unit effect");
                     };
                     let target_machine = call.target.machine;

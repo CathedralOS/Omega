@@ -52,7 +52,60 @@ fn collect_call_targets(
             }
         }
     }
+    for operation in value_call_operations(checked, machine)? {
+        if let Some(call) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+        {
+            if !structural_only
+                || !call.structural_arguments.is_empty()
+                || !call.claim_transfers().is_empty()
+            {
+                if !targets.contains(&call.target.machine) {
+                    targets.push(call.target.machine);
+                }
+            }
+        }
+    }
     Ok(targets)
+}
+
+/// Ordinary call operations owned by retained structural computation values.
+/// Scalar and operation-body consumers discover these targets through the same
+/// retained dependency walk; discovery does not schedule or authorize a call.
+pub(crate) fn value_call_operations(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<&checked_trees::CheckedUnitEffectOperationPlan>, LoweringError> {
+    let roots = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .collect::<Vec<_>>();
+    let mut values = Vec::new();
+    collect_reachable_nodes(checked, &roots, &mut values)?;
+    let mut operations = Vec::new();
+    for value in values {
+        for call in checked
+            .facts
+            .values
+            .structural_values
+            .calls_for_root(value)
+            .unwrap_or(&[])
+        {
+            for operation in call
+                .operands()
+                .iter()
+                .chain(std::iter::once(call.operation()))
+            {
+                operations.extend(operation.with_value_calls());
+            }
+        }
+    }
+    Ok(operations)
 }
 
 /// Discovery walks only retained roots, never abandoned speculative arena nodes.
@@ -60,6 +113,14 @@ fn collect_call_targets(
 pub(crate) fn reachable_nodes(
     checked: &CheckedTrees,
     roots: &[Computation],
+) -> Result<Vec<Computation>, LoweringError> {
+    collect_reachable_nodes(checked, roots, &mut Vec::new())
+}
+
+fn collect_reachable_nodes(
+    checked: &CheckedTrees,
+    roots: &[Computation],
+    structural_roots: &mut Vec<checked_trees::CheckedStructuralValueHandle>,
 ) -> Result<Vec<Computation>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut pending = roots.to_vec();
@@ -109,6 +170,9 @@ pub(crate) fn reachable_nodes(
             | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
                 if receiver_value.is_valid() {
+                    if !structural_roots.contains(receiver_value) {
+                        structural_roots.push(*receiver_value);
+                    }
                     pending.extend(structural_dependencies(checked, *receiver_value)?.scalars);
                 }
             }
