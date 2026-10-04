@@ -298,3 +298,41 @@ STATIC-MACHINE-MIGRATION cannot reach zero. They are not an implementation
 gap: no compiler change makes a receiver-form trait requirement into a static
 one without choosing a spelling, and a satisfier cannot diverge from the
 requirement it satisfies.
+
+### Q4 - Is the stored-reference custody join's superlinear build cost an accepted architecture cost?
+
+Named decision: `custody-join-build-cost`.
+
+**Context:** `tests/omega/expressions/runtime_indexed_float_record_fields_exit`'s
+native build time moved 3331ms -> 8421ms @15c77983aab0 -> 9026ms @6ba9c43af35
+across three corpus waves (freshly rebuilt runner, serial JOBS=1 confirmation),
+holding at ~9s on @b5d8c6882a8. The window is the bounded-read /
+stored-reference-custody wave: `8e7143595bb` (preserve bounded reads through
+stored references), `89e3d147a38` (classify a fresh call-argument construction
+by its construction contents), `f7d1ffd1a86` (preserve loan custody in
+reference arrays). The same waves healed programs -- the cost buys real
+coverage -- but no other fixture in the 1900-row corpus showed a comparable
+multiplier, so the join appears superlinear on indexed record-field programs
+rather than uniformly priced.
+
+**Contracts checked and found silent:**
+- The corpus outcome golden (`tests/omega/corpus_native_linux_x86_64.txt`)
+  pins outcomes and durations but defines no acceptable build-time envelope.
+- `omega-rust/pipeline.md` (psi implementation policy) defers human audit of
+  psi internals; it says nothing about per-program cost shape.
+- No wiki contract bounds verification or lowering cost per fixture; cost has
+  only ever surfaced as wall-clock in the golden.
+
+**Problem:** whether a ~2.7x compile-time multiplier on record-index programs
+is the priced cost of the stored-reference custody join (and other patterns
+will scale similarly) or a scaling bug in the join's per-obligation work that
+the architecture does not intend to carry. The evidence cannot distinguish
+accepted cost from accidental quadratic without an owner-level statement of
+what the join is allowed to cost.
+
+**Proposed solution:** treat it as accepted-cost-and-debt: keep the
+custody-preserving behavior (it healed real programs), but name a
+`custody-join-scaling` implementation task to profile the join's per-obligation
+recomputation and amortize repeated field-capture substitutions, with the
+fixture row as the regression witness. If profiling shows the cost is intrinsic
+to exact custody joins, the decision is to accept and document the envelope.
