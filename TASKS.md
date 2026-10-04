@@ -2081,12 +2081,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   owner. Interval `ensures` forwarding also runs; false bounds still reject.
   Whole-reference result origins still need transport from terminal calls into
   the composed return roster; claim-transferring arm calls remain unfinished.
-  Terminal calls to selected requirements with explicit projected context
-  arguments still lack an admitted body: guarded
-  `Items::get_count(&request.items)` fails while the same selected call in an
-  ordinary initializer runs. Direct declaration terminal calls with that
-  projected context also run. Preserve the selected requirement occurrence and
-  exact argument path; implicit receiver syntax is no longer a language feature.
+  `calls/runtime_terminal_requirement_projected_context_exit` exits **0** in
+  both engines: guarded terminal requirement calls retain an explicit nested
+  shared context and forward the selected provider's result. Bodyless nominal
+  requirements share boundary parameter-path admission with trait requirements;
+  branch placement no longer restricts field projection.
 
   Qualified runtime-end byte slices now execute: after package preparation,
   `omega run --both tests/omega/pass/slices/domained_runtime_end_subslice_exit/main.omg`
