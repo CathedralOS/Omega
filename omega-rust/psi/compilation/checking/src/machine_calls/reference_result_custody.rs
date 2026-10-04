@@ -2017,30 +2017,88 @@ fn mutable_view_source_parameter(
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut source = None;
     for (ordinal, statement) in statements.iter().enumerate() {
-        let returned = match statement {
+        let next = match statement {
             StatementNode::Transition(transition) => {
+                if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid()
+                {
+                    return None;
+                }
                 match program.statement_table.transition_target(transition.target) {
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                        Some(*expression)
+                    TransitionTargetNode::Value(expression) => mutable_view_exit_source_parameter(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        *expression,
+                    )?,
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        let sources = call_sources_with_calls(
+                            program,
+                            state,
+                            path.symbol,
+                            program.statement_table.expression_handles(*arguments),
+                            state.return_type,
+                            &mut vec![state.symbol],
+                        )?;
+                        mutable_returned_source_parameter(program, state, &sources)?
                     }
-                    _ => None,
+                    TransitionTargetNode::Terminal => return None,
                 }
             }
             StatementNode::Expression(expression) if ordinal + 1 == statements.len() => {
-                Some(*expression)
+                mutable_view_exit_source_parameter(program, facts, machine, state, *expression)?
             }
-            _ => None,
+            _ => continue,
         };
-        let Some(returned) = returned else {
-            continue;
-        };
-        let next = mutable_view_exit_source_parameter(program, facts, machine, state, returned)?;
         if source.is_some_and(|prior| prior != next) {
             return None;
         }
         source = Some(next);
     }
     source
+}
+
+/// Substituted call origins retain their exact access and paths. The caller's
+/// result loan covers one ingress, so every normal completion must name that
+/// same parameter; an unknown or differently rooted alternative cannot vanish.
+fn mutable_returned_source_parameter(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    sources: &[ConstructionSource],
+) -> Option<usize> {
+    let mut parameter = None;
+    for source in sources {
+        if !source.value.path.is_empty()
+            || source.value.source.access != CheckedStructuralAccess::MutableBorrow
+        {
+            return None;
+        }
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            source.value.source.source
+        else {
+            return None;
+        };
+        let (position, formal) = program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .filter(|(_, formal)| {
+                !formal.is_const
+                    && program
+                        .primitive_type_reference(formal.type_reference)
+                        .is_none()
+            })
+            .nth(parameter_index as usize)?;
+        if !view_source_parameter_is_mutable(program, formal)
+            || parameter.is_some_and(|prior| prior != position)
+        {
+            return None;
+        }
+        parameter = Some(position);
+    }
+    parameter
 }
 
 /// Resolve one returned projection to the ingress whose loan it descends
@@ -2053,14 +2111,26 @@ fn mutable_view_exit_source_parameter(
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<usize> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
-        return None;
+    let mut cursor = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_semantics::ReferenceAccess::Mutable =>
+        {
+            borrow.target
+        }
+        ExpressionNode::Name(_) => expression,
+        ExpressionNode::Call(_) => {
+            let sources = construction_sources_with_calls(
+                program,
+                state,
+                expression,
+                state.return_type,
+                &mut vec![state.symbol],
+            )?;
+            return mutable_returned_source_parameter(program, state, &sources);
+        }
+        _ => return None,
     };
-    if borrow.access != language_semantics::ReferenceAccess::Mutable {
-        return None;
-    }
     let authored = program.state_parameters(state);
-    let mut cursor = borrow.target;
     let mut symbol = loop {
         match program.expression_table.expression(cursor) {
             ExpressionNode::Name(name) => break name.symbol,
