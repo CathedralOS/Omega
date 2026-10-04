@@ -219,9 +219,12 @@ pub(super) fn structural_operand_shape(
             crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
         }
         StructuralFieldType::Structural(nested) => {
-            // Owned aggregates copy their bytes; a reference child copies its
-            // one address word, never the referent's storage or permission.
-            if crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+            // Construction transfers completed storage, including nested loan
+            // carriers. The source/result custody checks below govern whether
+            // that transfer consumes an affine child; copyable-leaf geometry
+            // would incorrectly reject references beneath an array dimension.
+            // A bare reference transfers its address, never its referent bytes.
+            if crate::structural_inputs::structural_reference_input::owned_storage_shape(
                 *nested,
                 declarations,
             )

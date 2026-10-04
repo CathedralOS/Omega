@@ -347,6 +347,22 @@ reference origins move under `FixedIndex(ordinal)` followed by their original
 child path; copying their representation bytes grants no new backing permission.
 Element qualifications must already hold on the supplied completed values.
 
+A reference stored directly in an array element retains its pointer and exact
+loan identity, just as a reference field does. Nested arrays recursively own
+those carriers with affine custody even when source reference observations are
+unrestricted. That custody does not grant ownership of the referents. Shared
+borrowed aliases still denote unrestricted observations; their loan release is
+not a second owned-value disposal. Native construction transports complete
+storage shapes without requiring that their contents be copyable.
+
+Formation compares complete ingress paths: mutable loans of disjoint record
+fields may coexist, while identical or enclosing paths remain suspended. Every
+possible origin of a returned reference participates in that comparison. The
+three `borrows/runtime_{indexed,mutable,nested}_reference_array_bounded_read_exit`
+fixtures select stored references, observe their bounded scalar and Boolean
+fields, and return 70 in native and checked-interpreter execution on macOS ARM64.
+Competing mutable elements and mutation or extraction of live backing reject.
+
 `EstablishScalarArray` retains its row-major scalar-operand contract. Structural
 array construction carries complete element values rather than manufacturing
 record field identities for array positions.

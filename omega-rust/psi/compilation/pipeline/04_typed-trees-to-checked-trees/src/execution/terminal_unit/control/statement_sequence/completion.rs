@@ -282,7 +282,10 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             statement_index: root.statement_ordinal,
             binding_ordinal: u32::try_from(structural_count).ok()?,
             type_identity: shapes.add_type(state.return_type, binders, &[])?,
-            multiplicity: program.type_multiplicity(state.return_type),
+            multiplicity: validation::reference_result_custody::binding_multiplicity(
+                program,
+                state.return_type,
+            ),
         };
         let establishment = structural_operands::establish_value(
             facts,

@@ -898,10 +898,23 @@ fn normalized_direct_source(
                         _ => Some(()),
                     })
             }) {
-                Some(()) => Ok((
-                    ReferenceRoot::Ingress(source.place, carrier_path.to_vec()),
-                    None,
-                )),
+                Some(()) => {
+                    let root = ReferenceRoot::Ingress(source.place, carrier_path.to_vec());
+                    if live.references.iter().any(|((carrier, path), reference)| {
+                        roots_overlap(&reference.root, &root)
+                            && !shared_source_compatible(
+                                function,
+                                live,
+                                types,
+                                carrier,
+                                path,
+                                source.access,
+                            )
+                    }) {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    Ok((root, None))
+                }
                 None => Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         };
@@ -923,7 +936,7 @@ fn normalized_direct_source(
     } else if storage_projection_type(function, live, types, source).is_some() {
         let root = ReferenceRoot::Ingress(source.place, source.path.clone());
         if live.references.iter().any(|((carrier, path), leaf)| {
-            leaf.root.place() == source.place
+            roots_overlap(&leaf.root, &root)
                 && !shared_source_compatible(function, live, types, carrier, path, source.access)
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));

@@ -46,8 +46,25 @@ fn reference_origin_expansion_is_bounded(
             TypeReferenceNode::Constrained { base_type, .. } => {
                 return visit(program, *base_type, depth + 1, visits, leaves);
             }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let before = *leaves;
+                visit(program, *element_type, depth + 1, visits, leaves)?;
+                let element_leaves = leaves.checked_sub(before)?;
+                if element_leaves == 0 {
+                    return Some(());
+                }
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                    return None;
+                };
+                // Bound the expanded permission roster without traversing
+                // every element of a compact nested array type.
+                *leaves = before.checked_add(element_leaves.checked_mul(*length)?)?;
+                return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
+            }
+            TypeReferenceNode::Slice { element_type } => {
                 return visit(program, *element_type, depth + 1, visits, leaves);
             }
             _ => return Some(()),
@@ -66,7 +83,9 @@ fn reference_origin_expansion_is_bounded(
     visit(program, reference, 0, &mut 0, &mut 0).is_some()
 }
 
-/// Closed record construction can contain real mutable-reference carriers.
+/// Closed aggregate construction can contain real reference carriers.
+/// Arrays recurse through the same stored-value tree as record fields; the
+/// owned aggregate holds each loan descriptor, never the referent's bytes.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
 pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     if !reference_origin_expansion_is_bounded(program, reference) {
@@ -82,6 +101,11 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         }
         if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
             return Some(false);
+        }
+        if let TypeReferenceNode::FixedArray { element_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            return visit(program, *element_type, seen);
         }
         let symbol = match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => symbol,
@@ -626,7 +650,7 @@ fn construction_sources_with_calls(
             active_origins,
         )
     } else {
-        record_construction_sources(program, state, expression, reference, active_origins)
+        aggregate_construction_sources(program, state, expression, reference, active_origins)
     }
 }
 
@@ -1115,58 +1139,88 @@ fn formal_record_sources(
     Some(output)
 }
 
-fn record_construction_sources(
+fn aggregate_construction_sources(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<ConstructionSource>> {
-    let symbol = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => symbol,
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if arguments.count() == 0 => base_symbol,
-        _ => return None,
-    };
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
-    else {
-        return None;
-    };
-    if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
-        return None;
-    }
-    let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
-    let initializers = program.expression_table.struct_fields(literal.fields);
-    let fields = program.data_members(data);
-    if initializers.len() != fields.len() {
-        return None;
-    }
-    let mut output = Vec::new();
-    for member in fields {
-        let typed_trees::data::DataMember::Field(field) = member else {
+    // Enumerate semantic children once, then compose every child's captured
+    // loans through its exact stored path. A field and an array slot differ
+    // in their projection, not in the ownership of the reference they hold.
+    let mut children = Vec::new();
+    if let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(reference)
+    {
+        let ExpressionNode::ArrayLiteral(literal) = program.expression_table.expression(expression)
+        else {
             return None;
         };
-        let mut matching = initializers
-            .iter()
-            .filter(|initializer| initializer.field_symbol == field.symbol);
-        let initializer = matching.next()?;
-        if matching.next().is_some() {
+        let elements = program.expression_table.expression_handles(*literal);
+        if elements.len() != *length {
             return None;
         }
-        for mut source in construction_sources_with_calls(
-            program,
-            state,
-            initializer.value,
-            field.type_reference,
-            active_origins,
-        )? {
-            source.value.path.insert(
-                0,
+        for (index, expression) in elements.iter().enumerate() {
+            children.push((
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(index).ok()?,
+                ),
+                *expression,
+                *element_type,
+            ));
+        }
+    } else {
+        let symbol = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => symbol,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.count() == 0 => base_symbol,
+            _ => return None,
+        };
+        let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
+            return None;
+        }
+        let data =
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
+        let initializers = program.expression_table.struct_fields(literal.fields);
+        let fields = program.data_members(data);
+        if initializers.len() != fields.len() {
+            return None;
+        }
+        for member in fields {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            let mut matching = initializers
+                .iter()
+                .filter(|initializer| initializer.field_symbol == field.symbol);
+            let initializer = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            children.push((
                 checked_trees::CheckedUnitStructuralPathSegment::Field(field.path_identity()),
-            );
+                initializer.value,
+                field.type_reference,
+            ));
+        }
+    }
+    let mut output = Vec::new();
+    for (segment, expression, reference) in children {
+        for mut source in
+            construction_sources_with_calls(program, state, expression, reference, active_origins)?
+        {
+            source.value.path.insert(0, segment.clone());
             output.push(source);
         }
     }
@@ -1279,34 +1333,21 @@ pub fn local_record_loans(
             }
             _ => return None,
         };
-        let mut owner_path = Vec::new();
-        let mut selected = local.type_reference;
-        for segment in &source.path {
-            let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment else {
-                return None;
-            };
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(selected)
-            else {
-                return None;
-            };
-            let data = crate::program_scope::data_definitions::data_definition_by_symbol(
-                program, *symbol,
-            )?;
-            let field = program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.path_identity() == *identity =>
-                    {
-                        Some(field)
-                    }
-                    _ => None,
-                })?;
-            owner_path.push(checked_trees::BorrowLoanOwnerSegment::Field(field.symbol));
-            selected = field.type_reference;
-        }
+        // Both sides resolve through the declared aggregate. Owner paths use
+        // symbols/ordinals while result paths use declaration identities; the
+        // same typed projection walk authenticates fields and fixed slots.
+        let owner_path = expected_loan_segments(program, local.type_reference, &source.path)?
+            .into_iter()
+            .map(|segment| match segment {
+                facts::PlaceSegment::Field { symbol } => {
+                    Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
+                }
+                facts::PlaceSegment::FixedIndex { index } => {
+                    Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
+                }
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
         let mut matching = loans
             .iter()
             .filter(|(_, loan)| facts.borrow.loan_owner_path(loan) == owner_path);
@@ -2001,9 +2042,36 @@ pub fn shared_place_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
+/// Custody of a structural binding that denotes the referent directly.
+/// Shared aliases remain unrestricted observations; exclusive aliases retain
+/// affine loan custody. A stored reference value instead uses
+/// `result_multiplicity`: its descriptor is an owned lifetime resource even
+/// when its referent is shared. Aggregate bindings own their stored elements.
+pub fn binding_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
+    match crate::reference_shell(program, reference) {
+        Some(shell) if shell.access == language_semantics::ReferenceAccess::Shared => {
+            Multiplicity::Unrestricted
+        }
+        Some(_) => Multiplicity::Affine,
+        None => result_multiplicity(program, reference),
+    }
+}
+
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Reference carrier custody must end exactly once.
 pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
+    // Aggregate custody follows the stored element, not source use
+    // multiplicity. References are reusable source observations, but each
+    // materialized loan carrier (also inside nested arrays) ends once.
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return result_multiplicity(program, *base_type);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            return result_multiplicity(program, *element_type);
+        }
+        _ => {}
+    }
     if parts(program, reference).is_some()
         || shared_borrowed_parts(program, reference).is_some()
         || mutable_borrowed_parts(program, reference).is_some()

@@ -388,16 +388,18 @@ impl Evaluation {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, binding_type)?,
             };
-            // Only an affine result rides the loan ledger: `&mut` locals and
-            // a `&` local that binds a record `&T` call result. A `&` local
-            // bound by anything else (a match join, a field borrow, a view
-            // call) keeps the declared multiplicity of its own type.
-            let expected_multiplicity =
-                if mutable_borrow.is_some() || record_call_result || reference_carrier {
-                    Multiplicity::Affine
-                } else {
-                    checked.type_multiplicity(binding_type)
-                };
+            // A materialized Reference shape always carries affine custody.
+            // Other stored values use the shared recursive custody judgment,
+            // including arrays of references. Source copyability alone cannot
+            // authorize duplicating those captured loan descriptors.
+            let expected_multiplicity = if reference_carrier {
+                Multiplicity::Affine
+            } else {
+                validation::reference_result_custody::binding_multiplicity(
+                    &checked.typed,
+                    binding_type,
+                )
+            };
             if !local.symbol.is_valid()
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || expected_multiplicity != result.multiplicity

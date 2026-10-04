@@ -1601,21 +1601,19 @@ fn normalized_direct_source(
         if reference_access(module, leaf).is_some() {
             return Err(invalid(machine, "reference carrier is no longer live"));
         }
-        if mutable_referent(module, leaf)
-            && live.iter().any(|reference| {
-                origin_root(&reference.root) == source.place
-                    && !shared_source_compatible(module, machine, reference, source.access)
-            })
-        {
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: carrier_path.to_vec(),
+        });
+        if live.iter().any(|reference| {
+            origins_overlap(&reference.root, &root)
+                && !shared_source_compatible(module, machine, reference, source.access)
+        }) {
             return Err(invalid(
                 machine,
                 "projected ingress remains suspended by a live reference",
             ));
         }
-        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-            place: source.place,
-            path: carrier_path.to_vec(),
-        });
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
         if live.iter().any(|reference| {
@@ -1630,8 +1628,12 @@ fn normalized_direct_source(
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if storage_projection_type(module, machine, source).is_some() {
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: source.path.clone(),
+        });
         if live.iter().any(|reference| {
-            origin_root(&reference.root) == source.place
+            origins_overlap(&reference.root, &root)
                 && !shared_source_compatible(module, machine, reference, source.access)
         }) {
             return Err(invalid(
@@ -1639,10 +1641,6 @@ fn normalized_direct_source(
                 "projected ingress remains suspended by a live reference",
             ));
         }
-        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-            place: source.place,
-            path: source.path.clone(),
-        });
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else {
         Err(invalid(

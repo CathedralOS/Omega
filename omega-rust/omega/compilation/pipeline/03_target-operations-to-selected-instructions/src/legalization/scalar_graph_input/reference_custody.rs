@@ -747,7 +747,23 @@ fn normalized_direct_source(
                         _ => Some(()),
                     })
             }) {
-                Some(()) => Ok((Root::Ingress(source.place, carrier_path.to_vec()), None)),
+                Some(()) => {
+                    let root = Root::Ingress(source.place, carrier_path.to_vec());
+                    if custody.leaves.iter().any(|((carrier, path), reference)| {
+                        roots_overlap(&reference.root, &root)
+                            && !shared_source_compatible(
+                                function,
+                                custody,
+                                types,
+                                carrier,
+                                path,
+                                source.access,
+                            )
+                    }) {
+                        return Err(invalid());
+                    }
+                    Ok((root, None))
+                }
                 None => Err(invalid()),
             };
         };
@@ -769,7 +785,7 @@ fn normalized_direct_source(
     } else if storage_projection_type(function, custody, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
         if custody.leaves.iter().any(|((carrier, path), leaf)| {
-            leaf.root.place() == source.place
+            roots_overlap(&leaf.root, &root)
                 && !shared_source_compatible(function, custody, types, carrier, path, source.access)
         }) {
             return Err(invalid());

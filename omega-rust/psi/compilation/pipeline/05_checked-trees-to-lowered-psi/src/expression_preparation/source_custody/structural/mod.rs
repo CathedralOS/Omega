@@ -258,17 +258,10 @@ pub(crate) fn validate(
     // projection used for structural parameters, while checking custody below
     // against the qualified type. In particular, do not erase reference shells.
     let storage_carrier = crate::unit::attached_unit::structural_carrier_type(checked, carrier)?;
-    // A `&mut`-referee establishment joins affine loan custody of the
-    // referent's storage; its borrow shell still spells `Unrestricted`, so
-    // the expected multiplicity follows the referee lane, not the shell's.
+    // Materialized custody follows stored reference leaves, including array
+    // elements; source use multiplicity alone does not describe their loans.
     let expected_multiplicity =
-        if validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, reference)
-            .is_some()
-        {
-            language_semantics::Multiplicity::Affine
-        } else {
-            checked.type_multiplicity(reference)
-        };
+        validation::reference_result_custody::binding_multiplicity(&checked.typed, reference);
     if owner.symbol != machine
         || checked.normalized_type_identity(storage_carrier).as_str() != result.type_identity
         || expected_multiplicity != result.multiplicity
@@ -2090,10 +2083,22 @@ pub(crate) fn validate_local_ownership(
     statement: u32,
     symbol: SymbolHandle,
     type_reference: TypeReferenceHandle,
-    multiplicity: language_semantics::Multiplicity,
+    carrier_multiplicity: language_semantics::Multiplicity,
     discard_result_on_return: bool,
 ) -> Result<(), LoweringError> {
     use language_semantics::{Multiplicity, PermissionEventKind, PermissionEventSource};
+    // Materialized loan custody is independently reconstructed, while owned
+    // permission events describe authored value usage. An array can have no
+    // owned disposal debt and still need each affine reference carrier retired.
+    if carrier_multiplicity
+        != validation::reference_result_custody::binding_multiplicity(
+            &checked.typed,
+            type_reference,
+        )
+    {
+        return unsupported("structural local changed its materialized custody multiplicity");
+    }
+    let multiplicity = checked.type_multiplicity(type_reference);
     let (_, source) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if !symbol.is_valid()
@@ -2218,15 +2223,6 @@ pub(crate) fn validate_local_ownership(
             }
             _ => return unsupported("structural local changed its ownership event"),
         }
-    }
-    // A `&mut`-referee local's custody is its loan, not the owned axis: it
-    // establishes no owned receipt and owes no owned final disposition — the
-    // event loop above already replayed (and rejected any stray owned
-    // events on) the borrow axis its lifecycle lives in.
-    if validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, type_reference)
-        .is_some()
-    {
-        return Ok(());
     }
     // A linear local's stream is its establishment plus the crossing that
     // discharges its live claim — a whole transfer event, or the call whose

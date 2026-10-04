@@ -1256,24 +1256,20 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: scalar observations from reference-bearing array elements compose
-    literal and runtime selection with stored-pointer crossings. Bounded and
-    refined fields retain their declaration's invariant on the fresh scalar
-    value, without copying the carrier or treating it as canonical owned
-    storage. The three `pass/borrows/{runtime_indexed,static,runtime_nested}_carrier_bounded_reference_read_exit`
-    controls return 70 in native and checked-interpreter execution on macOS ARM64;
-    guarded indexed field updates retain their unchanged-read evidence. Live
-    loans exclude extraction of their backing, including a loan formed earlier
-    in the same initializer; disjoint extraction and exact exclusive-parent
-    authority remain valid.
-    Remaining: direct reference arrays. Replacing `[Message; 2]` by
-    `[&Cell; 2] = [&main.first, &main.second]` in the runtime bounded-read
-    control and reading `messages[main.index].value` still omits the unit plan
-    at `statement sequence: local data: structural value: type shape`
-    (state 0, statement 7). Stage 04's local-data structural type planning must
-    admit the reference element while preserving each stored loan and runtime
-    selector. Next acceptance is the same program's authored exit 70 in both
-    engines through `omega run --both`.
+  - State: bounded scalar and Boolean reads through reference-bearing records
+    and direct shared/mutable reference arrays preserve captured loans, runtime
+    selection and nested storage. The 70-case native/interpreter gate retains
+    its authored outcomes on macOS ARM64; all three direct-array controls exit
+    70. Conflicting mutable elements and live-backing move/write controls reject.
+    Remaining: reference arrays returned by a helper. A single `&Pair` input
+    with `collect(source: &Pair) -> [&Cell; 2] { [&source.first, &source.second] }`
+    avoids ambiguous input lifetimes, but binding `collect(&main.cells)` in the
+    same control omits the caller's plan at `state graph: result custody accounting`
+    (state 0), observed from a worktree based on `15c77983aab` during selected-entry
+    package checking by `omega update --offline`. Stage 04 must carry the
+    aggregate's loan roster through call-result disposition, with stage 05 replay and native
+    transport retaining each leaf. Next acceptance remains authored exit 70
+    in both engines, with all current controls preserved.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

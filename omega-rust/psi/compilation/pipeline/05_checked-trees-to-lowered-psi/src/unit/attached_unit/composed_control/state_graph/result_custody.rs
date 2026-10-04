@@ -531,9 +531,10 @@ pub(super) fn validate_disposition(
                     && event.access == PermissionAccess::Owned
             })
     };
-    // Plain copy payloads retain producer dominance, not affine receipts. The
-    // ordinary body rejoin establishes that producer before any edge use.
-    if result.multiplicity == Multiplicity::Unrestricted {
+    // Source copy payloads retain producer dominance, not owned receipts.
+    // Stored references can still make their materialized carrier affine;
+    // construction replay validates that custody and cleanup ends the loans.
+    if checked.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted {
         return if events().next().is_none() {
             Ok(())
         } else {

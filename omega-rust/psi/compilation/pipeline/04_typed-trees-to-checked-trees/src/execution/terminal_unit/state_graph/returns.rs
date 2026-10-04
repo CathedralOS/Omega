@@ -564,7 +564,10 @@ pub(super) fn return_value_operation(
         statement_index: statement_ordinal,
         binding_ordinal: u32::try_from(*count).ok()?,
         type_identity: shapes.add_type(state.return_type, &[], &[])?,
-        multiplicity: program.type_multiplicity(state.return_type),
+        multiplicity: validation::reference_result_custody::binding_multiplicity(
+            program,
+            state.return_type,
+        ),
     };
     *count = count.checked_add(1)?;
     Some((
@@ -630,7 +633,7 @@ pub(super) fn literal_result_operation(
         {
             (
                 shapes.add_type(referee, &[], &[])?,
-                validation::reference_result_custody::result_multiplicity(
+                validation::reference_result_custody::binding_multiplicity(
                     program,
                     state.return_type,
                 ),

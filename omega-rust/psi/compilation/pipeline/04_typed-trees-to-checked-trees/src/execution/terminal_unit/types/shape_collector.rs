@@ -2,7 +2,7 @@
 //! types its signatures, locals, and results name.
 //!
 //! Collection describes storage, not permission to copy, construct, or discard
-//! it. Nominal array elements use the same member plans as standalone data,
+//! it. Fields and array elements collect the same stored value shapes,
 //! including provider receipts and stored reference shells. Their multiplicity
 //! and cleanup remain obligations of the operations that use that storage.
 
@@ -304,56 +304,6 @@ impl<'program> ShapeCollector<'program> {
                     == Multiplicity::Unrestricted)
     }
 
-    /// A checked-shape data declaration whose every stored
-    /// member is material: a record of fields, a pure sum of cases, or a
-    /// mixed declaration of both, with no erased field or payload field.
-    /// Each member type still shapes itself through `add_type`; this only
-    /// decides that the declaration is an ordinary owned array element. The
-    /// three kinds share one Terminal vocabulary (`Record`, `Sum`, `Mixed`
-    /// beneath `FixedArray`). Multiplicity is not a layout distinction: an
-    /// affine service-bearing payload needs its exact member shape too.
-    /// `add_type` resolves generic arguments and rejects unrepresentable members;
-    /// this predicate grants neither trivial disposal nor construction authority.
-    fn is_material_data(&self, type_reference: TypeReferenceHandle) -> bool {
-        let symbol = match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
-            TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                ..
-            } => *symbol,
-            _ => return false,
-        };
-        self.program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)
-            .is_some_and(|data| {
-                let members = self.program.data_members(data);
-                data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                    && data.lifetime_parameters.is_empty()
-                    && data.quotient.is_none()
-                    && (data.where_facts.is_empty()
-                        || validation::data_where_field_intervals(self.program, data).is_some())
-                    && !data.zero_gated
-                    && matches!(
-                        typed_trees::data::DataDefinition::shape_kind_from_members(members),
-                        DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
-                    )
-                    && members.iter().all(|member| match member {
-                        DataMember::Field(field) => !field.relevance.is_erased(),
-                        DataMember::Variant(variant) => self
-                            .program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .all(|field| !field.relevance.is_erased()),
-                    })
-            })
-    }
-
     /// A reference type whose shell loans its referent: `parts`' `&mut
     /// <primitive>` and every other `&mut` referent, or a shared `&'a V`
     /// named view. `parts` needs no arm of its own — a bare `&mut
@@ -392,6 +342,16 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<String> {
+        self.add_view_type_with_substitutions(reference, binders, &[], access)
+    }
+
+    fn add_view_type_with_substitutions(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        access: language_semantics::ReferenceAccess,
+    ) -> Option<String> {
         let referee = match access {
             language_semantics::ReferenceAccess::Mutable => {
                 validation::reference_result_custody::mutable_borrowed_parts(
@@ -405,8 +365,14 @@ impl<'program> ShapeCollector<'program> {
             }
             language_semantics::ReferenceAccess::WriteOnly => return None,
         };
-        let referent_identity = self.add_type(referee, binders, &[])?;
-        self.add_reference_shape(reference, binders, referent_identity, access.into())
+        let referent_identity = self.add_type(referee, binders, substitutions)?;
+        self.add_reference_shape(
+            reference,
+            binders,
+            substitutions,
+            referent_identity,
+            access.into(),
+        )
     }
 
     /// A `&'a [T]` borrowed view also spells its own type reference — the same
@@ -425,6 +391,7 @@ impl<'program> ShapeCollector<'program> {
         self.add_reference_shape(
             reference,
             binders,
+            &[],
             referent_identity,
             CheckedStructuralAccess::SharedBorrow,
         )
@@ -437,6 +404,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         referent_identity: String,
         access: CheckedStructuralAccess,
     ) -> Option<String> {
@@ -444,6 +412,7 @@ impl<'program> ShapeCollector<'program> {
             .program
             .type_identity(TypeIdentityRequest {
                 binders,
+                substitutions,
                 ..TypeIdentityRequest::ordinary(reference)
             })
             .into_string();
@@ -463,6 +432,43 @@ impl<'program> ShapeCollector<'program> {
         }
         self.types.insert(identity.clone(), plan);
         Some(identity)
+    }
+
+    /// Collect the value held in a field or element, rather than the storage
+    /// borrowed by an argument. Sequence shells retain their descriptor route;
+    /// every other stored loan must retain a Reference shape. Keeping this
+    /// distinction here prevents an aggregate boundary from inlining a referent
+    /// or making an unsupported loan look like owned storage.
+    fn add_stored_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<String> {
+        let reference = substituted_formal_type(self.program, reference, substitutions);
+        if is_reference(self.program, reference)
+            && byte_sequence_carrier(self.program, reference, substitutions).is_none()
+            && element_view_shell(self.program, reference, substitutions).is_none()
+        {
+            structural_access_for_type_reference(self.program, reference)?;
+            let shell = validation::reference_shell(self.program, reference)?;
+            let referee = substituted_formal_type(self.program, shell.referee, substitutions);
+            if matches!(
+                self.program.type_reference_table.type_reference(referee),
+                TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. }
+            ) {
+                // Reference shapes have no referent qualification slot, and
+                // nested reference shells must not collapse after substitution.
+                return None;
+            }
+            return self.add_view_type_with_substitutions(
+                reference,
+                binders,
+                substitutions,
+                shell.access,
+            );
+        }
+        self.add_type(reference, binders, substitutions)
     }
 
     pub(in crate::execution::terminal_unit) fn add_type(
@@ -641,77 +647,39 @@ impl<'program> ShapeCollector<'program> {
             }) else {
                 return None;
             };
-            let plain_owned_array = validation::has_plain_owned_contents_with_substitutions(
-                self.program,
-                type_reference,
-                substitutions,
-            );
-            // The plain-owned classifier deliberately excludes qualified
-            // fields. Bounded byte fields have their own retained carrier,
-            // already supported in affine records; wrapping that record in an
-            // array must not erase its shape. Keep the existing owned-content
-            // and no-nominal-drop checks rather than treating borrows as data.
-            let owned_affine_array = substitutions.is_empty()
-                && crate::checks::type_multiplicity(self.program, *element_type)
-                    == Multiplicity::Affine
-                && partial_affine_source_contents_are_owned(
-                    self.program,
-                    *element_type,
-                    &mut Vec::new(),
-                )
-                && !type_graph_requires_nominal_drop(self.program, type_reference);
-            let unrestricted_primitive_element =
-                self.is_unrestricted_nonatomic_primitive(*element_type);
-            let material_data_element = self.is_material_data(*element_type);
-            // The recursive collector validates the inner array's own extent
-            // and element shell. Looking through it here to demand primitive
-            // leaves duplicates collection and rejects valid aggregate nesting.
-            let nested_array_element = matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(*element_type),
-                TypeReferenceNode::FixedArray { .. }
-            );
-            // Domain membership is carried separately at each indexed place.
-            // Peel only constraints for this owned-carrier classification;
-            // a reference still cannot become an owned linear element.
-            let mut element_carrier = *element_type;
-            while let TypeReferenceNode::Constrained { base_type, .. } = self
-                .program
-                .type_reference_table
-                .type_reference(element_carrier)
-            {
-                element_carrier = *base_type;
-            }
-            // An empty extent removes elements, not their declared type.
-            // Collect the same owned element shell at every length; the
-            // recursive collector still rejects unknown and recursive types.
-            if (!plain_owned_array
-                && !owned_affine_array
-                && (substitutions.iter().any(|(parameter, _)| {
-                    crate::monomorphization::runtime_bound_occurrence_in(
-                        self.program,
-                        &[*element_type],
-                        *parameter,
-                    )
-                }) || (!matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(element_carrier),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                ) && !unrestricted_primitive_element
-                    && !nested_array_element)
-                    || (crate::checks::type_multiplicity(self.program, *element_type)
-                        != Multiplicity::Linear
-                        && !unrestricted_primitive_element
-                        && !material_data_element
-                        && !nested_array_element)))
-                || !self.in_progress.insert(identity.clone())
-            {
+            // Array elements own their stored value, including a reference's
+            // permission carrier. Their referents do not become inline data.
+            // Recursion determines representability; construction, transfer,
+            // and cleanup independently check each operation's custody.
+            if !self.in_progress.insert(identity.clone()) {
                 return None;
             }
-            let Some(element_type_identity) = self.add_type(*element_type, binders, substitutions)
-            else {
+            let element = substituted_formal_type(self.program, *element_type, substitutions);
+            // Array elements have no field-declaration predicate slot.
+            // Arithmetic policy retains its ordinary scalar carrier; linear
+            // domains retain per-place claims. Other declared element
+            // predicates must not disappear during referent shape collection.
+            let primitive = scalar_type(self.program, element, substitutions).is_some();
+            let unrepresented_qualification =
+                (byte_sequence_carrier(self.program, element, substitutions).is_some()
+                    && !typed_trees::byte_predicates::type_reference_domain_predicates(
+                        self.program,
+                        element,
+                    )
+                    .is_empty())
+                    || (matches!(
+                        self.program.type_reference_table.type_reference(element),
+                        TypeReferenceNode::Constrained { .. }
+                    ) && !self.is_unrestricted_nonatomic_primitive(element)
+                        && self.program.type_multiplicity(element) != Multiplicity::Linear);
+            let element_type_identity = if unrepresented_qualification
+                || (primitive && !self.is_unrestricted_nonatomic_primitive(element))
+            {
+                None
+            } else {
+                self.add_stored_type(element, binders, substitutions)
+            };
+            let Some(element_type_identity) = element_type_identity else {
                 self.in_progress.remove(&identity);
                 return None;
             };
@@ -1005,26 +973,13 @@ impl<'program> ShapeCollector<'program> {
                     predicates,
                 }
             }
-        } else if is_reference(self.program, field_type_reference)
-            && element_view_shell(self.program, field_type_reference, substitutions).is_none()
-        {
-            // Provider and sequence fields have their own carriers above or
-            // in add_type. Every other stored loan needs an exact Reference
-            // shape: an unsupported access must fail here, never fall through
-            // to add_type and turn borrowed storage into inline owned data.
-            structural_access_for_type_reference(self.program, field_type_reference)?;
-            let shell = validation::reference_shell(self.program, field_type_reference)?;
-            if matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(shell.referee),
-                TypeReferenceNode::Constrained { .. }
-            ) {
-                // Reference shapes have no referent qualification slot.
-                return None;
-            }
+        } else if is_reference(self.program, field_type_reference) {
             CheckedUnitStructuralFieldType::Structural {
-                type_identity: self.add_reference_type(field_type_reference, binders)?,
+                type_identity: self.add_stored_type(
+                    field_type_reference,
+                    binders,
+                    substitutions,
+                )?,
             }
         } else {
             match scalar_type(self.program, field_type_reference, substitutions) {
@@ -1036,7 +991,8 @@ impl<'program> ShapeCollector<'program> {
                     stated_bounds,
                 )?,
                 None => {
-                    let nested = self.add_type(field_type_reference, binders, substitutions)?;
+                    let nested =
+                        self.add_stored_type(field_type_reference, binders, substitutions)?;
                     if nested == owner_identity {
                         return None;
                     }

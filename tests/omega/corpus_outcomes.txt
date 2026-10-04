@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 20.53, "load1_start": 4.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.91, "load1_start": 4.73, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -184,6 +184,14 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb878591d2fc+wt
 	mutable argument `source` for state `clone` is not writable in this state
+fail/borrows/direct_reference_array_duplicate_mutable rejected 1517ms expected @15c77983aab0+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "projected ingress remains suspended by a live reference" }))
+fail/borrows/direct_reference_array_live_source_move rejected 385ms expected @15c77983aab0+wt
+	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/direct_reference_array_live_source_write rejected 339ms expected @15c77983aab0+wt
+	statement 1 mutates `main.inventory.slots` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/direct_reference_array_range_narrowing rejected 191ms expected @15c77983aab0+wt
+	machine `Main::read` state `read` local `observed` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/borrows/duplicate_retained_subject_arguments rejected 117ms expected @cb6b089b27de+wt
 	state `take` receives `main` as mutable more than once
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
@@ -1431,8 +1439,11 @@ pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 2072ms @e477ee0294de+wt
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 3082ms @056c1343fac1+wt
+pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 1731ms @15c77983aab0+wt
+pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 1520ms @15c77983aab0+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 2200ms @e477ee0294de+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms @056c1343fac1+wt
+pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms @15c77983aab0+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt

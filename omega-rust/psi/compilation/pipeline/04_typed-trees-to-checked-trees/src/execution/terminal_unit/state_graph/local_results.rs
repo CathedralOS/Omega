@@ -69,6 +69,15 @@ fn validate(
             }
         }
     };
+    // An affine reference/view binding is accounted for by its loan release,
+    // not by owned-local disposal. Counting both would invent a second owner.
+    // Unrestricted aliases still need the ordinary dominance permit below.
+    if referent_identity.is_some() && result.multiplicity != Multiplicity::Unrestricted {
+        return None;
+    }
+    let source_multiplicity = program.type_multiplicity(local.type_reference);
+    let carrier_multiplicity =
+        validation::reference_result_custody::binding_multiplicity(program, local.type_reference);
     if !local.symbol.is_valid()
         || program
             .state_local_declaration(state, local.symbol)
@@ -79,11 +88,11 @@ fn validate(
             .any(|parameter| parameter.symbol == local.symbol)
         || !(result.type_identity == expected_identity
             || referent_identity.as_ref() == Some(&result.type_identity))
-        || result.multiplicity != program.type_multiplicity(local.type_reference)
+        || result.multiplicity != carrier_multiplicity
         // Unrestricted results carry no owned custody; the owned-contents and
         // nominal-drop gates only bound results that hold storage. A borrowed
         // view's death is the end of the loan, not a disposal.
-        || (result.multiplicity != Multiplicity::Unrestricted
+        || (source_multiplicity != Multiplicity::Unrestricted
             && (!(validation::has_plain_owned_contents_with_represented_constraints(
                 program,
                 local.type_reference,
@@ -112,8 +121,10 @@ fn validate(
     if !has_disposal_edge {
         return None;
     }
-    // Unrestricted payloads need dominance, not a fabricated cleanup receipt.
-    if result.multiplicity == Multiplicity::Unrestricted {
+    // Source-unrestricted values need dominance, not an owned-disposal
+    // receipt. Their materialized reference carriers can still be affine:
+    // lowering ends each retained loan when this binding is discarded.
+    if source_multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
     // Permission eligibility has one producer owner. Here it is rejoined to
