@@ -76,7 +76,8 @@ pub use optimization_unit::{
     encode_value_definition_site_identity, literal_scalar_constant_fact_identity,
     ownership_frontier_fact_identity, proof_question_identity,
     recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
-    reconstruct_psi_observation_model, reconstruct_psi_optimization_unit_seed,
-    restamp_psi_function_derived_metadata, scalar_refinement_identity_bytes,
-    structural_domain_catalog_identity, value_range_fact_identity,
+    reconstruct_psi_observation_model, reconstruct_psi_optimization_function_seed,
+    reconstruct_psi_optimization_unit_seed, restamp_psi_function_derived_metadata,
+    scalar_refinement_identity_bytes, structural_domain_catalog_identity,
+    value_range_fact_identity,
 };

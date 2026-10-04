@@ -117,6 +117,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &boundary_calls,
     )?;
+    let borrowed_reference_sources = super::control_flow::references::borrowed_source_catalog(
+        &functions_by_machine,
+        &structural_types,
+    );
     let target_plan = TargetOperationPlan {
         psi: plan.psi,
         target,
@@ -133,6 +137,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     function,
                     target,
                     &functions_by_machine,
+                    borrowed_reference_sources
+                        .get(&function.machine)
+                        .cloned()
+                        .unwrap_or_default(),
                     &scalar_abis,
                     &structural_types,
                     &boundary_machines,

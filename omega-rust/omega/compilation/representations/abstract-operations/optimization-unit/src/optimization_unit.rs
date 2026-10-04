@@ -32,8 +32,8 @@ pub use attachment::{
     attach_verified_module_context, canonical_ownership_frontier_snapshot,
 };
 pub use construction::{
-    OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed,
-    restamp_psi_function_derived_metadata,
+    OptimizationUnitBuildError, reconstruct_psi_optimization_function_seed,
+    reconstruct_psi_optimization_unit_seed, restamp_psi_function_derived_metadata,
 };
 pub use cycles::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,

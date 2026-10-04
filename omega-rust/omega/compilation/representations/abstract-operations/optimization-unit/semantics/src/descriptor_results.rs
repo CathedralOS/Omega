@@ -16,6 +16,21 @@ use terminal_semantics::descriptor_results::{
     self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine, DescriptorPlace,
 };
 
+/// Adapt current flat abstract bodies through the same block reconstruction
+/// and descriptor flow used by optimization-unit consumers. No retained source
+/// summary supplies origin authority after transformations.
+pub fn abstract_catalog_graph<'a>(
+    functions: impl IntoIterator<Item = &'a abstract_operations::AbstractFunction>,
+    types: &[StructuralTypeDeclaration],
+) -> Option<Vec<DescriptorMachine>> {
+    let functions = functions
+        .into_iter()
+        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    optimized_catalog_graph(functions.iter(), types)
+}
+
 pub fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
     optimized_catalog_graph(unit.functions.iter(), &unit.structural_types)
 }

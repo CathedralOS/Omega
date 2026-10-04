@@ -49,6 +49,7 @@ use terminator::lower_terminator;
 
 #[derive(Clone)]
 struct LiveDefinitions {
+    borrowed_reference_sources: references::BorrowedSources,
     // Dominating definitions only. Abstract-unit validation owns edge liveness.
     structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     nonreturning: bool,
@@ -115,6 +116,7 @@ pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    borrowed_reference_sources: references::BorrowedSources,
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -404,6 +406,7 @@ pub(super) fn lower(
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
     let initial = LiveDefinitions {
+        borrowed_reference_sources,
         structural_homes: BTreeMap::new(),
         nonreturning: false,
         stored_descriptors: BTreeSet::new(),

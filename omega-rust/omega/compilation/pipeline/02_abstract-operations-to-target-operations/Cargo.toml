@@ -9,6 +9,7 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }

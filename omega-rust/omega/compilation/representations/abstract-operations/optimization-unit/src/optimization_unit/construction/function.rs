@@ -12,7 +12,9 @@ use super::structural_custody::{
     collect_operation_structural_places, collect_places, operation_ownership,
 };
 
-pub(super) fn build_function(
+/// Reconstruct current executable blocks and their ordinary dataflow once.
+/// This projection carries no admission authority or retained analysis facts.
+pub fn reconstruct_psi_optimization_function_seed(
     function: &AbstractFunction,
 ) -> Result<PsiOptimizationFunction, OptimizationUnitBuildError> {
     if function.block_entries.is_empty() {

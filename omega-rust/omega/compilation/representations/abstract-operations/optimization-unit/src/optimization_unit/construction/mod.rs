@@ -11,7 +11,7 @@ mod provenance;
 mod restamp;
 mod scalar_dataflow;
 mod structural_custody;
-use function::build_function;
+pub use function::reconstruct_psi_optimization_function_seed;
 
 pub use restamp::restamp_psi_function_derived_metadata;
 
@@ -48,7 +48,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
     let functions = plan
         .functions
         .iter()
-        .map(build_function)
+        .map(reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()?;
     let mut unit = PsiOptimizationUnit {
         identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
