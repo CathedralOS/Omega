@@ -12,14 +12,13 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::machine::Machine;
 use checked_trees::signature::StateParameter;
 use checked_trees::state::State;
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
     BorrowCallFact, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
 };
 use language_core::ReferenceAccess;
 
@@ -65,178 +64,19 @@ pub(super) fn validate(
     if argument.access != expected_access {
         return unsupported("record operand changed its formal borrow access");
     }
-    let table = &checked.expression_table;
-    let named = match table.expression(expression) {
-        ExpressionNode::Borrow(borrow) if borrow.access == target_access => borrow.target,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            expression
-        }
-        _ => return unsupported("record operand has no named or projected source"),
-    };
-    let (caller, _) = super::authored_state(checked, state.symbol)?;
-    let source = match argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-        | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
-            crate::emission::call_source_custody::projected_receivers::source(
-                checked,
-                caller.symbol,
-                state.symbol,
-                statement as usize,
-                named,
-            )?
-        }
-        _ => return unsupported("record operand has no supported source owner"),
-    };
+    let borrowed = super::borrowed_storage::source(
+        checked,
+        state,
+        statement,
+        target_access,
+        expression,
+        argument,
+    )?;
+    let source = borrowed.place;
     let root = source.root;
     let endpoint = source.endpoint();
-    let whole_source = source.path.is_empty();
-    let parameters = checked.state_parameters(state);
-    let reference = match argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            if symbol != root
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == symbol)
-            {
-                return unsupported("record operand substituted its local owner");
-            }
-            let local = super::preceding_local(
-                checked,
-                state,
-                symbol,
-                statement as usize,
-                "record operand lost its local declaration",
-                "record operand has no exact prior establishment",
-            )?;
-            // The loan rejoins the current original backing, not an immutable
-            // snapshot of the initializer's scalar fields. An established
-            // shared-borrow local carries that loan itself, so the carrier the
-            // callee observes is the referent it dereferences to — the same
-            // rule a shared-borrow parameter follows.
-            match checked.type_reference_table.type_reference(
-                validation::peel_declared_constraints(&checked.typed, local.type_reference),
-            ) {
-                TypeReferenceNode::Reference {
-                    access, referee, ..
-                } if !local.is_mutable
-                    && (*access == ReferenceAccess::Mutable
-                        || (*access == ReferenceAccess::Shared
-                            && target_access == ReferenceAccess::Shared)) =>
-                {
-                    *referee
-                }
-                // Lending exclusive receiver custody follows the ordinary
-                // receiver lane's mutable-local requirement.
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-                    if target_access == ReferenceAccess::Shared || local.is_mutable =>
-                {
-                    local.type_reference
-                }
-                _ => return unsupported("record operand widens source access"),
-            }
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let source = super::structural_parameter_at(
-                checked,
-                parameters,
-                parameter_index,
-                "record operand lost its structural parameter",
-            )?;
-            if source.is_const
-                || source.symbol != root
-                || !super::parameter_binding_is_unique(checked, state, root)
-            {
-                return unsupported("record operand substituted its source parameter");
-            }
-            let reference = match checked.type_reference_table.type_reference(
-                validation::peel_declared_constraints(&checked.typed, source.type_reference),
-            ) {
-                TypeReferenceNode::Reference {
-                    access, referee, ..
-                } if *access == ReferenceAccess::Mutable
-                    || (*access == ReferenceAccess::Shared
-                        && target_access == ReferenceAccess::Shared) =>
-                {
-                    *referee
-                }
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-                    if target_access == ReferenceAccess::Shared
-                        || source.is_mutable
-                        || source.is_self =>
-                {
-                    source.type_reference
-                }
-                _ => return unsupported("record operand widens source access"),
-            };
-            if source.is_self {
-                let TypeReferenceNode::Named { symbol, .. } =
-                    checked.type_reference_table.type_reference(reference)
-                else {
-                    return unsupported("record source self lost its nominal attachment");
-                };
-                if *symbol != caller.symbol && *symbol != caller.attached_data_symbol {
-                    return unsupported("record source self changed its attachment");
-                }
-                // Projected loans reconstruct the endpoint from the authored
-                // place below. Their enclosing attachment need not have an
-                // incidentally interned named type; its identity was checked
-                // above independently of the producer's argument plan.
-                if whole_source {
-                    checked
-                        .type_reference_table
-                        .find_named_type_reference(caller.attached_data_symbol)
-                        .ok_or(LoweringError::Unsupported(
-                            "record source attachment has no declared type",
-                        ))?
-                } else {
-                    reference
-                }
-            } else {
-                reference
-            }
-        }
-        _ => return unsupported("record operand has no supported source owner"),
-    };
-    let reference = if whole_source {
-        reference
-    } else {
-        validation::declared_place_type_raw(&checked.typed, caller, Some(state), named).ok_or(
-            LoweringError::Unsupported("record projection lost its declared type"),
-        )?
-    };
-    let peeled = validation::peel_declared_constraints(&checked.typed, reference);
-    if peeled != reference
-        && !validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            reference,
-        )
-    {
-        return unsupported("borrowed operand has unrepresented source constraints");
-    }
-    // Reconstruct both the referent type and its address. Each stored shell
-    // crossed here contributes a Referent step; the captured authored place
-    // remains unchanged for borrow-fact replay. Checking type alone would
-    // accept a descriptor address as though it named the backing value.
-    let mut carrier = peeled;
-    let mut projected_path = source.path.clone();
-    loop {
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = checked.type_reference_table.type_reference(carrier)
-        else {
-            break;
-        };
-        if !(*access == ReferenceAccess::Mutable
-            || (*access == ReferenceAccess::Shared && target_access == ReferenceAccess::Shared))
-        {
-            break;
-        }
-        projected_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-        carrier = validation::peel_declared_constraints(&checked.typed, *referee);
-    }
-    if projected_path != argument.path {
-        return unsupported("record operand substituted its projected referent path");
-    }
+    let reference = borrowed.declared_endpoint;
+    let carrier = borrowed.carrier;
     match checked.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { .. } => {}
         TypeReferenceNode::Named { symbol, .. } => {

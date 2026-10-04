@@ -33,12 +33,13 @@ pub(super) fn transfer_range(
     match source {
         CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
             root,
+            path,
             expression,
             storage_type_identity,
         } => Some((
             *root,
             ViewFamily::Bytes,
-            &[],
+            path,
             *expression,
             storage_type_identity.as_str(),
         )),
@@ -75,11 +76,13 @@ pub(super) fn emit(
     argument_ordinal: u32,
     transfer: &CheckedStructuralControlTransferSourcePlan,
     _state_parameters: &[StructuralParameterDeclaration],
-    _evaluation: &Evaluation,
+    evaluation: &mut Evaluation,
     destination: PlaceId,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
-    values: &[ValueDeclaration],
+    values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
     operations: &mut OperationBuffer,
     catalogs: &mut ComposedCatalogs<'_>,
     places: &mut Vec<StructuralPlaceDeclaration>,
@@ -143,16 +146,24 @@ pub(super) fn emit(
         expression,
         retained: None,
     };
-    view_ranges::emit(
+    let source_value_count = values.len();
+    let mut calls = catalogs.scalar_calls.emission_context();
+    let result = view_ranges::emit(
         checked,
         site,
         source,
         collection,
         source.structural_type,
         destination,
-        bindings,
+        evaluation,
+        source_value_count,
         values,
         next_value,
+        next_block,
+        next_edge,
         operations,
-    )
+        &mut calls,
+    );
+    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    result
 }

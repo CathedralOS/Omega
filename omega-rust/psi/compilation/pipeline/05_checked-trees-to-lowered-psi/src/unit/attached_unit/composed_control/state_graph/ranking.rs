@@ -475,15 +475,6 @@ pub(super) fn emit_scalar_rank(
     }
 }
 
-pub(super) fn has_rank(
-    plan: &CheckedComposedUnitControlMachinePlan,
-    state: &CheckedComposedUnitControlStatePlan,
-) -> bool {
-    plan.natural_ranks
-        .iter()
-        .any(|rank| rank.state == state.state)
-}
-
 /// The subject's position among the successor edge's emitted structural
 /// arguments: the persistent receiver and claim-aliased parameters are not
 /// edge arguments, so neither occupies a slot here.

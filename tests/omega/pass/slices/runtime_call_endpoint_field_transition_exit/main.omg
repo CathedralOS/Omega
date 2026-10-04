@@ -1,0 +1,31 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Window { values: [u8; 4]; }
+
+machine Window::endpoint(limit: u64) -> u64
+requires limit <= 3
+ensures result <= 3
+{ limit }
+
+machine Window::count(window: &Window, limit: u64) -> u64
+requires limit <= 3
+{
+    transition { _ -> observed(&window.values[..Window::endpoint(limit)]) }
+    state observed(view: &[u8]) -> u64 { view.len }
+}
+
+data Main {
+    console: Binding<Console>;
+    window: Window;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let count: u64 = Window::count(&context.window, 2);
+    transition count == 2 {
+        true -> good(context)
+        false -> bad(context)
+    }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
+}

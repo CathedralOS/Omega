@@ -108,6 +108,8 @@ pub(super) fn member_store(
             program,
             &facts.operators,
             &facts.values.scalar_expressions,
+            &facts.values.scalar_computations,
+            &facts.borrow,
             machine,
             state,
             statement_index as usize,

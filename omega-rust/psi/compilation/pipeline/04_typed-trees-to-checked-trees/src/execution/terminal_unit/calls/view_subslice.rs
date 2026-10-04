@@ -15,7 +15,6 @@
 //! predicates from the exact source. The result never asserts a qualification
 //! merely because its consumer wants one.
 use crate::execution::terminal_unit::CheckFacts;
-use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
@@ -75,8 +74,8 @@ pub(in crate::execution) struct ViewRange {
 pub(crate) struct ViewSubslice {
     pub(in crate::execution) range: ViewRange,
     pub(in crate::execution) expression: ExpressionHandle,
-    pub(in crate::execution) start: Option<CheckedScalarExpression>,
-    pub(in crate::execution) end: Option<CheckedScalarExpression>,
+    pub(in crate::execution) start: Option<checked_trees::CheckedCallScalarArgument>,
+    pub(in crate::execution) end: Option<checked_trees::CheckedCallScalarArgument>,
 }
 
 impl ViewSubslice {
@@ -122,6 +121,7 @@ impl ViewSubslice {
         match self.range.kind {
             ViewKind::Bytes => CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root: self.range.root,
+                path: self.range.collection.clone(),
                 expression: self.expression,
                 storage_type_identity: self.range.storage_type_identity.clone(),
             },
@@ -148,10 +148,67 @@ pub(in crate::execution) fn admit(
     statement_index: usize,
     site: CheckedSubsliceSite,
 ) -> Option<ViewSubslice> {
-    let subslice = admit_resolved(
+    admit_resolved(
         program,
         &facts.operators,
         &facts.values.scalar_expressions,
+        &facts.values.scalar_computations,
+        &facts.borrow,
+        machine,
+        state,
+        parameters,
+        target,
+        expression,
+        statement_index,
+        site,
+    )
+}
+
+/// Whether `argument` produces a range descriptor. Its path selects the
+/// backing collection; it does not transfer an owned subtree to the callee.
+pub(crate) fn is_view_subslice(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+    matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+    )
+}
+
+/// Shared admission also serves computation construction, before CheckFacts
+/// is assembled. Operator meaning and source-bound endpoint facts are both
+/// required; a range with omitted endpoints still needs the operator veto.
+pub(crate) fn admit_resolved(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    expressions: &CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    borrow: &checked_trees::BorrowFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+    site: CheckedSubsliceSite,
+) -> Option<ViewSubslice> {
+    let operation = validation::subslice_expression(program, expression)?;
+    let spelling = language_core::OperatorSpelling::Range;
+    if operators.expression_use(operation).is_some_and(|selected| {
+        selected.spelling != spelling
+            || selected.selected_operator_symbol.is_valid()
+            || selected.candidate_count != 0
+            || !matches!(
+                selected.status,
+                checked_trees::CheckedOperatorResolutionStatus::Missing
+                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            )
+    }) {
+        return None;
+    }
+    let subslice = admit_replayed(
+        program,
+        expressions,
+        computations,
         machine,
         state,
         parameters,
@@ -164,7 +221,7 @@ pub(in crate::execution) fn admit(
         _ if subslice.range.storage == ViewStorage::Established => true,
         CheckedSubsliceSite::LocalBinding => lends_collection(
             program,
-            facts,
+            borrow,
             machine,
             state,
             statement_index,
@@ -192,58 +249,6 @@ pub(in crate::execution) fn admit(
     established.then_some(subslice)
 }
 
-/// Whether `argument` produces a range descriptor. Its path selects the
-/// backing collection; it does not transfer an owned subtree to the callee.
-pub(crate) fn is_view_subslice(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
-    matches!(
-        argument.source,
-        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
-    )
-}
-
-/// Shared admission also serves computation construction, before CheckFacts
-/// is assembled. Operator meaning and source-bound endpoint facts are both
-/// required; a range with omitted endpoints still needs the operator veto.
-pub(crate) fn admit_resolved(
-    program: &TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
-    expressions: &CheckedScalarExpressionPlans,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    target: TypeReferenceHandle,
-    expression: ExpressionHandle,
-    statement_index: usize,
-    site: CheckedSubsliceSite,
-) -> Option<ViewSubslice> {
-    let operation = validation::subslice_expression(program, expression)?;
-    let spelling = language_core::OperatorSpelling::Range;
-    if operators.expression_use(operation).is_some_and(|selected| {
-        selected.spelling != spelling
-            || selected.selected_operator_symbol.is_valid()
-            || selected.candidate_count != 0
-            || !matches!(
-                selected.status,
-                checked_trees::CheckedOperatorResolutionStatus::Missing
-                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-            )
-    }) {
-        return None;
-    }
-    admit_replayed(
-        program,
-        expressions,
-        machine,
-        state,
-        parameters,
-        target,
-        expression,
-        statement_index,
-        site,
-    )
-}
-
 /// Whether checked borrow admission recorded the `let` at `statement_index`
 /// as the sole loan, with matching access, of the fixed-array range `expression`
 /// narrows. The view the range establishes is that loan: the ledger, not
@@ -251,7 +256,7 @@ pub(crate) fn admit_resolved(
 #[allow(clippy::too_many_arguments)]
 fn lends_collection(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    borrow: &checked_trees::BorrowFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -274,13 +279,12 @@ fn lends_collection(
         return false;
     };
     crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
-    let Some((_, borrow_state)) = facts.borrow.states.iter().find(|(_, borrow_state)| {
+    let Some((_, borrow_state)) = borrow.states.iter().find(|(_, borrow_state)| {
         borrow_state.machine_symbol == machine.symbol && borrow_state.state_symbol == state.symbol
     }) else {
         return false;
     };
-    let mut loans = facts
-        .borrow
+    let mut loans = borrow
         .loans
         .span_or_empty(borrow_state.loans)
         .iter()
@@ -290,11 +294,7 @@ fn lends_collection(
     };
     let mut lent = crate::flow::CanonicalPlace {
         root: facts::PlaceRoot::Symbol(loan.root_symbol),
-        segments: facts
-            .borrow
-            .access_segments
-            .span_or_empty(loan.segments)
-            .to_vec(),
+        segments: borrow.access_segments.span_or_empty(loan.segments).to_vec(),
     };
     crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut lent);
     loan.statement_index == statement_index
@@ -313,6 +313,7 @@ fn lends_collection(
 pub(in crate::execution) fn admit_replayed(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -342,12 +343,32 @@ pub(in crate::execution) fn admit_replayed(
         if !endpoint.is_valid() {
             return Some(None);
         }
+        if let Some(root) = computations.root_at(state.symbol, statement_ordinal, role) {
+            if !computations.nodes.is_valid(root.root)
+                || expressions
+                    .expression_at(state.symbol, statement_ordinal, role)
+                    .is_some()
+            {
+                return None;
+            }
+            let value = computations.nodes.get(root.root);
+            return (root.machine == machine.symbol
+                && value.authored_root == endpoint
+                && value.primitive_type == PrimitiveType::U64)
+                .then_some(Some(checked_trees::CheckedCallScalarArgument::Computation(
+                    root.root,
+                )));
+        }
         let (binding, value) =
             expressions.bound_expression_at(state.symbol, statement_ordinal, role)?;
         (binding.expression == endpoint
             && !binding.destination.is_valid()
             && value.primitive_type() == Some(PrimitiveType::U64))
-        .then(|| Some(value.clone()))
+        .then(|| {
+            Some(checked_trees::CheckedCallScalarArgument::Pure(
+                value.clone(),
+            ))
+        })
     };
     let start = endpoint(
         authored.start,

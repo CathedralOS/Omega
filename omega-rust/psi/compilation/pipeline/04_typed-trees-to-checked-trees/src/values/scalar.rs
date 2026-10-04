@@ -37,6 +37,7 @@ mod selected_operator_operands;
 mod semantic_casts;
 mod structural_fields;
 mod subslice_endpoints;
+pub(crate) use subslice_endpoints::subslice_endpoints;
 
 pub(crate) use array_constructions::{CallArrayConstruction, call_array_constructions};
 pub(crate) use boolean_lowering::evaluate_closed_boolean_expression;

@@ -1323,7 +1323,7 @@ fn computation_reads_position(
             | checked_trees::CheckedScalarComputationKind::ByteSequencePredicate {
                 subject, ..
             } => {
-                if structural_place_reads_position(subject, position) {
+                if structural_place_reads_position(subject, position, &mut pending) {
                     return true;
                 }
             }
@@ -1423,7 +1423,7 @@ fn structural_argument_reads_position(
 ) -> bool {
     match argument {
         checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
-            structural_place_reads_position(place, position)
+            structural_place_reads_position(place, position, pending)
         }
         checked_trees::CheckedScalarComputationStructuralArgument::Case(construction) => {
             let Some(fields) = computations.case_fields.span(construction.fields) else {
@@ -1445,6 +1445,7 @@ fn structural_argument_reads_position(
 fn structural_place_reads_position(
     plan: &checked_trees::CheckedUnitStructuralArgumentPlan,
     position: u32,
+    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
 ) -> bool {
     if plan.source_parameter_index() == Some(position) {
         return true;
@@ -1463,12 +1464,15 @@ fn structural_place_reads_position(
     } = &plan.source
     {
         return root.parameter() == Some(position)
-            || start
-                .as_ref()
-                .is_some_and(|start| scalar_expression_reads_position(start, position))
-            || end
-                .as_ref()
-                .is_some_and(|end| scalar_expression_reads_position(end, position));
+            || start.iter().chain(end).any(|endpoint| match endpoint {
+                checked_trees::CheckedCallScalarArgument::Pure(value) => {
+                    scalar_expression_reads_position(value, position)
+                }
+                checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                    pending.push(*root);
+                    false
+                }
+            });
     }
     false
 }

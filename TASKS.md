@@ -343,13 +343,17 @@ defines the complete product bar.
     `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`;
     finish snapshots across writes and exclusive exposure, retaining
     case/index/generic/reference/float identity. Share capture with
-    **CRASH-CONTRACT**; loop invariants must cover backedges. Native stored
-    views with call-computed endpoints
-    (`let view: &[u8] = &context.values[..Window::endpoint(&pair)]`) reach the
-    structural-call fallback in
-    `.../execution/terminal_unit/control/statement_sequence/local_data.rs`,
-    which rejects a non-call initializer; keep the checked loan and captured
-    endpoint in ordinary view formation and add a corpus fixture. Carry exact
+    **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
+    ranges now use ordinary view formation and call/state-edge evaluation:
+    the four `pass/slices/runtime_call_endpoint_*` fixtures return 70 in both
+    engines on macOS ARM64 (stored view, direct argument, ordered endpoint
+    effects and projected state transfer). Keep
+    `python3 tools/corpus_gate.py --both --filter runtime_call_endpoint`.
+    Finish inclusive endpoint/window transport through the shared range route,
+    preserving checked loans and exact captured endpoints. The public command
+    in the stored-view README still needs standard-package preparation to
+    accept `Filesystem::read_all`'s performed integer write (unknown destination
+    origins, also recorded upstream at `25735fa7b39`). Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.

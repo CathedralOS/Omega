@@ -699,9 +699,9 @@ fn computation_contains_trapping_operation(
         plans: &checked_trees::CheckedScalarComputationPlans,
         argument: &Argument,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
-    ) {
+    ) -> bool {
         match argument {
-            Argument::Place(_) => {}
+            Argument::Place(place) => return push_place(place, pending),
             Argument::Case(case) => pending.extend(
                 plans
                     .case_fields
@@ -713,6 +713,21 @@ fn computation_contains_trapping_operation(
                 pending.extend(plans.operands.span_or_empty(*elements).iter().copied())
             }
         }
+        false
+    }
+    fn push_place(
+        place: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+    ) -> bool {
+        place.scalar_operands().any(|operand| match operand {
+            checked_trees::CheckedCallScalarArgument::Pure(value) => {
+                value.contains_trapping_operation()
+            }
+            checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                pending.push(*root);
+                false
+            }
+        })
     }
     let mut pending = vec![root];
     while let Some(handle) = pending.pop() {
@@ -743,12 +758,16 @@ fn computation_contains_trapping_operation(
             }
             Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
-                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { start, end, .. } = &subject.source
-                    && start.iter().chain(end.iter()).any(|endpoint| endpoint.contains_trapping_operation())
-                { return true; }
+                if push_place(subject, &mut pending) {
+                    return true;
+                }
             }
             Kind::StructuralField { .. } => {}
-            Kind::CaseMembership { subject, .. } => push_argument(plans, subject, &mut pending),
+            Kind::CaseMembership { subject, .. } => {
+                if push_argument(plans, subject, &mut pending) {
+                    return true;
+                }
+            }
             Kind::SelectedComparison { left, right, .. } => pending.extend([*left, *right]),
             Kind::Qualification { operand, .. } | Kind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
@@ -783,7 +802,9 @@ fn computation_contains_trapping_operation(
                     .structural_arguments
                     .span_or_empty(*structural_arguments)
                 {
-                    push_argument(plans, structural, &mut pending);
+                    if push_argument(plans, structural, &mut pending) {
+                        return true;
+                    }
                 }
             }
             Kind::Select {

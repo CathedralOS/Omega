@@ -2659,10 +2659,14 @@ impl OperationFrame<'_, '_> {
             &source.path,
             result_type,
             destination,
-            &bindings,
+            self.evaluation,
+            self.values.len(),
             self.values,
             self.next_value,
+            self.next_block,
+            self.next_edge,
             self.operations,
+            self.calls,
         )?;
         let produced = self
             .operations

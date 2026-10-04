@@ -16,8 +16,6 @@ use crate::lowering_error::unsupported;
 
 pub(super) mod access_occurrences;
 mod arrays;
-mod view_subslices;
-pub(crate) use view_subslices::validate_operand as validate_range_operand;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.
 pub(crate) enum RejoinedComputationArgument {
@@ -27,6 +25,7 @@ pub(crate) enum RejoinedComputationArgument {
     },
     Structural {
         expression: ExpressionHandle,
+        operands: Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     },
     Construction {
         expression: ExpressionHandle,
@@ -214,6 +213,7 @@ pub(crate) fn rejoin_computation_call_arguments(
         };
         result.push(RejoinedComputationArgument::Structural {
             expression: call.receiver,
+            operands: Vec::new(),
         });
         Some(argument)
     } else {
@@ -310,6 +310,7 @@ pub(crate) fn rejoin_computation_call_arguments(
             let borrow_call = borrow_call.ok_or(LoweringError::Unsupported(
                 "computed invocation has no exact borrow call",
             ))?;
+            let mut operands = Vec::new();
             let position = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
                 owned_arguments::validate(
                     checked,
@@ -338,18 +339,40 @@ pub(crate) fn rejoin_computation_call_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "computed subslice lost its observation position",
                     ))?;
-                view_subslices::validate(
+                operands =
+                    crate::expression_preparation::source_custody::view_ranges::validate_operand(
+                        checked,
+                        caller_state,
+                        statement,
+                        parameter.type_reference,
+                        expression,
+                        argument,
+                        checked_trees::CheckedSubsliceSite::CallArgument {
+                            call_ordinal: *call_ordinal,
+                            argument_ordinal,
+                        },
+                    )?;
+                let captured =
+                    crate::expression_preparation::source_custody::view_ranges::captured_range(
+                        checked,
+                        caller.symbol,
+                        caller_state.symbol,
+                        statement,
+                        expression,
+                    )?;
+                borrow_rows::validate_place_argument_at(
                     checked,
-                    caller_state,
-                    statement,
-                    parameter,
-                    expression,
-                    argument,
                     borrow_call,
                     position,
-                    checked_trees::CheckedSubsliceSite::CallArgument {
-                        call_ordinal: *call_ordinal,
-                        argument_ordinal,
+                    &captured,
+                    match argument.access {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            checked_trees::BorrowAccessKind::Read
+                        }
+                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                            checked_trees::BorrowAccessKind::Mutable
+                        }
+                        _ => return unsupported("subslice call has unreadable access"),
                     },
                 )?;
                 position
@@ -373,7 +396,10 @@ pub(crate) fn rejoin_computation_call_arguments(
                         borrow_call,
                         None,
                     )?;
-                    result.push(RejoinedComputationArgument::Structural { expression });
+                    result.push(RejoinedComputationArgument::Structural {
+                        expression,
+                        operands,
+                    });
                     continue;
                 }
                 let position = access_positions
@@ -437,7 +463,10 @@ pub(crate) fn rejoin_computation_call_arguments(
                 );
             }
             previous_access = Some(position);
-            result.push(RejoinedComputationArgument::Structural { expression });
+            result.push(RejoinedComputationArgument::Structural {
+                expression,
+                operands,
+            });
         }
     }
     if scalars.next().is_some() || structural.next().is_some() {

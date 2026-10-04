@@ -260,6 +260,27 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         .enumerate()
         .take(statement_end)
     {
+        // A stored range is evaluated by its LocalBinding consumer. The
+        // expression coordinate may also retain the same endpoint occurrence;
+        // it is not another scheduled construction at this statement.
+        let local_range = if let StatementNode::LocalData(local) = statement
+            && !local.is_mutable
+            && collect_range_calls(
+                program,
+                facts,
+                machine,
+                state.symbol,
+                statement_index,
+                local.initial_value,
+                checked_trees::CheckedSubsliceSite::LocalBinding,
+                calls,
+                0,
+                &mut consumed,
+            )? {
+            local.initial_value
+        } else {
+            typed_trees::expression::ExpressionHandle::invalid()
+        };
         for (_, root) in facts
             .values
             .structural_values
@@ -271,6 +292,9 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         {
             if root.machine != machine {
                 return None;
+            }
+            if local_range.is_valid() && root.expression == local_range {
+                continue;
             }
             let mut pending = vec![root.root];
             let mut visited = Vec::new();
@@ -318,18 +342,42 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {
                         pending.extend(elements.iter().copied());
                     }
-                    checked_trees::CheckedStructuralValueKind::Reference { .. }
-                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-                    | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
-                    | checked_trees::CheckedStructuralValueKind::Case(_)
-                    | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
-                    | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+                    checked_trees::CheckedStructuralValueKind::Reference { ref source }
+                    | checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
+                        ref source,
+                        ..
+                    }
+                    | checked_trees::CheckedStructuralValueKind::MutableSliceView {
+                        ref source,
+                        ..
+                    }
+                    | checked_trees::CheckedStructuralValueKind::ScalarCasePlace {
+                        ref source,
+                        ..
+                    }
+                    | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                        ref source,
+                        ..
+                    }
+                    | checked_trees::CheckedStructuralValueKind::Place(ref source) => {
+                        collect_structural_argument_calls(
+                            program,
+                            facts,
+                            state.symbol,
+                            statement_index,
+                            source,
+                            calls,
+                            0,
+                            &mut Vec::new(),
+                            &mut consumed,
+                        )?;
+                    }
+                    checked_trees::CheckedStructuralValueKind::Case(_)
                     | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
                     | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
                     | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
                     | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                    | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
-                    | checked_trees::CheckedStructuralValueKind::Place(_) => {}
+                    | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {}
                 }
             }
         }
@@ -548,11 +596,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             .any(|(_, root)| {
                 root.state == state.symbol
                     && root.statement_ordinal as usize == call.statement_index
-                    && matches!(
-                        root.role,
+                    && match root.role {
                         CheckedScalarExpressionRole::BoundaryCallArgument { .. }
-                            | CheckedScalarExpressionRole::UnitCallArgument { .. }
-                    )
+                        | CheckedScalarExpressionRole::UnitCallArgument { .. } => true,
+                        CheckedScalarExpressionRole::SubsliceStart { site }
+                        | CheckedScalarExpressionRole::SubsliceEnd { site } => matches!(site,
+                            checked_trees::CheckedSubsliceSite::CallArgument { call_ordinal, .. }
+                            if call_ordinal as usize == call.call_ordinal),
+                        _ => false,
+                    }
             })
         {
             continue;
@@ -1172,6 +1224,32 @@ fn collect_argument_calls(
     if arguments.len() != formals.len() {
         return None;
     }
+    let mut structural_ordinal = 0u32;
+    for (argument, parameter) in arguments.iter().zip(formals.iter()) {
+        if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
+            || program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        {
+            continue;
+        }
+        collect_range_calls(
+            program,
+            facts,
+            machine,
+            state,
+            call.statement_index,
+            *argument,
+            checked_trees::CheckedSubsliceSite::CallArgument {
+                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                argument_ordinal: structural_ordinal,
+            },
+            calls,
+            u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
+            consumed,
+        )?;
+        structural_ordinal = structural_ordinal.checked_add(1)?;
+    }
     let scalar_arguments = arguments
         .iter()
         .zip(formals)
@@ -1229,6 +1307,86 @@ fn collect_argument_calls(
     Some(())
 }
 
+/// A destination or invocation selects one endpoint site. Other coordinates
+/// naming the same authored range are not additional executions.
+#[allow(clippy::too_many_arguments)]
+fn collect_range_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    site: checked_trees::CheckedSubsliceSite,
+    calls: &[checked_trees::FlowCallFact],
+    minimum_call_ordinal: u32,
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<bool> {
+    let plans = &facts.values.scalar_computations;
+    let mut computed = false;
+    for (endpoint, role, ()) in
+        crate::values::subslice_endpoints(program, &facts.operators, expression, site, |_| Some(()))
+    {
+        let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
+            root.state == state && root.statement_ordinal as usize == statement && root.role == role
+        });
+        let Some(root) = roots.next() else { continue };
+        if roots.next().is_some()
+            || root.machine != machine
+            || !plans.nodes.is_valid(root.root)
+            || plans.nodes.get(root.root).authored_root != endpoint
+            || plans.nodes.get(root.root).primitive_type != typed_trees::types::PrimitiveType::U64
+        {
+            return None;
+        }
+        collect(
+            program,
+            facts,
+            state,
+            statement,
+            root.root,
+            calls,
+            minimum_call_ordinal,
+            &mut Vec::new(),
+            consumed,
+        )?;
+        computed = true;
+    }
+    Some(computed)
+}
+
+/// A structural source carries its evaluated scalar dependencies directly;
+/// call accounting follows those operands, not parallel fact coordinates.
+#[allow(clippy::too_many_arguments)]
+fn collect_structural_argument_calls(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    statement: usize,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    calls: &[checked_trees::FlowCallFact],
+    minimum_call_ordinal: u32,
+    active: &mut Vec<CheckedScalarComputationHandle>,
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    for operand in argument.scalar_operands() {
+        if let checked_trees::CheckedCallScalarArgument::Computation(handle) = operand {
+            collect(
+                program,
+                facts,
+                state,
+                statement,
+                *handle,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+        }
+    }
+    Some(())
+}
+
 fn collect(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1247,9 +1405,24 @@ fn collect(
     active.push(handle);
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
-            subject:
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+            subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
+            ..
+        }
+        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
+            collect_structural_argument_calls(
+                program,
+                facts,
+                state,
+                statement,
+                subject,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
+        }
+        CheckedScalarComputationKind::CaseMembership {
+            subject: checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
             ..
         } => {}
         CheckedScalarComputationKind::CaseMembership {
@@ -1349,13 +1522,24 @@ fn collect(
             }
         }
         CheckedScalarComputationKind::Value(_)
-        | CheckedScalarComputationKind::StructuralField { .. }
-        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
+        | CheckedScalarComputationKind::StructuralField { .. } => {}
         CheckedScalarComputationKind::ByteSequencePredicate {
             predicate,
             source_expression,
+            subject,
             ..
         } => {
+            collect_structural_argument_calls(
+                program,
+                facts,
+                state,
+                statement,
+                subject,
+                calls,
+                minimum_call_ordinal,
+                active,
+                consumed,
+            )?;
             // This selected primitive owns its authored call occurrence even
             // though execution emits an observation, not a machine invocation.
             // Join the occurrence here, where every enclosing computation
@@ -1426,6 +1610,21 @@ fn collect(
                 )?;
             }
             for argument in plans.structural_arguments.span(*structural_arguments)? {
+                if let checked_trees::CheckedScalarComputationStructuralArgument::Place(source) =
+                    argument
+                {
+                    collect_structural_argument_calls(
+                        program,
+                        facts,
+                        state,
+                        statement,
+                        source,
+                        calls,
+                        minimum_call_ordinal,
+                        active,
+                        consumed,
+                    )?;
+                }
                 if let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) =
                     argument
                 {

@@ -135,6 +135,8 @@ pub(super) fn evaluate(
                         evaluation,
                         values,
                         next_value,
+                        next_block,
+                        next_edge,
                         operations,
                     )?
                 };
@@ -197,9 +199,11 @@ pub(super) fn stage_range(
     ordinal: usize,
     source_value_count: usize,
     catalogs: &mut catalogs::ComposedCatalogs,
-    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
-    values: &[ValueDeclaration],
+    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<PlaceId, LoweringError> {
     let bindings = evaluation
@@ -228,17 +232,25 @@ pub(super) fn stage_range(
         type_ids: &catalogs.type_ids,
         bindings: &bindings,
     };
-    byte_subslices::emit(
+    let mut calls = catalogs.scalar_calls.emission_context();
+    let result = byte_subslices::emit(
         checked,
         &context,
         operation,
         ordinal,
+        evaluation,
+        source_value_count,
         values,
         &mut catalogs.temporary_places,
         &mut catalogs.next_place,
         next_value,
+        next_block,
+        next_edge,
         operations,
-    )
+        &mut calls,
+    );
+    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    result
 }
 
 fn establish(

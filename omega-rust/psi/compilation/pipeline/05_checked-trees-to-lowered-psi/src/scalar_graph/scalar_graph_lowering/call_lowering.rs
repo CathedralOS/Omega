@@ -11,12 +11,10 @@ use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use crate::scalar_graph::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
-    QualifiedScalarType, StructuralArgument, StructuralTypeDeclaration, allocate_dense, place_id,
-    scalar_carriers, unsupported,
+    QualifiedScalarType, StructuralTypeDeclaration, scalar_carriers, unsupported,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
@@ -303,7 +301,7 @@ pub(crate) fn lower_scalar_graph_successor(
         ))?;
     let (source_machine, source_state_typed) =
         source_custody::authored_state(checked, source_state)?;
-    let mut structural_effects = Vec::new();
+    let mut ranges = Vec::new();
     let mut structural_arguments = Vec::new();
     for transfer in plans
         .structural_transfers
@@ -342,149 +340,30 @@ pub(crate) fn lower_scalar_graph_successor(
                     _ => scalar_bindings.owned_argument(&argument)?,
                 });
             }
-            // A field range's whole-view establishment exists only in the
-            // Unit-graph edge lane; a scalar successor still names a bare
-            // established view.
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                ref path,
-                ..
-            } if !path.is_empty() => {
-                return unsupported("scalar successor subslice cannot carry a field projection");
-            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                root:
-                    checked_trees::CheckedStorageRoot::Parameter {
-                        index: parameter_index,
-                    },
-                expression,
                 ..
             }
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                root:
-                    checked_trees::CheckedStorageRoot::Parameter {
-                        index: parameter_index,
-                    },
-                expression,
                 ..
             } => {
-                let element = matches!(
-                    transfer.source,
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                        ..
-                    }
-                );
-                let retained_source = source
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar successor subslice source is absent",
-                    ))?;
                 let retained_target = states[target]
                     .structural_parameters
                     .get(transfer.target_parameter_index as usize)
                     .ok_or(LoweringError::Unsupported(
                         "scalar successor subslice target is absent",
                     ))?;
-                let checked_trees::expression::ExpressionNode::Indexed(indexed) =
-                    checked.expression_table.expression(
-                        validation::subslice_expression(&checked.typed, expression).ok_or(
-                            LoweringError::Unsupported("scalar successor lost range expression"),
-                        )?,
-                    )
-                else {
-                    return unsupported("scalar successor subslice lost its indexed source");
-                };
-                let checked_trees::expression::ExpressionNode::Range(range) =
-                    checked.expression_table.expression(indexed.index)
-                else {
-                    return unsupported("scalar successor subslice lost its authored range");
-                };
-                let endpoint =
-                    |handle: checked_trees::expression::ExpressionHandle,
-                     role: CheckedScalarExpressionRole|
-                     -> Result<Option<LoweredDirectExpression>, LoweringError> {
-                        if !handle.is_valid() {
-                            return Ok(None);
-                        }
-                        let expression = scalar_bindings.expression_at(
-                            checked,
-                            source_state,
-                            successor.statement_ordinal,
-                            role,
-                        )?;
-                        validate_direct_parameter_types(
-                            &expression,
-                            &scalar_carriers(source_value_types),
-                        )?;
-                        Ok(Some(expression))
-                    };
-                let start = endpoint(
-                    range.start,
-                    CheckedScalarExpressionRole::SubsliceStart {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                            argument_ordinal: retained_target.position,
-                        },
-                    },
-                )?
-                .ok_or(LoweringError::Unsupported(
-                    "scalar successor subslice lost its start endpoint",
-                ))?;
-                let end = endpoint(
-                    range.end,
-                    CheckedScalarExpressionRole::SubsliceEnd {
-                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
-                            argument_ordinal: retained_target.position,
-                        },
-                    },
+                let range = computations::subslices::transfer(
+                    checked,
+                    source_state,
+                    successor.statement_ordinal,
+                    &transfer.source,
+                    retained_target,
+                    scalar_bindings,
+                    structural_types,
+                    next_place,
                 )?;
-                let source = scalar_bindings.borrowed_structural_argument(
-                    &checked_trees::CheckedUnitStructuralArgumentPlan {
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index,
-                        },
-                        path: Vec::new(),
-                        type_identity: retained_source.type_identity.clone(),
-                        access: retained_target.access,
-                    },
-                    source_custody::authored_state(checked, source_state)?.0,
-                    checked
-                        .state_parameters(source_custody::authored_state(checked, source_state)?.1),
-                )?;
-                let structural_type = structural_types
-                    .iter()
-                    .find(|declaration| declaration.identity == retained_target.type_identity)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar successor subslice lost its view carrier",
-                    ))?
-                    .id;
-                let place = place_id(allocate_dense(next_place)?);
-                structural_effects.push(if element {
-                    prepared_graph::LoweredScalarEffect::ElementViewSubslice {
-                        source: source.place,
-                        access: crate::expression_preparation::bindings::structural_paths::terminal_access(retained_target.access),
-                        start,
-                        end,
-                        place,
-                        structural_type,
-                    }
-                } else {
-                    prepared_graph::LoweredScalarEffect::ByteSequenceSubslice {
-                        source: source.place,
-                        access: crate::expression_preparation::bindings::structural_paths::terminal_access(retained_target.access),
-                        start,
-                        end,
-                        place,
-                        structural_type,
-                    }
-                });
-                structural_arguments.push(StructuralArgument {
-                    place,
-                    path: Vec::new(),
-                    access:
-                        crate::expression_preparation::bindings::structural_paths::terminal_access(
-                            retained_target.access,
-                        ),
-                });
+                structural_arguments.push(range.completed_argument());
+                ranges.push(range);
             }
             _ => {
                 return unsupported("scalar successor cannot lower this structural transfer");
@@ -514,7 +393,7 @@ pub(crate) fn lower_scalar_graph_successor(
         lowered_target,
         &target_parameter_types,
         &structural_arguments,
-        &structural_effects,
+        &ranges,
     )? {
         return Ok((
             entry,

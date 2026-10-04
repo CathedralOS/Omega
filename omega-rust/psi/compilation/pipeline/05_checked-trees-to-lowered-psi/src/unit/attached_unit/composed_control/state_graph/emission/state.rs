@@ -734,7 +734,6 @@ impl StateGraphEmission<'_, '_> {
             current_rank,
             rank_ceiling,
             case_subject: prepared_cases.as_ref().map(|prepared| prepared.source),
-            guarded: condition.is_some() || branch_guard.is_some(),
             inherited_lengths: &inherited_lengths,
             inherited_field_lengths: &inherited_field_lengths,
             consumed_case_subjects: &consumed_case_subjects,

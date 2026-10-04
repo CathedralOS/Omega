@@ -122,11 +122,16 @@ pub(super) fn emit(
     context: &StagingContext<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     ordinal: usize,
-    values: &[ValueDeclaration],
+    evaluation: &mut super::argument_evaluation::Evaluation,
+    source_value_count: usize,
+    values: &mut Vec<ValueDeclaration>,
     temporaries: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
     next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
 ) -> Result<PlaceId, LoweringError> {
     let (argument, _, site) = locate(checked, context.state, operation, ordinal)?;
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
@@ -158,10 +163,14 @@ pub(super) fn emit(
         &argument.path,
         structural_type,
         destination,
-        context.bindings,
+        evaluation,
+        source_value_count,
         values,
         next_value,
+        next_block,
+        next_edge,
         operations,
+        calls,
     )?;
     temporaries.push(declaration);
     Ok(destination)

@@ -1,16 +1,13 @@
 //! Observe contents only after the structural operand has completed. The same
 //! comparison template serves existing storage and freshly prepared views;
 //! descriptor preparation remains inside its selected scalar branch.
-use super::{Expansion, LoweringError, QualifiedScalarType, Site, parameters, unsupported};
+use super::{Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment,
 };
 use crate::expression_preparation::bindings::ScalarBindings;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator,
-};
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedStorageRoot,
     CheckedStructuralPredicatePathSegment as Predicate, CheckedUnitStructuralArgumentPlan,
@@ -25,9 +22,10 @@ impl Expansion<'_> {
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
+        active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
         let (operand, bytes, negated) = crate::expression_preparation::source_custody::computation_calls::byte_comparisons::operands(self.checked, expression)?;
-        let mut effects = Vec::new();
+        let mut range_slot = None;
         let private_bindings;
         let (bindings, root, path) = if let Some(range) = super::subslices::range(subject) {
             let slot = self
@@ -37,17 +35,7 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "byte comparison operand has no descriptor reservation",
                 ))?;
-            effects = super::subslices::effects(
-                self.checked,
-                site.state,
-                site.statement,
-                checked_trees::CheckedSubsliceSite::Expression {
-                    expression: operand,
-                },
-                subject,
-                slot,
-                site.bindings,
-            )?;
+            range_slot = Some(slot.clone());
             private_bindings = ScalarBindings::new([]).with_structural_parameters(&[(
                 0,
                 terminal_psi::StructuralParameterDeclaration {
@@ -157,25 +145,20 @@ impl Expansion<'_> {
                 value,
             )?;
         }
-        if effects.is_empty() {
-            return Ok(comparison);
+        match range_slot {
+            Some(slot) => self.subslice(
+                subject,
+                &slot,
+                checked_trees::CheckedSubsliceSite::Expression {
+                    expression: operand,
+                },
+                input_types,
+                comparison,
+                site,
+                active,
+            ),
+            None => Ok(comparison),
         }
-        Ok(self.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: input_types.to_vec(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: effects,
-            terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
-                target: comparison,
-                arguments: parameters(input_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
-        }))
     }
 
     pub(super) fn byte_predicate(
@@ -186,6 +169,7 @@ impl Expansion<'_> {
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
+        active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
         let (authored_predicate, operand) = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operands(
             self.checked,
@@ -194,7 +178,7 @@ impl Expansion<'_> {
         if authored_predicate != predicate {
             return unsupported("byte predicate changed its declared predicate");
         }
-        let mut effects = Vec::new();
+        let mut range_slot = None;
         let private_bindings;
         let (bindings, root, path) = if let Some(range) = super::subslices::range(subject) {
             let slot = self
@@ -204,17 +188,7 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "byte predicate operand has no descriptor reservation",
                 ))?;
-            effects = super::subslices::effects(
-                self.checked,
-                site.state,
-                site.statement,
-                checked_trees::CheckedSubsliceSite::Expression {
-                    expression: operand,
-                },
-                subject,
-                slot,
-                site.bindings,
-            )?;
+            range_slot = Some(slot.clone());
             private_bindings = ScalarBindings::new([]).with_structural_parameters(&[(
                 0,
                 terminal_psi::StructuralParameterDeclaration {
@@ -321,25 +295,20 @@ impl Expansion<'_> {
                 value,
             )?;
         }
-        if effects.is_empty() {
-            return Ok(evaluation);
+        match range_slot {
+            Some(slot) => self.subslice(
+                subject,
+                &slot,
+                checked_trees::CheckedSubsliceSite::Expression {
+                    expression: operand,
+                },
+                input_types,
+                evaluation,
+                site,
+                active,
+            ),
+            None => Ok(evaluation),
         }
-        Ok(self.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: input_types.to_vec(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: effects,
-            terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
-                target: evaluation,
-                arguments: parameters(input_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
-        }))
     }
 }
 

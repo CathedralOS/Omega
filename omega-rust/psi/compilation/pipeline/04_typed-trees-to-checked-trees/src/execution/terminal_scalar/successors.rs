@@ -446,6 +446,7 @@ fn arguments<'a>(
             let subslice = super::super::terminal_unit::calls::view_subslice::admit_replayed(
                 program,
                 expressions,
+                computations,
                 source_machine,
                 source_state,
                 &source.structural_parameters,

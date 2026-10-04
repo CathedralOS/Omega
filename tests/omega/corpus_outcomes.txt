@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.47, "load1_start": 3.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.79, "load1_start": 7.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 123ms expected @229377b75447
@@ -1076,6 +1076,8 @@ fail/relevance/erased_nonscalar_parameter rejected 218ms expected @2d8ed253669f
 	machine `Main::record::record` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 250ms expected @2d8ed253669f
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/slices/call_endpoint_view_backing_write rejected 303ms expected @637668355701+wt
+	statement 2 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/index_operator_contract_unproven rejected 250ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call index from Main::main: 3 < main.values.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 683ms expected @2d8ed253669f
@@ -2212,6 +2214,10 @@ pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 1320ms @f7e9667e2f4a
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 987ms @5fb2e19e1f1+wt
+pass/slices/runtime_call_endpoint_argument_exit checked 1629ms @637668355701+wt
+pass/slices/runtime_call_endpoint_field_transition_exit checked 1630ms @637668355701+wt
+pass/slices/runtime_call_endpoint_order_exit checked 1647ms @637668355701+wt
+pass/slices/runtime_call_endpoint_view_exit checked 1625ms @637668355701+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 7001ms @d10c66094158
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt

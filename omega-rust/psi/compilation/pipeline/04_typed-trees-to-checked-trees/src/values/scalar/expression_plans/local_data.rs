@@ -11,7 +11,7 @@ use super::{
     CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, PrimitiveType, ScalarLocal,
     StatementPlanner, TypeReferenceNode, TypedTrees, lower_call_arguments,
     lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
-    retain_call_arguments, retain_subslice_endpoints, scalar_qualified_call_expression,
+    retain_call_arguments, scalar_qualified_call_expression,
 };
 
 pub(super) fn plan(
@@ -123,41 +123,6 @@ pub(super) fn plan(
                 .is_none()
         })
     else {
-        // An immutable view local narrowed from another
-        // view keeps its range endpoints under the same
-        // subslice roles a call or transition argument
-        // uses, at this statement's own binding site.
-        if !local.is_mutable {
-            let endpoints = super::super::subslice_endpoints::subslice_endpoints(
-                program,
-                operators,
-                local.initial_value,
-                checked_trees::CheckedSubsliceSite::LocalBinding,
-                |endpoint| {
-                    lower_return_expression(
-                        program,
-                        operators,
-                        endpoint,
-                        scalar_parameters,
-                        parameters,
-                        parameter_types,
-                        locals,
-                        PrimitiveType::U64,
-                        exact_integer_casts,
-                    )
-                },
-            );
-            retain_subslice_endpoints(
-                endpoints,
-                state.symbol,
-                statement_ordinal,
-                scalar_parameters,
-                locals,
-                expressions,
-                source_bindings,
-                binding_symbols,
-            );
-        }
         // A shared `&` local binds no value of its own: reads through it
         // re-evaluate the captured place at the use point, so the roster
         // entry carries that place for operands to lower.

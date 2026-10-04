@@ -4,8 +4,8 @@
 
 use super::{
     CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, PrimitiveType, StatementPlanner, TransitionGuardNode,
-    TransitionTargetNode, lower_boolean_guard, lower_return_expression, retain_subslice_endpoints,
+    CheckedScalarExpressionRole, StatementPlanner, TransitionGuardNode, TransitionTargetNode,
+    lower_boolean_guard, lower_return_expression,
 };
 
 pub(super) fn plan(
@@ -199,35 +199,6 @@ pub(super) fn plan(
                 if continuation {
                     continue;
                 }
-                let endpoints = super::super::subslice_endpoints::subslice_endpoints(
-                    program,
-                    operators,
-                    *argument,
-                    checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
-                    |endpoint| {
-                        lower_return_expression(
-                            program,
-                            operators,
-                            endpoint,
-                            scalar_parameters,
-                            parameters,
-                            parameter_types,
-                            locals,
-                            PrimitiveType::U64,
-                            exact_integer_casts,
-                        )
-                    },
-                );
-                retain_subslice_endpoints(
-                    endpoints,
-                    state.symbol,
-                    statement_ordinal,
-                    scalar_parameters,
-                    locals,
-                    expressions,
-                    source_bindings,
-                    binding_symbols,
-                );
                 continue;
             };
             let Some(expression) = lower_return_expression(

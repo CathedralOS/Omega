@@ -30,8 +30,8 @@ pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
 };
 pub(crate) use argument_paths::{
-    borrowed_index_segment, byte_sequence_literal_argument, fixed_byte_range_within_extent,
-    projected_argument_path, projected_borrowed_path, projected_observed_path,
+    borrowed_index_segment, byte_sequence_literal_argument, projected_argument_path,
+    projected_borrowed_path, projected_observed_path,
 };
 pub(crate) use boundary_admission::{
     parameter_binding_receiver_source, provider_attachment_receiver_field,

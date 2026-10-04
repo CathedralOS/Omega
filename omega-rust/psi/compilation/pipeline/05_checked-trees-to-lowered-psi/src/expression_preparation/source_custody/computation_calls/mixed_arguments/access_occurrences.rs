@@ -526,7 +526,7 @@ pub(crate) fn replay(
                 let captured = if matches!(table.expression(named), ExpressionNode::Indexed(indexed)
                     if matches!(table.expression(indexed.index), ExpressionNode::Range(_)))
                 {
-                    super::view_subslices::captured_range(
+                    crate::expression_preparation::source_custody::view_ranges::captured_range(
                         checked, machine, state, statement, named,
                     )?
                 } else {

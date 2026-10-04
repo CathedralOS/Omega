@@ -58,11 +58,32 @@ pub(crate) fn structural_computation_argument(
     crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
+    // Mutable scalar locals have their own storage representation. Resolve
+    // that representation before the common structural-home borrow join.
+    if let facts::PlaceRoot::Symbol(symbol) = place.root
+        && super::super::structural_scalar_store::primitive_local_before(
+            program,
+            state,
+            call.statement_index,
+            symbol,
+        )
+        .is_some()
+    {
+        return primitive_local_argument(
+            program,
+            borrow,
+            machine,
+            state,
+            call,
+            &place,
+            target.type_reference,
+        );
+    }
     if matches!(
         target_access,
         CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
     ) && let Some(argument) =
-        borrowed_nominal_argument(program, borrow, machine, state, call, &place, target)
+        borrowed_storage_argument(program, borrow, machine, state, call, &place, target)
     {
         return Some(argument);
     }
@@ -100,24 +121,6 @@ pub(crate) fn structural_computation_argument(
         });
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
-    if super::super::structural_scalar_store::primitive_local_before(
-        program,
-        state,
-        call.statement_index,
-        name.symbol,
-    )
-    .is_some()
-    {
-        return primitive_local_argument(
-            program,
-            borrow,
-            machine,
-            state,
-            call,
-            &place,
-            target.type_reference,
-        );
-    }
     let parameters = program.state_parameters(state);
     let source_position = parameters
         .iter()
@@ -176,6 +179,7 @@ pub(crate) fn subslice_computation_argument(
     program: &TypedTrees,
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -225,6 +229,8 @@ pub(crate) fn subslice_computation_argument(
         program,
         operators,
         expressions,
+        computations,
+        borrow,
         owner,
         state,
         &parameters,
@@ -290,10 +296,10 @@ fn exact_actual(
     Some(())
 }
 
-/// A nominal argument borrows its existing parameter or local result
+/// A borrowed argument names its existing parameter or local result
 /// home. Initializer spelling does not select custody; publication independently
 /// rejoins this symbol to its dominating structural establishment.
-pub(crate) fn borrowed_nominal_argument(
+pub(crate) fn borrowed_storage_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -358,10 +364,9 @@ pub(crate) fn borrowed_nominal_argument(
     };
     let mut receiver_argument = false;
     let parameters = program.state_parameters(state);
-    let (reference, source_carrier, source) = if let Some(position) =
-        parameters.iter().position(|parameter| {
-            parameter.symbol == symbol || (parameter.is_self && symbol == machine)
-        }) {
+    let (reference, source) = if let Some(position) = parameters.iter().position(|parameter| {
+        parameter.symbol == symbol || (parameter.is_self && symbol == machine)
+    }) {
         let parameter = &parameters[position];
         if parameter.is_const {
             return None;
@@ -431,7 +436,6 @@ pub(crate) fn borrowed_nominal_argument(
         let parameter_index = dense_structural_index(program, parameters, position)?;
         (
             reference,
-            validation::reference_shell(program, parameter.type_reference).is_some(),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         )
     } else {
@@ -452,7 +456,7 @@ pub(crate) fn borrowed_nominal_argument(
         // referent into a fabricated place. A fixed-array local is the same
         // kind of established home: its bounds come from the literal length
         // when a segment projects inside it.
-        let (reference, carrier) = match program.type_reference_table.type_reference(
+        let reference = match program.type_reference_table.type_reference(
             validation::peel_declared_constraints(program, local.type_reference),
         ) {
             TypeReferenceNode::Reference {
@@ -465,20 +469,19 @@ pub(crate) fn borrowed_nominal_argument(
                 || (*access == language_semantics::ReferenceAccess::Mutable
                     && !local.is_mutable)) =>
             {
-                (*referee, true)
+                *referee
             }
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. }
                 if target_access == CheckedStructuralAccess::SharedBorrow || local.is_mutable =>
             {
-                (local.type_reference, false)
+                local.type_reference
             }
             _ => return None,
         };
         (
             reference,
-            carrier,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         )
     };
@@ -576,15 +579,9 @@ pub(crate) fn borrowed_nominal_argument(
             Multiplicity::Affine | Multiplicity::Unrestricted
         )
         && validation::has_borrowed_storage_contents(program, reference);
-    // A whole primitive referent observes the same existing storage when the
-    // forwarded source is itself a `&T` carrier. The loan names the carrier's
-    // place and access rows directly; nothing materializes an owned scalar
-    // copy of the referent into a fabricated place. A `&scratch` borrow of a
-    // primitive storage local or scalar parameter stays on its dedicated
-    // primitive source plan instead.
-    let whole_primitive_scalar = source_carrier
-        && path.is_empty()
-        && shapes.types.len() == 1
+    // Primitive and aggregate endpoints borrow their established home using
+    // the same exact root/path/access join. No scalar snapshot is constructed.
+    let primitive_scalar = shapes.types.len() == 1
         && program.type_multiplicity(reference) == Multiplicity::Unrestricted
         && shapes.types.get(&identity).is_some_and(|shape| {
             matches!(
@@ -607,7 +604,7 @@ pub(crate) fn borrowed_nominal_argument(
             && !validation::has_plain_owned_contents_with_represented_constraints(
                 program, reference,
             ))
-        || (!receiver_argument && !structural_referent && !whole_primitive_scalar)
+        || (!receiver_argument && !structural_referent && !primitive_scalar)
     {
         return None;
     }

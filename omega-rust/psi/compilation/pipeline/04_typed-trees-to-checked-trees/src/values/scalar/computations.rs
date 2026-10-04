@@ -114,6 +114,35 @@ pub(crate) fn build_checked_value_computation_plans(
                     plans: &mut plans,
                     structural_values: &mut structural_values,
                 };
+                // Endpoints are ordinary operands. Capture every occurrence
+                // before constructing consumers, so a call result and a pure
+                // bound supply the same range operation at its authored site.
+                for (expression, site) in super::subslice_endpoints::sites(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                )
+                .into_iter()
+                .rev()
+                {
+                    for (endpoint, role, ()) in super::subslice_endpoints::subslice_endpoints(
+                        program,
+                        operators,
+                        expression,
+                        site,
+                        |_| Some(()),
+                    ) {
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            role,
+                            endpoint,
+                            PrimitiveType::U64,
+                        );
+                    }
+                }
                 let construction_destination = match statement {
                     StatementNode::LocalData(local) => {
                         Some((local.initial_value, local.type_reference))
@@ -1443,7 +1472,7 @@ impl Builder<'_, '_> {
                             let argument_ordinal = structural_arguments.len()
                                 .checked_sub(usize::from(has_runtime_receiver))?;
                             crate::execution::terminal_unit::calls::subslice_computation_argument(
-                                self.program, self.operators, self.pure, self.borrow,
+                                self.program, self.operators, self.pure, self.plans, self.borrow,
                                 self.machine, state, self.flow.control.calls.get(source_call),
                                 *argument, parameter, u32::try_from(argument_ordinal).ok()?,
                             )

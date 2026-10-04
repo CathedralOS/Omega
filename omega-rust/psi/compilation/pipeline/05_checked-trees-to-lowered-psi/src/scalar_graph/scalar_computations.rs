@@ -264,7 +264,7 @@ impl<'a> Expansion<'a> {
         target: usize,
         target_types: &[QualifiedScalarType],
         structural_arguments: &[StructuralArgument],
-        structural_effects: &[crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect],
+        ranges: &[subslices::Scheduled],
     ) -> Result<Option<usize>, LoweringError> {
         let scalar_arguments = self
             .checked
@@ -299,7 +299,7 @@ impl<'a> Expansion<'a> {
             source_types,
             target,
             structural_arguments,
-            structural_effects,
+            ranges,
         )
     }
 
@@ -440,7 +440,7 @@ impl<'a> Expansion<'a> {
         source_types: &[QualifiedScalarType],
         target: usize,
         structural_arguments: &[StructuralArgument],
-        structural_effects: &[crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect],
+        ranges: &[subslices::Scheduled],
     ) -> Result<Option<usize>, LoweringError> {
         let plans = &self.checked.facts.values.scalar_computations;
         if structural_arguments.is_empty()
@@ -508,7 +508,7 @@ impl<'a> Expansion<'a> {
         completed_types.extend(&argument_types);
         let completion = self.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
-            structural_effects: structural_effects.to_vec(),
+            structural_effects: Vec::new(),
             parameter_types: completed_types.clone(),
             erased_formal_types: Vec::new(),
             erased_proof_formals: Vec::new(),
@@ -525,13 +525,60 @@ impl<'a> Expansion<'a> {
                 erased_proof_arguments: Vec::new(),
             },
         });
-        Ok(Some(self.sequence(
-            &arguments,
-            source_types,
-            completion,
-            &site,
-            &mut Vec::new(),
-        )?))
+        enum Operand<'a> {
+            Scalar(usize, &'a Argument),
+            Range(&'a subslices::Scheduled),
+        }
+        let mut operands = roles
+            .iter()
+            .enumerate()
+            .map(|(index, (role, _))| {
+                let ordinal = match role {
+                    CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+                    | CheckedScalarExpressionRole::TransitionContinuationArgument {
+                        argument_ordinal,
+                    } => *argument_ordinal,
+                    _ => index as u32,
+                };
+                (ordinal, Operand::Scalar(index, &arguments[index]))
+            })
+            .collect::<Vec<_>>();
+        operands.extend(
+            ranges
+                .iter()
+                .map(|range| (range.argument_ordinal, Operand::Range(range))),
+        );
+        operands.sort_by_key(|(ordinal, _)| *ordinal);
+        if operands.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return unsupported("scalar successor repeats an authored operand position");
+        }
+        let mut prefixes = vec![source_types.to_vec()];
+        for (_, operand) in &operands {
+            let mut prefix = prefixes.last().expect("source prefix").clone();
+            if let Operand::Scalar(index, _) = operand {
+                prefix.push(argument_types[*index]);
+            }
+            prefixes.push(prefix);
+        }
+        let mut entry = completion;
+        let mut active = Vec::new();
+        for (index, (_, operand)) in operands.iter().enumerate().rev() {
+            entry = match operand {
+                Operand::Scalar(_, argument) => {
+                    self.argument(argument, &prefixes[index], entry, &site, &mut active)?
+                }
+                Operand::Range(range) => self.subslice(
+                    &range.argument,
+                    &range.slot,
+                    range.site,
+                    &prefixes[index],
+                    entry,
+                    &site,
+                    &mut active,
+                )?,
+            };
+        }
+        Ok(Some(entry))
     }
 
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {
@@ -675,6 +722,7 @@ impl<'a> Expansion<'a> {
                 input_types,
                 target,
                 site,
+                active,
             )?,
             CheckedScalarComputationKind::ByteSequencePredicate {
                 source_expression,
@@ -688,6 +736,7 @@ impl<'a> Expansion<'a> {
                 input_types,
                 target,
                 site,
+                active,
             )?,
             CheckedScalarComputationKind::StructuralField {
                 receiver_value,

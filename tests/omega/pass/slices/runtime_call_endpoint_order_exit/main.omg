@@ -1,0 +1,25 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine first(calls: &mut u64 in Wrapping) -> u64[1..=1] {
+    calls = calls * 10 + 1;
+    1
+}
+machine last(calls: &mut u64 in Wrapping) -> u64[3..=3] {
+    calls = calls * 10 + 2;
+    3
+}
+data Main {
+    console: Binding<Console>;
+    values: [u8; 4];
+    calls: u64 in Wrapping;
+}
+machine Main::main(context: &mut Main) reaches Console {
+    let view: &[u8] = &context.values[first(&mut context.calls)..last(&mut context.calls)];
+    transition view.len == 2 && context.calls == 12 {
+        true -> good(context)
+        false -> bad(context)
+    }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
+}

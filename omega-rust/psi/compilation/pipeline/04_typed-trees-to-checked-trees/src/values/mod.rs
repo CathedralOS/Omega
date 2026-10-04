@@ -37,6 +37,7 @@ pub(crate) use snapshots::{
     scalar_value_from_payloads,
 };
 mod scalar;
+pub(crate) use scalar::subslice_endpoints;
 mod statement;
 mod transition;
 

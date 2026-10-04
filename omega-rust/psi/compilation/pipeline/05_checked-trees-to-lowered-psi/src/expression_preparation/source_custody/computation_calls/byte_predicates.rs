@@ -34,7 +34,13 @@ pub(crate) fn validate(
     expression: ExpressionHandle,
     operand_type: checked_trees::types::TypeReferenceHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
-) -> Result<(), LoweringError> {
+) -> Result<
+    Vec<(
+        ExpressionHandle,
+        checked_trees::CheckedScalarComputationHandle,
+    )>,
+    LoweringError,
+> {
     let (_, operand) = operands(checked, expression)?;
     byte_comparisons::validate_operand_provenance(
         checked,

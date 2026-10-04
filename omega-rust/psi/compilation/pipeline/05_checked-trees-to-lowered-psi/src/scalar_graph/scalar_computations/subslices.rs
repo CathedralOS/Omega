@@ -63,122 +63,321 @@ pub(crate) fn prepare(
                 let expression = range.expression;
                 let bytes = range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
-                let declaration = types
-                    .iter()
-                    .find(|declaration| declaration.identity == argument.type_identity)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed range has no structural type namespace",
-                    ))?;
-                if !matches!(
-                    (&declaration.shape, bytes),
-                    (
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
-                        true
-                    ) | (StructuralTypeShape::ElementView { .. }, false)
-                ) {
-                    return unsupported("computed range changed its view family");
-                }
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
+                    let declaration = types
+                        .iter()
+                        .find(|declaration| declaration.identity == argument.type_identity)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed range has no structural type namespace",
+                        ))?;
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
                         return unsupported("computed range occurrence has conflicting types");
                     }
                     continue;
                 }
-                let storage = view_ranges::storage(
+                slots.push(reserve(
                     checked,
                     root.state,
                     root.statement_ordinal,
                     argument,
                     types,
-                )?;
-                let whole_view = storage
-                    .requires_establishment()
-                    .then(|| super::super::allocate_dense(next_place).map(super::super::place_id))
-                    .transpose()?;
-                slots.push(Slot {
-                    expression,
-                    place: super::super::place_id(super::super::allocate_dense(next_place)?),
-                    structural_type: declaration.id,
-                    bytes,
-                    storage,
-                    whole_view,
-                });
+                    next_place,
+                )?);
             }
         }
     }
     Ok(slots)
 }
 
-pub(super) fn effects(
+fn reserve(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,
-    site: checked_trees::CheckedSubsliceSite,
     argument: &CheckedUnitStructuralArgumentPlan,
-    slot: &Slot,
-    bindings: &crate::expression_preparation::bindings::ScalarBindings,
-) -> Result<
-    Vec<crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect>,
-    LoweringError,
-> {
-    let range = range(argument).ok_or(LoweringError::Unsupported(
-        "computed range lost its retained source",
-    ))?;
-    let (expression, start, end) = (range.expression, range.start, range.end);
+    types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
+) -> Result<Slot, LoweringError> {
+    let range =
+        range(argument).ok_or(LoweringError::Unsupported("computed range lost its source"))?;
     let bytes =
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
-    if slot.expression != expression || slot.bytes != bytes {
-        return unsupported("computed range disagrees with its descriptor reservation");
+    let declaration = types
+        .iter()
+        .find(|declaration| declaration.identity == argument.type_identity)
+        .ok_or(LoweringError::Unsupported(
+            "computed range has no structural type namespace",
+        ))?;
+    if !matches!(
+        (&declaration.shape, bytes),
+        (
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+            true
+        ) | (StructuralTypeShape::ElementView { .. }, false)
+    ) {
+        return unsupported("computed range changed its view family");
     }
-    let (source, establishment) = slot
+    let storage = view_ranges::storage(checked, state, statement, argument, types)?;
+    let whole_view = storage
+        .requires_establishment()
+        .then(|| super::super::allocate_dense(next_place).map(super::super::place_id))
+        .transpose()?;
+    Ok(Slot {
+        expression: range.expression,
+        place: super::super::place_id(super::super::allocate_dense(next_place)?),
+        structural_type: declaration.id,
+        bytes,
+        storage,
+        whole_view,
+    })
+}
+
+/// A range's authored position is independent of the scalar lanes it produces.
+/// Endpoint temporaries are consumed by descriptor formation, not the successor.
+pub(crate) struct Scheduled {
+    pub(super) argument_ordinal: u32,
+    pub(super) argument: CheckedUnitStructuralArgumentPlan,
+    pub(super) slot: Slot,
+    pub(super) site: checked_trees::CheckedSubsliceSite,
+}
+
+impl Scheduled {
+    pub(crate) fn completed_argument(&self) -> terminal_psi::StructuralArgument {
+        terminal_psi::StructuralArgument {
+            place: self.slot.place,
+            path: Vec::new(),
+            access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                self.argument.access,
+            ),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn transfer(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    transfer: &checked_trees::CheckedStructuralControlTransferSourcePlan,
+    target: &checked_trees::CheckedUnitStructuralParameterPlan,
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
+) -> Result<Scheduled, LoweringError> {
+    use checked_trees::{
+        CheckedStructuralControlTransferSourcePlan as Transfer,
+        CheckedUnitStructuralArgumentSourcePlan as Source,
+    };
+    let (source, path, expression) = match transfer {
+        Transfer::ByteSequenceSubslice {
+            root,
+            path,
+            expression,
+            storage_type_identity,
+        } => (
+            Source::ByteSequenceSubslice {
+                root: *root,
+                expression: *expression,
+                storage_type_identity: storage_type_identity.clone(),
+                start: None,
+                end: None,
+            },
+            path.clone(),
+            *expression,
+        ),
+        Transfer::ElementViewSubslice {
+            root,
+            path,
+            expression,
+            storage_type_identity,
+        } => (
+            Source::ElementViewSubslice {
+                root: *root,
+                expression: *expression,
+                storage_type_identity: storage_type_identity.clone(),
+                start: None,
+                end: None,
+            },
+            path.clone(),
+            *expression,
+        ),
+        _ => return unsupported("scalar transfer has no range operation"),
+    };
+    let mut argument = CheckedUnitStructuralArgumentPlan {
+        source,
+        path,
+        type_identity: target.type_identity.clone(),
+        access: target.access,
+    };
+    let slot = reserve(checked, state, statement, &argument, types, next_place)?;
+    let (source, _) = slot
         .storage
         .bind(checked, state, bindings, slot.whole_view)?;
-    let (start, end) = crate::unit::attached_unit::view_ranges::endpoints(
+    let site = checked_trees::CheckedSubsliceSite::TransitionArgument {
+        argument_ordinal: target.position,
+    };
+    let (start, end) = view_ranges::replay(
         checked,
-        &crate::unit::attached_unit::view_ranges::ViewRangeSite {
+        &view_ranges::ViewRangeSite {
             state,
             statement,
             site,
             expression,
-            retained: Some((start, end)),
+            retained: None,
         },
         source.symbol,
         &argument.path,
-        bindings,
     )?;
-    let start = start.unwrap_or(
-        crate::emission::operation_emission::expressions::LoweredDirectExpression::IntegerLiteral {
-            value: semantic_vocabulary::IntegerValue::Unsigned(0),
-            scalar_type: super::super::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U64,
-            )?,
-        },
-    );
-    use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
-    let mut effects = Vec::with_capacity(2);
-    if let Some(establishment) = establishment {
-        effects.push(LoweredScalarEffect::EstablishElementView(establishment));
+    match &mut argument.source {
+        Source::ByteSequenceSubslice {
+            start: retained_start,
+            end: retained_end,
+            ..
+        }
+        | Source::ElementViewSubslice {
+            start: retained_start,
+            end: retained_end,
+            ..
+        } => {
+            *retained_start = start;
+            *retained_end = end;
+        }
+        _ => return unsupported("scalar transfer lost its range operation"),
     }
-    effects.push(if bytes {
-        LoweredScalarEffect::ByteSequenceSubslice {
-            source: source.place,
-            access: source.access,
-            start,
-            end,
-            place: slot.place,
-            structural_type: slot.structural_type,
+    Ok(Scheduled {
+        argument_ordinal: target.position,
+        argument,
+        slot,
+        site,
+    })
+}
+
+impl super::Expansion<'_> {
+    /// Capture each endpoint once, in start/end order, and retire those scalar
+    /// temporaries only after the ordinary descriptor operation consumes them.
+    pub(super) fn subslice(
+        &mut self,
+        argument: &CheckedUnitStructuralArgumentPlan,
+        slot: &Slot,
+        range_site: checked_trees::CheckedSubsliceSite,
+        input_types: &[super::QualifiedScalarType],
+        target: usize,
+        site: &super::Site<'_>,
+        active: &mut Vec<super::Computation>,
+    ) -> Result<usize, LoweringError> {
+        let range = range(argument).ok_or(LoweringError::Unsupported(
+            "computed range lost its retained source",
+        ))?;
+        let bytes =
+            range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
+        if slot.expression != range.expression || slot.bytes != bytes {
+            return unsupported("computed range disagrees with its descriptor reservation");
         }
-    } else {
-        LoweredScalarEffect::ElementViewSubslice {
-            source: source.place,
-            access: source.access,
-            start,
-            end,
-            place: slot.place,
-            structural_type: slot.structural_type,
+        let (source, establishment) =
+            slot.storage
+                .bind(self.checked, site.state, site.bindings, slot.whole_view)?;
+        let (start, end) = view_ranges::replay(
+            self.checked,
+            &view_ranges::ViewRangeSite {
+                state: site.state,
+                statement: site.statement,
+                site: range_site,
+                expression: range.expression,
+                retained: Some((range.start, range.end)),
+            },
+            source.symbol,
+            &argument.path,
+        )?;
+        let scalar_type =
+            super::super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
+        let mut endpoints = Vec::with_capacity(2);
+        let mut endpoint_types = input_types.to_vec();
+        let mut completed = [None, None];
+        for (index, endpoint) in [start, end].into_iter().enumerate() {
+            let Some(endpoint) = endpoint else {
+                continue;
+            };
+            let argument = match endpoint {
+                checked_trees::CheckedCallScalarArgument::Pure(value) => {
+                    super::Argument::Value(site.bindings.expression(&value)?)
+                }
+                checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+                    super::Argument::Computation(handle)
+                }
+            };
+            let value_type = self.argument_type(&argument, site, input_types)?;
+            if value_type.scalar_type != scalar_type {
+                return unsupported("computed range endpoint lost its count type");
+            }
+            endpoints.push(argument);
+            completed[index] = Some(super::parameter(endpoint_types.len(), value_type));
+            endpoint_types.push(value_type);
         }
-    });
-    Ok(effects)
+        let [start, end] = completed;
+        let start = start.unwrap_or(
+            crate::emission::operation_emission::expressions::LoweredDirectExpression::IntegerLiteral {
+                value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                scalar_type,
+            },
+        );
+        use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+            LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+        };
+        let effect = if bytes {
+            LoweredScalarEffect::ByteSequenceSubslice {
+                source: source.place,
+                access: source.access,
+                start,
+                end,
+                place: slot.place,
+                structural_type: slot.structural_type,
+            }
+        } else {
+            LoweredScalarEffect::ElementViewSubslice {
+                source: source.place,
+                access: source.access,
+                start,
+                end,
+                place: slot.place,
+                structural_type: slot.structural_type,
+            }
+        };
+        let finish = self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            parameter_types: endpoint_types,
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects: vec![effect],
+            terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
+                target,
+                arguments: super::parameters(input_types),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+            },
+        });
+        let entry = self.sequence(&endpoints, input_types, finish, site, active)?;
+        let Some(establishment) = establishment else {
+            return Ok(entry);
+        };
+        Ok(self.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            parameter_types: input_types.to_vec(),
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects: vec![LoweredScalarEffect::EstablishElementView(establishment)],
+            terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
+                target: entry,
+                arguments: super::parameters(input_types),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+            },
+        }))
+    }
 }
 
 pub(crate) fn declarations(

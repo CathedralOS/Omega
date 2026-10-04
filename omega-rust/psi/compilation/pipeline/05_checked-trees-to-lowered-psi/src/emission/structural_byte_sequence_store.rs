@@ -260,9 +260,13 @@ fn validate_descriptor_source(
             authored,
         );
     }
+    // Range replay independently validates each endpoint's complete call
+    // scope. A descriptor store has no enclosing scalar computation whose
+    // occurrence accounting needs those scopes forwarded again.
     crate::expression_preparation::source_custody::computation_calls::byte_comparisons::validate_operand_provenance(
         checked, state, statement, authored, target, source,
-    )
+    )?;
+    Ok(())
 }
 
 /// The schedule coordinate of a completed call consumer. Descriptor sources

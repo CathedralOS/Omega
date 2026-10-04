@@ -5,12 +5,14 @@
 use super::super::{CheckedBooleanExpression, CheckedScalarExpression};
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, PrimitiveType, StatementNode,
-    authored_state, unsupported,
+    authored_state, parameter_binding_is_unique, preceding_local, structural_parameter_at,
+    unsupported,
 };
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
 mod borrowed_nominal_arguments;
+mod borrowed_storage;
 pub(crate) mod byte_comparisons;
 pub(crate) mod byte_predicates;
 mod dispatch;
@@ -94,7 +96,7 @@ pub(crate) fn validate_computation_calls(
                 if node.primitive_type != PrimitiveType::Bool {
                     return unsupported("byte content comparison is not Boolean");
                 }
-                byte_comparisons::validate(
+                let operands = byte_comparisons::validate(
                     checked,
                     state,
                     statement,
@@ -102,6 +104,12 @@ pub(crate) fn validate_computation_calls(
                     *operand_type,
                     subject,
                 )?;
+                pending.extend(
+                    operands
+                        .into_iter()
+                        .rev()
+                        .map(|(expression, computation)| (computation, false, expression)),
+                );
             }
             CheckedScalarComputationKind::ByteSequencePredicate {
                 operand_type,
@@ -120,7 +128,7 @@ pub(crate) fn validate_computation_calls(
                 if node.primitive_type != PrimitiveType::Bool {
                     return unsupported("byte predicate evaluation is not Boolean");
                 }
-                byte_predicates::validate(
+                let operands = byte_predicates::validate(
                     checked,
                     state,
                     statement,
@@ -128,6 +136,12 @@ pub(crate) fn validate_computation_calls(
                     *operand_type,
                     subject,
                 )?;
+                pending.extend(
+                    operands
+                        .into_iter()
+                        .rev()
+                        .map(|(expression, computation)| (computation, false, expression)),
+                );
                 // The predicate computation claims its authored call
                 // expression exactly like a Call computation does.
                 calls.push(*source_expression);
@@ -677,12 +691,20 @@ pub(crate) fn validate_computation_calls(
                         } => {
                             pending.push((computation, false, expression));
                         }
-                        RejoinedComputationArgument::Structural { expression } => {
+                        RejoinedComputationArgument::Structural {
+                            expression,
+                            operands,
+                        } => {
                             if !scoped_expressions.contains(&expression) {
                                 return unsupported(
                                     "computed borrow escaped its authored argument scope",
                                 );
                             }
+                            pending.extend(
+                                operands.into_iter().rev().map(|(expression, computation)| {
+                                    (computation, false, expression)
+                                }),
+                            );
                         }
                         RejoinedComputationArgument::Construction {
                             expression,
@@ -819,92 +841,6 @@ fn select_case_arm(
         _ => return unsupported("computed selection has no wildcard tail"),
     }
     Ok(())
-}
-
-/// The state parameter a `Parameter { parameter_index }` source names. The
-/// index is dense over structural parameters only: an `[erased]` binding or a
-/// primitive-typed one occupies no position. `missing` is the lane's
-/// diagnostic for an index past the last structural parameter.
-fn structural_parameter_at<'a>(
-    checked: &CheckedTrees,
-    parameters: &'a [checked_trees::signature::StateParameter],
-    parameter_index: u32,
-    missing: &'static str,
-) -> Result<&'a checked_trees::signature::StateParameter, LoweringError> {
-    parameters
-        .iter()
-        .filter(|parameter| {
-            !parameter.relevance.is_erased()
-                && checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(missing))
-}
-
-/// Whether `symbol` binds exactly one parameter of `state` and no authored
-/// local of `state` rebinds it, so an authored name of `symbol` can only mean
-/// that parameter.
-fn parameter_binding_is_unique(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    checked
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.symbol == symbol)
-        .count()
-        == 1
-        && !checked
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)
-            })
-}
-
-/// The one authored local of `state` that binds `symbol`, declared before
-/// statement `before` with an initializer or authenticated default storage.
-/// `missing` is the lane's
-/// diagnostic when no local binds `symbol`; `unestablished` covers a second
-/// binding, a declaration at or after `before`, and a stale initializer.
-fn preceding_local<'a>(
-    checked: &'a CheckedTrees,
-    state: &checked_trees::state::State,
-    symbol: symbols::SymbolHandle,
-    before: usize,
-    missing: &'static str,
-    unestablished: &'static str,
-) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
-    let mut locals = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-            _ => None,
-        });
-    let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(missing))?;
-    if locals.next().is_some()
-        || ordinal >= before
-        || if local.initial_value.is_valid() {
-            !checked
-                .expression_table
-                .expression_is_valid(local.initial_value)
-        } else {
-            crate::emission::call_source_custody::projected_receivers::owned_local_declaration(
-                checked, state, before, symbol,
-            )
-            .is_none()
-        }
-    {
-        return unsupported(unestablished);
-    }
-    Ok(local)
 }
 
 // A retained computation cannot make a not-yet-established source local

@@ -10,12 +10,14 @@
 //! the checked planner's `Mutable`-kind roster, not a replay concern. The two
 //! accesses replay one walk and differ only in the planned access they
 //! require and the view family their refusals name.
+//! Retained range operations use the shared range source validator, including
+//! array-backed byte views and both pure and computed endpoint operands.
 
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
 use crate::expression_preparation::bindings::LoanAccess;
-use checked_trees::{CheckedUnitStructuralArgumentPlan, types::TypeReferenceNode};
+use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 /// A replay refusal, spelled for the view family whose loan it rejoins: a
 /// `BorrowedSliceView` holds a shared loan of the lent collection, a
@@ -35,200 +37,127 @@ pub(super) fn validate(
     authored: &checked_trees::state::State,
     statement: u32,
     expression: ExpressionHandle,
+    expected: checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     loan: LoanAccess,
     region: checked_trees::CheckedElementViewRegion,
-) -> Result<(), LoweringError> {
-    // A view is spelled `.as_slice()` over a whole collection, or as a range
-    // index `collection[a..b]` — the byte-view arm mints this selection
-    // without an authored call. The range replays as a `FixedByteRange`
-    // path suffix over the collection the index names.
+) -> Result<
+    Vec<(
+        checked_trees::CheckedScalarComputationHandle,
+        ExpressionHandle,
+    )>,
+    LoweringError,
+> {
+    if crate::unit::attached_unit::view_ranges::range(argument).is_some() {
+        if region != checked_trees::CheckedElementViewRegion::WholeCollection
+            || argument.access != loan.planned_access()
+        {
+            return unsupported(refusal!(loan, "range changed its region or access"));
+        }
+        let site = if let Some(StatementNode::LocalData(local)) = checked
+            .statement_table
+            .statements(authored.statement_nodes)
+            .get(statement as usize)
+            && local.initial_value == expression
+        {
+            checked_trees::CheckedSubsliceSite::LocalBinding
+        } else {
+            checked_trees::CheckedSubsliceSite::Expression { expression }
+        };
+        return crate::expression_preparation::source_custody::view_ranges::validate_operand(
+            checked, authored, statement, expected, expression, argument, site,
+        )
+        .map(|operands| {
+            operands
+                .into_iter()
+                .map(|(expression, handle)| (handle, expression))
+                .collect()
+        });
+    }
+    // Non-range views open a whole collection or an explicit representation
+    // region. Range plans were handled by the common operation above.
     let authored_region =
         validation::slice_recast_byte_region(&checked.typed, machine, authored, expression);
-    let (receiver, window) = if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
-        start,
-        end,
-    } = region
-    {
-        let source = authored_region.ok_or(LoweringError::Unsupported(refusal!(
-            loan,
-            "byte region lost its authored recast"
-        )))?;
-        let access = match loan {
-            LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
-            LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
-        };
-        if source.extent != end || source.access != access {
-            return unsupported(refusal!(loan, "byte region changed its extent or access"));
-        }
-        let role =
-            checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset { expression };
-        let (offset, primitive) = super::operand_source(checked, authored.symbol, statement, role)?;
-        if offset != source.start
-            || super::validate_operand(
-                checked,
-                machine.symbol,
-                authored.symbol,
-                statement,
-                role,
-                start,
-                source.start,
-            )? != primitive
+    let receiver =
+        if let checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } = region
         {
-            return unsupported(refusal!(loan, "byte region changed its offset computation"));
-        }
-        (source.collection, None)
-    } else {
-        if authored_region.is_some() {
-            return unsupported(refusal!(
+            let source = authored_region.ok_or(LoweringError::Unsupported(refusal!(
                 loan,
-                "byte region lost its representation contract"
-            ));
-        }
-        if let Some(source) = validation::slice_recast_source(&checked.typed, expression) {
+                "byte region lost its authored recast"
+            )))?;
             let access = match loan {
                 LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
                 LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
             };
-            if source.access != access {
-                return unsupported(refusal!(loan, "recast changed its authored access"));
+            if source.extent != end || source.access != access {
+                return unsupported(refusal!(loan, "byte region changed its extent or access"));
             }
-            (source.source, None)
-        } else {
-            match checked.expression_table.expression(expression) {
-                ExpressionNode::Borrow(borrow) => {
-                    // A whole collection loan uses the same view descriptor
-                    // as a view call. Replay its authored access before the
-                    // common root, path, and collection-identity checks below.
-                    let access = match loan {
-                        LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
-                        LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
-                    };
-                    if borrow.access != access {
-                        return unsupported(refusal!(loan, "borrow changed its authored access"));
-                    }
-                    (borrow.target, None)
-                }
-                ExpressionNode::Call(call) => {
-                    if !call.arguments.is_empty() {
-                        return unsupported(refusal!(loan, "call gained arguments"));
-                    }
-                    (call.receiver, None)
-                }
-                ExpressionNode::Indexed(indexed) => {
-                    let ExpressionNode::Range(range) =
-                        checked.expression_table.expression(indexed.index)
-                    else {
-                        return unsupported(refusal!(loan, "lost its authored view call"));
-                    };
-                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-                start,
-                end,
-                ..
-            }
-            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-                start,
-                end,
-                ..
-            } = &argument.source
+            let role =
+                checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset { expression };
+            let (offset, primitive) =
+                super::operand_source(checked, authored.symbol, statement, role)?;
+            if offset != source.start
+                || super::validate_operand(
+                    checked,
+                    machine.symbol,
+                    authored.symbol,
+                    statement,
+                    role,
+                    start,
+                    source.start,
+                )? != primitive
             {
-                // A range-source plan carries its window as recorded scalar
-                // rows instead of a `FixedByteRange` path segment: replay
-                // each authored bound through the row the scalar planner
-                // bound at this occurrence's site and require the recorded
-                // value. Literal bounds replay identically to computed ones,
-                // so the window's extent never enters the path.
-                let site = if let Some(StatementNode::LocalData(local)) = checked
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .get(statement as usize)
-                    && local.initial_value == expression
-                {
-                    checked_trees::CheckedSubsliceSite::LocalBinding
-                } else {
-                    checked_trees::CheckedSubsliceSite::Expression { expression }
+                return unsupported(refusal!(loan, "byte region changed its offset computation"));
+            }
+            source.collection
+        } else {
+            if authored_region.is_some() {
+                return unsupported(refusal!(
+                    loan,
+                    "byte region lost its representation contract"
+                ));
+            }
+            if let Some(source) = validation::slice_recast_source(&checked.typed, expression) {
+                let access = match loan {
+                    LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
+                    LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
                 };
-                for (authored_endpoint, role, recorded) in [
-                    (
-                        range.start,
-                        checked_trees::CheckedScalarExpressionRole::SubsliceStart { site },
-                        start,
-                    ),
-                    (
-                        range.end,
-                        checked_trees::CheckedScalarExpressionRole::SubsliceEnd { site },
-                        end,
-                    ),
-                ] {
-                    if !authored_endpoint.is_valid() {
-                        if recorded.is_some() {
-                            return unsupported(refusal!(loan, "window endpoint presence changed"));
-                        }
-                        continue;
-                    }
-                    let (binding, selected) = checked
-                        .facts
-                        .values
-                        .scalar_expressions
-                        .bound_expression_at(authored.symbol, statement, role)
-                        .ok_or(LoweringError::Unsupported(refusal!(
-                            loan,
-                            "window endpoint lost its source-bound plan"
-                        )))?;
-                    if binding.expression != authored_endpoint
-                        || binding.destination.is_valid()
-                        || selected.primitive_type()
-                            != Some(checked_trees::types::PrimitiveType::U64)
-                        || recorded.as_ref() != Some(selected)
-                    {
-                        return unsupported(refusal!(
-                            loan,
-                            "window endpoint differs from its recorded plan"
-                        ));
-                    }
+                if source.access != access {
+                    return unsupported(refusal!(loan, "recast changed its authored access"));
                 }
-                (indexed.collection, None)
+                source.source
             } else {
-                let window = (|| {
-                    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
-                        return None;
+                match checked.expression_table.expression(expression) {
+                    ExpressionNode::Borrow(borrow) => {
+                        // A whole collection loan uses the same view descriptor
+                        // as a view call. Replay its authored access before the
+                        // common root, path, and collection-identity checks below.
+                        let access = match loan {
+                            LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
+                            LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
+                        };
+                        if borrow.access != access {
+                            return unsupported(refusal!(
+                                loan,
+                                "borrow changed its authored access"
+                            ));
+                        }
+                        borrow.target
                     }
-                    let start = usize::try_from(
-                        checked
-                            .expression_table
-                            .constant_integer_value(range.start)?,
-                    )
-                    .ok()?;
-                    let end = usize::try_from(
-                        checked.expression_table.constant_integer_value(range.end)?,
-                    )
-                    .ok()?;
-                    Some((start, end))
-                })();
-                let Some(window) = window else {
-                    return unsupported(refusal!(loan, "lost its authored view call"));
-                };
-                (indexed.collection, Some(window))
-            }
+                    ExpressionNode::Call(call) => {
+                        if !call.arguments.is_empty() {
+                            return unsupported(refusal!(loan, "call gained arguments"));
+                        }
+                        call.receiver
+                    }
+                    _ => return unsupported(refusal!(loan, "lost its authored view call")),
                 }
-                _ => return unsupported(refusal!(loan, "lost its authored view call")),
             }
-        }
-    };
+        };
     if argument.access != loan.planned_access() {
         return unsupported(refusal!(loan, "changed its planned access"));
     }
-    let (root, mut checked_path) = authored_collection_path(checked, machine, authored, receiver)?;
-    if let Some((start, end)) = window {
-        // A byte view records its window as a `FixedByteRange` path segment —
-        // the range sources replayed above keep their bounds on the source
-        // plan instead, so only whole-place borrow paths reach this arm.
-        let (Ok(start), Ok(end)) = (u64::try_from(start), u64::try_from(end)) else {
-            return unsupported(refusal!(loan, "lost its authored view call"));
-        };
-        checked_path
-            .push(checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end });
-    }
+    let (root, checked_path) = authored_collection_path(checked, machine, authored, receiver)?;
     if checked_path != argument.path {
         return unsupported(refusal!(loan, "path does not match its projected path"));
     }
@@ -238,50 +167,7 @@ pub(super) fn validate(
             loan,
             "lost its collection type"
         )))?;
-    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } =
-        argument.source
-    {
-        // A wider scalar element's plan records the lent view type the
-        // destination declared — the receiver-side proof is the literal
-        // fixed array the window subslices, checked against its declaration
-        // exactly the way the checked planner peeled it.
-        let mut container =
-            validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf);
-        while let TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } = checked.type_reference_table.type_reference(container)
-        {
-            container = *base_type;
-        }
-        if !matches!(
-            checked.type_reference_table.type_reference(container),
-            TypeReferenceNode::FixedArray {
-                length: checked_trees::types::FixedArrayLength::Literal(_),
-                ..
-            }
-        ) {
-            return unsupported(refusal!(loan, "element view is not a fixed-array window"));
-        }
-    } else if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        ..
-    } = argument.source
-    {
-        // The collection of a byte-window source is itself an established
-        // byte view: the recorded identity is the view's peeled carrier
-        // spelling, not the reference shell's nominal one.
-        let mut view = leaf;
-        while let TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } = checked.type_reference_table.type_reference(view)
-        {
-            view = *base_type;
-        }
-        if checked.normalized_type_identity(view).as_str() != argument.type_identity {
-            return unsupported(refusal!(loan, "byte window is not a byte-view subslice"));
-        }
-    } else if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
+    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
         return unsupported(refusal!(loan, "does not project its collection"));
     }
     let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
@@ -352,7 +238,7 @@ pub(super) fn validate(
     // represented element geometry and live loans are independently verified at
     // the emitted view establishment. Requiring wholly owned elements here
     // would confuse borrowing storage with constructing or moving its values.
-    Ok(())
+    Ok(Vec::new())
 }
 
 /// The authored collection place a view is taken over, replayed from its

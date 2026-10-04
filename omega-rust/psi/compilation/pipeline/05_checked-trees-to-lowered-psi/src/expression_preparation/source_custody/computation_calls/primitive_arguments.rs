@@ -1,9 +1,11 @@
-//! Source custody of whole primitive borrows, independent of lowered places.
+//! Primitive call operands borrow exact established storage, including projected
+//! fields. Address/access replay is shared with aggregate operands; primitive
+//! carrier identity and exclusive forwarding remain this consumer's contract.
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::state::State;
 use checked_trees::statement::StatementNode;
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::types::TypeReferenceHandle;
 use checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedStructuralAccess, CheckedTrees,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -28,220 +30,105 @@ pub(crate) fn validate(
     if argument.access != target_access {
         return unsupported("computed primitive argument substituted its formal access");
     }
-    let table = &checked.expression_table;
-    if !table.expression_is_valid(expression) {
-        return unsupported("computed primitive argument has a stale authored expression");
-    }
-    let (named, explicit_access) = match table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => (borrow.target, Some(access(borrow.access))),
-        ExpressionNode::Name(_) => (expression, None),
-        _ => return unsupported("computed primitive argument requires a whole named referent"),
+    let declared_access = match target_access {
+        CheckedStructuralAccess::SharedBorrow => ReferenceAccess::Shared,
+        CheckedStructuralAccess::MutableBorrow => ReferenceAccess::Mutable,
+        CheckedStructuralAccess::WriteOnlyBorrow => ReferenceAccess::WriteOnly,
+        CheckedStructuralAccess::Owned => {
+            return unsupported("primitive argument requires borrowed access");
+        }
     };
-    if !table.expression_is_valid(named) {
-        return unsupported("computed primitive argument has a stale borrowed expression");
-    }
-    let ExpressionNode::Name(name) = table.expression(named) else {
-        return unsupported("computed primitive argument requires an unprojected named referent");
+    let borrowed = super::borrowed_storage::source(
+        checked,
+        state,
+        statement,
+        declared_access,
+        expression,
+        argument,
+    )?;
+    let explicit_access = match checked.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => Some(access(borrow.access)),
+        _ => None,
     };
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || table.name_path_members(name.members).len() != 1
-        || name.members.count() != 1
-        || explicit_access.is_some_and(|access| access != target_access)
+    if let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. } = argument.source
+        && explicit_access.is_none()
     {
-        return unsupported("computed primitive argument substituted its authored borrow");
+        return unsupported("computed primitive local lacks its authored borrow");
     }
-    let parameters = checked.state_parameters(state);
-    let source_referent = match argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let source = super::structural_parameter_at(
-                checked,
-                parameters,
-                parameter_index,
-                "computed primitive argument has no source structural parameter",
-            )?;
-            if source.is_self
-                || source.is_const
-                || source.symbol != name.symbol
-                || !super::parameter_binding_is_unique(checked, state, name.symbol)
-            {
-                return unsupported("computed primitive argument substituted its source parameter");
-            }
-            let (referent, declared_access) = primitive_reference(checked, source.type_reference)?;
-            // Resource access comes from the exact source declaration and
-            // authored borrow. A target's requested access cannot widen it.
-            if borrow_kind(declared_access)?
-                .direct_reborrow_effect(&borrow_kind(target_access)?)
-                .is_none()
-            {
-                return unsupported(
-                    "computed primitive argument widens its declared source access",
-                );
-            }
-            if explicit_access.is_none() && target_access != CheckedStructuralAccess::SharedBorrow {
-                if declared_access != CheckedStructuralAccess::MutableBorrow
-                    || target_access != CheckedStructuralAccess::MutableBorrow
-                {
-                    return unsupported(
-                        "computed primitive argument lacks an authored exclusive borrow",
-                    );
-                }
-                validate_direct_forwarding(checked, state, statement, name.symbol)?;
-            }
-            referent
+    // A bare exclusive parameter forwards an existing reference, rather than
+    // forming a new loan from an owned field. Preserve its restoration boundary.
+    if let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = argument.source
+        && explicit_access.is_none()
+        && target_access != CheckedStructuralAccess::SharedBorrow
+    {
+        let parameter = super::structural_parameter_at(
+            checked,
+            checked.state_parameters(state),
+            parameter_index,
+            "computed primitive argument lost its source parameter",
+        )?;
+        let (_, source_access) = primitive_reference(checked, parameter.type_reference)?;
+        if !borrowed.place.path.is_empty()
+            || source_access != CheckedStructuralAccess::MutableBorrow
+            || target_access != CheckedStructuralAccess::MutableBorrow
+        {
+            return unsupported("computed primitive argument lacks an authored exclusive borrow");
         }
-        CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
-            if symbol != name.symbol
-                || explicit_access.is_none()
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == symbol)
-            {
-                return unsupported("computed primitive argument substituted its local borrow");
-            }
-            let local = super::preceding_local(
-                checked,
-                state,
-                symbol,
-                statement as usize,
-                "computed primitive argument has no authored local",
-                "computed primitive argument has no preceding initialized mutable local",
-            )?;
-            if !local.is_mutable {
-                return unsupported(
-                    "computed primitive argument has no preceding initialized mutable local",
-                );
-            }
-            plain_primitive(checked, local.type_reference)?;
-            local.type_reference
-        }
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            // An immutable `&T` local is itself the borrowed carrier: the call
-            // loans the referent's exact established place onward, the same
-            // custody a shared-borrow parameter presents. Nothing here
-            // materializes an owned copy of the primitive referent.
-            if symbol != name.symbol
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == symbol)
-            {
-                return unsupported("computed primitive argument substituted its local carrier");
-            }
-            let local = super::preceding_local(
-                checked,
-                state,
-                symbol,
-                statement as usize,
-                "computed primitive argument has no authored local carrier",
-                "computed primitive argument has no preceding established carrier",
-            )?;
-            let (referent, declared_access) = primitive_reference(checked, local.type_reference)?;
-            // The declared carrier's access bounds the forwarded loan exactly
-            // as it does for a source parameter; the target cannot widen it.
-            if borrow_kind(declared_access)?
-                .direct_reborrow_effect(&borrow_kind(target_access)?)
-                .is_none()
-            {
-                return unsupported(
-                    "computed primitive argument widens its declared carrier access",
-                );
-            }
-            referent
-        }
-        _ => return unsupported("computed primitive argument has unsupported source custody"),
-    };
-    // Reconstruct whether this declaration established a reference carrier.
-    // Its projection is source evidence, never inferred from the requested
-    // scalar type or the lowered home that happens to be available.
-    let retained_reference = match argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => checked
-            .typed
-            .state_local_declaration(state, symbol)
-            .is_some_and(|(ordinal, _)| {
-                ordinal < statement as usize
-                    && validation::reference_result_custody::primitive_local_source(
-                        &checked.typed,
-                        state,
-                        ordinal,
-                    )
-                    .is_some()
-            }),
-        _ => false,
-    };
-    let expected_path: &[checked_trees::CheckedUnitStructuralPathSegment] = if retained_reference {
-        &[checked_trees::CheckedUnitStructuralPathSegment::Referent]
-    } else {
-        &[]
-    };
-    if argument.path != expected_path {
-        return unsupported(
-            "computed primitive argument substituted its retained source projection",
-        );
+        validate_direct_forwarding(checked, state, statement, borrowed.place.root)?;
     }
-    let source_identity = checked.typed.normalized_type_identity(source_referent);
+    let source_referent = borrowed.carrier;
     if checked.primitive_type_reference(source_referent)
         != checked.primitive_type_reference(target_referent)
-        || source_identity != checked.typed.normalized_type_identity(target_referent)
-        || source_identity.into_string() != argument.type_identity
+        || checked.normalized_type_identity(source_referent)
+            != checked.normalized_type_identity(validation::peel_declared_constraints(
+                &checked.typed,
+                target_referent,
+            ))
+        || checked.normalized_type_identity(source_referent).as_str() != argument.type_identity
     {
-        return unsupported("computed primitive argument substituted its normalized referent type");
+        return unsupported("computed primitive argument substituted its declared referent type");
     }
-    // Forwarding retains the selected formal's loan access; explicit borrow
-    // formation retains its authored access.
-    let expected_kind = match explicit_access {
-        Some(access) => borrow_kind(access)?,
-        None => borrow_kind(argument.access)?,
+    // The shared source join retained the complete declaration and projection.
+    // Qualifications remain on the formal and the established source field;
+    // matching the primitive carrier does not synthesize either qualification.
+    let expected_kind = borrow_kind(explicit_access.unwrap_or(argument.access))?;
+    let position = match access_position {
+        Some(position) => position,
+        None => borrow_rows::validate_argument(
+            checked,
+            borrow_call,
+            borrowed.place.captured_place().root_symbol,
+            expected_kind.clone(),
+        )?,
     };
-    if argument.access == CheckedStructuralAccess::SharedBorrow
-        && let Some(position) = access_position
-    {
-        borrow_rows::validate_shared_argument_at(checked, borrow_call, position, name.symbol)?;
-        Ok(position)
-    } else {
-        borrow_rows::validate_argument(checked, borrow_call, name.symbol, expected_kind)
-    }
+    borrow_rows::validate_place_argument_at(
+        checked,
+        borrow_call,
+        position,
+        borrowed.place.captured_place(),
+        expected_kind,
+    )?;
+    Ok(position)
 }
 
 fn primitive_reference(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Result<(TypeReferenceHandle, CheckedStructuralAccess), LoweringError> {
-    if !checked
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
-        return unsupported("computed primitive argument has a stale reference type");
-    }
-    let TypeReferenceNode::Reference {
-        referee,
-        access: declared_access,
-        ..
-    } = checked.type_reference_table.type_reference(reference)
-    else {
-        return unsupported("computed structural argument requires a primitive reference");
-    };
-    plain_primitive(checked, *referee)?;
-    Ok((*referee, access(*declared_access)))
-}
-
-fn plain_primitive(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Result<(), LoweringError> {
-    if !checked
-        .type_reference_table
-        .contains_type_reference(reference)
-        || !matches!(
-            checked.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
+    let shell = validation::reference_shell(&checked.typed, reference).ok_or(
+        LoweringError::Unsupported("computed structural argument requires a primitive reference"),
+    )?;
+    if checked.primitive_type_reference(shell.referee).is_none()
+        || !validation::has_plain_owned_contents_with_represented_constraints(
+            &checked.typed,
+            shell.referee,
         )
-        || checked.primitive_type_reference(reference).is_none()
     {
         return unsupported(
-            "computed structural argument requires an exact plain primitive referent",
+            "computed structural argument requires a represented primitive referent",
         );
     }
-    Ok(())
+    Ok((shell.referee, access(shell.access)))
 }
 
 fn access(access: ReferenceAccess) -> CheckedStructuralAccess {

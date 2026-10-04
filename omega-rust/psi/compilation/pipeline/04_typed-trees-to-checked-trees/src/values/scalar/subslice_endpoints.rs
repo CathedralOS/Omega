@@ -6,26 +6,23 @@
 //! `CheckedSubsliceSite`. An omitted endpoint produces no row: zero and the
 //! source length are supplied by the range's consumer, not by a scalar fact.
 use checked_trees::{
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedSubsliceSite,
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpressionRole,
+    CheckedSubsliceSite,
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 
 /// Lower the present endpoints of `expression` when it is an exclusive range
 /// whose operator use (if any) resolved to the builtin meaning. `lower`
 /// evaluates one endpoint as a `u64` in the site's own scalar namespace.
-pub(crate) fn subslice_endpoints(
+pub(crate) fn subslice_endpoints<Value>(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     site: CheckedSubsliceSite,
-    mut lower: impl FnMut(ExpressionHandle) -> Option<CheckedScalarExpression>,
-) -> Vec<(
-    ExpressionHandle,
-    CheckedScalarExpressionRole,
-    CheckedScalarExpression,
-)> {
+    mut lower: impl FnMut(ExpressionHandle) -> Option<Value>,
+) -> Vec<(ExpressionHandle, CheckedScalarExpressionRole, Value)> {
     let Some(expression) = validation::subslice_expression(program, expression) else {
         return Vec::new();
     };
@@ -62,4 +59,159 @@ pub(crate) fn subslice_endpoints(
     .filter(|(endpoint, _)| endpoint.is_valid())
     .filter_map(|(endpoint, role)| Some((endpoint, role, lower(endpoint)?)))
     .collect()
+}
+
+/// The source occurrence, not the result's destination or the endpoint's syntax,
+/// identifies a range operand. Both scalar plan producers consume this inventory.
+pub(super) fn sites(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Vec<(ExpressionHandle, CheckedSubsliceSite)> {
+    let mut result = Vec::new();
+    if let StatementNode::LocalData(local) = statement
+        && !local.is_mutable
+    {
+        result.push((local.initial_value, CheckedSubsliceSite::LocalBinding));
+    }
+    for (call_ordinal, site) in crate::semantic::calls::collect_call_sites_in_statement(
+        program,
+        machine,
+        state,
+        statement_index,
+    )
+    .into_iter()
+    .enumerate()
+    {
+        let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
+            break;
+        };
+        // Traversal reserves an ordinal for an internal state edge, but it
+        // invokes no machine. Its operands use TransitionArgument below;
+        // nested endpoint calls keep their original subsequent ordinals.
+        if let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site
+            && crate::semantic::calls::terminal_callable_target(program, machine, path.symbol)
+                .is_none()
+        {
+            continue;
+        }
+        for (argument, argument_ordinal) in structural_call_arguments(program, &site) {
+            result.push((
+                argument,
+                CheckedSubsliceSite::CallArgument {
+                    call_ordinal,
+                    argument_ordinal,
+                },
+            ));
+        }
+    }
+    if let StatementNode::Transition(transition) = statement
+        && transition.target.is_valid()
+        && let typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } = program.statement_table.transition_target(transition.target)
+        && let Some(parameters) =
+            crate::semantic::calls::call_target_parameters(program, path.symbol)
+    {
+        for (argument, (position, parameter)) in program
+            .statement_table
+            .expression_handles(*arguments)
+            .iter()
+            .zip(
+                parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| !parameter.is_self),
+            )
+        {
+            if !parameter.relevance.is_erased()
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+                && let Ok(argument_ordinal) = u32::try_from(position)
+            {
+                result.push((
+                    *argument,
+                    CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+                ));
+            }
+        }
+    }
+    let table = &program.expression_table;
+    let mut pending: Vec<_> = program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.is_valid())
+        .collect();
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !table.expression_is_valid(expression) || visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        result.push((expression, CheckedSubsliceSite::Expression { expression }));
+        validation::expression_traversal::children(
+            program,
+            table.expression(expression),
+            |child| {
+                if child.is_valid() {
+                    pending.push(child);
+                }
+            },
+        );
+    }
+    result
+}
+
+/// Structural formals have their own dense ordinal. Erased and scalar formals
+/// consume their authored actual but no structural position; implicit receivers
+/// consume neither an explicit actual nor its range coordinate.
+fn structural_call_arguments(
+    program: &typed_trees::TypedTrees,
+    site: &crate::semantic::calls::CallSite<'_>,
+) -> Vec<(typed_trees::expression::ExpressionHandle, u32)> {
+    use crate::semantic::calls::CallSite;
+    let target = match site {
+        CallSite::Statement(call) => call.target_symbol,
+        CallSite::Expression { call, .. } => crate::flow::call_target_symbol(program, call),
+        CallSite::TransitionNamed { path, .. } => path.symbol,
+    };
+    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
+        return Vec::new();
+    };
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, site);
+    let explicit_self = arguments.len()
+        > parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+    let explicit_parameters = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self || explicit_self);
+    if explicit_parameters.clone().count() != arguments.len() {
+        return Vec::new();
+    }
+    let mut structural = Vec::new();
+    for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
+        let Some(erased) = crate::execution::terminal_unit::strips_erased_parameter(parameter)
+        else {
+            return Vec::new();
+        };
+        if erased
+            || program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        {
+            continue;
+        }
+        let Ok(ordinal) = u32::try_from(structural.len()) else {
+            return Vec::new();
+        };
+        structural.push((*argument, ordinal));
+    }
+    structural
 }

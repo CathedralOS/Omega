@@ -25,7 +25,7 @@ pub struct CheckedUnitCallCoordinate {
     pub call_ordinal: u32,
 }
 
-/// One scalar operand of an invocation or array construction.
+/// One scalar operand of an invocation, construction, or view formation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedCallScalarArgument {
     Pure(CheckedScalarExpression),
@@ -68,14 +68,15 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Exclusive range over one established immutable byte view: a whole
     /// byte-view parameter (dense, state-local structural index) or an
     /// earlier byte-view local. Missing endpoints mean zero and the source
-    /// length, not absent runtime values. Present endpoints copy the unique
-    /// source-bound scalar facts under `SubsliceStart`/`SubsliceEnd` at the
-    /// enclosing statement and this range's `CheckedSubsliceSite`.
+    /// length, not absent runtime values. Present endpoints retain the unique
+    /// scalar operand under `SubsliceStart`/`SubsliceEnd` at the enclosing
+    /// statement and this range's `CheckedSubsliceSite`. Calls remain computed
+    /// operands, evaluated once in start/end order before narrowing the view.
     ByteSequenceSubslice {
         root: CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
-        start: Option<CheckedScalarExpression>,
-        end: Option<CheckedScalarExpression>,
+        start: Option<CheckedCallScalarArgument>,
+        end: Option<CheckedCallScalarArgument>,
         /// Exact Terminal type identity of the collection the range reads:
         /// the peeled carrier of the projected backing, already enrolled in
         /// the checked structural type table. Naming it keeps the storage
@@ -94,8 +95,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     ElementViewSubslice {
         root: CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
-        start: Option<CheckedScalarExpression>,
-        end: Option<CheckedScalarExpression>,
+        start: Option<CheckedCallScalarArgument>,
+        end: Option<CheckedCallScalarArgument>,
         /// Exact Terminal type identity of the collection the range reads.
         storage_type_identity: String,
     },
@@ -128,6 +129,21 @@ impl Default for CheckedUnitStructuralArgumentPlan {
 }
 
 impl CheckedUnitStructuralArgumentPlan {
+    /// Evaluated scalar dependencies of this source, in authored order.
+    /// Omitted range bounds obtain defaults from the source descriptor.
+    pub fn scalar_operands(&self) -> impl Iterator<Item = &CheckedCallScalarArgument> {
+        let endpoints = match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                start, end, ..
+            }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { start, end, .. } => {
+                [start.as_ref(), end.as_ref()]
+            }
+            _ => [None, None],
+        };
+        endpoints.into_iter().flatten()
+    }
+
     /// Source identity for the common established structural storage roster.
     /// Result ordinals remain the operation sequence's independent namespace.
     pub fn structural_storage_root(&self) -> Option<facts::PlaceRoot> {

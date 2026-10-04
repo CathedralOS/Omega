@@ -48,7 +48,6 @@ impl StateGraphEmission<'_, '_> {
             current_rank,
             rank_ceiling,
             case_subject,
-            guarded,
             inherited_lengths,
             inherited_field_lengths,
             consumed_case_subjects,
@@ -139,29 +138,11 @@ impl StateGraphEmission<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "Unit graph target disappeared during emission",
             ))?;
-        // Established payloads are parameters of a guard dispatch block,
-        // so the edge's arguments must be evaluated after selection. Every
-        // transfer that emits its own operation on the edge -- a case-payload
-        // or projected copy, an established value, a literal's octets --
-        // needs that staged block to hold it.
-        let stage = case_edge || !established.is_empty() || edge.scalar_arguments.iter().any(|argument| matches!(
-            argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
-        )) || edge.transfers.iter().any(|transfer| matches!(
-            transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
-                | checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. }
-                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. }
-                | checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. }
-        )) || guarded
-                && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
-                    transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
-                        | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. }
-                )));
         let operation_start = operations.len();
-        let staged = if stage {
-            block_id(allocate_dense(next_block)?)
-        } else {
-            evaluation.current
-        };
+        // Reserve an independent entry even when the edge appears inline:
+        // evaluating any operand may introduce private control flow. Its
+        // completed blocks must not reuse the emitting state's block identity.
+        let staged = block_id(allocate_dense(next_block)?);
         let mut edge_evaluation = evaluation.branch(staged, operation_start);
         let mut edge_values = values.to_vec();
         // A case edge's payloads are the staged block's formals; they join the
@@ -351,8 +332,8 @@ impl StateGraphEmission<'_, '_> {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             let emitted = subslices::emit(
                                 checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
-                                state_parameters, &edge_evaluation, destination, bindings, &edge_values,
-                                next_value, operations, self.catalogs, &mut self.structural_places,
+                                state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values,
+                                next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places,
                                 &target_parameter.type_identity, target_parameter.access,
                             )?;
                             self.structural_places.push(emitted);
@@ -927,7 +908,14 @@ impl StateGraphEmission<'_, '_> {
             None
         };
         let target = self.state_ids[target];
-        if stage {
+        // Payloads begin after selection. Actual edge work owns its block,
+        // including any operand's private entry, joins and remapped parameters.
+        // Pure forwarding alone may remain in the source block.
+        if case_edge
+            || !established.is_empty()
+            || !edge_evaluation.blocks.is_empty()
+            || operations.len() > operation_start
+        {
             let backedge = edge_id(allocate_dense(next_edge)?);
             let selection_edge = edge_id(allocate_dense(next_edge)?);
             self.arrival_edges.entry(target).or_default().push(backedge);
@@ -1036,8 +1024,6 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) rank_ceiling: Option<ValueId>,
     /// The closed-sum subject a case edge has already consumed.
     pub(super) case_subject: Option<PlaceId>,
-    /// Whether the state decides between successors on a scalar guard.
-    pub(super) guarded: bool,
     pub(super) inherited_lengths: &'f [(PlaceId, ValueId)],
     pub(super) inherited_field_lengths: &'f [(
         PlaceId,

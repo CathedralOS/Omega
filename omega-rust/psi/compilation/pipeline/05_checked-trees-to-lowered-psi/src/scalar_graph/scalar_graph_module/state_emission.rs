@@ -28,7 +28,9 @@ impl GraphEmission<'_> {
         // order. An observation emitted for another state cannot supply this
         // state's live length; equalities with dominating reads are rebuilt by
         // the verifier rather than inferred from emission order.
+        self.all_operations.byte_lengths.clear();
         self.all_operations.element_lengths.clear();
+        self.all_operations.field_byte_lengths.clear();
         let states = self.states;
         // Only a re-entered entry row is a loop header block; otherwise its
         // roster stays on the machine signature.

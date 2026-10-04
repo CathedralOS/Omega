@@ -16,7 +16,7 @@ use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedSubsliceSite,
+    CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedSubsliceSite,
     CheckedUnitStructuralPathSegment,
 };
 use checked_trees::{
@@ -30,8 +30,8 @@ pub(crate) struct Range<'a> {
     pub(crate) root: CheckedStorageRoot,
     pub(crate) family: ViewFamily,
     pub(crate) expression: ExpressionHandle,
-    pub(crate) start: &'a Option<CheckedScalarExpression>,
-    pub(crate) end: &'a Option<CheckedScalarExpression>,
+    pub(crate) start: &'a Option<CheckedCallScalarArgument>,
+    pub(crate) end: &'a Option<CheckedCallScalarArgument>,
 }
 
 /// The range `argument` narrows, of either view family.
@@ -493,12 +493,13 @@ pub(crate) struct ViewRangeSite<'a> {
     /// Endpoints a call-argument or binding plan retains; a transfer retains
     /// none and replays its site's facts alone.
     pub(crate) retained: Option<(
-        &'a Option<CheckedScalarExpression>,
-        &'a Option<CheckedScalarExpression>,
+        &'a Option<CheckedCallScalarArgument>,
+        &'a Option<CheckedCallScalarArgument>,
     )>,
 }
 
-/// Replay the authored collection and narrow its established descriptor.
+/// Evaluate the authored endpoints in order, then narrow the established descriptor.
+/// Completed endpoint slots survive control splits and retire after formation.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     checked: &CheckedTrees,
@@ -507,18 +508,68 @@ pub(crate) fn emit(
     collection: &[CheckedUnitStructuralPathSegment],
     result_type: StructuralTypeId,
     destination: PlaceId,
-    bindings: &ScalarBindings,
-    values: &[ValueDeclaration],
+    evaluation: &mut super::argument_evaluation::Evaluation,
+    source_value_count: usize,
+    values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let (start, end) = endpoints(checked, &site, source.symbol, collection, bindings)?;
+    let (start, end) = replay(checked, &site, source.symbol, collection)?;
     if result_type != source.structural_type {
         return unsupported("view subslice changed its view type");
     }
-    view_subslice::emit(
+    let (machine, _) =
+        crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
+    let retained_count = values.len();
+    let mut positions = [None, None];
+    for (ordinal, (value, role)) in [
+        (
+            start.as_ref(),
+            CheckedScalarExpressionRole::SubsliceStart { site: site.site },
+        ),
+        (
+            end.as_ref(),
+            CheckedScalarExpressionRole::SubsliceEnd { site: site.site },
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if let Some(value) = value {
+            let completed = evaluation.source_value(
+                checked,
+                machine.symbol,
+                site.state,
+                site.statement,
+                role,
+                value,
+                source_value_count,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                calls,
+            )?;
+            positions[ordinal] = Some(values.len());
+            values.push(completed);
+        }
+    }
+    let count_type = crate::emission::scalar_types::terminal_scalar_type(
+        checked_trees::types::PrimitiveType::U64,
+    )?;
+    let [start, end] = positions.map(|position| {
+        position.map(|position| LoweredDirectExpression::Parameter {
+            position,
+            scalar_type: count_type,
+        })
+    });
+    let declaration = view_subslice::emit(
         source.family,
-        source.place,
+        evaluation.current_structural_place(source.place),
         source.access,
         start.as_ref(),
         end.as_ref(),
@@ -527,40 +578,9 @@ pub(crate) fn emit(
         values,
         next_value,
         operations,
-    )
-}
-
-/// Bind replayed endpoints into the current scalar namespace. Replay itself
-/// performs no evaluation and also serves computed-call source custody.
-pub(crate) fn endpoints(
-    checked: &CheckedTrees,
-    site: &ViewRangeSite<'_>,
-    source_symbol: symbols::SymbolHandle,
-    collection: &[CheckedUnitStructuralPathSegment],
-    bindings: &ScalarBindings,
-) -> Result<
-    (
-        Option<LoweredDirectExpression>,
-        Option<LoweredDirectExpression>,
-    ),
-    LoweringError,
-> {
-    let (start, end) = replay(checked, site, source_symbol, collection)?;
-    let lower = |present: bool, role| {
-        present
-            .then(|| bindings.expression_at(checked, site.state, site.statement, role))
-            .transpose()
-    };
-    Ok((
-        lower(
-            start.is_some(),
-            CheckedScalarExpressionRole::SubsliceStart { site: site.site },
-        )?,
-        lower(
-            end.is_some(),
-            CheckedScalarExpressionRole::SubsliceEnd { site: site.site },
-        )?,
-    ))
+    )?;
+    values.truncate(retained_count);
+    Ok(declaration)
 }
 
 /// The site's lowered endpoints after replaying its authored range.
@@ -571,8 +591,8 @@ pub(crate) fn replay(
     collection: &[CheckedUnitStructuralPathSegment],
 ) -> Result<
     (
-        Option<CheckedScalarExpression>,
-        Option<CheckedScalarExpression>,
+        Option<CheckedCallScalarArgument>,
+        Option<CheckedCallScalarArgument>,
     ),
     LoweringError,
 > {
@@ -662,27 +682,84 @@ pub(crate) fn replay(
     }
     let endpoint = |authored_endpoint: ExpressionHandle,
                     role: CheckedScalarExpressionRole,
-                    retained: Option<&Option<CheckedScalarExpression>>|
-     -> Result<Option<CheckedScalarExpression>, LoweringError> {
+                    retained: Option<&Option<CheckedCallScalarArgument>>|
+     -> Result<Option<CheckedCallScalarArgument>, LoweringError> {
         if !authored_endpoint.is_valid() {
             return Ok(None);
         }
-        let (binding, selected) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(site.state, site.statement, role)
-            .ok_or(LoweringError::Unsupported(
-                "view subslice endpoint has no source-bound scalar plan",
-            ))?;
-        if binding.expression != authored_endpoint
-            || binding.destination.is_valid()
-            || selected.primitive_type() != Some(checked_trees::types::PrimitiveType::U64)
-            || retained.is_some_and(|retained| retained.as_ref() != Some(selected))
-        {
-            return unsupported("view subslice endpoint differs from its source-bound plan");
+        let computations = &checked.facts.values.scalar_computations;
+        let mut roots = computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| {
+                root.state == site.state
+                    && root.statement_ordinal == site.statement
+                    && root.role == role
+            });
+        let selected = if let Some(root) = roots.next() {
+            if roots.next().is_some()
+                || root.machine != machine.symbol
+                || !computations.nodes.is_valid(root.root)
+                || computations.nodes.get(root.root).authored_root != authored_endpoint
+                || computations.nodes.get(root.root).primitive_type
+                    != checked_trees::types::PrimitiveType::U64
+                || checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .expression_at(site.state, site.statement, role)
+                    .is_some()
+            {
+                return unsupported("view subslice endpoint differs from its computation root");
+            }
+            CheckedCallScalarArgument::Computation(root.root)
+        } else {
+            let (binding, selected) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(site.state, site.statement, role)
+                .ok_or(LoweringError::Unsupported(
+                    "view subslice endpoint has no source-bound scalar plan",
+                ))?;
+            if binding.expression != authored_endpoint
+                || binding.destination.is_valid()
+                || selected.primitive_type() != Some(checked_trees::types::PrimitiveType::U64)
+            {
+                return unsupported("view subslice endpoint differs from its source-bound plan");
+            }
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                crate::emission::scalar_types::terminal_scalar_type(
+                    checked_trees::types::PrimitiveType::U64,
+                )?,
+            )?;
+            CheckedCallScalarArgument::Pure(selected.clone())
+        };
+        if let CheckedCallScalarArgument::Computation(handle) = selected {
+            crate::expression_preparation::source_custody::validate_computation_calls(
+                checked,
+                machine.symbol,
+                site.state,
+                site.statement,
+                handle,
+                authored_endpoint,
+            )?;
         }
-        Ok(Some(selected.clone()))
+        crate::expression_preparation::source_custody::value_correspondence::validate(
+            checked,
+            site.state,
+            site.statement,
+            authored_endpoint,
+            checked_trees::types::PrimitiveType::U64,
+            &selected,
+        )?;
+        if retained.is_some_and(|retained| retained.as_ref() != Some(&selected)) {
+            return unsupported("view subslice substituted its retained endpoint");
+        }
+        Ok(Some(selected))
     };
     Ok((
         endpoint(

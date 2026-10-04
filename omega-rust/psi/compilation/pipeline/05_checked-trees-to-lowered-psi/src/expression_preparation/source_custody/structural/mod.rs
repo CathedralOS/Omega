@@ -407,6 +407,7 @@ pub(crate) fn validate_value(
     let mut consumed_calls = Vec::new();
     let mut visited = Vec::new();
     let mut operand_roles = Vec::new();
+    let mut validated_operands = Vec::new();
     let mut selected_leaves = Vec::new();
     while let Some((handle, occurrence, reference, source_arm, projected_leaf)) = pending.pop() {
         let expression = occurrence.expression();
@@ -453,16 +454,17 @@ pub(crate) fn validate_value(
                 source: argument,
                 region,
             } => {
-                slice_view::validate(
+                validated_operands.extend(slice_view::validate(
                     checked,
                     owner,
                     source,
                     statement_index,
                     expression,
+                    reference,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Shared,
                     region,
-                )?;
+                )?);
                 if matches!(
                     region,
                     checked_trees::CheckedElementViewRegion::RepresentationBytes { .. }
@@ -475,16 +477,17 @@ pub(crate) fn validate_value(
                 source: argument,
                 region,
             } => {
-                slice_view::validate(
+                validated_operands.extend(slice_view::validate(
                     checked,
                     owner,
                     source,
                     statement_index,
                     expression,
+                    reference,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Mutable,
                     region,
-                )?;
+                )?);
                 if matches!(
                     region,
                     checked_trees::CheckedElementViewRegion::RepresentationBytes { .. }
@@ -1015,7 +1018,6 @@ pub(crate) fn validate_value(
         Some(StatementNode::Transition(_))
     );
     let mut seen_roles = Vec::new();
-    let mut validated_operands = Vec::new();
     for (_, scalar_root) in checked
         .facts
         .values

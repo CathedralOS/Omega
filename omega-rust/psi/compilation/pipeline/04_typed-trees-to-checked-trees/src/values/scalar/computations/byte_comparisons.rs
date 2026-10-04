@@ -80,6 +80,8 @@ impl Builder<'_, '_> {
             self.program,
             self.operators,
             self.pure,
+            self.plans,
+            self.borrow,
             machine,
             state,
             self.statement_index,

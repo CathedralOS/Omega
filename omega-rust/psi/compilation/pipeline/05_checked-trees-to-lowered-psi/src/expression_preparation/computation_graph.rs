@@ -165,9 +165,11 @@ fn collect_reachable_nodes(
                     pending.push(arm.value);
                 }
             }
-            CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-            | CheckedScalarComputationKind::ByteSequencePredicate { .. }
-            | CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
+            | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
+                extend_range(subject, &mut pending);
+            }
+            CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
                 if receiver_value.is_valid() {
                     if !structural_roots.contains(receiver_value) {
@@ -197,6 +199,9 @@ fn collect_reachable_nodes(
                 ))?;
                 extend_elements(plans, structural_arguments, &mut pending)?;
                 for argument in structural_arguments {
+                    if let Some(place) = argument.as_place() {
+                        extend_range(place, &mut pending);
+                    }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
                         subject,
                     ) = argument
@@ -285,7 +290,9 @@ pub(crate) fn structural_dependencies(
             Value::FixedArray { elements } => pending.extend(elements),
             Value::ScalarArray { elements } => scalars.extend(elements),
             Value::ZeroedScalarArray { element, .. } => scalars.push(*element),
-            Value::BorrowedSliceView { region, .. } | Value::MutableSliceView { region, .. } => {
+            Value::BorrowedSliceView { source, region, .. }
+            | Value::MutableSliceView { source, region, .. } => {
+                extend_range(source, &mut scalars);
                 if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
                     start, ..
                 } = region
@@ -351,4 +358,15 @@ pub(crate) fn operand_fields<'a>(
             unsupported("case membership cannot observe an array")
         }
     }
+}
+
+fn extend_range(
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    pending: &mut Vec<Computation>,
+) {
+    use checked_trees::CheckedCallScalarArgument;
+    pending.extend(argument.scalar_operands().filter_map(|value| match value {
+        CheckedCallScalarArgument::Computation(handle) => Some(*handle),
+        CheckedCallScalarArgument::Pure(_) => None,
+    }));
 }

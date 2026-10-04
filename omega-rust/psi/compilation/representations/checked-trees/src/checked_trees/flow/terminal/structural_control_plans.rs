@@ -369,12 +369,13 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         field_identity: String,
         path: Vec<CheckedUnitStructuralPathSegment>,
     },
-    /// Exclusive borrowed-byte range at the enclosing transition, rooted at a
-    /// whole byte-view parameter (dense structural index) or an earlier
-    /// byte-view local. Endpoint facts use the `TransitionArgument` subslice
-    /// site at its authored target argument position.
+    /// Borrowed-byte range at the enclosing transition. The path selects the
+    /// backing collection below its storage root, just as for an element range.
+    /// Endpoint facts use the `TransitionArgument` subslice site at its
+    /// authored target argument position.
     ByteSequenceSubslice {
         root: crate::CheckedStorageRoot,
+        path: Vec<CheckedUnitStructuralPathSegment>,
         expression: typed_trees::expression::ExpressionHandle,
         /// Exact Terminal type identity of the collection the range reads —
         /// the same backing identity the argument plan's

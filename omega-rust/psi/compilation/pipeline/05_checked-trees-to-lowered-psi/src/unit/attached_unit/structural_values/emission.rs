@@ -1712,10 +1712,14 @@ impl Emission<'_, '_, '_> {
                 &source.path,
                 self.structural_type,
                 place,
-                &bindings,
+                self.evaluation,
+                self.values.len(),
                 self.values,
                 self.next_value,
+                self.next_block,
+                self.next_edge,
                 self.operations,
+                self.calls,
             )?);
             return Ok(place);
         }

@@ -40,11 +40,18 @@ pub(crate) fn borrowed_parameter_custody(
                     return unsupported("Unit graph borrowed parameter has stale qualifications");
                 }
                 for constraint in retained {
-                    let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint
-                    else {
-                        return unsupported(
-                            "Unit graph borrowed parameter has a non-domain constraint",
-                        );
+                    let domain = match constraint {
+                        // Arithmetic policies govern checked operations, not
+                        // semantic-domain membership of stored values. The
+                        // producer's signature partition makes the same
+                        // distinction; accompanying domains still travel below.
+                        checked_trees::types::TypeConstraintNode::ArithmeticDomain(_) => continue,
+                        checked_trees::types::TypeConstraintNode::Domain(domain) => domain,
+                        _ => {
+                            return unsupported(
+                                "Unit graph borrowed parameter has an unsupported constraint",
+                            );
+                        }
                     };
                     if !domain.semantic_id.is_valid() {
                         return unsupported("Unit graph borrowed parameter has an absent domain");

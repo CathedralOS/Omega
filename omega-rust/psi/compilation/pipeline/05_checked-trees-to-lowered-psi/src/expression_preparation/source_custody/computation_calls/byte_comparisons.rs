@@ -51,7 +51,13 @@ pub(crate) fn validate(
     expression: ExpressionHandle,
     operand_type: checked_trees::types::TypeReferenceHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
-) -> Result<(), LoweringError> {
+) -> Result<
+    Vec<(
+        ExpressionHandle,
+        checked_trees::CheckedScalarComputationHandle,
+    )>,
+    LoweringError,
+> {
     let (operand, _, _) = operands(checked, expression)?;
     validate_operand_provenance(checked, state, statement, operand, operand_type, subject)
 }
@@ -67,7 +73,13 @@ pub(crate) fn validate_operand_provenance(
     operand: ExpressionHandle,
     operand_type: checked_trees::types::TypeReferenceHandle,
     subject: &CheckedUnitStructuralArgumentPlan,
-) -> Result<(), LoweringError> {
+) -> Result<
+    Vec<(
+        ExpressionHandle,
+        checked_trees::CheckedScalarComputationHandle,
+    )>,
+    LoweringError,
+> {
     let (machine, state) = super::authored_state(checked, state)?;
     let target =
         validation::expression_result_type_reference(&checked.typed, machine, state, operand)
@@ -84,7 +96,7 @@ pub(crate) fn validate_operand_provenance(
         if !matches!(subject.source, Source::ByteSequenceSubslice { .. }) {
             return unsupported("byte comparison substituted an element view");
         }
-        return super::mixed_arguments::validate_range_operand(
+        return crate::expression_preparation::source_custody::view_ranges::validate_operand(
             checked,
             state,
             statement,
@@ -145,5 +157,5 @@ pub(crate) fn validate_operand_provenance(
     {
         return unsupported("byte comparison substituted its operand root, path, type or access");
     }
-    Ok(())
+    Ok(Vec::new())
 }

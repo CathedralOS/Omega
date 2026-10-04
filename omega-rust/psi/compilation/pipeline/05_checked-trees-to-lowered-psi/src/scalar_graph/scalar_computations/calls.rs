@@ -21,6 +21,11 @@ use checked_trees::CheckedScalarComputationStructuralArgument;
 
 enum Operand {
     Effect(LoweredScalarEffect),
+    Range {
+        argument: checked_trees::CheckedUnitStructuralArgumentPlan,
+        slot: subslices::Slot,
+        site: checked_trees::CheckedSubsliceSite,
+    },
     /// An exact byte literal established into its reserved place before the
     /// call reads it through a shared borrow.
     ByteLiteral(literals::Slot),
@@ -456,22 +461,14 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no explicit structural ordinal",
                         ))?;
-                    operands.extend(
-                        subslices::effects(
-                            self.checked,
-                            site.state,
-                            site.statement,
-                            checked_trees::CheckedSubsliceSite::CallArgument {
-                                call_ordinal,
-                                argument_ordinal,
-                            },
-                            argument,
-                            slot,
-                            site.bindings,
-                        )?
-                        .into_iter()
-                        .map(Operand::Effect),
-                    );
+                    operands.push(Operand::Range {
+                        argument: argument.clone(),
+                        slot: slot.clone(),
+                        site: checked_trees::CheckedSubsliceSite::CallArgument {
+                            call_ordinal,
+                            argument_ordinal,
+                        },
+                    });
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
                     && let Some(bytes) = literals::source_bytes(argument)
@@ -634,6 +631,19 @@ impl Expansion<'_> {
                         structural_arguments: Vec::new(),
                     },
                 }),
+                Operand::Range {
+                    argument,
+                    slot,
+                    site: range_site,
+                } => self.subslice(
+                    argument,
+                    slot,
+                    *range_site,
+                    prefix,
+                    continuation,
+                    site,
+                    active,
+                )?,
                 Operand::Effect(effect) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),

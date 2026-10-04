@@ -375,12 +375,12 @@ pub(crate) fn structural_call_arguments(
         }
         arm("call operation: structural arguments: borrowed local");
         // A `&local`/`&mut local` argument loans the caller's own structural
-        // local through the same nominal-borrow arm the scalar-computation
+        // local through the same borrowed-storage join the scalar-computation
         // lane plans. Parameter-rooted places keep the parameter arms below.
         if !source_parameters
             .iter()
             .any(|parameter| parameter_is_root(caller_machine.symbol, parameter, source_symbol))
-            && let Some(plan) = computation_arguments::borrowed_nominal_argument(
+            && let Some(plan) = computation_arguments::borrowed_storage_argument(
                 program,
                 &facts.borrow,
                 caller_machine.symbol,
@@ -1078,4 +1078,3 @@ pub(crate) fn exact_integer_at(
         .then(|| range.minimum.to_u64())
         .flatten()
 }
-

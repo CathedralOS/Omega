@@ -9,7 +9,7 @@ use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 
-pub(super) fn captured_range(
+pub(crate) fn captured_range(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -64,41 +64,6 @@ pub(super) fn captured_range(
     Ok(captured)
 }
 
-pub(super) fn validate(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    statement: u32,
-    target: &checked_trees::signature::StateParameter,
-    expression: ExpressionHandle,
-    argument: &CheckedUnitStructuralArgumentPlan,
-    call: &checked_trees::BorrowCallFact,
-    position: usize,
-    site: CheckedSubsliceSite,
-) -> Result<(), LoweringError> {
-    validate_operand(
-        checked,
-        state,
-        statement,
-        target.type_reference,
-        expression,
-        argument,
-        site,
-    )?;
-    let (caller, _) = super::super::authored_state(checked, state.symbol)?;
-    let captured = captured_range(checked, caller.symbol, state.symbol, statement, expression)?;
-    super::borrow_rows::validate_place_argument_at(
-        checked,
-        call,
-        position,
-        &captured,
-        match argument.access {
-            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
-            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
-            _ => return unsupported("subslice call has unreadable access"),
-        },
-    )
-}
-
 /// Replay the range operation independently of its consumer. A call additionally
 /// rejoins its own captured argument loan; an immediate observation introduces
 /// no call or destination-local authority.
@@ -110,7 +75,13 @@ pub(crate) fn validate_operand(
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     site: CheckedSubsliceSite,
-) -> Result<(), LoweringError> {
+) -> Result<
+    Vec<(
+        ExpressionHandle,
+        checked_trees::CheckedScalarComputationHandle,
+    )>,
+    LoweringError,
+> {
     let (root, retained_expression, start, end, bytes) = match &argument.source {
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root,
@@ -136,7 +107,7 @@ pub(crate) fn validate_operand(
     {
         return unsupported("computed subslice changed its expression or view custody");
     }
-    let (caller, _) = super::super::authored_state(checked, state.symbol)?;
+    let (caller, _) = super::authored_state(checked, state.symbol)?;
     let operation = validation::subslice_expression(&checked.typed, expression).ok_or(
         LoweringError::Unsupported("computed subslice lost its readable range expression"),
     )?;
@@ -156,14 +127,14 @@ pub(crate) fn validate_operand(
     let parameters = checked.state_parameters(state);
     let (symbol, reference, mutable_local_binding) = match root {
         CheckedStorageRoot::Parameter { index } => {
-            let parameter = super::super::structural_parameter_at(
+            let parameter = super::structural_parameter_at(
                 checked,
                 parameters,
                 index,
                 "computed subslice lost its source parameter",
             )?;
             if parameter.is_const
-                || !super::super::parameter_binding_is_unique(checked, state, parameter.symbol)
+                || !super::parameter_binding_is_unique(checked, state, parameter.symbol)
             {
                 return unsupported("computed subslice source parameter changed custody");
             }
@@ -179,7 +150,7 @@ pub(crate) fn validate_operand(
             {
                 return unsupported("computed subslice substituted its local owner");
             }
-            let local = super::super::preceding_local(
+            let local = super::preceding_local(
                 checked,
                 state,
                 symbol,
@@ -297,7 +268,7 @@ pub(crate) fn validate_operand(
     {
         return unsupported("computed subslice substituted its root, type, or view family");
     }
-    crate::unit::attached_unit::view_ranges::replay(
+    let (start, end) = crate::unit::attached_unit::view_ranges::replay(
         checked,
         &crate::unit::attached_unit::view_ranges::ViewRangeSite {
             state: state.symbol,
@@ -309,5 +280,25 @@ pub(crate) fn validate_operand(
         symbol,
         &source.path,
     )?;
-    Ok(())
+    Ok([start, end]
+        .into_iter()
+        .flatten()
+        .filter_map(|operand| {
+            let checked_trees::CheckedCallScalarArgument::Computation(handle) = operand else {
+                return None;
+            };
+            // Common range replay already joined this node to the exact authored
+            // endpoint. Carry that association into the enclosing call walk.
+            Some((
+                checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(handle)
+                    .authored_root,
+                handle,
+            ))
+        })
+        .collect())
 }

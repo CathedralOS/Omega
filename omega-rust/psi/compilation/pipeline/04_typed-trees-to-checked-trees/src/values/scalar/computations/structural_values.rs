@@ -160,9 +160,8 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_cleanup_owned_contents(
-                        program, returned,
-                    ) || validation::has_linear_owned_contents(program, returned)
+                    || !(validation::has_cleanup_owned_contents(program, returned)
+                        || validation::has_linear_owned_contents(program, returned)
                         || validation::reference_result_custody::is_reference_record(
                             program, returned,
                         ))
@@ -806,8 +805,8 @@ impl Builder<'_, '_> {
             // because the local's initializer need not be its current value.
             CheckedStructuralValueKind::Place(argument)
         } else if let Some(view) = self
-            .slice_view_place(expression, expected)
-            .or_else(|| self.subslice_view_place(expression, expected))
+            .subslice_view_place(expression, expected)
+            .or_else(|| self.slice_view_place(expression, expected))
         {
             // A view's authored producer is spelled as a call but establishes
             // no call result: it lends storage that already exists. Classify
@@ -821,10 +820,8 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call_target)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_cleanup_owned_contents(
-                    self.program,
-                    returned,
-                ) || validation::has_linear_owned_contents(self.program, returned)
+                || !(validation::has_cleanup_owned_contents(self.program, returned)
+                    || validation::has_linear_owned_contents(self.program, returned)
                     || validation::reference_result_custody::is_reference_record(
                         self.program,
                         returned,
@@ -1474,10 +1471,8 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !(validation::has_cleanup_owned_contents(
-                self.program,
-                reference,
-            ) || validation::has_linear_owned_contents(self.program, reference)
+            || !(validation::has_cleanup_owned_contents(self.program, reference)
+                || validation::has_linear_owned_contents(self.program, reference)
                 || validation::has_owned_or_shared_view_contents(self.program, reference))
             || validation::member_type_substitutions(self.program, data, reference).is_none()
         {

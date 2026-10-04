@@ -1228,12 +1228,18 @@ impl MachineEmission<'_> {
                     &context,
                     &plan.operations[operation],
                     ordinal,
-                    &self.scalar_result_values[..source_value_count],
+                    &mut self.evaluation,
+                    source_value_count,
+                    &mut self.scalar_result_values,
                     &mut self.subslice_places,
                     &mut self.next_place,
                     &mut self.next_value_identity,
+                    &mut self.next_block,
+                    &mut self.next_edge,
                     &mut self.operations,
+                    &mut self.scalar_calls,
                 )?;
+                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.staged_subslices[operation].push((ordinal, place));
                 return Ok(());
             }

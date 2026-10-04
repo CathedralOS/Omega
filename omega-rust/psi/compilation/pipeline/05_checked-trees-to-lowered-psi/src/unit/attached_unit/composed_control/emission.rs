@@ -318,6 +318,8 @@ pub(super) fn emit_call_operations(
                     evaluation,
                     values,
                     next_value,
+                    next_block,
+                    next_edge,
                     operations,
                 )?;
                 staged_ranges[operation].push((ordinal, place));
