@@ -337,10 +337,10 @@ execution and native exit/output. A moved refusal is still unfinished work.
     preserving ZII eligibility, selected bindings, root lineage, stack/storage
     partitioning and cleanup. Remove attachment/`is_self` as authority inputs.
     The checked interpreter selects host boundary operations by the call's
-    resolved requirement alone, in statement and value position; its remaining
-    receiver inputs are the `frame.self_cell` routes for the half-migrated
-    `&mut self` customers (receiver-instance and sibling-state resolution,
-    implicit self fields), which retire with those customers.
+    resolved requirement alone, in statement and value position. Remove the
+    remaining activation cell threaded through interpreter calls/transitions
+    and the attachment/`is_self` inputs to provider argument correspondence;
+    preserve explicitly provisioned entry contexts and ordinary local storage.
   - Move scratch fields to ordinary locals/local records and pass only genuinely
     live values across states. Repair local construction, loans and cleanup rather
     than moving scratch back into context. Temporary-scoping language design is

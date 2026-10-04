@@ -395,18 +395,13 @@ impl<'program> Evaluator<'program> {
             .program
             .statement_table
             .name_path_members(call.receiver);
-        let Some(first) = members.first() else {
+        let Some((_, rest)) = members.split_first() else {
             return Ok(None);
         };
-        let mut cell = frame.self_cell.clone();
-        let mut start = 0usize;
-        if first.is_self_receiver() {
-            start = 1;
-        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
-            cell = local;
-            start = 1;
-        }
-        for member in &members[start..] {
+        let Some(mut cell) = frame.local_cell(call.receiver_root_symbol) else {
+            return Ok(None);
+        };
+        for member in rest {
             cell = self.deref_cell(cell);
             cell = match self.field_cell(&cell, member.as_str()) {
                 Ok(field) => field,

@@ -5,7 +5,6 @@ use crate::interpreter::evaluator::{
     SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
-use language_core::is_self_receiver;
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 impl<'program> Evaluator<'program> {
@@ -580,11 +579,10 @@ impl<'program> Evaluator<'program> {
             return trap("empty name path");
         }
 
-        // Head: `self`, a local, or a self-field (implicit self).
+        // Storage belongs to an explicit local or parameter. Debug spelling
+        // cannot select the activation record or manufacture an implicit field.
         let head = members[0].as_str();
-        let mut cell = if is_self_receiver(head) {
-            frame.self_cell.clone()
-        } else if let Some(local) = frame.local_cell(path.head_symbol) {
+        let mut cell = if let Some(local) = frame.local_cell(path.head_symbol) {
             local
         } else if self.is_declaration_namespace(path.head_symbol) {
             // A head resolved to a declaration (`Worker` in `Worker::write`)
@@ -592,8 +590,9 @@ impl<'program> Evaluator<'program> {
             // same-spelled field of the current instance stand in for it.
             return trap(format!("`{head}` names a declaration, not storage"));
         } else {
-            // Implicit self-field: `n` means `self.n`.
-            self.field_cell(&frame.self_cell, head)?
+            return trap(format!(
+                "place root `{head}` has no bound local or parameter"
+            ));
         };
 
         // Walk the remaining members as field accesses, dereferencing refs along the way.
@@ -794,7 +793,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Declared integer primitive of an assignment target, when it is a FIELD whose
-    /// receiver resolves to a typed struct (`self.c`, `obj.field`, or the equivalent
+    /// receiver resolves to a typed struct (`record.field` or the equivalent
     /// name path). Used to wrap an assigned integer to the field's declared width,
     /// matching the native backend's truncating store. Returns `None` for bare locals
     /// (whose cells carry no declared type) and non-field places.
@@ -811,9 +810,7 @@ impl<'program> Evaluator<'program> {
                 // runs before the store resolves the whole target, and
                 // resolving an effectful receiver twice would replay it. Its
                 // declared type still names the field's slot exactly. Named
-                // place receivers keep the runtime shape because a machine
-                // instance's fields come from attached/owned data that only
-                // the live struct's symbol enumerates.
+                // place receivers keep the live record's type identity.
                 if !matches!(
                     self.program.expression_table.expression(member.receiver),
                     ExpressionNode::Name(_)
@@ -848,23 +845,9 @@ impl<'program> Evaluator<'program> {
                     .map(|name| name.as_str().to_owned())
                     .collect::<Vec<_>>();
                 match names.as_slice() {
-                    [] => return None,
-                    [single] => {
-                        // A single name is either a local (no declared-type record
-                        // here) or an implicit self-field.
-                        if is_self_receiver(single) || frame.local(path.head_symbol).is_some() {
-                            return None;
-                        }
-                        (frame.self_cell.clone(), single.clone())
-                    }
-                    [head, middle @ .., last] => {
-                        let mut cell = if is_self_receiver(head) {
-                            frame.self_cell.clone()
-                        } else if let Some(local) = frame.local_cell(path.head_symbol) {
-                            local
-                        } else {
-                            self.field_cell(&frame.self_cell, head).ok()?
-                        };
+                    [] | [_] => return None,
+                    [_, middle @ .., last] => {
+                        let mut cell = frame.local_cell(path.head_symbol)?;
                         for member in middle {
                             cell = self.deref_cell(cell);
                             cell = self.field_cell(&cell, member).ok()?;

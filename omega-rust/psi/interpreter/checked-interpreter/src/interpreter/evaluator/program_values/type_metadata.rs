@@ -1,8 +1,7 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, DataMember, EvalResult, EvaluatedArgument, Evaluator,
-    ExpressionHandle, ExpressionNode, FixedArrayLength, Frame, PrimitiveType, SymbolHandle,
-    TypeReferenceHandle, TypeReferenceNode, Value, integer_primitive_byte_width,
-    primitive_is_unsigned64, trap,
+    ExpressionHandle, ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle,
+    TypeReferenceNode, Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate and capture one operand at its declared parameter type before
@@ -86,20 +85,6 @@ impl<'program> Evaluator<'program> {
                 self.collection_element_type(collection)
             }
             ExpressionNode::Member(member) => {
-                if let ExpressionNode::Name(path) =
-                    self.program.expression_table.expression(member.receiver)
-                {
-                    let members = self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members);
-                    if matches!(members, [head] if head.is_self_receiver()) {
-                        return self.machine_attached_field_type(
-                            frame.machine_symbol,
-                            member.member.as_str(),
-                        );
-                    }
-                }
                 let receiver = self.expression_type_reference(member.receiver, frame)?;
                 self.projected_member_type(receiver, member.member.as_str())
             }
@@ -108,21 +93,8 @@ impl<'program> Evaluator<'program> {
                     .program
                     .expression_table
                     .name_path_members(path.members);
-                let (mut current, rest) = match members {
-                    [] => return None,
-                    [head] if head.is_self_receiver() => return None,
-                    [head, field, rest @ ..] if head.is_self_receiver() => (
-                        self.machine_attached_field_type(frame.machine_symbol, field.as_str())?,
-                        rest,
-                    ),
-                    [head, rest @ ..] => match frame.local_type(path.head_symbol) {
-                        Some(local) => (local, rest),
-                        None => (
-                            self.machine_attached_field_type(frame.machine_symbol, head.as_str())?,
-                            rest,
-                        ),
-                    },
-                };
+                let (_, rest) = members.split_first()?;
+                let mut current = frame.local_type(path.head_symbol)?;
                 for member in rest {
                     current = self.projected_member_type(current, member.as_str())?;
                 }
@@ -130,26 +102,6 @@ impl<'program> Evaluator<'program> {
             }
             _ => None,
         }
-    }
-
-    fn machine_attached_field_type(
-        &self,
-        machine_symbol: SymbolHandle,
-        field_name: &str,
-    ) -> Option<TypeReferenceHandle> {
-        let machine = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)?;
-        let name = machine.attached_data.as_ref()?;
-        let data = self.find_data_by_name(name.as_str())?;
-        self.program.data_members(data).iter().find_map(|member| {
-            let DataMember::Field(field) = member else {
-                return None;
-            };
-            (field.name.as_str() == field_name).then_some(field.type_reference)
-        })
     }
 
     fn projected_member_type(
@@ -402,20 +354,7 @@ impl<'program> Evaluator<'program> {
                     .program
                     .expression_table
                     .name_path_members(path.members);
-                // `self.field` spelled as a two-member path. NOTE: this route
-                // also witnesses INDEXED element reads -- trace-verified
-                // 2026-07-10n: a RUNTIME-indexed `self.sarr[i]` reaches this
-                // witness as a Name([self, sarr]) whose field type peels to
-                // the ELEMENT primitive + the ARRAY's domain via
-                // primitive_type_reference/arithmetic_domain (a CONST-indexed
-                // `self.sarr[1]` arrives as a true Indexed node and returns
-                // None from the fallthrough -- its sibling operand's witness
-                // covers the pair via `.or()`). Pinned by
-                // pass/slices/runtime_saturating_array_element_guard_exit.
-                if members.len() == 2 && members[0].is_self_receiver() {
-                    return self.attached_field_scalar_type(frame, members[1].as_str());
-                }
-                if members.len() == 1 && !members[0].is_self_receiver() {
+                if members.len() == 1 {
                     return frame.local_scalar(path.head_symbol);
                 }
                 let reference = self.expression_type_reference(expression, frame)?;
@@ -424,27 +363,12 @@ impl<'program> Evaluator<'program> {
                     self.program.arithmetic_domain_for_type_reference(reference),
                 ))
             }
-            // `self.field` spelled as a Member node.
-            ExpressionNode::Member(member) => {
-                let receiver_is_self =
-                    match self.program.expression_table.expression(member.receiver) {
-                        ExpressionNode::Name(path) => {
-                            let members = self
-                                .program
-                                .expression_table
-                                .name_path_members(path.members);
-                            members.len() == 1 && members[0].is_self_receiver()
-                        }
-                        _ => false,
-                    };
-                if !receiver_is_self {
-                    let reference = self.expression_type_reference(expression, frame)?;
-                    return Some((
-                        self.program.primitive_type_reference(reference)?,
-                        self.program.arithmetic_domain_for_type_reference(reference),
-                    ));
-                }
-                self.attached_field_scalar_type(frame, member.member.as_str())
+            ExpressionNode::Member(_) => {
+                let reference = self.expression_type_reference(expression, frame)?;
+                Some((
+                    self.program.primitive_type_reference(reference)?,
+                    self.program.arithmetic_domain_for_type_reference(reference),
+                ))
             }
             // A resolved value call carries the exact entry-state symbol.
             // Preserve its declared primitive/domain as the witness for an
@@ -466,38 +390,5 @@ impl<'program> Evaluator<'program> {
             }
             _ => None,
         }
-    }
-
-    /// The executing machine's attached-data field's declared scalar
-    /// (primitive, arithmetic-domain); `None` for a non-scalar field.
-    fn attached_field_scalar_type(
-        &self,
-        frame: &Frame,
-        field_name: &str,
-    ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-        let machine = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == frame.machine_symbol)?;
-        let data_name = machine.attached_data.as_ref()?;
-        let data = self.find_data_by_name(data_name.as_str())?;
-        self.program
-            .data_members(data)
-            .iter()
-            .find_map(|candidate| match candidate {
-                checked_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == field_name =>
-                {
-                    let primitive = self
-                        .program
-                        .primitive_type_reference(field.type_reference)?;
-                    let domain = self
-                        .program
-                        .arithmetic_domain_for_type_reference(field.type_reference);
-                    Some((primitive, domain))
-                }
-                _ => None,
-            })
     }
 }

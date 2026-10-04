@@ -65,13 +65,11 @@ impl<'program> Evaluator<'program> {
         let Some((head, rest)) = members.split_first() else {
             return trap("selected boundary adapter lost its receiver");
         };
-        let mut cell = if head.is_self_receiver() {
-            frame.self_cell.clone()
-        } else if let Some(local) = frame.local_cell(receiver_root) {
-            local
-        } else {
-            self.field_cell(&frame.self_cell, head.as_str())?
-        };
+        let mut cell = frame.local_cell(receiver_root).ok_or_else(|| {
+            Halt::Trap(format!(
+                "boundary receiver `{head}` has no bound local or parameter"
+            ))
+        })?;
         for member in rest {
             cell = self.field_cell(&self.deref_cell(cell), member.as_str())?;
         }
