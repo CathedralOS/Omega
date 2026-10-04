@@ -1,0 +1,15 @@
+data Node { value: u64; }
+machine choose(node: &mut Node, take: bool) -> &mut Node crashes Trap {
+    transition take { true -> (node) }
+    crash Trap;
+}
+machine main() crashes Trap {
+    let mut node: Node = Node { value: 70 };
+    let result: &mut Node = choose(&mut node, false);
+    transition result.value == 70 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
