@@ -34,14 +34,6 @@ impl Default for PackagePolicyTextRecoveryLimits {
 }
 
 impl PackagePolicyBaseline {
-    /// Recover without source or compiler execution. Every field and variant
-    /// label must match the canonical typed rerender, not just the scalar bytes.
-    pub fn recover_text(
-        text: &str,
-        limits: PackagePolicyTextRecoveryLimits,
-    ) -> Result<Self, PackagePolicyRecoveryError> {
-        Self::recover_text_with_usage(text, limits).map(|(policy, _)| policy)
-    }
 
     /// Recover the same inert meaning and report all charged storage and typed
     /// elements so an enclosing document can lower its next child's ceilings.

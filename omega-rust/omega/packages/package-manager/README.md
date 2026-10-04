@@ -327,22 +327,7 @@ that scratch before the next child. It therefore refuses an output that exceeds
 the chosen recovery ceilings even when its text fits. This is a resource check,
 not a second compiler review or a certificate that project choices are correct.
 
-`operations::recover_locked_sources` selects one recorded target before storage
-verification or source acquisition. It accepts a typed caller root request and
-requires its exact spelling to match the retained request; encoded lock path
-bytes are never decoded into filesystem authority. It rebuilds the closure from
-fresh source custody and declaration projections, matching each dependency by
-requester and authored ordinal, then compares the complete canonical subject.
-Git acquisition is offline by default. Explicit fetch permission acquires only
-the recorded commit and root tree, including named workspace members, without
-refreshing the authored selector. Local and workspace sources are recaptured
-and must still match their recorded identity and content; a missing live local
-source currently fails even if its snapshot remains cached.
-
-Recovery borrows the accepted lock, so unavailable source or content drift does
-not destroy the readable policy baseline. Its result is a source closure usable
-by ordinary compiler inputs, not a fresh analysis or renewed acceptance of old
-decisions. Commands treat a missing baseline as fresh graph review. Old source
+Commands treat a missing baseline as fresh graph review. Old source
 is not needed to compare retained policy. Command source diffs use exact old
 Git acquisition, verified cached local snapshots, matching current custody, or
 the unchanged live root. Historical local lookup uses the current resolver-known
@@ -350,20 +335,6 @@ origin and accepted content pin, not a filesystem path decoded from the lock.
 Missing or corrupt old bytes produce explicit standalone-candidate output.
 This diagnostic recovery does not relax live-source checks for compilation.
 Optional model wiring is separate.
-
-The explicit `operations::check_locked_sources` review operation follows exact
-recovery with fresh checking of the complete graph through the candidate-review
-entrance; it is not the ordinary accepted compile route. It preserves
-required semantic-binding discovery/final checking and generated-source handoffs;
-it does not reuse old compiler analysis or add another replay/promotion step.
-The result keeps the borrowed accepted target beside the fresh source closure
-and compiler review set. Compact acceptance comparison joins exact package
-keys, immutable resolutions, and target, then reports changed package keys in
-canonical source order. Same-spelled names do not merge packages. An unchanged
-policy is equality with recorded project policy, not renewed certification or
-permission to publish. This coarse change report is not the detailed row-level
-conflict/decision transaction, and missing old source never triggers selector
-refresh or an implicitly chosen candidate.
 
 `review::compare_package_policy_changes` compares an optional accepted target
 with a freshly checked candidate and its exact current source closure. An absent

@@ -1956,9 +1956,8 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/correspondence_certificate.rs`,
   the row emission in `relation_plan/terminal_bridge.rs` and
   `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/terminal_bridge.rs`,
-  `extract_non_executable_quotient_correspondences*`, and the review capture
-  `omega-rust/omega/packages/review-evidence/src/capture/quotients.rs`. The
-  stage 05 side is deleted by **PCC-CERTIFICATES-DELETED**. Keep quotient
+  and `extract_non_executable_quotient_correspondences*` (the review capture
+  that read them is already gone). The stage 05 side is deleted by **PCC-CERTIFICATES-DELETED**. Keep quotient
   formation and request checking (`equivalence_selection`,
   `formation_collection`, `carrier_fence`) and the relation/theorem schema
   judgments that **QUOTIENT-THEOREM-LIFT** and
@@ -2582,23 +2581,6 @@ lands alone with its corpus slice unchanged and no fallback path.
   not add in-process re-checks. Acceptance: one exclusion check per realized
   entry, and the `tests/omega/packages/behavior-exclusions/` fixtures keep
   their verdicts.
-
-- **DEAD-TRUST-CODE-DELETED.** (new-scope) Delete production code with no
-  non-test caller, together with its tests:
-  - the `external-root-writer` crate
-    (`omega-rust/omega/compilation/realization/external-root-writer/`, a
-    workspace member nothing depends on);
-  - `omega-rust/omega/packages/package-manager/src/review/symbolic_boundary_applications.rs`
-    and its `symbolic_boundary_applications/` folder;
-  - `operations::check_locked_sources` and `recover_locked_sources`;
-  - `bind_fresh_package_root_policy`;
-  - review-evidence's `validate_`, `reconstruct_`, `recover_` and
-    `fingerprint` ledger and result entry points;
-  - `project_non_executable_quotient_package_review`;
-  - whole-baseline `canonical_text` / `recover_text`.
-
-  Grep each one again first. Acceptance: workspace `mbx check` and the
-  package corpus are unchanged.
 
 ## Red tests
 
@@ -4794,9 +4776,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     closed literal arguments, preconditioned `define`, result computation and
     generic applications, replacing those source-shape gates with the
     normalized judgments and keeping ordered theorem roles.
-  - Package review: `omega-rust/omega/packages/review-evidence/src/capture/quotients.rs`
-    rejects private operation rows; project the broader applications and
-    private dependencies under visibility rules.
+  - Package review has no quotient capture (the unused non-executable one
+    was deleted); project the broader applications and private
+    dependencies under visibility rules when review needs them.
   - Selected theorems stay bodyful, terminating, pure and assumption-free.
     **PROOF-CONTRACT-MIGRATION** owns transitive assumption closure and the
     congruence-only `lift<F, Congruence>` payload.
@@ -4892,9 +4874,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     never compiler-host facts. Reuse typed arguments and compiler-materialized
     target data; a new projection needs a concrete customer, not a general
     `TargetSemantics::*` source API (its spelling is unsettled per the spec).
-  - `omega-rust/omega/packages/package-manager/src/review/symbolic_boundary_applications.rs`
-    handles supplied direct type-binder requests; extend it to the complete
-    reachable specialization closure including const arguments. Lifetime and
+  - Package review has no supplied symbolic boundary-application closure
+    (the unused one was deleted); a reviewed customer needs one that covers
+    the complete reachable specialization closure including const
+    arguments. Lifetime and
     non-type producer telescopes still reject. Recheck reach, obligations,
     target facts and admission after substitution; a review demand grants no
     install authority. Keep empty operator applications distinct from absent

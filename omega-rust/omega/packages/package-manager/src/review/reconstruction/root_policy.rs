@@ -107,28 +107,6 @@ impl std::error::Error for FreshPackageRootPolicyError {
     }
 }
 
-/// Reconstruct a fresh candidate and check its current requirements against
-/// the project's accepted policy.
-///
-/// Obligations and policy are derived from the same exact occurrence reviews.
-/// A caller cannot pair obligations from one context with policy for another.
-pub fn bind_fresh_package_root_policy(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    reviews: &CompilerIssuedPackageReviewSet,
-    reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
-    conflict_limits: ReviewOnlyCapabilityConflictLimits,
-    accepted: Option<&PackageLockTarget>,
-) -> Result<FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError> {
-    bind_root_policy_with_associated_reviews(
-        target_closure,
-        reviews,
-        reconstruction_limits,
-        conflict_limits,
-        accepted,
-    )
-    .map(|(acceptance, _)| acceptance)
-}
-
 /// Keep the same immutable review association through final payload assembly.
 /// Public callers still start from the resolved closure and compiler reviews.
 pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(

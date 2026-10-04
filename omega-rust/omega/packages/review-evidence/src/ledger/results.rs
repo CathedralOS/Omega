@@ -14,8 +14,7 @@ mod reconstruction;
 
 pub use reconstruction::{
     ReconstructedPackageReview, ordinary_package_obligation_results_from_projection,
-    reconstruct_ordinary_package_obligation_results, reconstruct_package_review,
-    validate_ordinary_package_obligation_results,
+    reconstruct_package_review,
 };
 
 /// Closed result status for the supported ordinary package-obligation lanes.

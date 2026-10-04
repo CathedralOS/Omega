@@ -293,13 +293,6 @@ pub struct ReconstructedPackageReview {
     pub results: OrdinaryPackageObligationResultSet,
 }
 
-/// Reconstruct the result set from one checked package compilation.
-pub fn reconstruct_ordinary_package_obligation_results<'a>(
-    compilation: impl Into<PackageReviewInput<'a>>,
-) -> Result<OrdinaryPackageObligationResultSet, Vec<diagnostics::Diagnostic>> {
-    reconstruct_package_review(compilation).map(|review| review.results)
-}
-
 /// Project, encode, and construct the ledger once, then join its results and
 /// recheck compiler-issued discharge certificates. Callers retain these fresh
 /// products instead of reconstructing the same compilation for each output.
@@ -602,16 +595,3 @@ fn apply_contract_entailment_exit_membership_discharges(
     Ok(())
 }
 
-/// Require exact equality to a fresh local reconstruction.
-pub fn validate_ordinary_package_obligation_results<'a>(
-    results: &OrdinaryPackageObligationResultSet,
-    compilation: impl Into<PackageReviewInput<'a>>,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let expected = reconstruct_ordinary_package_obligation_results(compilation)?;
-    if results == &expected {
-        return Ok(());
-    }
-    Err(vec![diagnostics::Diagnostic::error(
-        "ordinary package obligation results do not match local reconstruction",
-    )])
-}

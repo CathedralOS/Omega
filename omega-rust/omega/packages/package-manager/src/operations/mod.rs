@@ -2,9 +2,7 @@
 //!
 //! [`prepare_local_project`] is the ordinary compiler entrance for a project
 //! with `build.omg`. [`inspect_source`] acquires and inspects one source without
-//! admitting it. [`recover_locked_sources`] reacquires a retained exact source
-//! graph without reusing its policy as fresh review. [`check_locked_sources`]
-//! freshly checks it and reports complete policy changes. [`review_package_change`]
+//! admitting it. [`review_package_change`]
 //! checks an install/update candidate and joins its comparison and project
 //! decisions to a proposed source lock section. [`stage_build_dependency_edit`]
 //! prepares a declaration edit without changing live source. File transactions belong beside
@@ -12,7 +10,6 @@
 
 mod accepted_compilation;
 pub(crate) use accepted_compilation::compiler_input_identity;
-mod check_locked_sources;
 mod check_project;
 mod compile_project;
 mod inspect_packages;
@@ -20,12 +17,8 @@ pub mod inspect_source;
 mod package_change;
 mod prepare_project;
 mod publication;
-mod recover_locked_sources;
 mod stage_build_edit;
 
-pub use check_locked_sources::{
-    CheckLockedSourcesError, CheckedLockedSources, check_locked_sources,
-};
 pub use check_project::{
     CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
     check_prepared_local_project, check_prepared_local_project_for_inspection,
@@ -55,8 +48,5 @@ pub use prepare_project::{
 pub use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
     PublishReviewedPackageChangeError, publish_reviewed_package_change,
-};
-pub use recover_locked_sources::{
-    LockedSourceRecoveryOptions, RecoverLockedSourcesError, recover_locked_sources,
 };
 pub use stage_build_edit::stage_build_dependency_edit;

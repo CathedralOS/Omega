@@ -6,11 +6,8 @@ mod compare;
 mod decision;
 pub(crate) mod reconstruction;
 mod restricted_build_grants;
-mod symbolic_boundary_applications;
 mod timings;
 
-#[cfg(test)]
-pub(crate) use candidate::compile_resolved_package_candidate_for_check;
 pub(crate) use candidate::verify_transitive_source_custody;
 
 pub use audit::{
@@ -60,15 +57,7 @@ pub use reconstruction::{
     CanonicalPackageReconstructionQuestionLimits, FreshPackageRootPolicyAcceptance,
     FreshPackageRootPolicyError, LocallyComposedPackageObligationEntry,
     LocallyComposedPackageObligationResults, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
-    bind_fresh_package_root_policy,
 };
 pub use restricted_build_grants::{
     RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest, ungranted_restricted_build_requests,
-};
-pub use symbolic_boundary_applications::{
-    ClosedSuppliedBoundaryApplicationDemand, ClosedSuppliedBoundaryApplicationDemands,
-    ClosedSuppliedBoundaryApplicationSource, ConcreteProducerBinderCategory,
-    ConcreteProducerTypeSpecialization, ConcreteProducerTypeSubstitution,
-    SymbolicBoundaryApplicationClosureError, SymbolicBoundaryApplicationClosureRequest,
-    close_supplied_reviewed_symbolic_boundary_applications,
 };

@@ -7,7 +7,7 @@ use super::obligation_ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
     OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
 };
-use crate::encoding::{DecodedPackageReviewCanonicalRow, canonical_row_subject_for_ledger};
+use crate::encoding::canonical_row_subject_for_ledger;
 use crate::record::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
 };
@@ -63,58 +63,6 @@ pub fn ordinary_package_obligation_ledger_from_compiler_rows(
             row_from_compiler(row)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    finish_ledger(
-        OrdinaryPackageObligationSchemaIdentity::current(),
-        package,
-        target,
-        dependency_closure,
-        ledger_rows,
-    )
-}
-
-/// Recover a candidate ledger from individually compiler-decoded row
-/// envelopes. Canonical decoding establishes framing only; callers must still
-/// invoke [`super::validate_ordinary_package_obligation_ledger`] against the
-/// exact checked source subject.
-pub fn recover_ordinary_package_obligation_ledger(
-    dependency_closure: PackageDependencyClosure,
-    rows: &[DecodedPackageReviewCanonicalRow],
-) -> Result<OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError> {
-    validate_row_budget(
-        rows.iter()
-            .map(|row| (row.key_bytes().len(), row.canonical_bytes().len())),
-    )?;
-    let first = rows.first().ok_or_else(|| {
-        OrdinaryPackageObligationLedgerRecoveryError::new(
-            "ordinary package obligation ledger has no rows",
-        )
-    })?;
-    let package = first.package();
-    let target = first.target();
-    let mut ledger_rows = Vec::new();
-    ledger_rows.try_reserve_exact(rows.len()).map_err(|_| {
-        OrdinaryPackageObligationLedgerRecoveryError::new(
-            "ordinary package obligation ledger row allocation failed",
-        )
-    })?;
-    for row in rows {
-        if row.package() != package {
-            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
-                "ordinary package obligation ledger mixes package identities",
-            ));
-        }
-        if row.target() != target {
-            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
-                "ordinary package obligation ledger mixes targets",
-            ));
-        }
-        ledger_rows.push(clone_row(
-            row.kind(),
-            row.risk(),
-            row.key_bytes(),
-            row.canonical_bytes(),
-        )?);
-    }
     finish_ledger(
         OrdinaryPackageObligationSchemaIdentity::current(),
         package,

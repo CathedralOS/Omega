@@ -104,9 +104,7 @@ equality.
 Fresh manager review uses `ledger::reconstruct_package_review`: one checked
 compilation produces its projection, canonical rows, ledger, and results
 together. Result lanes borrow the ledger's sorted kind ranges; discharge
-certificates are still rejoined and rechecked. Supplied projections, ledgers,
-and results do not enter this construction shortcut: their validation retains
-independent local reconstruction and exact comparison.
+certificates are still rejoined and rechecked.
 
 `project_checked_external_supply_policy` captures an exact checked machine's
 external executable supplies, retaining
@@ -264,9 +262,10 @@ stand-down and discharge validation remains independently required at admission.
 as named fields, explicit optional values and ordered sequences, decimal scalars,
 quoted byte strings, and named variants with their wire tags. Digests alone use
 hexadecimal. The text-format version is independent of the unchanged binary
-baseline and component versions. `recover_text()` reconstructs the bounded
-canonical scalar stream, applies existing typed recovery, and verifies every
-text byte by streaming the recovered value through the same named traversal.
+baseline and component versions. `recover_text_with_usage()` reconstructs the
+bounded canonical scalar stream inside an enclosing document's budget, applies
+existing typed recovery, and verifies every text byte by streaming the
+recovered value through the same named traversal.
 
 `PackagePolicyBaseline::canonical_rows_with_limits()` projects that complete
 policy into independently versioned comparison rows. Every row retains its
@@ -349,11 +348,8 @@ proof question, not certification of lock acceptance. Neither row
 is a root-policy decision or package-admission authority.
 
 The crate root exports `project_checked_package_review` for ordinary checked
-review and the separately non-executable
-`project_non_executable_quotient_package_review` for the bounded proof-only
-total-direct `define` and position-preserving transport-backed `lift`
-correspondences. The manager owns comparison and policy; neither entrance
-admits a package or executable operation.
+review. The manager owns comparison and policy; the entrance admits no package
+or executable operation.
 
 The canonical review schema is version 138, row schema version 96, and
 canonical-row recovery envelope version 23. Exact vocabulary and revision

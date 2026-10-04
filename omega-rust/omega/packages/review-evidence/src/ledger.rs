@@ -12,7 +12,6 @@ mod construction;
 mod limits;
 mod obligation_ledger;
 mod results;
-mod validation;
 
 pub use codec::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
@@ -20,8 +19,7 @@ pub use codec::{
 };
 pub use construction::{
     ordinary_package_obligation_ledger_from_compiler_rows,
-    recover_ordinary_package_obligation_ledger,
-};
+    };
 pub use limits::{
     ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION, ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION,
 };
@@ -37,9 +35,5 @@ pub use results::{
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
     OrdinaryPackageObligationStatus, OrdinaryPackageTerminalAuthorityPermissionObligation,
     ReconstructedPackageReview, ordinary_package_obligation_results_from_projection,
-    reconstruct_ordinary_package_obligation_results, reconstruct_package_review,
-    validate_ordinary_package_obligation_results,
-};
-pub use validation::{
-    reconstruct_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
-};
+    reconstruct_package_review,
+    };
