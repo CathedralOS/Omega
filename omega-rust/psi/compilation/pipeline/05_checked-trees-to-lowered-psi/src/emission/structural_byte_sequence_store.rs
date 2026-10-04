@@ -1445,7 +1445,10 @@ impl ValueEmitter<'_> {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
-        let mut locals = self.locals.iter().filter(|local| local.symbol == symbol);
+        let mut locals = self
+            .locals
+            .iter()
+            .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
         let crate::expression_preparation::bindings::StructuralLocalBinding {
             argument: local, ..
         } = locals.next().ok_or(LoweringError::Unsupported(

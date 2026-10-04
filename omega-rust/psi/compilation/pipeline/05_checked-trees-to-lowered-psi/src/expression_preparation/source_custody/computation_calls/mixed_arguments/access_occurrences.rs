@@ -342,7 +342,18 @@ pub(crate) fn replay(
                     ExpressionNode::Member(member)
                         if !has_named_place_root(checked, expression)? =>
                     {
-                        children.push(member.receiver);
+                        // A copied payload reads the subject the dispatch
+                        // already evaluated. Match the checking access walk:
+                        // computed subjects contribute no second receiver read.
+                        if !(member.case_variant.is_some()
+                            && dispatch_extraction.reads_extracted_copy(
+                                &checked.typed,
+                                expression,
+                                plain_copy,
+                            ))
+                        {
+                            children.push(member.receiver);
+                        }
                         (None, BorrowAccessKind::Read)
                     }
                     ExpressionNode::Member(_) => (Some(expression), BorrowAccessKind::Read),

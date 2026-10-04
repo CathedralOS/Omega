@@ -21,7 +21,7 @@
 //! of their own: `attached_storage` (the binding a declaration reaches the
 //! attached data through, receiver or data parameter, and the field query
 //! built on it), `builtin_coordinates` (whether length, index and subslice
-//! selectors have their builtin meaning), `local_scalar_record_field` (a
+//! selectors have their builtin meaning), `structural_scalar_field` (a
 //! scalar read of a field of a local record), `parameter_scoped` (types rooted
 //! in an abstract signature's parameters) and `result_shape` (whether an
 //! expression's result is a reference). `owner_tests` is test-only.
@@ -495,8 +495,10 @@ pub(crate) fn bound_symbol_declared_type(
 mod attached_storage;
 mod builtin_coordinates;
 mod exact_self_field;
-mod local_scalar_record_field;
-pub use local_scalar_record_field::{LocalScalarRecordField, local_scalar_record_field};
+mod structural_scalar_field;
+pub use structural_scalar_field::{
+    StructuralScalarField, saved_dispatch_subject, structural_scalar_field,
+};
 mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;

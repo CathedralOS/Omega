@@ -23,7 +23,7 @@ pub(crate) fn local_store_root<'a>(
 > {
     let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
         .iter()
-        .find(|local| local.symbol == symbol)
+        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
         .ok_or(LoweringError::Unsupported(
             "store names an unknown structural local",
         ))?;

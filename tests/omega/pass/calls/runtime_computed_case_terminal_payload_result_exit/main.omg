@@ -1,0 +1,20 @@
+data Output { value: u64; }
+data Choice [copy] { case Left(value: u64); case Right(value: u64); }
+machine forward(choice: Choice) -> Choice { choice }
+machine make(value: u64) -> Output { Output { value: value } }
+machine choose(choice: Choice) -> Output {
+    transition forward(choice) {
+        Choice::Left { value } -> make(value)
+        Choice::Right { value } -> make(value)
+    }
+}
+machine main() crashes Trap {
+    let first: Output = choose(Choice::Left { value: 70 });
+    let second: Output = choose(Choice::Right { value: 71 });
+    transition first.value == 70 && second.value == 71 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

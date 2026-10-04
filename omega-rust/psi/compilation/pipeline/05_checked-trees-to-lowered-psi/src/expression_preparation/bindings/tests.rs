@@ -382,7 +382,7 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         ..Default::default()
     };
     let local = |symbol, argument| super::StructuralLocalBinding {
-        symbol,
+        root: facts::PlaceRoot::Symbol(symbol),
         argument,
         structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
     };
@@ -645,7 +645,7 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
         ] {
             let bindings = if local {
                 ScalarBindings::new([]).with_structural_locals(&[super::StructuralLocalBinding {
-                    symbol,
+                    root: facts::PlaceRoot::Symbol(symbol),
                     structural_type: StructuralTypeId::new(1).unwrap(),
                     argument: StructuralArgument {
                         place,
@@ -787,7 +787,7 @@ fn structural_local_types_preserve_reference_shells_and_reject_conflicting_carri
     let record_type = StructuralTypeId::new(3).unwrap();
     let reference_type = StructuralTypeId::new(7).unwrap();
     let local = StructuralLocalBinding {
-        symbol,
+        root: facts::PlaceRoot::Symbol(symbol),
         argument: StructuralArgument {
             place,
             path: Vec::new(),
@@ -1006,7 +1006,7 @@ fn primitive_reference_arguments_keep_the_carrier_and_exact_referent_projection(
         },
     ];
     let local = StructuralLocalBinding {
-        symbol,
+        root: facts::PlaceRoot::Symbol(symbol),
         argument: StructuralArgument {
             place,
             path: Vec::new(),
@@ -1093,5 +1093,105 @@ fn primitive_reference_arguments_keep_the_carrier_and_exact_referent_projection(
             .unwrap()
             .path,
         Vec::<StructuralPathSegment>::new()
+    );
+}
+
+#[test]
+fn computed_structural_storage_requires_exact_live_identity_and_custody() {
+    use super::StructuralLocalBinding;
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+        CheckedUnitStructuralArgumentSourcePlan,
+    };
+    let checked = crate::front_end::checked_program("machine value() -> bool { true }");
+    let machine = &checked.machines()[0];
+    let expression = typed_trees::expression::ExpressionHandle::from_arena_index(1);
+    let other = typed_trees::expression::ExpressionHandle::from_arena_index(2);
+    let symbol = symbols::SymbolHandle::from_arena_index(1);
+    let place = PlaceId::new(41).unwrap();
+    let structural_type = semantic_vocabulary::StructuralTypeId::new(7).unwrap();
+    let source = StructuralLocalBinding {
+        root: facts::PlaceRoot::Expression(expression),
+        argument: StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        },
+        structural_type,
+    };
+    let argument = CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+        access: CheckedStructuralAccess::SharedBorrow,
+        ..Default::default()
+    };
+    let bindings = ScalarBindings::new([]).with_structural_locals(&[source.clone()]);
+    assert_eq!(
+        bindings
+            .shared_structural_place(&argument, machine, &[])
+            .unwrap(),
+        place
+    );
+    for locals in [
+        vec![],
+        vec![StructuralLocalBinding {
+            root: facts::PlaceRoot::Expression(other),
+            ..source.clone()
+        }],
+        vec![StructuralLocalBinding {
+            root: facts::PlaceRoot::Symbol(symbol),
+            ..source.clone()
+        }],
+        vec![source.clone(), source.clone()],
+        vec![StructuralLocalBinding {
+            argument: StructuralArgument {
+                access: StructuralAccess::WriteOnlyBorrow,
+                ..source.argument.clone()
+            },
+            ..source.clone()
+        }],
+        vec![
+            source.clone(),
+            StructuralLocalBinding {
+                root: facts::PlaceRoot::Symbol(symbol),
+                structural_type: semantic_vocabulary::StructuralTypeId::new(8).unwrap(),
+                ..source.clone()
+            },
+        ],
+    ] {
+        assert!(
+            ScalarBindings::new([])
+                .with_structural_locals(&locals)
+                .shared_structural_place(&argument, machine, &[])
+                .is_err()
+        );
+    }
+    let invalid = CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression: typed_trees::expression::ExpressionHandle::invalid(),
+        },
+        ..argument.clone()
+    };
+    let invalid_source = StructuralLocalBinding {
+        root: facts::PlaceRoot::Expression(typed_trees::expression::ExpressionHandle::invalid()),
+        ..source.clone()
+    };
+    assert!(
+        ScalarBindings::new([])
+            .with_structural_locals(&[invalid_source])
+            .shared_structural_place(&invalid, machine, &[])
+            .is_err()
+    );
+    let mut aliases = ScalarBindings::new([]).with_structural_locals(&[
+        source.clone(),
+        StructuralLocalBinding {
+            root: facts::PlaceRoot::Symbol(symbol),
+            ..source
+        },
+    ]);
+    aliases.retire_structural_local(symbol, place).unwrap();
+    assert!(
+        aliases
+            .shared_structural_place(&argument, machine, &[])
+            .is_err()
     );
 }

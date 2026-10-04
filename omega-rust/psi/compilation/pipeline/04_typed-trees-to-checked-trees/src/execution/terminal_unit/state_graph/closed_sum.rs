@@ -362,9 +362,46 @@ pub(super) fn build(
                         };
                     (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
                 }
-                TransitionTargetNode::Named { .. }
+                TransitionTargetNode::Named { arguments, .. }
                     if terminal_calls::invoked_callable(program, machine, transition).is_some() =>
                 {
+                    // Operand computations can contain payload reads below
+                    // nested calls or projections. Every receiver copy still
+                    // belongs to this selected case of the one saved subject.
+                    if matches!(dispatch, DispatchSubject::Computed(_)) {
+                        let mut pending = program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .to_vec();
+                        let mut visited = Vec::new();
+                        while let Some(expression) = pending.pop() {
+                            if !program.expression_table.expression_is_valid(expression)
+                                || visited.contains(&expression)
+                            {
+                                continue;
+                            }
+                            visited.push(expression);
+                            if dispatch
+                                .payload_field(
+                                    program,
+                                    state,
+                                    ordinal as usize,
+                                    expression,
+                                    variant,
+                                    &destructures,
+                                    &mut subject_reads,
+                                )?
+                                .is_some()
+                            {
+                                continue;
+                            }
+                            validation::expression_traversal::children(
+                                program,
+                                program.expression_table.expression(expression),
+                                |child| pending.push(child),
+                            );
+                        }
+                    }
                     trace.phase("state graph: terminator: case successors: terminal call");
                     let arm = terminal_calls::arm_call(
                         program,
@@ -722,7 +759,16 @@ fn subject_call(
             call.statement_index == transition_start && call.authored_expression == subject
         });
     let call = matching.next()?;
-    if matching.next().is_some() {
+    if matching.next().is_some()
+        || facts.flow.control.is_retired(state.symbol, call)
+        || operations
+            .iter()
+            .filter_map(|operation| operation.call())
+            .any(|planned| {
+                planned.coordinate.statement_index as usize == call.statement_index
+                    && planned.coordinate.call_ordinal as usize == call.call_ordinal
+            })
+    {
         return None;
     }
     let return_type = crate::flow::call_target_return_type(program, call.target_symbol)?;

@@ -673,6 +673,57 @@ pub(super) fn validate(
                 operands,
                 operation,
             )?;
+            if let CaseSubject::Computed(subject) = dispatch_subject {
+                let checked_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+                    checked.statement_table.transition_target(transition.target)
+                else {
+                    return unsupported("terminal payload call lost its authored arguments");
+                };
+                let mut pending = checked
+                    .statement_table
+                    .expression_handles(*arguments)
+                    .to_vec();
+                let mut visited = Vec::new();
+                while let Some(expression) = pending.pop() {
+                    if !checked.expression_table.expression_is_valid(expression)
+                        || visited.contains(&expression)
+                    {
+                        continue;
+                    }
+                    visited.push(expression);
+                    if let ExpressionNode::Member(member) =
+                        checked.expression_table.expression(expression)
+                        && repeats_subject(checked, subject, member.receiver)
+                    {
+                        if member
+                            .case_variant
+                            .as_ref()
+                            .is_none_or(|name| *name != variant.name)
+                            || validation::exact_data_member_field(
+                                &checked.typed,
+                                declaration,
+                                member.member_symbol,
+                                member.member.as_str(),
+                                Some(variant.name.as_str()),
+                            )
+                            .is_none()
+                        {
+                            return unsupported(
+                                "terminal payload read changed its selected case field",
+                            );
+                        }
+                        subject_reads.push(member.receiver);
+                        // This receiver observes the saved result. Traversing
+                        // its call operands would count a second evaluation.
+                        continue;
+                    }
+                    validation::expression_traversal::children(
+                        &checked.typed,
+                        checked.expression_table.expression(expression),
+                        |child| pending.push(child),
+                    );
+                }
+            }
             super::result_custody::local_discards(checked, owner, source, state, None)?;
             continue;
         }

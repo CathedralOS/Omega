@@ -52,6 +52,12 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     PrimitiveLocal { symbol: SymbolHandle },
     /// Exact immutable structural declaration; the operation sequence owns its slot.
     StructuralLocal { symbol: SymbolHandle },
+    /// An already evaluated structural expression. The enclosing operation
+    /// sequence establishes its storage before a consumer observes it; this
+    /// identity never authorizes evaluating the expression again.
+    StructuralExpression {
+        expression: typed_trees::expression::ExpressionHandle,
+    },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -122,6 +128,20 @@ impl Default for CheckedUnitStructuralArgumentPlan {
 }
 
 impl CheckedUnitStructuralArgumentPlan {
+    /// Source identity for the common established structural storage roster.
+    /// Result ordinals remain the operation sequence's independent namespace.
+    pub fn structural_storage_root(&self) -> Option<facts::PlaceRoot> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                Some(facts::PlaceRoot::Symbol(symbol))
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                Some(facts::PlaceRoot::Expression(expression))
+            }
+            _ => None,
+        }
+    }
+
     pub fn source_parameter_index(&self) -> Option<u32> {
         match self.source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -130,6 +150,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -146,6 +167,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -162,6 +184,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -192,6 +215,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }

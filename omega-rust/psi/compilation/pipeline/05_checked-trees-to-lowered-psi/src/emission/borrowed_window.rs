@@ -498,6 +498,9 @@ fn spell_place(
         }
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => "local".to_owned(),
+        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } => {
+            "computed expression".to_owned()
+        }
         CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
         } => format!("local#{declaration_ordinal}"),

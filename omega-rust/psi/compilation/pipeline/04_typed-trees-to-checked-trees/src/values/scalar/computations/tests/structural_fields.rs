@@ -1,7 +1,7 @@
 use super::{CheckedScalarComputationKind, CheckedScalarExpressionRole, PrimitiveType};
 use crate::values::scalar::computations::normal_return;
 use crate::values::scalar::computations::tests::checked_source;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
+use checked_trees::CheckedStructuralAccess;
 
 #[test]
 fn local_record_reads_retain_primitive_carriers() {
@@ -52,7 +52,7 @@ fn local_record_reads_retain_primitive_carriers() {
         else {
             panic!("{name} field is an authored read, not a synthetic scalar parameter");
         };
-        let source = validation::local_scalar_record_field(
+        let source = validation::structural_scalar_field(
             &checked.typed,
             machine.symbol,
             state.symbol,
@@ -62,12 +62,7 @@ fn local_record_reads_retain_primitive_carriers() {
         .expect("exact source");
         assert_eq!(node.primitive_type, primitive);
         assert_eq!(*field, source.field);
-        assert_eq!(
-            subject.source,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: source.local
-            }
-        );
+        assert_eq!(subject.structural_storage_root(), Some(source.root));
         assert_eq!(subject.access, CheckedStructuralAccess::SharedBorrow);
         assert!(subject.path.is_empty());
         assert_eq!(

@@ -1125,9 +1125,10 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        if let Some(field) = self.local_scalar_record_field(expression) {
+        if let Some(field) = self.structural_scalar_field(expression) {
             return (field.primitive_type == expected_type)
-                .then(|| self.structural_field(expression, field));
+                .then(|| self.structural_field(expression, field))
+                .flatten();
         }
         if let Some(operand) = self.policy_cast_value(expression, expected_type) {
             return Some(operand);

@@ -153,7 +153,7 @@ fn owned_local_observation(
 ) -> Result<PlaceId, LoweringError> {
     let mut matches = structural_locals
         .iter()
-        .filter(|local| local.symbol == symbol);
+        .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
     let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
         argument: source,
         ..

@@ -102,7 +102,7 @@ pub(crate) fn emit(
                     if let Some(argument) = evaluation
                         .structural_locals
                         .iter()
-                        .find(|local| local.symbol == source.symbol)
+                        .find(|local| local.root == facts::PlaceRoot::Symbol(source.symbol))
                         .map(|local| local.argument.clone())
                     {
                         return Ok(argument);
@@ -417,9 +417,12 @@ fn prepare_owners(
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     for crate::expression_preparation::bindings::StructuralLocalBinding {
-        symbol, argument, ..
+        root, argument, ..
     } in &evaluation.structural_locals
     {
+        let facts::PlaceRoot::Symbol(symbol) = root else {
+            continue;
+        };
         if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
             continue;
         }
@@ -1200,7 +1203,7 @@ impl Emission<'_, '_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|local| local.symbol == *symbol)
+                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
                         .map(|local| local.argument.place)
                         .or(self.parameter_source(&argument)?)
                         .ok_or(LoweringError::Unsupported(
@@ -1900,7 +1903,7 @@ impl Emission<'_, '_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|local| local.symbol == *symbol)
+                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
                         .map(|local| local.argument.place)
                     {
                         Some(place) => place,

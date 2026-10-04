@@ -891,6 +891,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
+    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
     if facts.flow.control.is_retired(state, call)
         || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
@@ -1017,11 +1018,31 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
+    let scheduled_subject = |candidate: &checked_trees::FlowCallFact| {
+        scheduled_dispatch_subject(
+            program,
+            facts,
+            source_state,
+            call,
+            candidate,
+            calls,
+            predecessors,
+        )
+    };
+    // A computation may read the saved subject's fields, but must not also
+    // execute the invocation that the predecessor sequence already scheduled.
+    if consumed
+        .iter()
+        .any(|handle| scheduled_subject(facts.flow.control.calls.get(*handle)))
+    {
+        return None;
+    }
     calls
         .iter()
         .filter(|candidate| candidate.statement_index == call.statement_index)
         .all(|candidate| {
             std::ptr::eq(candidate, call)
+                || scheduled_subject(candidate)
                 || facts.flow.control.is_retired(state, candidate)
                 || program
                     .symbols
@@ -1032,6 +1053,52 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
                     .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), candidate))
         })
         .then_some(())
+}
+
+/// Join a saved dispatch read to its one already scheduled structural
+/// producer. Exact selection occurrence custody distinguishes parser copies
+/// from independently authored calls with identical targets and arguments.
+fn scheduled_dispatch_subject(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    invocation: &checked_trees::FlowCallFact,
+    candidate: &checked_trees::FlowCallFact,
+    calls: &[checked_trees::FlowCallFact],
+    predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> bool {
+    let Some((statement, expression)) = validation::saved_dispatch_subject(
+        program,
+        state,
+        candidate.statement_index,
+        candidate.authored_expression,
+    ) else {
+        return false;
+    };
+    let mut producers = calls.iter().filter(|producer| {
+        producer.statement_index == statement && producer.authored_expression == expression
+    });
+    let Some(producer) = producers.next() else {
+        return false;
+    };
+    if producers.next().is_some()
+        || facts.flow.control.is_retired(state.symbol, producer)
+        || producer.target_symbol != candidate.target_symbol
+        || (producer.statement_index, producer.call_ordinal)
+            >= (invocation.statement_index, invocation.call_ordinal)
+    {
+        return false;
+    }
+    let mut planned = predecessors.iter().filter_map(|operation| {
+        let call = operation.call()?;
+        (call.coordinate.statement_index as usize == producer.statement_index
+            && call.coordinate.call_ordinal as usize == producer.call_ordinal)
+            .then_some(operation)
+    });
+    let Some(operation) = planned.next() else {
+        return false;
+    };
+    planned.next().is_none() && operation.structural_result_binding().is_some()
 }
 
 fn collect_argument_calls(
