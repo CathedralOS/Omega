@@ -233,6 +233,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let mut state_requires = Vec::with_capacity(states.len());
     let mut value_requirements = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
+        computations.enter_source_state(state.state)?;
         let state_parameters = if state_index == 0 || shared_receiver {
             Vec::new()
         } else {
