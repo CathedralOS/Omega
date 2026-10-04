@@ -2113,6 +2113,40 @@ lands alone with its corpus slice unchanged and no fallback path.
   `tests/omega/fail/operators/selected_crash_invocation`) keep their
   diagnostics; the native corpus is unchanged.
 
+- **ADMISSIONS-FILE-DELETED.** (new-scope) Delete the `omega.admissions`
+  file and the `trust-ledger` crate. Owner ruling 2026-10-03: `omega.lock` is
+  the one acceptance record; a second admissions file was never sanctioned
+  (`wiki/spec/packages/locks.md` already says accepted policy needs "no second
+  native acceptance channel"). The lock already retains admission-claim and
+  external-realization rows (`omega-rust/omega/packages/package-manager/src/lock/README.md`).
+  - Delete `omega-rust/omega/application/trust-ledger/` and its callers:
+    `omega-rust/omega/application/cli/src/compilation/mod.rs`
+    (`read_trust_admissions`, `accept_trust_admissions`) and
+    `omega-rust/omega/application/cli/src/execution/compilation.rs`.
+  - Remove the `accepted_trust_admissions` request field and
+    `with_accepted_trust_admissions` from
+    `omega-rust/omega/compilation/products/src/compile_request.rs`,
+    `omega-rust/omega/packages/package-manager/src/operations/check_project.rs`
+    and `.../operations/compile_project.rs`. Root grants that need acceptance
+    are accepted through the lock's existing rows; a project with no lock
+    keeps the guide's development behavior (own-package boundary machines
+    active with a standing warning, dependency ones inert until accepted).
+  - `omega-rust/omega/compilation/realization/trust-model/src/admission_settlement.rs`
+    `reconstruct_trust_settlement` compares obligations against the lock
+    rows, not a ledger; with **TRUST-REPORT-DELETED**, nothing else in
+    `trust-model` reads the ledger.
+  - Drop the `omega.admissions` exclusion in
+    `omega-rust/omega/packages/source-acquisition/src/tree/capture/traversal.rs`
+    and every mention in `wiki/spec/packages/locks.md`,
+    `wiki/spec/packages/resolver_security.md`, `omega-rust/pipeline.md`, the
+    application, CLI, source-acquisition and trust-model READMEs, and
+    `tools/benchmark/` (`benchmark.py` and README).
+
+  Acceptance: `rg omega.admissions` finds nothing outside history notes; no
+  crate depends on `trust-ledger`; a package fixture whose root grants a
+  dependency's boundary claim compiles once that claim is accepted in
+  `omega.lock` and rejects with a review instruction when it is not.
+
 - **TRUST-REPORT-DELETED.** (new-scope)
   `omega-rust/omega/compilation/realization/trust-model/src/admission_settlement.rs::reconstruct_trust_settlement`
   builds a `TrustReport` (`trust-model/src/trust_report/`) on every compile,
