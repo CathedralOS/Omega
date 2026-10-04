@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: seven native linux restamps at ee1da2845a7 — IntegerAt shadow lifted in mutable-reference-return wave; cross_linux re-greened, 3 reverted to pre-shadow walls, 3 hold Main::main-only IntegerAt
+ticket: ed5f5832bffa5aba64dee090217ac071
+published_utc: 2026-10-04T07:38:01.904686+00:00
