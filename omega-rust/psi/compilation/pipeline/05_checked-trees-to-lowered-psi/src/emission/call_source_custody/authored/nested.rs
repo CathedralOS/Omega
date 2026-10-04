@@ -125,23 +125,10 @@ pub(super) fn authored_occurrences(
             pending.push(Walk::Enter(assignment.value, true));
             (false, assignment.value)
         }
-        StatementNode::Expression(expression)
-            if validation::unit_statement_call_is_supported(
-                &checked.typed,
-                machine,
-                state,
-                *expression,
-            ) || checked
-                .facts
-                .values
-                .structural_values
-                .root_for_expression(caller_state, statement_index, *expression)
-                .is_some_and(|root| {
-                    root.machine == machine.symbol
-                        && root.expression == *expression
-                        && root.type_reference == state.return_type
-                }) =>
-        {
+        StatementNode::Expression(expression) => {
+            // Occurrence identity is independent of the enclosing value's
+            // result type. The retained operation separately proves its
+            // source, operands and completion custody.
             pending.push(Walk::Enter(*expression, true));
             (false, *expression)
         }
@@ -226,7 +213,7 @@ pub(super) fn authored_occurrences(
             pending.extend(seeds.into_iter().rev());
             (false, outer)
         }
-        _ => return unsupported("nested calls require a direct initializer or Unit call root"),
+        _ => return unsupported("nested call has no executable statement root"),
     };
     let table = &checked.expression_table;
     let mut active = Vec::new();

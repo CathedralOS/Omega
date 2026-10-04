@@ -158,13 +158,10 @@ pub(crate) fn validate_structural(
         return unsupported("structural call result disagrees with its declared carrier");
     }
     // The completing transition arm names the result's authored destination.
-    // A spelled `-> Target(..)` invocation owns preorder zero as the exact
-    // named occurrence, and its target handle must match. A value arm like
-    // `true -> (call(..))` completes through its authored call expression
-    // instead; `locate_source` already bound that expression to this exact
-    // coordinate, so it only needs to be the arm's declared value. An
-    // expression that is not the arm's value — a dispatch subject, a guard —
-    // falls through to the case-subject and authored-local recognizers.
+    // A named invocation can follow guard and operand calls, so its exact
+    // target occurrence must match. A value arm completes through its
+    // authored call expression, already bound by `locate_source`. Other
+    // expressions retain their own result custody below.
     let statements = checked.statement_table.statements(state.statement_nodes);
     if let Some(StatementNode::Transition(transition)) =
         statements.get(result.statement_index as usize)
@@ -193,19 +190,27 @@ pub(crate) fn validate_structural(
             return Ok(());
         }
     }
-    if coordinate.call_ordinal != 0 {
-        let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-            authored.source_site
-        else {
-            return unsupported("nested structural result has no authored expression");
+    if let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = authored.source_site
+    {
+        let whole_destination = match statements.get(result.statement_index as usize) {
+            Some(StatementNode::LocalData(local)) => local.initial_value,
+            Some(StatementNode::Assignment(assignment)) => assignment.value,
+            Some(StatementNode::Expression(value)) => *value,
+            _ => checked_trees::expression::ExpressionHandle::invalid(),
         };
-        return super::occurrences::validate(
-            checked,
-            caller_machine,
-            caller_state,
-            coordinate,
-            expression,
-        );
+        // Preorder zero identifies the first invocation, not necessarily the
+        // value completing this statement. A surrounding computation owns a
+        // nested result even when no earlier call appears in its expression.
+        // The same producer custody applies to a saved dispatch subject.
+        if expression != whole_destination {
+            return super::occurrences::validate(
+                checked,
+                caller_machine,
+                caller_state,
+                coordinate,
+                expression,
+            );
+        }
     }
     if matches!(
         checked
@@ -284,43 +289,6 @@ pub(crate) fn validate_structural(
             coordinate,
             assignment.value,
         );
-    }
-    // The first arm of a closed-case dispatch over a call mints the subject
-    // on its own statement. The dispatch reads that one result on every arm;
-    // `locate_source` rejoins the call and its captured occurrence.
-    if crate::expression_preparation::source_custody::dispatch_subjects::evaluated_case_subject(
-        checked,
-        statements,
-        result.statement_index as usize,
-    )
-    .is_some()
-    {
-        let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
-        let target =
-            super::authored::target_signature(checked, caller_machine, authored.source_target)?;
-        if machine.symbol != caller_machine
-            || result.statement_index != coordinate.statement_index
-            || coordinate.call_ordinal != 0
-            || checked
-                .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
-                    checked,
-                    target.return_type,
-                )?)
-                .as_str()
-                != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
-            || !matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            )
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                &checked.typed,
-                target.return_type,
-            )
-        {
-            return unsupported("dispatch subject result differs from its authored call");
-        }
-        return Ok(());
     }
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table

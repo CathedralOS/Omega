@@ -92,11 +92,7 @@ impl super::Expansion<'_> {
                 site.state,
                 site.statement,
                 receiver,
-                values
-                    .calls_for_root(receiver)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed receiver lost its checked call schedule",
-                    ))?,
+                values.calls_for_root(receiver).unwrap_or(&[]),
                 root.type_reference,
                 site.bindings,
                 input_types,
