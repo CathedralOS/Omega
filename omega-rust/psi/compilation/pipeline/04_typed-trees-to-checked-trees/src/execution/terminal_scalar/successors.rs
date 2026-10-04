@@ -117,39 +117,6 @@ pub(super) fn commit_arguments(
     }
 }
 
-pub(super) fn validate(
-    program: &TypedTrees,
-    expressions: &CheckedScalarExpressionPlans,
-    computations: &CheckedScalarComputationPlans,
-    graph: &CheckedScalarMachineGraph,
-    structural: &Arena<CheckedStructuralControlTransferPlan>,
-    scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
-    proof: &Arena<CheckedProofTerm>,
-    proof_terms: &checked_trees::CheckedProofTerms,
-) -> Option<()> {
-    for source in &graph.states {
-        for successor in iter(&source.terminator) {
-            let expected = arguments(
-                program,
-                expressions,
-                computations,
-                proof_terms,
-                graph,
-                source,
-                successor,
-            )?;
-            if structural.span(successor.structural_transfers)? != expected.structural
-                || scalar.span(successor.scalar_arguments)? != expected.scalar
-                || scalar.span(successor.erased_arguments)? != expected.erased
-                || proof.span(successor.erased_proof_arguments)? != expected.proof
-            {
-                return None;
-            }
-        }
-    }
-    Some(())
-}
-
 fn arguments<'a>(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,

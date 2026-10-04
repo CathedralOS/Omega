@@ -17,12 +17,12 @@
 //!    resolve; `successors` resolves those arguments, then commits them to
 //!    the shared arenas.
 //! 2. After the check pass, `execution::finalize_execution` calls
-//!    `finalize_checked_scalar_graph_plans_with_call_frames`, which keeps a
-//!    graph only when `ranking` gives the same plan, `successors` validates
-//!    its edges, and `owned_parameters` validates every state's affine
-//!    parameter custody against the completed ownership facts. It then calls
-//!    `finalize_scalar_unit_operations` (`unit_operations`), which records
-//!    each state's ordered Unit operations.
+//!    `finalize_checked_scalar_graph_plans`, which keeps a graph only when
+//!    `owned_parameters` admits every state's affine parameter custody
+//!    against the completed ownership facts. The graph's shape, state
+//!    contracts, ranking and edge arguments are not planned again. It then
+//!    calls `finalize_scalar_unit_operations` (`unit_operations`), which
+//!    records each state's ordered Unit operations.
 //!
 //! `checked_binding_prefix` and `checked_terminator` are also used by
 //! `execution::terminal_unit`.
@@ -209,60 +209,18 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     }
 }
 
-pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
+/// Admit each discovered graph's affine parameter custody against the
+/// completed ownership facts. The graph's shape, state contracts, ranking and
+/// edge arguments were planned during fact construction over the same program
+/// and are used as planned.
+pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    operators: &checked_trees::CheckedOperatorFacts,
 ) {
     let declined = &mut plans.declined;
-    let runtime_components = validation::validated_runtime_natural_components(program);
     plans.machines.retain(|graph| {
-        if graph.states.iter().any(|retained| {
-            crate::semantic::calls::find_state_with_machine(program, retained.state)
-                .and_then(|(owner, state)| state_contracts::lower(program, operators, owner, state))
-                .is_none_or(|requires| !state_contracts::matches(&requires, &retained.requires))
-        }) {
-            declined.push((graph.machine,
-                "machine has no source-independent checked scalar control plan (state contracts)"));
-            return false;
-        }
-        if ranking::plan(program, graph, call_frames, &runtime_components) != Some(graph.ranked_scc.clone()) {
-            declined.push((
-                graph.machine,
-                "machine has no source-independent checked scalar control plan (finalized ranking)",
-            ));
-            return false;
-        }
-        if crate::lookup::machine_by_symbol(program, graph.machine).is_none() {
-            declined.push((
-                graph.machine,
-                "machine has no source-independent checked scalar control plan (machine symbol)",
-            ));
-            return false;
-        }
-        if successors::validate(
-            program,
-            expressions,
-            computations,
-            graph,
-            &plans.structural_transfers,
-            &plans.scalar_arguments,
-            &plans.erased_proof_arguments,
-            proof_terms,
-        )
-        .is_none()
-        {
-            declined.push((
-                graph.machine,
-                "machine has no source-independent checked scalar control plan (finalized successors)",
-            ));
-            return false;
-        }
         let mut stage =
             "machine has no source-independent checked scalar control plan (owned parameters)";
         let admitted = graph.states.iter().all(|retained| {
