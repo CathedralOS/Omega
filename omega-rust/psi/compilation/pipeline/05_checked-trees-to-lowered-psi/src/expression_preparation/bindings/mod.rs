@@ -835,6 +835,9 @@ impl ScalarBindings {
     /// `Referent` projection reaches the viewed type while the reference keeps
     /// the original backing identity. The same catalog walk checks parameter
     /// and local projections, including authority at every reference crossing.
+    /// Root ownership supplies a temporary loan; it is not the argument access.
+    /// Keep that owner's home and cleanup, then attenuate at every descriptor
+    /// crossing so owning a record cannot widen a shared reference inside it.
     pub(crate) fn primitive_borrow(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -851,7 +854,7 @@ impl ScalarBindings {
                     StructuralAccess::SharedBorrow,
                     StructuralAccess::SharedBorrow
                 ) | (
-                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow,
                     StructuralAccess::SharedBorrow
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow
@@ -889,9 +892,8 @@ impl ScalarBindings {
                 ))?;
                 if !valid_structural_root(root)
                     || locals.next().is_some()
-                    || source.argument.access != StructuralAccess::SharedBorrow
                     || !source.argument.path.is_empty()
-                    || access != StructuralAccess::SharedBorrow
+                    || !permits(source.argument.access, access)
                 {
                     return unsupported("computed primitive borrow changes its local custody");
                 }
@@ -906,7 +908,8 @@ impl ScalarBindings {
                     .ok_or(LoweringError::Unsupported(
                         "computed primitive borrow has no enclosing parameter",
                     ))?;
-                if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                if (parameter.access != StructuralAccess::Owned
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !permits(parameter.access, access)

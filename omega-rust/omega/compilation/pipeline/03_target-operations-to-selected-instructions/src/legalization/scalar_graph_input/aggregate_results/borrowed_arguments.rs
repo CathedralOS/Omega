@@ -49,6 +49,8 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     // equal the callee's declared access; the *source* may hold wider authority
     // (an owned or mutable root can lend a write-only or shared view, but a
     // write-only or shared root can never be widened back).
+    // Unit admission discharges qualifications before native transport; they
+    // do not change the referent layout or require another argument carrier.
     if argument.access != destination.access
         || !matches!(
             argument.access,
@@ -57,8 +59,6 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
         )
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());
     }

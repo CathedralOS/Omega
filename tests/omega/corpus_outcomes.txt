@@ -203,6 +203,8 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
 fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b65913386f+wt
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
+	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
 fail/borrows/reference_carrier_store_while_shared rejected 210ms expected @f41cc6938f06+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
@@ -1388,8 +1390,7 @@ pass/borrows/loop_descriptor_reformation_exit checked 1879ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit checked 817ms @21b65913386f+wt
-pass/borrows/nested_reference_leaf_projection_exit rejected 5976ms @cfe60a3a242
-	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow changes its local custody"))
+pass/borrows/nested_reference_leaf_projection_exit checked 1385ms @51b4aa0b5a70+wt
 pass/borrows/owned_byte_value_call_exit checked 2324ms @07f252fc5f0d+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms @cfe60a3a242
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
@@ -1483,8 +1484,7 @@ pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8
 pass/calls/local_projected_field_scalar_result_argument_exit checked 1947ms @2d8ed253669f
 pass/calls/local_projected_field_shared_argument_exit checked 1272ms @2d8ed253669f
 pass/calls/local_record_forwarded_across_callee_states_exit checked 2197ms @0508a5426a27+wt
-pass/calls/local_record_leaf_loan_scalar_calls_exit rejected 4974ms @cfe60a3a242
-	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow changes its local custody"))
+pass/calls/local_record_leaf_loan_scalar_calls_exit checked 1613ms @51b4aa0b5a70+wt
 pass/calls/local_record_mutable_argument_exit checked 1211ms @2d8ed253669f
 pass/calls/local_record_record_result_argument_exit checked 1977ms @2d8ed253669f
 pass/calls/local_record_shared_argument_exit checked 1248ms @2d8ed253669f
@@ -1563,6 +1563,7 @@ pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms @2d8ed253669f
+pass/calls/runtime_owned_parameter_primitive_borrow_exit checked 524ms @51b4aa0b5a70+wt
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms @2d8ed253669f
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms @2d8ed253669f
 pass/calls/runtime_qualified_terminal_result_exit checked 418ms @4655ab8ed512

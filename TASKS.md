@@ -1220,12 +1220,13 @@ crash and native exit behavior.
   - State: whole mutable view locals, shared view returns (one descriptor-value
     return path), record byte-region recasts, field-precondition capture and
     captured whole-local loans through direct and conditional completion all
-    execute. Shared scalar-parameter views also cross ordinary helper calls:
-    `omega run --both tests/omega/pass/recast/runtime_shared_parameter_view_calls_exit/main.omg`
-    exits 0 natively and interpreted on macOS ARM64, covering both completion
-    arms without copying the backing or granting mutable access. Remaining:
-    the other producer/read/call/state compositions, using
-    facts at the formation occurrence.
+    execute. Ordinary helper calls preserve backing through shared scalar
+    views, local record/array leaf loans, nested reference crossings and owned
+    record parameter subloans. On macOS ARM64, `omega run --both` executes
+    `tests/omega/pass/calls/local_record_leaf_loan_scalar_calls_exit/main.omg`
+    (70) and `tests/omega/pass/calls/runtime_owned_parameter_primitive_borrow_exit/main.omg`
+    (0) with interpreter agreement. Remaining: the other producer/read/call/state
+    compositions, using facts at the formation occurrence.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

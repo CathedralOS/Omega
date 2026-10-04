@@ -129,12 +129,12 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    // A scalar projection of a local aggregate rejoins its producing home.
-    // Dispatch by the callee's carrier: byte/element views belong to their
-    // presentation routes below. Sending every projected local to aggregate
-    // reconstruction creates a callback cycle for those non-aggregate views.
+    // A scalar projection borrows the root's retained storage, whether it
+    // arrived owned, arrived borrowed, or was established here. Aggregate
+    // reconstruction rejoins that home without treating an owned parameter's
+    // ABI fragments as an incoming borrow pointer. Dispatch by the callee's
+    // carrier: byte/element views keep their descriptor presentation routes.
     if !semantic.path.is_empty()
-        && super::structural_case::source_result(caller, semantic.place).is_ok()
         && super::primitive_locals::scalar(
             &plan.structural_types,
             destination_parameter.structural_type,

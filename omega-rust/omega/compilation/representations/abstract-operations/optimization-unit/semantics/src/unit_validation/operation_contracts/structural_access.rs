@@ -260,9 +260,7 @@ pub(crate) fn structural_arguments_match(
             && argument.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                || (source.access == terminal_psi::StructuralAccess::Owned
-                    && completed_affine_result));
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         // A live view binding lends its descriptor or a viewed element: its
         // custody stays with the caller, so the loan presents unrestricted
         // exactly like a parameter subloan — even when the view result
@@ -516,34 +514,21 @@ pub(crate) fn structural_arguments_match(
         // The shared loan is unrestricted; the original affine owner remains
         // live and retains its independent transfer or cleanup obligation.
         // A resolved Owned + Affine contract is already proof of a
-        // caller-owned whole place — arrival parameters, produced results,
-        // and establishments all resolve through it — so liveness belongs to
-        // the ownership replay, not a producer roster here.
-        let shared_affine_loan = argument.path.is_empty()
-            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
+        // caller-owned place — arrival parameters, produced results, and
+        // establishments all resolve through it. A whole loan and a resolved
+        // projection preserve that same custody; restricting this to completed
+        // results or block arrivals rejects machine-parameter subloans that
+        // Terminal admits. Type, access and qualification checks still bind
+        // the selected referent; liveness belongs to the ownership replay.
+        let shared_affine_loan = argument.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.access == terminal_psi::StructuralAccess::Owned
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let completed_result_loan = completed_result
             && argument.access != terminal_psi::StructuralAccess::Owned
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
-        let shared_arrival_loan = source.access == terminal_psi::StructuralAccess::Owned
-            && matches!(
-                source.multiplicity,
-                terminal_psi::StructuralMultiplicity::Affine
-                    | terminal_psi::StructuralMultiplicity::Unrestricted
-            )
-            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
-            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
-            && caller
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters)
-                .any(|parameter| parameter.place == argument.place);
         let actual_multiplicity = if shared_affine_loan
             || completed_result_loan
-            || shared_arrival_loan
             || view_loan
             || shared_buffer_presentation
         {
