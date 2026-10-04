@@ -159,16 +159,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result: AbstractStructuralCallResult::Scalar(result),
             dynamic_arguments,
-            claim_transfers,
             ..
-        } if dynamic_arguments.is_empty()
-            && scalar_shape(result.scalar_type).is_some()
-            && claim_transfers.is_empty() =>
-        {
-            // Requirements and crash continuations are proof and
-            // correspondence metadata: source projection retains their
-            // rosters, and legalization/selection replay compares them
-            // verbatim. They need no carrier, unlike claim transfers.
+        } if dynamic_arguments.is_empty() && scalar_shape(result.scalar_type).is_some() => {
+            // The result defines one scalar regardless of owned arguments.
+            // Projection retains claim transfers, requirements and crash
+            // continuations; independent replay rejoins their exact source
+            // rosters and the ordinary argument storage contract.
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::CallDynamic {
@@ -756,16 +752,14 @@ pub(super) fn validate(
             }
             continue;
         }
-        // Requirement obligations and crash continuations are discharged
-        // proof and correspondence metadata carried on the call, matching the
-        // admitted scalar `Call` lane; claim transfers still reject here.
+        // A Unit call defines no scalar. Its ownership and continuation
+        // rosters remain attached to the call for exact source replay.
         if let AbstractOperation::CallStructural {
-            claim_transfers,
             result: AbstractStructuralCallResult::Unit,
             ..
         } = &node.operation
         {
-            if result.is_some() || !node.definitions.is_empty() || !claim_transfers.is_empty() {
+            if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
             }
             continue;
