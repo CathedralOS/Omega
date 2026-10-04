@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.53, "load1_start": 6.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.69, "load1_start": 3.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -26,6 +26,8 @@ fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed
 	construction of `Slot` field `index`: value 9999 is outside its declared range `0..=15`
 fail/arithmetic/divide_by_zero_rejected rejected 168ms expected @2d8ed253669f
 	anonymous division by zero has no exact numeric value
+fail/arithmetic/exact_dispatch_divisor_unproven rejected 69ms expected @01974e342562+wt
+	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_divisor_unproven rejected 121ms expected @d9720a4fa49b+wt
 	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero and the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_integer_cast_unproven rejected 263ms expected @2d8ed253669f
@@ -642,8 +644,9 @@ fail/expressions/indexed_qualified_call_argument_mismatch rejected 581ms expecte
 	index compatibility condition `index-equality:Coordinate:choose::entry:call-0-0:Coordinate<7>==Coordinate<9>` is not established: actual `Coordinate<7>` and expected `Coordinate<9>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/expressions/match_float_equality_missing rejected 732ms expected @2d8ed253669f
 	floating Match equality requires one selected operator meaning
-fail/expressions/match_fractional_result rejected 283ms expected @2d8ed253669f
+fail/expressions/match_fractional_result rejected 69ms expected @01974e342562+wt
 	anonymous value `7/2` is not an integer and cannot land in `u64` in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
+	anonymous operand `7/2` is not an integer in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
 fail/expressions/match_mixed_result_domains rejected 292ms expected @2d8ed253669f
 	match arms produce incompatible values
 fail/expressions/match_result_double_move rejected 729ms expected @2d8ed253669f
@@ -1244,6 +1247,7 @@ pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 52
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms @2d8ed253669f
 pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms @2d8ed253669f
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms @2d8ed253669f
+pass/arithmetic/runtime_exact_dispatch_divisor_exit checked 961ms @01974e342562+wt
 pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1304ms @2d8ed253669f
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 973ms @d9720a4fa49b+wt
 pass/arithmetic/runtime_float_nan_comparison_exit checked 4994ms @2d8ed253669f

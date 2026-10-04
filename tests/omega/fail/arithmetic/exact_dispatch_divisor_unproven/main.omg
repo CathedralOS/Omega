@@ -1,0 +1,3 @@
+machine quotient(choose: bool, divisor: u32) -> u32 {
+    match choose { true -> 42u32 / divisor, _ -> 0u32 }
+}

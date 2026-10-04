@@ -12,6 +12,55 @@ fn check(source: &str) -> Result<(), String> {
 }
 
 #[test]
+fn exact_division_definedness_joins_dispatch_values_and_checks_each_arm() {
+    let bounded = "machine compute(choose: bool) -> u32 {
+        let divisor: u32 = match choose { true -> 3u32, _ -> 7u32 };
+        42u32 / divisor
+    }";
+    assert_eq!(check(bounded), Ok(()));
+    let unsafe_arm = "machine compute(choose: bool, divisor: u32) -> u32 {
+        match choose { true -> 42u32 / divisor, _ -> 0u32 }
+    }";
+    let error = check(unsafe_arm).expect_err("every executable arm owes its formation judgment");
+    assert!(error.contains("divisor must be proven nonzero"), "{error}");
+}
+
+#[test]
+fn exact_division_definedness_uses_dispatch_arm_facts_without_leaking_them() {
+    for source in [
+        "machine compute(divisor: u32) -> u32 {
+            match divisor != 0 { true -> 42u32 / divisor, _ -> 0u32 }
+        }",
+        "machine compute(divisor: u32) -> u32 {
+            match divisor { 0 -> 0u32, _ -> 42u32 / divisor }
+        }",
+        "machine compute(choose: bool) -> u32 {
+            42u32 / (match choose { true -> 3u32, _ -> 7u32 })
+        }",
+    ] {
+        assert_eq!(check(source), Ok(()), "{source}");
+    }
+    let leaked = "machine compute(divisor: u32) -> u32 {
+        let first: u32 = match divisor { 0 -> 0u32, _ -> 42u32 / divisor };
+        42u32 / divisor
+    }";
+    let error =
+        check(leaked).expect_err("the selected arm does not constrain the joined environment");
+    assert!(error.contains("divisor must be proven nonzero"), "{error}");
+    let changed = "data Divisor { value: u32; }
+        machine reset(divisor: &mut Divisor) -> u32 { divisor.value = 0; 42 }
+        machine compute(divisor: &mut Divisor) -> u32 {
+            match divisor.value != 0 {
+                true -> reset(divisor) / divisor.value,
+                _ -> 0u32
+            }
+        }";
+    let error =
+        check(changed).expect_err("a saved subject does not constrain a later written place");
+    assert!(error.contains("divisor must be proven nonzero"), "{error}");
+}
+
+#[test]
 fn exact_division_definedness_follows_the_shared_policy_catalog() {
     assert_eq!(
         exact_definedness_conditions(BinaryOperator::Divide),

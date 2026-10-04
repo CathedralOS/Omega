@@ -500,7 +500,30 @@ pub(super) fn narrow_environment_by_condition(
     let Some(comparison) = meaning::guard_comparison(program, machine, state, condition) else {
         return;
     };
-    let comparison = &comparison;
+    narrow_environment_by_comparison(
+        program,
+        machine,
+        state,
+        environment,
+        condition,
+        &comparison,
+        positive,
+    );
+}
+
+/// Authored guards and implicit value-pattern equality contribute the same
+/// facts. `condition` supplies occurrence custody; `comparison` supplies the
+/// actual operation and operands, including equality against a saved subject.
+/// Callers still invalidate facts across writes after that subject was saved.
+pub(super) fn narrow_environment_by_comparison(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &mut ValueEnvironment,
+    condition: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    positive: bool,
+) {
     if matches!(
         comparison.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -578,13 +601,18 @@ pub(super) fn narrow_environment_by_condition(
     // An authored comparison does not imply the primitive comparison
     // relation, even when one operand happens to be a literal or singleton.
     // Gate every fact consumer below, not only immutable-parameter projection.
+    let folded_operands_are_builtin = || {
+        meaning::folded_constant_is_builtin(program, machine, state, comparison.left)
+            && meaning::folded_constant_is_builtin(program, machine, state, comparison.right)
+    };
     if matches!(
         comparison.operator,
         BinaryOperator::Less
             | BinaryOperator::LessOrEqual
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
-    ) && !has_builtin_ordering(program, machine, state, condition)
+    ) && !(meaning::builtin_ordering(program, machine, state, condition, comparison)
+        && folded_operands_are_builtin())
         && !meaning::sealed_float_comparison(program, machine, state, condition, comparison)
     {
         return;
@@ -592,7 +620,8 @@ pub(super) fn narrow_environment_by_condition(
     if matches!(
         comparison.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) && !has_builtin_equality(program, machine, state, condition)
+    ) && !(meaning::builtin_boolean_equality(program, machine, state, condition, comparison)
+        && folded_operands_are_builtin())
         && !meaning::sealed_float_comparison(program, machine, state, condition, comparison)
     {
         return;
