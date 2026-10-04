@@ -164,14 +164,12 @@ pub(crate) fn walk_state_assignments(
 pub(crate) enum StateWriteQuery {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
-    ReferenceResult,
-    /// One state's slot transfer. Named successors belong to the finite
-    /// relation solver, so this walk validates only this state's operations.
-    StoredReferenceTransfer,
+    /// One state's origin transfer. Named successors belong to the finite
+    /// result/slot relation solver; every local statement and operand still
+    /// undergoes the ordinary write, exposure and captured-binding checks.
+    OriginTransfer { include_shared: bool },
     /// Only incoming statement boundaries, not the enclosing state's effects.
-    StatementPrefixes {
-        include_shared: bool,
-    },
+    StatementPrefixes { include_shared: bool },
 }
 
 /// A per-statement snapshot of the non-shared prefix walk's alias/stored
@@ -191,11 +189,11 @@ struct StatementPrefixCollection<'request> {
     prefixes: Vec<Option<CollectedStatementPrefix>>,
 }
 
-/// One walk returning both the whole-body prefix and requested statements'
-/// `Before`/`ReferenceBefore` context: `include_shared` selects the shared
-/// parameter-seeded `stored` exactly as `ReferenceResult` does, and entry i
-/// of the collected vector is what `Before(statement[i])` (or
-/// `ReferenceBefore`) returns for that boundary. A state's result arms share
+/// One local transfer walk returning requested statements' captured origins.
+/// `include_shared` selects shared parameter-seeded storage; entry i retains
+/// the context immediately before statement i. Named successors belong to
+/// the consuming relation solver, so this result is not a complete write-frame
+/// summary and must never enter that cache. A state's result arms share
 /// this walk instead of re-walking the prefix per arm. Unrequested boundaries
 /// retain their index as `None` without cloning accumulated origin evidence.
 /// Selection changes only snapshot materialization, never body validation.
@@ -219,11 +217,7 @@ pub(crate) fn walk_state_write_prefix_collected(
             state,
             symbols,
             inference,
-            if include_shared {
-                Some(StateWriteQuery::ReferenceResult)
-            } else {
-                None
-            },
+            Some(StateWriteQuery::OriginTransfer { include_shared }),
             Some(&mut collection),
             None,
         )?;
@@ -238,28 +232,12 @@ pub(super) fn stored_reference_transfer(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
-    inference.with_local_scope(|inference| {
-        let mut collection = StatementPrefixCollection {
-            requested: &|_| true,
-            prefixes: Vec::new(),
-        };
-        let prefix = walk_state_write_prefix_inner(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            Some(StateWriteQuery::StoredReferenceTransfer),
-            Some(&mut collection),
-            None,
-        )?;
-        Some((prefix, collection.prefixes))
-    })
+    walk_state_write_prefix_collected(program, machine, state, symbols, inference, true, &|_| true)
 }
 
 /// One prefix walk snapshotting the accumulator before every statement.
 /// `include_shared` selects the shared parameter-seeded accumulators exactly
-/// as `ReferenceResult`/`ReferenceBefore` do, so entry i is what
+/// as the local origin-transfer walk does, so entry i is what
 /// `Before(statement[i])` (or `ReferenceBefore`) returns for that boundary.
 /// Statements at or after an uncomputable point record `None`, matching the
 /// boundary walk's `None` for those indices exactly.
@@ -380,11 +358,11 @@ fn walk_state_write_prefix_inner(
     let include_shared = matches!(
         query,
         Some(
-            StateWriteQuery::ReferenceResult
-                | StateWriteQuery::StoredReferenceTransfer
-                | StateWriteQuery::StatementPrefixes {
-                    include_shared: true
-                }
+            StateWriteQuery::OriginTransfer {
+                include_shared: true
+            } | StateWriteQuery::StatementPrefixes {
+                include_shared: true
+            }
         )
     );
     let mut stored = if include_shared {
@@ -1145,7 +1123,10 @@ fn walk_state_write_prefix_inner(
                 }
             }
             StatementNode::Transition(transition) => {
-                if matches!(query, Some(StateWriteQuery::StoredReferenceTransfer)) {
+                if matches!(query, Some(StateWriteQuery::OriginTransfer { .. })) {
+                    // Operand effects and frozen-binding exposure were checked
+                    // above. The relation solver composes each named successor
+                    // using this statement's captured prefix, including cycles.
                     continue;
                 }
                 for target in [transition.target, transition.continuation] {
@@ -1282,11 +1263,7 @@ fn walk_state_write_prefix_inner(
     (query.is_none()
         || matches!(
             query,
-            Some(
-                StateWriteQuery::Complete
-                    | StateWriteQuery::ReferenceResult
-                    | StateWriteQuery::StoredReferenceTransfer
-            )
+            Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
         ))
     .then_some(StateWritePrefix { written, stored })
 }
