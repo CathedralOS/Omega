@@ -826,6 +826,13 @@ fn whole_reference_sources(
             }
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
+                    // The nominal lookup also peels reference shells. Every
+                    // crossing here must instead be admitted explicitly above
+                    // so an unsupported nested carrier cannot lose its access
+                    // check or its Referent step during field lookup.
+                    if crate::reference_shell(program, selected).is_some() {
+                        return None;
+                    }
                     let data = nominal_member_owner_type(program, selected)?;
                     let field =
                         program
@@ -1037,36 +1044,6 @@ pub fn terminal_call_reference_sources(
         &mut vec![state.symbol],
     )
     .map(|sources| sources.into_iter().map(|source| source.value).collect())
-}
-
-fn returned_whole_source_parameter(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-) -> Option<usize> {
-    let sources = returned_reference_sources(program, state)?;
-    let [source] = sources.as_slice() else {
-        return None;
-    };
-    if !source.path.is_empty() || !source.source.path.is_empty() {
-        return None;
-    }
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-        source.source.source
-    else {
-        return None;
-    };
-    program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)
-        .map(|(position, _)| position)
 }
 
 /// An owned formal transports its existing reference leaves. The source path
@@ -2202,31 +2179,18 @@ fn expression_source_leaf(
         .map(|source| (position, source.source))
 }
 
-/// Every normal completion must retain the same mutable caller ingress. The
-/// complete result relation owns internal jumps and alias substitution; this
-/// join authorizes only the conservative caller loan, not a selected path.
-fn mutable_view_source_parameter(
+/// Every normal completion must retain the same caller ingress at the declared
+/// result access. The complete relation owns internal jumps and captured alias
+/// substitution; distinct projected paths remain alternatives, not permissions.
+fn reference_result_source_parameter(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
-    mutable_borrowed_parts(program, state.return_type)?;
+    let (_, access) = stored_loan_parts(program, state.return_type)?;
     let sources = whole_reference_sources(program, state)?;
-    mutable_returned_source_parameter(program, state, &sources)
-}
-
-/// Substituted call origins retain their exact access and paths. The caller's
-/// result loan covers one ingress, so every normal completion must name that
-/// same parameter; an unknown or differently rooted alternative cannot vanish.
-fn mutable_returned_source_parameter(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    sources: &[ConstructionSource],
-) -> Option<usize> {
     let mut parameter = None;
     for source in sources {
-        if !source.value.path.is_empty()
-            || source.value.source.access != CheckedStructuralAccess::MutableBorrow
-        {
+        if !source.value.path.is_empty() || source.value.source.access != access {
             return None;
         }
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
@@ -2234,7 +2198,7 @@ fn mutable_returned_source_parameter(
         else {
             return None;
         };
-        let (position, formal) = program
+        let (position, _) = program
             .state_parameters(state)
             .iter()
             .enumerate()
@@ -2245,112 +2209,12 @@ fn mutable_returned_source_parameter(
                         .is_none()
             })
             .nth(parameter_index as usize)?;
-        if !view_source_parameter_is_mutable(program, formal)
-            || parameter.is_some_and(|prior| prior != position)
-        {
+        if parameter.is_some_and(|prior| prior != position) {
             return None;
         }
         parameter = Some(position);
     }
     parameter
-}
-
-/// The authored parameter position a shared `&'a V` view return borrows from,
-/// read off the callee's tail expression the same way
-/// `mutable_view_source_parameter` does for `&mut` results: a place borrow
-/// spelled `transition { _ -> &self.node }` walks back through member folds
-/// and `&` view loans until it reaches a parameter or `*self`. The loans a
-/// shared derivation rejoins through are `Read` loans — `&mut` storage may
-/// weaken to a shared read, but the denoted root must itself be readable, so
-/// a `&write` carrier never admits a shared result.
-fn shared_view_source_parameter(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-) -> Option<usize> {
-    if shared_borrowed_parts(program, state.return_type).is_none() {
-        return None;
-    }
-    let expression = tail_return_expression(program, state)?;
-    let Some(machine) = program.machine_holding_state(state.symbol) else {
-        return None;
-    };
-    let authored = program.state_parameters(state);
-    // A tail `&self.node` spells the borrow explicitly; a bare `self`
-    // tail is the same shared source through the `&self -> &T` coercion,
-    // naming the receiver without a borrow expression at all.
-    let mut symbol = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_semantics::ReferenceAccess::Shared =>
-        {
-            let mut cursor = borrow.target;
-            loop {
-                match program.expression_table.expression(cursor) {
-                    ExpressionNode::Name(name) => break name.symbol,
-                    ExpressionNode::Member(member) => cursor = member.receiver,
-                    ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
-                    _ => {
-                        return None;
-                    }
-                }
-            }
-        }
-        ExpressionNode::Name(name) => name.symbol,
-        _ => {
-            return None;
-        }
-    };
-    for _ in 0..8 {
-        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
-            break;
-        }
-        if view_self_member_symbol(program, state, machine.symbol, symbol).is_some() {
-            symbol = machine.symbol;
-            continue;
-        }
-        let Some(borrow_state) = facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, candidate)| candidate)
-            .find(|candidate| {
-                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-            })
-        else {
-            return None;
-        };
-        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.owner_symbol == symbol
-                && matches!(
-                    loan.kind,
-                    checked_trees::BorrowAccessKind::Read
-                        | checked_trees::BorrowAccessKind::Mutable
-                )
-                && facts.borrow.loan_owner_path(loan).is_empty()
-        });
-        let Some((_, loan)) = loans.next() else {
-            return None;
-        };
-        if loans.next().is_some() {
-            return None;
-        }
-        symbol = loan.root_symbol;
-    }
-    if authored.iter().all(|parameter| parameter.symbol != symbol) && symbol != machine.symbol {
-        return None;
-    }
-    let position = if symbol == machine.symbol {
-        authored.iter().position(|parameter| parameter.is_self)?
-    } else {
-        authored
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)?
-    };
-    if !view_source_parameter_is_readable(program, authored.get(position)?) {
-        return None;
-    }
-    Some(position)
 }
 
 /// The callee-side root a shared `&` view result denotes: any parameter a
@@ -2374,47 +2238,6 @@ fn view_source_parameter_is_mutable(
     parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
 }
 
-/// The field symbol `root` names inside the `*self` receiver's attached data,
-/// when `self` is mutably borrowed — the root a minted view loan publishes
-/// for `self.<field>` storage.
-fn view_self_member_symbol(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    machine: SymbolHandle,
-    root: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let parameters = program.state_parameters(state);
-    let self_parameter = parameters.iter().find(|parameter| parameter.is_self)?;
-    if !view_source_parameter_is_mutable(program, self_parameter) {
-        return None;
-    }
-    let mut type_reference = self_parameter.type_reference;
-    let mut symbol = loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => break *symbol,
-            _ => return None,
-        }
-    };
-    if symbol == machine {
-        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)?;
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
-}
-
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
@@ -2434,11 +2257,10 @@ pub fn result_loan(
     };
     // `mutable_borrowed_parts` peels every `&mut`, including the whole
     // primitive references `parts` already owns; those keep the ingress and
-    // leaf rosters. Only a non-primitive `&mut` view takes the tail walk.
-    // A shared `&T` reference result is the read-side member of the same
-    // family: primitive `&u8` results are Unrestricted and reach custody
-    // through `permits_disposal`, while a `&` record referent is Affine and
-    // needs this tail walk exactly like a `&mut` view does.
+    // leaf rosters. Non-primitive shared and mutable views use the same
+    // complete result relation; their declared access still determines the
+    // independent caller loan checked below. Primitive shared results remain
+    // Unrestricted and reach custody through `permits_disposal`.
     let mutable_view = parts(program, local.type_reference).is_none()
         && mutable_borrowed_parts(program, local.type_reference).is_some();
     let shared_view = parts(program, local.type_reference).is_none()
@@ -2465,9 +2287,9 @@ pub fn result_loan(
     // The returned carrier either forwards a whole `&mut` ingress argument or
     // selects one declared leaf out of an owned record argument. Both lanes
     // must end in the same single result loan below.
-    // A `&mut` view return borrows a projection out of its callee's `&mut`
-    // storage, resolved by the tail-expression source walk; the `parts` and
-    // shared-borrow lanes keep the whole-ingress and leaf rosters.
+    // A shared or mutable view may select different projections across
+    // internal states, but every normal result must retain one caller ingress.
+    // Primitive reference results keep their exact whole/owned-leaf transfer.
     let leaf = if mutable_view || shared_view {
         None
     } else {
@@ -2476,13 +2298,8 @@ pub fn result_loan(
             .then(|| source_leaf(program, callee))
             .flatten()
     };
-    let position = if mutable_view {
-        let analysis = mutable_view_source_parameter(program, callee);
-        analysis?
-    } else if shared_view {
-        let analysis = shared_view_source_parameter(program, facts, callee)
-            .or_else(|| returned_whole_source_parameter(program, callee));
-        analysis?
+    let position = if mutable_view || shared_view {
+        reference_result_source_parameter(program, callee)?
     } else {
         leaf.as_ref()
             .map(|(position, _)| *position)
