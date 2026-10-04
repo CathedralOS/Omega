@@ -1408,8 +1408,8 @@ pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+
 pass/borrows/returned_record_field_read_exit checked 935ms @2816825e8941
 pass/borrows/returned_record_method_receiver_exit checked 1304ms @011fd400e8c1+wt
 pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
-pass/borrows/runtime_affine_local_case_return_exit rejected 5536ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "choose", reason: "scalar callee has no checked executable body", omission: Some("`choose` has no admitted body (local construction stopped at state graph: terminator: conditional successors: edge cleanup: no state plan, state 1)") })
+pass/borrows/runtime_affine_local_case_return_exit rejected 3980ms @dac9585f443
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(ScalarReturnAffineDiscardsMismatch { machine: MachineId(2), block: BlockId(19) }))
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
@@ -1476,8 +1476,7 @@ pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
-pass/calls/local_fixed_byte_array_loan_exit rejected 4126ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(20), reason: BlockOperation { block: BlockId(21), operation: OperationId(30) } }))
+pass/calls/local_fixed_byte_array_loan_exit checked 8797ms @dac9585f443
 pass/calls/local_nested_record_call_then_state_exit checked 2608ms @e72f620f1da8+wt
 pass/calls/local_projected_field_argument_exit checked 1231ms @2d8ed253669f
 pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8ed253669f
@@ -1492,8 +1491,7 @@ pass/calls/local_records_mixed_record_result_arguments_exit checked 2047ms @2d8e
 pass/calls/machine_self_call_recursion_compile checked 501ms @2d8ed253669f
 pass/calls/mixed_projection_sources_in_one_call checked 1786ms @6de152ee297f
 pass/calls/mixed_value_forwarding_exit checked 1124ms @4d9c84188259+wt
-pass/calls/mutable_output_host_call rejected 3844ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(6), reason: BlockOperation { block: BlockId(7), operation: OperationId(17) } }))
+pass/calls/mutable_output_host_call checked 8060ms @dac9585f443
 pass/calls/mutable_receiver_computation_exit checked 1451ms @2d8ed253669f
 pass/calls/mutable_receiver_scalar_destinations_exit checked 1901ms @2d8ed253669f
 pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
@@ -1553,8 +1551,7 @@ pass/calls/runtime_local_scalar_array_element_loan_exit checked 868ms @54b18fcb7
 pass/calls/runtime_loop_rotation_exit checked 1398ms @2d8ed253669f
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
-pass/calls/runtime_mutable_call_before_transition_args_exit rejected 4136ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(3), reason: BlockOperation { block: BlockId(4), operation: OperationId(7) } }))
+pass/calls/runtime_mutable_call_before_transition_args_exit checked 8001ms @dac9585f443
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms @3daca3fd87c2
@@ -1599,8 +1596,7 @@ pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
 pass/calls/static_arithmetic_name_callback_exit checked 2237ms @313d9f292579+wt
 pass/calls/static_context_forwarded_through_state_arms_exit checked 1634ms @a9f373809a48+wt
 pass/calls/static_context_forwarded_twice_exit checked 1319ms @ca8c127c90c5
-pass/calls/static_state_context_field_window_exit rejected 4298ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(23), reason: BlockOperation { block: BlockId(24), operation: OperationId(35) } }))
+pass/calls/static_state_context_field_window_exit checked 9360ms @dac9585f443
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
 pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms @2d8ed253669f
@@ -1869,8 +1865,7 @@ pass/domains/runtime_qualified_view_field_parameter_store_exit checked 1334ms @6
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
 pass/domains/semantic_cast_guard_chain_mint checked 341ms @2d8ed253669f
 pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
-pass/domains/threaded_subject_keeps_established_domains rejected 4923ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(10), reason: BlockOperation { block: BlockId(11), operation: OperationId(10) } }))
+pass/domains/threaded_subject_keeps_established_domains checked 6377ms @dac9585f443
 pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
 pass/domains/unit_membership_postcondition_exit checked 1307ms @4e4bfed13aee+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
@@ -2056,18 +2051,12 @@ pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed25
 pass/generics/runtime_value_generic_subject_exit checked 1300ms @2d8ed253669f
 pass/host/process_exit_i32_status_mapped checked 1100ms @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms @2d8ed253669f
-pass/host/runtime_console_bounded_line_exit rejected 4305ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(46), reason: BlockOperation { block: BlockId(47), operation: OperationId(43) } }))
-pass/host/runtime_console_bounded_line_full_exit rejected 3720ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(46), reason: BlockOperation { block: BlockId(47), operation: OperationId(43) } }))
-pass/host/runtime_console_bounded_line_lf_exit rejected 2865ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(46), reason: BlockOperation { block: BlockId(47), operation: OperationId(43) } }))
-pass/host/runtime_console_bounded_line_middle_window_exit rejected 3803ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(25), reason: BlockOperation { block: BlockId(26), operation: OperationId(32) } }))
-pass/host/runtime_console_bounded_line_partial_eof_exit rejected 2446ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(46), reason: BlockOperation { block: BlockId(47), operation: OperationId(43) } }))
-pass/host/runtime_console_byte_echo_exit rejected 3392ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(2), reason: BlockOperation { block: BlockId(2), operation: OperationId(3) } }))
+pass/host/runtime_console_bounded_line_exit checked 6558ms @dac9585f443
+pass/host/runtime_console_bounded_line_full_exit checked 6410ms @dac9585f443
+pass/host/runtime_console_bounded_line_lf_exit checked 5138ms @dac9585f443
+pass/host/runtime_console_bounded_line_middle_window_exit checked 5602ms @dac9585f443
+pass/host/runtime_console_bounded_line_partial_eof_exit checked 4986ms @dac9585f443
+pass/host/runtime_console_byte_echo_exit checked 3670ms @dac9585f443
 pass/host/runtime_gui_foreground_window_exit rejected 1982ms @c47f8652484
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 2073ms @c47f8652484
@@ -2530,8 +2519,8 @@ pass/text/byte_content_store_continuation_exit checked 1157ms @381ab55e53d2+wt
 pass/text/copy_record_view_field_state_transfer_exit checked 822ms @ef2ef25a3ab8+wt
 pass/text/declared_record_view_field_fill_exit checked 875ms @20ff4f468d4e+wt
 pass/text/local_bounded_byte_indexed_write_exit checked 1159ms @251097c4c144+wt
-pass/text/local_bounded_text_case_result_loan_exit rejected 3822ms @c5d32a00863
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(22)))
+pass/text/local_bounded_text_case_result_loan_exit rejected 4097ms @dac9585f443
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
 pass/text/local_bounded_text_scalar_loan_exit incomplete 7392ms @c5d32a00863
 	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
@@ -2560,10 +2549,8 @@ pass/text/runtime_owned_string_byte_view_exit checked 1422ms @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit checked 671ms @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 5408ms @40866b59e47
-pass/text/runtime_stdin_command_branch_exit rejected 4847ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(56), reason: BlockOperation { block: BlockId(57), operation: OperationId(52) } }))
-pass/text/runtime_stdin_line_buffering_exit rejected 4798ms @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ControlCycleIneligible { block: BlockId(4), reason: BlockOperation { block: BlockId(5), operation: OperationId(12) } }))
+pass/text/runtime_stdin_command_branch_exit checked 15897ms @dac9585f443
+pass/text/runtime_stdin_line_buffering_exit checked 7984ms @dac9585f443
 pass/text/runtime_string_concat_two_fields_exit checked 1760ms @2d8ed253669f
 pass/text/runtime_string_stored_suffix_exit rejected 1160ms @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 3)
