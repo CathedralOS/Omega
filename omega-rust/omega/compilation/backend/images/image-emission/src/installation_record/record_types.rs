@@ -552,6 +552,8 @@ pub struct InstalledForwardedDynamicParameterCall {
 pub struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,

@@ -26,6 +26,7 @@ pub(super) fn emit(
     Ok(FunctionFragment {
         machine: selected.machine,
         attachment: selected.attachment,
+        nominal_cleanup_subject: selected.nominal_cleanup_subject,
         provenance: selected.provenance.clone(),
         byte_count,
         bytes,

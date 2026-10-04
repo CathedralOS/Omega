@@ -290,6 +290,7 @@ mod cleanup_tests {
                     place,
                     structural_type,
                     cleanup_machine: machine,
+                    consumed_claims: Vec::new(),
                     cleanup_receiver: Some(PlaceId::new(3).unwrap()),
                     requirement_obligations: Vec::new(),
                 },
@@ -379,6 +380,7 @@ mod cleanup_tests {
         target_operations::TargetFunction {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
+            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: target_operations::TerminalPsiProvenance {

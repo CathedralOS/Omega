@@ -135,6 +135,7 @@ pub(super) fn lower_machine(
     Ok(AbstractFunction {
         machine: machine.id,
         attachment: machine.attachment,
+        nominal_cleanup_subject: machine.nominal_cleanup_subject,
         entry: machine.entry,
         parameters: machine
             .parameters

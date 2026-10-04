@@ -166,6 +166,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             declared_service_reach: Vec::new(),
             id: entry,
             attachment: None,
+            nominal_cleanup_subject: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             ranked_scc: None,

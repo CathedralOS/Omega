@@ -92,6 +92,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
         declared_service_reach: Vec::new(),
         id: caller_id,
         attachment,
+        nominal_cleanup_subject: None,
         structural_parameters: Vec::new(),
         ranked_scc: None,
         entry_claims: Vec::new(),
@@ -180,6 +181,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             declared_service_reach: Vec::new(),
             id: tail_id,
             attachment,
+            nominal_cleanup_subject: None,
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: parameter,

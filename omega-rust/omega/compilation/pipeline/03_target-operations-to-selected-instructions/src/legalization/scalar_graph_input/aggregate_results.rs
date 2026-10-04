@@ -247,8 +247,10 @@ pub(super) fn header(
     let graph = &target.graph;
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
-        || target.attachment != abstracted.attachment
-        || target.attachment != optimized.attachment
+        || (target.attachment != abstracted.attachment
+            || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
+        || (target.attachment != optimized.attachment
+            || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
         || (!matches!(abstracted.result, AbstractFunctionResult::Scalar(_))
             && (target.scalar_abi.is_some() || target.mixed_structural_scalar_abi.is_some()))
         || optimized.result != abstracted.result

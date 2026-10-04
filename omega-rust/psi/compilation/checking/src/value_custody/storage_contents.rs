@@ -60,12 +60,11 @@ enum ContentsRequirement {
     /// the transfer. Bounded byte predicates describe live contents as well as
     /// storage; accepting their shape does not prove a fresh initializer.
     RepresentedOwned,
-    /// The same no-code owned storage as `NumericOwned`, except a data
-    /// declaration marked `[linear]` remains a valid carrier: linear custody
-    /// keeps its own claim accounting, so a selection join only needs to know
-    /// the value holds no loans, nominal cleanup, or recursive storage. Nested
-    /// linear children are equally plain linear carriers, never a second kind
-    /// of obligation the join would have to name separately.
+    /// Finite owned storage whose linear claims and nominal cleanup remain
+    /// explicit custody obligations of the consuming operation. Classifying
+    /// whole storage grants neither partial moves nor automatic disposition;
+    /// those require the exact owner's independent custody and cleanup plans.
+    /// References, slices and recursive by-value storage remain excluded.
     LinearOwned,
     /// Owned storage a consuming machine may carry through a `drop(value)`
     /// call: like `NumericOwned` it forbids loans, recursive carriers, and
@@ -126,11 +125,11 @@ pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHa
     has_plain_owned_contents_with_substitutions(program, reference, &[])
 }
 
-/// Owned storage a linear selection join can carry whole: no references,
-/// slices, nominal cleanup, or recursive data, with the numeric-constraint
-/// tolerance of [`has_plain_owned_contents_with_numeric_constraints`]. Linear
-/// declarations remain carriers because the claim itself is tracked by the
-/// caller's own custody machinery.
+/// Finite owned storage a linear selection or call can carry whole, including
+/// nominal-cleanup owners. Linear claims and cleanup obligations travel with
+/// custody; this storage judgment cannot discharge either or authorize a
+/// partial move. References, slices and recursive data remain excluded, with
+/// the existing numeric-constraint tolerance of linear storage.
 pub fn has_linear_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::LinearOwned)
 }
@@ -460,7 +459,8 @@ fn resolve(
                     || instance.properties != data.properties
                     || (!matches!(
                         requirement,
-                        ContentsRequirement::CleanupOwned
+                        ContentsRequirement::LinearOwned
+                            | ContentsRequirement::CleanupOwned
                             | ContentsRequirement::StructuralConstruction
                             | ContentsRequirement::BorrowedStorage
                     ) && owns_drop_hook(program, *base_symbol))
@@ -739,7 +739,8 @@ fn check_contents(
         })
         || (!matches!(
             requirement,
-            ContentsRequirement::CleanupOwned
+            ContentsRequirement::LinearOwned
+                | ContentsRequirement::CleanupOwned
                 | ContentsRequirement::StructuralConstruction
                 | ContentsRequirement::BorrowedStorage
         ) && owns_drop_hook(program, *symbol))

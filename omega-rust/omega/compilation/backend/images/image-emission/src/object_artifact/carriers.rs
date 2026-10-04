@@ -228,6 +228,8 @@ impl installation_evidence::ObjectEvidence for ObjectArtifact {
 pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,

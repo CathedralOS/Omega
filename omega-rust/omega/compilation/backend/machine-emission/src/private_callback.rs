@@ -114,6 +114,7 @@ fn materialize_function(
     MachineCodeFunction {
         machine,
         attachment: targeted.attachment,
+        nominal_cleanup_subject: targeted.nominal_cleanup_subject,
         scalar_abi: targeted.scalar_abi.clone(),
         mixed_structural_scalar_abi: targeted.mixed_structural_scalar_abi.clone(),
         structural_call_scalar_return: None,

@@ -185,6 +185,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                 .as_deref()
                 .map(|identity| lookup_type_id(type_ids, identity))
                 .transpose()?,
+            nominal_cleanup_subject: None,
             parameters: scalar_parameters,
             structural_parameters,
             ranked_scc: None,

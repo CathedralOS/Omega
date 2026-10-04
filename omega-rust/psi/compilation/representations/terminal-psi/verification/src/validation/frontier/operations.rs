@@ -103,16 +103,72 @@ pub(super) fn apply_operation(
     // its current home. Recheck that exact home before transferring the
     // live lineage; an earlier or future result cannot stand in for it.
     if let OperationKind::CallStructural {
+        callee,
         structural_arguments,
         claim_transfers,
         ..
     }
     | OperationKind::CallStructuralWithScalarArguments {
+        callee,
         structural_arguments,
         claim_transfers,
         ..
     } = &operation.kind
     {
+        let callee = machines.get(callee).expect("call target was validated");
+        for (argument_index, (argument, parameter)) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+            .enumerate()
+        {
+            if argument.access != StructuralAccess::Owned {
+                continue;
+            }
+            let mut expected = callee
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.input == parameter.place)
+                .map(|claim| (claim.claim, claim.path.as_slice()))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            for claim in &callee.content_entry_claims {
+                if claim.input.root == parameter.place {
+                    expected.entry(claim.claim).or_insert(&[]);
+                }
+            }
+            let mut expected_paths = expected.into_values().collect::<Vec<_>>();
+            let mut actual_paths = frontier
+                .claims
+                .iter()
+                .filter(|(_, claim)| {
+                    claim.input == Some(argument.place) && claim.path.starts_with(&argument.path)
+                })
+                .map(|(identity, claim)| {
+                    if claim_transfers
+                        .iter()
+                        .filter(|transfer| {
+                            transfer.claim == *identity
+                                && transfer.argument_index as usize == argument_index
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(ModuleError::UnitCallClaimPresenceMismatch {
+                            operation: operation.id,
+                            argument_index: argument_index as u32,
+                        });
+                    }
+                    Ok(&claim.path[argument.path.len()..])
+                })
+                .collect::<Result<Vec<_>, ModuleError>>()?;
+            expected_paths.sort();
+            actual_paths.sort();
+            if expected_paths != actual_paths {
+                return Err(ModuleError::UnitCallClaimPresenceMismatch {
+                    operation: operation.id,
+                    argument_index: argument_index as u32,
+                });
+            }
+        }
         for transfer in claim_transfers {
             let argument = structural_arguments
                 .get(transfer.argument_index as usize)
@@ -126,7 +182,10 @@ pub(super) fn apply_operation(
                     claim: transfer.claim,
                 },
             )?;
-            if claim.input != Some(argument.place) || !claim.path.starts_with(&argument.path) {
+            if argument.access != StructuralAccess::Owned
+                || claim.input != Some(argument.place)
+                || !claim.path.starts_with(&argument.path)
+            {
                 return Err(ModuleError::ClaimActionPlaceMismatch {
                     operation: operation.id,
                     claim: transfer.claim,

@@ -140,6 +140,8 @@ pub struct TerminalExecution {
 
 #[derive(Clone)]
 pub(crate) struct ExecutableMachine {
+    pub(crate) attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    pub(crate) nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     pub(crate) parameters: Vec<terminal_psi::ValueDeclaration>,
     pub(crate) structural_parameters: Vec<StructuralParameterDeclaration>,
     pub(crate) structural_places: Vec<terminal_psi::StructuralPlaceDeclaration>,

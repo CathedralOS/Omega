@@ -39,7 +39,8 @@ pub(super) fn replay(
         .cloned()
         .collect();
     if proposed.machine != target.machine
-        || proposed.attachment != target.attachment
+        || (proposed.attachment != target.attachment
+            || proposed.nominal_cleanup_subject != target.nominal_cleanup_subject)
         || proposed.provenance != target.provenance
         || proposed.call_plan != call_plan
         || proposed.dynamic_parameters != target.graph.dynamic_parameters

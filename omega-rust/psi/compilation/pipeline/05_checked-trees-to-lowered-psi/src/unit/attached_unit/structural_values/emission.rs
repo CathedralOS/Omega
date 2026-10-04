@@ -96,14 +96,36 @@ pub(in crate::unit::attached_unit) fn establishment_claims(
                 )
                 .map_err(LoweringError::Unsupported)?,
             )?;
-            super::super::operation_frame::resolve_established_claim(
-                claims,
-                machine,
-                state,
-                result.statement_index as usize,
-                event,
-            )
-            .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
+            let transferred = checked
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .any(|(_, source)| {
+                    source.machine_symbol == machine
+                        && source.state_symbol == state
+                        && source.source == event.source
+                        && source.kind == language_semantics::PermissionEventKind::Transfer
+                        && source.access == language_semantics::PermissionAccess::Owned
+                        && source.multiplicity == Multiplicity::Linear
+                        && source.obligation_live
+                        && source.claim_identity == event.claim_identity
+                });
+            let claim = if transferred {
+                // A move can only resolve an identity this caller already
+                // holds. A malformed paired establishment cannot mint it.
+                super::super::lookup_claim_id(claims.bindings(), event.claim_identity)
+            } else {
+                super::super::operation_frame::resolve_established_claim(
+                    claims,
+                    machine,
+                    state,
+                    result.statement_index as usize,
+                    event,
+                )
+            }?;
+            Ok::<_, LoweringError>(terminal_psi::StructuralResultClaimBinding { claim, path })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     result_claims.sort();
@@ -314,6 +336,7 @@ pub(crate) fn emit(
         owners,
         result_access,
         published_places: Vec::new(),
+        arrival_claims: Vec::new(),
     };
     let place = if emission.sources.is_empty()
         && let Some((source, region, loan)) = match &checked
@@ -366,7 +389,7 @@ pub(crate) fn emit(
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             )
         {
-            emission.materialize_place(place)?
+            emission.materialize_place(place, &result_claims)?
         } else {
             place
         }
@@ -396,20 +419,37 @@ pub(crate) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "structural value place was not declared",
             ))?;
-    if !result_claims.is_empty() {
-        let result = emission
-            .operations
-            .operations
-            .iter_mut()
-            .filter_map(|operation| match &mut operation.result {
-                OperationResult::Structural(result) => Some(result),
-                _ => None,
-            })
-            .find(|result| result.place == place)
-            .ok_or(LoweringError::Unsupported(
-                "linear structural value producer is missing",
-            ))?;
-        result.claims = result_claims;
+    let arrival_claims = emission
+        .arrival_claims
+        .iter()
+        .find(|(arrival, _)| *arrival == place)
+        .map(|(_, claims)| claims.as_slice())
+        .unwrap_or_default();
+    match completed_declaration.kind {
+        StructuralPlaceKind::BlockParameter { .. } => {
+            if arrival_claims != result_claims {
+                return unsupported("linear arrival changed its transferred claim roster");
+            }
+        }
+        StructuralPlaceKind::OperationResult { .. } if !result_claims.is_empty() => {
+            let produced = emission
+                .operations
+                .operations
+                .iter_mut()
+                .filter_map(|operation| match &mut operation.result {
+                    OperationResult::Structural(result) => Some(result),
+                    _ => None,
+                })
+                .find(|result| result.place == place)
+                .ok_or(LoweringError::Unsupported(
+                    "linear structural value producer is missing",
+                ))?;
+            if !produced.claims.is_empty() && produced.claims != result_claims {
+                return unsupported("linear structural value changed its producer claims");
+            }
+            produced.claims = result_claims;
+        }
+        _ => {}
     }
     let completed = completed_storage::completed_result(
         place,
@@ -417,6 +457,7 @@ pub(crate) fn emit(
         emission.operations,
         emission.evaluation.current,
         &emission.evaluation.block_structural_parameters,
+        arrival_claims,
     )?;
     emission.evaluation.establish_structural_binding(
         checked,
@@ -680,6 +721,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// Exact declarations already published by nested operation emission.
     /// These are receipts, not new catalog entries owned by this value.
     published_places: Vec<StructuralPlaceDeclaration>,
+    /// Claim identities arriving through whole-owned edges. These are copied
+    /// from the source custody, never attached to a fictitious producer.
+    arrival_claims: Vec<(PlaceId, Vec<terminal_psi::StructuralResultClaimBinding>)>,
 }
 
 pub(super) struct ValueContinuation {
@@ -1398,8 +1442,68 @@ impl Emission<'_, '_, '_> {
     /// source place directly would alias unrestricted records instead of copying
     /// their backing, and would republish an earlier result's declaration.
     /// The existing block binder copies unrestricted payloads and transfers
-    /// affine ownership; source replay has already checked the exact operand.
-    fn materialize_place(&mut self, source: PlaceId) -> Result<PlaceId, LoweringError> {
+    /// owned custody; source replay has already checked the exact operand.
+    fn materialize_place(
+        &mut self,
+        source: PlaceId,
+        expected_claims: &[terminal_psi::StructuralResultClaimBinding],
+    ) -> Result<PlaceId, LoweringError> {
+        // The checked move receipt and the already emitted source must name
+        // the same complete claim set before binding its successor place.
+        let mut bindings = self
+            .operations
+            .structural_values
+            .iter()
+            .filter(|(_, binding)| binding.place() == source);
+        let binding = bindings.next().map(|(_, binding)| binding);
+        if bindings.next().is_some() {
+            return unsupported("owned move source has duplicate completed bindings");
+        }
+        let source_claims = if let Some(binding) = binding {
+            if binding.structural_type() != self.structural_type
+                || binding.multiplicity() != self.multiplicity
+            {
+                return unsupported("owned move source changed its completed carrier");
+            }
+            binding.claims().to_vec()
+        } else if let Some(result) = self
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == source)
+        {
+            if result.structural_type != self.structural_type
+                || result.multiplicity != self.multiplicity
+            {
+                return unsupported("owned move source changed its produced carrier");
+            }
+            result.claims.clone()
+        } else {
+            let parameter = self
+                .evaluation
+                .structural_parameters
+                .iter()
+                .map(|(_, parameter)| parameter)
+                .chain(&self.evaluation.block_structural_parameters)
+                .find(|parameter| parameter.place == source)
+                .ok_or(LoweringError::Unsupported(
+                    "owned move has no source custody",
+                ))?;
+            if parameter.structural_type != self.structural_type
+                || parameter.multiplicity != self.multiplicity
+                || parameter.access != StructuralAccess::Owned
+            {
+                return unsupported("owned move source changed its parameter custody");
+            }
+            // Entry identities have no operation result. Source replay joined
+            // the exact Transfer/Establish pair, and ClaimBindings resolved
+            // those identities without minting at this move. The receiver
+            // independently derives the live set from the actual incoming edge.
+            expected_claims.to_vec()
+        };
+        if source_claims != expected_claims {
+            return unsupported("owned move substituted its source claim identities");
+        }
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {
@@ -1482,14 +1586,17 @@ impl Emission<'_, '_, '_> {
             residuals: Vec::new(),
         };
         self.complete_value(source, None, &continuation)?;
+        self.arrival_claims.push((place, source_claims));
         self.start(block);
-        if self.multiplicity == StructuralMultiplicity::Affine {
+        if self.multiplicity != StructuralMultiplicity::Unrestricted {
             self.evaluation.structural_locals.retain(
                 |crate::expression_preparation::bindings::StructuralLocalBinding {
                      argument,
                      ..
                  }| argument.place != source,
             );
+        }
+        if self.multiplicity == StructuralMultiplicity::Affine {
             for crate::expression_preparation::bindings::StructuralLocalBinding {
                 argument, ..
             } in &mut self.evaluation.structural_locals

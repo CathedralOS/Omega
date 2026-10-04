@@ -42,6 +42,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
     let function = AbstractFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         entry: BlockId::new(1).unwrap(),
         parameters: vec![],
         structural_parameters: vec![],
@@ -85,6 +86,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
     let selected = SelectedFunction {
         machine: function.machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,

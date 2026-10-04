@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
+use semantic_vocabulary::{
+    BlockId, ClaimId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeShape,
@@ -15,7 +17,7 @@ use crate::custody::bind_structural_arguments;
 use crate::custody::remove_affine_root;
 use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
-use crate::execution::TerminalExecution;
+use crate::execution::{LiveClaim, TerminalExecution};
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 
@@ -26,7 +28,8 @@ pub(crate) struct BlockBindings {
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
-    affine_sources: BTreeSet<PlaceId>,
+    owned_sources: BTreeSet<PlaceId>,
+    claims: BTreeMap<ClaimId, LiveClaim>,
     /// Roots whose projected children moved on this edge. Their whole-root
     /// frontier entries are split by the caller, not removed as transfers.
     projected_sources: BTreeSet<PlaceId>,
@@ -50,7 +53,10 @@ impl BlockBindings {
         execution
             .structural_scalar_fields
             .extend(self.record_payload);
-        for source in self.affine_sources {
+        for source in self.owned_sources {
+            execution
+                .live_claims
+                .retain(|_, claim| claim.place != Some(source));
             execution.structural_values.remove(&source);
             execution.scalar_case_values.remove(&source);
             execution.scalar_array_values.remove(&source);
@@ -71,6 +77,7 @@ impl BlockBindings {
             execution.scalar_case_values.remove(destination);
             execution.element_view_values.remove(destination);
         }
+        execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
         execution.scalar_case_values.extend(self.scalar_cases);
@@ -104,7 +111,7 @@ impl BlockBindings {
                     *place,
                 ))?;
             if !discarded.insert(*place)
-                || self.affine_sources.contains(place)
+                || self.owned_sources.contains(place)
                 || self.projected_sources.contains(place)
                 || execution
                     .live_claims
@@ -125,7 +132,7 @@ impl BlockBindings {
         }
         if residual
             .iter()
-            .any(|discard| self.affine_sources.contains(&discard.place))
+            .any(|discard| self.owned_sources.contains(&discard.place))
         {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
@@ -141,7 +148,7 @@ impl BlockBindings {
                     .live_affine_frontier
                     .iter()
                     .any(|entry| entry.place == *place)
-                    && !self.affine_sources.contains(place)
+                    && !self.owned_sources.contains(place)
                     && !self.projected_sources.contains(place)
                     && !discarded.contains(place)
             })
@@ -197,7 +204,8 @@ impl TerminalExecution {
         let mut scalar_cases = BTreeMap::new();
         let mut scalar_arrays = BTreeMap::new();
         let mut case_destinations = BTreeSet::new();
-        let mut affine_sources = BTreeSet::new();
+        let mut owned_sources = BTreeSet::new();
+        let mut claims = BTreeMap::new();
         let mut projected_sources = BTreeSet::new();
         for (position, (parameter, argument)) in block
             .structural_parameters
@@ -209,15 +217,17 @@ impl TerminalExecution {
                 || parameter.is_self
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
+                || (parameter.access != StructuralAccess::Owned
+                    && self
+                        .live_claims
+                        .values()
+                        .any(|claim| claim.place == Some(argument.place)))
                 || argument.access != parameter.access
                 || (!argument.path.is_empty()
                     && !(matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     ) || (allow_projected && parameter.access == StructuralAccess::Owned)))
-                || self.live_claims.values().any(|claim| {
-                    claim.place == Some(argument.place) || claim.place == Some(parameter.place)
-                })
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
@@ -261,11 +271,7 @@ impl TerminalExecution {
             let mut projected_value = None;
             match parameter.access {
                 StructuralAccess::Owned => {
-                    if !matches!(
-                        parameter.multiplicity,
-                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                    ) || !self.block_parameter_is_declared(target, parameter)
-                    {
+                    if !self.block_parameter_is_declared(target, parameter) {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                     if argument.path.is_empty() {
@@ -302,12 +308,37 @@ impl TerminalExecution {
                         {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         }
-                        if parameter.multiplicity == StructuralMultiplicity::Affine
-                            && !affine_sources.insert(argument.place)
+                        if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                            && !owned_sources.insert(argument.place)
                         {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         }
+                        let mut count = 0;
+                        for (identity, claim) in &self.live_claims {
+                            if claim.place != Some(argument.place) {
+                                continue;
+                            }
+                            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            let mut moved = claim.clone();
+                            moved.place = Some(parameter.place);
+                            if claims.insert(*identity, moved).is_some() {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            count += 1;
+                        }
+                        if parameter.multiplicity == StructuralMultiplicity::Linear && count == 0 {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
                     } else {
+                        if self
+                            .live_claims
+                            .values()
+                            .any(|claim| claim.place == Some(argument.place))
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
                         let root = value.expect("one structural carrier was validated");
                         let view = resolve_structural_arguments(
                             &self.program.structural_types,
@@ -349,7 +380,7 @@ impl TerminalExecution {
                         }) else {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         };
-                        if affine_sources.contains(&argument.place)
+                        if owned_sources.contains(&argument.place)
                             || (containing.path.is_empty()
                                 && containing.structural_type != root.structural_type)
                         {
@@ -492,6 +523,18 @@ impl TerminalExecution {
                 }));
             }
         }
+        // A destination may already name a source of this simultaneous move,
+        // but may not overwrite any independently held claim or owned value.
+        for parameter in &block.structural_parameters {
+            if self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(parameter.place))
+                && !owned_sources.contains(&parameter.place)
+            {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
         // Existing descriptor-only edges reuse their original declaration and
         // argument slices. Only mixed representations need a selected roster.
         let descriptor_parameters = if contains_payloads {
@@ -532,7 +575,8 @@ impl TerminalExecution {
             scalar_arrays,
             byte_sequences,
             element_views,
-            affine_sources,
+            owned_sources,
+            claims,
             projected_sources,
             affine_destinations,
             record_payload,
@@ -704,7 +748,6 @@ impl TerminalExecution {
                                 && result.multiplicity == multiplicity
                                 && result.qualifications.is_empty()
                                 && result.projected_qualifications.is_empty()
-                                && result.claims.is_empty()
                         })
                 })
     }

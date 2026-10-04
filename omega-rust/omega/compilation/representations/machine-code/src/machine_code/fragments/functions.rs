@@ -14,6 +14,8 @@ use target_operations::TerminalPsiProvenance;
 pub struct FunctionFragment {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub byte_count: u64,
     pub bytes: Vec<u8>,

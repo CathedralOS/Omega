@@ -114,7 +114,8 @@ fn validate_function(
     if prologue.is_empty() != epilogue.is_empty()
         || source.machine != candidate.machine
         || source.machine != application.machine
-        || source.attachment != candidate.attachment
+        || (source.attachment != candidate.attachment
+            || source.nominal_cleanup_subject != candidate.nominal_cleanup_subject)
         || source.provenance != candidate.provenance
         || source.blocks.len() != candidate.blocks.len()
         || application.prologue_function_offset != 0

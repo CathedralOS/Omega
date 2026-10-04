@@ -117,6 +117,7 @@ pub(crate) fn fixture() -> (
         functions: vec![SelectedFunction {
             machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             outgoing_arguments: Vec::new(),

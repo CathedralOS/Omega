@@ -167,8 +167,10 @@ pub(super) fn validate(
     if !body(function)
         || target.machine != abstracted.machine
         || target.machine != function.machine
-        || target.attachment != function.attachment
-        || abstracted.attachment != function.attachment
+        || (target.attachment != function.attachment
+            || target.nominal_cleanup_subject != function.nominal_cleanup_subject)
+        || (abstracted.attachment != function.attachment
+            || abstracted.nominal_cleanup_subject != function.nominal_cleanup_subject)
         || abstracted.structural_parameters != function.structural_parameters
         || abstracted.result != function.result
         || !abstracted.entry_claims.is_empty()

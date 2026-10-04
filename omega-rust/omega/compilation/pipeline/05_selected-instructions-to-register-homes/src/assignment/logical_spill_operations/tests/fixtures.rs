@@ -178,6 +178,7 @@ pub(super) fn raw_fixture() -> RawFixture {
     let selected = SelectedFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),

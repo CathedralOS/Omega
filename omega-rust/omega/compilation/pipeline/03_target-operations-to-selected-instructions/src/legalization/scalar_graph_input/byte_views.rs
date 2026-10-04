@@ -53,8 +53,8 @@ pub(super) fn validate(
         .collect::<Vec<_>>();
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
-        || target.attachment != abstracted.attachment
-        || target.attachment != optimized.attachment
+        || (target.attachment != abstracted.attachment || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
+        || (target.attachment != optimized.attachment || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
         || target.scalar_abi.is_some()
         || !crate::structural_inputs::structural_unit_input::accepts_graph(
             call_plan,

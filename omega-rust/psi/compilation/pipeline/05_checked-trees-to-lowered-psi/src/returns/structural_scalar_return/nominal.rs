@@ -1177,6 +1177,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             declared_service_reach,
             id: caller_machine,
             attachment,
+            nominal_cleanup_subject: None,
             parameters: scalar_parameters,
             structural_parameters: structural_parameters.clone(),
             ranked_scc: None,

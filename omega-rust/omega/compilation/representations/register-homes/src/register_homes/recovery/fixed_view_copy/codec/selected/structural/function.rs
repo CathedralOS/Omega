@@ -498,6 +498,7 @@ mod local_slot_tests {
         let empty = || SelectedFunction {
             machine: semantic_vocabulary::MachineId::new(1).unwrap(),
             attachment: None,
+            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             local_storage_slots: Vec::new(),

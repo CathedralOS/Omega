@@ -50,6 +50,8 @@ pub struct MachineCodePlanWithPrivateFunctions {
 pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     /// Independently supplied and emission-validated ABI for the bounded
     /// scalar-result function family with fixed-integer and structural

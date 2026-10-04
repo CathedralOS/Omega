@@ -1,5 +1,5 @@
 use crate::StructuralPathSegment;
-use semantic_vocabulary::{MachineId, ObligationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{ClaimId, MachineId, ObligationId, PlaceId, StructuralTypeId};
 
 /// One exact claim-free affine structural place disposed on an ordinary edge.
 /// Unlike the root-only trivial discard vocabulary, this action retains the
@@ -11,14 +11,18 @@ pub struct StructuralAffineDiscard {
     pub structural_type: StructuralTypeId,
 }
 
-/// One whole claim-free affine structural parameter disposed by its exact
-/// nominal cleanup machine. Unlike a trivial affine discard, this action is
-/// executable edge work and therefore retains the selected machine identity.
+/// One whole owned place disposed by its exact owner-designated cleanup machine.
+/// The edge begins consumption before lending the intact value to that hook.
+/// Linear disposition retains its complete claim roster; affine cleanup has none.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NominalAffineCleanup {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub cleanup_machine: MachineId,
+    /// Strictly ordered machine-local identities consumed by this action.
+    /// Independent frontier replay requires exactly the live whole-root claims,
+    /// and the target's owner designation supplies the disposition authority.
+    pub consumed_claims: Vec<ClaimId>,
     /// The place the edge lends the consumed value to inside the callee
     /// frame: exactly the hook's declared `is_self` structural parameter when
     /// the hook keeps a borrowed `self` receiver, otherwise a proof-local

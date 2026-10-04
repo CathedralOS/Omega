@@ -236,6 +236,7 @@ pub(super) fn lower<Call: DynamicCall>(
         declared_service_reach: Vec::new(),
         id: caller_machine,
         attachment: Some(caller_attachment),
+        nominal_cleanup_subject: None,
         parameters: Vec::new(),
         structural_parameters: vec![caller_self.clone()],
         ranked_scc: None,

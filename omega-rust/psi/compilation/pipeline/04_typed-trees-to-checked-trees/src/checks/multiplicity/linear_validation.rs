@@ -5,7 +5,7 @@
 //! claim frontier, `recorded_events.rs` replays recorded entry, statement
 //! and borrow events, `permission_production.rs` applies statement
 //! permission production, `claim_provenance.rs` names claim identities and
-//! provenance and `affine_cleanup.rs` appends affine cleanup events.
+//! provenance and `affine_cleanup.rs` derives and replays owner-authorized exit cleanup.
 
 mod affine_cleanup;
 mod claim_frontier;
@@ -13,7 +13,7 @@ mod claim_provenance;
 mod permission_production;
 mod recorded_events;
 
-pub(crate) use affine_cleanup::append_affine_cleanup_permission_events;
+pub(crate) use affine_cleanup::append_owned_cleanup_permission_events;
 pub(crate) use claim_frontier::{initial_linear_places, linear_claim_frontier};
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
@@ -142,7 +142,19 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                         &mut diagnostics,
                     );
                 }
-                super::permission_schedule::PermissionStep::Exit { crash: false, .. } => {
+                super::permission_schedule::PermissionStep::Exit {
+                    coordinate,
+                    crash: false,
+                } => {
+                    affine_cleanup::apply_recorded_cleanup_events(
+                        program,
+                        state,
+                        state_flow.machine_symbol,
+                        coordinate,
+                        &events,
+                        places,
+                        &mut diagnostics,
+                    );
                     outcomes.push(places.clone())
                 }
                 _ => {}

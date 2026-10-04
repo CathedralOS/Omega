@@ -27,6 +27,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             parameters: vec![value(1, operand_type), value(2, operand_type)],
             structural_parameters: Vec::new(),
             ranked_scc: None,

@@ -254,7 +254,7 @@ pub(super) fn validate(
                 if binding.parameter != parameter.place
                     || binding.argument.access != parameter.access
                     || !exact_source
-                    || claim_hit
+                    || (claim_hit && parameter.access != StructuralAccess::Owned)
                 {
                     return Err(invalid());
                 }
@@ -434,7 +434,9 @@ fn plain(parameter: &StructuralParameterDeclaration) -> bool {
             }
             StructuralAccess::Owned => matches!(
                 parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                StructuralMultiplicity::Unrestricted
+                    | StructuralMultiplicity::Affine
+                    | StructuralMultiplicity::Linear
             ),
         }
         && parameter.qualifications.is_empty()
@@ -487,13 +489,11 @@ fn source_contract(
                     )?;
                 let (_, result) = operation.structural_result()?;
                 if result.place != place
-                    || !matches!(
-                        source.multiplicity,
-                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                    )
+                    || (source.access != StructuralAccess::Owned
+                        && (source.multiplicity == StructuralMultiplicity::Linear
+                            || !result.claims.is_empty()))
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
-                    || !result.claims.is_empty()
                 {
                     return None;
                 }

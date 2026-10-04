@@ -258,6 +258,7 @@ pub(crate) fn materialize_dynamic_realizations(
                 declared_service_reach: Vec::new(),
                 id: realization.machine,
                 attachment: Some(source_type),
+                nominal_cleanup_subject: None,
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter.clone()],
                 ranked_scc: None,

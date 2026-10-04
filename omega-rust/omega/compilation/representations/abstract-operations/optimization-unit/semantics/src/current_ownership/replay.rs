@@ -459,6 +459,78 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
+            if let O::CallStructural {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &node.operation
+            {
+                let target = functions.get(callee).expect("validated call target");
+                let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: block_id,
+                };
+                for (argument_index, (argument, parameter)) in structural_arguments
+                    .iter()
+                    .zip(&target.structural_parameters)
+                    .enumerate()
+                {
+                    if argument.access != StructuralAccess::Owned {
+                        continue;
+                    }
+                    let mut expected = target
+                        .entry_claim_declarations
+                        .iter()
+                        .filter(|claim| claim.input == parameter.place)
+                        .map(|claim| (claim.claim, claim.path.as_slice()))
+                        .collect::<BTreeMap<_, _>>();
+                    for claim in &target.content_entry_claims {
+                        if claim.input.root == parameter.place {
+                            expected.entry(claim.claim).or_insert(&[]);
+                        }
+                    }
+                    let mut expected_paths = expected.into_values().collect::<Vec<_>>();
+                    let mut actual_paths = Vec::new();
+                    for (identity, claim) in &frontier.claims {
+                        if claim.input == Some(argument.place)
+                            && claim.path.starts_with(&argument.path)
+                        {
+                            if claim_transfers
+                                .iter()
+                                .filter(|transfer| {
+                                    transfer.claim == *identity
+                                        && transfer.argument_index as usize == argument_index
+                                })
+                                .count()
+                                != 1
+                            {
+                                return Err(invalid());
+                            }
+                            actual_paths.push(&claim.path[argument.path.len()..]);
+                        }
+                    }
+                    expected_paths.sort();
+                    actual_paths.sort();
+                    if expected_paths != actual_paths {
+                        return Err(invalid());
+                    }
+                }
+                let mut transferred = BTreeSet::new();
+                for transfer in claim_transfers {
+                    let argument = structural_arguments
+                        .get(transfer.argument_index as usize)
+                        .ok_or_else(invalid)?;
+                    let claim = frontier.claims.get(&transfer.claim).ok_or_else(invalid)?;
+                    if !transferred.insert(transfer.claim)
+                        || argument.access != StructuralAccess::Owned
+                        || claim.input != Some(argument.place)
+                        || !claim.path.starts_with(&argument.path)
+                    {
+                        return Err(invalid());
+                    }
+                }
+            }
             let transferred = match &node.operation {
                 O::CallStructural {
                     dynamic_arguments,
@@ -649,8 +721,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::Return {
                     cleanup_actions, ..
                 } => {
-                    reject_live_linear_claim(function, block_id, &frontier)?;
-                    validate_scalar_cleanup_actions(
+                    frontier = validate_scalar_cleanup_actions(
                         function,
                         functions,
                         structural_types,
@@ -658,11 +729,11 @@ pub(super) fn validate_current_ownership_cfg(
                         &frontier,
                         cleanup_actions,
                     )?;
+                    reject_live_linear_claim(function, block_id, &frontier)?;
                 }
                 O::ReturnUnit {
                     cleanup_actions, ..
                 } => {
-                    reject_live_linear_claim(function, block_id, &frontier)?;
                     validate_unit_cleanup_actions(
                         function,
                         functions,
@@ -728,7 +799,7 @@ pub(super) fn validate_current_ownership_cfg(
                     for claim in returned_claims {
                         frontier.claims.remove(claim);
                     }
-                    validate_scalar_cleanup_actions(
+                    frontier = validate_scalar_cleanup_actions(
                         function,
                         functions,
                         structural_types,
@@ -805,6 +876,7 @@ pub(super) fn validate_current_ownership_cfg(
             )?;
             bind_owned_parameters(
                 function,
+                structural_types,
                 block_id,
                 &mut outgoing,
                 &edge.structural_bindings,

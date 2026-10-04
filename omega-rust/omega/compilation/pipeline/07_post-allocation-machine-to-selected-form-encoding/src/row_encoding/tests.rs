@@ -87,6 +87,7 @@ pub(super) fn selected_function() -> selected_instructions::SelectedFunction {
     selected_instructions::SelectedFunction {
         machine: semantic_vocabulary::MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         local_storage_slots: Vec::new(),

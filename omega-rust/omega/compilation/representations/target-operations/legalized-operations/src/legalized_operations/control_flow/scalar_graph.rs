@@ -16,6 +16,8 @@ use terminal_psi::{CrashRouteBucket, TerminalDynamicRequirement};
 pub struct LegalizedScalarFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,

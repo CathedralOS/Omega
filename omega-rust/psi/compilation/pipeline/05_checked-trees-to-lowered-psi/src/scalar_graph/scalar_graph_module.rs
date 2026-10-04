@@ -776,6 +776,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     .iter()
                     .find(|parameter| parameter.is_self)
                     .map(|parameter| parameter.structural_type),
+                nominal_cleanup_subject: None,
                 structural_parameters: structural_parameters.to_vec(),
                 ranked_scc: None,
                 entry_claims: Vec::new(),

@@ -88,6 +88,7 @@ mod carried_semantic_dependencies;
 mod cleanup_effect_dependencies;
 pub(crate) use cleanup_effect_dependencies::{
     CleanupLeaf, derive_cleanup_effect_dependencies, selected_cleanup_leaves,
+    whole_cleanup_is_eligible,
 };
 
 pub(crate) use reference_places::{

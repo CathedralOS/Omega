@@ -151,7 +151,8 @@ pub fn validate_installation_record(
             .zip(image.functions())
             .any(|(installed, emitted)| {
                 installed.machine != emitted.machine
-                    || installed.attachment != emitted.attachment
+                    || (installed.attachment != emitted.attachment
+                        || installed.nominal_cleanup_subject != emitted.nominal_cleanup_subject)
                     || installed.scalar_abi != emitted.scalar_abi
                     || installed.mixed_structural_scalar_abi != emitted.mixed_structural_scalar_abi
                     || installed.parameter_abi != emitted.parameter_abi

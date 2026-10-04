@@ -416,6 +416,7 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
             MachineCodeFunction {
                 machine: machine_id(1),
                 attachment: Some(StructuralTypeId::new(1).expect("attachment type")),
+                nominal_cleanup_subject: None,
                 scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
@@ -547,6 +548,7 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
             MachineCodeFunction {
                 machine: machine_id(2),
                 attachment: None,
+                nominal_cleanup_subject: None,
                 scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,

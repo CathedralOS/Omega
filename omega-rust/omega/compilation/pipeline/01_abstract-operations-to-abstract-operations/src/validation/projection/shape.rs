@@ -41,8 +41,11 @@ pub(super) fn validate_projection_shape(
         else {
             return Err(OptimizedAbstractPlanProjectionError::SourceFunctionRosterMismatch);
         };
-        if projected_function.attachment != source_function.attachment
-            || unit_function.attachment != source_function.attachment
+        if (projected_function.attachment != source_function.attachment
+            || projected_function.nominal_cleanup_subject
+                != source_function.nominal_cleanup_subject)
+            || (unit_function.attachment != source_function.attachment
+                || unit_function.nominal_cleanup_subject != source_function.nominal_cleanup_subject)
             || projected_function.structural_parameters != source_function.structural_parameters
             || unit_function.structural_parameters != source_function.structural_parameters
             || projected_function.result != source_function.result
@@ -131,7 +134,8 @@ fn same_reconstructible_projection(
             .zip(&final_unit.functions)
             .all(|(left, right)| {
                 left.machine == right.machine
-                    && left.attachment == right.attachment
+                    && (left.attachment == right.attachment
+                        && left.nominal_cleanup_subject == right.nominal_cleanup_subject)
                     && left.entry == right.entry
                     && left.parameters == right.parameters
                     && left.structural_parameters == right.structural_parameters

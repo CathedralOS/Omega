@@ -23,7 +23,8 @@ pub(super) fn check(
             ))?;
         require(
             claimed.machine == source.machine
-                && claimed.attachment == source.attachment
+                && (claimed.attachment == source.attachment
+                    && claimed.nominal_cleanup_subject == source.nominal_cleanup_subject)
                 && claimed.provenance == source.provenance
                 && claimed.byte_count == resolved.byte_count
                 && u64::try_from(claimed.bytes.len()).ok() == Some(claimed.byte_count)

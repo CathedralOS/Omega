@@ -355,6 +355,7 @@ mod tests {
         let mut function = AbstractFunction {
             machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             entry: BlockId::new(1).unwrap(),
             parameters: vec![],
             structural_parameters: vec![],
@@ -367,6 +368,7 @@ mod tests {
         let mut selected = SelectedFunction {
             machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             provenance: target_operations::TerminalPsiProvenance {
                 operations: vec![],
                 edges: vec![],

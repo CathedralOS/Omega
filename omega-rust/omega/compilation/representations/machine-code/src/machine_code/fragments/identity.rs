@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v16";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v17";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -32,6 +32,13 @@ pub fn function_fragment_emission_identity(
     for function in &plan.functions {
         hasher.update(function.machine.get().to_le_bytes());
         match function.attachment {
+            None => hasher.update([0]),
+            Some(attachment) => {
+                hasher.update([1]);
+                hasher.update(attachment.get().to_le_bytes());
+            }
+        }
+        match function.nominal_cleanup_subject {
             None => hasher.update([0]),
             Some(attachment) => {
                 hasher.update([1]);

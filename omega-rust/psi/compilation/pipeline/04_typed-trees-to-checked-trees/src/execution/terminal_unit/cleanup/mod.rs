@@ -120,7 +120,10 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             || source_parameter.is_mutable
             || checked_parameter.is_self
             || usize::try_from(checked_parameter.position).ok()? != position
-            || checked_parameter.multiplicity != Multiplicity::Affine
+            || !matches!(
+                checked_parameter.multiplicity,
+                Multiplicity::Affine | Multiplicity::Linear
+            )
             || !checked_parameter.qualifications.is_empty()
             || !program.data_type_parameters(parameter_data).is_empty()
             || !is_bounded_nominal_cleanup_record(&parameter_shape.shape)
@@ -148,11 +151,10 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     )?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    if !entry_claims.is_empty()
-        || facts
-            .qualifications
-            .for_machine(machine.symbol)
-            .is_some_and(|fact| !fact.body_committed.is_empty())
+    if facts
+        .qualifications
+        .for_machine(machine.symbol)
+        .is_some_and(|fact| !fact.body_committed.is_empty())
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
         || !facts
             .flow
@@ -162,7 +164,18 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             .is_empty()
         || !source_parameters
             .iter()
-            .all(|parameter| has_exact_root_affine_discard(facts, machine, state, parameter))
+            .enumerate()
+            .all(|(index, parameter)| {
+                cleanup_evidence::has_exact_root_nominal_disposition(
+                    facts,
+                    machine,
+                    state,
+                    parameter,
+                    structural_parameters[index].multiplicity,
+                    index as u32,
+                    &entry_claims,
+                )
+            })
     {
         return None;
     }
@@ -280,7 +293,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             erased_proof_parameters,
             provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
-            entry_claims: Vec::new(),
+            entry_claims,
             body_qualifications: Vec::new(),
             contract_report_fingerprint: contract.report_fingerprint,
             contract_commitment: contract.commitment,

@@ -1193,6 +1193,7 @@ mod tests {
         let function = MachineCodeFunction {
             machine: machine(),
             attachment: None,
+            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,

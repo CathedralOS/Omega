@@ -27,6 +27,7 @@ fn zero_span_plan() -> FunctionFragmentEmissionPlan {
         functions: vec![FunctionFragment {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
+            nominal_cleanup_subject: None,
             provenance: TerminalPsiProvenance::default(),
             byte_count: 0,
             bytes: Vec::new(),

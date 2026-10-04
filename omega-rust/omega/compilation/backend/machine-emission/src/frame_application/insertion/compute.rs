@@ -478,6 +478,7 @@ mod tests {
             functions: vec![FunctionFragment {
                 machine,
                 attachment: None,
+                nominal_cleanup_subject: None,
                 provenance: TerminalPsiProvenance::default(),
                 byte_count: 6,
                 bytes: vec![0xe8, 0, 0, 0, 0, 0xc3],

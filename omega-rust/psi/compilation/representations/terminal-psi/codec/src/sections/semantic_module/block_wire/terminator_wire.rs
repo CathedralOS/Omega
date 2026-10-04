@@ -132,6 +132,13 @@ pub(super) fn encode_terminator(
                 writer.id(cleanup.place);
                 writer.id(cleanup.structural_type);
                 writer.id(cleanup.cleanup_machine);
+                writer.len(
+                    "nominal cleanup consumed claims",
+                    cleanup.consumed_claims.len(),
+                )?;
+                for claim in &cleanup.consumed_claims {
+                    writer.id(*claim);
+                }
                 encode_optional_id(writer, cleanup.cleanup_receiver);
                 encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
             }
@@ -307,6 +314,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                     place: reader.id("PlaceId")?,
                     structural_type: reader.id("StructuralTypeId")?,
                     cleanup_machine: reader.id("MachineId")?,
+                    consumed_claims: decode_ids(reader, "ClaimId")?,
                     cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
                     requirement_obligations: decode_ids(reader, "ObligationId")?,
                 })

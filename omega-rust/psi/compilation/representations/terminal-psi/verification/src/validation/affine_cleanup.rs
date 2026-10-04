@@ -1,4 +1,4 @@
-//! Validates exact partial and nominal affine cleanup shape and custody.
+//! Validates exact partial affine and owner-authorized nominal cleanup custody.
 
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, MachineId, ModuleError,
@@ -248,6 +248,25 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
+    if let Some(subject) = machine.nominal_cleanup_subject {
+        if machine.attachment != Some(subject)
+            || !module
+                .structural_types
+                .iter()
+                .any(|declaration| declaration.id == subject)
+            || module
+                .machines
+                .iter()
+                .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
+                .count()
+                != 1
+        {
+            return Err(ModuleError::InvalidNominalAffineCleanup {
+                machine: machine.id,
+                block: machine.entry,
+            });
+        }
+    }
     // Cleanup invokes its target on this normal edge just as an operation
     // invokes a callee. The caller must cover the target's entire published
     // reach; an empty body does not erase this executable dependency.
@@ -259,7 +278,8 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                     block: block.id,
                 },
             )?;
-            if !super::call_graph::has_finite_normal_completion(module, target.id)
+            if !valid_nominal_cleanup_target(module, machine.id, target, cleanup)
+                || !super::call_graph::has_finite_normal_completion(module, target.id)
                 || target
                     .published_service_ceiling
                     .iter()
@@ -291,7 +311,7 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         return Err(invalid(machine.entry));
     };
     // The exact shape is what matters: one empty block, one cleanup per
-    // structural parameter, empty claims and contracts. A generic consuming
+    // structural parameter and exact owned claims. A generic consuming
     // member (`drop<T>`) carries the same terminator inside a caller's module
     // while the entry machine keeps the dispatched-cleanup shape.
     if machine.result != TerminalMachineResult::Unit
@@ -303,7 +323,6 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         || cleanups.is_empty()
         || machine.structural_parameters.len() != cleanups.len()
         || machine.structural_places.len() != cleanups.len()
-        || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
@@ -321,7 +340,11 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
     for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
         if parameter.place != cleanup.place
             || parameter.structural_type != cleanup.structural_type
-            || parameter.multiplicity != StructuralMultiplicity::Affine
+            || !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+            )
+            || parameter.access != StructuralAccess::Owned
             || parameter.is_self
             || !parameter.qualifications.is_empty()
         {
@@ -386,6 +409,20 @@ pub(super) fn valid_nominal_cleanup_target(
 ) -> bool {
     target.id != caller
         && target.attachment == Some(cleanup.structural_type)
+        && target.nominal_cleanup_subject == Some(cleanup.structural_type)
+        && (cleanup.consumed_claims.is_empty() || target.published_service_ceiling.is_empty())
+        && module
+            .machines
+            .iter()
+            .filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type))
+            .count()
+            == 1
+        && cleanup
+            .consumed_claims
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        && target.entry_claims.is_empty()
+        && target.content_entry_claims.is_empty()
         && target.result == TerminalMachineResult::Unit
         && target.parameters.is_empty()
         && target.structural_parameters.len() <= 1

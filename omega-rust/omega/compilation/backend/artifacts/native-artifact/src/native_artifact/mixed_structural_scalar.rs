@@ -25,7 +25,8 @@ pub(super) fn validate(
         let [machine] = matching.as_slice() else {
             return Err("mixed structural/scalar object ABI does not rejoin one Terminal machine");
         };
-        if function.attachment != machine.attachment
+        if (function.attachment != machine.attachment
+            || function.nominal_cleanup_subject != machine.nominal_cleanup_subject)
             || !matches_terminal_machine(
                 machine,
                 function
@@ -110,6 +111,7 @@ mod tests {
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),
             attachment: None,
+            nominal_cleanup_subject: None,
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),
                 id: scalar_parameter,

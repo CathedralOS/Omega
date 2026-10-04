@@ -189,6 +189,7 @@ pub fn reconstruct_psi_optimization_function_seed(
     Ok(PsiOptimizationFunction {
         machine: function.machine,
         attachment: function.attachment,
+        nominal_cleanup_subject: function.nominal_cleanup_subject,
         entry: function.entry,
         parameters,
         structural_parameters: function.structural_parameters.clone(),

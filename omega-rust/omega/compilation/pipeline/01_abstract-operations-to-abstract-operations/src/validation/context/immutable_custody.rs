@@ -30,7 +30,8 @@ pub(super) fn same_immutable_signature_custody(
                 .find(|seed| seed.machine == unit.machine)
                 .is_some_and(|seed| {
                     seed.machine == unit.machine
-                        && seed.attachment == unit.attachment
+                        && (seed.attachment == unit.attachment
+                            && seed.nominal_cleanup_subject == unit.nominal_cleanup_subject)
                         && seed.parameters == unit.parameters
                         && seed.structural_parameters == unit.structural_parameters
                         && unit.blocks.iter().all(|block| {

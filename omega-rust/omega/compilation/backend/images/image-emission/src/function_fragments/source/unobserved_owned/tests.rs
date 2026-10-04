@@ -51,6 +51,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
     let function = AbstractFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         entry: block,
         parameters: vec![],
         structural_parameters: vec![parameter.clone()],
@@ -76,6 +77,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
     let target = TargetFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         scalar_abi: None,
         provenance: provenance.clone(),
         mixed_structural_scalar_abi: Some(target_operations::MixedStructuralScalarFunctionAbi {
@@ -117,6 +119,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
     let selected = SelectedFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance,
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,

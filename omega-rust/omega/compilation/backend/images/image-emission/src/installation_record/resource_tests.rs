@@ -29,6 +29,7 @@ pub(super) fn installed_function_with_unit_call() -> InstalledFunction {
     InstalledFunction {
         machine: MachineId::new(1).expect("function"),
         attachment: None,
+        nominal_cleanup_subject: None,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
         parameter_abi: None,

@@ -10,7 +10,7 @@ use checked_trees::{CheckFacts, ContextualCleanupDisposition};
 use diagnostics::Diagnostic;
 use facts::PlaceSegment;
 use flow_effects::{CleanupDependency, OperationalPlan};
-use language_semantics::MachineSupplyMode;
+use language_semantics::{MachineSupplyMode, Multiplicity};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -68,8 +68,36 @@ pub(crate) fn selected_cleanup_leaves(
         &mut Vec::new(),
         &mut path.to_vec(),
         &mut leaves,
+        &mut false,
     )?;
     Some(leaves)
+}
+
+/// Type-side eligibility for a whole owned death edge. This is not proof of
+/// the selected hooks' requirements or guarantees: the resulting contextual
+/// disposition still enters ordinary cleanup effect and contract admission.
+/// In particular, a child hook cannot authorize a distinct nominal linear
+/// obligation, and an owner hook cannot erase an undisposable child.
+pub(crate) fn whole_cleanup_is_eligible(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let mut has_erased_members = false;
+    let complete = visit(
+        program,
+        reference,
+        &[],
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut has_erased_members,
+    )
+    .is_some();
+    // Runtime cleanup leaves deliberately omit erased fields. They cannot
+    // authorize whole linear consumption: erased semantic obligations need
+    // their own disposition evidence before this query can admit that owner.
+    complete && !has_erased_members
 }
 
 pub(crate) fn derive_cleanup_effect_dependencies(
@@ -163,6 +191,7 @@ fn visit(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
+    has_erased_members: &mut bool,
 ) -> Option<()> {
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
@@ -210,6 +239,7 @@ fn visit(
                 active,
                 path,
                 leaves,
+                has_erased_members,
             )
         }
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
@@ -220,6 +250,7 @@ fn visit(
             active,
             path,
             leaves,
+            has_erased_members,
         ),
         TypeReferenceNode::Generic {
             base_symbol,
@@ -252,6 +283,7 @@ fn visit(
                 active,
                 path,
                 leaves,
+                has_erased_members,
             )
         }
         TypeReferenceNode::Reference { .. }
@@ -273,6 +305,7 @@ fn visit_owner(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
+    has_erased_members: &mut bool,
 ) -> Option<()> {
     let symbol = program
         .machine_by_symbol(symbol)
@@ -294,7 +327,11 @@ fn visit_owner(
             _ => None,
         };
     };
-    if let Some(target) = crate::checks::nominal_drop_machine_symbol(program, symbol) {
+    let nominal = crate::checks::nominal_drop_machine_symbol(program, symbol);
+    if data.properties.multiplicity == Multiplicity::Linear && nominal.is_none() {
+        return None;
+    }
+    if let Some(target) = nominal {
         // A nominal hook requires the whole value. Partial transfer across
         // that prefix is independently forbidden by custody validation.
         if !removed.is_empty() {
@@ -327,6 +364,7 @@ fn visit_owner(
                     active,
                     path,
                     leaves,
+                    has_erased_members,
                 )?;
                 path.pop();
             }
@@ -345,6 +383,10 @@ fn visit_owner(
                     variant: variant.symbol,
                 });
                 let mut case_matched = 0;
+                *has_erased_members |= program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .any(|field| field.relevance.is_erased());
                 for field in program
                     .data_payload_fields(variant)
                     .iter()
@@ -368,6 +410,7 @@ fn visit_owner(
                         active,
                         path,
                         leaves,
+                        has_erased_members,
                     )?;
                     path.pop();
                 }
@@ -376,7 +419,7 @@ fn visit_owner(
                     return None;
                 }
             }
-            DataMember::Field(_) => {}
+            DataMember::Field(_) => *has_erased_members = true,
         }
     }
     (matched == removed.len()).then_some(())
@@ -398,6 +441,7 @@ fn visit_array(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
+    has_erased_members: &mut bool,
 ) -> Option<()> {
     // Only endpoints named by custody participate. This is an effect set, so
     // all untouched elements share one traversal, even for enormous arrays.
@@ -445,6 +489,7 @@ fn visit_array(
             active,
             path,
             leaves,
+            has_erased_members,
         )?;
         path.pop();
     }

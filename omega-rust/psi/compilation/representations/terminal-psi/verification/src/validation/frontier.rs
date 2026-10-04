@@ -696,7 +696,7 @@ fn validate_return_cleanup_actions(
     frontier: &StructuralOwnershipFrontier,
     borrowed_references: &[super::references::LiveReference],
     actions: &[TerminalAffineCleanupAction],
-) -> Result<(), ModuleError> {
+) -> Result<StructuralOwnershipFrontier, ModuleError> {
     let mismatch = || {
         if machine.result.structural().is_some() {
             ModuleError::StructuralReturnAffineDiscardsMismatch {
@@ -775,15 +775,10 @@ fn validate_return_cleanup_actions(
         {
             continue;
         }
-        if parameter.multiplicity != StructuralMultiplicity::Affine
-            || frontier
-                .claims
-                .values()
-                .any(|claim| claim.input == Some(parameter.place))
-            || machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == parameter.place)
+        if machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == parameter.place)
         {
             return Err(mismatch());
         }
@@ -791,6 +786,14 @@ fn validate_return_cleanup_actions(
             .partial_custody_paths
             .contains_key(&parameter.place)
         {
+            if parameter.multiplicity != StructuralMultiplicity::Affine
+                || frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(parameter.place))
+            {
+                return Err(mismatch());
+            }
             validate_return_residual_cleanup(
                 module,
                 machine,
@@ -804,7 +807,14 @@ fn validate_return_cleanup_actions(
                 return Err(mismatch());
             };
             match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) if *place == parameter.place => {
+                TerminalAffineCleanupAction::DiscardRoot(place)
+                    if *place == parameter.place
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && !frontier
+                            .claims
+                            .values()
+                            .any(|claim| claim.input == Some(*place)) =>
+                {
                     // Whole-owner disposal has the same reference effect for
                     // an incoming parameter as for a constructed result.
                     // The shared check still refuses live descendants and
@@ -819,7 +829,17 @@ fn validate_return_cleanup_actions(
                 TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     if cleanup.place == parameter.place
                         && cleanup.structural_type == parameter.structural_type
-                        && valid_return_nominal_cleanup(module, machine, machines, cleanup) => {}
+                        && valid_return_nominal_cleanup(module, machine, machines, cleanup) =>
+                {
+                    consume_nominal_cleanup(
+                        module,
+                        machine,
+                        machines,
+                        block,
+                        &mut frontier,
+                        cleanup,
+                    )?;
+                }
                 _ => return Err(mismatch()),
             }
         }
@@ -843,7 +863,7 @@ fn validate_return_cleanup_actions(
     {
         return Err(mismatch());
     }
-    Ok(())
+    Ok(frontier)
 }
 
 /// Whole and projected results follow the same lifetime order. A projected
@@ -895,6 +915,66 @@ fn validate_return_residual_cleanup(
             return Err(mismatch());
         }
     }
+    Ok(())
+}
+
+/// The cleanup action consumes one complete owned obligation before lending
+/// its storage to the designated hook. A compatible borrowed method alone is
+/// never disposition authority, and bounded nominal storage contains no
+/// independent projected/content claim that this edge could silently erase.
+fn consume_nominal_cleanup(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    block: BlockId,
+    frontier: &mut StructuralOwnershipFrontier,
+    cleanup: &terminal_psi::NominalAffineCleanup,
+) -> Result<(), ModuleError> {
+    let invalid = || ModuleError::InvalidNominalAffineCleanup {
+        machine: machine.id,
+        block,
+    };
+    let multiplicity = *frontier
+        .owned_places
+        .get(&cleanup.place)
+        .ok_or_else(invalid)?;
+    let source = super::structural::result_contracts::source_signature(machine, cleanup.place)
+        .ok_or_else(invalid)?;
+    let claims = frontier
+        .claims
+        .iter()
+        .filter(|(_, claim)| claim.input == Some(cleanup.place))
+        .collect::<Vec<_>>();
+    if source.structural_type != cleanup.structural_type
+        || source.multiplicity != multiplicity
+        || !valid_return_nominal_cleanup(module, machine, machines, cleanup)
+        || frontier.partial_custody_paths.contains_key(&cleanup.place)
+        || frontier.restoration_debt.contains_key(&cleanup.place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == cleanup.place)
+        || claims
+            .iter()
+            .any(|(_, claim)| !claim.path.is_empty() || claim.multiplicity != Some(multiplicity))
+        || match multiplicity {
+            StructuralMultiplicity::Affine => !claims.is_empty(),
+            StructuralMultiplicity::Linear => claims.len() != 1,
+            StructuralMultiplicity::Unrestricted => true,
+        }
+        || cleanup.consumed_claims
+            != claims
+                .iter()
+                .map(|(identity, _)| **identity)
+                .collect::<Vec<_>>()
+    {
+        return Err(invalid());
+    }
+    super::references::check_root_access(machine, &frontier.references, cleanup.place)?;
+    for claim in &cleanup.consumed_claims {
+        frontier.claims.remove(claim);
+    }
+    frontier.owned_places.remove(&cleanup.place);
     Ok(())
 }
 

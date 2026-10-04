@@ -33,6 +33,12 @@ pub(crate) fn commit_cleanup_action(
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
+            if live_claims
+                .values()
+                .any(|claim| claim.place == Some(*place))
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
             if (reference::discard_structural_value(
                 structural_values,
                 reference_referents,
@@ -71,19 +77,100 @@ pub(crate) fn commit_cleanup_action(
             }
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            let value = structural_values.remove(&cleanup.place).ok_or(
+            validate_nominal_cleanup_action(
+                structural_types,
+                machines,
+                structural_values,
+                frontier,
+                live_claims,
+                cleanup,
+            )?;
+            let value = structural_values.get(&cleanup.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
             )?;
-            if value.structural_type != cleanup.structural_type
-                || !machines.contains_key(&cleanup.cleanup_machine)
-            {
+            // A whole nominal owner cannot be destroyed beneath an outstanding
+            // reference, including a projection of its backing storage.
+            if reference_referents.iter().any(|(carrier, referent)| {
+                (carrier.opaque_identity == value.opaque_identity
+                    && terminal_semantics::structural_paths_may_overlap(&carrier.path, &value.path))
+                    || (referent.opaque_identity == value.opaque_identity
+                        && terminal_semantics::structural_paths_may_overlap(
+                            &referent.path,
+                            &value.path,
+                        ))
+            }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            live_claims.retain(|_, claim| claim.place != Some(cleanup.place));
+            let value = structural_values
+                .remove(&cleanup.place)
+                .expect("validated nominal source");
+            for claim in &cleanup.consumed_claims {
+                live_claims.remove(claim);
+            }
             return Ok(Some((cleanup.clone(), value)));
         }
     }
     Ok(None)
+}
+
+/// Validate the complete cleanup transaction before the value is lent. The
+/// hook designation is declaration metadata, never inferred from its use here.
+pub(crate) fn validate_nominal_cleanup_action(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    machines: &BTreeMap<MachineId, ExecutableMachine>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    frontier: &BTreeSet<StructuralAffineDiscard>,
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    cleanup: &NominalAffineCleanup,
+) -> Result<(), TerminalInterpretError> {
+    let invalid = || TerminalInterpretError::AffineFrontierMismatch;
+    let value = values.get(&cleanup.place).ok_or_else(invalid)?;
+    let target = machines.get(&cleanup.cleanup_machine).ok_or_else(invalid)?;
+    let Some(StructuralTypeShape::Record { fields }) = structural_types
+        .get(&cleanup.structural_type)
+        .map(|declaration| &declaration.shape)
+    else {
+        return Err(invalid());
+    };
+    let source_claims = claims
+        .iter()
+        .filter(|(_, claim)| claim.place == Some(cleanup.place))
+        .collect::<Vec<_>>();
+    let whole = StructuralAffineDiscard {
+        place: cleanup.place,
+        path: Vec::new(),
+        structural_type: cleanup.structural_type,
+    };
+    if value.structural_type != cleanup.structural_type
+        || target.attachment != Some(cleanup.structural_type)
+        || target.nominal_cleanup_subject != Some(cleanup.structural_type)
+        || machines.values().filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type)).count() != 1
+        || target.result != terminal_psi::TerminalMachineResult::Unit
+        || !target.parameters.is_empty()
+        || !target.entry_claims.is_empty()
+        || !target.content_entry_claims.is_empty()
+        || target.structural_parameters.len() > 1
+        || target.structural_parameters.iter().any(|parameter| {
+            parameter.position != 0 || parameter.structural_type != cleanup.structural_type
+                || cleanup.cleanup_receiver != Some(parameter.place)
+                || !matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
+        })
+        || fields.iter().any(|field| field.relevance.is_erased() || !matches!(&field.field_type,
+            terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean)
+                | terminal_psi::StructuralFieldType::Atomic(ScalarType::Boolean))
+            && !matches!(&field.field_type,
+                terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                    | terminal_psi::StructuralFieldType::Atomic(ScalarType::Integer(integer))
+                    if matches!(integer.bits(), 8 | 16 | 32 | 64) && (!integer.is_address() || integer.bits() == 64)))
+        || cleanup.consumed_claims != source_claims.iter().map(|(identity, _)| **identity).collect::<Vec<_>>()
+        || source_claims.iter().any(|(_, claim)| !claim.path.is_empty() || claim.multiplicity != Some(StructuralMultiplicity::Linear))
+        || if source_claims.is_empty() {
+            !frontier.contains(&whole) || frontier.iter().any(|entry| entry.place == cleanup.place && entry != &whole)
+        } else {
+            source_claims.len() != 1 || frontier.iter().any(|entry| entry.place == cleanup.place)
+        }
+    { return Err(invalid()); }
+    Ok(())
 }
 
 pub(crate) fn bind_arguments(

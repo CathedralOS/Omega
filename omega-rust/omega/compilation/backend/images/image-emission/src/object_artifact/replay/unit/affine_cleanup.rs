@@ -17,6 +17,44 @@ use target_operations::TerminalPsiProvenance;
 
 use crate::ObjectError;
 
+/// Object and installed rows retain the already admitted cleanup action. Their
+/// homes authenticate storage shape, not claim birth: exact claim identities
+/// remain bound by full action equality to the preceding representation.
+pub(crate) fn nominal_owner_matches(
+    home: &UnitParameterHomeRecord,
+    cleanup: &terminal_psi::NominalAffineCleanup,
+) -> bool {
+    home.place == cleanup.place
+        && home.structural_type == cleanup.structural_type
+        && home.access == terminal_psi::StructuralAccess::Owned
+        && match home.multiplicity {
+            terminal_psi::StructuralMultiplicity::Affine => cleanup.consumed_claims.is_empty(),
+            terminal_psi::StructuralMultiplicity::Linear => cleanup.consumed_claims.len() == 1,
+            terminal_psi::StructuralMultiplicity::Unrestricted => false,
+        }
+}
+
+/// A claim can be consumed by only one action on this normal exit. Each action
+/// retains canonical identity order without requiring cleanup order to follow it.
+pub(crate) fn nominal_claims_are_canonical(
+    actions: &[terminal_psi::TerminalAffineCleanupAction],
+) -> bool {
+    let mut claims = std::collections::BTreeSet::new();
+    actions.iter().all(|action| match action {
+        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+            cleanup
+                .consumed_claims
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+                && cleanup
+                    .consumed_claims
+                    .iter()
+                    .all(|claim| claims.insert(*claim))
+        }
+        _ => true,
+    })
+}
+
 pub(crate) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bool {
     let construction_locals = cleanup
         .locals

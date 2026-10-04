@@ -226,6 +226,7 @@ where
                     .scalar_structural_parameter_homes
                     .clone(),
                 attachment: function.attachment,
+                nominal_cleanup_subject: function.nominal_cleanup_subject,
             })
             .collect(),
         private_functions: image

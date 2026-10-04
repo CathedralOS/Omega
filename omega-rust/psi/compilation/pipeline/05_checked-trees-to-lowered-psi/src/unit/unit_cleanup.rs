@@ -24,6 +24,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
+mod custody;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
@@ -110,6 +111,7 @@ pub(crate) fn lower_nominal_cleanup_action(
         place,
         structural_type,
         cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
+        consumed_claims: Vec::new(),
         cleanup_receiver: receivers.iter().find_map(|(source, receiver)| {
             (*source == cleanup.cleanup_machine).then_some(*receiver)
         }),
@@ -162,6 +164,12 @@ pub(super) fn finalize_nominal_cleanup_actions(
         // argument. A static named subject still carries the same selected
         // T::drop owner while its ordinary parameter carries the storage.
         emitted.attachment = Some(owner);
+        emitted.nominal_cleanup_subject = crate::machine_lowering::nominal_cleanup_subject(
+            checked,
+            cleanup.cleanup_machine,
+            emitted.attachment,
+            type_ids,
+        )?;
     }
     for nominal in &checked
         .facts
@@ -202,6 +210,7 @@ fn finalize_nominal_cleanup_machine(
 ) -> Result<(), LoweringError> {
     let plan = &nominal.machine;
     contexts::validate_requirements(checked, nominal)?;
+    custody::validate_checked_dispositions(checked, nominal)?;
     let expected_attachment = plan
         .attachment_type_identity
         .as_deref()
@@ -236,7 +245,7 @@ fn finalize_nominal_cleanup_machine(
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup member parameter is absent from its terminal signature",
             ))?;
-        cleanups.push(lower_nominal_cleanup_action(
+        let mut action = lower_nominal_cleanup_action(
             checked,
             cleanup,
             parameter.place,
@@ -245,7 +254,15 @@ fn finalize_nominal_cleanup_machine(
             machine_ids,
             receivers,
             next_obligation,
-        )?);
+        )?;
+        action.consumed_claims = machine
+            .entry_claims
+            .iter()
+            .filter(|claim| claim.input == parameter.place)
+            .map(|claim| claim.claim)
+            .collect();
+        action.consumed_claims.sort_unstable();
+        cleanups.push(action);
     }
     let entry_block = machine.entry;
     let [block] = machine.blocks.as_mut_slice() else {

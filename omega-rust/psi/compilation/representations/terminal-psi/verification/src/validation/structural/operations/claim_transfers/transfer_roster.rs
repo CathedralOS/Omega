@@ -1,13 +1,10 @@
 //! The callee's entry claims and the transfer roster that covers them.
 
-use crate::validation::structural::operations::structural_arguments::linear_call_result;
 use crate::validation::{
     BTreeMap, BTreeSet, ClaimTransfer, ModuleError, OperationId, StructuralArgument,
     TerminalMachine,
 };
 use semantic_vocabulary::{ClaimId, PlaceId};
-
-use super::claim_input;
 
 /// The callee's entry and content entry claims by claim id, each bound to
 /// one of its structural parameters.
@@ -45,7 +42,7 @@ pub(in crate::validation) fn callee_claims(
 /// claim, each naming a live caller claim once and an argument index the
 /// claim's parameter occupies, in canonical order.
 pub(in crate::validation) fn validate_transfer_roster(
-    caller: &TerminalMachine,
+    _caller: &TerminalMachine,
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
     transfers: &[ClaimTransfer],
@@ -70,45 +67,9 @@ pub(in crate::validation) fn validate_transfer_roster(
                 argument_index: transfer.argument_index,
             });
         };
-        let result_claim = linear_call_result(caller, argument.place).and_then(|(_, result)| {
-            result
-                .claims
-                .iter()
-                .find(|binding| binding.claim == transfer.claim)
-                .map(|binding| (result.place, binding.path.as_slice()))
-        });
-        let Some((claim_input, claim_path)) =
-            result_claim.or_else(|| claim_input(caller, transfer.claim))
-        else {
-            return Err(ModuleError::UnknownClaimAtOperation {
-                operation,
-                claim: transfer.claim,
-            });
-        };
-        let target_place = callee
-            .structural_parameters
-            .get(transfer.argument_index as usize)
-            .map(|parameter| parameter.place);
-        let structural_path_matches = claim_path.starts_with(&argument.path)
-            && callee.entry_claims.iter().any(|claim| {
-                Some(claim.input) == target_place && claim.path == claim_path[argument.path.len()..]
-            });
-        let content_matches = argument.path.is_empty()
-            && caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.claim == transfer.claim && claim.input.root == argument.place)
-            && callee
-                .content_entry_claims
-                .iter()
-                .any(|claim| Some(claim.input.root) == target_place);
-        if claim_input != argument.place || (!structural_path_matches && !content_matches) {
-            return Err(ModuleError::ClaimActionPlaceMismatch {
-                operation,
-                claim: transfer.claim,
-                argument_index: transfer.argument_index,
-            });
-        }
+        // Exact source identity and path are stateful custody, checked by the
+        // ordinary frontier at this operation after every predecessor move.
+        let _ = argument;
     }
     for input in callee_claims.into_values() {
         let argument_index = callee

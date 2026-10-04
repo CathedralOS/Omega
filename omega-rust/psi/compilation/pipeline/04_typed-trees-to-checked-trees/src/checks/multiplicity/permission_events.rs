@@ -10,15 +10,14 @@ use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeMap, ClaimIdentityAllocator, LinearPlace,
 };
 use crate::checks::multiplicity::linear_validation::{
-    append_affine_cleanup_permission_events, append_borrow_permission_events,
+    append_borrow_permission_events, append_owned_cleanup_permission_events,
     apply_recorded_state_entry_events, apply_recorded_statement_events,
     apply_statement_permission_production, initial_linear_places, select_static_case_alternative,
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
 use checked_trees::{
-    CheckFacts, ContextualCleanupFacts, FlowClaimJoinExit, FlowClaimJoinExitKind,
-    FlowPermissionEventFact,
+    CheckFacts, ContextualCleanupFacts, FlowClaimJoinExit, FlowPermissionEventFact,
 };
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -188,34 +187,14 @@ pub(crate) fn prepare_permission_events(
                     crash: false,
                 } => {
                     let event_start = permission_events.len();
-                    append_affine_cleanup_permission_events(
+                    append_owned_cleanup_permission_events(
                         program,
                         state,
                         state_flow.machine_symbol,
+                        coordinate,
                         places,
                         &mut permission_events,
                     );
-                    let evaluation = match coordinate.kind {
-                        FlowClaimJoinExitKind::TransitionTarget
-                        | FlowClaimJoinExitKind::TransitionContinuation => {
-                            let StatementNode::Transition(transition) =
-                                &statements[coordinate.statement_index]
-                            else {
-                                unreachable!()
-                            };
-                            checked_trees::FlowPermissionEvaluation::TransitionTarget(
-                                if coordinate.kind == FlowClaimJoinExitKind::TransitionTarget {
-                                    transition.target
-                                } else {
-                                    transition.continuation
-                                },
-                            )
-                        }
-                        _ => checked_trees::FlowPermissionEvaluation::Statement,
-                    };
-                    for event in &mut permission_events[event_start..] {
-                        event.evaluation = evaluation;
-                    }
                     remaining.observe(
                         &permission_events[event_start..],
                         &facts.flow.ownership.segments,

@@ -70,6 +70,7 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),

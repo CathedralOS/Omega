@@ -71,7 +71,8 @@ pub fn validate_optimized_selection_custody(
                 .iter()
                 .filter(|selected| {
                     target.machine == selected.machine
-                        && target.attachment == selected.attachment
+                        && (target.attachment == selected.attachment
+                            && target.nominal_cleanup_subject == selected.nominal_cleanup_subject)
                         && target.provenance == selected.provenance
                 })
                 .count();

@@ -3,9 +3,9 @@
 use super::super::borrowed_windows::{WindowAliases, check_edge_arguments};
 use super::super::{StructuralArgument, StructuralPlaceKind, resolve_structural_path};
 use super::{
-    EdgeId, ModuleError, StructuralAccess, StructuralMultiplicity, StructuralOwnershipFrontier,
-    StructuralParameterDeclaration, TerminalMachine, TerminalModule, partial_affine_root_type,
-    projected_root_is_fully_consumed,
+    EdgeId, LiveClaim, ModuleError, StructuralAccess, StructuralMultiplicity,
+    StructuralOwnershipFrontier, StructuralParameterDeclaration, TerminalMachine, TerminalModule,
+    partial_affine_root_type, projected_root_is_fully_consumed,
 };
 /// Phase one consumes each owned source before the residual and trivial
 /// cleanup for the same edge runs. A projected owned argument moves one
@@ -22,7 +22,7 @@ pub(super) fn consume(
     arguments: &[StructuralArgument],
     allow_projected: bool,
     window_aliases: &WindowAliases,
-) -> Result<(), ModuleError> {
+) -> Result<Vec<(super::ClaimId, LiveClaim)>, ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
             edge,
@@ -33,6 +33,7 @@ pub(super) fn consume(
     // An open restoration window cannot cross an edge under any access:
     // the successor's binding could not name the hole this frame opened.
     check_edge_arguments(module, machine, frontier, window_aliases, edge, arguments)?;
+    let mut transferred = Vec::new();
     for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
         if parameter.access != StructuralAccess::Owned {
             continue;
@@ -84,23 +85,56 @@ pub(super) fn consume(
             }
             continue;
         }
+        if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            && !frontier.references.is_empty()
+        {
+            // Check the existing leaf roster and external children without
+            // ending any loan. The whole move keeps those leaves and backing.
+            let mut remaining = frontier.references.clone();
+            super::super::references::discard_owned(
+                module,
+                machine,
+                &mut remaining,
+                argument.place,
+            )?;
+            super::super::references::check_root_access(machine, &remaining, argument.place)?;
+        }
         if argument.access != StructuralAccess::Owned
             || frontier.partial_custody_paths.contains_key(&argument.place)
-            || frontier
-                .claims
-                .values()
-                .any(|claim| claim.input == Some(argument.place))
-            || (parameter.multiplicity == StructuralMultiplicity::Affine
-                && frontier.owned_places.remove(&argument.place)
-                    != Some(StructuralMultiplicity::Affine))
+            || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                && frontier.owned_places.remove(&argument.place) != Some(parameter.multiplicity))
         {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
                 edge,
                 place: argument.place,
             });
         }
+        let claims = frontier
+            .claims
+            .iter()
+            .filter_map(|(identity, claim)| {
+                (claim.input == Some(argument.place)).then_some(*identity)
+            })
+            .collect::<Vec<_>>();
+        if (parameter.multiplicity == StructuralMultiplicity::Linear && claims.is_empty())
+            || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && !claims.is_empty())
+        {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            });
+        }
+        for identity in claims {
+            let mut claim = frontier
+                .claims
+                .remove(&identity)
+                .expect("captured live claim");
+            claim.input = Some(parameter.place);
+            transferred.push((identity, claim));
+        }
     }
-    Ok(())
+    Ok(transferred)
 }
 
 /// Phase two installs the target roots after every consumed source has left
@@ -117,6 +151,7 @@ pub(super) fn establish(
     edge: EdgeId,
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
+    transferred: Vec<(super::ClaimId, LiveClaim)>,
 ) -> Result<(), ModuleError> {
     let aliases = super::super::borrowed_windows::window_aliases(module, machine);
     for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
@@ -157,7 +192,7 @@ pub(super) fn establish(
     }
     for parameter in &target.structural_parameters {
         if parameter.access == StructuralAccess::Owned
-            && parameter.multiplicity == StructuralMultiplicity::Affine
+            && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             && frontier
                 .owned_places
                 .insert(parameter.place, parameter.multiplicity)
@@ -169,21 +204,40 @@ pub(super) fn establish(
             });
         }
     }
-    // A whole owned move re-homes the record's stored loans onto the bound
-    // name: their formation identity, roots and parents are untouched, only
-    // the carrier coordinate follows the value across the edge.
-    for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
-        if parameter.access != StructuralAccess::Owned
-            || argument.access != StructuralAccess::Owned
-            || !argument.path.is_empty()
-            || argument.place == parameter.place
+    for parameter in &target.structural_parameters {
+        if parameter.access == StructuralAccess::Owned
+            && frontier
+                .claims
+                .values()
+                .any(|claim| claim.input == Some(parameter.place))
         {
-            continue;
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: parameter.place,
+            });
         }
-        for reference in frontier.references.iter_mut() {
-            if reference.carrier == argument.place {
-                reference.carrier = parameter.place;
-            }
+    }
+    for (identity, claim) in transferred {
+        let place = claim.input.expect("transferred claim has a destination");
+        if frontier.claims.insert(identity, claim).is_some() {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument { edge, place });
+        }
+    }
+    // Read each old carrier once: sequential source replacement would rewrite
+    // the first half of a swap again when processing its second binding.
+    for reference in &mut frontier.references {
+        if let Some((_, parameter)) =
+            arguments
+                .iter()
+                .zip(&target.structural_parameters)
+                .find(|(argument, parameter)| {
+                    parameter.access == StructuralAccess::Owned
+                        && argument.access == StructuralAccess::Owned
+                        && argument.path.is_empty()
+                        && argument.place == reference.carrier
+                })
+        {
+            reference.carrier = parameter.place;
         }
     }
     Ok(())

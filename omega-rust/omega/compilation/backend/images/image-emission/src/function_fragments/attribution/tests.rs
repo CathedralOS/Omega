@@ -313,6 +313,7 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
     let source = AbstractFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         entry: BlockId::new(1).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -377,6 +378,7 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
     let fragment = FunctionFragment {
         machine: source.machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         byte_count: 8,
         bytes: vec![0x90; 8],

@@ -20,7 +20,8 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<super::super::BlockEntryCustody, LegalizationError> {
-    if function.attachment != optimized.attachment
+    if (function.attachment != optimized.attachment
+        || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types
         || graph.entry != optimized.entry

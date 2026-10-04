@@ -78,6 +78,7 @@ pub(super) fn derive(
     Ok(LegalizedScalarFunction {
         machine: target.machine,
         attachment: target.attachment,
+        nominal_cleanup_subject: target.nominal_cleanup_subject,
         provenance: target.provenance.clone(),
         call_plan,
         parameters,

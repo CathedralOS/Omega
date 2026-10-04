@@ -274,7 +274,7 @@ fn check_window_access(
     Ok(())
 }
 
-fn check_root_access(
+pub(super) fn check_root_access(
     function: &PsiOptimizationFunction,
     block: BlockId,
     node: u32,

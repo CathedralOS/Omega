@@ -168,6 +168,8 @@ pub struct PsiOptimizationFunction {
     /// Exact nominal receiver attachment from the verified Terminal-Psi
     /// signature. Optimization may inspect but never rewrite this identity.
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub entry: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,

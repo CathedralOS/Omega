@@ -1,6 +1,10 @@
 //! Scalar affine cleanup shapes: the single scalar cleanup and the control
 //! cleanup family a function may retain.
 
+use crate::object_artifact::replay::unit::affine_cleanup::{
+    nominal_claims_are_canonical, nominal_owner_matches,
+};
+
 use crate::installation_record::{
     CallSiteOwner, InstallationError, InstallationRecord, InstalledFunction, SemanticCodeSite,
     StructuralMultiplicity,
@@ -18,6 +22,7 @@ pub(super) fn validate_scalar_affine_cleanup_shape(
         .checked_add(cleanup.byte_count)
         .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
     if cleanup.byte_count == 0
+        || !nominal_claims_are_canonical(&cleanup.actions)
         || end > function.byte_count
         || (require_function_end && end != function.byte_count)
         || !cleanup.locals.is_empty()
@@ -32,14 +37,21 @@ pub(super) fn validate_scalar_affine_cleanup_shape(
                     *place != home.place || home.multiplicity != StructuralMultiplicity::Affine
                 }
                 terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
-                    nominal.place != home.place
-                        || nominal.structural_type != home.structural_type
-                        || home.multiplicity != StructuralMultiplicity::Affine
+                    !nominal_owner_matches(home, nominal)
                         || nominal.cleanup_receiver.is_some()
                         || !nominal.requirement_obligations.is_empty()
+                        || record
+                            .functions
+                            .iter()
+                            .filter(|target| {
+                                target.nominal_cleanup_subject == Some(nominal.structural_type)
+                            })
+                            .count()
+                            != 1
                         || record.functions.iter().all(|target| {
                             target.machine != nominal.cleanup_machine
                                 || target.attachment != Some(nominal.structural_type)
+                                || target.nominal_cleanup_subject != Some(nominal.structural_type)
                                 || !target.unit_body
                         })
                 }

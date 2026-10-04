@@ -256,6 +256,7 @@ fn machine(id: u64, entry_block: u64) -> terminal_psi::TerminalMachine {
     terminal_psi::TerminalMachine {
         id: semantic_vocabulary::MachineId::new(id).expect("nonzero machine id"),
         attachment: None,
+        nominal_cleanup_subject: None,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         ranked_scc: None,

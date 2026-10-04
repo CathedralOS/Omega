@@ -58,6 +58,14 @@ pub(crate) fn encode_functions(
             }
             None => bytes.extend_from_slice(&[0; 16]),
         }
+        match function.nominal_cleanup_subject {
+            Some(attachment) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 7]);
+                push_u64(bytes, attachment.get());
+            }
+            None => bytes.extend_from_slice(&[0; 16]),
+        }
         push_u64(
             bytes,
             u64::try_from(function.text_offset)
@@ -158,6 +166,23 @@ pub(crate) fn decode_functions(
             }
             tag => return Err(InstallationError::InvalidPresenceFlag(tag)),
         };
+        let nominal_cleanup_subject = match reader.u8()? {
+            0 => {
+                if reader.take(7)? != [0; 7] || reader.u64()? != 0 {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                None
+            }
+            1 => {
+                if reader.take(7)? != [0; 7] {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                Some(StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("nominal cleanup subject"),
+                )?)
+            }
+            tag => return Err(InstallationError::InvalidPresenceFlag(tag)),
+        };
         let text_offset = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::FunctionOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
@@ -213,6 +238,7 @@ pub(crate) fn decode_functions(
         functions.push(InstalledFunction {
             machine,
             attachment,
+            nominal_cleanup_subject,
             scalar_abi,
             mixed_structural_scalar_abi,
             parameter_abi,

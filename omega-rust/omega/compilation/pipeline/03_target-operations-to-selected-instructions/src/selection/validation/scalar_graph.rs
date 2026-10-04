@@ -56,7 +56,8 @@ pub(in crate::selection) fn validate_with_environment(
     let block = selected.blocks.first().ok_or_else(invalid)?;
     control::block_order(source, selected)?;
     if selected.machine != source.machine
-        || selected.attachment != source.attachment
+        || (selected.attachment != source.attachment
+            || selected.nominal_cleanup_subject != source.nominal_cleanup_subject)
         || selected.provenance != source.provenance
         || selected.structural != source.structural
         || selected.entry_block != SelectedBlockId(0)

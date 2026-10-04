@@ -101,6 +101,23 @@ pub(in crate::validation) fn validate_structural_argument(
                     return None;
                 }
                 match place.kind {
+                    StructuralPlaceKind::OperationResult { .. } | StructuralPlaceKind::BlockParameter { .. }
+                        if argument.access == StructuralAccess::Owned && argument.path.is_empty()
+                            && source_policy != StructuralArgumentSourcePolicy::OnlyParameters
+                            && matches!(call_kind, Some(OperationKind::CallUnit { .. }
+                                | OperationKind::CallStructuralScalar { .. }
+                                | OperationKind::CallStructural { .. }
+                                | OperationKind::CallStructuralWithScalarArguments { .. })) =>
+                    {
+                        // An ordinary whole move carries the exact declared
+                        // storage contract, independent of its producer. Live
+                        // frontier replay owns claims and single consumption.
+                        let source = crate::validation::structural::result_contracts::source_signature(caller, argument.place)?;
+                        let access = crate::validation::block_views::parameter(caller, argument.place)
+                            .map_or(StructuralAccess::Owned, |parameter| parameter.access);
+                        Some((source.structural_type, source.multiplicity, access,
+                            source.qualifications, source.projected_qualifications))
+                    }
                     StructuralPlaceKind::OperationResult { .. }
                         if argument.access != StructuralAccess::Owned
                             && matches!(source_policy,
@@ -140,48 +157,13 @@ pub(in crate::validation) fn validate_structural_argument(
                             source.qualifications, source.projected_qualifications))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && argument.path.is_empty()
-                            && crate::validation::references::argument_owns_references(module, caller, argument) =>
-                    {
-                        // Stored-reference carriers are not plain payloads.
-                        // Their exact producer and live leaf transfer are
-                        // checked independently by reference/frontier replay.
-                        crate::validation::structural::result_contracts::source_signature(caller, argument.place).map(|source| (
-                            source.structural_type, source.multiplicity, StructuralAccess::Owned,
-                            source.qualifications, source.projected_qualifications,
-                        ))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if matches!(
-                            source_policy,
-                            StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
-                                | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                        ) && argument.path.is_empty() && argument.access == StructuralAccess::Owned
+                        if source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                            && argument.path.is_empty() && argument.access == StructuralAccess::Owned
                             && linear_call_result(caller, argument.place).is_some() =>
                     {
                         // The guard keeps claim-free affine call results on the
                         // general arm below: selecting this arm for them would
                         // end the place lookup on a missing linear result.
-                        let (_, result) = linear_call_result(caller, argument.place)
-                            .expect("guard established a linear call result");
-                        Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,
-                            result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && argument.path.is_empty()
-                            && argument.access == StructuralAccess::Owned
-                            && linear_call_result(caller, argument.place).is_some() =>
-                    {
-                        // A completed linear call result carries its claim
-                        // frontier on the result itself. Admitting the place
-                        // admits no claim: the call's transfer roster still
-                        // resolves each occurrence through the caller's claim
-                        // table — a result-minted binding or an entry claim —
-                        // against the callee's entry roster.
                         let (_, result) = linear_call_result(caller, argument.place)
                             .expect("guard established a linear call result");
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,
@@ -196,22 +178,6 @@ pub(in crate::validation) fn validate_structural_argument(
                     {
                         let result = crate::validation::record::completed_source(module, caller, argument.place)?;
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && argument.path.is_empty()
-                            && argument.access == StructuralAccess::Owned
-                            && (crate::validation::scalar::case::plain_return_source(module, caller, argument.place) || crate::validation::structural::case::plain_return_source(module, caller, argument.place)) =>
-                    {
-                        // Scalar and nested-payload case establishment supply the
-                        // same complete owned value at calls as at returns. Keep its actual
-                        // multiplicity; frontier replay still requires the
-                        // exact producer to dominate and transfer only once.
-                        crate::validation::structural::result_contracts::source_signature(caller, argument.place).map(|source| (
-                            source.structural_type, source.multiplicity, StructuralAccess::Owned,
-                            source.qualifications, source.projected_qualifications,
-                        ))
                     }
                     StructuralPlaceKind::OperationResult { structural_type, .. }
                         if ((ordinary_call

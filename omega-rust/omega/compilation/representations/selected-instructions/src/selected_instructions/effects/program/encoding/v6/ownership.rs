@@ -50,6 +50,7 @@ fn decode_cleanup(
             let place = decode_place(cursor)?;
             let structural_type = decode_structural_type(cursor)?;
             let cleanup_machine = decode_machine(cursor)?;
+            let consumed_claims = decode_claim_ids(cursor)?;
             let cleanup_receiver = match cursor.byte()? {
                 0 => None,
                 1 => Some(decode_place(cursor)?),
@@ -61,6 +62,7 @@ fn decode_cleanup(
                     place,
                     structural_type,
                     cleanup_machine,
+                    consumed_claims,
                     cleanup_receiver,
                     requirement_obligations,
                 },

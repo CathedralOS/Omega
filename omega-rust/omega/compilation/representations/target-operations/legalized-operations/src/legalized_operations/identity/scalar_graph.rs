@@ -12,6 +12,10 @@ use optimization_unit::encode_value_definition_site_identity;
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(bytes, function.attachment.map(|value| value.get()));
+    encode_option_id(
+        bytes,
+        function.nominal_cleanup_subject.map(|value| value.get()),
+    );
     encode_ids(
         bytes,
         function

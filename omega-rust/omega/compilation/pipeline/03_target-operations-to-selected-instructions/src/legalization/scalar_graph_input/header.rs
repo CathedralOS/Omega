@@ -13,8 +13,10 @@ pub(super) fn function_abi(
 ) -> Result<CallPlan, LegalizationError> {
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
-        || target.attachment != abstracted.attachment
-        || target.attachment != optimized.attachment
+        || (target.attachment != abstracted.attachment
+            || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
+        || (target.attachment != optimized.attachment
+            || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
         || target.mixed_structural_scalar_abi.is_some()
         || optimized.result != abstracted.result
         || !abstracted.structural_parameters.is_empty()

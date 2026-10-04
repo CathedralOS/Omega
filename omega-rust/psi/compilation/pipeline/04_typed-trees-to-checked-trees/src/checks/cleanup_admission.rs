@@ -15,6 +15,40 @@ pub(crate) fn validate_selected_cleanup_guarantees(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut linear_targets = Vec::new();
+    // Disposition, not the hook's name or mere existence, selects this rule.
+    // The current whole-linear plan carries no independent service-authority
+    // evidence, so neither a published ceiling nor inferred reach may add an
+    // external dependency to its owner's terminal disposition.
+    for (_, disposition) in facts.contextual_cleanup.dispositions.iter() {
+        let linear = facts.flow.ownership.permissions.iter().any(|(_, event)| {
+            event.machine_symbol == disposition.machine
+                && event.state_symbol == disposition.state
+                && event.source == disposition.source
+                && event.root == disposition.root
+                && facts.flow.ownership.segments.span(event.segments)
+                    == facts.flow.ownership.segments.span(disposition.path)
+                && event.kind == language_semantics::PermissionEventKind::Consume
+                && event.multiplicity == language_semantics::Multiplicity::Linear
+                && event.access == language_semantics::PermissionAccess::Owned
+        });
+        if !linear {
+            continue;
+        }
+        let Some(leaves) = crate::flow::selected_cleanup_leaves(program, facts, disposition) else {
+            diagnostics.push(Diagnostic::error(
+                "linear cleanup has no complete owner-authorized disposition",
+            ));
+            continue;
+        };
+        for leaf in leaves {
+            if let crate::flow::CleanupLeaf::Nominal { machine, .. } = leaf
+                && !linear_targets.contains(&machine)
+            {
+                linear_targets.push(machine);
+            }
+        }
+    }
     let mut checked_targets = Vec::new();
     for (_, dependency) in facts.operational.cleanup_dependencies.iter() {
         let target = dependency.target_machine;
@@ -36,6 +70,30 @@ pub(crate) fn validate_selected_cleanup_guarantees(
             ));
             continue;
         };
+
+        if linear_targets.contains(&target)
+            && !facts
+                .service_reaches
+                .for_machine(target)
+                .is_some_and(|reach| {
+                    reach.unresolved_installation_reaches.is_empty()
+                        && facts
+                            .service_reaches
+                            .rows
+                            .services(reach.effective)
+                            .is_empty()
+                        && facts
+                            .service_reaches
+                            .rows
+                            .services(reach.inferred_transitive)
+                            .is_empty()
+                })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected linear cleanup machine `{}` requires runtime authority beyond its owned value",
+                machine.name,
+            )));
+        }
 
         // Exact ordinary invocation refinement may eliminate a helper's
         // published crash route. Its mere declaration is not a surviving

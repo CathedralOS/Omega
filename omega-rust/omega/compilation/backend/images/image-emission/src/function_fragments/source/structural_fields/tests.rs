@@ -408,6 +408,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
     let function = AbstractFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         entry: block,
         parameters: vec![],
         structural_parameters: vec![parameter],
@@ -426,6 +427,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
     let target = TargetFunction {
         machine,
         attachment: None,
+        nominal_cleanup_subject: None,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {

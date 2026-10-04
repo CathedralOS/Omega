@@ -8,6 +8,8 @@ use terminal_psi::{EntryClaim, StructuralParameterDeclaration};
 pub struct AbstractFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub entry: BlockId,
     /// Runtime values supplied by the caller, in declared terminal-Psi order.
     pub parameters: Vec<AbstractParameter>,

@@ -14,6 +14,7 @@ pub(super) fn completed_result(
     operations: &OperationBuffer,
     block: BlockId,
     parameters: &[StructuralParameterDeclaration],
+    arrival_claims: &[terminal_psi::StructuralResultClaimBinding],
 ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
     if declaration.id != place {
         return unsupported("completed value changed its declared place");
@@ -67,6 +68,12 @@ pub(super) fn completed_result(
     {
         return unsupported("completed value changed its exact arrival");
     }
+    if arrival_claims.windows(2).any(|pair| pair[0] >= pair[1])
+        || (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            && arrival_claims.is_empty())
+    {
+        return unsupported("completed linear arrival lost its exact claim frontier");
+    }
     Ok(terminal_psi::StructuralOperationResult {
         place,
         structural_type: parameter.structural_type,
@@ -74,6 +81,6 @@ pub(super) fn completed_result(
         qualifications: parameter.qualifications.clone(),
         projected_qualifications: parameter.projected_qualifications.clone(),
         qualification_establishments: Vec::new(),
-        claims: Vec::new(),
+        claims: arrival_claims.to_vec(),
     })
 }

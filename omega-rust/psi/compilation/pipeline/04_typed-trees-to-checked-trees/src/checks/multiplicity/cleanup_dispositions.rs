@@ -9,7 +9,7 @@ use checked_trees::{
     FlowPermissionEventFact,
 };
 use facts::{Place, PlaceRoot, PlaceSegment};
-use language_semantics::{PermissionAccess, PermissionEventKind};
+use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
 
 #[derive(Clone, Default)]
 pub(super) struct RemainingCustody {
@@ -29,7 +29,10 @@ impl RemainingCustody {
                 continue;
             }
             let path = segments.span_or_empty(event.segments);
-            if event.kind == PermissionEventKind::AffineDrop {
+            if event.kind == PermissionEventKind::AffineDrop
+                || (event.kind == PermissionEventKind::Consume
+                    && event.source == PermissionEventSource::StateExit)
+            {
                 let exclusions = self
                     .transferred
                     .iter()

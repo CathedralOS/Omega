@@ -35,7 +35,7 @@
 //! evaluates both inside the selected arm in authored order.
 //! Structural results use the ordinary call binding after operand preparation;
 //! completion transfers that value instead of discarding it. An arm call still
-//! transfers no claims.
+//! retains ordinary exact claim transfers into the callee.
 use super::{
     CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
     TransitionTargetNode, TypedTrees, control,
@@ -257,9 +257,7 @@ pub(super) fn arm_call(
         trace,
     )?;
     let planned = operation.call()?;
-    if !planned.claim_transfers().is_empty()
-        || planned.coordinate.statement_index != statement_ordinal
-    {
+    if planned.coordinate.statement_index != statement_ordinal {
         return None;
     }
     let operation = match (scalar_result, structural_result) {

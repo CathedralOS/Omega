@@ -9,22 +9,28 @@ pub(crate) fn validate_internal_claim_transfers(
     transfers: &[terminal_psi::ClaimTransfer],
 ) -> bool {
     for (argument, parameter) in arguments.iter().zip(&callee.structural_parameters) {
-        let mut caller_paths = caller
-            .entry_claim_declarations
-            .iter()
-            .filter(|claim| claim.input == argument.place && claim.path.starts_with(&argument.path))
-            .map(|claim| &claim.path[argument.path.len()..])
-            .collect::<Vec<_>>();
-        let mut callee_paths = callee
-            .entry_claim_declarations
-            .iter()
-            .filter(|claim| claim.input == parameter.place)
-            .map(|claim| claim.path.as_slice())
-            .collect::<Vec<_>>();
-        caller_paths.sort();
-        callee_paths.sort();
-        if caller_paths != callee_paths {
-            return false;
+        // Whole owned calls use the current claim frontier, not the original
+        // parameter home. Borrowed inputs retain their claim-free restriction.
+        if argument.access != terminal_psi::StructuralAccess::Owned {
+            let mut caller_paths = caller
+                .entry_claim_declarations
+                .iter()
+                .filter(|claim| {
+                    claim.input == argument.place && claim.path.starts_with(&argument.path)
+                })
+                .map(|claim| &claim.path[argument.path.len()..])
+                .collect::<Vec<_>>();
+            let mut callee_paths = callee
+                .entry_claim_declarations
+                .iter()
+                .filter(|claim| claim.input == parameter.place)
+                .map(|claim| claim.path.as_slice())
+                .collect::<Vec<_>>();
+            caller_paths.sort();
+            callee_paths.sort();
+            if caller_paths != callee_paths {
+                return false;
+            }
         }
         if !argument.path.is_empty()
             && (caller
@@ -82,29 +88,9 @@ pub(crate) fn validate_internal_claim_transfers(
         let Some(argument) = arguments.get(transfer.argument_index as usize) else {
             return false;
         };
-        let Some((claim_input, claim_path)) = function_claim_input(caller, transfer.claim) else {
-            return false;
-        };
-        let target_place = callee
-            .structural_parameters
-            .get(transfer.argument_index as usize)
-            .map(|parameter| parameter.place);
-        let structural_match = claim_path.starts_with(&argument.path)
-            && callee.entry_claim_declarations.iter().any(|claim| {
-                Some(claim.input) == target_place && claim.path == claim_path[argument.path.len()..]
-            });
-        let content_match = argument.path.is_empty()
-            && caller
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.claim == transfer.claim && claim.input.root == argument.place)
-            && callee
-                .content_entry_claims
-                .iter()
-                .any(|claim| Some(claim.input.root) == target_place);
-        if claim_input != argument.place || (!structural_match && !content_match) {
-            return false;
-        }
+        // The current ownership replay authenticates the exact live source
+        // and complete callee path roster at this operation.
+        let _ = argument;
     }
     callee_claims.into_values().all(|input| {
         callee

@@ -49,7 +49,7 @@ use wire::{Reader, Writer, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-pub(crate) const FORMAT_MARKER: u16 = 118;
+pub(crate) const FORMAT_MARKER: u16 = 119;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

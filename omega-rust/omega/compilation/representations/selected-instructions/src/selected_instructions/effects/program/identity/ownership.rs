@@ -51,6 +51,10 @@ fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            encode_ids(
+                bytes,
+                cleanup.consumed_claims.iter().map(|claim| claim.get()),
+            );
             match cleanup.cleanup_receiver {
                 None => bytes.push(0),
                 Some(place) => {

@@ -593,6 +593,7 @@ pub(super) fn lower(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
+        nominal_cleanup_subject: function.nominal_cleanup_subject,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance,

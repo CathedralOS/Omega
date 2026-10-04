@@ -1225,6 +1225,7 @@ mod tests {
         let function = InstalledFunction {
             machine: call.machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             parameter_abi: None,

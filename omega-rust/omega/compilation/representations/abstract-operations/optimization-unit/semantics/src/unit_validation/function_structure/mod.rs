@@ -58,6 +58,20 @@ pub(crate) fn validate_function(
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
 ) -> Result<(), OptimizationUnitValidationError> {
+    if let Some(subject) = function.nominal_cleanup_subject {
+        if function.attachment != Some(subject)
+            || !structural_types.contains_key(&subject)
+            || functions
+                .values()
+                .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
+                .count()
+                != 1
+        {
+            return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                machine: Some(function.machine),
+            });
+        }
+    }
     if !valid_service_ceiling(&function.published_service_ceiling, services) {
         return Err(
             OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),

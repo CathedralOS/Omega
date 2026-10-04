@@ -220,6 +220,7 @@ pub(super) fn emit_functions(
         functions.push(ObjectFunction {
             machine: function.machine,
             attachment: function.attachment,
+            nominal_cleanup_subject: function.nominal_cleanup_subject,
             scalar_abi: function.scalar_abi.clone(),
             mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
             structural_call_scalar_return: function.structural_call_scalar_return,

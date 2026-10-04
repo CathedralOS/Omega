@@ -22,7 +22,7 @@ use super::super::{
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
     apply_continuation_residual_discards, apply_edge_trivial_affine_discards,
-    expected_trivial_affine_discards, release_reference_discards,
+    consume_nominal_cleanup, expected_trivial_affine_discards, release_reference_discards,
     validate_return_cleanup_actions,
 };
 
@@ -107,7 +107,7 @@ fn close_jump(
     };
     // Projected successor arguments open partial custody on their
     // root before this edge's residual evidence closes it.
-    super::block_parameters::consume(
+    let transferred = super::block_parameters::consume(
         module,
         machine,
         &mut frontier,
@@ -140,6 +140,7 @@ fn close_jump(
         *edge,
         blocks[target],
         structural_arguments,
+        transferred,
     )?;
     snapshots.edge_exits.insert(*edge, frontier.snapshot());
     incoming.entry(*target).or_default().push(frontier);
@@ -170,7 +171,7 @@ fn close_conditional(
         unreachable!("dispatched close_conditional")
     };
     let mut true_frontier = frontier.clone();
-    super::block_parameters::consume(
+    let transferred = super::block_parameters::consume(
         module,
         machine,
         &mut true_frontier,
@@ -195,6 +196,7 @@ fn close_conditional(
         when_true.edge,
         blocks[&when_true.target],
         &when_true.structural_arguments,
+        transferred,
     )?;
     snapshots
         .edge_exits
@@ -203,7 +205,7 @@ fn close_conditional(
         .entry(when_true.target)
         .or_default()
         .push(true_frontier);
-    super::block_parameters::consume(
+    let transferred = super::block_parameters::consume(
         module,
         machine,
         &mut frontier,
@@ -228,6 +230,7 @@ fn close_conditional(
         when_false.edge,
         blocks[&when_false.target],
         &when_false.structural_arguments,
+        transferred,
     )?;
     snapshots
         .edge_exits
@@ -506,22 +509,17 @@ fn close_return_unit_nominal_affine(
     block: &terminal_psi::Block,
     mut frontier: StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
-    let FrontierWalk { machine, .. } = *walk;
+    let FrontierWalk {
+        module,
+        machine,
+        machines,
+        ..
+    } = *walk;
     let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator else {
         unreachable!("dispatched close_return_unit_nominal_affine")
     };
     for cleanup in cleanups {
-        if frontier
-            .claims
-            .values()
-            .any(|claim| claim.input == Some(cleanup.place))
-            || frontier.owned_places.remove(&cleanup.place) != Some(StructuralMultiplicity::Affine)
-        {
-            return Err(ModuleError::InvalidNominalAffineCleanup {
-                machine: machine.id,
-                block: block.id,
-            });
-        }
+        consume_nominal_cleanup(module, machine, machines, block.id, &mut frontier, cleanup)?;
     }
     if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
@@ -561,6 +559,23 @@ fn close_return(
     else {
         unreachable!("dispatched close_return")
     };
+    if let Some(place) = pending_reseat(&frontier) {
+        return Err(ModuleError::BorrowedStorageRestorationPending {
+            machine: machine.id,
+            block: block.id,
+            place,
+        });
+    }
+    let frontier = validate_return_cleanup_actions(
+        module,
+        machine,
+        parameter_order,
+        machines,
+        block.id,
+        &frontier,
+        walk.borrowed_references,
+        cleanup_actions,
+    )?;
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -572,23 +587,6 @@ fn close_return(
             claim: *claim,
         });
     }
-    if let Some(place) = pending_reseat(&frontier) {
-        return Err(ModuleError::BorrowedStorageRestorationPending {
-            machine: machine.id,
-            block: block.id,
-            place,
-        });
-    }
-    validate_return_cleanup_actions(
-        module,
-        machine,
-        parameter_order,
-        machines,
-        block.id,
-        &frontier,
-        walk.borrowed_references,
-        cleanup_actions,
-    )?;
     Ok(())
 }
 
@@ -861,7 +859,7 @@ fn close_return_structural(
     for claim in returned_claims {
         frontier.claims.remove(claim);
     }
-    validate_return_cleanup_actions(
+    let frontier = validate_return_cleanup_actions(
         module,
         machine,
         parameter_order,

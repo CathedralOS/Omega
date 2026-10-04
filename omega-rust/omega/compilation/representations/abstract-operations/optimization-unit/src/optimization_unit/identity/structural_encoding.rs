@@ -670,6 +670,7 @@ pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffine
             bytes.id(cleanup.place);
             bytes.id(cleanup.structural_type);
             bytes.id(cleanup.cleanup_machine);
+            encode_ids(bytes, &cleanup.consumed_claims);
             encode_optional(bytes, cleanup.cleanup_receiver.as_ref(), |bytes, place| {
                 bytes.id(*place)
             });

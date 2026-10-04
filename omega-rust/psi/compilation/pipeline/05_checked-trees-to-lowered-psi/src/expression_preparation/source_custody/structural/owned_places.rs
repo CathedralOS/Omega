@@ -95,6 +95,7 @@ pub(crate) fn validate(
         ) && validation::reference_result_custody::is_reference_record(&checked.typed, source);
     if checked.primitive_type_reference(source).is_some()
         || !(validation::has_cleanup_owned_contents(&checked.typed, source)
+            || validation::has_linear_owned_contents(&checked.typed, source)
             || validation::has_owned_or_shared_view_contents(&checked.typed, source)
             || owned_reference_parameter)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)
@@ -102,7 +103,19 @@ pub(crate) fn validate(
     {
         return unsupported("owned value operand substituted its declared carrier");
     }
-    if checked.type_multiplicity(source) == language_semantics::Multiplicity::Affine {
+    let frontier = validation::linear_claim_frontier(&checked.typed, source);
+    if !frontier.is_empty() {
+        validate_linear_transfer(
+            checked,
+            machine,
+            state,
+            statement,
+            expression,
+            name.symbol,
+            source,
+            &frontier,
+        )?;
+    } else if checked.type_multiplicity(source) == language_semantics::Multiplicity::Affine {
         validate_transfer(
             checked,
             machine,
@@ -114,6 +127,127 @@ pub(crate) fn validate(
             },
             &argument.path,
         )?;
+    }
+    Ok(())
+}
+
+/// Whole binding moves preserve every live claim's identity and typed path.
+/// The destination establishment is correspondence, not authority to replace a
+/// missing source transfer or mint another obligation at the new local.
+fn validate_linear_transfer(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: u32,
+    expression: ExpressionHandle,
+    root: SymbolHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    frontier: &[validation::ClaimFrontierClaim],
+) -> Result<(), LoweringError> {
+    use language_semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+        PermissionEventSource, PermissionProvenance,
+    };
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .get(statement as usize)
+    else {
+        return unsupported("linear whole move has no destination binding");
+    };
+    if local.initial_value != expression
+        || local.symbol == root
+        || !local.symbol.is_valid()
+        || checked.normalized_type_identity(local.type_reference)
+            != checked.normalized_type_identity(reference)
+    {
+        return unsupported("linear whole move changed its destination binding");
+    }
+    let ownership = &checked.facts.flow.ownership;
+    let occurrence = PermissionEventSource::Statement {
+        statement_index: statement as usize,
+    };
+    let events = ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source == occurrence
+        })
+        .collect::<Vec<_>>();
+    let transfers = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.root == facts::PlaceRoot::Symbol(root)
+                && event.kind == PermissionEventKind::Transfer
+        })
+        .collect::<Vec<_>>();
+    let establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.root == facts::PlaceRoot::Symbol(local.symbol)
+                && event.kind == PermissionEventKind::Establish
+                && event.multiplicity == Multiplicity::Linear
+        })
+        .collect::<Vec<_>>();
+    if transfers.len() != frontier.len() || establishments.len() != frontier.len() {
+        return unsupported("linear whole move changed its complete claim frontier");
+    }
+    let mut identities = Vec::new();
+    for claim in frontier {
+        let expected_path =
+            validation::structural_claim_path(&checked.typed, reference, &claim.path)
+                .map_err(LoweringError::Unsupported)?;
+        let mut matching = transfers
+            .iter()
+            .copied()
+            .filter(|event| ownership.segments.span(event.segments) == Some(claim.path.as_slice()));
+        let transfer = matching.next().ok_or(LoweringError::Unsupported(
+            "linear whole move lost a source claim",
+        ))?;
+        if matching.next().is_some()
+            || transfer.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+            || transfer.access != PermissionAccess::Owned
+            || transfer.multiplicity != Multiplicity::Linear
+            || !transfer.obligation_live
+            || transfer.claim_identity == PermissionClaimIdentity::Unknown
+            || transfer.provenance == PermissionProvenance::Unknown
+            || identities.contains(&transfer.claim_identity)
+        {
+            return unsupported("linear whole move changed its source claim identity");
+        }
+        identities.push(transfer.claim_identity);
+        let mut matching = establishments
+            .iter()
+            .copied()
+            .filter(|event| event.claim_identity == transfer.claim_identity);
+        let established = matching.next().ok_or(LoweringError::Unsupported(
+            "linear whole move lost its destination claim",
+        ))?;
+        let segments =
+            ownership
+                .segments
+                .span(established.segments)
+                .ok_or(LoweringError::Unsupported(
+                    "linear whole move has a stale destination path",
+                ))?;
+        if matching.next().is_some()
+            || established.evaluation != transfer.evaluation
+            || established.access != transfer.access
+            || !established.obligation_live
+            || established.provenance != transfer.provenance
+            || validation::structural_claim_path(&checked.typed, local.type_reference, segments)
+                .map_err(LoweringError::Unsupported)?
+                != expected_path
+        {
+            return unsupported("linear whole move changed its destination claim custody");
+        }
     }
     Ok(())
 }

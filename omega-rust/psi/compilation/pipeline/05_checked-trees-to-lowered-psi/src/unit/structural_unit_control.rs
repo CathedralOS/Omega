@@ -580,6 +580,7 @@ pub(crate) fn lower_structural_unit_control_machine(
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
+        nominal_cleanup_subject: None,
         parameters: state_scalar_parameters[0].clone(),
         structural_parameters: entry_parameters.clone(),
         ranked_scc: None,
@@ -785,6 +786,7 @@ fn lower_ranked_structural_unit_countdown(
         declared_service_reach: Vec::new(),
         id: machine_id(1),
         attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
+        nominal_cleanup_subject: None,
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
             id: initial,

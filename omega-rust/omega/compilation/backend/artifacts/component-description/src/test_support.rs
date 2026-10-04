@@ -65,6 +65,7 @@ pub fn bare_module() -> TerminalModule {
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
+            nominal_cleanup_subject: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             ranked_scc: None,

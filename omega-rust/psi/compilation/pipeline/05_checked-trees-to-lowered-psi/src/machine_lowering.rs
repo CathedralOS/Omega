@@ -62,6 +62,105 @@ pub fn lower_machine(
     lower_terminal_selection(checked, selection)
 }
 
+/// The exact source declaration designates this callable's cleanup role;
+/// merely being attached to the same type or receiving its loan is insufficient.
+pub(crate) fn nominal_cleanup_subject(
+    checked: &CheckedTrees,
+    source: symbols::SymbolHandle,
+    attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    nominal_cleanup_subject_from_types(
+        checked,
+        source,
+        attachment,
+        type_ids
+            .iter()
+            .map(|(identity, id)| (identity.as_str(), *id)),
+    )
+}
+
+fn nominal_cleanup_subject_from_types<'types>(
+    checked: &CheckedTrees,
+    source: symbols::SymbolHandle,
+    attachment: Option<semantic_vocabulary::StructuralTypeId>,
+    types: impl Iterator<Item = (&'types str, semantic_vocabulary::StructuralTypeId)>,
+) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    let Some(owner) = validation::nominal_cleanup_owner(&checked.typed, source) else {
+        return Ok(None);
+    };
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source)
+        .ok_or(LoweringError::Unsupported(
+            "cleanup declaration lost its exact source",
+        ))?;
+    let data = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == owner)
+        .ok_or(LoweringError::Unsupported(
+            "cleanup declaration lost its exact owner",
+        ))?;
+    let identity = if machine.attached_data_application.is_valid() {
+        checked.normalized_type_identity(machine.attached_data_application)
+    } else if let Some(application) = data.generic_instance {
+        checked.normalized_type_identity(application)
+    } else {
+        checked
+            .normalized_nominal_type_identity(owner)
+            .ok_or(LoweringError::Unsupported(
+                "cleanup owner has no normalized nominal identity",
+            ))?
+    };
+    let mut matches = types.filter(|(candidate, _)| *candidate == identity.as_str());
+    let (_, subject) = matches.next().ok_or(LoweringError::Unsupported(
+        "owner-designated cleanup lost its exact structural declaration",
+    ))?;
+    if matches.next().is_some() || attachment.is_some_and(|attachment| attachment != subject) {
+        return unsupported("cleanup attachment substituted its exact owner type");
+    }
+    Ok(Some(subject))
+}
+
+fn retain_nominal_cleanup_roles(
+    checked: &CheckedTrees,
+    owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
+    module: &mut terminal_psi::TerminalModule,
+) -> Result<(), LoweringError> {
+    for (source, identity) in owners {
+        let mut matches = module
+            .machines
+            .iter_mut()
+            .filter(|machine| machine.id == *identity);
+        let machine = matches.next().ok_or(LoweringError::Unsupported(
+            "cleanup source mapping lost its emitted machine",
+        ))?;
+        if matches.next().is_some() {
+            return unsupported("cleanup source mapping repeats its emitted machine");
+        }
+        let expected = nominal_cleanup_subject_from_types(
+            checked,
+            *source,
+            machine.attachment,
+            module
+                .structural_types
+                .iter()
+                .map(|declaration| (declaration.identity.as_str(), declaration.id)),
+        )?;
+        if machine.nominal_cleanup_subject.is_some() && machine.nominal_cleanup_subject != expected
+        {
+            return unsupported("machine substituted its owner-designated cleanup role");
+        }
+        // Nominal ownership survives elision of an unused hook argument; it
+        // does not manufacture an implicit receiver or storage declaration.
+        machine.attachment = machine.attachment.or(expected);
+        machine.nominal_cleanup_subject = expected;
+    }
+    Ok(())
+}
+
 /// Source custody may select different claim lineages at different normal
 /// exits. Terminal's current structural return transfers carry one lineage,
 /// not that checked choice. Refuse only demanded owners: an unused source
@@ -127,6 +226,11 @@ fn lower_terminal_selection(
     reject_conditional_claim_joins(checked, &source_machines)?;
     let has_exact_source_owners = source_mapping.exact_owners().is_some();
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
+    retain_nominal_cleanup_roles(
+        checked,
+        source_mapping.exact_owners().unwrap_or(&entry_source),
+        &mut lowered.semantic_module,
+    )?;
     retain_admitted_reborrow_root_handoffs(
         checked,
         &source_machines,

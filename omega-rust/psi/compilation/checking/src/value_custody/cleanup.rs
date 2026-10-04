@@ -253,6 +253,38 @@ fn is_reserved_cleanup(program: &TypedTrees, machine: &Machine) -> bool {
             .is_some()
 }
 
+/// Recover the owner-designated cleanup role from an exact checked declaration.
+/// Specialization keeps the template's reserved role and the instance's owner;
+/// an attached borrowed method or a similarly named free function gains none.
+/// Declaration validation separately enforces the full owner and hook contract.
+pub fn nominal_cleanup_owner(program: &TypedTrees, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)?;
+    let mut declaration = machine;
+    let mut visited = Vec::new();
+    while !is_reserved_cleanup(program, declaration) {
+        if visited.contains(&declaration.symbol) {
+            return None;
+        }
+        visited.push(declaration.symbol);
+        let template = program
+            .machine_specializations
+            .iter()
+            .find(|specialization| specialization.instance == declaration.symbol)?
+            .template;
+        declaration = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == template)?;
+    }
+    machine
+        .attached_data_symbol
+        .is_valid()
+        .then_some(machine.attached_data_symbol)
+}
+
 /// The first reserved cleanup machine, in program order, that
 /// `selected_symbol` names.
 fn reserved_cleanup_selected_by<'program>(

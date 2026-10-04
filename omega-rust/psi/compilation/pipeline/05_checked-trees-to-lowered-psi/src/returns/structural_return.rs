@@ -223,6 +223,7 @@ pub(crate) fn lower_structural_return_machine(
         declared_service_reach: Vec::new(),
         id: terminal_machine,
         attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
+        nominal_cleanup_subject: None,
         parameters: Vec::new(),
         structural_parameters: parameters,
         ranked_scc: None,

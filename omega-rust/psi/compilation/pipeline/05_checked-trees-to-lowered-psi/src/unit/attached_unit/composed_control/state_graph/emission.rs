@@ -605,6 +605,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         )?,
         id: terminal_machine,
         attachment,
+        nominal_cleanup_subject: None,
         parameters: scalar_parameters,
         structural_places,
         structural_parameters: parameters,

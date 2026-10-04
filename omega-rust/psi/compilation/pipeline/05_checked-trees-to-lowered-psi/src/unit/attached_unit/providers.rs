@@ -264,6 +264,7 @@ pub(crate) fn realize_receiver_adapters(
         let mut adapter = TerminalMachine {
             id: machine_id(allocate_dense(&mut next)?),
             attachment: candidate.attachment,
+            nominal_cleanup_subject: None,
             parameters: candidate.parameters.clone(),
             structural_parameters: Vec::new(),
             ranked_scc: None,

@@ -96,7 +96,7 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 /// result source rosters. Marker 97 seals complete placed-region inventory
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 104;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 105;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

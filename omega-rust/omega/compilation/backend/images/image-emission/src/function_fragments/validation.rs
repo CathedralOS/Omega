@@ -115,7 +115,8 @@ fn validate(
             .iter()
             .find(|fragment| fragment.machine == placed.machine)
             .ok_or(Error::Mismatch("missing current fragment"))?;
-        let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
+        let (attachment, nominal_cleanup_subject, provenance) =
+            source::fragment_metadata(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let entry = placed.machine == text.semantic_entry;
@@ -133,6 +134,7 @@ fn validate(
         };
         if function.machine != placed.machine
             || function.attachment != attachment
+            || function.nominal_cleanup_subject != nominal_cleanup_subject
             || function.provenance != *provenance
             || function.scalar_abi != targeted.scalar_abi
             || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi

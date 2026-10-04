@@ -250,6 +250,7 @@ pub(crate) fn materialize_forwarded_helper_chain<Call: DynamicCall>(
                 declared_service_reach: Vec::new(),
                 id: ids.machine,
                 attachment: None,
+                nominal_cleanup_subject: None,
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
                 ranked_scc: None,

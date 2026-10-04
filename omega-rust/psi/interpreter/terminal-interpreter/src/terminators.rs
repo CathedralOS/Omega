@@ -12,6 +12,7 @@ mod structural_return;
 use crate::custody::{
     commit_cleanup_action, consume_affine_projection, has_live_linear_claims,
     rebind_structural_result_claims, remove_affine_root, resolve_structural_path_type,
+    validate_nominal_cleanup_action,
 };
 use crate::errors::TerminalInterpretError;
 use crate::execution::{
@@ -45,35 +46,45 @@ impl TerminalExecution {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
-        if machine.result != TerminalMachineResult::Unit
-            || has_live_linear_claims(&self.live_claims)
-            || !self.live_claims.is_empty()
-            || cleanups.is_empty()
-        {
+        if machine.result != TerminalMachineResult::Unit || cleanups.is_empty() {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let mut expected_frontier = BTreeSet::new();
+        let mut consumed_claims = BTreeSet::new();
+        let mut consumed_places = BTreeSet::new();
         let mut cleanup_values = Vec::with_capacity(cleanups.len());
         for cleanup in cleanups {
             let value = self.structural_values.get(&cleanup.place).cloned().ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
             )?;
-            if value.structural_type != cleanup.structural_type
-                || !expected_frontier.insert(StructuralAffineDiscard {
-                    place: cleanup.place,
-                    path: Vec::new(),
-                    structural_type: cleanup.structural_type,
-                })
+            validate_nominal_cleanup_action(
+                &self.program.structural_types,
+                &self.program.machines,
+                &self.structural_values,
+                &self.live_affine_frontier,
+                &self.live_claims,
+                cleanup,
+            )?;
+            if !consumed_places.insert(cleanup.place)
+                || cleanup
+                    .consumed_claims
+                    .iter()
+                    .any(|claim| !consumed_claims.insert(*claim))
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            self.program.machines.get(&cleanup.cleanup_machine).ok_or(
-                TerminalInterpretError::VerifiedCallTargetMissing(cleanup.cleanup_machine),
-            )?;
+            if cleanup.consumed_claims.is_empty() {
+                expected_frontier.insert(StructuralAffineDiscard {
+                    place: cleanup.place,
+                    path: Vec::new(),
+                    structural_type: cleanup.structural_type,
+                });
+            }
             cleanup_values.push((cleanup.clone(), value));
         }
         if self.structural_values.len() != cleanup_values.len() + self.primitive_local_count()
             || self.live_affine_frontier != expected_frontier
+            || consumed_claims != self.live_claims.keys().copied().collect::<BTreeSet<_>>()
         {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
@@ -535,9 +546,7 @@ impl TerminalExecution {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
-        if !matches!(machine.result, TerminalMachineResult::Scalar(_))
-            || has_live_linear_claims(&self.live_claims)
-        {
+        if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         if let Err(error) = meter.charge_terminator(terminator) {

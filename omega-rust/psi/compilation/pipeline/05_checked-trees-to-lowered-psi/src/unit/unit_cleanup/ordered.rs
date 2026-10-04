@@ -36,7 +36,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         .iter()
         .any(|candidate| candidate.machine == plan.machine)
         || !plan.trivial_affine_locals.is_empty()
-        || !plan.entry_claims.is_empty()
         || !plan.body_qualifications.is_empty()
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
@@ -51,7 +50,10 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .and_then(|index| usize::try_from(index).ok())
                 != Some(position)
             || parameter.is_self
-            || parameter.multiplicity != Multiplicity::Affine
+            || !matches!(
+                parameter.multiplicity,
+                Multiplicity::Affine | Multiplicity::Linear
+            )
             || !parameter.qualifications.is_empty()
             || cleanup.type_identity != parameter.type_identity
             || cleanup.cleanup_machine == plan.machine
@@ -105,6 +107,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     }
 
     super::contexts::validate_requirements(checked, nominal)?;
+    super::custody::validate_checked_dispositions(checked, nominal)?;
 
     let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut roots = Vec::new();

@@ -32,6 +32,9 @@ pub(super) fn validate_unit_cleanup_actions(
     let has_nominal = actions
         .iter()
         .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeNominal(_)));
+    if !has_nominal {
+        super::mutations::reject_live_linear_claim(function, block, frontier)?;
+    }
     if has_residual && has_nominal {
         return Err(mismatch());
     }
@@ -134,18 +137,14 @@ pub(super) fn validate_unit_cleanup_actions(
             let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
                 return Err(mismatch());
             };
-            if !cleanup.requirement_obligations.is_empty()
-                || remaining
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(cleanup.place))
-                || remaining.owned_places.remove(&cleanup.place)
-                    != Some(StructuralMultiplicity::Affine)
-                || place_structural_type(function, cleanup.place) != Some(cleanup.structural_type)
-                || !valid_nominal_cleanup(function, functions, structural_types, cleanup)
-            {
-                return Err(mismatch());
-            }
+            consume_nominal_cleanup(
+                function,
+                functions,
+                structural_types,
+                block,
+                &mut remaining,
+                cleanup,
+            )?;
         }
         if !remaining.partial_custody_paths.is_empty()
             || !remaining.claims.is_empty()
@@ -197,7 +196,7 @@ pub(super) fn validate_scalar_cleanup_actions(
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
-) -> Result<(), OptimizationUnitValidationError> {
+) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
     let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
         block,
@@ -273,15 +272,10 @@ pub(super) fn validate_scalar_cleanup_actions(
         if !remaining.owned_places.contains_key(&parameter.place) {
             continue;
         }
-        if parameter.multiplicity != StructuralMultiplicity::Affine
-            || remaining
-                .claims
-                .values()
-                .any(|claim| claim.input == Some(parameter.place))
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == parameter.place)
+        if function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == parameter.place)
         {
             return Err(mismatch());
         }
@@ -289,6 +283,14 @@ pub(super) fn validate_scalar_cleanup_actions(
             .partial_custody_paths
             .contains_key(&parameter.place)
         {
+            if parameter.multiplicity != StructuralMultiplicity::Affine
+                || remaining
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(parameter.place))
+            {
+                return Err(mismatch());
+            }
             validate_scalar_residual_cleanup(
                 function,
                 structural_types,
@@ -302,7 +304,13 @@ pub(super) fn validate_scalar_cleanup_actions(
                 return Err(mismatch());
             };
             match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) if *place == parameter.place => {}
+                TerminalAffineCleanupAction::DiscardRoot(place)
+                    if *place == parameter.place
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && !remaining
+                            .claims
+                            .values()
+                            .any(|claim| claim.input == Some(*place)) => {}
                 TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     if cleanup.place == parameter.place
                         && cleanup.structural_type == parameter.structural_type
@@ -312,7 +320,17 @@ pub(super) fn validate_scalar_cleanup_actions(
                             functions,
                             structural_types,
                             cleanup,
-                        ) => {}
+                        ) =>
+                {
+                    consume_nominal_cleanup(
+                        function,
+                        functions,
+                        structural_types,
+                        block,
+                        &mut remaining,
+                        cleanup,
+                    )?;
+                }
                 TerminalAffineCleanupAction::DiscardRoot(_)
                 | TerminalAffineCleanupAction::DiscardResidual(_)
                 | TerminalAffineCleanupAction::InvokeNominal(_) => return Err(mismatch()),
@@ -333,7 +351,7 @@ pub(super) fn validate_scalar_cleanup_actions(
         block,
         &remaining.live_references,
     )?;
-    Ok(())
+    Ok(remaining)
 }
 
 /// Replay each partially moved owner's exact complement in the same lifetime
@@ -378,6 +396,73 @@ fn validate_scalar_residual_cleanup(
     Ok(())
 }
 
+/// Commit only the complete whole-owner claim roster, after independently
+/// authenticating its designated hook and absence of projected/loan custody.
+fn consume_nominal_cleanup(
+    function: &PsiOptimizationFunction,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    frontier: &mut CurrentOwnership,
+    cleanup: &terminal_psi::NominalAffineCleanup,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+        machine: function.machine,
+        block,
+    };
+    let multiplicity = *frontier
+        .owned_places
+        .get(&cleanup.place)
+        .ok_or_else(mismatch)?;
+    let claims = frontier
+        .claims
+        .iter()
+        .filter(|(_, claim)| claim.input == Some(cleanup.place))
+        .collect::<Vec<_>>();
+    if !cleanup.requirement_obligations.is_empty()
+        || place_structural_type(function, cleanup.place) != Some(cleanup.structural_type)
+        || !valid_nominal_cleanup(function, functions, structural_types, cleanup)
+        || frontier.partial_custody_paths.contains_key(&cleanup.place)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == cleanup.place)
+        || claims
+            .iter()
+            .any(|(_, claim)| !claim.path.is_empty() || claim.multiplicity != Some(multiplicity))
+        || match multiplicity {
+            StructuralMultiplicity::Affine => !claims.is_empty(),
+            StructuralMultiplicity::Linear => claims.len() != 1,
+            StructuralMultiplicity::Unrestricted => true,
+        }
+        || cleanup.consumed_claims
+            != claims
+                .iter()
+                .map(|(identity, _)| **identity)
+                .collect::<Vec<_>>()
+    {
+        return Err(mismatch());
+    }
+    let ordinal = function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == block)
+        .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
+        .ok_or_else(mismatch)?;
+    super::references::check_root_access(
+        function,
+        block,
+        ordinal,
+        &frontier.live_references,
+        cleanup.place,
+    )?;
+    for claim in &cleanup.consumed_claims {
+        frontier.claims.remove(claim);
+    }
+    frontier.owned_places.remove(&cleanup.place);
+    Ok(())
+}
+
 pub(super) fn valid_nominal_cleanup(
     caller: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -393,6 +478,17 @@ pub(super) fn valid_nominal_cleanup(
     cleanup.cleanup_machine != caller.machine
         && bounded_nominal_cleanup_receiver_shape(&source.shape)
         && target.attachment == Some(cleanup.structural_type)
+        && target.nominal_cleanup_subject == Some(cleanup.structural_type)
+        && (cleanup.consumed_claims.is_empty() || target.published_service_ceiling.is_empty())
+        && functions
+            .values()
+            .filter(|candidate| candidate.nominal_cleanup_subject == Some(cleanup.structural_type))
+            .count()
+            == 1
+        && cleanup
+            .consumed_claims
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
         && matches!(target.result, AbstractFunctionResult::Unit)
         && target.parameters.is_empty()
         && match target.structural_parameters.as_slice() {

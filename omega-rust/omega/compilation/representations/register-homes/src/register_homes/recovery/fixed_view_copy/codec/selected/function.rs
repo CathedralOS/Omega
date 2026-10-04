@@ -17,6 +17,10 @@ pub(super) fn encode_function(
 ) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
+    encode_option_u64(
+        bytes,
+        function.nominal_cleanup_subject.map(|value| value.get()),
+    );
     encode_ids(
         bytes,
         function
@@ -51,6 +55,12 @@ pub(super) fn decode_function(
             StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
         ),
     };
+    let nominal_cleanup_subject = match decode_option_u64(cursor)? {
+        None => None,
+        Some(raw) => Some(
+            StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
+        ),
+    };
     let operations = decode_ids(cursor, OperationId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let entry_block = SelectedBlockId(cursor.u32()?);
@@ -67,6 +77,7 @@ pub(super) fn decode_function(
     let mut function = SelectedFunction {
         machine,
         attachment,
+        nominal_cleanup_subject,
         provenance: target_operations::TerminalPsiProvenance { operations, edges },
         entry_block,
         virtual_registers,

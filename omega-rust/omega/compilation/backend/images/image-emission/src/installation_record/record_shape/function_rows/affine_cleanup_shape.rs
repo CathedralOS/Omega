@@ -9,6 +9,9 @@ use crate::installation_record::{
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeId, StructuralTypeShape,
     ValueClass, ValueShape,
 };
+use crate::object_artifact::replay::unit::affine_cleanup::{
+    nominal_claims_are_canonical, nominal_owner_matches,
+};
 use semantic_vocabulary::PlaceId;
 
 /// The facts a cleanup shape is checked against.
@@ -57,6 +60,7 @@ pub(super) fn validate_unit_affine_cleanup_shape(
         ));
     };
     if cleanup.byte_count == 0
+        || !nominal_claims_are_canonical(&cleanup.actions)
         || facts.end != function.byte_count
         || locals_are_malformed(cleanup, &facts.local_operations)
         || discards_are_malformed(cleanup, &facts)
@@ -315,9 +319,7 @@ fn single_nominal_cleanup_is_malformed(
     !cleanup.locals.is_empty()
         || !discards.is_empty()
         || function.unit_parameter_homes.len() != 1
-        || function.unit_parameter_homes[0].place != nominal.place
-        || function.unit_parameter_homes[0].structural_type != nominal.structural_type
-        || function.unit_parameter_homes[0].multiplicity != StructuralMultiplicity::Affine
+        || !nominal_owner_matches(&function.unit_parameter_homes[0], nominal)
         || !bounded_nominal_receiver_shape(function.unit_parameter_homes[0].shape)
         || (function.unit_parameter_homes[0].shape.byte_size == 0
             && !function.unit_parameter_homes[0].source.locations.is_empty())
@@ -492,9 +494,7 @@ fn nominal_cleanups_are_malformed(
             .rev()
             .zip(nominal)
             .any(|(home, nominal)| {
-                home.place != nominal.place
-                    || home.structural_type != nominal.structural_type
-                    || home.multiplicity != StructuralMultiplicity::Affine
+                !nominal_owner_matches(home, nominal)
                     || !bounded_nominal_receiver_shape(home.shape)
                     || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
                     || (home.shape.byte_size != 0 && home.source.locations.is_empty())
@@ -563,6 +563,13 @@ fn exact_nominal_body(
         .map(|call| call.custody.target)
         .collect::<std::collections::BTreeSet<_>>();
     (target.attachment == Some(nominal.structural_type)
+        && target.nominal_cleanup_subject == Some(nominal.structural_type)
+        && record
+            .functions
+            .iter()
+            .filter(|candidate| candidate.nominal_cleanup_subject == Some(nominal.structural_type))
+            .count()
+            == 1
         && target.unit_body
         && target.unit_parameters.is_empty()
         && target.unit_parameter_homes.is_empty()

@@ -36,7 +36,8 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
     let mut semantic_code_attribution = Vec::new();
     let mut requires_graph_storage_replay = false;
     for placed in &text.functions {
-        let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
+        let (attachment, nominal_cleanup_subject, provenance) =
+            source::fragment_metadata(source, placed.machine)?;
         let (abstracted, targeted) = source::function(source, placed.machine)?;
         requires_graph_storage_replay |=
             source::requires_graph_storage_replay(&abstracted.operations);
@@ -104,6 +105,7 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         functions.push(ObjectFunction {
             machine: placed.machine,
             attachment,
+            nominal_cleanup_subject,
             scalar_abi: targeted.scalar_abi.clone(),
             mixed_structural_scalar_abi: targeted.mixed_structural_scalar_abi.clone(),
             structural_call_scalar_return: None,

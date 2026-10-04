@@ -1,7 +1,7 @@
 //! Nominal affine cleanups: each parameter handed to a cleanup machine whose
 //! body is exactly a run of attachment helper calls.
 
-use super::bounded_nominal_receiver_shape;
+use super::{bounded_nominal_receiver_shape, nominal_claims_are_canonical, nominal_owner_matches};
 use machine_code::MachineCodeFunction;
 use semantic_vocabulary::MachineId;
 use target_operations::CallSiteOwner;
@@ -30,6 +30,14 @@ pub(super) fn exact_nominal_target<'a>(
             .map(|call| call.target)
             .collect::<std::collections::BTreeSet<_>>();
         function.attachment == Some(nominal.structural_type)
+            && function.nominal_cleanup_subject == Some(nominal.structural_type)
+            && functions
+                .values()
+                .filter(|candidate| {
+                    candidate.nominal_cleanup_subject == Some(nominal.structural_type)
+                })
+                .count()
+                == 1
             && function.unit_stack.is_some()
             && function.scalar_stack.is_none()
             && function.unit_parameters.is_empty()
@@ -102,6 +110,7 @@ pub(super) fn nominal_cleanups_are_malformed(inputs: &CleanupInputs<'_>, end: us
         })
         .collect::<Vec<_>>();
     if nominal.is_empty()
+        || !nominal_claims_are_canonical(&cleanup.actions)
         || (!allow_mixed_nominal_roots && nominal.len() != cleanup.actions.len())
         || !cleanup.locals.is_empty()
         || parameter_homes.len() != cleanup.actions.len()
@@ -116,10 +125,7 @@ pub(super) fn nominal_cleanups_are_malformed(inputs: &CleanupInputs<'_>, end: us
                         || home.access != terminal_psi::StructuralAccess::Owned
                 }
                 terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
-                    home.place != nominal.place
-                        || home.structural_type != nominal.structural_type
-                        || home.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                        || home.access != terminal_psi::StructuralAccess::Owned
+                    !nominal_owner_matches(home, nominal)
                         || !bounded_nominal_receiver_shape(home.shape)
                         || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
                         || (home.shape.byte_size != 0 && home.source.locations.is_empty())

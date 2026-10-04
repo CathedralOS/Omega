@@ -133,7 +133,9 @@ pub use crate::machine_calls::calls::{
 pub use crate::proof_contracts::slice_ranking::{
     slice_tail_strictly_decreases, slice_tail_strictly_decreases_with_bound_lookup,
 };
-pub use crate::value_custody::cleanup::validate_reserved_cleanup_selections;
+pub use crate::value_custody::cleanup::{
+    nominal_cleanup_owner, validate_reserved_cleanup_selections,
+};
 pub use crate::value_custody::content_conservation::{
     ContentConservationSourcePlan, build_content_conservation_plans, content_conservation_plans,
 };

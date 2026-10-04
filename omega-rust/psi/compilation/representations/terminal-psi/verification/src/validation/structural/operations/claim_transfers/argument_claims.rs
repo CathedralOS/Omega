@@ -142,34 +142,39 @@ pub(in crate::validation) fn validate_argument_claims(
             });
         }
     }
-    let mut caller_claim_paths = caller
-        .entry_claims
-        .iter()
-        .filter(|claim| claim.input == argument.place && claim.path.starts_with(&argument.path))
-        .map(|claim| &claim.path[argument.path.len()..])
-        .collect::<Vec<_>>();
-    if let Some((_, result)) = linear_call_result(caller, argument.place) {
-        caller_claim_paths.extend(
-            result
-                .claims
-                .iter()
-                .filter(|claim| claim.path.starts_with(&argument.path))
-                .map(|claim| &claim.path[argument.path.len()..]),
-        );
-    }
-    let mut callee_claim_paths = callee
-        .entry_claims
-        .iter()
-        .filter(|claim| claim.input == parameter.place)
-        .map(|claim| claim.path.as_slice())
-        .collect::<Vec<_>>();
-    caller_claim_paths.sort();
-    callee_claim_paths.sort();
-    if caller_claim_paths != callee_claim_paths {
-        return Err(ModuleError::UnitCallClaimPresenceMismatch {
-            operation,
-            argument_index: argument_index as u32,
-        });
+    // The declaration phase cannot identify a claim's current home after an
+    // owned successor transfer. The frontier checks the complete live path
+    // roster against this callee immediately before consuming the call.
+    if argument.access != crate::validation::StructuralAccess::Owned {
+        let mut caller_paths = caller
+            .entry_claims
+            .iter()
+            .filter(|claim| claim.input == argument.place && claim.path.starts_with(&argument.path))
+            .map(|claim| &claim.path[argument.path.len()..])
+            .collect::<Vec<_>>();
+        if let Some((_, result)) = linear_call_result(caller, argument.place) {
+            caller_paths.extend(
+                result
+                    .claims
+                    .iter()
+                    .filter(|claim| claim.path.starts_with(&argument.path))
+                    .map(|claim| &claim.path[argument.path.len()..]),
+            );
+        }
+        let mut callee_paths = callee
+            .entry_claims
+            .iter()
+            .filter(|claim| claim.input == parameter.place)
+            .map(|claim| claim.path.as_slice())
+            .collect::<Vec<_>>();
+        caller_paths.sort();
+        callee_paths.sort();
+        if caller_paths != callee_paths {
+            return Err(ModuleError::UnitCallClaimPresenceMismatch {
+                operation,
+                argument_index: argument_index as u32,
+            });
+        }
     }
     let mut caller_content = caller
         .content_entry_claims

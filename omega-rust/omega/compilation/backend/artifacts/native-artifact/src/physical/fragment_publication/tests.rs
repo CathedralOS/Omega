@@ -129,6 +129,7 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
         functions: vec![MachineCodeFunction {
             machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,

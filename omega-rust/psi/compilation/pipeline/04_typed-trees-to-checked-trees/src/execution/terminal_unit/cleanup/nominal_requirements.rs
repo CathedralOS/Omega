@@ -605,4 +605,3 @@ pub(crate) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
     }
 }
-

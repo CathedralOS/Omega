@@ -40,6 +40,7 @@ pub(crate) fn encode_machine(
 ) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_optional_id(writer, machine.attachment);
+    encode_optional_id(writer, machine.nominal_cleanup_subject);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_structural_parameters(writer, &machine.structural_parameters)?;
     encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
@@ -115,6 +116,7 @@ pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
 pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
+    let nominal_cleanup_subject = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let ranked_scc = decode_ranked_scc(reader)?;
@@ -166,6 +168,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     Ok(TerminalMachine {
         id,
         attachment,
+        nominal_cleanup_subject,
         parameters,
         structural_parameters,
         ranked_scc,

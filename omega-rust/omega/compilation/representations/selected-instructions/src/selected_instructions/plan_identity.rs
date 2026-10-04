@@ -22,7 +22,7 @@ use primitives::encode_constraint_key;
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v44\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v45\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -36,6 +36,12 @@ pub fn selected_instruction_plan_identity(
         encode_option_id(
             &mut bytes,
             function.attachment.map(|attachment| attachment.get()),
+        );
+        encode_option_id(
+            &mut bytes,
+            function
+                .nominal_cleanup_subject
+                .map(|attachment| attachment.get()),
         );
         encode_ids(
             &mut bytes,

@@ -4,7 +4,7 @@
 //! parent. This child owns the exact Unit cleanup and scalar-control list bytes.
 
 use machine_code::UnitAffineCleanupRecord;
-use semantic_vocabulary::{EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction};
 
 use crate::installation_record::codec::{
@@ -62,6 +62,14 @@ pub(crate) fn encode_unit_affine_cleanup(
                 push_u64(bytes, nominal.place.get());
                 push_u64(bytes, nominal.structural_type.get());
                 push_u64(bytes, nominal.cleanup_machine.get());
+                push_u32(
+                    bytes,
+                    u32::try_from(nominal.consumed_claims.len())
+                        .map_err(|_| InstallationError::TooManyStructuralReturnCleanups)?,
+                );
+                for claim in &nominal.consumed_claims {
+                    push_u64(bytes, claim.get());
+                }
             }
         }
     }
@@ -158,6 +166,22 @@ pub(crate) fn decode_unit_affine_cleanup(
                 cleanup_machine: MachineId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("nominal Unit cleanup machine"),
                 )?,
+                consumed_claims: {
+                    let count = usize::try_from(reader.u32()?)
+                        .map_err(|_| InstallationError::TooManyStructuralReturnCleanups)?;
+                    if count > reader.remaining() / 8 {
+                        return Err(InstallationError::UnexpectedEnd);
+                    }
+                    let mut claims = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        claims.push(ClaimId::new(reader.u64()?).ok_or(
+                            InstallationError::ZeroStructuralReturnIdentity(
+                                "nominal cleanup claim",
+                            ),
+                        )?);
+                    }
+                    claims
+                },
                 cleanup_receiver: None,
                 requirement_obligations: Vec::new(),
             }),

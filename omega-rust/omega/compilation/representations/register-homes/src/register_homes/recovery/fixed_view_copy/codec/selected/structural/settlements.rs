@@ -516,6 +516,10 @@ fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            encode_ids(
+                bytes,
+                cleanup.consumed_claims.iter().map(|claim| claim.get()),
+            );
             match cleanup.cleanup_receiver {
                 None => bytes.push(0),
                 Some(place) => {
@@ -553,6 +557,7 @@ fn decode_cleanup(
             let place = decode_id(cursor, PlaceId::new)?;
             let structural_type = decode_id(cursor, StructuralTypeId::new)?;
             let cleanup_machine = decode_id(cursor, MachineId::new)?;
+            let consumed_claims = decode_ids(cursor, ClaimId::new)?;
             let cleanup_receiver = match cursor.byte()? {
                 0 => None,
                 1 => Some(decode_id(cursor, PlaceId::new)?),
@@ -563,6 +568,7 @@ fn decode_cleanup(
                     place,
                     structural_type,
                     cleanup_machine,
+                    consumed_claims,
                     cleanup_receiver,
                     requirement_obligations: decode_ids(cursor, ObligationId::new)?,
                 },

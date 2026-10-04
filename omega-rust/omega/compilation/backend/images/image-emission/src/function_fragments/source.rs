@@ -164,7 +164,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .next()
             .ok_or(Error::Mismatch("missing canonical function declaration"))?;
         if declarations.next().is_some()
-            || declaration.attachment != abstracted.attachment
+            || (declaration.attachment != abstracted.attachment
+                || declaration.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
             || declaration.entry_claim_declarations != abstracted.entry_claims
             || declaration.published_service_ceiling != abstracted.published_service_ceiling
         {
@@ -172,7 +173,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 "function declaration metadata differs from canonical source",
             ));
         }
-        if abstracted.attachment != fragment.attachment
+        if (abstracted.attachment != fragment.attachment
+            || abstracted.nominal_cleanup_subject != fragment.nominal_cleanup_subject)
             || targeted.provenance != fragment.provenance
             || (!abstracted.structural_parameters.is_empty() && structural.is_none())
             || (structural.is_some_and(|contract| !contract.parameters.is_empty())
@@ -853,13 +855,18 @@ pub(super) fn fragment_metadata(
 ) -> Result<
     (
         Option<semantic_vocabulary::StructuralTypeId>,
+        Option<semantic_vocabulary::StructuralTypeId>,
         &target_operations::TerminalPsiProvenance,
     ),
     Error,
 > {
     let plan = fragments(source);
     if let Some(function) = plan.functions.iter().find(|row| row.machine == machine) {
-        return Ok((function.attachment, &function.provenance));
+        return Ok((
+            function.attachment,
+            function.nominal_cleanup_subject,
+            &function.provenance,
+        ));
     }
     Err(Error::Mismatch("missing placed fragment"))
 }

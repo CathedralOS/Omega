@@ -10,6 +10,8 @@ pub struct TargetFunction {
     pub machine: MachineId,
     /// Exact terminal attachment retained for artifact-side nominal cleanup validation.
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     /// Canonical native ABI for supported fixed-width scalar inputs and result.
     /// Service reach is verified separately and does not change this layout.
     /// Other function shapes carry no scalar ABI claim.

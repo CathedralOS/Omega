@@ -77,6 +77,7 @@ pub fn runtime_spill_source(
         functions: vec![SelectedFunction {
             machine,
             attachment: None,
+            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             local_storage_slots: Vec::new(),

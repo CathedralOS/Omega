@@ -279,4 +279,3 @@ pub(crate) fn prepare_signature(
     crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut requires)?;
     Ok(Some(SignatureContext { receiver, requires }))
 }
-

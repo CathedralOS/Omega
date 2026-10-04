@@ -12,6 +12,8 @@ pub struct TerminalMachine {
     /// Nominal type to which this machine is attached. An attached static
     /// machine need not have a runtime `self` parameter.
     pub attachment: Option<StructuralTypeId>,
+    /// Exact owner-designated cleanup subject, independent of attachment or call sites.
+    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub parameters: Vec<ValueDeclaration>,
     /// Ordered runtime structural parameters, separate from scalar values.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,

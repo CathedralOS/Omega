@@ -79,6 +79,8 @@ impl AdmittedTerminalProgram {
                 (
                     machine.id,
                     ExecutableMachine {
+                        attachment: machine.attachment,
+                        nominal_cleanup_subject: machine.nominal_cleanup_subject,
                         parameters: machine.parameters,
                         structural_parameters: machine.structural_parameters,
                         structural_places: machine.structural_places,

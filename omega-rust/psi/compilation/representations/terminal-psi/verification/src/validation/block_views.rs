@@ -117,7 +117,9 @@ pub(super) fn validate_declarations(
                         StructuralMultiplicity::Unrestricted
                     ) | (
                         StructuralAccess::Owned,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                        StructuralMultiplicity::Unrestricted
+                            | StructuralMultiplicity::Affine
+                            | StructuralMultiplicity::Linear
                     )
                 )
                 || (!declaration.qualifications.is_empty()
@@ -647,7 +649,6 @@ pub(super) fn validate_successor(
                                     && result.qualifications == expected.qualifications
                                     && result.projected_qualifications
                                         == expected.projected_qualifications
-                                    && result.claims.is_empty()
                             })
                         })
                 })

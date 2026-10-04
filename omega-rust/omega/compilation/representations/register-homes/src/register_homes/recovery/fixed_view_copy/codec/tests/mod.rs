@@ -98,6 +98,7 @@ fn shared_function() -> SelectedFunction {
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),
@@ -321,6 +322,7 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
+        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),

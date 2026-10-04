@@ -121,11 +121,22 @@ impl TerminalExecution {
                 final_result,
             } => {
                 if completed.value != TerminalExecutionResult::Unit
-                    || !self.live_affine_frontier.remove(&StructuralAffineDiscard {
-                        place: cleanup.0.place,
-                        path: Vec::new(),
-                        structural_type: cleanup.1.structural_type,
-                    })
+                    || if cleanup.0.consumed_claims.is_empty() {
+                        !self.live_affine_frontier.remove(&StructuralAffineDiscard {
+                            place: cleanup.0.place,
+                            path: Vec::new(),
+                            structural_type: cleanup.1.structural_type,
+                        })
+                    } else {
+                        self.live_affine_frontier
+                            .iter()
+                            .any(|entry| entry.place == cleanup.0.place)
+                            || cleanup
+                                .0
+                                .consumed_claims
+                                .iter()
+                                .any(|claim| self.live_claims.contains_key(claim))
+                    }
                 {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
@@ -221,4 +232,3 @@ impl TerminalExecution {
         self.retire_plain_locals();
     }
 }
-

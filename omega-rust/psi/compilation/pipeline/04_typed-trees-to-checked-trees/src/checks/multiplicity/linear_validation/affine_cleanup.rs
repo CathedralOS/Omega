@@ -1,9 +1,12 @@
-//! Affine cleanup permission events.
+//! Scope-exit permission events for eligible owned cleanup.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::type_multiplicity::type_multiplicity;
 use arena::HandleSpan;
-use checked_trees::FlowPermissionEventFact;
+use checked_trees::{
+    FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation, FlowPermissionEventFact,
+};
+use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
@@ -12,24 +15,35 @@ use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
-/// Discover ordinary affine cleanup directly from typed ownership. Locals drop in
-/// reverse declaration order, followed by owned by-value parameters in reverse
-/// declaration order, exactly matching the language's cleanup order. Linear
-/// and conditional roots are excluded because their path-sensitive settlement
-/// is represented by the permission events produced above.
-pub(crate) fn append_affine_cleanup_permission_events(
+/// Discover owned cleanup directly from typed custody. Locals precede
+/// parameters, each in reverse declaration order. Affine disposal does not
+/// consume a claim; linear disposal names the exact live claim and is selected
+/// only when the complete type-side owner plan is eligible. Its contextual row
+/// still carries hook effects and requirements through ordinary admission.
+pub(crate) fn append_owned_cleanup_permission_events(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
+    coordinate: FlowClaimJoinExit,
     tracked_places: &[LinearPlace],
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
+    let evaluation = exit_evaluation(program, state, coordinate);
     let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
         let tracked_root = tracked_places
             .iter()
             .find(|place| place.symbol == symbol && place.path.is_empty());
         if let Some(place) = tracked_root {
-            if place.multiplicity != Multiplicity::Affine || !place.live {
+            if !place.live {
+                return;
+            }
+            if place.multiplicity == Multiplicity::Linear
+                && (!crate::flow::whole_cleanup_is_eligible(program, type_reference)
+                    || place.claim_identity.is_none()
+                    || place.claim_identity == Some(PermissionClaimIdentity::Unknown)
+                    || place.provenance.is_none()
+                    || place.provenance == Some(PermissionProvenance::Unknown))
+            {
                 return;
             }
         } else if tracked_places.iter().any(|place| place.symbol == symbol)
@@ -37,15 +51,26 @@ pub(crate) fn append_affine_cleanup_permission_events(
         {
             return;
         }
+        let multiplicity = tracked_root.map_or(Multiplicity::Affine, |place| place.multiplicity);
         permission_events.push(FlowPermissionEventFact {
-            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+            evaluation,
             machine_symbol,
             state_symbol: state.symbol,
             source: PermissionEventSource::StateExit,
-            kind: PermissionEventKind::AffineDrop,
-            multiplicity: Multiplicity::Affine,
+            kind: if multiplicity == Multiplicity::Linear {
+                PermissionEventKind::Consume
+            } else {
+                PermissionEventKind::AffineDrop
+            },
+            multiplicity,
             access: PermissionAccess::Owned,
-            claim_identity: PermissionClaimIdentity::Unknown,
+            claim_identity: if multiplicity == Multiplicity::Linear {
+                tracked_root
+                    .and_then(|place| place.claim_identity)
+                    .unwrap_or(PermissionClaimIdentity::Unknown)
+            } else {
+                PermissionClaimIdentity::Unknown
+            },
             provenance: tracked_root
                 .and_then(|place| place.provenance)
                 .unwrap_or(PermissionProvenance::Unknown),
@@ -87,5 +112,78 @@ pub(crate) fn append_affine_cleanup_permission_events(
             parameter.symbol
         };
         append(symbol, parameter.type_reference);
+    }
+}
+
+/// Reconstruct the selected exit from current custody before accepting its
+/// recorded consumption. This keeps cleanup authority attached to the exact
+/// source owner and claim rather than treating any StateExit consume as proof.
+pub(crate) fn apply_recorded_cleanup_events(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    machine_symbol: SymbolHandle,
+    coordinate: FlowClaimJoinExit,
+    events: &[&FlowPermissionEventFact],
+    places: &mut [LinearPlace],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut expected = Vec::new();
+    append_owned_cleanup_permission_events(
+        program,
+        state,
+        machine_symbol,
+        coordinate,
+        places,
+        &mut expected,
+    );
+    expected.retain(|event| event.kind == PermissionEventKind::Consume);
+    let evaluation = exit_evaluation(program, state, coordinate);
+    let mut recorded = events.iter().copied().filter(|event| {
+        event.source == PermissionEventSource::StateExit
+            && event.kind == PermissionEventKind::Consume
+            && event.evaluation == evaluation
+    });
+    if !expected.iter().all(|event| recorded.next() == Some(event)) || recorded.next().is_some() {
+        diagnostics.push(Diagnostic::error(
+            "scope-exit cleanup differs from its exact owner-authorized claim disposition",
+        ));
+        return;
+    }
+    for event in expected {
+        if event.kind == PermissionEventKind::Consume {
+            let facts::PlaceRoot::Symbol(symbol) = event.root else {
+                unreachable!()
+            };
+            let place = places
+                .iter_mut()
+                .find(|place| place.symbol == symbol && place.path.is_empty())
+                .expect("reconstructed whole cleanup has its live source claim");
+            place.live = false;
+        }
+    }
+}
+
+fn exit_evaluation(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    coordinate: FlowClaimJoinExit,
+) -> FlowPermissionEvaluation {
+    match coordinate.kind {
+        FlowClaimJoinExitKind::TransitionTarget | FlowClaimJoinExitKind::TransitionContinuation => {
+            let StatementNode::Transition(transition) = &program
+                .statement_table
+                .statements(state.statement_nodes)[coordinate.statement_index]
+            else {
+                unreachable!()
+            };
+            FlowPermissionEvaluation::TransitionTarget(
+                if coordinate.kind == FlowClaimJoinExitKind::TransitionTarget {
+                    transition.target
+                } else {
+                    transition.continuation
+                },
+            )
+        }
+        _ => FlowPermissionEvaluation::Statement,
     }
 }
