@@ -399,3 +399,63 @@ to discharge against) is only reachable after this one is answered.
 `let out_line: &[u8] in Utf8 = main.source.label;` clears stage 04 and instead
 fails Omega lowering with `UnsupportedControlFlow` at
 `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/observations.rs:48`.
+
+### Q6 - How does a dyn-dispatching caller's data binding appear in the dynamic-dispatch Terminal plan?
+
+Named decision: `dynamic-caller-subject-parameter`.
+
+**Customers:** `tests/omega/pass/traits/runtime_dyn_two_impl_dispatch_exit`,
+`runtime_local_named_dyn_devirtualized_exit` and
+`runtime_local_named_dyn_pass_through_exit`. The whole dyn corpus is four
+fixtures and only `dyn_finite_family_dispatch` is green, which is check-only
+(no `build.omg`). Dynamic dispatch has never produced a terminal artifact.
+
+**What is already fixed.** `eca6cafd32e` revived the Psi dynamic-dispatch
+planner, which was unreachable: it located the descriptor at the retired
+receiver position, and seven `is_self` gates were unconditional refusals
+because `StateParameter::is_self` can no longer be true. A probe over the
+devirtualized fixture's whole program entered `build_checked_dynamic_call`
+**0 times** before that change. The planner now reaches
+`composed_control::dynamic_result`, and the upstream facts are healthy
+(`facts.dynamic_conformances` selections are complete and canonical).
+
+**The decision.** `composed_control/dynamic_result.rs:~62` demands
+`structural.is_empty()` plus a machine attachment identity, with the comment
+"dynamic dispatch needs an attached caller: only an authored receiver retains
+that attachment". Measured for `Main::main`: `attachment=None structural=1`.
+Post-`self`, a caller declares its data binding as **structural parameter 0
+with no attachment identity**, while
+`05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/{continuation,
+join,single_call,realizations}.rs` still synthesize `is_self: true` Terminal
+parameters for the old implicit-receiver shape.
+
+Does a dyn-dispatching caller's data binding appear as structural parameter 0 —
+making `CheckedDynamicDispatchPlan.caller_attachment_type_identity` that
+parameter's identity — or does Psi keep synthesizing an implicit attachment for
+the dynamic plan? This is the Terminal parameter model for the dynamic route,
+not a flag swap, which is why it is recorded here.
+
+**Two further walls behind it, both engineering once this is answered:**
+
+- A conformance-body satisfier spelling `subject: &Self`
+  (`Primary: Item satisfies Shape { machine code(subject: &Self) -> i32 ... }`)
+  produces a checked value whose `primitive_type` is `None` for `subject.value`,
+  so `realization_bodies.rs:~109` cannot describe the body. Spelling the
+  identical satisfier `subject: &Item` yields `Some(I32)` and the planner
+  advances. `--check` is green either way, so this is a value-fact gap rather
+  than a typing rejection, and it affects any `&Self` conformance body.
+- `derive_fused_program_entry_establishments`
+  (`omega/compilation/realization/selected-dispatch/src/service_custody/root.rs:~200`)
+  chains attachment identities over `terminal_unit_effects.machines` and
+  `.composed_machines` only, never `.dynamic_dispatch`, so a dyn-dispatching
+  ProgramEntry rejoins 0 identities even with a dynamic plan. `dynamic_dispatch`
+  is on the same `CheckedUnitEffectPlans` record, so the edge is small.
+
+Additionally, `runtime_dyn_two_impl_dispatch_exit` needs erasure at a call
+ARGUMENT (`Main::dispatch(&mut main.c)` against formal `&mut dyn Shape`):
+`base_type_identity` is `None` there and `descriptor_transfers` admits only a
+prior selection fact, not an implicit argument coercion. And
+`runtime_local_named_dyn_pass_through_exit` needs the descriptor rebind
+(`erased = &main.selected as &dyn Item::Primary`) owned by the dyn
+rebound-selection lane instead of refused by
+`structural_scalar_store::destination::rejoin_loan_local`.
