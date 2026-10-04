@@ -8,7 +8,7 @@ mod call_origins;
 
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{
-    AssignmentWriteTarget, LocalWriteOrigin, assignment_write_target,
+    AssignmentWriteTarget, LocalWriteOrigin, LocalWriteSource, assignment_write_target,
     local_write_origins_before_statement,
 };
 use super::caller_aliases::{
@@ -76,6 +76,7 @@ pub(crate) struct CallFrameCaches {
             Option<(SymbolHandle, Vec<facts::PlaceSegment>)>,
         >,
     >,
+    reference_result_origins: Mutex<HashMap<SymbolHandle, Option<Vec<LocalWriteSource>>>>,
     stable_expression_bindings: Mutex<HashMap<(SymbolHandle, ExpressionHandle), bool>>,
     stable_call_bindings: Mutex<HashMap<(SymbolHandle, usize), bool>>,
     caller_isolated_proof_values: Mutex<HashMap<typed_trees::types::TypeReferenceHandle, bool>>,
@@ -334,6 +335,34 @@ impl<'program> CallFrameResolver<'program> {
                 .map(|source| (source.root, source.segments))
             },
         )
+    }
+
+    /// Complete storage alternatives for a whole reference result, relative
+    /// to the selected state's exact declarations. This uses the result
+    /// relation, including internal jumps and chronological alias capture;
+    /// a may-write footprint cannot establish reference provenance. Consumers
+    /// still authenticate projected types, access and live loan custody.
+    pub(crate) fn reference_result_origins(
+        &self,
+        state: SymbolHandle,
+    ) -> Option<Vec<LocalWriteSource>> {
+        memoized(&self.caches.reference_result_origins, state, || {
+            let state = self.program.state_by_symbol(state)?;
+            let machine = self.program.machine_holding_state(state.symbol)?;
+            super::transparent_results::transparent_callee_result_origins(
+                self.program,
+                machine,
+                state,
+                &self.symbols,
+                &mut FrameInference::default(),
+            )
+            .map(|origins| {
+                origins
+                    .into_iter()
+                    .map(|origin| LocalWriteSource::from(origin.place))
+                    .collect()
+            })
+        })
     }
 
     /// A complete may-write frame does not exempt reference-binding exposure.

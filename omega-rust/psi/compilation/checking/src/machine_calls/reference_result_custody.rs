@@ -642,15 +642,14 @@ fn call_sources_with_calls(
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<ConstructionSource>> {
-    let machine = program
-        .machine_holding_state(target)
-        .or_else(|| program.machine_by_symbol(target))
-        .filter(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+    let (machine, destination) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, target).or_else(|| {
+            let machine = program.machine_by_symbol(target)?;
+            Some((machine, program.machine_states(machine).first()?))
         })?;
-    let [destination] = program.machine_states(machine) else {
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return None;
-    };
+    }
     if active_origins.contains(&destination.symbol)
         || program.normalized_type_identity(destination.return_type)
             != program.normalized_type_identity(reference)
@@ -768,11 +767,144 @@ fn reference_access_can_supply(
         )
 }
 
+/// Convert the shared complete result relation to executable custody without
+/// interpreting its display footprint. Internal-state substitution has already
+/// preserved every source and actual prefix. This boundary independently checks
+/// the exact declaration selectors, reference crossings and returned access;
+/// it neither creates a holder nor grants permission to borrow the backing.
+fn whole_reference_sources(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<ConstructionSource>> {
+    let (referent, access) = stored_loan_parts(program, state.return_type)?;
+    let origins = crate::CallFrameResolver::new(program)?.reference_result_origins(state.symbol)?;
+    if origins.is_empty() || origins.len() > MAX_REFERENCE_ORIGIN_LEAVES {
+        return None;
+    }
+    let machine = program.machine_holding_state(state.symbol)?;
+    let mut sources = Vec::with_capacity(origins.len());
+    for origin in origins {
+        if !origin.root.is_valid()
+            || origin.representation.is_some()
+            || !origin.recasts.is_empty()
+            || origin.segments.len() > MAX_REFERENCE_ORIGIN_DEPTH
+        {
+            return None;
+        }
+        let (parameter_index, parameter) = program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| {
+                parameter.symbol == origin.root
+                    || (parameter.is_self && origin.root == machine.symbol)
+            })?;
+        let mut selected = parameter.type_reference;
+        let mut borrowed = false;
+        let mut path = Vec::with_capacity(origin.segments.len() + 1);
+        if let Some((referee, parameter_access)) = stored_loan_parts(program, selected) {
+            if !reference_access_can_supply(parameter_access, access) {
+                return None;
+            }
+            selected = referee;
+            borrowed = true;
+        }
+        for segment in &origin.segments {
+            if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
+                if !reference_access_can_supply(leaf_access, access) {
+                    return None;
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                selected = referee;
+                borrowed = true;
+            }
+            match segment {
+                facts::PlaceSegment::Field { symbol } => {
+                    let data = nominal_member_owner_type(program, selected)?;
+                    let field =
+                        program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                typed_trees::data::DataMember::Field(field)
+                                    if field.symbol == *symbol && !field.relevance.is_erased() =>
+                                {
+                                    Some(field)
+                                }
+                                _ => None,
+                            })?;
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                        field.path_identity(),
+                    ));
+                    selected = field.type_reference;
+                }
+                facts::PlaceSegment::FixedIndex { index } => {
+                    selected = loop {
+                        match program.type_reference_table.type_reference(selected) {
+                            TypeReferenceNode::Constrained { base_type, .. } => {
+                                selected = *base_type
+                            }
+                            TypeReferenceNode::FixedArray { element_type, .. } => {
+                                break *element_type;
+                            }
+                            _ => return None,
+                        }
+                    };
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                        u64::try_from(*index).ok()?,
+                    ));
+                }
+                _ => return None,
+            }
+        }
+        if let Some((referee, leaf_access)) = stored_loan_parts(program, selected) {
+            if !reference_access_can_supply(leaf_access, access) {
+                return None;
+            }
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            selected = referee;
+            borrowed = true;
+        }
+        if !borrowed
+            || program.normalized_type_identity(selected)
+                != program.normalized_type_identity(referent)
+        {
+            return None;
+        }
+        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: program.normalized_type_identity(referent).into_string(),
+            access,
+        };
+        sources.push(ConstructionSource {
+            value: checked_trees::CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source,
+            },
+            holder: SymbolHandle::invalid(),
+            holder_path: Vec::new(),
+        });
+    }
+    Some(sources)
+}
+
 fn returned_sources_with_calls(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<ConstructionSource>> {
+    if stored_loan_parts(program, state.return_type).is_some() {
+        return whole_reference_sources(program, state);
+    }
     let mut sources = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {
         let StatementNode::Transition(transition) = statement else {
@@ -2070,68 +2202,16 @@ fn expression_source_leaf(
         .map(|source| (position, source.source))
 }
 
-/// The authored parameter position every `&mut` result exit borrows from.
-/// Each returned place rejoins through member folds and exact `&mut` view
-/// loans until it reaches one parameter or `*self`; all exits must agree on
-/// that caller ingress. Their projections deliberately remain distinct: this
-/// join authorizes the one conservative caller loan, not a chosen return path.
+/// Every normal completion must retain the same mutable caller ingress. The
+/// complete result relation owns internal jumps and alias substitution; this
+/// join authorizes only the conservative caller loan, not a selected path.
 fn mutable_view_source_parameter(
     program: &TypedTrees,
-    facts: &CheckFacts,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
-    if mutable_borrowed_parts(program, state.return_type).is_none() {
-        return None;
-    }
-    let Some(machine) = program.machine_holding_state(state.symbol) else {
-        return None;
-    };
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut source = None;
-    for (ordinal, statement) in statements.iter().enumerate() {
-        let next = match statement {
-            StatementNode::Transition(transition) => {
-                if matches!(transition.exit, TransitionExit::Crash(_)) {
-                    continue;
-                }
-                if transition.continuation.is_valid() {
-                    return None;
-                }
-                match program.statement_table.transition_target(transition.target) {
-                    TransitionTargetNode::Value(expression) => mutable_view_exit_source_parameter(
-                        program,
-                        facts,
-                        machine,
-                        state,
-                        *expression,
-                    )?,
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => {
-                        let sources = call_sources_with_calls(
-                            program,
-                            state,
-                            path.symbol,
-                            program.statement_table.expression_handles(*arguments),
-                            state.return_type,
-                            &mut vec![state.symbol],
-                        )?;
-                        mutable_returned_source_parameter(program, state, &sources)?
-                    }
-                    TransitionTargetNode::Terminal => return None,
-                }
-            }
-            StatementNode::Expression(expression) if ordinal + 1 == statements.len() => {
-                mutable_view_exit_source_parameter(program, facts, machine, state, *expression)?
-            }
-            _ => continue,
-        };
-        if source.is_some_and(|prior| prior != next) {
-            return None;
-        }
-        source = Some(next);
-    }
-    source
+    mutable_borrowed_parts(program, state.return_type)?;
+    let sources = whole_reference_sources(program, state)?;
+    mutable_returned_source_parameter(program, state, &sources)
 }
 
 /// Substituted call origins retain their exact access and paths. The caller's
@@ -2173,95 +2253,6 @@ fn mutable_returned_source_parameter(
         parameter = Some(position);
     }
     parameter
-}
-
-/// Resolve one returned projection to the ingress whose loan it descends
-/// from. This answers only the authored parameter position; the return arm's
-/// distinct field/index path remains in its own checked reference formation.
-fn mutable_view_exit_source_parameter(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<usize> {
-    let mut cursor = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_semantics::ReferenceAccess::Mutable =>
-        {
-            borrow.target
-        }
-        ExpressionNode::Name(_) => expression,
-        ExpressionNode::Call(_) => {
-            let sources = construction_sources_with_calls(
-                program,
-                state,
-                expression,
-                state.return_type,
-                &mut vec![state.symbol],
-            )?;
-            return mutable_returned_source_parameter(program, state, &sources);
-        }
-        _ => return None,
-    };
-    let authored = program.state_parameters(state);
-    let mut symbol = loop {
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Name(name) => break name.symbol,
-            ExpressionNode::Member(member) => cursor = member.receiver,
-            ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
-            _ => {
-                return None;
-            }
-        }
-    };
-    for _ in 0..8 {
-        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
-            break;
-        }
-        if view_self_member_symbol(program, state, machine.symbol, symbol).is_some() {
-            symbol = machine.symbol;
-            continue;
-        }
-        let Some(borrow_state) = facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, candidate)| candidate)
-            .find(|candidate| {
-                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-            })
-        else {
-            return None;
-        };
-        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.owner_symbol == symbol
-                && loan.kind == checked_trees::BorrowAccessKind::Mutable
-                && facts.borrow.loan_owner_path(loan).is_empty()
-        });
-        let Some((_, loan)) = loans.next() else {
-            return None;
-        };
-        if loans.next().is_some() {
-            return None;
-        }
-        symbol = loan.root_symbol;
-    }
-    if authored.iter().all(|parameter| parameter.symbol != symbol) && symbol != machine.symbol {
-        return None;
-    }
-    let position = if symbol == machine.symbol {
-        authored.iter().position(|parameter| parameter.is_self)?
-    } else {
-        authored
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)?
-    };
-    if !view_source_parameter_is_mutable(program, authored.get(position)?) {
-        return None;
-    }
-    Some(position)
 }
 
 /// The authored parameter position a shared `&'a V` view return borrows from,
@@ -2486,7 +2477,7 @@ pub fn result_loan(
             .flatten()
     };
     let position = if mutable_view {
-        let analysis = mutable_view_source_parameter(program, facts, callee);
+        let analysis = mutable_view_source_parameter(program, callee);
         analysis?
     } else if shared_view {
         let analysis = shared_view_source_parameter(program, facts, callee)
