@@ -64,6 +64,9 @@ impl StateGraphEmission<'_, '_> {
             .retain(|(_, value)| decided.contains(value));
         operations.field_byte_lengths.clear();
         let mut terminator = match return_arm {
+            checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
+                self.crash_completion(position, *statement_ordinal, next_edge)?
+            }
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
                 trivial_affine_discards: super::state::return_root_discards(
@@ -281,6 +284,7 @@ impl StateGraphEmission<'_, '_> {
             } => {
                 trivial_affine_discards.retain(|place| !predecessor_discards.contains(place));
             }
+            Terminator::Crash { .. } => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
         arm_evaluation.remap_transported_call_operands(operations);

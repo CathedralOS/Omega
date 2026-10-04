@@ -729,6 +729,15 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         )
                     };
                 let arm_ordinal = match return_arm {
+                    checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
+                        validate_crash_arm(
+                            checked,
+                            return_source,
+                            *statement_ordinal,
+                            return_ordinal,
+                        )?;
+                        *statement_ordinal as usize
+                    }
                     checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal }
                         if plan.result == checked_trees::CheckedControlResultPlan::Unit
                             && return_source.exit == TransitionExit::Ordinary
@@ -811,9 +820,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     jump_ordinal,
                 )?;
             }
-            // Both arms complete the machine: each is a terminal machine call,
-            // a Unit completion or an ordinary returned value, and at least one is
-            // a call.
+            // Each selected arm completes the activation, through ordinary
+            // result custody or its exact abnormal crash site.
             (
                 CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
                     guard,
@@ -833,18 +841,19 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     terminator_ordinal,
                     guard,
                 )?;
-                if !matches!(
-                    (when_true, when_false),
-                    (checked_trees::CheckedConditionalReturnArm::Call { .. }, _)
-                        | (_, checked_trees::CheckedConditionalReturnArm::Call { .. })
-                ) {
-                    return unsupported("Unit graph conditional completion has no terminal call");
-                }
                 for (arm, arm_source, arm_ordinal) in [
                     (when_true, true_source, terminator_ordinal),
                     (when_false, false_source, terminator_ordinal + 1),
                 ] {
                     match arm {
+                        checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
+                            validate_crash_arm(
+                                checked,
+                                arm_source,
+                                *statement_ordinal,
+                                arm_ordinal,
+                            )?;
+                        }
                         checked_trees::CheckedConditionalReturnArm::Call {
                             operands,
                             operation,
@@ -1289,6 +1298,16 @@ fn validate_guarded_return(
     destination: &checked_trees::CheckedScalarBranchDestination,
 ) -> Result<u32, LoweringError> {
     use checked_trees::statement::TransitionTargetNode;
+    if let checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } = arm {
+        let checked_trees::CheckedScalarBranchDestination::Crash {
+            statement_ordinal: retained,
+        } = destination
+        else {
+            return unsupported("guarded crash changed its retained destination");
+        };
+        validate_crash_arm(checked, transition, *statement_ordinal, *retained as usize)?;
+        return Ok(*statement_ordinal);
+    }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return unsupported("guarded return is not an ordinary completion");
     }
@@ -1368,6 +1387,27 @@ fn validate_guarded_return(
         return unsupported("guarded completion changed its retained ordinal");
     }
     Ok(ordinal)
+}
+
+/// An abnormal arm authenticates its source occurrence, not a normal result.
+/// Emission rejoins the same occurrence to its checked cause and crash frontier.
+fn validate_crash_arm(
+    checked: &CheckedTrees,
+    transition: &checked_trees::statement::TableTransition,
+    statement_ordinal: u32,
+    expected_ordinal: usize,
+) -> Result<(), LoweringError> {
+    if statement_ordinal as usize != expected_ordinal
+        || !matches!(transition.exit, TransitionExit::Crash(_))
+        || transition.continuation.is_valid()
+        || !matches!(
+            checked.statement_table.transition_target(transition.target),
+            checked_trees::statement::TransitionTargetNode::Terminal
+        )
+    {
+        return unsupported("crash completion changed its authored exit");
+    }
+    Ok(())
 }
 
 /// All selected value arms rejoin their exact source through the same ordinary

@@ -293,6 +293,10 @@ pub(super) fn build(
                         ),
                     >,
                 > {
+                    if matches!(transition.exit, TransitionExit::Crash(_)) {
+                        return crash_arm(program, transition, edge_ordinal)
+                            .map(|arm| Err((arm, Vec::new())));
+                    }
                     // Typing already classifies normal `{}` completion as
                     // Terminal. It returns Unit on this edge; it must not be
                     // looked up as a named successor or assigned a dummy value.
@@ -443,16 +447,10 @@ pub(super) fn build(
                             return_when_true: true,
                         }
                     }
-                    // Both arms complete: at least one through a terminal
-                    // machine call. Two `(expression)` targets check as
-                    // Guarded instead.
-                    (Err((when_true, true_operands)), Err((when_false, false_operands)))
-                        if matches!(
-                            (&when_true, &when_false),
-                            (checked_trees::CheckedConditionalReturnArm::Call { .. }, _)
-                                | (_, checked_trees::CheckedConditionalReturnArm::Call { .. })
-                        ) =>
-                    {
+                    // Both selected outcomes complete this activation. A
+                    // crash has no result or cleanup, independently of the
+                    // ordinary completion selected on the other edge.
+                    (Err((when_true, true_operands)), Err((when_false, false_operands))) => {
                         operations.extend(true_operands);
                         operations.extend(false_operands);
                         CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
@@ -461,7 +459,6 @@ pub(super) fn build(
                             when_false,
                         }
                     }
-                    (Err(_), Err(_)) => return None,
                 }
             }
             tail @ [
@@ -725,6 +722,11 @@ fn internal_destination(
     destination: &checked_trees::CheckedScalarBranchDestination,
     ordinal: u32,
 ) -> Option<symbols::SymbolHandle> {
+    if let checked_trees::CheckedScalarBranchDestination::Crash { statement_ordinal } = destination
+    {
+        crash_arm(program, transition, ordinal)?;
+        return (*statement_ordinal == ordinal).then_some(symbols::SymbolHandle::default());
+    }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
@@ -775,6 +777,9 @@ fn guarded_return_arm(
     transition: &typed_trees::statement::TableTransition,
     trace: &control::LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
+    if matches!(transition.exit, TransitionExit::Crash(_)) {
+        return crash_arm(program, transition, statement_ordinal);
+    }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
@@ -876,4 +881,20 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
         && exits[0].guard_statement_ordinal == ordinal
         && exits[1].guard_statement_ordinal == ordinal + 1)
         .then_some(())
+}
+
+/// Crash completion retains its authored occurrence without fabricating a
+/// value, successor, or ordinary return-cleanup obligation.
+fn crash_arm(
+    program: &TypedTrees,
+    transition: &typed_trees::statement::TableTransition,
+    statement_ordinal: u32,
+) -> Option<checked_trees::CheckedConditionalReturnArm> {
+    (matches!(transition.exit, TransitionExit::Crash(_))
+        && !transition.continuation.is_valid()
+        && matches!(
+            program.statement_table.transition_target(transition.target),
+            TransitionTargetNode::Terminal
+        ))
+    .then_some(checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal })
 }

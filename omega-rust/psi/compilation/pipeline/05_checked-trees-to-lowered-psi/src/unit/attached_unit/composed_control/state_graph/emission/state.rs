@@ -29,6 +29,33 @@ use crate::expression_preparation::bindings::structural_fields::EstablishedCaseP
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
 
 impl StateGraphEmission<'_, '_> {
+    /// Standalone and selected crash exits share the exact authored crash site.
+    /// No normal cleanup or result establishment is performed on this edge.
+    pub(super) fn crash_completion(
+        &self,
+        position: usize,
+        statement_ordinal: u32,
+        next_edge: &mut u64,
+    ) -> Result<Terminator, LoweringError> {
+        let state = &self.plan.states[position];
+        let crash = lower_checked_crash_exit(
+            self.checked,
+            self.admitted.authored[position].0.symbol,
+            state.state,
+            statement_ordinal,
+            &self.claims.source_claims,
+        )?;
+        Ok(Terminator::Crash {
+            edge: edge_id(allocate_dense(next_edge)?),
+            cause: crash.cause,
+            site_guard: lower_checked_crash_predicates(
+                &crash.site_guard,
+                &self.state_values[position],
+            )?,
+            frontier_lower_bound: crash.frontier_lower_bound,
+        })
+    }
+
     /// Emit the state at `position` in authored order.
     pub(super) fn emit_state(&mut self, position: usize) -> Result<(), LoweringError> {
         let checked = self.checked;
@@ -238,26 +265,13 @@ impl StateGraphEmission<'_, '_> {
                 return_arm,
                 return_when_true,
                 ..
-            } => match (return_when_true, return_arm) {
-                (false, _) => Some(jump.statement_ordinal),
-                (
-                    true,
-                    checked_trees::CheckedConditionalReturnArm::Structural(
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
-                    ),
-                ) => Some(result.statement_index),
-                (true, checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal })
-                | (
-                    true,
-                    checked_trees::CheckedConditionalReturnArm::Scalar {
-                        statement_ordinal, ..
-                    },
-                ) => Some(*statement_ordinal),
-                (true, checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
-                (true, checked_trees::CheckedConditionalReturnArm::Call { operation, .. }) => {
-                    operation.call().map(|call| call.coordinate.statement_index)
+            } => {
+                if *return_when_true {
+                    return_arm.statement_ordinal()
+                } else {
+                    Some(jump.statement_ordinal)
                 }
-            },
+            }
             CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
                 when_true, ..
             } => when_true.statement_ordinal(),
@@ -957,22 +971,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
-                let crash = lower_checked_crash_exit(
-                    checked,
-                    owner,
-                    state.state,
-                    *statement_ordinal,
-                    &self.claims.source_claims,
-                )?;
-                Terminator::Crash {
-                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                    cause: crash.cause,
-                    site_guard: lower_checked_crash_predicates(
-                        &crash.site_guard,
-                        &self.state_values[position],
-                    )?,
-                    frontier_lower_bound: crash.frontier_lower_bound,
-                }
+                self.crash_completion(position, *statement_ordinal, &mut next_edge)?
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
                 let edge = successor(edge, &[], false, &values, &[])?;
@@ -1415,7 +1414,11 @@ pub(super) fn guarded_arm_may_read_payloads(
 }
 
 fn return_may_read_payloads(arm: &checked_trees::CheckedConditionalReturnArm) -> bool {
-    !matches!(arm, checked_trees::CheckedConditionalReturnArm::Unit { .. })
+    !matches!(
+        arm,
+        checked_trees::CheckedConditionalReturnArm::Unit { .. }
+            | checked_trees::CheckedConditionalReturnArm::Crash { .. }
+    )
 }
 
 pub(super) fn plan_short_circuit_guard(

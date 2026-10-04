@@ -211,8 +211,8 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         fallback: CheckedGuardedJumpFallbackPlan,
     },
     /// The two-way conditional whose arms both complete the machine without
-    /// a named-state transfer, at least one through a terminal machine call
-    /// (`CheckedConditionalReturnArm::Call`). Each arm runs only when its
+    /// a named-state transfer, normally or through an authored crash.
+    /// Each arm runs only when its
     /// guard outcome selects it. `guard` is the same exact checked Boolean
     /// value `Conditional::guard` names, recorded at the true arm's
     /// transition ordinal. (Two `(expression)` arms check as `Guarded`,
@@ -469,6 +469,9 @@ impl CheckedComposedUnitControlStatePlan {
 /// The completion arm of a `ConditionalReturn`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedConditionalReturnArm {
+    /// Selected abnormal completion. The exact authored crash site owns its
+    /// cause and frontier; it supplies neither a result nor normal cleanup.
+    Crash { statement_ordinal: u32 },
     /// Normal Unit completion at this authored transition, with the same
     /// ownership disposal as a Unit-returning state. It is not a jump to a
     /// synthesized source state or a value producer with a dummy scalar.
@@ -503,7 +506,7 @@ impl CheckedConditionalReturnArm {
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
         match self {
             Self::Structural(operation) | Self::Call { operation, .. } => Some(operation),
-            Self::Unit { .. } | Self::Scalar { .. } => None,
+            Self::Crash { .. } | Self::Unit { .. } | Self::Scalar { .. } => None,
         }
     }
 
@@ -524,7 +527,8 @@ impl CheckedConditionalReturnArm {
     /// retains one.
     pub fn statement_ordinal(&self) -> Option<u32> {
         match self {
-            Self::Unit { statement_ordinal }
+            Self::Crash { statement_ordinal }
+            | Self::Unit { statement_ordinal }
             | Self::Scalar {
                 statement_ordinal, ..
             } => Some(*statement_ordinal),

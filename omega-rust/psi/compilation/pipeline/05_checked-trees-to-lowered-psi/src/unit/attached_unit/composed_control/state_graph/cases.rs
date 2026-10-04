@@ -565,6 +565,9 @@ pub(super) fn validate(
                     return unsupported("Unit case return arm holds a payload binding");
                 }
                 match arm {
+                    checked_trees::CheckedConditionalReturnArm::Crash { .. } => {
+                        return unsupported("case completion has no authored crash selection");
+                    }
                     checked_trees::CheckedConditionalReturnArm::Unit { .. } => {
                         // Case return production currently establishes a value.
                         // Unit case completion must also discharge the selected
