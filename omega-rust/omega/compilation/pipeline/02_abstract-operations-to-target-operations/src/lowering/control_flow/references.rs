@@ -1666,15 +1666,25 @@ pub(super) fn call_results(
         }
         let expected = leaf_referent(types, result.structural_type, &mapping.path)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let result_access = leaf_type(types, result.structural_type, &mapping.path)
+            .and_then(|leaf| types.get(&leaf))
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => Some(access),
+                _ => None,
+            })
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if mapping.sources.len() > 1
             && (!mapping.path.is_empty()
+                || !matches!(
+                    result_access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
                 || !matches!(
                     types.get(&expected).map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Record { .. })
                 )
                 || mapping.sources.iter().any(|formal| {
                     formal.place != mapping.sources[0].place
-                        || formal.access != StructuralAccess::MutableBorrow
                         || formal.path.is_empty()
                         || formal.path.iter().any(|segment| {
                             !matches!(
@@ -1689,6 +1699,9 @@ pub(super) fn call_results(
         }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
+            if !access_covers(formal.access, result_access) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
             let source = call_source(callee_function, structural_arguments, formal)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if reference_source_type(function, live, types, &source) != Some(expected) {

@@ -88,6 +88,7 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
 #[derive(Debug, Clone, Default)]
 pub(in crate::legalization) struct Custody {
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
 }
 
 impl Custody {
@@ -685,6 +686,35 @@ fn normalized_source(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Result<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+    let Some(origins) = custody.borrowed_sources.get(&source.place) else {
+        return normalized_direct_source(function, custody, types, source);
+    };
+    let origins = origins
+        .as_ref()
+        .filter(|origins| !origins.is_empty())
+        .ok_or_else(invalid)?;
+    let expected = reference_source_type(function, custody, types, source).ok_or_else(invalid)?;
+    let mut candidates = Vec::with_capacity(origins.len());
+    for origin in origins {
+        let mut resolved = origin.clone();
+        resolved.path.extend_from_slice(&source.path);
+        resolved.access = source.access;
+        if reference_source_type(function, custody, types, &resolved) != Some(expected) {
+            return Err(invalid());
+        }
+        candidates.push(normalized_direct_source(
+            function, custody, types, &resolved,
+        )?);
+    }
+    combine_candidate_origins(candidates)
+}
+
+fn normalized_direct_source(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Result<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         let Some(leaf) = custody.leaf(source.place, carrier_path) else {
             // Member storage under a carrier never held as a live reference
@@ -938,6 +968,14 @@ fn call_arguments(
                 .any(|reference| reference.root.place() == argument.place)
         {
             return Err(invalid());
+        } else if custody.borrowed_sources.contains_key(&argument.place) {
+            let (root, _) = normalized_source(function, custody, types, argument)?;
+            normalized.push((
+                argument_position,
+                vec![root],
+                argument.access,
+                CallRegion::Referent,
+            ));
         } else {
             normalized.push((
                 argument_position,
@@ -1051,7 +1089,7 @@ fn call_results(
     for mapping in &callee_result.reference_sources {
         let expected =
             leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
-        validate_alternatives(mapping, expected, types)?;
+        validate_alternatives(mapping, result.structural_type, expected, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             let source = call_source(callee_function, structural_arguments, formal)
@@ -1126,22 +1164,37 @@ fn call_results(
 
 fn validate_alternatives(
     mapping: &terminal_psi::StructuralReferenceResultSource,
+    result_type: StructuralTypeId,
     referent: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     let Some(first) = mapping.sources.first() else {
         return Err(invalid());
     };
-    if mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
+    let result_access = leaf_type(types, result_type, &mapping.path)
+        .and_then(|leaf| types.iter().find(|declaration| declaration.id == leaf))
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference { access, .. } => Some(access),
+            _ => None,
+        })
+        .ok_or_else(invalid)?;
+    if mapping
+        .sources
+        .iter()
+        .any(|formal| !access_covers(formal.access, result_access))
+        || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1])
         || (mapping.sources.len() > 1
             && (!mapping.path.is_empty()
+                || !matches!(
+                    result_access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
                 || !types.iter().any(|declaration| {
                     declaration.id == referent
                         && matches!(declaration.shape, StructuralTypeShape::Record { .. })
                 })
                 || mapping.sources.iter().any(|formal| {
                     formal.place != first.place
-                        || formal.access != StructuralAccess::MutableBorrow
                         || formal.path.is_empty()
                         || formal.path.iter().any(|segment| {
                             !matches!(
@@ -1161,35 +1214,46 @@ fn validate_alternatives(
 fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError> {
     let mut candidates = candidates.into_iter();
     let mut leaf = candidates.next().ok_or_else(invalid)?;
-    let mut paths = Vec::new();
+    let mut origins = vec![(leaf.root.clone(), leaf.parent.clone())];
     for candidate in candidates {
         if leaf.identity != candidate.identity
             || leaf.result != candidate.result
             || leaf.operation != candidate.operation
             || leaf.referent != candidate.referent
-            || leaf.parent.is_some()
-            || candidate.parent.is_some()
-            || leaf.root.place() != candidate.root.place()
         {
             return Err(invalid());
         }
-        let Root::Ingress(_, path) = candidate.root else {
-            return Err(invalid());
-        };
-        paths.push(path);
+        origins.push((candidate.root, candidate.parent));
     }
-    if !paths.is_empty() {
-        let Root::Ingress(place, path) = &leaf.root else {
-            return Err(invalid());
-        };
-        paths.push(path.clone());
-        paths.sort();
-        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+    (leaf.root, leaf.parent) = combine_candidate_origins(origins)?;
+    Ok(leaf)
+}
+
+fn combine_candidate_origins(
+    candidates: Vec<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>)>,
+) -> Result<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
+    let mut candidates = candidates.into_iter();
+    let (root, parent) = candidates.next().ok_or_else(invalid)?;
+    if candidates.len() == 0 {
+        return Ok((root, parent));
+    }
+    let place = root.place();
+    let mut paths = Vec::new();
+    for (root, parent) in std::iter::once((root, parent)).chain(candidates) {
+        if parent.is_some() || root.place() != place {
             return Err(invalid());
         }
-        leaf.root = Root::Alternatives(*place, paths);
+        match root {
+            Root::Ingress(_, path) => paths.push(path),
+            Root::Alternatives(_, candidates) => paths.extend(candidates),
+            Root::Place(_) => return Err(invalid()),
+        }
     }
-    Ok(leaf)
+    paths.sort();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(invalid());
+    }
+    Ok((Root::Alternatives(place, paths), None))
 }
 
 /// Remove every leaf an owned carrier at `place` still holds, in reverse
@@ -1714,6 +1778,73 @@ fn re_home_bound_leaves(
     }
 }
 
+/// Reconstruct borrowed state addresses from exact incoming edge bindings.
+/// Missing or unsupported origins remain explicit; they never become local roots.
+fn borrowed_sources(
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+    unit: &PsiOptimizationUnit,
+) -> std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>> {
+    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
+    use terminal_semantics::descriptor_results::DescriptorAnalysis;
+    let mut sources = BTreeMap::new();
+    for parameter in function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+    {
+        if parameter.access != StructuralAccess::Owned
+            && !terminal_semantics::descriptor_results::is_shared_descriptor(
+                types.iter(),
+                parameter.structural_type,
+            )
+        {
+            sources.insert(parameter.place, None);
+        }
+    }
+    if sources.is_empty() {
+        return std::sync::Arc::new(sources);
+    }
+    if let Some(graph) = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+        unit.functions.iter(),
+        types,
+    ) {
+        if let Some(current) = graph.iter().find(|current| current.id == function.machine) {
+            let mut analysis = DescriptorAnalysis::new(types, &graph);
+            for block in &function.blocks {
+                for parameter in &block.structural_parameters {
+                    let Some(slot) = sources.get_mut(&parameter.place) else {
+                        continue;
+                    };
+                    *slot = analysis
+                        .storage_origins(
+                            function.machine,
+                            (block.id, 0),
+                            &DescriptorLocation::whole(parameter.place),
+                        )
+                        .and_then(|origins| {
+                            origins
+                                .into_iter()
+                                .map(|origin| {
+                                    Some(StructuralArgument {
+                                        place: origin.root,
+                                        path: descriptor_path(
+                                            types,
+                                            *current.place_types.get(&origin.root)?,
+                                            &origin.path,
+                                        )?,
+                                        access: parameter.access,
+                                    })
+                                })
+                                .collect()
+                        });
+                }
+            }
+        }
+    }
+    std::sync::Arc::new(sources)
+}
+
 /// Compute each block's entry custody snapshot: ingress seeding at the entry
 /// block and each dominator's exit state elsewhere, replayed over the exact
 /// optimized node order. Whole owned edge bindings may re-home a carrier —
@@ -1783,13 +1914,16 @@ pub(in crate::legalization) fn block_entry_states(
             break;
         }
     }
+    let borrowed_sources = borrowed_sources(function, types, unit);
     let mut order = (0..blocks.len()).collect::<Vec<_>>();
     order.sort_by_key(|position| dominators[*position].len());
     let mut states: Vec<Option<Custody>> = vec![None; blocks.len()];
     let mut entries = BTreeMap::new();
     for position in order {
         let mut custody = if position == entry_position {
-            entry(function, types)?
+            let mut custody = entry(function, types)?;
+            custody.borrowed_sources = borrowed_sources.clone();
+            custody
         } else {
             let dominator = dominators[position]
                 .iter()
@@ -2133,7 +2267,7 @@ pub(in crate::legalization) fn reference_results(
     for mapping in &callee_result.reference_sources {
         let expected_referent =
             leaf_referent(types, result_type, &mapping.path).ok_or_else(|| invalid())?;
-        validate_alternatives(mapping, expected_referent, types)?;
+        validate_alternatives(mapping, result_type, expected_referent, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             let source = call_source(callee, arguments, formal).ok_or_else(invalid)?;
@@ -2141,34 +2275,9 @@ pub(in crate::legalization) fn reference_results(
                 return Err(invalid());
             }
             let (root, parent) = normalized_source(caller, custody, types, &source)?;
-            if mapping.sources.len() > 1 && parent.is_some() {
-                return Err(invalid());
-            }
-            candidates.push(root);
+            candidates.push((root, parent));
         }
-        let mut candidates = candidates.into_iter();
-        let mut root = candidates.next().ok_or_else(invalid)?;
-        let mut paths = Vec::new();
-        for candidate in candidates {
-            let Root::Ingress(place, path) = candidate else {
-                return Err(invalid());
-            };
-            if place != root.place() {
-                return Err(invalid());
-            }
-            paths.push(path);
-        }
-        if !paths.is_empty() {
-            let Root::Ingress(place, path) = root else {
-                return Err(invalid());
-            };
-            paths.push(path);
-            paths.sort();
-            if paths.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err(invalid());
-            }
-            root = Root::Alternatives(place, paths);
-        }
+        let (root, _) = combine_candidate_origins(candidates)?;
         if roots.iter().any(|other| roots_overlap(other, &root)) {
             return Err(invalid());
         }
