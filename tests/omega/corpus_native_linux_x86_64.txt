@@ -77,6 +77,7 @@ pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
 pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb
 pass/build/runtime_depend_mapping_exit built 796ms exit:70 @2d8ed253669f+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit built 908ms exit:70 @2d8ed253669f+wt
+pass/build/runtime_static_service_exclusion_exit built 3023ms exit:0 @5fac9b57088
 pass/build/uefi_os_handoff_invocation rejected 1399ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit built 913ms exit:70 @2d8ed253669f+wt
@@ -697,6 +698,8 @@ pass/proofs/proof_congruence_add_constant checked 275ms @2d8ed253669f+wt
 pass/proofs/proof_constant_arithmetic_identity checked 278ms @2d8ed253669f+wt
 pass/proofs/proof_inductive_climbing_sum checked 279ms @2d8ed253669f+wt
 pass/proofs/proof_inductive_gauss_sum checked 288ms @2d8ed253669f+wt
+pass/proofs/runtime_inductive_gauss_sum_exit rejected 1614ms @5fac9b57088
+	state `gauss_sum` receives `main` as both mutable and read-only
 pass/proofs/proof_integer_embedding checked 283ms @2d8ed253669f+wt
 pass/proofs/proof_integer_quotient_remainder checked 291ms @2d8ed253669f+wt
 pass/proofs/proof_linear_range_sum checked 282ms @2d8ed253669f+wt
@@ -731,7 +734,8 @@ pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
-pass/providers/runtime_boundary_array_forwarding_exit built 980ms exit:70 @2d8ed253669f+wt
+pass/providers/runtime_boundary_array_forwarding_exit rejected 1638ms @5fac9b57088
+	state `forward` receives `main` as both mutable and read-only
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 831ms exit:70 @2d8ed253669f+wt
 pass/providers/service_fused_root_establishment built 671ms @2d8ed253669f+wt

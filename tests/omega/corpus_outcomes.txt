@@ -1244,7 +1244,8 @@ fail/slices/signed_slice_range_upper_only rejected 599ms expected @2d8ed253669f
 	cannot prove every subslice range endpoint of `start..end` is non-negative
 fail/slices/subslice_range_operator_contract_unproven rejected 65ms expected @c9ed9f7b9e4c+wt
 	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false
-fail/slices/termination_slice_length_order_unimplemented rejected 1214ms expected @c5d32a00863
+fail/slices/termination_slice_length_order_unimplemented rejected 806ms expected @5fac9b57088
+	state `walk` receives `main` while local borrow `view` is still active
 	cannot prove the `terminates by` ranking for machine Main::walk
 fail/slices/unguarded_slice_parameter_index_compile rejected 699ms expected @2d8ed253669f
 	cannot prove index `index` is within unknown slice length of `entries` in Main::main::choose
@@ -2364,7 +2365,8 @@ pass/proofs/ring_law_conformance checked 1204ms @2d8ed253669f
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms @767b982de12c+wt
 pass/proofs/runtime_decreases_u64_measure_exit checked 1636ms @2d8ed253669f
 pass/proofs/runtime_inductive_climbing_sum_exit checked 785ms @08b483f23366+wt
-pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
+pass/proofs/runtime_inductive_gauss_sum_exit rejected 1182ms @5fac9b57088
+	state `gauss_sum` receives `main` as both mutable and read-only
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 1078ms @6571128ff286
 pass/proofs/runtime_nat_structural_recursion_exit checked 1175ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_early_exit checked 1867ms @2d8ed253669f
@@ -2395,7 +2397,8 @@ pass/providers/local_record_foreign_borrow_exit checked 2194ms @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms @2d8ed253669f
 pass/providers/runtime_boundary_array_construction_exit checked 1237ms @474542aa7f86
-pass/providers/runtime_boundary_array_forwarding_exit checked 1207ms @474542aa7f86
+pass/providers/runtime_boundary_array_forwarding_exit rejected 1076ms @5fac9b57088
+	state `forward` receives `main` as both mutable and read-only
 pass/providers/runtime_boundary_array_result_exit checked 713ms @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 1198ms @474542aa7f86
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 1431ms @474542aa7f86
