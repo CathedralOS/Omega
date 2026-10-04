@@ -756,6 +756,8 @@ defines the complete product bar.
   - `host/runtime_console_bounded_line_exit` and its
     `_{lf,full,partial_eof,middle_window}_exit` siblings: exits 20/13/34/22/70
     with exact stdout on macOS ARM64; remaining Windows and Linux.
+    **WINDOWS-CONSOLE-INPUT** owns the Windows input dependency; output
+    remains under the process-exit contract's Windows byte-leaf gap.
   - `host/runtime_gui_foreground_window_exit`: Windows, exact Gui provider,
     create/query/store/destroy, exit 70.
   - `control_flow/runtime_{integer,string}_literal_dispatch_exit`: exits 22/11
@@ -774,6 +776,39 @@ defines the complete product bar.
   Acceptance: the complete roster reaches promised stages, negatives reject for
   their intended reasons, and exact runtime oracles pass on matching hosts.
   Repinned refusals and checked-only substitutions do not close execution work.
+
+- **WINDOWS-CONSOLE-INPUT.** (split-of:CANARY-CORPUS) Run unchanged
+  `tests/omega/pass/calls/runtime_mutable_call_before_transition_args_exit/main.omg`
+  on Windows x86-64 with its authored input, native exit 70 and interpreter
+  exit 70. The program reads four bytes, completes a mutable call, then
+  observes its writes in transition arguments.
+
+  Measured frontier at `ca03765f46c` on Windows: the interpreter exits 70;
+  native realization rejects the selected Console `read_byte` intrinsic
+  because it has no Windows native catalog identity. The archived draft at
+  `cfe60a3a242` runs a checked adapter over private DLL requirements natively
+  with exit 70 but makes the interpreter decline. That draft cannot land.
+  Implement the input provider
+  in `source/library/std/targets/windows_x86_64/console_impl.omg` and supply
+  interpreter input operations from exact selected imports through
+  `omega-rust/omega/compilation/realization/provider-planning/` and
+  `omega-rust/psi/interpreter/checked-interpreter/`. Execute the checked adapter;
+  a provider spelling or matching signature cannot bypass its body or grant
+  host behavior. Distinguish input bytes, EOF, transient empty pipe reads and
+  failures without treating every successful zero-byte read as EOF.
+  The unchanged ordinary Loader `omega run --both` route exits 200 at this
+  revision with 14 pending std package-review decisions; explicit package
+  acceptance is also required before that route can establish execution.
+
+  Acceptance: `python tools/corpus_gate.py --both --filter
+  calls/runtime_mutable_call_before_transition_args_exit,host/runtime_console_bounded_line`
+  preserves the Loader's exit 70 and the five interpreted exits
+  20/13/34/22/70 with authored stdout. Attribute their existing native output
+  refusals separately. Exercise empty input, raw bytes and invalid input
+  handles, and establish the Loader's ordinary `omega run --both` route;
+  unresolved package admission is a named dependency, not runtime success.
+  Shared interpreter integration waits for the active accepted-Build claims
+  to clear, as directed by the owner.
 
 - **SQUALR-HEADLESS.** Run the independently versioned
   [Squalr application](samples/apps/README.md) (`samples/apps/squalr`
@@ -2638,8 +2673,9 @@ operation does not fill this gap.
   - [normalized foreign-call custody](omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs)
     accepts scalar homes only from call-result producers; transport a general
     computed status argument;
-  - Windows Console byte leaves need `WriteFile`/`ReadFile` (their
-    `CompilerIntrinsic` declarations have no Windows hosted bundle);
+  - Windows Console output needs `WriteFile` (its `CompilerIntrinsic`
+    declaration has no Windows hosted bundle); **WINDOWS-CONSOLE-INPUT**
+    owns `ReadFile` input and its interpreter dependency;
     `ProcessExit` already selects kernel32 `ExitProcess`;
   - replace the fixed 256 KiB foreign-call reserve (`SAME_STACK_BYTES`) in
     [source-evaluated bindings](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs)
