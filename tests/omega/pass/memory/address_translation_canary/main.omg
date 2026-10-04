@@ -149,7 +149,7 @@ reaches TranslationAuthority + MachineControl
     observe_release(&installed.release);
     let unmapped: Unmapped = authority.unmap(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    owed.discharge();
+    Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     Reclaimed { destination: released_destination, source: released_source }
@@ -188,7 +188,7 @@ reaches TranslationAuthority + MachineControl
     observe_release(&installed.release);
     let unmapped: UnmappedBorrowed = authority.unmap_borrowed(installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    owed.discharge();
+    Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = source;
     Reclaimed { destination: released_destination, source: released_source }
@@ -234,7 +234,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         CathedralPageTables::remove(walked.tables, hardware, installed);
     let unmapped: Unmapped = authority.unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    owed.discharge();
+    Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     CathedralReclaimed {
@@ -281,7 +281,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
         CathedralPageTables::remove_huge(walked.tables, hardware, installed);
     let unmapped: Unmapped = authority.unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
-    owed.discharge();
+    Shootdown::discharge(owed);
     let released_destination: Extent in Granted = unmapped.destination;
     let released_source: Extent in Granted = unmapped.source;
     CathedralReclaimed {

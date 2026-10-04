@@ -250,7 +250,7 @@ pub boundary trait TranslationAuthority {
         == Granted::content(old(&active.destination));
 }
 
-pub boundary requirement Shootdown::discharge(self)
+pub boundary requirement Shootdown::discharge(owed: Shootdown)
 reaches MachineControl
 requires
-    self in Shootdown::Owed;
+    owed in Shootdown::Owed;

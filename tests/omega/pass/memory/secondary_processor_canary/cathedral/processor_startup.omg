@@ -68,10 +68,10 @@ pub boundary trait SecondaryProcessorEntry {
 // startup. Any selected implementation may satisfy it; the ledger the
 // compiler drives in the test mints the witness only when this
 // requirement resolves.
-pub boundary requirement StartupEnvelope::confirm(self)
+pub boundary requirement StartupEnvelope::confirm(envelope: StartupEnvelope)
 reaches MachineControl
 requires
-    self in StartupEnvelope::Pending;
+    envelope in StartupEnvelope::Pending;
 
 // The supervisor's cancellation route for an outstanding attempt:
 // asking is a request only. It borrows the envelope, so `Pending` stays
@@ -83,7 +83,7 @@ requires
 // `request_cancel` convention: the route is open exactly while the
 // attempt is outstanding, and a racing `confirm` or settlement still
 // discharges the claim exactly once.
-pub boundary requirement StartupEnvelope::request_cancel(&self);
+pub boundary requirement StartupEnvelope::request_cancel(envelope: &StartupEnvelope);
 
 // ---------------------------------------------------------------------------
 // The physical carrier
@@ -214,7 +214,7 @@ machine FirstSecondaryProcessor::enter(
 ) satisfies SecondaryProcessorEntry::enter
 reaches MachineControl
 {
-    envelope.confirm();
+    StartupEnvelope::confirm(envelope);
 }
 
 // ---------------------------------------------------------------------------
@@ -312,5 +312,5 @@ machine SecondSecondaryProcessor::enter(
 ) satisfies SecondaryProcessorEntry::enter
 reaches MachineControl
 {
-    envelope.confirm();
+    StartupEnvelope::confirm(envelope);
 }
