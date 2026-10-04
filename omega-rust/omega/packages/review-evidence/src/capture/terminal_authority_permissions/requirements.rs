@@ -57,9 +57,7 @@ pub(super) fn resolve(
                         .symbols
                         .symbol_package_identity(requirement.symbol)
                         == method.requirement_owner_package_identity
-                        && compilation
-                            .normalized_trait_requirement_overload_identity(owner, requirement)
-                            .identity()
+                        && compilation.trait_requirement_callable_identity_text(owner, requirement)
                             == method.requirement_identity
                     {
                         matches.push(requirement.symbol);

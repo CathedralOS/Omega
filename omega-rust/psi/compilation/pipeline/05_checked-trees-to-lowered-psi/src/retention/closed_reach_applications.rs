@@ -209,20 +209,17 @@ pub(crate) fn retain_closed_reach_applications(
                         } => Some(format!(
                             "{}|{}",
                             declaration_identity(checked, trait_definition.symbol),
-                            checked
-                                .normalized_trait_requirement_overload_identity(
-                                    trait_definition,
-                                    requirement
-                                )
-                                .identity(),
+                            checked.trait_requirement_callable_identity_text(
+                                trait_definition,
+                                requirement
+                            ),
                         )),
                     };
                     let overload = checked
-                        .normalized_machine_overload_identity(selected_machine)
+                        .machine_callable_identity_text(selected_machine)
                         .ok_or(LoweringError::Unsupported(
                             "closed reach selected machine has no normalized identity",
-                        ))?
-                        .identity();
+                        ))?;
                     let upper_bound = retain_services(
                         checked,
                         checked
@@ -555,12 +552,9 @@ fn closed_call_application(
                     .ok_or(LoweringError::Unsupported(
                         "schema call argument lost its selected owner",
                     ))?;
-                let overload = checked
-                    .normalized_machine_overload_identity(owner)
-                    .ok_or(LoweringError::Unsupported(
-                        "schema call argument has no normalized identity",
-                    ))?
-                    .identity();
+                let overload = checked.machine_callable_identity_text(owner).ok_or(
+                    LoweringError::Unsupported("schema call argument has no normalized identity"),
+                )?;
                 ClosedReachArgument::Machine {
                     identity: format!(
                         "{}|{}|selected={}",

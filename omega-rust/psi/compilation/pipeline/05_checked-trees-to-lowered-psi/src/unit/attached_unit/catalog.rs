@@ -1064,8 +1064,7 @@ fn establishment_requirement_identity(
         ))?;
     Ok(checked
         .typed
-        .normalized_trait_requirement_overload_identity(definition, signature)
-        .identity())
+        .trait_requirement_callable_identity_text(definition, signature))
 }
 
 fn lower_establishment_route(
@@ -1100,8 +1099,7 @@ fn lower_establishment_route(
                 ))?;
             let machine = checked
                 .typed
-                .normalized_machine_overload_identity(declaration)
-                .map(|identity| identity.identity())
+                .machine_callable_identity_text(declaration)
                 .ok_or(LoweringError::Unsupported(
                     "domain establishment route machine has no normalized identity",
                 ))?;
@@ -1427,8 +1425,7 @@ pub(crate) fn lower_root_service_reach(
             {
                 ([(owner, requirement)], []) => checked
                     .typed
-                    .normalized_trait_requirement_overload_identity(owner, requirement)
-                    .identity(),
+                    .trait_requirement_callable_identity_text(owner, requirement),
                 ([], [machine])
                     if machine.service_reach_is_installation_bound
                         && matches!(
@@ -1439,13 +1436,12 @@ pub(crate) fn lower_root_service_reach(
                 {
                     checked
                         .typed
-                        .normalized_machine_overload_identity(machine)
+                        .machine_callable_identity_text(machine)
                         .ok_or({
                             LoweringError::Unsupported(
                                 "top-level installation reach requirement has no normalized machine overload identity",
                             )
                         })?
-                        .identity()
                 }
                 _ => {
                     return unsupported(

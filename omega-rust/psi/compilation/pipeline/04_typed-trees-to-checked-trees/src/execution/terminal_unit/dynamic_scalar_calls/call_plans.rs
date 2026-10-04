@@ -430,9 +430,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
     let [requirement_self] = program.state_signature_parameters(requirement) else {
         return None;
     };
-    if program
-        .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
-        .identity()
+    if program.trait_requirement_callable_identity_text(declaring_trait, requirement)
         != row.requirement_identity
         || !lane.returns(program, requirement.return_type)
         || !requirement_self.is_self
@@ -468,9 +466,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
     )?;
     if row_realization_machine.supply_mode != MachineSupplyMode::CheckedBody
         || row_realization_machine.attached_data_symbol != selection.source_data
-        || program
-            .normalized_machine_overload_identity(row_realization_machine)?
-            .identity()
+        || program.machine_callable_identity_text(row_realization_machine)?
             != row.realization_identity
     {
         return None;

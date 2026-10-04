@@ -133,9 +133,8 @@ pub fn static_machine_parameter_contract_bytes(
             } => {
                 bytes.push(2);
                 encode_declaration(program, trait_definition.symbol, &mut bytes);
-                let identity = program
-                    .normalized_trait_requirement_overload_identity(trait_definition, requirement)
-                    .identity();
+                let identity =
+                    program.trait_requirement_callable_identity_text(trait_definition, requirement);
                 bytes.extend((identity.len() as u64).to_le_bytes());
                 bytes.extend(identity.as_bytes());
             }

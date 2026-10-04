@@ -163,38 +163,27 @@ impl<'program> TopLevelSymbols<'program> {
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
+            let identity = program.machine_callable_identity(machine);
             let is_result_overload_family = !same_named.is_empty()
-                && program
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|identity| {
-                        same_named.iter().all(|previous| {
-                            program
-                                .normalized_machine_overload_identity(previous)
-                                .is_some_and(|previous_identity| {
-                                    previous_identity.path() == identity.path()
-                                        && previous_identity.parameters() == identity.parameters()
-                                })
-                        })
-                    });
+                && identity.is_valid()
+                && same_named.iter().all(|previous| {
+                    program.callable_identities_share_family(
+                        program.machine_callable_identity(previous),
+                        identity,
+                    )
+                });
             let is_boundary_token_overload_family = machine.spelling.is_some()
                 && machine.supply_mode
                     == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && program
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|identity| {
-                        same_named.iter().all(|previous| {
-                            previous.spelling == machine.spelling
-                                && previous.supply_mode
-                                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                                && program
-                                    .normalized_machine_overload_identity(previous)
-                                    .is_some_and(|previous_identity| {
-                                        previous_identity.path() == identity.path()
-                                            && previous_identity.parameters()
-                                                != identity.parameters()
-                                    })
-                        })
-                    });
+                && identity.is_valid()
+                && same_named.iter().all(|previous| {
+                    let previous_identity = program.machine_callable_identity(previous);
+                    previous.spelling == machine.spelling
+                        && previous.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && program.callable_identities_share_path(previous_identity, identity)
+                        && !program.callable_identities_share_family(previous_identity, identity)
+                });
             if !same_named.is_empty()
                 && !is_result_overload_family
                 && !is_boundary_token_overload_family

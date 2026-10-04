@@ -426,8 +426,10 @@ impl Lowerer<'_> {
             evidence_forwardings,
             proof_output_calls,
             // Derived lookup state does not travel with the fields; the
-            // rebuilt program's indexes fill lazily from its own tables.
+            // rebuilt program's indexes and interned identities fill lazily
+            // from its own tables.
             declaration_indexes: _,
+            callable_identities: _,
             ranking_expression_custody,
             // Typing precedes every build-time evaluation deferral, so no
             // pending endpoint mark can exist here to carry forward.

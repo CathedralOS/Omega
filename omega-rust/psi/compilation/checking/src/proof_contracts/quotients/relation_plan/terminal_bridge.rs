@@ -840,9 +840,8 @@ fn callable_identity(
     Ok(QuotientCallableIdentity {
         declaration: canonical_symbol(program, machine.symbol)?,
         overload: program
-            .normalized_machine_overload_identity(machine)
-            .ok_or_else(|| "callable has no canonical overload identity".to_owned())?
-            .identity(),
+            .machine_callable_identity_text(machine)
+            .ok_or_else(|| "callable has no canonical overload identity".to_owned())?,
     })
 }
 

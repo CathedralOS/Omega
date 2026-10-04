@@ -508,9 +508,8 @@ pub fn validate_selected_program_entry_shape(
         machine.name.as_str().to_owned(),
         entry.name.as_str().to_owned(),
         typed
-            .normalized_machine_overload_identity(machine)
-            .expect("selected entry has one checked executable state")
-            .identity(),
+            .machine_callable_identity_text(machine)
+            .expect("selected entry has one checked executable state"),
         receiver,
         visible_parameters,
     )
@@ -1066,9 +1065,7 @@ fn arrival_requirement_contract(
     };
     Ok(ArrivalRequirementContract {
         signature: signature.symbol,
-        requirement_identity: typed
-            .normalized_trait_requirement_overload_identity(definition, signature)
-            .identity(),
+        requirement_identity: typed.trait_requirement_callable_identity_text(definition, signature),
         parameters: typed
             .state_signature_parameters(signature)
             .iter()

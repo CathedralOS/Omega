@@ -208,9 +208,7 @@ fn exact_callback_requirement_catalog(
             .ok_or_else(|| {
                 "evaluated callback binder lost its exact requirement machine".to_owned()
             })?;
-        let exact = typed
-            .normalized_trait_requirement_overload_identity(trait_definition, requirement)
-            .identity();
+        let exact = typed.trait_requirement_callable_identity_text(trait_definition, requirement);
         let report = callback_requirement_id(&exact);
         if report != binder.requirement {
             return Err(

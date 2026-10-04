@@ -21,9 +21,7 @@ pub(crate) fn trait_requirement_identity(
     }
     Ok(PackageReviewNominalIdentity {
         owner: requirement_owner,
-        path: compilation
-            .normalized_trait_requirement_overload_identity(owner, requirement)
-            .identity(),
+        path: compilation.trait_requirement_callable_identity_text(owner, requirement),
     })
 }
 
@@ -130,14 +128,13 @@ pub(crate) fn top_level_requirement_identity(
         ))]);
     }
     let path = compilation
-        .normalized_machine_overload_identity(requirement)
+        .machine_callable_identity_text(requirement)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "top-level requirement `{}` has no normalized overload identity",
                 requirement.name
             ))]
-        })?
-        .identity();
+        })?;
     Ok(PackageReviewNominalIdentity {
         owner: nominal_owner(compilation, requirement.symbol)?,
         path,

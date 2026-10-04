@@ -257,10 +257,8 @@ fn exact_operation<'program>(
                 .normalized_hermetic_symbol_identity(machine.symbol)
                 .is_ok_and(|identity| identity == certificate.public_operation.declaration)
                 && program
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|identity| {
-                        identity.identity() == certificate.public_operation.overload
-                    })
+                    .machine_callable_identity_text(machine)
+                    .is_some_and(|identity| identity == certificate.public_operation.overload)
         })
         .collect::<Vec<_>>();
     let [machine] = matches.as_slice() else {

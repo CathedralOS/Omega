@@ -293,10 +293,7 @@ fn normalized_machine_identity(
     machine: &checked_trees::machine::Machine,
 ) -> Option<String> {
     let declaration = symbol_identity(checked, machine.symbol);
-    let overload = checked
-        .typed
-        .normalized_machine_overload_identity(machine)?
-        .identity();
+    let overload = checked.typed.machine_callable_identity_text(machine)?;
     Some(format!("{declaration}|{overload}"))
 }
 

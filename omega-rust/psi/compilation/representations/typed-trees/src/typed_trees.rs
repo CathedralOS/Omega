@@ -42,7 +42,7 @@ use crate::{
     data, domain, expression, machine, mathematical, measure, proposition, signature, snapshot,
     trait_definition, types, wire,
 };
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolTable;
@@ -193,6 +193,14 @@ pub struct TypedTrees {
     /// unbounded range.
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::expression::ExpressionHandle>,
+    /// Interned named-callable identities: one record per distinct machine,
+    /// requirement or named-operator overload identity, carrying the
+    /// declarations that render it and the escaped text an artifact, plan or
+    /// review record carries across a compilation boundary. Guarded by
+    /// `structural_fingerprint()`, so a declaration append drops every
+    /// memoized identity rather than answering from a shape the program no
+    /// longer has. See `type_identity::callable_identity`.
+    pub callable_identities: OwnedIndex<crate::type_identity::CallableIdentityTable>,
 }
 
 /// A package-scoped declaration whose consumer role supplies its completion
@@ -437,6 +445,7 @@ impl TypedTrees {
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
+            callable_identities: OwnedIndex::default(),
         }
     }
 

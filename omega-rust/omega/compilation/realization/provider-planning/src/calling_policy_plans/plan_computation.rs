@@ -63,9 +63,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
                 .map(|signature| {
                     (
                         signature,
-                        typed
-                            .normalized_trait_requirement_overload_identity(definition, signature)
-                            .identity(),
+                        typed.trait_requirement_callable_identity_text(definition, signature),
                     )
                 })
         })
@@ -89,8 +87,7 @@ pub fn evaluate_compatibility_boundary_entry_plan(
                     requirement,
                     entry,
                     typed
-                        .normalized_machine_overload_identity(requirement)
-                        .map(|identity| identity.identity())
+                        .machine_callable_identity_text(requirement)
                         .unwrap_or_default(),
                 )
             })

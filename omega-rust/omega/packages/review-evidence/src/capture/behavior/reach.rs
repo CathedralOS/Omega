@@ -58,13 +58,12 @@ fn installation_requirement_identity(
                 ) =>
         {
             let path = compilation
-                .normalized_machine_overload_identity(machine)
+                .machine_callable_identity_text(machine)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "package review installation reach has no normalized machine overload identity",
                     )]
-                })?
-                .identity();
+                })?;
             Ok(PackageReviewNominalIdentity {
                 owner: nominal_owner(compilation, machine.symbol)?,
                 path,

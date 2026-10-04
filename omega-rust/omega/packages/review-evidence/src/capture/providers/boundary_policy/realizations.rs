@@ -175,13 +175,18 @@ fn project_requirement_coordinate(
         .iter()
         .find(|machine| machine.symbol == requirement)
         .ok_or_else(|| rejected("a closed application without its requirement machine"))?;
-    let overload = compilation
-        .typed
-        .normalized_machine_overload_identity(machine)
-        .ok_or_else(|| rejected("a closed application on a requirement without an entry state"))?;
+    let overload = compilation.typed.machine_callable_identity(machine);
+    if !overload.is_valid() {
+        return Err(rejected(
+            "a closed application on a requirement without an entry state",
+        ));
+    }
+    let typed = &compilation.typed;
     Ok(PackageReviewOperatorCoordinate {
         identity: nominal_identity(compilation, requirement)?,
-        parameter_dispatch: overload.parameters().to_owned(),
-        result_dispatch: overload.result_dispatch().identity(),
+        parameter_dispatch: typed
+            .callable_parameters_text(typed.callable_identity_parameters(overload)),
+        result_dispatch: typed
+            .callable_result_dispatch_text(typed.callable_identity_result_dispatch(overload)),
     })
 }

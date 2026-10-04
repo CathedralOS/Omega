@@ -188,8 +188,6 @@ pub(crate) fn exact_task_runtime_requirement<'program>(
             "TaskRuntime activation requirement must resolve uniquely within its exact owner",
         )]);
     }
-    let identity = program
-        .normalized_trait_requirement_overload_identity(owner, signature)
-        .identity();
+    let identity = program.trait_requirement_callable_identity_text(owner, signature);
     Ok((owner, signature, identity))
 }

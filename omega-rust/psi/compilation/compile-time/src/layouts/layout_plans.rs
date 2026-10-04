@@ -226,8 +226,7 @@ fn normalize_private_callback_demands(
             layout_subject_identity: typed
                 .normalized_hermetic_symbol_identity(conformance.carrier_symbol)?,
             callback_requirement_identity: typed
-                .normalized_trait_requirement_overload_identity(requirement_trait, requirement_row)
-                .identity(),
+                .trait_requirement_callable_identity_text(requirement_trait, requirement_row),
             offset: receipt.offset,
         });
     }

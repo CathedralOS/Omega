@@ -59,15 +59,15 @@ pub(crate) fn task_specialization_commitment(
             )]
         })?;
     let normalized_requirement =
-        program.normalized_trait_requirement_overload_identity(requirement_owner, requirement);
-    if normalized_requirement.identity() != requirement_identity {
+        program.trait_requirement_callable_identity_text(requirement_owner, requirement);
+    if normalized_requirement != requirement_identity {
         return Err(vec![Diagnostic::error(
             "task specialization selected-runtime requirement differs from its exact checked requirement",
         )]);
     }
 
     let mut strong = ExactSpecializationEncoder::new();
-    strong.string(normalized_requirement.identity().as_str());
+    strong.string(normalized_requirement.as_str());
     strong.optional_digest(
         program
             .symbols
@@ -262,14 +262,14 @@ impl ExactSpecializationEncoder {
         machine: &checked_trees::machine::Machine,
     ) -> Result<(), Vec<Diagnostic>> {
         let identity = program
-            .normalized_machine_overload_identity(machine)
+            .machine_callable_identity_text(machine)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "task specialization machine `{}` has no exact normalized overload identity",
                     machine.name.as_str()
                 ))]
             })?;
-        self.string(identity.identity().as_str());
+        self.string(identity.as_str());
         self.optional_digest(
             program
                 .symbols

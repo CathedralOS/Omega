@@ -301,12 +301,8 @@ impl SelectedTargetMachineDeclarations {
             let wanted_origin = self.origin_index(typed, wanted)?;
             let canonical_machine = &typed.machines()[canonical_index];
             let wanted_machine = &typed.machines()[wanted_index];
-            let canonical_identity = typed
-                .normalized_machine_overload_identity(canonical_machine)
-                .map(|identity| identity.identity().to_owned());
-            let wanted_identity = typed
-                .normalized_machine_overload_identity(wanted_machine)
-                .map(|identity| identity.identity().to_owned());
+            let canonical_identity = typed.machine_callable_identity(canonical_machine);
+            let wanted_identity = typed.machine_callable_identity(wanted_machine);
             if canonical_identity != wanted_identity {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{name}` has a different signature for `{}` than for `{}` -- \

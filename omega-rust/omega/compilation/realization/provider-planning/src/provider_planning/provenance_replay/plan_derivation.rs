@@ -128,8 +128,7 @@ pub(crate) fn derive_provider_plans(
                         (
                             ProviderBinding::CheckedAdapter {
                                 machine_identity: typed
-                                    .normalized_machine_overload_identity(machine)
-                                    .map(|identity| identity.identity())
+                                    .machine_callable_identity_text(machine)
                                     .unwrap_or_default(),
                                 machine_package_identity: typed
                                     .symbols
@@ -292,8 +291,7 @@ fn derive_top_level_requirement_plans(
                 continue;
             };
             let requirement_identity = typed
-                .normalized_machine_overload_identity(requirement)
-                .map(|identity| identity.identity())
+                .machine_callable_identity_text(requirement)
                 .unwrap_or_default();
             let [schema_method] = schema.methods.as_slice() else {
                 continue;
@@ -309,8 +307,7 @@ fn derive_top_level_requirement_plans(
                 {
                     ProviderBinding::CheckedAdapter {
                         machine_identity: typed
-                            .normalized_machine_overload_identity(machine)
-                            .map(|identity| identity.identity())
+                            .machine_callable_identity_text(machine)
                             .unwrap_or_default(),
                         machine_package_identity: typed
                             .symbols
@@ -549,8 +546,7 @@ fn derive_boundary_operator_plans(
                         binding,
                         &typed.attached_data_path(machine).unwrap_or_default(),
                         &typed
-                            .normalized_machine_overload_identity(machine)
-                            .map(|identity| identity.identity())
+                            .machine_callable_identity_text(machine)
                             .unwrap_or_default(),
                     )
                 }
@@ -573,8 +569,7 @@ fn derive_boundary_operator_plans(
                 {
                     ProviderBinding::CheckedAdapter {
                         machine_identity: typed
-                            .normalized_machine_overload_identity(machine)
-                            .map(|identity| identity.identity())
+                            .machine_callable_identity_text(machine)
                             .unwrap_or_default(),
                         machine_package_identity: typed
                             .symbols

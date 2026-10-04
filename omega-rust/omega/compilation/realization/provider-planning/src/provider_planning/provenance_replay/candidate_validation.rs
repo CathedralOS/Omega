@@ -220,9 +220,7 @@ fn exact_provider_requirement_kind(
             .iter()
             .any(|requirement| {
                 requirement.symbol == requirement_symbol
-                    && typed
-                        .normalized_trait_requirement_overload_identity(definition, requirement)
-                        .identity()
+                    && typed.trait_requirement_callable_identity_text(definition, requirement)
                         == row.requirement_identity
             })
         {
@@ -235,8 +233,8 @@ fn exact_provider_requirement_kind(
         requirement.symbol == requirement_symbol
             && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             && typed
-                .normalized_machine_overload_identity(requirement)
-                .is_some_and(|identity| identity.identity() == row.requirement_identity)
+                .machine_callable_identity_text(requirement)
+                .is_some_and(|identity| identity == row.requirement_identity)
     }) {
         matches.push(ExactProviderRequirementKind::TopLevelRequirement);
     }
@@ -633,8 +631,7 @@ fn replay_provider_row_binding(
                         binding,
                         &plan.provider_type,
                         &typed
-                            .normalized_machine_overload_identity(realization)
-                            .map(|identity| identity.identity())
+                            .machine_callable_identity_text(realization)
                             .unwrap_or_default(),
                     )
                 }

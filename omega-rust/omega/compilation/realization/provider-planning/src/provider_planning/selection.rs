@@ -225,13 +225,12 @@ fn family_coordinates(
                         == language_semantics::MachineSupplyMode::TopLevelRequirement =>
                 {
                     typed
-                        .normalized_machine_overload_identity(requirement)
+                        .machine_callable_identity_text(requirement)
                         .ok_or_else(|| {
                             format!(
                                 "boundary-operator family `{canonical_path}` has a token machine without an exact overload identity"
                             )
                         })?
-                        .identity()
                 }
                 Some(_) => {
                     return Err(format!(

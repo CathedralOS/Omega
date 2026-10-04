@@ -135,8 +135,7 @@ pub(crate) fn evaluate_one(
         }
     };
     let producer_identity = typed
-        .normalized_machine_overload_identity(producer)
-        .map(|identity| identity.identity().to_owned())
+        .machine_callable_identity_text(producer)
         .ok_or_else(|| {
             at(
                 source_span,

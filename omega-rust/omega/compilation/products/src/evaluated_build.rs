@@ -260,8 +260,7 @@ impl ComputedBuildConfig {
                         )]
                     })?;
                 typed
-                    .normalized_machine_overload_identity(machine)
-                    .map(|identity| identity.identity().to_owned())
+                    .machine_callable_identity_text(machine)
                     .ok_or_else(|| {
                         vec![diagnostics::Diagnostic::error(
                             "selected build machine has no canonical callable identity",

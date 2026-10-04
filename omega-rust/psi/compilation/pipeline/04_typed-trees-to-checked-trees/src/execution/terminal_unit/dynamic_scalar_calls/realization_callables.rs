@@ -258,8 +258,6 @@ pub(crate) fn dynamic_family_realization<'program>(
     let realization_state = program
         .machine_states(realization_machine)
         .get(state_position)?;
-    let realization_identity = program
-        .normalized_machine_overload_identity(realization_machine)?
-        .identity();
+    let realization_identity = program.machine_callable_identity_text(realization_machine)?;
     Some((realization_machine, realization_state, realization_identity))
 }

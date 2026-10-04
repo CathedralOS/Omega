@@ -52,11 +52,7 @@ pub(crate) fn exact_conformance_requirement_identity(
             *signature
         }
     };
-    Some(
-        typed
-            .normalized_trait_requirement_overload_identity(owner, signature)
-            .identity(),
-    )
+    Some(typed.trait_requirement_callable_identity_text(owner, signature))
 }
 
 pub(crate) fn exact_boundary_trait<'typed>(

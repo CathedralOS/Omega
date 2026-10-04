@@ -75,14 +75,14 @@ pub fn admit_build_machine(
             "could not bind the selected build machine to its prepared program: {reason}"
         ))]
     })?;
-    let normalized_callable_identity = typed
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity().to_owned())
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected build machine has no canonical callable identity",
-            )]
-        })?;
+    let normalized_callable_identity =
+        typed
+            .machine_callable_identity_text(machine)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected build machine has no canonical callable identity",
+                )]
+            })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
     // Build authority comes only from compiler-owned Build facets. Runtime

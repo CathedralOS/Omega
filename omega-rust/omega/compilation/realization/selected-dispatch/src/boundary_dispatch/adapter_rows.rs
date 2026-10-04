@@ -175,9 +175,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .iter()
         .filter(|signature| {
             signature.name.as_str() == method.name
-                && typed
-                    .normalized_trait_requirement_overload_identity(requirement_owner, signature)
-                    .identity()
+                && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
                     == method.requirement_identity
         })
         .collect::<Vec<_>>();
@@ -633,9 +631,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             && specialization.selected_requirement_identity == row.requirement_identity
             && specialization.selected_machine_identity == *machine_identity
     }) {
-        let Some(closed) =
-            typed.machine_by_normalized_overload_identity(&specialization.requirement_identity)
-        else {
+        let Some(closed) = typed.machine_by_callable_identity(
+            typed.callable_identity_by_text(&specialization.requirement_identity),
+        ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names closed requirement `{}` with no exact typed machine",
                 plan.name, specialization.requirement_identity,
@@ -680,9 +678,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
                 closed.name,
             )));
         }
-        let Some(instance) =
-            typed.machine_by_normalized_overload_identity(&specialization.machine_identity)
-        else {
+        let Some(instance) = typed.machine_by_callable_identity(
+            typed.callable_identity_by_text(&specialization.machine_identity),
+        ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names provider instance `{}` with no exact typed machine",
                 plan.name, specialization.machine_identity,

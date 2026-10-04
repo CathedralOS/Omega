@@ -111,9 +111,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if namespace.is_empty() || name.is_empty() || namespace.contains("::") {
             return None;
         }
-        let requirement_identity = typed
-            .normalized_machine_overload_identity(requirement)?
-            .identity();
+        let requirement_identity = typed.machine_callable_identity_text(requirement)?;
         if requirement_identity.is_empty() {
             return None;
         }
@@ -251,8 +249,8 @@ impl<'typed> IntrinsicRequirement<'typed> {
                 .iter()
                 .any(|conformance| conformance.external_binding.is_some())
                 && typed
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|identity| identity.identity() == realization_machine_identity)
+                    .machine_callable_identity_text(machine)
+                    .is_some_and(|identity| identity == realization_machine_identity)
                 && typed
                     .machine_trait_conformances(machine)
                     .iter()

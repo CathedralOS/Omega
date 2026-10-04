@@ -7,11 +7,13 @@
 //! identities (decision 19 / DOM4).
 //!
 //! This file owns the `TypedTrees` identity queries. `normalized_identities.rs`
-//! holds the identity carriers, `identity_context.rs` normalizes type
-//! references in context, `constraint_identity.rs` normalizes constraints and
-//! domains, `open_index_identity.rs` identifies open index operations and
+//! holds the identity carriers, `callable_identity.rs` interns named-callable
+//! identities and hands out their handles, `identity_context.rs` normalizes
+//! type references in context, `constraint_identity.rs` normalizes constraints
+//! and domains, `open_index_identity.rs` identifies open index operations and
 //! `result_dispatch_terms.rs` collects result dispatch terms.
 
+mod callable_identity;
 mod constraint_identity;
 mod identity_context;
 mod normalized_identities;
@@ -19,12 +21,16 @@ mod open_index_identity;
 mod result_dispatch_terms;
 mod substitution;
 
+pub use callable_identity::{
+    CallableIdentityId, CallableIdentityTable, CallableParametersId, CallablePathId,
+    CallableResultDispatchId,
+};
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
 };
 pub use normalized_identities::{
-    NormalizedDomainExpression, NormalizedDomainTerm, NormalizedNamedCallableIdentity,
-    NormalizedResultDispatchSet, NormalizedTypeIdentity,
+    NormalizedDomainExpression, NormalizedDomainTerm, NormalizedResultDispatchSet,
+    NormalizedTypeIdentity,
 };
 
 use crate::TypedTrees;
@@ -404,13 +410,15 @@ impl TypedTrees {
         NormalizedResultDispatchSet { terms }
     }
 
-    /// Canonical identity of one top-level named machine overload. A machine's
-    /// first state is its callable entry signature; explicit sibling states do
-    /// not create additional top-level overloads.
-    pub fn normalized_machine_overload_identity(
+    /// The derived parts of one top-level named machine overload identity. A
+    /// machine's first state is its callable entry signature; explicit sibling
+    /// states do not create additional top-level overloads. Consumers take the
+    /// interned handle from `machine_callable_identity`; this derivation runs
+    /// once per declaration per program revision.
+    fn machine_callable_identity_parts(
         &self,
         machine: &crate::machine::Machine,
-    ) -> Option<NormalizedNamedCallableIdentity> {
+    ) -> Option<callable_identity::CallableIdentityParts> {
         let entry = self.machine_states(machine).first()?;
         // Module ownership lives on the exact symbol, not the authored
         // machine spelling. Module-free and source-free semantic fixtures
@@ -427,32 +435,13 @@ impl TypedTrees {
                 machine.name
             )
         });
-        Some(self.normalized_named_callable_identity(
+        Some(self.named_callable_identity_parts(
             module_path.as_deref().unwrap_or(machine.name.as_str()),
             machine.symbol,
             self.machine_type_parameters(machine),
             self.state_parameters(entry),
             entry.return_type,
         ))
-    }
-
-    /// Resolve one canonical machine-overload identity exactly. A missing or
-    /// duplicate identity returns `None`; callers must not fall back to a
-    /// short machine spelling.
-    pub fn machine_by_normalized_overload_identity(
-        &self,
-        identity: &str,
-    ) -> Option<&crate::machine::Machine> {
-        // A target sibling shares its family's identity and is never the
-        // realized declaration.
-        let mut matches = self.machines().iter().filter(|machine| {
-            machine.target.is_none()
-                && self
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|candidate| candidate.identity() == identity)
-        });
-        let machine = matches.next()?;
-        matches.next().is_none().then_some(machine)
     }
 
     /// Export a nominal data declaration's path without losing its module.
@@ -503,17 +492,17 @@ impl TypedTrees {
         }
     }
 
-    /// Canonical identity of one trait machine requirement overload.
-    pub fn normalized_trait_requirement_overload_identity(
+    /// The derived parts of one trait machine requirement overload identity.
+    fn trait_requirement_callable_identity_parts(
         &self,
         trait_definition: &crate::trait_definition::TraitDefinition,
         requirement: &crate::signature::StateSignature,
-    ) -> NormalizedNamedCallableIdentity {
+    ) -> callable_identity::CallableIdentityParts {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
         type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
         // As with concrete machines, a requirement belongs to its full module
         // path. Sibling modules may declare identically shaped boundary traits.
-        self.normalized_named_callable_identity(
+        self.named_callable_identity_parts(
             &format!(
                 "{}::{}",
                 self.trait_declaration_path(trait_definition),
@@ -526,14 +515,14 @@ impl TypedTrees {
         )
     }
 
-    /// Canonical identity of one explicitly named operator requirement.
-    /// Unspelled boundary operators participate in the same result-domain
-    /// lookup as other named requirements; fixed spellings remain
-    /// operand-directed and use this only for declaration diagnostics.
-    pub fn normalized_operator_overload_identity(
+    /// The derived parts of one explicitly named operator requirement
+    /// identity. Unspelled boundary operators participate in the same
+    /// result-domain lookup as other named requirements; fixed spellings
+    /// remain operand-directed and use this only for declaration diagnostics.
+    fn operator_callable_identity_parts(
         &self,
         operator: &crate::operator::OperatorDefinition,
-    ) -> NormalizedNamedCallableIdentity {
+    ) -> callable_identity::CallableIdentityParts {
         let path = self
             .operator_path_members(operator.name)
             .iter()
@@ -551,7 +540,7 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>()
             .join(",");
-        NormalizedNamedCallableIdentity {
+        callable_identity::CallableIdentityParts {
             path,
             // Operator operand identity already normalizes generic binders by
             // first structural occurrence, including declarations whose type
@@ -564,14 +553,14 @@ impl TypedTrees {
         }
     }
 
-    fn normalized_named_callable_identity(
+    fn named_callable_identity_parts(
         &self,
         path: &str,
         owner_symbol: SymbolHandle,
         type_parameters: &[crate::data::TypeParameter],
         parameters: &[crate::signature::StateParameter],
         return_type: TypeReferenceHandle,
-    ) -> NormalizedNamedCallableIdentity {
+    ) -> callable_identity::CallableIdentityParts {
         let mut binders = Vec::with_capacity(type_parameters.len() + 1);
         if owner_symbol.is_valid() {
             binders.push((owner_symbol, "$Self".to_owned()));
@@ -602,7 +591,7 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>()
             .join(",");
-        NormalizedNamedCallableIdentity {
+        callable_identity::CallableIdentityParts {
             path: path.to_owned(),
             parameters,
             result_dispatch: self.normalized_result_dispatch_set(return_type),

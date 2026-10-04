@@ -275,9 +275,9 @@ impl EvaluatedViaBindingTable {
             };
             let producer_matches_receipt = producer.is_some_and(|producer| {
                 typed
-                    .normalized_machine_overload_identity(producer)
+                    .machine_callable_identity_text(producer)
                     .is_some_and(|identity| {
-                        identity.identity() == row.evaluated.receipt().producer_callable_identity()
+                        identity == row.evaluated.receipt().producer_callable_identity()
                     })
                     && typed.symbols.symbol_package_identity(producer.symbol)
                         == row.evaluated.receipt().producer_package()

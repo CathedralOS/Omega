@@ -75,9 +75,8 @@ pub(crate) fn callable_identity(
         return Err(rejected("a callable outside its exact machine owner"));
     }
     let overload = compilation
-        .normalized_machine_overload_identity(machine)
-        .ok_or_else(|| rejected("a callable without an exact overload coordinate"))?
-        .identity();
+        .machine_callable_identity_text(machine)
+        .ok_or_else(|| rejected("a callable without an exact overload coordinate"))?;
     // A fixed operator token is part of the declaration's public signature:
     // adding, removing, or changing it is a breaking revision, so it joins
     // the review coordinate here. It stays out of the Psi overload identity

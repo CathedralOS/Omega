@@ -25,9 +25,7 @@ pub(super) fn project(
                 .iter()
                 .position(|parameter| parameter.symbol == binder.parameter_symbol)
             {
-                if compilation
-                    .normalized_trait_requirement_overload_identity(owner, requirement)
-                    .identity()
+                if compilation.trait_requirement_callable_identity_text(owner, requirement)
                     != signature.owner_requirement_identity()
                 {
                     return Err(rejected("callback binder belongs to another requirement"));
@@ -47,10 +45,8 @@ pub(super) fn project(
             .position(|parameter| parameter.symbol == binder.parameter_symbol)
         {
             if compilation
-                .normalized_machine_overload_identity(owner)
-                .is_none_or(|identity| {
-                    identity.identity() != signature.owner_requirement_identity()
-                })
+                .machine_callable_identity_text(owner)
+                .is_none_or(|identity| identity != signature.owner_requirement_identity())
             {
                 return Err(rejected(
                     "callback binder belongs to another requirement machine",

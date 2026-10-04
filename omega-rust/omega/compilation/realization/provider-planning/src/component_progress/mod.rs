@@ -46,13 +46,12 @@ pub fn build_selected_component_progress_manifest(
             ))]);
         };
         let callable_identity = program
-            .normalized_machine_overload_identity(entry)
+            .machine_callable_identity_text(entry)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "selected test entry `{entry_name}` has no normalized callable identity"
                 ))]
-            })?
-            .identity();
+            })?;
         return build_component_progress_manifest(
             program,
             selected,
@@ -265,9 +264,7 @@ fn exact_boundary_requirement(
                         program.symbols.symbol_package_identity(owner.symbol),
                         program.trait_declaration_path(owner),
                         program.symbols.symbol_package_identity(requirement.symbol),
-                        program
-                            .normalized_trait_requirement_overload_identity(owner, requirement)
-                            .identity(),
+                        program.trait_requirement_callable_identity_text(owner, requirement),
                     )
                 })
         })
@@ -279,7 +276,5 @@ fn machine_callable_identity(
     symbol: SymbolHandle,
 ) -> Option<String> {
     let machine = owning_machine(program, symbol)?;
-    program
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity())
+    program.machine_callable_identity_text(machine)
 }

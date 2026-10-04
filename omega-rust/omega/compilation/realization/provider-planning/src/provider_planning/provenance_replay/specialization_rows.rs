@@ -54,8 +54,7 @@ pub(crate) fn derive_selected_requirement_specializations(
             continue;
         };
         let template_identity = typed
-            .normalized_machine_overload_identity(template)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(template)
             .unwrap_or_default();
         for row in &plan.rows {
             let ProviderBinding::CheckedAdapter {
@@ -138,12 +137,10 @@ pub(crate) fn derive_selected_requirement_specializations(
                     continue;
                 }
                 let requirement_identity = typed
-                    .normalized_machine_overload_identity(closed)
-                    .map(|identity| identity.identity())
+                    .machine_callable_identity_text(closed)
                     .unwrap_or_default();
                 let machine_identity = typed
-                    .normalized_machine_overload_identity(instance)
-                    .map(|identity| identity.identity())
+                    .machine_callable_identity_text(instance)
                     .unwrap_or_default();
                 if requirement_identity.is_empty() || machine_identity.is_empty() {
                     diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -181,10 +178,7 @@ pub(crate) fn derive_selected_requirement_specializations(
             if instance.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
                 continue;
             }
-            let Some(identity) = typed
-                .normalized_machine_overload_identity(instance)
-                .map(|identity| identity.identity())
-            else {
+            let Some(identity) = typed.machine_callable_identity_text(instance) else {
                 continue;
             };
             let matching = rows

@@ -29,8 +29,7 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
     });
     if let Some(requirement) = top_level_requirement {
         let identity = typed
-            .normalized_machine_overload_identity(requirement)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(requirement)
             .unwrap_or_default();
         return row.requirement_identity == identity
             && typed
@@ -435,8 +434,8 @@ pub fn exact_checked_adapter<'typed>(
             candidate.target.is_none()
                 && context.contains(candidate.symbol)
                 && typed
-                    .normalized_machine_overload_identity(candidate)
-                    .is_some_and(|identity| identity.identity() == *machine_identity)
+                    .machine_callable_identity_text(candidate)
+                    .is_some_and(|identity| identity == *machine_identity)
         })
         .collect::<Vec<_>>();
     let matches = identity_matches
@@ -521,9 +520,7 @@ fn validate_exact_requirement_lifetime_partition(
         else {
             continue;
         };
-        if typed
-            .normalized_trait_requirement_overload_identity(definition, requirement)
-            .identity()
+        if typed.trait_requirement_callable_identity_text(definition, requirement)
             != row.requirement_identity
         {
             continue;
@@ -577,8 +574,8 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
                     .as_ref()
                     == Some(&plan.schema)
                 && typed
-                    .normalized_machine_overload_identity(requirement)
-                    .is_some_and(|identity| identity.identity() == row.requirement_identity)
+                    .machine_callable_identity_text(requirement)
+                    .is_some_and(|identity| identity == row.requirement_identity)
         })
         .collect::<Vec<_>>();
     let [requirement] = requirements.as_slice() else {
@@ -659,8 +656,8 @@ pub(crate) fn has_exact_top_level_ordinary_realization(
                     .as_ref()
                     == Some(&plan.schema)
                 && typed
-                    .normalized_machine_overload_identity(requirement)
-                    .is_some_and(|identity| identity.identity() == row.requirement_identity)
+                    .machine_callable_identity_text(requirement)
+                    .is_some_and(|identity| identity == row.requirement_identity)
         })
         .collect::<Vec<_>>();
     let [requirement] = requirements.as_slice() else {
@@ -801,8 +798,8 @@ pub(crate) fn exact_checked_adapter_invocations(
     let top_level_requirement = typed.machines().iter().find(|requirement| {
         requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             && typed
-                .normalized_machine_overload_identity(requirement)
-                .is_some_and(|identity| identity.identity() == method.requirement_identity)
+                .machine_callable_identity_text(requirement)
+                .is_some_and(|identity| identity == method.requirement_identity)
             && context.contains(requirement.symbol)
             && typed.symbols.symbol_package_identity(requirement.symbol)
                 == method.requirement_owner_package_identity

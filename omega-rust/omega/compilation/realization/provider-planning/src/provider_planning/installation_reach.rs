@@ -94,8 +94,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                         .filter(move |requirement| {
                             checked
                                 .typed
-                                .normalized_trait_requirement_overload_identity(owner, requirement)
-                                .identity()
+                                .trait_requirement_callable_identity_text(owner, requirement)
                                 == row.requirement_identity
                         })
                         .map(move |requirement| (owner, requirement))
@@ -207,8 +206,7 @@ fn append_top_level_installation_reach_resolution<'a>(
 ) {
     let requirement_identity = checked
         .typed
-        .normalized_machine_overload_identity(requirement)
-        .map(|identity| identity.identity())
+        .machine_callable_identity_text(requirement)
         .unwrap_or_default();
     if row.requirement_identity != requirement_identity {
         diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -447,8 +445,7 @@ fn nested_requirement_identity(
             && machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
     }) {
         return typed
-            .normalized_machine_overload_identity(machine)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(machine)
             .filter(|identity| !identity.is_empty());
     }
     typed.traits().iter().find_map(|definition| {
@@ -457,9 +454,8 @@ fn nested_requirement_identity(
             .iter()
             .find(|signature| signature.symbol == requirement)
             .and_then(|signature| {
-                let identity = typed
-                    .normalized_trait_requirement_overload_identity(definition, signature)
-                    .identity();
+                let identity =
+                    typed.trait_requirement_callable_identity_text(definition, signature);
                 (!identity.is_empty()).then_some(identity)
             })
     })

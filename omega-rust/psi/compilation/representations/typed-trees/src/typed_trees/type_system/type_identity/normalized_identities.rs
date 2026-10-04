@@ -1,10 +1,12 @@
 //! The normalized identity carriers: type identities, domain expressions,
-//! result dispatch sets, named callable identities and domain terms.
+//! result dispatch sets and domain terms.
+//!
+//! A named callable's identity is not among them: it is interned once per
+//! program revision in `callable_identity.rs` and named by a handle, so no
+//! carrier holds its path and parameter signature as rendered text.
 
 use crate::TypedTrees;
-use crate::typed_trees::type_system::type_identity::constraint_identity::{
-    atom, compound, normalized_domain_term,
-};
+use crate::typed_trees::type_system::type_identity::constraint_identity::normalized_domain_term;
 use crate::types::TypeConstraintNode;
 use arena::HandleSpan;
 use std::fmt;
@@ -95,42 +97,6 @@ impl NormalizedResultDispatchSet {
             })
             .collect::<Vec<_>>()
             .join("&")
-    }
-}
-
-/// Canonical overload identity for an explicit named machine or requirement.
-/// The result carrier and predicate-only refinements are deliberately absent:
-/// a declaration is selected by path, parameter signature, and the exact set
-/// of dispatch-bearing result domains.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NormalizedNamedCallableIdentity {
-    pub(crate) path: String,
-    pub(crate) parameters: String,
-    pub(crate) result_dispatch: NormalizedResultDispatchSet,
-}
-
-impl NormalizedNamedCallableIdentity {
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    pub fn parameters(&self) -> &str {
-        &self.parameters
-    }
-
-    pub fn result_dispatch(&self) -> &NormalizedResultDispatchSet {
-        &self.result_dispatch
-    }
-
-    pub fn identity(&self) -> String {
-        compound(
-            "named-callable",
-            [
-                atom("path", &self.path),
-                atom("parameters", &self.parameters),
-                atom("result-dispatch", &self.result_dispatch.identity()),
-            ],
-        )
     }
 }
 

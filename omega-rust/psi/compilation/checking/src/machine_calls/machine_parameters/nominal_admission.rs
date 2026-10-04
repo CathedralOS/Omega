@@ -116,7 +116,6 @@ pub(super) fn validate_nominal_machine_selection(
         satisfaction_trait: *required_trait,
         satisfaction_requirement: *required_requirement,
         canonical_requirement_overload: program
-            .normalized_trait_requirement_overload_identity(trait_definition, requirement)
-            .identity(),
+            .trait_requirement_callable_identity_text(trait_definition, requirement),
     }))
 }

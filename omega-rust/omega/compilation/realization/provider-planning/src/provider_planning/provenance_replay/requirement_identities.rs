@@ -18,8 +18,7 @@ pub(crate) fn exact_satisfied_requirement_identity(
         })
     {
         return typed
-            .normalized_machine_overload_identity(requirement)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(requirement)
             .unwrap_or_default();
     }
     let Some(definition) = typed
@@ -33,11 +32,7 @@ pub(crate) fn exact_satisfied_requirement_identity(
         .trait_machine_signatures(definition)
         .iter()
         .find(|signature| signature.symbol == requirement_symbol)
-        .map(|signature| {
-            typed
-                .normalized_trait_requirement_overload_identity(definition, signature)
-                .identity()
-        })
+        .map(|signature| typed.trait_requirement_callable_identity_text(definition, signature))
         .unwrap_or_default()
 }
 
@@ -180,9 +175,7 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     {
         return None;
     }
-    let machine = typed
-        .normalized_machine_overload_identity(machine)?
-        .identity();
+    let machine = typed.machine_callable_identity_text(machine)?;
     (!machine.is_empty()).then_some((
         ProviderBinding::CompilerIntrinsic { machine },
         (*origin).clone(),
@@ -245,9 +238,7 @@ pub(crate) fn inferred_selected_target_compiler_leaf(
     let [_entry] = typed.machine_states(machine) else {
         return None;
     };
-    let machine = typed
-        .normalized_machine_overload_identity(machine)?
-        .identity();
+    let machine = typed.machine_callable_identity_text(machine)?;
     (!machine.is_empty()).then_some((
         ProviderBinding::CompilerIntrinsic { machine },
         (*origin).clone(),
@@ -336,8 +327,7 @@ pub(crate) fn realization_machine_identity(
     machine: &typed_trees::machine::Machine,
 ) -> String {
     typed
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity())
+        .machine_callable_identity_text(machine)
         .unwrap_or_default()
 }
 

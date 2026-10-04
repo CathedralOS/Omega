@@ -233,8 +233,7 @@ fn requirement_identity(
     {
         return checked
             .typed
-            .normalized_machine_overload_identity(machine)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(machine)
             .ok_or("float call lost its normalized requirement identity");
     }
     Ok(machine.name.as_str().to_owned())

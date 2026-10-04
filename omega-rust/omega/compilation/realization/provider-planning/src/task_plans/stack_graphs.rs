@@ -458,7 +458,7 @@ fn frame_identity(
     entry: &checked_trees::state::State,
 ) -> Result<TaskStackFrameId, Vec<Diagnostic>> {
     let callable = program
-        .normalized_machine_overload_identity(machine)
+        .machine_callable_identity_text(machine)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "task WCSU frame `{}` has no normalized machine overload identity",
@@ -467,7 +467,7 @@ fn frame_identity(
         })?;
     let mut hash = super::StableHash::new();
     hash.byte(0x57);
-    hash.string(callable.identity().as_str());
+    hash.string(callable.as_str());
     hash.string(entry.name.as_str());
     super::normalized_id(hash.finish(), TaskStackFrameId::from_normalized_identity)
 }

@@ -208,9 +208,7 @@ pub fn from_typed_boundary_requirement(
     if requirement_owner.is_empty() || method_name.is_empty() {
         return None;
     }
-    let requirement_identity = program
-        .normalized_machine_overload_identity(requirement)?
-        .identity();
+    let requirement_identity = program.machine_callable_identity_text(requirement)?;
     let parameters = program.state_parameters(entry);
     let published_termination = requirement.termination_plan.interface.published()?;
     let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
@@ -301,9 +299,8 @@ fn collect_service_methods(
     }
 
     for signature in program.trait_machine_signatures(trait_definition) {
-        let requirement_identity = program
-            .normalized_trait_requirement_overload_identity(trait_definition, signature)
-            .identity();
+        let requirement_identity =
+            program.trait_requirement_callable_identity_text(trait_definition, signature);
         if methods
             .iter()
             .any(|method| method.requirement_identity == requirement_identity)
@@ -469,8 +466,7 @@ fn service_progress_establishment_routes(
             ServiceProgressEstablishmentRoute {
                 kind,
                 requirement_identity: program
-                    .normalized_trait_requirement_overload_identity(owner, requirement)
-                    .identity(),
+                    .trait_requirement_callable_identity_text(owner, requirement),
             }
         })
         .collect::<Vec<_>>();

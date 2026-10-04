@@ -63,8 +63,8 @@ impl LoweredMachineProvenance {
                 .filter_map(|machine| {
                     checked
                         .typed
-                        .normalized_machine_overload_identity(machine)
-                        .map(|identity| (identity.identity(), machine.symbol))
+                        .machine_callable_identity_text(machine)
+                        .map(|identity| (identity, machine.symbol))
                 })
                 .collect();
             for candidate in &module.provider_candidates {

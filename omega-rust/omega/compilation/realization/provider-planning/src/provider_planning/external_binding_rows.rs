@@ -216,8 +216,7 @@ fn selected_source_boundary_entry_plan(
             )));
         };
         let exact_requirement_identity = typed
-            .normalized_machine_overload_identity(requirement)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(requirement)
             .unwrap_or_default();
         let requirement_path = typed.symbols.display_path(requirement.symbol, "::");
         let Some((requirement_owner, requirement_method)) = requirement_path.rsplit_once("::")
@@ -298,9 +297,7 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .filter(|signature| {
             signature.name.as_str() == method_name
-                && typed
-                    .normalized_trait_requirement_overload_identity(requirement_owner, signature)
-                    .identity()
+                && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
                     == requirement_identity
         })
         .collect::<Vec<_>>();

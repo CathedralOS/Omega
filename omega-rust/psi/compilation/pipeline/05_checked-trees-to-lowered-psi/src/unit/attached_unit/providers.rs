@@ -152,8 +152,7 @@ pub(crate) fn realize_receiver_adapters(
                     .find(|signature| {
                         checked
                             .typed
-                            .normalized_trait_requirement_overload_identity(definition, signature)
-                            .identity()
+                            .trait_requirement_callable_identity_text(definition, signature)
                             == row.requirement_identity
                     })
                     .and_then(|signature| {
@@ -646,12 +645,10 @@ pub(super) fn checked_unit_provider_candidates(
                 signature,
             } => checked
                 .typed
-                .normalized_trait_requirement_overload_identity(definition, signature)
-                .identity(),
+                .trait_requirement_callable_identity_text(definition, signature),
             CatalogRequirement::TopLevel(requirement) => checked
                 .typed
-                .normalized_machine_overload_identity(requirement)
-                .map(|identity| identity.identity())
+                .machine_callable_identity_text(requirement)
                 .unwrap_or_default(),
             CatalogRequirement::Operator(operator) => {
                 typed_trees::operator::boundary_operator_requirement_identity(
@@ -787,11 +784,10 @@ pub(super) fn checked_unit_provider_candidates(
                 // diagnostic display paths cannot distinguish those overloads.
                 candidate_identity: checked
                     .typed
-                    .normalized_machine_overload_identity(machine)
+                    .machine_callable_identity_text(machine)
                     .ok_or(LoweringError::Unsupported(
                         "provider candidate has no normalized callable identity",
-                    ))?
-                    .identity(),
+                    ))?,
             });
         }
     }

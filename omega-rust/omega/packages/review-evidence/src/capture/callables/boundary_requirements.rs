@@ -189,8 +189,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         )]);
     }
     let slot = compilation
-        .normalized_machine_overload_identity(requirement)
-        .map(|identity| identity.identity())
+        .machine_callable_identity_text(requirement)
         .unwrap_or_default();
     let matches = plans
         .iter()

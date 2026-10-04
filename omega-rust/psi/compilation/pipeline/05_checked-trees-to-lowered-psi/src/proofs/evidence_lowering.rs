@@ -274,8 +274,7 @@ fn exact_trait_requirement<'a>(
     }
     let overload_identity = checked
         .typed
-        .normalized_trait_requirement_overload_identity(definition, signature)
-        .identity();
+        .trait_requirement_callable_identity_text(definition, signature);
     if overload_identity.is_empty() {
         return unsupported("evidence producer row has an empty requirement identity");
     }
@@ -313,11 +312,10 @@ pub(crate) fn checked_dynamic_machine_identity(
     }
     let identity = checked
         .typed
-        .normalized_machine_overload_identity(machine)
+        .machine_callable_identity_text(machine)
         .ok_or(LoweringError::Unsupported(
             "dynamic realization has no callable identity",
-        ))?
-        .identity();
+        ))?;
     if identity.is_empty() {
         return unsupported("dynamic realization has an empty machine identity");
     }
@@ -341,11 +339,10 @@ pub(crate) fn checked_evidence_machine_identity(
     }
     let mut identity = checked
         .typed
-        .normalized_machine_overload_identity(machine)
+        .machine_callable_identity_text(machine)
         .ok_or(LoweringError::Unsupported(
             "evidence producer realization has no callable identity",
-        ))?
-        .identity();
+        ))?;
     if identity.is_empty() {
         return unsupported("evidence producer realization has an empty machine identity");
     }

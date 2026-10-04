@@ -703,9 +703,7 @@ fn normalized_machine_identity(
     machine: &typed_trees::machine::Machine,
 ) -> Option<String> {
     let declaration = conformance_symbol_identity(program, machine.symbol);
-    let overload = program
-        .normalized_machine_overload_identity(machine)?
-        .identity();
+    let overload = program.machine_callable_identity_text(machine)?;
     Some(format!("{declaration}|{overload}"))
 }
 

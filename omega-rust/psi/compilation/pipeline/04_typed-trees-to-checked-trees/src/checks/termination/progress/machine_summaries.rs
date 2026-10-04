@@ -300,9 +300,7 @@ fn provider_receiver_requirement(
                                 .symbol_package_identity(provider_service.symbol),
                             provider_service.name.as_str().to_owned(),
                             program.symbols.symbol_package_identity(requirement.symbol),
-                            program
-                                .normalized_trait_requirement_overload_identity(owner, requirement)
-                                .identity(),
+                            program.trait_requirement_callable_identity_text(owner, requirement),
                         )
                     })
             })

@@ -186,8 +186,7 @@ pub(crate) fn checked_unit_boundary_identity(
     if let [(definition, signature)] = requirements.as_slice() {
         let identity = checked
             .typed
-            .normalized_trait_requirement_overload_identity(definition, signature)
-            .identity();
+            .trait_requirement_callable_identity_text(definition, signature);
         if !identity.is_empty() {
             return Ok(identity);
         }
@@ -207,8 +206,7 @@ pub(crate) fn checked_unit_boundary_identity(
         }
         return checked
             .typed
-            .normalized_machine_overload_identity(requirement)
-            .map(|identity| identity.identity())
+            .machine_callable_identity_text(requirement)
             .ok_or(LoweringError::Unsupported(
                 "top-level boundary has no normalized machine overload identity",
             ));

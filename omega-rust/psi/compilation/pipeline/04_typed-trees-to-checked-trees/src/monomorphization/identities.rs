@@ -167,11 +167,7 @@ pub(super) fn canonical_template_contract_bytes(
                 } => {
                     bytes.push(2);
                     let identity = program
-                        .normalized_trait_requirement_overload_identity(
-                            trait_definition,
-                            requirement,
-                        )
-                        .identity();
+                        .trait_requirement_callable_identity_text(trait_definition, requirement);
                     bytes.extend((identity.len() as u64).to_le_bytes());
                     bytes.extend(identity.as_bytes());
                     encode_state_signature(

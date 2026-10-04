@@ -31,9 +31,11 @@ impl PackageReviewOperatorCoordinate {
         self.write_named_callable_requirement(&mut writer).is_ok() && writer.remaining.is_empty()
     }
 
-    /// The exact text `NormalizedNamedCallableIdentity::identity` produces for
+    /// The exact text the program's interned callable identity renders for
     /// this coordinate's parts: `named-callable(path(..),parameters(..),
     /// result-dispatch(..))` with `\`, `(`, `)` and `,` escaped inside each atom.
+    /// A review row is compared against a persisted expectation, so this side
+    /// of the join writes the framing rather than taking a handle.
     fn write_named_callable_requirement(
         &self,
         writer: &mut impl std::fmt::Write,

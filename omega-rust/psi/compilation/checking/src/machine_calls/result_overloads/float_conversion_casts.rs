@@ -233,7 +233,9 @@ fn selected_conversion(
     if source_span.span.start >= source_span.span.end {
         return None;
     }
-    let requested = program.normalized_result_dispatch_set(cast.result_type);
+    let requested = program.callable_result_dispatch_identity(
+        &program.normalized_result_dispatch_set(cast.result_type),
+    );
     let requirement_member = format!("from_{}", source.name());
     let mut selected = program.operators().iter().filter(|operator| {
         let path = program.operator_path_members(operator.name);
@@ -256,9 +258,8 @@ fn selected_conversion(
                 .and_then(|reference| program.primitive_type_reference(reference))
                 == Some(destination)
             && program
-                .normalized_operator_overload_identity(operator)
-                .result_dispatch()
-                == &requested
+                .callable_identity_result_dispatch(program.operator_callable_identity(operator))
+                == requested
             && program
                 .symbols
                 .source_reference_may_select_symbol(source_span, operator.symbol)

@@ -255,10 +255,7 @@ fn exact_requirement_parameters<'program>(
                 context, machine,
             )?;
             if schema != retained.plan.schema
-                || checked
-                    .normalized_machine_overload_identity(machine)?
-                    .identity()
-                    != requirement_identity
+                || checked.machine_callable_identity_text(machine)? != requirement_identity
             {
                 return None;
             }
@@ -281,9 +278,7 @@ fn exact_requirement_parameters<'program>(
                 .trait_machine_signatures(definition)
                 .iter()
                 .find(|signature| signature.symbol == requirement)?;
-            if checked
-                .normalized_trait_requirement_overload_identity(definition, signature)
-                .identity()
+            if checked.trait_requirement_callable_identity_text(definition, signature)
                 != requirement_identity
             {
                 return None;

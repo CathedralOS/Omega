@@ -24,9 +24,7 @@ impl BoundaryServiceOwners {
         {
             for signature in program.trait_machine_signatures(definition) {
                 owning_service.insert(
-                    program
-                        .normalized_trait_requirement_overload_identity(definition, signature)
-                        .identity(),
+                    program.trait_requirement_callable_identity_text(definition, signature),
                     definition.name.as_str().to_owned(),
                 );
             }

@@ -221,8 +221,7 @@ pub(super) fn external_binding_matches_provider_binding(
     selected: &effects::provider_plan::ProviderBinding,
 ) -> bool {
     let expected_machine_identity = compilation
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity())
+        .machine_callable_identity_text(machine)
         .unwrap_or_default();
     let expected_table = compilation
         .typed

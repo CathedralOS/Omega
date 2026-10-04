@@ -546,9 +546,8 @@ fn boundary_row_shape(
             requirements.len(),
         )));
     };
-    let requirement_identity = typed
-        .normalized_trait_requirement_overload_identity(definition, requirement)
-        .identity();
+    let requirement_identity =
+        typed.trait_requirement_callable_identity_text(definition, requirement);
     let methods = plan
         .schema
         .methods
@@ -587,10 +586,9 @@ fn boundary_row_shape(
             realizations.len(),
         )));
     };
-    let Some(realization_identity) = typed.normalized_machine_overload_identity(realization) else {
+    let Some(realization_identity) = typed.machine_callable_identity_text(realization) else {
         return Ok(false);
     };
-    let realization_identity = realization_identity.identity();
     // A hosted console leaf is either compiler-known (the intrinsic names the
     // realization's own identity) or, on a target whose kernel entry is DLL
     // linkage, an evaluated import the realization reaches through `via`.

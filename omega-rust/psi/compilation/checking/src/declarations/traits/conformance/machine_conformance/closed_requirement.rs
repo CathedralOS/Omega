@@ -100,7 +100,7 @@ pub fn resolve<'program>(
     // reconstructed from its signature. Checked commitment replay remains the
     // later authority for the rest of specialization custody.
     let identity = program
-        .normalized_machine_overload_identity(requirement)
+        .machine_callable_identity_text(requirement)
         .ok_or_else(failure)?;
     if program
         .machine_specializations
@@ -112,7 +112,7 @@ pub fn resolve<'program>(
         || !crate::machine_specialization_matches_template_identity(
             program,
             closed_receipt,
-            &identity.identity(),
+            &identity,
             program.symbols.symbol_package_identity(requirement.symbol),
         )
         || !retains_application_tuple(program, closed_receipt, application)

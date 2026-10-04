@@ -160,22 +160,22 @@ fn validate_duplicate_operator_signatures(
                 .iter()
                 .all(|item| item.is_boundary && item.spelling.is_none())
         {
-            let identity = program.normalized_operator_overload_identity(operator);
+            let identity = program.operator_callable_identity(operator);
+            let result_dispatch = program.callable_identity_result_dispatch(identity);
             if previous.iter().any(|previous| {
                 program
-                    .normalized_operator_overload_identity(previous)
-                    .result_dispatch()
-                    == identity.result_dispatch()
+                    .callable_identity_result_dispatch(program.operator_callable_identity(previous))
+                    == result_dispatch
             }) {
-                let dispatch = if identity.result_dispatch().is_empty() {
+                let dispatch = if program.callable_result_dispatch_is_empty(result_dispatch) {
                     "<empty>".to_owned()
                 } else {
-                    identity.result_dispatch().identity()
+                    program.callable_result_dispatch_text(result_dispatch)
                 };
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate named requirement overload `{}` with parameter signature `{}` and result dispatch set `{dispatch}`; predicate-only result refinements do not distinguish overloads",
-                    identity.path(),
-                    identity.parameters(),
+                    program.callable_path_text(program.callable_identity_path(identity)),
+                    program.callable_parameters_text(program.callable_identity_parameters(identity)),
                 )));
             }
             continue;

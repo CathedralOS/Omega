@@ -112,13 +112,12 @@ pub(crate) fn project_domain_establishment_route(
             // Callable identity includes overload shape and attached owner;
             // a display path cannot distinguish declarations with one name.
             let path = compilation
-                .normalized_machine_overload_identity(declaration)
+                .machine_callable_identity_text(declaration)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "package review exact-machine issuer has no normalized callable identity",
                     )]
-                })?
-                .identity();
+                })?;
             return Ok(PackageReviewDomainEstablishmentRoute::ExactMachine {
                 machine_identity: crate::record::PackageReviewNominalIdentity {
                     owner: nominal_owner(compilation, declaration.symbol)?,

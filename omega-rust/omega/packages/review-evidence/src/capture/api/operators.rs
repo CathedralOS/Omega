@@ -25,16 +25,19 @@ pub(crate) fn project_operator_coordinate(
     declaration: &typed_trees::operator::OperatorDefinition,
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, declaration.symbol)?;
-    let overload = compilation.normalized_operator_overload_identity(declaration);
+    let overload = compilation.operator_callable_identity(declaration);
     Ok(PackageReviewOperatorCoordinate {
         identity,
-        parameter_dispatch: overload.parameters().to_owned(),
+        parameter_dispatch: compilation
+            .callable_parameters_text(compilation.callable_identity_parameters(overload)),
         // Only explicitly named boundary requirements participate in
         // expected-result dispatch. Fixed tokens and ordinary named operators
         // remain operand-directed; their complete return type stays in the
         // row value so a change is one changed declaration, not remove/add.
         result_dispatch: if declaration.is_boundary && declaration.spelling.is_none() {
-            overload.result_dispatch().identity()
+            compilation.callable_result_dispatch_text(
+                compilation.callable_identity_result_dispatch(overload),
+            )
         } else {
             String::new()
         },

@@ -210,8 +210,7 @@ fn append_task_start_selection(
     hash.string("task-runtime-requirement-specialization-v1");
     hash.string(
         program
-            .normalized_trait_requirement_overload_identity(definition, signature)
-            .identity()
+            .trait_requirement_callable_identity_text(definition, signature)
             .as_str(),
     );
     hash.u64(entry_report_fingerprint(

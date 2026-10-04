@@ -115,8 +115,7 @@ pub(super) fn plan_admitted_receipt_updates(
         };
         let requirement_identity = checked
             .typed
-            .normalized_trait_requirement_overload_identity(owner, requirement)
-            .identity();
+            .trait_requirement_callable_identity_text(owner, requirement);
         let matches = granted_plans
             .iter()
             .filter(|grant| {

@@ -29,8 +29,7 @@ pub(crate) fn producer_closure_digest(
                 .find(|machine| machine.symbol == *symbol)
                 .ok_or_else(|| "evaluated binding closure contains a missing machine".to_owned())?;
             let identity = typed
-                .normalized_machine_overload_identity(machine)
-                .map(|identity| identity.identity().to_owned())
+                .machine_callable_identity_text(machine)
                 .ok_or_else(|| {
                     "evaluated binding closure machine has no canonical callable identity"
                         .to_owned()

@@ -164,16 +164,14 @@ pub(crate) fn normalized_dynamic_row_identities(
         ));
     }
     let realization_identity = program
-        .normalized_machine_overload_identity(realization_machine)
+        .machine_callable_identity_text(realization_machine)
         .ok_or_else(|| {
             diagnostics::Diagnostic::error(
                 "dynamic conformance row realization has no normalized callable identity",
             )
-        })?
-        .identity();
-    let requirement_identity = program
-        .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
-        .identity();
+        })?;
+    let requirement_identity =
+        program.trait_requirement_callable_identity_text(declaring_trait, requirement);
     Ok((requirement_identity, realization_identity))
 }
 

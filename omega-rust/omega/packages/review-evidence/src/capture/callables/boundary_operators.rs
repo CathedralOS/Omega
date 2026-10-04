@@ -100,8 +100,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         ))]);
     };
     let expected_machine_identity = compilation
-        .normalized_machine_overload_identity(machine)
-        .map(|identity| identity.identity())
+        .machine_callable_identity_text(machine)
         .unwrap_or_default();
     let expected_package = compilation
         .typed

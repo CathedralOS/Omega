@@ -593,9 +593,8 @@ pub(crate) fn collect_boundary_signatures<'a>(
         }
     }
     for signature in typed.trait_machine_signatures(definition) {
-        let requirement_identity = typed
-            .normalized_trait_requirement_overload_identity(definition, signature)
-            .identity();
+        let requirement_identity =
+            typed.trait_requirement_callable_identity_text(definition, signature);
         if !signatures
             .iter()
             .any(|candidate| candidate.requirement_identity == requirement_identity)
@@ -669,9 +668,8 @@ pub(crate) fn call_signature_from_typed(
             .iter()
             .find(|candidate| candidate.symbol == *requirement)
             .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
-        let requirement_identity = typed
-            .normalized_trait_requirement_overload_identity(trait_definition_row, requirement_row)
-            .identity();
+        let requirement_identity =
+            typed.trait_requirement_callable_identity_text(trait_definition_row, requirement_row);
         let binder_report_fingerprint = callback_plan_report_fingerprint(
             b"omega.callback-binder.v1",
             &[

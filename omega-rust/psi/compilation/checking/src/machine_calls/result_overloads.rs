@@ -9,17 +9,17 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
 };
 use typed_trees::statement::{StatementNode, TableLocalData};
-use typed_trees::type_identity::NormalizedNamedCallableIdentity;
+use typed_trees::type_identity::{CallableIdentityId, CallableParametersId, CallablePathId};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 struct MachineOverloadGroup {
-    provisional_identity: NormalizedNamedCallableIdentity,
-    overloads: Vec<(SymbolHandle, NormalizedNamedCallableIdentity)>,
+    provisional_identity: CallableIdentityId,
+    overloads: Vec<(SymbolHandle, CallableIdentityId)>,
 }
 
-/// Invocation-local index for top-level named machine overloads. Stage 05 can
-/// visit thousands of calls; rebuilding every normalized machine identity for
-/// every visit made this pass quadratic in the authored machine corpus.
+/// Invocation-local grouping of top-level named machine overloads by family.
+/// The identities themselves are interned by the program; this index only
+/// buckets them, so an entry state resolves to its family in one map read.
 /// Source order is retained inside each family, and no index survives this
 /// validation invocation.
 struct MachineOverloadIndex {
@@ -30,24 +30,29 @@ struct MachineOverloadIndex {
 impl MachineOverloadIndex {
     fn new(program: &TypedTrees) -> Self {
         let mut entry_to_group = HashMap::default();
-        let mut family_to_group: HashMap<(String, String), usize> = HashMap::default();
+        let mut family_to_group: HashMap<(CallablePathId, CallableParametersId), usize> =
+            HashMap::default();
         let mut groups: Vec<MachineOverloadGroup> = Vec::new();
 
         for machine in program.machines() {
             let Some(entry) = program.machine_states(machine).first() else {
                 continue;
             };
-            let Some(identity) = program.normalized_machine_overload_identity(machine) else {
+            let identity = program.machine_callable_identity(machine);
+            if !identity.is_valid() {
                 continue;
-            };
-            let family = (identity.path().to_owned(), identity.parameters().to_owned());
+            }
+            let family = (
+                program.callable_identity_path(identity),
+                program.callable_identity_parameters(identity),
+            );
             let group_index = if let Some(index) = family_to_group.get(&family).copied() {
                 index
             } else {
                 let index = groups.len();
                 family_to_group.insert(family, index);
                 groups.push(MachineOverloadGroup {
-                    provisional_identity: identity.clone(),
+                    provisional_identity: identity,
                     overloads: Vec::new(),
                 });
                 index
@@ -351,7 +356,7 @@ fn selected_named_statement_callable_symbol(
     if let Some(provisional) = program.operators().iter().find(|operator| {
         operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
     }) {
-        let provisional_identity = program.normalized_operator_overload_identity(provisional);
+        let provisional_identity = program.operator_callable_identity(provisional);
         let overloads = program
             .operators()
             .iter()
@@ -362,10 +367,10 @@ fn selected_named_statement_callable_symbol(
                     .source_reference_can_see_symbol(source_span, operator.symbol)
             })
             .filter_map(|operator| {
-                let identity = program.normalized_operator_overload_identity(operator);
-                (identity.path() == provisional_identity.path()
-                    && identity.parameters() == provisional_identity.parameters())
-                .then_some((operator.symbol, identity))
+                let identity = program.operator_callable_identity(operator);
+                program
+                    .callable_identities_share_family(identity, provisional_identity)
+                    .then_some((operator.symbol, identity))
             })
             .collect::<Vec<_>>();
         if overloads.len() == 1 {
@@ -373,7 +378,7 @@ fn selected_named_statement_callable_symbol(
         }
         return select_overload_symbol(
             program,
-            &provisional_identity,
+            provisional_identity,
             &overloads,
             expected_result,
             diagnostics,
@@ -383,7 +388,7 @@ fn selected_named_statement_callable_symbol(
 
     let candidates = typed_trees::operator::named_statement_call_candidates(program, call);
     if let Some(provisional) = candidates.first() {
-        let provisional_identity = program.normalized_operator_overload_identity(provisional);
+        let provisional_identity = program.operator_callable_identity(provisional);
         let visible_candidate_count = candidates
             .iter()
             .filter(|operator| {
@@ -401,10 +406,10 @@ fn selected_named_statement_callable_symbol(
                     .source_reference_can_see_symbol(source_span, operator.symbol)
             })
             .filter_map(|operator| {
-                let identity = program.normalized_operator_overload_identity(operator);
-                (identity.path() == provisional_identity.path()
-                    && identity.parameters() == provisional_identity.parameters())
-                .then_some((operator.symbol, identity))
+                let identity = program.operator_callable_identity(operator);
+                program
+                    .callable_identities_share_family(identity, provisional_identity)
+                    .then_some((operator.symbol, identity))
             })
             .collect::<Vec<_>>();
         if overloads.len() == visible_candidate_count {
@@ -413,7 +418,7 @@ fn selected_named_statement_callable_symbol(
             }
             return select_overload_symbol(
                 program,
-                &provisional_identity,
+                provisional_identity,
                 &overloads,
                 expected_result,
                 diagnostics,
@@ -487,7 +492,7 @@ fn selected_named_expression_callable_symbol(
             diagnostics,
         );
     };
-    let provisional_identity = program.normalized_operator_overload_identity(provisional);
+    let provisional_identity = program.operator_callable_identity(provisional);
     let visible_candidate_count = candidates
         .iter()
         .filter(|operator| {
@@ -505,10 +510,10 @@ fn selected_named_expression_callable_symbol(
                 .source_reference_can_see_symbol(source_span, operator.symbol)
         })
         .filter_map(|operator| {
-            let identity = program.normalized_operator_overload_identity(operator);
-            (identity.path() == provisional_identity.path()
-                && identity.parameters() == provisional_identity.parameters())
-            .then_some((operator.symbol, identity))
+            let identity = program.operator_callable_identity(operator);
+            program
+                .callable_identities_share_family(identity, provisional_identity)
+                .then_some((operator.symbol, identity))
         })
         .collect::<Vec<_>>();
     if overloads.len() != visible_candidate_count {
@@ -525,7 +530,7 @@ fn selected_named_expression_callable_symbol(
     }
     select_overload_symbol(
         program,
-        &provisional_identity,
+        provisional_identity,
         &overloads,
         expected_result,
         diagnostics,
@@ -568,7 +573,7 @@ fn selected_named_callable_symbol(
             .collect::<Vec<_>>();
         return select_overload_symbol(
             program,
-            &group.provisional_identity,
+            group.provisional_identity,
             &visible_overloads,
             expected_result,
             diagnostics,
@@ -579,8 +584,7 @@ fn selected_named_callable_symbol(
     if let Some(provisional_operator) = program.operators().iter().find(|operator| {
         operator.symbol == provisional_target && operator.is_boundary && operator.spelling.is_none()
     }) {
-        let provisional_identity =
-            program.normalized_operator_overload_identity(provisional_operator);
+        let provisional_identity = program.operator_callable_identity(provisional_operator);
         let overloads = program
             .operators()
             .iter()
@@ -591,15 +595,15 @@ fn selected_named_callable_symbol(
                     .source_reference_can_see_symbol(source_span, operator.symbol)
             })
             .filter_map(|operator| {
-                let identity = program.normalized_operator_overload_identity(operator);
-                (identity.path() == provisional_identity.path()
-                    && identity.parameters() == provisional_identity.parameters())
-                .then_some((operator.symbol, identity))
+                let identity = program.operator_callable_identity(operator);
+                program
+                    .callable_identities_share_family(identity, provisional_identity)
+                    .then_some((operator.symbol, identity))
             })
             .collect::<Vec<_>>();
         return select_overload_symbol(
             program,
-            &provisional_identity,
+            provisional_identity,
             &overloads,
             expected_result,
             diagnostics,
@@ -615,8 +619,8 @@ fn selected_named_callable_symbol(
                 .find(|requirement| requirement.symbol == provisional_target)
                 .map(|requirement| (trait_definition, requirement))
         })?;
-    let provisional_identity = program
-        .normalized_trait_requirement_overload_identity(trait_definition, provisional_requirement);
+    let provisional_identity =
+        program.trait_requirement_callable_identity(trait_definition, provisional_requirement);
     let overloads = program
         .trait_machine_signatures(trait_definition)
         .iter()
@@ -626,16 +630,16 @@ fn selected_named_callable_symbol(
                 .source_reference_can_see_symbol(source_span, requirement.symbol)
         })
         .filter_map(|requirement| {
-            let identity = program
-                .normalized_trait_requirement_overload_identity(trait_definition, requirement);
-            (identity.path() == provisional_identity.path()
-                && identity.parameters() == provisional_identity.parameters())
-            .then_some((requirement.symbol, identity))
+            let identity =
+                program.trait_requirement_callable_identity(trait_definition, requirement);
+            program
+                .callable_identities_share_family(identity, provisional_identity)
+                .then_some((requirement.symbol, identity))
         })
         .collect::<Vec<_>>();
     select_overload_symbol(
         program,
-        &provisional_identity,
+        provisional_identity,
         &overloads,
         expected_result,
         diagnostics,
@@ -645,11 +649,8 @@ fn selected_named_callable_symbol(
 
 fn select_overload_symbol(
     program: &TypedTrees,
-    provisional_identity: &typed_trees::type_identity::NormalizedNamedCallableIdentity,
-    overloads: &[(
-        SymbolHandle,
-        typed_trees::type_identity::NormalizedNamedCallableIdentity,
-    )],
+    provisional_identity: CallableIdentityId,
+    overloads: &[(SymbolHandle, CallableIdentityId)],
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
     kind: &str,
@@ -663,26 +664,29 @@ fn select_overload_symbol(
         return None;
     }
 
-    let requested = expected_result
-        .filter(|expected| expected.is_valid())
-        .map(|expected| program.normalized_result_dispatch_set(expected))
-        .unwrap_or_default();
+    let requested = program.callable_result_dispatch_identity(
+        &expected_result
+            .filter(|expected| expected.is_valid())
+            .map(|expected| program.normalized_result_dispatch_set(expected))
+            .unwrap_or_default(),
+    );
     let matching = overloads
         .iter()
-        .filter(|(_, identity)| identity.result_dispatch() == &requested)
+        .filter(|(_, identity)| program.callable_identity_result_dispatch(*identity) == requested)
         .collect::<Vec<_>>();
     match matching.as_slice() {
         [(symbol, _)] => Some(*symbol),
         [] => {
-            let requested = if requested.is_empty() {
+            let requested = if program.callable_result_dispatch_is_empty(requested) {
                 "<empty>".to_owned()
             } else {
-                requested.identity()
+                program.callable_result_dispatch_text(requested)
             };
             diagnostics.push(Diagnostic::error(format!(
                 "named {kind} call `{}` has no overload for result dispatch set `{requested}` and parameter signature `{}`",
-                provisional_identity.path(),
-                provisional_identity.parameters(),
+                program.callable_path_text(program.callable_identity_path(provisional_identity)),
+                program
+                    .callable_parameters_text(program.callable_identity_parameters(provisional_identity)),
             )));
             None
         }
@@ -706,12 +710,13 @@ fn named_machine_overload_family_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
+    let target_path = program.callable_path_by_text(target_name);
     let overloads = program
         .machines()
         .iter()
         .filter_map(|machine| {
-            let identity = program.normalized_machine_overload_identity(machine)?;
-            if identity.path() != target_name {
+            let identity = program.machine_callable_identity(machine);
+            if program.callable_identity_path(identity) != target_path {
                 return None;
             }
             let states = program.machine_states(machine);
@@ -729,10 +734,10 @@ fn named_machine_overload_family_symbol(
         [] => None,
         [(symbol, _)] => Some(*symbol),
         _ => {
-            let provisional_identity = overloads[0].1.clone();
+            let provisional_identity = overloads[0].1;
             select_overload_symbol(
                 program,
-                &provisional_identity,
+                provisional_identity,
                 &overloads,
                 expected_result,
                 diagnostics,
