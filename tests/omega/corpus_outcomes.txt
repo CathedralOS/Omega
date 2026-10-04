@@ -1408,10 +1408,10 @@ pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+
 pass/borrows/returned_record_field_read_exit checked 935ms @2816825e8941
 pass/borrows/returned_record_method_receiver_exit checked 1304ms @011fd400e8c1+wt
 pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
-pass/borrows/runtime_affine_local_case_return_exit rejected 3980ms @dac9585f443
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(ScalarReturnAffineDiscardsMismatch { machine: MachineId(2), block: BlockId(19) }))
+pass/borrows/runtime_affine_local_case_return_exit checked 2144ms @f935383e1d47+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
+pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d47+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt

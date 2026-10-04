@@ -506,7 +506,11 @@ defines the complete product bar.
   disposition. Clean dying roots in reverse declaration order and abandoned
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
-  Crash/abort/process exit has no cleanup successor.
+  Crash/abort/process exit has no cleanup successor. Whole-root conditional
+  scalar returns preserve reverse parameter order, covered by
+  `pass/borrows/runtime_affine_local_case_return_exit` (42) and
+  `pass/borrows/runtime_case_return_parameter_order_exit` (0), both native and
+  interpreted. The remaining frontier is residual cleanup:
   - Transport `build_projected_edge_plan`
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs`)
     through `.../execution/terminal_unit/state_graph/` and stage 05's

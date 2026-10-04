@@ -1650,6 +1650,14 @@ pub(super) fn return_discards(
         }
         drops.push(index);
     }
+    // The source query joins cleanup owners across mutually exclusive exits
+    // in first-occurrence order. An earlier branch can transfer a later
+    // parameter, so that union is not an executable disposal schedule.
+    // Order the authenticated owners by declaration before checking the
+    // roster and subtracting consumed roots; surviving owners keep that order.
+    drops.sort_unstable_by_key(|parameter_index| {
+        std::cmp::Reverse(state.structural_parameters[*parameter_index].position)
+    });
     // A whole owned parameter a call consumes needs no exit drop: the call's
     // admission rejoined that move to its authored operand, and its callee
     // owns the value's disposal. Structural return events likewise describe
