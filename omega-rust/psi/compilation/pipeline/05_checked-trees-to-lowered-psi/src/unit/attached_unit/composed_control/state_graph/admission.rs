@@ -1478,8 +1478,11 @@ fn validate_structural_arm(
 /// through the shared computation expander, which rejoins its source custody.
 /// A terminal machine call on one conditional arm: the arm's own authored
 /// invocation of another machine (Terminal calls in transition arms,
-/// state_contracts.md), an ordinary call that transfers no claim, run on
-/// that arm alone before its completion's ordinary return disposal. Its
+/// state_contracts.md), run on that arm alone before its completion's ordinary
+/// return disposal. Alternative arms may transfer the same inherited owner:
+/// exact authored target custody and the selected-arm call namespace keep those
+/// transfers distinct, while ordinary call admission and Terminal claim replay
+/// require each executed transfer to consume its current owner exactly once. Its
 /// normal result is the machine's: Unit, or the primitive scalar the call
 /// binds at the arm's transition, which the arm returns. Emission rejoins
 /// that binding's ordinal in the namespace the arm inherits. Checked bodies
@@ -1522,7 +1525,6 @@ pub(super) fn validate_arm_call(
         _ => false,
     };
     if !completes
-        || !call.claim_transfers().is_empty()
         || call.coordinate.statement_index as usize != ordinal
         || transition.exit != TransitionExit::Ordinary
         || transition.continuation.is_valid()
