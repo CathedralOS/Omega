@@ -2180,9 +2180,7 @@ corpus fixture, or a new one.
 
 Owner ruling: proof-carrying code is a failed experiment and is removed. PCC
 means independently re-verifying a Terminal artifact and a shipped proof
-bundle at a receiver that does not trust the compiler. The intended
-replacement for provenance is build attestation, a signed statement that a
-blessed compiler built the source; it is not designed yet. Until the items
+bundle at a receiver that does not trust the compiler. Until the items
 below land, do no PCC work inside any other item: skip its proof-bundle,
 certificate-transport, independent-replay or receiver-verification clauses.
 
@@ -2317,10 +2315,7 @@ deletions, which its commit lists.
     and `frontier/`) into an Omega analysis owned by stage 01;
   - move `validate_boundary_crash_outcome` into the interpreter.
 
-  Re-measure `tests/omega/pass/text/runtime_local_struct_string_field_concat_exit`
-  (exit 188) and `tests/omega/pass/text/runtime_string_stored_suffix_exit`
-  (exit 193): they were blocked only on Terminal re-deriving stored-view
-  lifetimes, which the checker already enforces. Acceptance: `terminal-verifier`
+  Acceptance: `terminal-verifier`
   has no dependent outside its own tests, and the check corpus and native plus
   interpreter (`--both`) corpus are unchanged.
 
@@ -2405,13 +2400,9 @@ deletions, which its commit lists.
     `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md` and
     `wiki/language_guide/packages.md`. Reframe "independent verification"
     wording in the other `wiki/spec/terminal-psi/` docs.
-  - Board trims: `TASKS_OPTIMIZER.md`'s PER-RULE-COVERAGE,
-    JOIN-INVARIANT-REWRITE-TRANSPORT and GENERAL-LICM drop their PCC
-    clauses. The `TASKS.md` items were trimmed in the board cleanup.
-
   Acceptance: `rg -i "pcc|proof-carrying|proof bundle|independent(ly)?
   verif"` over `AGENTS.md`, `wiki/`, `omega-rust/pipeline.md` and the boards
-  returns only history notes and the attestation pointer.
+  returns only history notes.
 
 ## Automatic service reach
 
@@ -4378,8 +4369,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     non-type producer telescopes still reject. Recheck reach, obligations,
     target facts and admission after substitution; a review demand grants no
     install authority. Keep empty operator applications distinct from absent
-    boundary-trait telescopes. Physical-child binding belongs to
-    TRANSLATION-VALIDATION in `TASKS_OPTIMIZER.md`.
+    boundary-trait telescopes.
   Acceptance: a fixture folding a target query under a non-host `--target`
   yields the selected target's value; package review over a generic provider
   package reports the full reachable application set, and missing, extra or
