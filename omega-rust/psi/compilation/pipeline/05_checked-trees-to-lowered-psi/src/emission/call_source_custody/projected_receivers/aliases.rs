@@ -672,6 +672,7 @@ fn call_result_source(
             segments: Vec::new(),
         },
         erased_alias: false,
+        alias_bridges: Vec::new(),
     }))
 }
 
