@@ -1671,8 +1671,8 @@ pass/core/numeric_trapping_conversion_overflow checked 1701ms @2d8ed253669f
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
-pass/core/task_lifecycle_operations rejected 686ms @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` calls `Main::settle`, which has no plan; `Main::settle` has no admitted body (local construction stopped at call operation: claim-free affine result, statement 1)") })
+pass/core/task_lifecycle_operations rejected 714ms @17f8e1479cf
+	terminal-artifact production failed: Lowering(Unsupported("receiver-bearing suspension frontier lacks an exact Terminal receiver place join"))
 pass/core/zii_default_composite_exit checked 1479ms @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms @2d8ed253669f
