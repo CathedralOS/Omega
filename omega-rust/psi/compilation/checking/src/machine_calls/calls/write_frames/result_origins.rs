@@ -2,8 +2,8 @@
 //! supplies structure, never a caller storage origin or permission to borrow it.
 //!
 //! Ordinary value arms are one state's own result routes; ordinary named edges
-//! compose the target state's relation through the authored arguments exactly
-//! like call-frame instantiation. The reachable named subgraph must be finite:
+//! compose the selected state or called machine's relation through the authored
+//! arguments exactly like call-frame instantiation. The reachable named subgraph must be finite:
 //! a cycle keeps the result relation explicitly opaque instead of solving
 //! leaves against a truncated depth-first walk.
 
@@ -500,7 +500,51 @@ fn merge_named_edge(
     complete: &mut Vec<(SymbolHandle, AggregateOrigins)>,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
-    let target_state = named_transition_target_state(program, machine, source_state, edge)?;
+    let TransitionTargetNode::Named {
+        static_machine_parameter,
+        ..
+    } = program.statement_table.transition_target(edge)
+    else {
+        return None;
+    };
+    if static_machine_parameter.is_valid() {
+        return None;
+    }
+    let call_target = super::terminal_calls::target(program, machine, edge);
+    let (target_machine, target_state) = if call_target.is_valid() {
+        let (callee, state) = machine_state_by_symbol(program, call_target)?;
+        // A terminal invocation uses the same body-derived origin authority as
+        // an expression call. Requirement signatures and recursive bodies do
+        // not provide a result storage relation by themselves.
+        if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || !callee.body_is_present
+            || !program.machine_type_parameters(callee).is_empty()
+            || !super::isolation::aggregate_storage_types_match(
+                program,
+                state.return_type,
+                expected_result,
+            )
+            || !named_state_transition_subgraph_is_acyclic(program, callee, state)
+        {
+            return None;
+        }
+        (callee, state)
+    } else {
+        (
+            machine,
+            named_transition_target_state(program, machine, source_state, edge)?,
+        )
+    };
+    let arguments = program.statement_table.expression_handles(edge_arguments);
+    let parameters = program.state_parameters(target_state);
+    if arguments.len()
+        != parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+    {
+        return None;
+    }
     // A named state may omit its own `-> T` annotation; one that declares it
     // must agree with the called machine's result type before its routes can
     // carry this call's relation.
@@ -515,7 +559,7 @@ fn merge_named_edge(
     }
     let mut target_relative = state_result_origins(
         program,
-        machine,
+        target_machine,
         target_state,
         expected_result,
         symbols,
@@ -528,12 +572,11 @@ fn merge_named_edge(
         for local in &context.stored {
             inference.record_local(local);
         }
-        let arguments = program.statement_table.expression_handles(edge_arguments);
         let instantiated = instantiate_result_origins(
             program,
             machine,
-            machine,
-            program.state_parameters(target_state),
+            target_machine,
+            parameters,
             None,
             arguments,
             &mut target_relative,
@@ -597,9 +640,9 @@ fn merge_named_edge(
 
 /// Substitute a state's own-namespace result relation through actual argument
 /// expressions. This is the shared tail of both the public call boundary and
-/// an intra-machine named edge: a `None` receiver means the edge's `self`
-/// parameter still spells the shared machine namespace, so such leaves are
-/// already instantiated.
+/// a named completion. An absent receiver can retain a `self` origin only
+/// within the same machine namespace; an external receiver needs its own
+/// proven source before any self-relative result can cross that boundary.
 #[allow(clippy::too_many_arguments)]
 fn instantiate_result_origins(
     program: &TypedTrees,
@@ -654,10 +697,11 @@ fn instantiate_result_origins(
                 Some(receiver) => receiver,
                 // An intra-machine named edge has no receiver operand: `self`
                 // is the same machine, so the leaf already names it.
-                None => {
+                None if host_machine.symbol == callee_machine.symbol => {
                     returned.references.push(leaf.clone());
                     continue;
                 }
+                None => return None,
             }
         } else {
             let index = parameters
