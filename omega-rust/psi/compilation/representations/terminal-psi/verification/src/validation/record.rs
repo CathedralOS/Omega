@@ -218,16 +218,22 @@ pub(crate) fn fields<'a>(
             StructuralPlaceKind::OperationResult { producer, structural_type }
                 if producer == operation.id && structural_type == result.structural_type)
     });
-    let owned = matches!(
-        result.multiplicity,
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-    );
-    if !owned
+    // Complete construction issues the declared root obligation. A linear
+    // root needs exactly one whole claim; child ownership still comes only
+    // from the independently checked initializer transfers below.
+    let complete_root_custody = match result.multiplicity {
+        StructuralMultiplicity::Linear => {
+            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
+        }
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
+            result.claims.is_empty()
+        }
+    };
+    if !complete_root_custody
         || !exact_place
         || !constructible_type(module, result.structural_type)
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
     {
         return Err(failure());
     }

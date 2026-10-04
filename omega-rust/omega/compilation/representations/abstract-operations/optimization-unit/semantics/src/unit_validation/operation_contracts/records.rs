@@ -126,14 +126,21 @@ pub(crate) fn record_establishment_matches(
             && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
                 if producer == *psi_operation && structural_type == result.structural_type)
     });
+    // Reconstruct issuance from this complete constructor's current result:
+    // one whole linear claim, or no claim for an affine/copyable root. The
+    // field checks still own every child transfer and its declared type.
+    let complete_root_custody = match result.multiplicity {
+        StructuralMultiplicity::Linear => {
+            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
+        }
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
+            result.claims.is_empty()
+        }
+    };
     if !exact_result_place
-        || !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        )
+        || !complete_root_custody
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
         || !constructible_record(types, result.structural_type)
     {
         return false;

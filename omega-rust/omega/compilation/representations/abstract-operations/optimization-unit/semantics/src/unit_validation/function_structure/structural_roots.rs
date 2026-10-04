@@ -481,8 +481,8 @@ pub(crate) fn validate_structural_root_operations(
                     let valid = matches!(
                         result.scalar_type,
                         ScalarType::Boolean | ScalarType::Integer(_)
-                    ) && readable_field_type(function, *source).is_some_and(
-                        |(root, access)| {
+                    ) && readable_field_type(function, structural_types, *source)
+                        .is_some_and(|(root, access)| {
                             // A call result's `Reference` shell keeps the loan's
                             // access on the type; the observed record is its
                             // referent, the peel every read-side validator shares.
@@ -507,8 +507,7 @@ pub(crate) fn validate_structural_root_operations(
                                 *field,
                                 access,
                             ) == Some(result.scalar_type)
-                        },
-                    );
+                        });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidStructuralScalarFieldRead {
@@ -1070,21 +1069,43 @@ fn relevant_scalar_field(
 
 fn readable_field_type(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     place: PlaceId,
 ) -> Option<(StructuralTypeId, terminal_psi::StructuralAccess)> {
     let signature =
         crate::unit_validation::operation_contracts::structural_source_contract(function, place)?;
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-        || signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !signature.is_unqualified()
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == place)
         || function
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == place)
+    {
+        return None;
+    }
+    // Reading an owned field retains its complete claim frontier. Exact live
+    // ownership and loan interference are replayed separately at this node;
+    // borrowed carriers keep the existing claim-free access contract.
+    if signature.access == terminal_psi::StructuralAccess::Owned
+        && structural_types
+            .get(&signature.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                        | terminal_psi::StructuralTypeShape::Mixed { .. }
+                        | terminal_psi::StructuralTypeShape::Sum { .. }
+                        | terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+            })
+    {
+        return Some((signature.structural_type, signature.access));
+    }
+    if signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || function
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == place)
         || function
             .blocks
             .iter()

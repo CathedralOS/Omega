@@ -213,6 +213,41 @@ pub(crate) fn structural_scalar_field_store_refinement<'module>(
         .then_some(&declaration.field_type)
 }
 
+/// An observation retains an owned source's complete custody. Resolve the
+/// common source signature for entry parameters, successor homes and results;
+/// the current frontier independently requires that owner to remain live.
+/// Reference and view carriers keep their separate referent-access judgment.
+fn owned_observation_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<StructuralTypeId> {
+    let signature = super::result_contracts::source_signature(machine, source)?;
+    if terminal_semantics::arrival_parameter(machine, source)
+        .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+        || !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source)
+    {
+        return None;
+    }
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == signature.structural_type)?;
+    matches!(
+        declaration.shape,
+        StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::Mixed { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::FixedArray { .. }
+    )
+    .then_some(signature.structural_type)
+}
+
 pub(in crate::validation) fn validate_integer_structural_field(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -227,32 +262,20 @@ pub(in crate::validation) fn validate_integer_structural_field(
         source,
         field,
     };
-    // Member reads observe, they do not transfer: a locally constructed
-    // record carrying borrowed-view members still answers scalar reads.
-    if let Some(result) = crate::validation::record::constructed_source(module, machine, source) {
-        // A reference-shaped result is a loan, not locally owned storage:
-        // the constructible-type gate admits it only because constructed
-        // records may carry reference members. Scalar reads through it are
-        // adjudicated by the borrowed-result path below, which checks the
-        // loan's access and observes the referent's declared record.
-        let is_reference_carrier = module.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        });
-        if !is_reference_carrier {
-            if matches!(result_type, ScalarType::Integer(_))
-                && observed_scalar_field(
-                    module,
-                    result.structural_type,
-                    path,
-                    field,
-                    StructuralAccess::Owned,
-                ) == Some(result_type)
-            {
-                return Ok(());
-            }
-            return Err(invalid());
-        }
+    if let Some(structural_type) = owned_observation_type(module, machine, source) {
+        return if matches!(result_type, ScalarType::Integer(_))
+            && observed_scalar_field(
+                module,
+                structural_type,
+                path,
+                field,
+                StructuralAccess::Owned,
+            ) == Some(result_type)
+        {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
     }
     if let Some(parameter) = terminal_semantics::arrival_parameter(machine, source) {
         if !matches!(
@@ -381,10 +404,10 @@ pub(in crate::validation) fn validate_boolean_structural_field(
         source,
         field,
     };
-    if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
+    if let Some(structural_type) = owned_observation_type(module, machine, source) {
         return if observed_scalar_field(
             module,
-            result.structural_type,
+            structural_type,
             path,
             field,
             StructuralAccess::Owned,

@@ -806,13 +806,13 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
-            // A Unit call: a boundary call consumes its boundary; an ordinary
-            // call may transfer no claims inside a composed state.
+            // A Unit call retains its exact occurrence and ordinary argument
+            // custody. Boundary receipts and ordinary claim transfers are
+            // independently checked by their shared call consumers.
             (
                 CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::Call(_) | StatementNode::Expression(_),
             ) if *call.result() == CheckedUnitCallResult::Unit
-                && (call.is_boundary() || call.claim_transfers().is_empty())
                 && call.coordinate.statement_index as usize == ordinal
                 && call.coordinate.call_ordinal == 0 =>
             {
@@ -838,7 +838,6 @@ pub(super) fn validate(
                         }
                         CheckedUnitCallResult::Structural { .. } => false,
                     }
-                    && (call.is_boundary() || call.claim_transfers().is_empty())
                     && call.coordinate.statement_index as usize == ordinal
                     && call.coordinate.call_ordinal == 0 =>
             {
