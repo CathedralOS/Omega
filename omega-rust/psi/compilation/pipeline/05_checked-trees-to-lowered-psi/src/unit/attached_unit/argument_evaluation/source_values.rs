@@ -170,9 +170,21 @@ impl Evaluation {
         if source_value_count > values.len() {
             return unsupported("scalar source prefix exceeds its retained values");
         }
-        let source =
-            crate::expression_preparation::source_custody::locate(checked, state, statement, role)?;
-        let scalar_type = terminal_scalar_type(source.primitive_type)?;
+        // The value's own plan carries its carrier: a pure expression names
+        // its primitive type, and a computation root its node's.
+        let primitive_type = match value {
+            CheckedCallScalarArgument::Pure(expression) => expression.primitive_type(),
+            CheckedCallScalarArgument::Computation(handle) => {
+                let nodes = &checked.facts.values.scalar_computations.nodes;
+                nodes
+                    .is_valid(*handle)
+                    .then(|| nodes.get(*handle).primitive_type)
+            }
+        }
+        .ok_or(LoweringError::Unsupported(
+            "scalar value plan has no primitive carrier",
+        ))?;
+        let scalar_type = terminal_scalar_type(primitive_type)?;
         match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let (_, retained) = checked

@@ -280,7 +280,7 @@ pub(super) fn validate(
                         checked,
                         state.state,
                         call.coordinate,
-                    )? {
+                    ) {
                         next_scalar_binding = next_scalar_binding.checked_add(1).ok_or(
                             LoweringError::Unsupported("Unit graph scalar binding count overflow"),
                         )?;

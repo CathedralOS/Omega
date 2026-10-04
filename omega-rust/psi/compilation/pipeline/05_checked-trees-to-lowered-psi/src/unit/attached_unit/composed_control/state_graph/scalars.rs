@@ -23,15 +23,6 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
     let role = CheckedScalarExpressionRole::TransitionArgument {
         argument_ordinal: argument.argument_ordinal,
     };
-    let source = crate::expression_preparation::source_custody::locate(
-        checked,
-        state.state,
-        edge.statement_ordinal,
-        role,
-    )?;
-    if source.primitive_type != argument.primitive_type {
-        return unsupported("Unit graph successor value type disagrees with source");
-    }
     let pure = &checked.facts.values.scalar_expressions;
     let computations = &checked.facts.values.scalar_computations;
     let mut roots = computations
@@ -60,12 +51,10 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
                 && expression.role == role
         });
         if has_pure
-            || root.machine != source.machine
             || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != source.expression
             || computations.nodes.get(root.root).primitive_type != argument.primitive_type
         {
-            return unsupported("Unit graph successor computation disagrees with source");
+            return unsupported("Unit graph successor computation disagrees with its argument");
         }
         Ok(checked_trees::CheckedCallScalarArgument::Computation(
             root.root,

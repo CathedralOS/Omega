@@ -1,52 +1,42 @@
-//! Rejoin bound, temporary, and discarded result sources independently of operands.
-use super::{CheckedTrees, LoweringError};
-use checked_trees::statement::StatementNode;
+//! What the authored statement does with a call's result, as stage 04's
+//! source-custody binding pass recorded it on the call's flow row.
+
+use super::CheckedTrees;
+use checked_trees::FlowCallResult;
+
+fn planned_result(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+) -> FlowCallResult {
+    checked
+        .facts
+        .flow
+        .control
+        .call_at(
+            state,
+            coordinate.statement_index as usize,
+            coordinate.call_ordinal as usize,
+        )
+        .map_or_else(Default::default, |call| call.authored_result)
+}
 
 /// A discarded invocation produces a value but no source-local binding.
 pub(crate) fn discards_result(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
-) -> Result<bool, LoweringError> {
-    let (_, source) = crate::declarations::state_declaration(checked, state)?;
-    let statement = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(coordinate.statement_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "call result has no authored statement",
-        ))?;
-    Ok(coordinate.call_ordinal == 0
-        && matches!(statement, StatementNode::Call(call) if call.discards_result))
+) -> bool {
+    planned_result(checked, state, coordinate) == FlowCallResult::Discarded
 }
 
-/// Whether the statement-level call at `coordinate` initializes a declared
+/// Whether the call at `coordinate` is the whole initializer of a declared
 /// immutable local, so its retained result is a source-named value. A result
 /// an assignment stores has no source name of its own.
 pub(crate) fn initializes_immutable_local(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
-) -> Result<bool, LoweringError> {
-    let (_, source) = crate::declarations::state_declaration(checked, state)?;
-    let statement = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(coordinate.statement_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "call result has no authored statement",
-        ))?;
-    let StatementNode::LocalData(local) = statement else {
-        return Ok(false);
-    };
-    if local.is_mutable {
-        return Ok(false);
-    }
-    let authored = super::authored::locate_source(checked, state, coordinate)?;
-    // Preorder zero can also name the first nested call of a computation.
-    // Only the initializer expression itself completes this source binding.
-    Ok(authored.source_site
-        == Some(checked_trees::NominalMachineUseSite::Expression(
-            local.initial_value,
-        )))
+) -> bool {
+    planned_result(checked, state, coordinate) == FlowCallResult::ImmutableLocal
 }

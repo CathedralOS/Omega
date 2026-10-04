@@ -47,6 +47,8 @@ pub struct FlowCallFact {
     /// The receiver a call expression spells before its name
     /// (`self.samples.element(2)`); the zero handle for every other site.
     pub authored_receiver: typed_trees::expression::ExpressionHandle,
+    /// What the authored statement does with the call's result.
+    pub authored_result: FlowCallResult,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
@@ -86,6 +88,19 @@ pub enum FlowCallSite {
     Expression,
     /// A named transition target invoking another machine.
     NamedTransition,
+}
+
+/// What the authored statement does with one call's result.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowCallResult {
+    /// The result feeds an enclosing expression, an assignment, a mutable
+    /// local or a transition.
+    #[default]
+    Operand,
+    /// A call statement that discards the value it produces.
+    Discarded,
+    /// The whole initializer of an immutable local, which names the result.
+    ImmutableLocal,
 }
 
 /// Coordinate of a [`FlowCallFact`] whose authored call selected execution

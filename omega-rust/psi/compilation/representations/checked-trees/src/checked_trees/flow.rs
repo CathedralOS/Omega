@@ -105,8 +105,9 @@ pub use borrow_lifetimes::{
 pub use boundaries::FlowBoundaryEdgeFact;
 pub use contexts::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 pub use control::{
-    FlowCallFact, FlowCallSite, FlowExitFact, FlowExitParameterOrigin, FlowOperatorInvocationFact,
-    FlowStateFact, FlowStateOutgoingFact, FlowStatementFact, RetiredFlowCall,
+    FlowCallFact, FlowCallResult, FlowCallSite, FlowExitFact, FlowExitParameterOrigin,
+    FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact, FlowStatementFact,
+    RetiredFlowCall,
 };
 pub use dynamic_scalar_calls::{
     CheckedDynamicBinding, CheckedDynamicBindingKind, CheckedDynamicDescriptorTransferEdge,

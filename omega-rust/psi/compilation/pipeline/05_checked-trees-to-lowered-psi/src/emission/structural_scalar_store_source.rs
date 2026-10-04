@@ -188,20 +188,8 @@ pub(crate) fn computation_root(
             return unsupported("record store field drifted from its literal ordinal");
         }
     }
-    let source = crate::expression_preparation::source_custody::locate(
-        checked,
-        state,
-        statement_index,
-        root.role,
-    )?;
-    let node = plans.nodes.get(handle);
-    if source.machine != machine
-        || source.expression != node.authored_root
-        || source.primitive_type != node.primitive_type
-        || node.primitive_type != primitive_type
-        || source.destination.is_valid()
-    {
-        return unsupported("field assignment computation differs from its authored RHS");
+    if plans.nodes.get(handle).primitive_type != primitive_type {
+        return unsupported("field assignment computation differs from its field's carrier");
     }
     Ok(Some((handle, root.role)))
 }

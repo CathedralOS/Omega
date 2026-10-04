@@ -1,7 +1,6 @@
 //! Reconstruct the authored tail independently of the producer's completion.
 //! Prefix coverage and selected return roles prevent a plausible Boolean value
 //! from authorizing swapped arms, omitted statements, or a different return.
-use super::super::CheckedScalarExpressionRole;
 use super::{CheckedTrees, LoweringError, StatementNode, unsupported};
 use checked_trees::statement::{TransitionExit, TransitionGuardNode};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
@@ -56,7 +55,7 @@ pub(crate) fn validate_exits(
 ) -> Result<usize, LoweringError> {
     let prefix = match &control.terminator {
         CheckedScalarStateTerminator::Return { statement_ordinal } => {
-            unconditional(checked, state_symbol, control, *statement_ordinal)?
+            unconditional(checked, state_symbol, *statement_ordinal)?
         }
         CheckedScalarStateTerminator::Guarded { arms, fallback } => {
             crate::expression_preparation::source_custody::guarded_exits::validate(
@@ -77,7 +76,6 @@ pub(crate) fn validate_exits(
 fn unconditional(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
-    control: &checked_trees::CheckedUnitScalarControlPlan,
     statement_ordinal: u32,
 ) -> Result<usize, LoweringError> {
     let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
@@ -107,15 +105,6 @@ fn unconditional(
     };
     if !complete_return {
         return unsupported("ordered scalar return differs from its unconditional authored tail");
-    }
-    let located = crate::expression_preparation::source_custody::locate(
-        checked,
-        state_symbol,
-        statement_ordinal,
-        CheckedScalarExpressionRole::Return,
-    )?;
-    if located.primitive_type != control.primitive_type {
-        return unsupported("ordered scalar return changed its source carrier");
     }
     Ok(prefix)
 }
@@ -196,27 +185,9 @@ fn conditional(
         return unsupported("ordered scalar completion differs from its complete authored tail");
     }
     for destination in [when_true, when_false] {
-        let CheckedScalarBranchDestination::Return {
-            statement_ordinal,
-            is_continuation,
-        } = destination
-        else {
+        let CheckedScalarBranchDestination::Return { .. } = destination else {
             return unsupported("ordered scalar completion cannot replace an authored transfer");
         };
-        let role = if *is_continuation {
-            CheckedScalarExpressionRole::ContinuationReturn
-        } else {
-            CheckedScalarExpressionRole::Return
-        };
-        let located = crate::expression_preparation::source_custody::locate(
-            checked,
-            state_symbol,
-            *statement_ordinal,
-            role,
-        )?;
-        if located.primitive_type != control.primitive_type {
-            return unsupported("ordered scalar return changed its source carrier");
-        }
     }
     Ok(prefix)
 }

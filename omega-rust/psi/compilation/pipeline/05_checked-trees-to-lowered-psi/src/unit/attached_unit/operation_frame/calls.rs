@@ -111,7 +111,7 @@ impl OperationFrame<'_, '_> {
                 self.checked,
                 self.state,
                 coordinate,
-            )?;
+            );
         let value = if names_local {
             self.refine_scalar_local_value(coordinate.statement_index, value)?
         } else {
@@ -124,7 +124,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             self.state,
             coordinate,
-        )? {
+        ) {
             let position = self.values.len();
             self.values.push(value);
             if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {

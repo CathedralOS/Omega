@@ -11,7 +11,8 @@ use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
 };
 use crate::semantic::calls::{CallSite, collect_call_sites_in_statement};
-use checked_trees::FlowCallSite;
+use checked_trees::{FlowCallResult, FlowCallSite};
+use typed_trees::statement::StatementNode;
 
 pub(crate) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,
@@ -114,6 +115,26 @@ pub(crate) fn bind_checked_body_call_source_spans(
             checked_call.authored_receiver = match &call_site {
                 CallSite::Expression { call, .. } => call.receiver,
                 CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),
+            };
+            checked_call.authored_result = match (
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(checked_call.statement_index),
+                &call_site,
+            ) {
+                (Some(StatementNode::Call(call)), _)
+                    if checked_call.call_ordinal == 0 && call.discards_result =>
+                {
+                    FlowCallResult::Discarded
+                }
+                (
+                    Some(StatementNode::LocalData(local)),
+                    CallSite::Expression { expression, .. },
+                ) if !local.is_mutable && *expression == local.initial_value => {
+                    FlowCallResult::ImmutableLocal
+                }
+                _ => FlowCallResult::Operand,
             };
             checked_call.authored_site = site;
             checked_call.authored_target = target;

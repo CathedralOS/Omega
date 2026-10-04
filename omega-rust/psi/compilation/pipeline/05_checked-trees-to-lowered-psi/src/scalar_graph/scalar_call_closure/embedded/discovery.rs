@@ -204,19 +204,6 @@ fn source_checked_computation_targets(
         {
             return unsupported("embedded computation has no unique live source root");
         }
-        let source = crate::expression_preparation::source_custody::locate(
-            checked,
-            root.state,
-            root.statement_ordinal,
-            root.role,
-        )?;
-        let node = plans.nodes.get(root.root);
-        if source.machine != machine
-            || source.expression != node.authored_root
-            || source.primitive_type != node.primitive_type
-        {
-            return unsupported("embedded computation disagrees with its authored source root");
-        }
     }
     crate::expression_preparation::computation_graph::call_targets(checked, machine)
 }
