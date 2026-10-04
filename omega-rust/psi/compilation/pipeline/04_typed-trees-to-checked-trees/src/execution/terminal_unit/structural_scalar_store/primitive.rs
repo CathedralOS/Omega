@@ -1,8 +1,8 @@
 //! Primitive leaves: whole primitive storage and primitive elements.
 //!
 //! A primitive leaf is written by `WriteOnlyPrimitiveStore` over one checked
-//! path from an exclusive borrowed parameter (or a whole initialized mutable
-//! primitive local). The path composes fields, literal elements, and the
+//! path from the shared destination resolver's borrowed or owned storage.
+//! The path composes fields, explicit reference crossings, literal elements, and the
 //! target's runtime elements: `self.cells[self.i] = v` is the store over
 //! `[cells, RuntimeIndex(AssignmentIndex { depth: 0 })]` and
 //! `self.grid[i][j] = v` the store over `[grid, RuntimeIndex(depth 1),
@@ -22,10 +22,9 @@
 //! the runtime element already in the path: the selector's bound is re-proven
 //! exactly as for an element store.
 use super::super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, DataMember, ExpressionNode, Multiplicity, PrimitiveType,
-    StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, DataMember, Multiplicity,
+    PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
 };
 
 /// Find primitive storage established by an initializer or its declaration's
@@ -59,35 +58,6 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     Some(local)
 }
 
-/// Find only owned structural storage declared before this occurrence: a
-/// local whose plain contents the unit sequence establishes (by initializer
-/// or by zeroing), never a primitive or a borrow. This is the local-rooted
-/// twin of the parameter check below. Both callers write a member or an
-/// element, never the whole local, and `mut` grants only whole-binding
-/// replacement, so `let padded: [u8; 11]; padded[0] = title[0];` writes its
-/// element without it, as the structural lane's owned local root already does.
-fn structural_local_before<'program>(
-    program: &'program TypedTrees,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    symbol: SymbolHandle,
-) -> Option<&'program typed_trees::statement::TableLocalData> {
-    let (_, local) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if program
-        .primitive_type_reference(local.type_reference)
-        .is_some()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            program,
-            local.type_reference,
-        )
-    {
-        return None;
-    }
-    Some(local)
-}
-
 /// The primitive store of one authored assignment, or `None` when its target
 /// is not a primitive leaf this lane writes. The shared statement roster
 /// validates the complete state write frame.
@@ -96,75 +66,40 @@ pub(super) fn store_at(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    destination: &super::destination::Destination<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let Some((authored_symbol, symbol, segments, authored_whole)) = storage_place(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment.target,
-    ) else {
+    let projection = destination.storage_projection(program)?;
+    let primitive_type = program.primitive_type_reference(projection.type_reference)?;
+    // Declared scalar fields retain their own field-store proof obligations.
+    // Following a reference instead reaches primitive storage, regardless of
+    // whether the pointer lives at the root or inside another owned value.
+    if projection.ends_at_field || destination.recast_view.is_some() {
         return None;
-    };
-    let Some(path) = primitive_path(
+    }
+    primitive_leaf(program, machine, state, assignment.target)?;
+    if projection.path.is_empty() {
+        match destination.root {
+            super::destination::Root::Parameter { plan, .. }
+                if plan.is_self || plan.multiplicity != Multiplicity::Unrestricted =>
+            {
+                return None;
+            }
+            super::destination::Root::Local { symbol } => {
+                primitive_local_before(program, state, statement_index as usize, symbol)?;
+            }
+            _ => {}
+        }
+    }
+    let authored = crate::flow::canonical_place_from_expression_in_state(
         program,
-        facts,
-        machine,
-        state,
-        statement_index,
+        state.symbol,
+        statement_index as usize,
         assignment.target,
-        &segments,
-    ) else {
+    )?;
+    let facts::PlaceRoot::Symbol(authored_symbol) = authored.root else {
         return None;
-    };
-    let whole = path.is_empty();
-    let (destination, primitive_type) = if let Some(local) = primitive_local_before(
-        program,
-        state,
-        usize::try_from(statement_index).ok()?,
-        symbol,
-    ) {
-        if !whole {
-            return None;
-        }
-        (
-            checked_trees::CheckedStoreRoot::Local { symbol },
-            program.primitive_type_reference(local.type_reference)?,
-        )
-    } else if structural_local_before(
-        program,
-        state,
-        usize::try_from(statement_index).ok()?,
-        symbol,
-    )
-    .is_some()
-    {
-        // Element or field writes into an established structural local keep
-        // the local's symbol identity; a whole-place replacement is not a
-        // primitive store.
-        if whole {
-            return None;
-        }
-        (
-            checked_trees::CheckedStoreRoot::Local { symbol },
-            program.primitive_type_reference(validation::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                assignment.target,
-            )?)?,
-        )
-    } else {
-        let destination =
-            borrowed_parameter_destination(program, state, structural_parameters, symbol, whole)?;
-        (
-            destination,
-            primitive_leaf(program, machine, state, assignment.target)?,
-        )
     };
     let value = primitive_store_value(
         program,
@@ -174,77 +109,13 @@ pub(super) fn store_at(
         statement_index,
         assignment,
         authored_symbol,
-        authored_whole,
-        primitive_type,
-    )?;
-    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-        statement_index,
-        destination,
-        path,
-        value,
-    })
-}
-
-/// The primitive element store of one authored assignment whose destination
-/// already resolved through the structural lane's exclusive authority: a
-/// root `storage_place` declines — an exclusive view local, an erased borrow
-/// alias — still reaches a primitive leaf over the same checked fields and
-/// selectors the `WriteOnlyPrimitiveStore` path carries. The destination's
-/// own resolved root supplies the store root.
-pub(super) fn indexed_store(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &super::destination::Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    // `resolve` split the outermost selector into `dynamic_index` for the
-    // byte stores' operand slot; a primitive element store walks the same
-    // selector as the last segment of its checked path — a literal keeps its
-    // fixed index, a runtime selector its authored expression — so the path
-    // admission governs field-rooted (`record.field[i]`) and bare-rooted
-    // (`arr[i]`) element destinations identically.
-    let mut segments = destination.place.segments.to_vec();
-    if let Some(index) = destination.dynamic_index {
-        segments.push(match program.expression_table.expression(index) {
-            ExpressionNode::Integer(literal) => facts::PlaceSegment::FixedIndex {
-                index: usize::try_from(literal.value_bignum()?.to_u64()?).ok()?,
-            },
-            _ => facts::PlaceSegment::Index { expression: index },
-        });
-    }
-    let path = primitive_path(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment.target,
-        &segments,
-    )?;
-    let primitive_type = program.primitive_type_reference(primitive_leaf_type_reference(
-        program,
-        machine,
-        state,
-        assignment.target,
-    )?)?;
-    let value = primitive_store_value(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment,
-        SymbolHandle::invalid(),
-        false,
+        authored.segments.is_empty(),
         primitive_type,
     )?;
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
         destination: destination.root.destination(),
-        path,
+        path: projection.path,
         value,
     })
 }
@@ -333,7 +204,7 @@ pub(super) fn array_literal_stores(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    destination: &super::destination::Destination<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
@@ -342,57 +213,19 @@ pub(super) fn array_literal_stores(
         validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
     )?;
     let extents = closed_array_extents(program, expected)?;
-    let (_, symbol, segments, _) = storage_place(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment.target,
-    )?;
-    if !matches!(
-        segments.last(),
-        Some(
-            facts::PlaceSegment::Field { .. }
-                | facts::PlaceSegment::FixedIndex { .. }
-                | facts::PlaceSegment::Index { .. }
+    let projection = destination.storage_projection(program)?;
+    if projection.path.is_empty()
+        || !validation::place_has_builtin_coordinates(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
         )
-    ) || !validation::place_has_builtin_coordinates(
-        program,
-        machine,
-        Some(state),
-        assignment.target,
-    ) || primitive_local_before(
-        program,
-        state,
-        usize::try_from(statement_index).ok()?,
-        symbol,
-    )
-    .is_some()
     {
         return None;
     }
-    let destination = if structural_local_before(
-        program,
-        state,
-        usize::try_from(statement_index).ok()?,
-        symbol,
-    )
-    .is_some()
-    {
-        checked_trees::CheckedStoreRoot::Local { symbol }
-    } else {
-        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?
-    };
-    let selectors = super::selectors::TargetSelectors::resolve(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        assignment.target,
-    )?;
-    let path = checked_unit_path(program, &selectors, &segments)?;
+    let path = projection.path;
+    let destination = destination.root.destination();
     let elements = super::super::control::scalar_arrays::elements(
         program,
         facts,
@@ -464,161 +297,6 @@ fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
         ordinal /= extent;
     }
     (ordinal == 0).then_some(indices)
-}
-
-/// The storage an assignment target writes: the authored root symbol, the
-/// root whose storage is written, and the place segments from it. An erased
-/// borrow carrier names its captured referent's storage, so the checked
-/// alias root replaces it and its captured projection is prepended; the
-/// scalar binding's destination keeps the authored root spelling.
-fn storage_place(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    target: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
-        target,
-    )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let authored_whole = place.segments.is_empty();
-    Some(
-        match super::super::receiver_aliases::aliases(program, facts, machine, state)
-            .unwrap_or_default()
-            .iter()
-            .find(|alias| alias.owner == symbol)
-        {
-            Some(alias) => {
-                let mut segments = alias.segments.clone();
-                segments.extend_from_slice(&place.segments);
-                // The loan ledger roots a self-capture at the machine symbol,
-                // while a store destination names the authored `self`
-                // parameter: the same referent, spelled by signature.
-                let root = if alias.root == machine.symbol {
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.is_self)
-                        .map(|parameter| parameter.symbol)?
-                } else {
-                    alias.root
-                };
-                (symbol, root, segments, authored_whole)
-            }
-            None => (symbol, symbol, place.segments.clone(), authored_whole),
-        },
-    )
-}
-
-/// The primitive store root of an exclusive borrowed parameter, by its
-/// authored position. A whole store additionally needs an unrestricted,
-/// non-self parameter. The leaf walker separately authenticates the primitive
-/// referee and its permitted arithmetic-policy shells.
-fn borrowed_parameter_destination(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    symbol: SymbolHandle,
-    whole: bool,
-) -> Option<checked_trees::CheckedStoreRoot> {
-    let destination = structural_parameters.iter().find(|destination| {
-        program
-            .state_parameters(state)
-            .get(destination.position as usize)
-            .is_some_and(|parameter| parameter.symbol == symbol)
-    })?;
-    if (whole && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
-        || destination.multiplicity == Multiplicity::Linear
-        || !destination.qualifications.is_empty()
-        || !matches!(
-            destination.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-    {
-        return None;
-    }
-    let parameter = program
-        .state_parameters(state)
-        .get(destination.position as usize)?;
-    if parameter.is_self != destination.is_self || parameter.is_const || !parameter.is_mutable {
-        return None;
-    }
-    let TypeReferenceNode::Reference { access, .. } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let expected_access = match access {
-        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-        language_semantics::ReferenceAccess::Shared => return None,
-    };
-    if destination.access != expected_access {
-        return None;
-    }
-    Some(checked_trees::CheckedStoreRoot::Parameter {
-        position: destination.position,
-    })
-}
-
-/// The checked path from the destination root to its primitive leaf: empty
-/// for whole primitive storage, otherwise fields, literal elements and
-/// runtime elements ending at an array element. Every selector of the
-/// target is admitted by `TargetSelectors`; a runtime one becomes the
-/// statement's `RuntimeIndex(AssignmentIndex { depth })` segment.
-fn primitive_path(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    target: typed_trees::expression::ExpressionHandle,
-    segments: &[facts::PlaceSegment],
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let Some(last) = segments.last() else {
-        return Some(Vec::new());
-    };
-    // A field leaf is the scalar field store's; this store ends at an element.
-    if !matches!(
-        last,
-        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
-    ) || !validation::place_has_builtin_coordinates(program, machine, Some(state), target)
-    {
-        return None;
-    }
-    primitive_leaf(program, machine, state, target)?;
-    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) {
-        let collection =
-            validation::declared_place_type_raw(program, machine, Some(state), indexed.collection)
-                .and_then(|reference| validation::unwrapped_type_reference(program, reference))?;
-        if let TypeReferenceNode::Slice { element_type } =
-            program.type_reference_table.type_reference(collection)
-            && program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
-        {
-            // Element views own a live extent, including when the authored
-            // selector is a literal. Let the destination resolver retain that
-            // extent in ElementViewWrite instead of treating the descriptor as
-            // fixed storage. Byte sequences keep their existing byte path.
-            return None;
-        }
-    }
-    let selectors = super::selectors::TargetSelectors::resolve(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        target,
-    )?;
-    checked_unit_path(program, &selectors, segments)
 }
 
 /// The assignment leaf's declared type must be a named primitive, after the

@@ -2,7 +2,7 @@
 
 use super::{
     CallShape, StructuralArgumentSourcePolicy, is_runtime_indexed_borrow_path,
-    is_structural_call_result, is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan,
+    is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan,
     is_unrestricted_write_only_subloan, linear_call_result, structural_access_can_supply,
     structural_occurrence_carries_qualification,
 };
@@ -102,6 +102,44 @@ pub(in crate::validation) fn validate_structural_argument(
                 }
                 match place.kind {
                     StructuralPlaceKind::OperationResult { .. }
+                        if argument.access != StructuralAccess::Owned
+                            && matches!(source_policy,
+                                StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                    | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
+                                    | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals) =>
+                    {
+                        let (source, access) = crate::validation::structural::result_contracts::operation_result_loan_signature(
+                            module, caller, argument.place,
+                        )?;
+                        // Host calls still cannot receive stored-reference custody.
+                        // Internal loan availability and leaf lineage are checked
+                        // separately by the ownership/reference frontier.
+                        if source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                            && crate::validation::references::contains_reference(module, source.structural_type)
+                        {
+                            return None;
+                        }
+                        // Incoming parameter storage forwards its existing
+                        // declared storage contract. A result instead introduces
+                        // activation-owned backing: its boundary adapter exposes
+                        // a shared view of the live bytes, not the owner's
+                        // storage representation. Equal carrier types must not
+                        // bypass that admitted boundary presentation contract.
+                        if source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                            && !boundary_byte_view_call
+                            && module.structural_types.iter().any(|declaration| {
+                                declaration.id == source.structural_type
+                                    && matches!(declaration.shape,
+                                        terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))
+                            })
+                        {
+                            return None;
+                        }
+                        Some((source.structural_type, source.multiplicity, access,
+                            source.qualifications, source.projected_qualifications))
+                    }
+                    StructuralPlaceKind::OperationResult { .. }
                         if ordinary_call
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty()
@@ -150,30 +188,20 @@ pub(in crate::validation) fn validate_structural_argument(
                             result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if !matches!(source_policy, StructuralArgumentSourcePolicy::OnlyParameters
-                            | StructuralArgumentSourcePolicy::ParametersOrLinearCallResults)
-                            && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
-                            && (crate::validation::record::completed_source(module, caller, argument.place).is_some()
-                                || (argument.access != StructuralAccess::Owned
-                                    && crate::validation::record::loan_source(module, caller, argument.place).is_some())) =>
+                        if argument.access == StructuralAccess::Owned
+                            && !matches!(source_policy, StructuralArgumentSourcePolicy::OnlyParameters
+                                | StructuralArgumentSourcePolicy::ParametersOrLinearCallResults)
+                            && argument.path.is_empty()
+                            && crate::validation::record::completed_source(module, caller, argument.place).is_some() =>
                     {
-                        // Whole transfers and call-scoped loans retain the same
-                        // completed backing at ordinary and boundary calls. The producer checks
-                        // establishment; record/frontier replay checks its
-                        // availability here, and the common argument checks
-                        // below preserve projection, access and qualification.
-                        let result = if argument.access == StructuralAccess::Owned {
-                            crate::validation::record::completed_source(module, caller, argument.place)?
-                        } else {
-                            crate::validation::record::loan_source(module, caller, argument.place)?
-                        };
+                        let result = crate::validation::record::completed_source(module, caller, argument.place)?;
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
                     }
                     StructuralPlaceKind::OperationResult { .. }
                         if ordinary_call
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty()
-                            && matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                            && argument.access == StructuralAccess::Owned
                             && (crate::validation::scalar::case::plain_return_source(module, caller, argument.place) || crate::validation::structural::case::plain_return_source(module, caller, argument.place)) =>
                     {
                         // Scalar and nested-payload case establishment supply the
@@ -190,23 +218,11 @@ pub(in crate::validation) fn validate_structural_argument(
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
                             || (matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
                                 && source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals))
-                            && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
-                            && matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::Owned
                             && crate::validation::scalar::array::plain_return_source(module, caller, argument.place) =>
                     {
                         Some((structural_type, StructuralMultiplicity::Unrestricted,
-                            StructuralAccess::Owned, &[][..], &[][..]))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && argument.path.is_empty()
-                            && argument.access != StructuralAccess::Owned
-                            && crate::validation::primitive_storage::local_result(caller, argument.place).is_some() =>
-                    {
-                        let result = crate::validation::primitive_storage::local_result(caller, argument.place)?;
-                        crate::validation::primitive_storage::scalar_type(module, result.structural_type)?;
-                        Some((result.structural_type, StructuralMultiplicity::Unrestricted,
                             StructuralAccess::Owned, &[][..], &[][..]))
                     }
                     StructuralPlaceKind::BlockParameter { .. }
@@ -265,41 +281,10 @@ pub(in crate::validation) fn validate_structural_argument(
                         ))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if ((ordinary_call
-                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                                && matches!(argument.access,
-                                    StructuralAccess::SharedBorrow
-                                        | StructuralAccess::MutableBorrow
-                                        | StructuralAccess::WriteOnlyBorrow))
-                            || (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                && argument.path.is_empty()
-                                && matches!(argument.access,
-                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
-                            && crate::validation::element_view::view_loan_result_in_module(
-                                module, caller,
-                                argument.place,
-                            )
-                            .is_some() =>
-                    {
-                        // A live view lends its descriptor or a projected element.
-                        // Recover the producer's actual authority for both: affine
-                        // carrier custody alone cannot amplify a shared source.
-                        // Availability and loan interference replay remain separate.
-                        let (result, access) = crate::validation::element_view::view_loan_result_in_module(
-                            module, caller,
-                            argument.place,
-                        )
-                        .expect("view result checked above");
-                        Some((result.structural_type, result.multiplicity, access,
-                            result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ((ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
-                            || boundary_byte_view_call)
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty()
-                            && (argument.access == StructuralAccess::SharedBorrow
-                                || (ordinary_call && argument.access == StructuralAccess::Owned))
+                            && argument.access == StructuralAccess::Owned
                             && terminal_semantics::byte_owned_result_predicates(module, caller, argument.place).is_some() =>
                     {
                         // The completed bounded owner keeps its exact storage
@@ -345,160 +330,49 @@ pub(in crate::validation) fn validate_structural_argument(
                     StructuralPlaceKind::OperationResult {
                         producer,
                         structural_type,
-                    } if matches!(
-                        source_policy,
-                        StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
-                            | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                    )
+                    } if argument.access == StructuralAccess::Owned
+                        && matches!(
+                            source_policy,
+                            StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
+                                | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                        )
                         && (argument.path.is_empty()
-                            || (result_projection && argument.access == StructuralAccess::Owned
+                            || (result_projection
                                 && partial_affine_root_type(caller, argument.place) == Some(structural_type)
-                                && is_partial_affine_path(module, structural_type, &argument.path)))
-                        && {
-                            let producer_result = caller
-                                .blocks
-                                .iter()
-                                .flat_map(|block| &block.operations)
-                                .find(|operation| operation.id == producer)
-                                .and_then(|operation| {
-                                    // A call result carries the callee's
-                                    // established qualifications: the
-                                    // callee's authored `ensures result in
-                                    // <domain>` already lowered onto the
-                                    // operation result, and the required-set
-                                    // check below decides whether those
-                                    // carried domains satisfy this formal.
-                                    // EstablishRecord keeps the empty-
-                                    // qualification admission it always had.
-                                    let qualifications_allowed = matches!(
-                                        operation.kind,
-                                        OperationKind::CallStructuralWithScalarArguments { .. }
-                                            | OperationKind::BoundaryCall { .. }
-                                    );
-                                    let view_descriptor = matches!(
-                                        operation.kind,
-                                        OperationKind::EstablishElementView { .. }
-                                            | OperationKind::EstablishReference { .. }
-                                    );
-                                    let admitted_producer = match operation.kind {
-                                        OperationKind::CallStructuralWithScalarArguments { .. }
-                                        | OperationKind::BoundaryCall { .. } => {
-                                            matches!(argument.access,
-                                                StructuralAccess::Owned | StructuralAccess::SharedBorrow)
-                                                && expected.access == argument.access
-                                                && expected.multiplicity == if argument.access == StructuralAccess::SharedBorrow {
-                                                    StructuralMultiplicity::Unrestricted
-                                                } else {
-                                                    StructuralMultiplicity::Affine
-                                                }
-                                                && !expected.is_self
-                                        }
-                                        // A constructed record reaches a
-                                        // reference-result call through one
-                                        // projected owned subtree: the call's
-                                        // result source map rejoins the exact
-                                        // leaf loans under that edge.
-                                        OperationKind::EstablishStructuralArray { .. }
-                                        | OperationKind::EstablishRecord { .. }
-                                        | OperationKind::EstablishStructuralCase { .. }
-                                        | OperationKind::EstablishStructuralLocal { .. } => {
-                                            (reference_result_call
-                                                && argument.access == StructuralAccess::Owned
-                                                && expected.access == argument.access
-                                                && expected.multiplicity
-                                                    == StructuralMultiplicity::Affine
-                                                && !expected.is_self
-                                                && expected.qualifications.is_empty()
-                                                && expected.projected_qualifications.is_empty())
-                                                // A shared loan may observe a
-                                                // locally constructed record:
-                                                // its relocated descriptors are
-                                                // copies the callee reads but
-                                                // never moves.
-                                                || (matches!(
-                                                    operation.kind,
-                                                    OperationKind::EstablishStructuralArray { .. }
-                                        | OperationKind::EstablishRecord { .. }
-                                                        | OperationKind::EstablishStructuralLocal {
-                                                            ..
-                                                        }
-                                                ) && argument.access
-                                                    == StructuralAccess::SharedBorrow
-                                                    && expected.access == argument.access
-                                                    && expected.multiplicity
-                                                        == StructuralMultiplicity::Unrestricted
-                                                    && !expected.is_self)
-                                        }
-                                        // A view-establishment result names
-                                        // a relocated descriptor: a shared
-                                        // loan may hand the descriptor on by
-                                        // copy, so it keeps Unrestricted
-                                        // multiplicity rather than affine.
-                                        OperationKind::EstablishElementView { .. }
-                                        | OperationKind::EstablishReference { .. } => {
-                                            argument.access
-                                                == StructuralAccess::SharedBorrow
-                                                && expected.access == argument.access
-                                                && expected.multiplicity
-                                                    == StructuralMultiplicity::Unrestricted
-                                                && !expected.is_self
-                                        }
-                                        _ => false,
-                                    };
-                                    operation
-                                        .result
-                                        .structural()
-                                        .filter(|result| {
-                                            admitted_producer
-                                                && result.place == argument.place
-                                                && result.structural_type == structural_type
-                                                && (result.multiplicity
-                                                    == StructuralMultiplicity::Affine
-                                                    || (view_descriptor
-                                                        && result.multiplicity
-                                                            == StructuralMultiplicity::Unrestricted))
-                                                && (qualifications_allowed
-                                                    || (result.qualifications.is_empty()
-                                                        && result
-                                                            .projected_qualifications
-                                                            .is_empty()))
-                                                && result.claims.is_empty()
-                                        })
-                                });
-                            producer_result.is_some()
-                        } =>
+                                && is_partial_affine_path(module, structural_type, &argument.path))) =>
                     {
-                        let operation = caller
-                            .blocks
-                            .iter()
+                        let operation = caller.blocks.iter()
                             .flat_map(|block| &block.operations)
-                            .find(|operation| operation.id == producer)
-                            .expect("producer operation resolved above");
-                        let view_descriptor = matches!(
-                            operation.kind,
-                            OperationKind::EstablishElementView { .. }
-                                | OperationKind::EstablishReference { .. }
-                        );
-                        let result = operation
-                            .result
-                            .structural()
-                            .expect("producer structural result resolved above");
-                        Some((
-                            structural_type,
-                            if view_descriptor {
-                                StructuralMultiplicity::Unrestricted
-                            } else {
-                                StructuralMultiplicity::Affine
-                            },
-                            if view_descriptor {
-                                StructuralAccess::SharedBorrow
-                            } else {
-                                StructuralAccess::Owned
-                            },
-                            result.qualifications.as_slice(),
-                            result.projected_qualifications.as_slice(),
-                        ))
+                            .find(|operation| operation.id == producer)?;
+                        let qualifications_allowed = matches!(operation.kind,
+                            OperationKind::CallStructuralWithScalarArguments { .. }
+                                | OperationKind::BoundaryCall { .. });
+                        let admitted_transfer = match operation.kind {
+                            OperationKind::CallStructuralWithScalarArguments { .. }
+                            | OperationKind::BoundaryCall { .. } => true,
+                            OperationKind::EstablishRecord { .. }
+                            | OperationKind::EstablishStructuralArray { .. }
+                            | OperationKind::EstablishStructuralLocal { .. }
+                            | OperationKind::EstablishStructuralCase { .. } => reference_result_call
+                                && expected.qualifications.is_empty()
+                                && expected.projected_qualifications.is_empty(),
+                            _ => false,
+                        };
+                        let result = operation.result.structural()?;
+                        (admitted_transfer
+                            && expected.access == StructuralAccess::Owned
+                            && expected.multiplicity == StructuralMultiplicity::Affine
+                            && !expected.is_self
+                            && result.place == argument.place
+                            && result.structural_type == structural_type
+                            && result.multiplicity == StructuralMultiplicity::Affine
+                            && (qualifications_allowed
+                                || (result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()))
+                            && result.claims.is_empty())
+                        .then_some((structural_type, result.multiplicity, StructuralAccess::Owned,
+                            result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
                     }
                     _ => None,
                 }
@@ -750,48 +624,15 @@ pub(in crate::validation) fn validate_structural_argument(
         is_unrestricted_shared_subloan(module, caller, expected, argument);
     let unrestricted_mutable_field_subloan =
         is_unrestricted_mutable_subloan(module, caller, expected, argument);
-    // A loan rooted at a view binding presents unrestricted for the
-    // same reason a parameter subloan does: nothing moves, the descriptor
-    // stays the caller's custody, and each borrow kind stays inside the
-    // access the establishing operation minted the view with.
-    let view_loan =
-        crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place)
-            .is_some_and(|(_, source_access)| {
-                argument.access != StructuralAccess::Owned
-                    && structural_access_can_supply(source_access, argument.access)
-                    && expected.access == argument.access
-                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
-                    && (argument.path.is_empty()
-                        || super::is_static_borrow_path(&argument.path)
-                        || is_runtime_indexed_borrow_path(&argument.path))
-            });
-    // A shared view is unrestricted without changing the owning root's
-    // affine multiplicity. Construction-local loans remain separate.
+    // Borrowing a whole affine owner does not transfer its custody. This is
+    // independent of how that owner was established; source identity and
+    // authority were resolved above, and the frontier checks availability.
     let shared_affine_loan = argument.path.is_empty()
         && argument.access == StructuralAccess::SharedBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && actual_access == StructuralAccess::Owned
-        && actual_multiplicity == StructuralMultiplicity::Affine
-        && (is_structural_call_result(caller, argument.place)
-            || crate::validation::record::plain_return_source(module, caller, argument.place)
-            || crate::validation::record::constructed_source(module, caller, argument.place)
-                .is_some()
-            || (crate::validation::scalar::case::plain_return_source(
-                module,
-                caller,
-                argument.place,
-            ) || crate::validation::structural::case::plain_return_source(
-                module,
-                caller,
-                argument.place,
-            ))
-            || crate::validation::block_views::parameter(caller, argument.place).is_some()
-            || caller
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == argument.place));
+        && actual_multiplicity == StructuralMultiplicity::Affine;
     let actual_multiplicity = if shared_affine_loan
-        || view_loan
         || fixed_array_presentation
         || is_record_loan(module, caller, expected, argument)
     {

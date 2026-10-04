@@ -500,6 +500,10 @@ pub(crate) fn locate(
                         Some(state),
                         assignment.target,
                     )
+                    // Replay the stored value's declared type, not a pointer
+                    // descriptor's type. Destination access and the exact
+                    // reference crossing are checked by store custody.
+                    .map(|reference| validation::assignment_value_type(program, reference))
                     .and_then(|reference| program.primitive_type_reference(reference))
                     .map(|primitive| (assignment.value, absent, primitive))
                 }

@@ -24,6 +24,106 @@ pub(in crate::validation) fn operation_signature(
     }
 }
 
+/// A completed operation's static loan signature. Resolve the exact published
+/// place and producer, not the producer's content family. Establishment and
+/// current availability remain independent judgments.
+///
+/// A descriptor lends its backing under the authority it carries, whereas an
+/// owned aggregate lends its own storage even when some fields contain loans.
+/// Element-view access is an establishment property, not part of its type;
+/// an access-unspecified descriptor cannot acquire ownership by default.
+/// Claim-bearing results require their own conserved-custody loan contract.
+pub(in crate::validation) fn operation_result_loan_signature<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    source: PlaceId,
+) -> Option<(
+    StructuralResultSignature<'machine>,
+    terminal_psi::StructuralAccess,
+)> {
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+    let mut places = machine
+        .structural_places
+        .iter()
+        .filter(|place| place.id == source);
+    let place = places.next()?;
+    if places.next().is_some() {
+        return None;
+    }
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = place.kind
+    else {
+        return None;
+    };
+    let mut operations = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == producer);
+    let operation = operations.next()?;
+    if operations.next().is_some() {
+        return None;
+    }
+    let result = operation.result.structural()?;
+    if result.place != source
+        || result.structural_type != structural_type
+        || result.multiplicity == StructuralMultiplicity::Linear
+        || !result.claims.is_empty()
+    {
+        return None;
+    }
+    let mut declarations = module
+        .structural_types
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let access = match &declaration.shape {
+        // This is the pointer slot's ownership, not permission over its
+        // referent. Explicit Referent crossings retain their separate check.
+        StructuralTypeShape::Reference { .. } => StructuralAccess::Owned,
+        StructuralTypeShape::ElementView { .. } => {
+            crate::validation::element_view::view_loan_result_in_module(module, machine, source)?.1
+        }
+        StructuralTypeShape::ByteSequence(
+            ByteSequenceCarrier::BorrowedView { access }
+            | ByteSequenceCarrier::BoundedView { access, .. },
+        ) => {
+            let established = crate::validation::element_view::view_loan_result_in_module(
+                module, machine, source,
+            )
+            .map(|(_, access)| access);
+            match (established, *access) {
+                (Some(established), Some(declared)) => {
+                    // The result type cannot strengthen the operation's
+                    // permission; contradictory authority is not a loan.
+                    if !super::operations::structural_access_can_supply(established, declared) {
+                        return None;
+                    }
+                    declared
+                }
+                (Some(established), None) => established,
+                (None, Some(declared)) => declared,
+                (None, None) => return None,
+            }
+        }
+        StructuralTypeShape::FusedServiceBinding
+        | StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+        | StructuralTypeShape::Record { .. }
+        | StructuralTypeShape::FixedArray { .. }
+        | StructuralTypeShape::Sum { .. }
+        | StructuralTypeShape::Mixed { .. } => StructuralAccess::Owned,
+    };
+    Some((operation_signature(result), access))
+}
+
 pub(in crate::validation) fn source_signature(
     machine: &TerminalMachine,
     source: PlaceId,

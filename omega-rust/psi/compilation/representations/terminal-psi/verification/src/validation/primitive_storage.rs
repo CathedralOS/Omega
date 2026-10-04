@@ -253,6 +253,20 @@ fn projected_type(
     path: &[terminal_psi::StructuralPathSegment],
     writing: bool,
 ) -> Option<ScalarType> {
+    if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+        // Reads need their own live shared-or-mutable leaf judgment. The
+        // geometry walker alone cannot widen their existing owned-root access.
+        if !writing {
+            return None;
+        }
+        let destination =
+            super::references::mutable_reference_destination(module, machine, place, path)?;
+        return terminal_semantics::primitive_projection_type(
+            module.structural_types.iter(),
+            destination.referent_type,
+            destination.referent_path,
+        );
+    }
     let signature = storage_signature(module, machine, place, writing)?;
     // A read may end at a scalar field of an element it selects at run time
     // (`cells[i].hp`); a store may not, because only the field store owns a

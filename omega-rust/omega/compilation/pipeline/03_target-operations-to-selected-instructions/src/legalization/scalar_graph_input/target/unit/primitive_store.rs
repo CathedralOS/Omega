@@ -76,7 +76,7 @@ pub(super) fn validate(
         .iter()
         .find(|declaration| declaration.id == expected_destination.structural_type())
         .ok_or(LegalizationError::custody())?;
-    let (_, _, elements) = crate::structural_inputs::structural_reference_input::primitive_store(
+    let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
         expected_destination,
         expected_path,
         value.scalar_type,
@@ -88,7 +88,7 @@ pub(super) fn validate(
         || path != expected_path
         || destination_type != declared_type
         || !storage_matches
-        || !super::runtime_indices_rejoin(indices, &elements, sources)
+        || !super::runtime_indices_rejoin(indices, &geometry.elements, sources)
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
         || !(sources.iter().any(|(identity, expected)| {

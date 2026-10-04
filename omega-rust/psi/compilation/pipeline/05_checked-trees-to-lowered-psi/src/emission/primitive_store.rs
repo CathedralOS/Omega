@@ -261,14 +261,117 @@ fn authored_store(
     else {
         return unsupported("primitive store has no authored assignment");
     };
-    let target = crate::emission::call_source_custody::projected_receivers::store_destination(
+    let mut target = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine.symbol,
         state_symbol,
         Some(statement_index as usize),
         assignment.target,
     )?;
+    target.path = authored_storage_path(checked, machine, state, &target)?;
     Ok((assignment, target))
+}
+
+/// Replay the implicit dereferences from declarations, not from the producer's
+/// proposed path. The authored root remains the carrier whose pointer is read;
+/// no static origin can replace that address. Ordinary fields and array elements
+/// retain their original steps around each explicit crossing.
+fn authored_storage_path(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    target: &crate::emission::call_source_custody::projected_receivers::ReceiverSource,
+) -> Result<Vec<CheckedUnitStructuralPathSegment>, LoweringError> {
+    use checked_trees::types::TypeReferenceNode;
+    let invalid =
+        || LoweringError::Unsupported("primitive store lost its declared storage projection");
+    let parameter = checked
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == target.root);
+    let (mut selected, mut owner) = if let Some(parameter) = parameter {
+        let TypeReferenceNode::Reference { referee, .. } = checked
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return Err(invalid());
+        };
+        (
+            *referee,
+            if parameter.is_self {
+                checked
+                    .typed
+                    .unique_data_definition_by_symbol(machine.attached_data_symbol)
+            } else {
+                None
+            },
+        )
+    } else {
+        let (_, local) = checked
+            .state_local_declaration(state, target.root)
+            .ok_or_else(invalid)?;
+        (local.type_reference, None)
+    };
+    let mut path = Vec::with_capacity(target.path.len());
+    for segment in &target.path {
+        selected = match segment {
+            CheckedUnitStructuralPathSegment::Field(identity) => {
+                let declaration = owner
+                    .or_else(|| checked.typed.closed_data_definition(selected))
+                    .ok_or_else(invalid)?;
+                let mut fields = checked
+                    .data_members(declaration)
+                    .iter()
+                    .filter_map(|member| {
+                        let checked_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.path_identity() == *identity && !field.relevance.is_erased())
+                            .then_some(field)
+                    });
+                let field = fields.next().ok_or_else(invalid)?;
+                if fields.next().is_some() {
+                    return Err(invalid());
+                }
+                field.type_reference
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(_)
+            | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+                let carrier = validation::unwrapped_type_reference(&checked.typed, selected)
+                    .ok_or_else(invalid)?;
+                match checked.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => *element_type,
+                    _ => return Err(invalid()),
+                }
+            }
+            _ => return Err(invalid()),
+        };
+        path.push(segment.clone());
+        let mut reference_types = Vec::new();
+        while let TypeReferenceNode::Reference {
+            referee, access, ..
+        } = checked.type_reference_table.type_reference(selected)
+        {
+            if reference_types.contains(&selected) {
+                return Err(invalid());
+            }
+            reference_types.push(selected);
+            if matches!(
+                checked.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. }
+            ) {
+                break;
+            }
+            if *access != language_semantics::ReferenceAccess::Mutable {
+                return Err(invalid());
+            }
+            path.push(CheckedUnitStructuralPathSegment::Referent);
+            selected = *referee;
+        }
+        owner = None;
+    }
+    Ok(path)
 }
 
 fn value_role_at(
@@ -1017,6 +1120,13 @@ fn walk_path(
         let declaration = unique_type(types, structural_type)?;
         walked = match (segment, &declaration.shape) {
             (
+                CheckedUnitStructuralPathSegment::Referent,
+                StructuralTypeShape::Reference { referent, .. },
+            ) => {
+                result.push(ProjectionStep::Static(Segment::Referent));
+                Walked::Declared(*referent)
+            }
+            (
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields },
             ) => {
@@ -1131,4 +1241,103 @@ fn unique_type(
         return unsupported("primitive projection type is ambiguous");
     }
     Ok(declaration)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CARRIER_STORE: &str = r#"
+        data Window { padding: u64; destination: &mut u64; }
+        data Carrier { prefix: u64; window: Window; count: u64; }
+        machine Carrier::set_count(carrier: &mut Carrier) { carrier.count = 7; }
+        data Main { scratch: u64; }
+        machine Main::inspect(destination: &mut u64, observed: &u64) -> u64 {
+            let mut carrier: Carrier = Carrier {
+                prefix: 3,
+                window: Window { padding: 5, destination: destination },
+                count: 0
+            };
+            Carrier::set_count(&mut carrier);
+            carrier.window.destination = 11;
+            match observed == 59 && carrier.count == 7 { true -> 70, false -> 71 }
+        }
+    "#;
+
+    #[test]
+    fn primitive_store_source_replays_carrier_and_reference_crossing() {
+        let checked = crate::front_end::checked_program(CARRIER_STORE);
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::inspect")
+            .expect("inspect machine");
+        let state = &checked.machine_states(machine)[0];
+        let checked_trees::statement::StatementNode::LocalData(carrier) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("carrier declaration");
+        };
+        let (_, target) = authored_store(&checked, state.symbol, 2)
+            .expect("source replay retains the established carrier");
+        let path = vec![
+            CheckedUnitStructuralPathSegment::Field("window".into()),
+            CheckedUnitStructuralPathSegment::Field("destination".into()),
+            CheckedUnitStructuralPathSegment::Referent,
+        ];
+        assert_eq!(target.root, carrier.symbol);
+        assert_eq!(target.path, path);
+        let source = crate::expression_preparation::source_custody::locate(
+            &checked,
+            state.symbol,
+            2,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .expect("the assignment value is the primitive referent, not its descriptor");
+        assert_eq!(source.primitive_type, PrimitiveType::U64);
+        let value = checked_trees::CheckedCallScalarArgument::Pure(
+            CheckedScalarExpression::IntegerLiteral {
+                literal: numerics::literals::IntegerLiteral::from_value(11),
+            },
+        );
+        validate_symbol_assignment(&checked, state.symbol, 2, carrier.symbol, &path, &value)
+            .expect("the declared crossing and authored value agree");
+        assert!(
+            validate_symbol_assignment(
+                &checked,
+                state.symbol,
+                2,
+                checked.state_parameters(state)[0].symbol,
+                &path,
+                &value,
+            )
+            .is_err(),
+            "the pointer's static origin cannot replace its actual carrier"
+        );
+        assert!(
+            validate_symbol_assignment(
+                &checked,
+                state.symbol,
+                2,
+                carrier.symbol,
+                &path[..2],
+                &value,
+            )
+            .is_err(),
+            "the pointer slot cannot replace the referent destination"
+        );
+    }
+
+    #[test]
+    fn primitive_store_source_rejects_shared_leaf_permission() {
+        let source = CARRIER_STORE.replace("&mut u64", "&u64");
+        let checked = crate::front_end::checked_program(&source);
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::inspect")
+            .expect("inspect machine");
+        let state = &checked.machine_states(machine)[0];
+        assert!(authored_store(&checked, state.symbol, 2).is_err());
+    }
 }

@@ -836,17 +836,22 @@ fn formal_origin(
     }
 }
 
-/// An owned argument that carries at least one reference leaf moves the loans
-/// with it; the callee's ingress replay tracks each leaf exactly.
-fn argument_owns_references(
-    function: &PsiOptimizationFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-    argument: &StructuralArgument,
-) -> bool {
-    argument.access == StructuralAccess::Owned
-        && source_contract(function, custody, argument.place)
-            .is_some_and(|contract| contains_reference(types, contract))
+fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
+    authority == requested
+        || authority == StructuralAccess::Owned
+        || authority == StructuralAccess::MutableBorrow
+            && matches!(
+                requested,
+                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+}
+
+/// Carrier storage and its pointees are distinct aliasing regions.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallRegion {
+    OrdinaryStorage,
+    CarrierStorage,
+    Referent,
 }
 
 mod call_paths;
@@ -879,10 +884,24 @@ fn call_arguments(
         if argument.path.contains(&StructuralPathSegment::Referent) {
             let resolved = call_paths::call_reference_custody(function, custody, types, argument)?;
             dependencies.push((argument_position, resolved.dependencies));
-            normalized.push((argument_position, resolved.origins, argument.access, true));
+            normalized.push((
+                argument_position,
+                resolved.origins,
+                argument.access,
+                CallRegion::Referent,
+            ));
             continue;
         }
-        if argument_owns_references(function, custody, types, argument) {
+        if source_contract(function, custody, argument.place)
+            .is_some_and(|contract| contains_reference(types, contract))
+        {
+            let authority = function
+                .arrival_parameter(argument.place)
+                .map(|parameter| parameter.access)
+                .unwrap_or(StructuralAccess::Owned);
+            if !access_covers(authority, argument.access) {
+                return Err(invalid());
+            }
             if !argument
                 .path
                 .iter()
@@ -906,7 +925,32 @@ fn call_arguments(
             {
                 return Err(invalid());
             }
+            let storage = Root::Ingress(argument.place, argument.path.clone());
+            if custody.leaves.iter().any(|((carrier, path), leaf)| {
+                !(*carrier == argument.place && path.starts_with(&argument.path))
+                    && roots_overlap(&storage, &leaf.root)
+            }) {
+                return Err(invalid());
+            }
+            normalized.push((
+                argument_position,
+                vec![storage],
+                argument.access,
+                CallRegion::CarrierStorage,
+            ));
             for path in paths {
+                let permission = leaf_type(types, selected, &path)
+                    .and_then(|leaf| {
+                        types
+                            .iter()
+                            .find(|declaration| declaration.id == leaf)
+                            .map(|declaration| &declaration.shape)
+                    })
+                    .and_then(|shape| match shape {
+                        StructuralTypeShape::Reference { access, .. } => Some(*access),
+                        _ => None,
+                    })
+                    .ok_or_else(|| invalid())?;
                 let mut carrier_path = argument.path.clone();
                 carrier_path.extend(path);
                 let leaf = custody
@@ -919,17 +963,22 @@ fn call_arguments(
                     .leaves
                     .values()
                     .any(|child| child.parent.as_ref() == Some(&leaf.identity))
-                    || moved
-                        .insert((argument.place, carrier_path), leaf.clone())
-                        .is_some()
+                    || (argument.access == StructuralAccess::Owned
+                        && moved
+                            .insert((argument.place, carrier_path), leaf.clone())
+                            .is_some())
                 {
                     return Err(invalid());
                 }
                 normalized.push((
                     argument_position,
                     vec![leaf.root.clone()],
-                    argument.access,
-                    true,
+                    if access_covers(argument.access, permission) {
+                        permission
+                    } else {
+                        argument.access
+                    },
+                    CallRegion::Referent,
                 ));
             }
             continue;
@@ -947,14 +996,20 @@ fn call_arguments(
                 argument_position,
                 vec![Root::Place(argument.place)],
                 argument.access,
-                false,
+                CallRegion::OrdinaryStorage,
             ));
         }
     }
-    for (position, (_, roots, access, reference_access)) in normalized.iter().enumerate() {
+    for (position, (argument_position, roots, access, reference_access)) in
+        normalized.iter().enumerate()
+    {
         if normalized[position + 1..].iter().any(
-            |(_, others, other_access, other_reference_access)| {
-                (*reference_access || *other_reference_access)
+            |(other_position, others, other_access, other_reference_access)| {
+                (*reference_access != CallRegion::OrdinaryStorage
+                    || *other_reference_access != CallRegion::OrdinaryStorage)
+                    && (argument_position != other_position
+                        || (*reference_access == CallRegion::Referent
+                            && *other_reference_access == CallRegion::Referent))
                     && roots
                         .iter()
                         .any(|root| others.iter().any(|other| roots_overlap(root, other)))
@@ -1848,10 +1903,13 @@ fn entry(
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Only owned affine carriers may enter with loans; the verified
-        // contract rejects every other reference-bearing entry parameter.
-        if parameter.access != StructuralAccess::Owned
-            || parameter.multiplicity != StructuralMultiplicity::Affine
+        // Borrowing lends the carrier roster without transferring its permissions.
+        if parameter.multiplicity
+            != if parameter.access == StructuralAccess::Owned {
+                StructuralMultiplicity::Affine
+            } else {
+                StructuralMultiplicity::Unrestricted
+            }
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || !constructible(types, parameter.structural_type)

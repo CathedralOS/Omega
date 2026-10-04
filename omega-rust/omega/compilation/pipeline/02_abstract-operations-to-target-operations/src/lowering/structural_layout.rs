@@ -10,12 +10,82 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
-/// Resolve a primitive leaf through a projection whose elements may be
-/// selected at run time: its scalar type, the static byte offset, and each
-/// runtime element's `(index, stride)` run in path order
-/// (`runtime_projection`). The root ABI declaration is not replaced.
-#[allow(clippy::type_complexity)]
+#[cfg(test)]
+mod primitive_projection_tests;
+
+/// Address arithmetic within one contiguous storage region. Crossing a
+/// reference starts a new region; neither offsets nor indices commute with
+/// the intervening pointer load.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct StorageProjection {
+    pub(super) byte_offset: u32,
+    pub(super) indices: Vec<(semantic_vocabulary::ValueId, u32)>,
+}
+
+/// Construction scratch for one primitive address, not a new target IR.
+/// Every pointer slot is evaluated relative to the preceding loaded pointer
+/// (the first uses the original root). The leaf is relative to the last one.
+/// Target operations retain the original path so selection can independently
+/// reconstruct these loads rather than trust flattened address metadata.
+pub(super) struct PrimitiveProjection {
+    pub(super) scalar: ScalarType,
+    pub(super) pointer_slots: Vec<StorageProjection>,
+    pub(super) leaf: StorageProjection,
+}
+
+/// Resolve a primitive address in path order. A reference declaration supplies
+/// pointer geometry, not permission: the admitted operation must independently
+/// establish live authority for every crossing. Origins never choose an address.
 pub(super) fn primitive_leaf_projection(
+    mut root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<PrimitiveProjection> {
+    let mut pointer_slots = Vec::new();
+    let mut segment_start = 0;
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
+            continue;
+        }
+        let (reference, shape, byte_offset, indices) = runtime_projection(
+            root,
+            &path[segment_start..position],
+            declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .ok()?;
+        let StructuralTypeShape::Reference { referent, .. } = declarations.get(&reference)?.shape
+        else {
+            return None;
+        };
+        if shape != ValueShape::integer(8, 8) {
+            return None;
+        }
+        pointer_slots.push(StorageProjection {
+            byte_offset,
+            indices,
+        });
+        root = referent;
+        segment_start = position + 1;
+    }
+    let (scalar, byte_offset, indices) =
+        contiguous_primitive_projection(root, &path[segment_start..], declarations)?;
+    Some(PrimitiveProjection {
+        scalar,
+        pointer_slots,
+        leaf: StorageProjection {
+            byte_offset,
+            indices,
+        },
+    })
+}
+
+/// Resolve the final contiguous region using the existing primitive endpoint
+/// rules. In particular, bounded integer fields still require field-store proof
+/// obligations; reference traversal does not turn them into primitive stores.
+#[allow(clippy::type_complexity)]
+fn contiguous_primitive_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -84,8 +154,8 @@ pub(super) fn primitive_leaf_projection(
     }
 }
 
-/// Resolve the scalar a primitive read observes: every leaf
-/// `primitive_leaf_projection` resolves, plus a scalar field ending a
+/// Resolve the scalar a contiguous primitive read observes: the single-region
+/// leaves `primitive_leaf_projection` resolves, plus a scalar field ending a
 /// projection that selects a record element at run time (`cells[i].hp`). The
 /// field's leaf type comes from `terminal_semantics::runtime_element_field`,
 /// the carrier resolves like any projection, and the field lands at its
@@ -98,7 +168,13 @@ pub(super) fn primitive_read_projection(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
     if let Some(leaf) = primitive_leaf_projection(root, path, declarations) {
-        return Some(leaf);
+        // This consumer emits one contiguous load. It cannot silently flatten
+        // pointer crossings; a dereferencing read needs its own admitted load
+        // sequence and independent native replay.
+        if !leaf.pointer_slots.is_empty() {
+            return None;
+        }
+        return Some((leaf.scalar, leaf.leaf.byte_offset, leaf.leaf.indices));
     }
     let (scalar, record) =
         terminal_semantics::runtime_element_field(declarations.values().copied(), root, path)?;

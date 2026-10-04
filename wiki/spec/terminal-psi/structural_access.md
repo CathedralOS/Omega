@@ -93,6 +93,17 @@ not one permission per candidate. Returning that permission does not transfer
 the temporary slice descriptor used to select the referent; its own checked
 release still requires disposal of the materialized descriptor.
 
+An ordinary machine may also borrow a record that contains reference leaves.
+The record loan lends descriptor storage; it does not move the contained
+permissions or acquire ownership of their referents. Shared carrier access
+attenuates those permissions to shared access. Mutable carrier access preserves
+each leaf's declared ceiling, and every crossing still requires live,
+unsuspended custody. All normal returns restore the exact incoming leaf roster,
+including formation identity, carrier path, origin and immediate parent; an
+equal-typed replacement is not restoration. Locally formed children must end
+before return. This machine-call rule does not admit borrowed reference-bearing
+block transport or reference-valued host-entry parameters.
+
 Native reference values carry an address word (eight bytes on the supported
 64-bit targets), including reference leaves inside records. A call captures
 that word into the exact producer's result home. Byte/scalar stores load the
@@ -353,8 +364,19 @@ Primitive reads and stores also retain an optional canonical field/index path
 from the original root to a primitive structural leaf. Empty paths keep the
 whole-primitive contract. Nonempty paths select relevant structural record fields
 and fixed-array indices; each index must be below its declared extent, including
-every dimension of a nested array. Cases, reference crossings and nonprimitive
-leaves reject.
+every dimension of a nested array. Cases and nonprimitive leaves reject.
+
+A primitive store may cross a stored mutable reference using an explicit
+`Referent` segment after the exact field/fixed-index path to its pointer slot.
+The destination remains the original carrier, not an inferred backing origin.
+The checker requires the selected reference leaf to be live and unsuspended,
+its descriptor storage available, and its access mutable; borrowing a carrier
+does not duplicate or strengthen the permissions held inside it. The current
+reference-custody contract admits primitive or plain-owned record referents,
+not opaque nested reference authority. Primitive reads still reject reference
+crossings. A crossing has no canonical owned leaf and supplies no field fact.
+Native realization loads the pointer at the retained slot before applying the
+referent-relative offsets and indices; independent replay checks that sequence.
 
 A read, and only a read, may also end at a scalar field of a record element it
 selects at run time: `context.cells[context.i].hp` is one `PrimitiveScalarRead` whose

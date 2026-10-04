@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// The reference is not the first field: its address must be loaded from the
+// carrier before applying any referent-relative geometry.
+data Carrier { count: u64; destination: &mut u64; }
+machine Carrier::set_count(carrier: &mut Carrier) { carrier.count = 7; }
+
+machine inspect(destination: &mut u64, observed: &u64) -> u64 {
+    let mut carrier: Carrier = Carrier { count: 0, destination: destination };
+    Carrier::set_count(&mut carrier);
+    carrier.destination = 11;
+    match observed == 59 && carrier.count == 7 { true -> 70, false -> 71 }
+}
+
+data Main { console: Binding<Console>; value: u64; scratch: u64; }
+machine Main::main(context: &mut Main) reaches Console {
+    context.value = 59;
+    context.scratch = 0;
+    let result: u64 = inspect(&mut context.scratch, &context.value);
+    transition result == 70 && context.scratch == 11 && context.value == 59 {
+        true -> finish(context, 70)
+        false -> finish(context, 71)
+    }
+    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+}

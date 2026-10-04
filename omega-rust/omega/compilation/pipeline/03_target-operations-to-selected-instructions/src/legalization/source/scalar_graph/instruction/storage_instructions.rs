@@ -215,25 +215,24 @@ pub(super) fn project_write_only_primitive_store(
         unreachable!("dispatched project_write_only_primitive_store")
     };
     let kind = {
-        let (byte_offset, byte_size, elements) =
-            crate::structural_inputs::structural_reference_input::primitive_store(
-                destination,
-                path,
-                value.scalar_type,
-                &unit.structural_types,
-            )
-            .ok_or(Error::custody())?;
+        let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
+            destination,
+            path,
+            value.scalar_type,
+            &unit.structural_types,
+        )
+        .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination: destination.clone(),
             path: path.clone(),
             value: *value,
-            byte_offset,
-            byte_size,
+            byte_offset: geometry.byte_offset,
+            byte_size: geometry.byte_size,
             indices: crate::legalization::runtime_indices::operands(
                 optimized,
                 unit,
                 *psi_operation,
-                &elements,
+                &geometry.elements,
             )?,
         }
     };

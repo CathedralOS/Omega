@@ -116,17 +116,17 @@ pub(crate) fn filter_reassigned_borrow_loans(
         _ => return source,
     };
 
-    // A bare reference local may be assigned through rather than replaced.
-    // Retire its carried loan only when the ordinary assignment classification
-    // establishes a binding replacement; writing the pointee keeps the loan.
-    if reassigned_segments.is_empty()
+    // Reference carriers have the same lifetime rule at a root or a projection:
+    // writing through one preserves its captured loan, while replacing it ends
+    // the old occurrence. Classify the typed target before comparing owner paths.
+    if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
         && let Some((machine, state)) = crate::semantic::calls::find_state_with_machine(
             program,
             program.symbols.get(reassigned_symbol).parent,
         )
-        && let Some((_, local)) = program.state_local_declaration(state, reassigned_symbol)
+        && let Some(mut reference) =
+            validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
     {
-        let mut reference = local.type_reference;
         while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
@@ -140,7 +140,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
             let replacement =
                 crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
                     .and_then(|frames| {
-                        frames.assignment_replaces_local_reference_binding(machine, statement)
+                        frames.assignment_replaces_reference_binding(machine, statement)
                     });
             if replacement != Some(true) {
                 return source;

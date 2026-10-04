@@ -1,0 +1,8 @@
+data Carrier { count: u64; destination: &mut u64; }
+
+machine invalid(destination: &mut u64) -> u64 {
+    let mut carrier: Carrier = Carrier { count: 7, destination: destination };
+    let observed: &Carrier = &carrier;
+    carrier.destination = 11;
+    observed.count
+}

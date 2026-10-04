@@ -1025,10 +1025,12 @@ fn validate_record_stores(
     Ok(())
 }
 
-/// A local store names a unique, earlier owned declaration. Its current live
-/// home is resolved separately by the ordered lowering namespace, so a move
-/// cannot be undone merely by finding the old declaration again.
-/// Source mutability gates whole-local rebinding, not field writes.
+/// Rejoin a structural local to its unique earlier declaration. This is source
+/// identity, not a transfer or mutation permission: a carrier may hold reference
+/// fields without owning their backing. Consumers retain the exact declared
+/// type and resolve its current live storage in the ordered namespace, then
+/// check the selected operation's access, qualifications and field geometry.
+/// Finding this declaration cannot restore a moved home or strengthen a loan.
 pub(crate) fn local_destination<'a>(
     checked: &'a CheckedTrees,
     state: &checked_trees::state::State,
@@ -1050,26 +1052,12 @@ pub(crate) fn local_destination<'a>(
     if !symbol.is_valid()
         || locals.next().is_some()
         || ordinal >= statement as usize
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            &checked.typed,
-            local.type_reference,
-        ) && !(checked.type_multiplicity(local.type_reference)
-            == language_semantics::Multiplicity::Unrestricted
-            && validation::has_plain_owned_contents_with_represented_constraints(
-                &checked.typed,
-                local.type_reference,
-            ))
-            && !validation::has_owned_or_shared_view_fields(&checked.typed, local.type_reference)
-            && validation::reference_result_custody::mutable_borrowed_parts(
-                &checked.typed,
-                local.type_reference,
-            )
-            .is_none()
+        || !local.type_reference.is_valid()
         || checked
             .primitive_type_reference(local.type_reference)
             .is_some()
     {
-        return unsupported("record store lost its owned structural declaration");
+        return unsupported("record store lost its earlier structural declaration");
     }
     Ok(local)
 }
@@ -1262,4 +1250,69 @@ pub(crate) fn member_identity(
                 _ => None,
             })
     })
+}
+
+#[cfg(test)]
+mod local_destination_tests {
+    use super::*;
+
+    #[test]
+    fn structural_local_identity_does_not_require_transferable_contents() {
+        let checked = crate::front_end::checked_program(
+            "data Carrier { prefix: u64; destination: &mut u64; }
+             data Main {}
+             machine Main::write(destination: &mut u64) {
+                 let carrier: Carrier = Carrier { prefix: 3, destination: destination };
+                 carrier.destination = 11;
+             }",
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::write")
+            .expect("write machine");
+        let state = &checked.machine_states(machine)[0];
+        let StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("carrier declaration");
+        };
+        let destination = local_destination(&checked, state, 1, local.symbol)
+            .expect("reference-bearing storage retains its declared identity");
+        assert_eq!(destination.type_reference, local.type_reference);
+        assert!(
+            local_destination(&checked, state, 0, local.symbol).is_err(),
+            "a declaration is not available before its establishment"
+        );
+        assert!(
+            local_destination(&checked, state, 1, machine.symbol).is_err(),
+            "another valid symbol cannot substitute for the local declaration"
+        );
+    }
+
+    #[test]
+    fn primitive_locals_do_not_acquire_a_structural_destination() {
+        let checked = crate::front_end::checked_program(
+            "data Main {}
+             machine Main::write() {
+                 let mut value: u64 = 0;
+                 value = 11;
+             }",
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::write")
+            .expect("write machine");
+        let state = &checked.machine_states(machine)[0];
+        let StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("scalar declaration");
+        };
+        assert!(
+            local_destination(&checked, state, 1, local.symbol).is_err(),
+            "primitive locals keep their scalar-storage owner"
+        );
+    }
 }

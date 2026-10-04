@@ -729,8 +729,9 @@ pub(super) fn validate_current_ownership_cfg(
                             *place,
                         )?;
                     }
-                    super::references::require_no_references(
+                    super::references::validate_normal_return(
                         function,
+                        structural_types,
                         block_id,
                         &frontier.live_references,
                     )?;

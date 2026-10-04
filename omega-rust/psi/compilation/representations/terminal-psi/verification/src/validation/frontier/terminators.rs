@@ -13,6 +13,7 @@
 //! diagnostic surfaces first is pinned by each close's check order and by
 //! the structural field tests.
 
+use super::super::references::validate_normal_return;
 use super::super::{
     BTreeMap, BlockId, ModuleError, OperationKind, StructuralAccess, StructuralMultiplicity,
     StructuralPlaceKind, Terminator, partial_affine_residuals, partial_affine_root_type,
@@ -20,13 +21,11 @@ use super::super::{
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
     apply_continuation_residual_discards, apply_edge_trivial_affine_discards,
-    expected_trivial_affine_discards, release_reference_discards, require_no_references,
-    validate_scalar_cleanup_actions,
+    expected_trivial_affine_discards, release_reference_discards, validate_scalar_cleanup_actions,
 };
 
-/// Closes a block: every successful exit closes its remaining loans, then
-/// the terminator kind hands the frontier to its successors or checks the
-/// machine's exit custody.
+/// Closes a block: successful exits close owned loans and restore borrowed
+/// ingress. Successor terminators instead transport the current frontier.
 pub(super) fn close_block(
     walk: &FrontierWalk<'_>,
     block: &terminal_psi::Block,
@@ -40,8 +39,8 @@ pub(super) fn close_block(
     } = *walk;
     walk.descriptor_loans
         .check_terminator(module, machine, block)?;
-    // Every successful exit closes its remaining loans. The ordinary
-    // ownership checks below independently validate the complete roster.
+    // Disposal closes owned loans, never borrowed ingress. The ordinary
+    // ownership checks below independently validate the cleanup roster.
     let closing = match &block.terminator {
         Terminator::ReturnUnitPartialAffine {
             trivial_affine_discards,
@@ -53,7 +52,7 @@ pub(super) fn close_block(
     if let Some(discards) = closing {
         let mut remaining = frontier.references.clone();
         release_reference_discards(module, machine, &mut remaining, &discards)?;
-        require_no_references(machine, &remaining)?;
+        validate_normal_return(machine, walk.borrowed_references, &remaining)?;
     }
     match &block.terminator {
         Terminator::Jump { .. } => close_jump(walk, block, frontier, snapshots, incoming),
@@ -361,7 +360,7 @@ fn close_return_unit(
         &mut frontier.references,
         trivial_affine_discards,
     )?;
-    require_no_references(machine, &frontier.references)?;
+    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -574,6 +573,7 @@ fn close_return(
         machines,
         block.id,
         &frontier,
+        walk.borrowed_references,
         cleanup_actions,
     )?;
     Ok(())
@@ -867,7 +867,7 @@ fn close_return_structural(
         &mut frontier.references,
         trivial_affine_discards,
     )?;
-    require_no_references(machine, &frontier.references)?;
+    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
     if let Some(claim) = frontier.claims.keys().next() {
         return Err(ModuleError::LiveClaimAtStructuralReturn {
             machine: machine.id,

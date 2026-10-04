@@ -33,7 +33,7 @@ pub struct LocalScalarRecordField {
     pub domain: ArithmeticDomain,
 }
 
-/// Resolve a field path below one prior, whole plain-owned local. Storage is
+/// Resolve a field path below one prior local record declaration. Storage is
 /// observed at this statement, never equated with its initializer: member
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
@@ -74,7 +74,7 @@ pub fn local_scalar_record_field(
     let Some(Step::Member(leaf)) = steps.first().copied() else {
         return None;
     };
-    let local = local_plain_record(
+    let local = local_record(
         program,
         machine,
         state,
@@ -260,7 +260,7 @@ fn expression_at_statement(
     false
 }
 
-fn local_plain_record(
+fn local_record(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -357,17 +357,11 @@ fn local_plain_record(
         } => *referee,
         _ => local.type_reference,
     };
-    // The storage judgment owns the complete record's custody restrictions.
-    // Observation only selects a scalar path: unrelated arrays and sums do
-    // not need to satisfy a second, scalar-record-only construction roster.
-    // Their establishment remains the producer's independently checked work.
-    // A record mixing plain fields with shared views keeps that judgment:
-    // reading a scalar member moves no view custody, and the view carrier
-    // classifies the same owned-carrier shape the disposal and return paths
-    // already accept.
-    if !crate::has_plain_owned_contents_with_numeric_constraints(program, carrier)
-        && !crate::has_owned_or_shared_view_fields(program, carrier)
-    {
+    // A scalar observation moves neither its record nor neighboring reference
+    // permissions. Establishment and use-site custody are checked separately;
+    // a whole-content transfer classifier is not a storage-read judgment.
+    // This route still carries no linear-claim requirements.
+    if !crate::linear_claim_frontier(program, carrier).is_empty() {
         return None;
     }
     let TypeReferenceNode::Named { symbol, .. } =

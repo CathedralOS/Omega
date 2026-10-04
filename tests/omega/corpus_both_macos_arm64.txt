@@ -12,6 +12,7 @@ pass/arithmetic/runtime_nested_unsigned_witness_exit built 1630ms exit:70 interp
 pass/arithmetic/runtime_remainder_result_cast_exit built 1541ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrows/returned_record_field_read_exit built 1319ms exit:70 interpreter-exit:70 interpreter:agrees @2816825e8941
+pass/borrows/runtime_carrier_reference_store_exit built 1557ms exit:70 interpreter-exit:70 interpreter:agrees @f41cc6938f06+wt
 pass/borrows/static_record_reference_return_exit built 1196ms exit:0 interpreter-exit:0 interpreter:agrees @2816825e8941
 pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt

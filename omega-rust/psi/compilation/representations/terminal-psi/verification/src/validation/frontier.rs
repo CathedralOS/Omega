@@ -235,6 +235,9 @@ pub(super) struct FrontierWalk<'a> {
     pub(super) machines: &'a BTreeMap<MachineId, &'a TerminalMachine>,
     pub(super) blocks: &'a BTreeMap<BlockId, &'a terminal_psi::Block>,
     pub(super) parameter_order: &'a [&'a StructuralParameterDeclaration],
+    /// Exact borrowed ingress permissions, reconstructed once at entry and
+    /// restored at every normal exit without re-expanding the type roster.
+    pub(super) borrowed_references: &'a [super::references::LiveReference],
     /// Possible storage regions pinned by shared state parameters after
     /// composing their incoming projections through borrowed arrivals.
     shared_loans: &'a shared_loans::SharedLoans<'a>,
@@ -264,6 +267,16 @@ pub(super) fn validate_structural_frontier(
         edge_exits: BTreeMap::new(),
     };
     let entry = block_entry::entry_frontier(module, machine)?;
+    let borrowed_references = entry
+        .references
+        .iter()
+        .filter(|reference| {
+            machine.structural_parameters.iter().any(|parameter| {
+                parameter.place == reference.carrier && parameter.access != StructuralAccess::Owned
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let parameter_order = block_parameters::disposal_order(machine, dominators);
     let order = traversal::block_order(machine.entry, blocks);
     let origins = super::borrowed_windows::borrowed_storage_origins(module, machine);
@@ -278,6 +291,7 @@ pub(super) fn validate_structural_frontier(
         machines,
         blocks,
         parameter_order: &parameter_order,
+        borrowed_references: &borrowed_references,
         shared_loans: &shared_loans,
         descriptor_loans: &descriptor_loans,
         window_aliases: &window_aliases,
@@ -572,20 +586,6 @@ fn release_reference_discards(
     Ok(())
 }
 
-fn require_no_references(
-    machine: &TerminalMachine,
-    references: &[super::references::LiveReference],
-) -> Result<(), ModuleError> {
-    if references.is_empty() {
-        Ok(())
-    } else {
-        Err(super::references::invalid(
-            machine,
-            "normal completion leaves reference custody unaccounted for",
-        ))
-    }
-}
-
 fn require_snapshot_match(
     block: BlockId,
     expected: &VerifiedStructuralOwnershipFrontier,
@@ -670,6 +670,7 @@ fn validate_scalar_cleanup_actions(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     block: BlockId,
     frontier: &StructuralOwnershipFrontier,
+    borrowed_references: &[super::references::LiveReference],
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<(), ModuleError> {
     let mismatch = || ModuleError::ScalarReturnAffineDiscardsMismatch {
@@ -793,7 +794,12 @@ fn validate_scalar_cleanup_actions(
     // The frontier also records available copies. They may remain after a
     // scalar return; only affine/linear custody requires explicit discharge.
     if actions.next().is_some()
-        || !frontier.references.is_empty()
+        || super::references::validate_normal_return(
+            machine,
+            borrowed_references,
+            &frontier.references,
+        )
+        .is_err()
         || frontier
             .owned_places
             .values()

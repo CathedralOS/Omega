@@ -1,4 +1,3 @@
-use crate::unit_validation::operation_contracts::records::record_loan;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -233,14 +232,13 @@ pub(crate) fn structural_arguments_match(
             StructuralProjectionPolicy::Projected => true,
             StructuralProjectionPolicy::Boundary => true,
         };
-        // An established, claim-free local result keeps whole-value custody
-        // like an owned unrestricted root: its producer's affine lifecycle is
-        // already discharged, so it lends an exact subtree with the same
-        // exclusive authority. Declared parameters still require their own
-        // unrestricted signature; entry claims keep the result out.
-        let completed_affine_result = source.operation_result.is_some_and(|result| {
-            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && result.claims.is_empty()
+        // Borrowing lends completed storage without transferring carried permissions.
+        let completed_result = source.operation_result.is_some_and(|result| {
+            matches!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine
+                    | terminal_psi::StructuralMultiplicity::Unrestricted
+            ) && result.claims.is_empty()
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.qualification_establishments.is_empty()
@@ -252,6 +250,8 @@ pub(crate) fn structural_arguments_match(
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == argument.place);
+        let completed_affine_result =
+            completed_result && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
         let unrestricted_mutable_subloan = static_borrowed_path
             && argument.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -519,10 +519,28 @@ pub(crate) fn structural_arguments_match(
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.access == terminal_psi::StructuralAccess::Owned
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
+        let completed_result_loan = completed_result
+            && argument.access != terminal_psi::StructuralAccess::Owned
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        let shared_arrival_loan = source.access == terminal_psi::StructuralAccess::Owned
+            && matches!(
+                source.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine
+                    | terminal_psi::StructuralMultiplicity::Unrestricted
+            )
+            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
+            && caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .any(|parameter| parameter.place == argument.place);
         let actual_multiplicity = if shared_affine_loan
+            || completed_result_loan
+            || shared_arrival_loan
             || view_loan
             || shared_buffer_presentation
-            || record_loan(caller, argument, parameter, types)
         {
             terminal_psi::StructuralMultiplicity::Unrestricted
         } else if argument.path.is_empty() {

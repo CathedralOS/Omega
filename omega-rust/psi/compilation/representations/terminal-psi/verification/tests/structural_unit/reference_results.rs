@@ -1979,6 +1979,437 @@ fn record_reference_module() -> TerminalModule {
     module
 }
 
+fn record_reference_primitive_store_module() -> TerminalModule {
+    let mut module = record_reference_module();
+    // The store keeps the carrier and its explicit crossing. Live custody of
+    // this leaf authorizes the write, not substitution of its static origin.
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::WriteOnlyPrimitiveStore {
+        destination: place_id(3),
+        path: stored_reference_argument().path,
+        value: value_id(1),
+    };
+    // This variant has no calls; keep permission controls local to its owner.
+    module.machines.truncate(1);
+    module
+}
+
+fn borrowed_reference_carrier_call_module(access: StructuralAccess) -> TerminalModule {
+    let mut module = record_reference_module();
+    let writer = &mut module.machines[2];
+    writer.structural_parameters[0].structural_type = structural_type_id(3);
+    writer.structural_parameters[0].access = access;
+    writer.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+    if access == StructuralAccess::SharedBorrow {
+        writer.blocks[0].operations.clear();
+    } else {
+        let OperationKind::WriteOnlyPrimitiveStore { path, .. } =
+            &mut writer.blocks[0].operations[0].kind
+        else {
+            panic!("primitive writer");
+        };
+        *path = stored_reference_argument().path;
+    }
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0] = StructuralArgument {
+        place: place_id(3),
+        path: Vec::new(),
+        access,
+    };
+    module
+}
+
+#[test]
+fn borrowed_reference_carrier_calls_preserve_ingress_and_caller_custody() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        verify_module(
+            &borrowed_reference_carrier_call_module(access),
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("borrowing a carrier returns its exact permissions without moving its owner");
+    }
+}
+
+#[test]
+fn borrowed_reference_carrier_call_rejects_shared_authority_promotion() {
+    let mut module = borrowed_reference_carrier_call_module(StructuralAccess::MutableBorrow);
+    module.machines[2].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!();
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert!(
+        validate_module(&module).is_err(),
+        "a shared carrier cannot write its mutable leaf"
+    );
+}
+
+#[test]
+fn borrowed_reference_carrier_return_requires_child_release() {
+    let mut module = borrowed_reference_carrier_call_module(StructuralAccess::MutableBorrow);
+    let writer = &mut module.machines[2];
+    writer.structural_places.push(reference_place(31, 31));
+    writer.blocks[0].operations.splice(
+        0..0,
+        [
+            establish(
+                31,
+                31,
+                StructuralArgument {
+                    place: place_id(30),
+                    path: stored_reference_argument().path,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            release(32, 31),
+        ],
+    );
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a temporary child restores the exact borrowed ingress leaf");
+    // Leave only the child formation: no conflicting store can mask the
+    // normal-return requirement to restore borrowed ingress permissions.
+    module.machines[2].blocks[0].operations.truncate(1);
+    assert!(
+        validate_module(&module).is_err(),
+        "normal return cannot retain a child loan"
+    );
+}
+
+#[test]
+fn borrowed_reference_carrier_call_rejects_overlapping_referent_argument() {
+    let mut module = borrowed_reference_carrier_call_module(StructuralAccess::MutableBorrow);
+    let writer = &mut module.machines[2];
+    let mut parameter = writer.structural_parameters[0].clone();
+    parameter.place = place_id(31);
+    parameter.position = 1;
+    parameter.structural_type = structural_type_id(1);
+    writer.structural_parameters.push(parameter);
+    writer.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(31),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!();
+    };
+    structural_arguments.push(argument(1, false));
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_carrier_primitive_store_uses_live_record_leaf() {
+    verify_module(
+        &record_reference_primitive_store_module(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a live mutable record leaf permits a primitive store through its referent");
+}
+
+#[test]
+fn reference_carrier_primitive_store_uses_the_same_permission_for_a_whole_carrier() {
+    let mut module = relay_module(false);
+    module.machines.truncate(1);
+    let operations = &mut module.machines[0].blocks[0].operations;
+    operations[0] = establish(1, 2, argument(1, false));
+    operations[1].kind = OperationKind::WriteOnlyPrimitiveStore {
+        destination: place_id(2),
+        path: vec![StructuralPathSegment::Referent],
+        value: value_id(1),
+    };
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("whole and record-contained carriers use the same live leaf permission");
+}
+
+#[test]
+fn reference_carrier_primitive_store_rejects_missing_or_wrong_crossing() {
+    for path in [
+        vec!["body".into()],
+        vec![StructuralPathSegment::Referent],
+        vec!["counterfeit".into(), StructuralPathSegment::Referent],
+        vec![
+            "body".into(),
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::Referent,
+        ],
+    ] {
+        let mut module = record_reference_primitive_store_module();
+        let OperationKind::WriteOnlyPrimitiveStore {
+            path: destination_path,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[2].kind
+        else {
+            panic!("primitive store");
+        };
+        *destination_path = path.clone();
+        assert!(
+            validate_module(&module).is_err(),
+            "a malformed reference crossing must not authorize a store: {path:?}"
+        );
+    }
+}
+
+#[test]
+fn reference_carrier_primitive_store_rejects_shared_leaf() {
+    let mut module = record_reference_primitive_store_module();
+    let StructuralTypeShape::Reference { access, .. } = &mut module.structural_types[1].shape
+    else {
+        panic!("reference type");
+    };
+    *access = StructuralAccess::SharedBorrow;
+    let OperationKind::EstablishReference { source } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("reference establishment");
+    };
+    source.access = StructuralAccess::SharedBorrow;
+    let store = module.machines[0].blocks[0].operations.pop().unwrap();
+    validate_module(&module).expect("forming and discarding the shared record leaf is valid");
+    module.machines[0].blocks[0].operations.push(store);
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
+            operation: operation_id(2),
+            place: place_id(3),
+        }
+    );
+}
+
+#[test]
+fn reference_carrier_primitive_store_rejects_released_leaf() {
+    let mut module = record_reference_primitive_store_module();
+    let store = module.machines[0].blocks[0].operations.pop().unwrap();
+    validate_module(&module).expect("discarding the record releases its reference leaf");
+    module.machines[0].blocks[1].operations.insert(0, store);
+    assert!(
+        validate_module(&module).is_err(),
+        "the old carrier cannot write after its leaf was released on the discard edge"
+    );
+}
+
+#[test]
+fn reference_carrier_primitive_store_rejects_suspended_leaf() {
+    let mut module = record_reference_primitive_store_module();
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(reference_place(4, 6));
+    caller.blocks[0]
+        .operations
+        .insert(1, establish(6, 4, argument(2, true)));
+    caller.blocks[0].operations.insert(3, release(7, 4));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("releasing the child restores the relocated parent's write permission");
+    module.machines[0].blocks[0].operations.swap(3, 4);
+    rejects_custody(&module);
+}
+
+#[test]
+fn reference_carrier_primitive_store_invalidates_prewrite_value_after_release() {
+    let mut module = record_reference_primitive_store_module();
+    let caller = &mut module.machines[0];
+    let OperationKind::WriteOnlyPrimitiveStore { value, .. } =
+        &mut caller.blocks[0].operations[2].kind
+    else {
+        panic!("primitive store");
+    };
+    *value = value_id(3);
+    caller.blocks[0].operations.splice(
+        0..0,
+        [
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(7),
+                result: OperationResult::Unit,
+                kind: OperationKind::WriteOnlyPrimitiveStore {
+                    destination: place_id(1),
+                    path: Vec::new(),
+                    value: value_id(1),
+                },
+            },
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(8),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(3),
+                    scalar_type: signed_i8(),
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Signed(7),
+                },
+            },
+        ],
+    );
+    let term = |value| ScalarTerm::value(value_id(value), signed_i8());
+    caller.contract.ensures.push(ContractClause {
+        obligation: obligation_id(1),
+        proposition: Proposition::Equal(term(99), term(1)),
+    });
+    let snapshot = Proposition::Equal(term(2), term(1));
+    let has_snapshot = |module: &TerminalModule| {
+        terminal_verifier::reconstruct_terminal_obligations(module)
+            .expect("valid carrier store with a post-release return obligation")
+            .obligations()
+            .iter()
+            .any(|obligation| obligation.semantic_axioms.contains(&snapshot))
+    };
+    assert!(
+        !has_snapshot(&module),
+        "writing through the record leaf invalidates the original root's pre-write value"
+    );
+    module.machines[0].blocks[0]
+        .operations
+        .retain(|operation| operation.id != operation_id(2));
+    assert!(
+        has_snapshot(&module),
+        "moving and discarding permission alone preserve the original stored value"
+    );
+}
+
+fn record_reference_primitive_store_with_descriptor_loan_module() -> TerminalModule {
+    let mut module = record_reference_primitive_store_module();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "SharedCarrierReference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: structural_type_id(3),
+            access: StructuralAccess::SharedBorrow,
+        },
+    });
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(8),
+            structural_type: structural_type_id(4),
+        },
+    });
+    let mut formation = establish(
+        8,
+        4,
+        StructuralArgument {
+            place: place_id(3),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+    );
+    let OperationResult::Structural(result) = &mut formation.result else {
+        unreachable!();
+    };
+    result.structural_type = structural_type_id(4);
+    caller.blocks[0]
+        .operations
+        .splice(2..2, [formation, release(9, 4)]);
+    module
+}
+
+#[test]
+fn reference_carrier_primitive_store_waits_for_descriptor_storage_release() {
+    let mut module = record_reference_primitive_store_with_descriptor_loan_module();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("releasing the descriptor-storage loan restores its contained permission");
+    module.machines[0].blocks[0].operations.swap(3, 4);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidReferenceCustody {
+            machine: machine_id(1),
+            reason: "field destination descriptor storage remains borrowed",
+        })
+    );
+}
+
+#[test]
+fn reference_carrier_primitive_store_rejects_a_typed_second_crossing() {
+    let original = record_reference_primitive_store_with_descriptor_loan_module();
+    validate_module(&original).expect("the descriptor loan is released before the ordinary store");
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut module = original.clone();
+        let StructuralTypeShape::Reference {
+            access: declared_access,
+            ..
+        } = &mut module.structural_types[3].shape
+        else {
+            panic!("outer descriptor reference");
+        };
+        *declared_access = access;
+        let operations = &mut module.machines[0].blocks[0].operations;
+        let OperationKind::EstablishReference { source } = &mut operations[2].kind else {
+            panic!("descriptor loan formation");
+        };
+        source.access = access;
+        // The outer descriptor stays live through the attempted store; this
+        // is a well-typed second crossing, not a dangling or misspelled path.
+        operations.swap(3, 4);
+        let path = vec![
+            StructuralPathSegment::Referent,
+            "body".into(),
+            StructuralPathSegment::Referent,
+        ];
+        let OperationKind::WriteOnlyPrimitiveStore {
+            destination,
+            path: stored_path,
+            ..
+        } = &mut operations[3].kind
+        else {
+            panic!("primitive store");
+        };
+        *destination = place_id(4);
+        *stored_path = path.clone();
+        assert_eq!(
+            terminal_semantics::primitive_projection_type(
+                module.structural_types.iter(),
+                structural_type_id(4),
+                &path,
+            ),
+            Some(signed_i8()),
+            "type geometry can describe both descriptor crossings"
+        );
+        assert!(
+            validate_module(&module).is_err(),
+            "geometry cannot grant multihop store permission through {access:?}"
+        );
+    }
+}
+
 #[test]
 fn reference_record_rejects_duplicate_child_and_unrestricted_owner() {
     let mut module = record_reference_module();

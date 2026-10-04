@@ -46,6 +46,44 @@ pub(crate) fn discard_structural_value(
 }
 
 impl TerminalExecution {
+    /// Borrowed ingress retains the caller's descriptor storage without an
+    /// affine owner entry in this frame. Its declared authority bounds every
+    /// reference crossing; owned carriers still require live affine custody.
+    fn reference_carrier_access(
+        &self,
+        place: PlaceId,
+        owner: &TerminalStructuralValue,
+    ) -> Result<StructuralAccess, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let machine = self
+            .program
+            .machines
+            .get(&self.current_machine)
+            .ok_or_else(invalid)?;
+        if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
+            parameter.place == place && parameter.access != StructuralAccess::Owned
+        }) {
+            if parameter.structural_type != owner.structural_type
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+            {
+                return Err(invalid());
+            }
+            return Ok(parameter.access);
+        }
+        self.live_affine_frontier
+            .contains(&StructuralAffineDiscard {
+                place,
+                path: Vec::new(),
+                structural_type: owner.structural_type,
+            })
+            .then_some(StructuralAccess::Owned)
+            .ok_or_else(invalid)
+    }
+
     fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
@@ -165,7 +203,7 @@ impl TerminalExecution {
             .collect()
     }
 
-    fn resolve_live_projection(
+    pub(crate) fn resolve_live_projection(
         &self,
         place: PlaceId,
         path: &[StructuralPathSegment],
@@ -173,16 +211,11 @@ impl TerminalExecution {
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let owner = self.structural_values.get(&place).ok_or_else(invalid)?;
-        if path.contains(&StructuralPathSegment::Referent)
-            && !self
-                .live_affine_frontier
-                .contains(&StructuralAffineDiscard {
-                    place,
-                    path: Vec::new(),
-                    structural_type: owner.structural_type,
-                })
-        {
-            return Err(invalid());
+        if path.contains(&StructuralPathSegment::Referent) {
+            let authority = self.reference_carrier_access(place, owner)?;
+            if !access_covers(authority, access) {
+                return Err(invalid());
+            }
         }
         self.resolve_reference_path(owner, path, access)
     }

@@ -443,7 +443,7 @@ pub(crate) fn reference_access(
 /// Loan strength: whether a place held with `authority` may lend `requested`.
 /// Ownership lends any loan, a mutable loan may be reborrowed shared or
 /// write-only, and a shared loan lends only a shared one.
-fn access_covers(
+pub(crate) fn access_covers(
     authority: terminal_psi::StructuralAccess,
     requested: terminal_psi::StructuralAccess,
 ) -> bool {
@@ -566,18 +566,6 @@ fn direct_reference_parameter<'a>(
             .iter()
             .all(|claim| claim.input.root != source.place))
     .then_some(parameter)
-}
-
-/// An owned argument that carries at least one reference leaf moves the loans
-/// with it; the callers' ingress replay tracks each leaf exactly.
-pub(crate) fn argument_owns_references(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    argument: &terminal_psi::StructuralArgument,
-) -> bool {
-    argument.access == terminal_psi::StructuralAccess::Owned
-        && structural_source_contract(function, argument.place)
-            .is_some_and(|source| contains_reference(types, source.structural_type))
 }
 
 /// The formal origin a callee result mapping names: a mutable primitive
@@ -716,8 +704,12 @@ pub(crate) fn validate_function_references(
         .iter()
         .filter(|parameter| contains_reference(types, parameter.structural_type))
     {
-        if parameter.access != terminal_psi::StructuralAccess::Owned
-            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        if parameter.multiplicity
+            != if parameter.access == terminal_psi::StructuralAccess::Owned {
+                terminal_psi::StructuralMultiplicity::Affine
+            } else {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            }
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || !constructible(types, parameter.structural_type)

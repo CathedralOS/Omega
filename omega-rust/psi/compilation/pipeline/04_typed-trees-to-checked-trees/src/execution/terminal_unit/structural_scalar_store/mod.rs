@@ -22,7 +22,7 @@
 //! field, or indexed element. This planner does not decompose constructors.
 //!
 //! What remains refused is a custody or proof condition, not an arrangement:
-//! write frames, linear or qualified roots, reference crossings, and fields
+//! write frames, linear or qualified roots, unsupported permission crossings, and fields
 //! whose declared domain the stored value carries no evidence for.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -132,30 +132,6 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         let statement_index = u32::try_from(statement_index).ok()?;
         trace.phase("scalar field store sequence: assignment store");
         trace.statement(Some(statement_index));
-        if let Some(store) = primitive::store_at(
-            program,
-            facts,
-            machine,
-            state,
-            structural_parameters,
-            statement_index,
-            assignment,
-        ) {
-            stores.push(store);
-            continue;
-        }
-        if let Some(elements) = primitive::array_literal_stores(
-            program,
-            facts,
-            machine,
-            state,
-            structural_parameters,
-            statement_index,
-            assignment,
-        ) {
-            stores.extend(elements);
-            continue;
-        }
         let baseline = trace.mark();
         if let Some(planned) = plan_assignment(
             program,
@@ -409,7 +385,21 @@ fn plan_assignment(
     )?;
     // A runtime selector directly on the root indexes a whole borrowed view;
     // that operation carries its own (read-capable) authority.
-    if destination.place.segments.is_empty() && destination.dynamic_index.is_some() {
+    if destination.place.segments.is_empty()
+        && destination.dynamic_index.is_some()
+        && (matches!(
+            program
+                .type_reference_table
+                .type_reference(validation::unwrapped_type_reference(
+                    program,
+                    destination.root_type
+                )?),
+            TypeReferenceNode::Slice { .. }
+        ) || matches!(
+            byte_sequence_carrier(program, destination.root_type, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        ))
+    {
         return byte_stores::view_write(
             program,
             facts,
@@ -457,27 +447,37 @@ fn plan_assignment(
         )
         .map(|store| vec![store]);
     }
+    // Every leaf consumes one resolved storage root and selector roster.
+    // Primitive stores must not retry destination recognition independently.
+    if let Some(store) = primitive::store_at(
+        program,
+        facts,
+        machine,
+        state,
+        &destination,
+        statement_index,
+        assignment,
+    ) {
+        return Some(vec![store]);
+    }
+    if let Some(stores) = primitive::array_literal_stores(
+        program,
+        facts,
+        machine,
+        state,
+        &destination,
+        statement_index,
+        assignment,
+    ) {
+        return Some(stores);
+    }
     trace.phase("structural field store: carrier path");
     let Some((leaf, carriers)) = destination.place.segments.split_last() else {
         // Whole structural replacement is owned by the statement sequencer.
         return None;
     };
     let facts::PlaceSegment::Field { symbol } = leaf else {
-        // An indexed leaf reaches a primitive element the `WriteOnlyPrimitiveStore`
-        // path already walks — fields and selectors compose the same way over a
-        // root the primitive lane's own admission declined (a view local, an
-        // erased alias), the destination's resolved authority still carrying
-        // the store.
-        return primitive::indexed_store(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            statement_index,
-            assignment,
-        )
-        .map(|store| vec![store]);
+        return None;
     };
     let carrier = destination.leaf_carrier(program, carriers)?;
     trace.phase("structural field store: field owner record");
@@ -564,23 +564,8 @@ fn plan_assignment(
         return None;
     }
     trace.phase("structural field store: scalar field type");
-    // A runtime selector below a field names an element, not this field:
-    // `record.field[i]` composes through the same indexed primitive store
-    // a bare `arr[i]` destination reaches, carrying this channel's resolved
-    // root and authority. Elements the primitive leaf walk cannot type
-    // decline there as before.
     if destination.dynamic_index.is_some() {
-        trace.phase("structural field store: scalar field type: indexed element destination");
-        return primitive::indexed_store(
-            program,
-            facts,
-            machine,
-            state,
-            &destination,
-            statement_index,
-            assignment,
-        )
-        .map(|store| vec![store]);
+        return None;
     }
     // The same complete field declaration governs construction and every
     // replacement. Retaining its carrier requests the declaration-derived
