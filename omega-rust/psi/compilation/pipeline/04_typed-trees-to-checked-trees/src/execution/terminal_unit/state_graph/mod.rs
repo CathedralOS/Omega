@@ -986,14 +986,10 @@ fn build_traced_with(
         planned,
     )?;
     plan.natural_ranks = natural_ranks;
-    // A returned record holding references names the entry parameter each
-    // reference leaf borrows from. Only the entry state's own completion can
-    // name those parameters, so a reference record returned from any other
-    // state has no sources to publish. A whole-reference result is itself
-    // the only leaf: each returning state's own completion already spells
-    // the exact parameter path its borrow loans — in machine parameter
-    // positions — so the machine publishes the deduplicated candidate rows
-    // from every independently checked return.
+    // The machine result contract is relative to invocation parameters.
+    // Returning states retain their own local origins; the shared result query
+    // substitutes every internal edge before publishing the entry relation.
+    // Equal parameter ordinals in different states are not equal places.
     let whole_reference = match &result {
         checked_trees::CheckedControlResultPlan::Structural(result) => shapes
             .types
@@ -1008,7 +1004,8 @@ fn build_traced_with(
     };
     if whole_reference {
         trace.phase("state graph: reference result origins");
-        plan.result_reference_sources = result_custody::reference_sources(&plan.states)?;
+        plan.result_reference_sources =
+            validation::reference_result_custody::returned_reference_sources(program, &states[0])?;
     } else if matches!(
         result,
         checked_trees::CheckedControlResultPlan::Structural(_)

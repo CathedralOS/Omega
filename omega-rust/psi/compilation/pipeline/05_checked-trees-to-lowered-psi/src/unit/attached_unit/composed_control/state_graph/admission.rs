@@ -180,6 +180,36 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     {
         return unsupported("Unit graph state identity, contract, or custody drifted");
     }
+    let entry = checked
+        .machine_states(machine)
+        .first()
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph has no authored entry state",
+        ))?;
+    if let Some(identity) = plan.result.structural_identity() {
+        let mut declarations = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .filter(|declaration| declaration.identity == identity);
+        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+            "Unit graph result carrier declaration is absent",
+        ))?;
+        if declarations.next().is_some() {
+            return unsupported("Unit graph result carrier declaration is ambiguous");
+        }
+        // References publish a referent-origin interface. Element views and
+        // byte sequences retain their own descriptor custody even when their
+        // authored type also has a borrow shell.
+        if matches!(
+            declaration.shape,
+            checked_trees::CheckedUnitStructuralTypeShape::Reference { .. }
+        ) {
+            super::guarded::validate_reference_roster(checked, plan, entry)?;
+        }
+    }
     // Reachability is pure topology on the checked plan. States outside the
     // entry successor closure never execute: the drift checks below still
     // pair their authored rows, but their custody rows cannot disqualify the

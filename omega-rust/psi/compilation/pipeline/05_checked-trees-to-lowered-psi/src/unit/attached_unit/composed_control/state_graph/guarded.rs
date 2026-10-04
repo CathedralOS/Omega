@@ -80,8 +80,6 @@ pub(super) fn validate(
         bindings.push(result.binding_ordinal);
     }
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let reference_result = !plan.result_reference_sources.is_empty();
-    let mut returned_reference_sources = Vec::new();
     for (destination, operation) in guards
         .iter()
         .map(|guard| &guard.destination)
@@ -127,18 +125,6 @@ pub(super) fn validate(
             *statement_ordinal,
             operation,
         )?;
-        if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
-            && !returned_reference_sources.contains(source)
-        {
-            returned_reference_sources.push(source.clone());
-        }
-    }
-    if reference_result
-        && (plan.result_reference_sources.iter().any(|candidate| {
-            !candidate.path.is_empty() || !returned_reference_sources.contains(&candidate.source)
-        }) || returned_reference_sources.len() != plan.result_reference_sources.len())
-    {
-        return unsupported("ordered reference returns do not cover their candidate roster");
     }
     Ok(())
 }
@@ -278,107 +264,27 @@ pub(super) fn validate_reference_return(
     if expected != *source
         || parameter.multiplicity != Multiplicity::Unrestricted
         || !parameter.qualifications.is_empty()
-        || plan
-            .result_reference_sources
-            .iter()
-            .filter(|candidate| candidate.path.is_empty() && candidate.source == *source)
-            .count()
-            != 1
     {
         return unsupported("reference return differs from its exact candidate ingress");
     }
     Ok(())
 }
 
-/// Compare the receipt against actual return producers across every state, not
-/// against one dispatch's subset. Body temporaries and successor arguments do
-/// not contribute candidates; repeated return arms share a single candidate.
+/// Replay the machine interface in entry coordinates. Each return producer is
+/// checked separately against its own state; internal jumps can change both
+/// formal positions and referent types before reaching that producer.
 pub(super) fn validate_reference_roster(
+    checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
+    entry: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
-    use checked_trees::{
-        CheckedClosedSumCaseOutcomePlan, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
-    };
-    let mut returned = Vec::new();
-    for state in &plan.states {
-        let mut operations = Vec::new();
-        match &state.terminator {
-            CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
-                operations.extend(return_values);
-            }
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
-                operations.extend(cases.iter().filter_map(|case| match &case.outcome {
-                    CheckedClosedSumCaseOutcomePlan::Return(arm) => arm.operation(),
-                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
-                }));
-            }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
-                operations.extend(return_arm.operation());
-            }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
-                when_true,
-                when_false,
-                ..
-            } => {
-                operations.extend(when_true.operation());
-                operations.extend(when_false.operation());
-            }
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
-                operations.extend(arms.iter().filter_map(|arm| match arm {
-                    CheckedGuardedJumpArmPlan::Return(arm) => arm.return_arm.operation(),
-                    CheckedGuardedJumpArmPlan::Jump(_) => None,
-                }));
-                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
-                    operations.extend(arm.operation());
-                }
-            }
-            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
-                // Ordinary whole-value returns can forward an existing call
-                // or parameter carrier. Their source validator owns that
-                // receipt; do not substitute an unrelated prefix producer.
-                for candidate in &result.reference_sources {
-                    if !candidate.path.is_empty() {
-                        return unsupported("whole reference return has a nested candidate");
-                    }
-                    if !returned.contains(&candidate.source) {
-                        returned.push(candidate.source.clone());
-                    }
-                }
-            }
-            _ => {}
-        }
-        for operation in operations {
-            // Ordinary call admission independently reconstructs this custody.
-            // The return roster must retain every admitted ingress alternative.
-            if let Some(custody) = operation.call().and_then(|call| call.structural_custody()) {
-                for candidate in &custody.forwarded_reference_sources {
-                    if !candidate.path.is_empty() {
-                        return unsupported("whole reference call return has a nested candidate");
-                    }
-                    if !returned.contains(&candidate.source) {
-                        returned.push(candidate.source.clone());
-                    }
-                }
-            }
-            if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
-                && !returned.contains(source)
-            {
-                returned.push(source.clone());
-            }
-        }
-    }
-    if returned.len() != plan.result_reference_sources.len()
-        || plan
-            .result_reference_sources
-            .iter()
-            .enumerate()
-            .any(|(ordinal, candidate)| {
-                !candidate.path.is_empty()
-                    || !returned.contains(&candidate.source)
-                    || plan.result_reference_sources[..ordinal].contains(candidate)
-            })
-    {
-        return unsupported("reference returns do not cover their candidate roster");
+    let expected =
+        validation::reference_result_custody::returned_reference_sources(&checked.typed, entry)
+            .ok_or(LoweringError::Unsupported(
+                "reference result has no complete entry-relative origins",
+            ))?;
+    if plan.result_reference_sources != expected {
+        return unsupported("reference result changed its entry-relative origins");
     }
     Ok(())
 }

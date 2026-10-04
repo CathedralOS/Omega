@@ -656,12 +656,6 @@ pub(super) fn validate_structural(
                             source.return_type,
                         )
                     || result.reference_sources.as_slice() != std::slice::from_ref(&receipt)
-                    || plan
-                        .result_reference_sources
-                        .iter()
-                        .filter(|candidate| **candidate == receipt)
-                        .count()
-                        != 1
                 {
                     return unsupported("reference parameter return changed its exact custody");
                 }

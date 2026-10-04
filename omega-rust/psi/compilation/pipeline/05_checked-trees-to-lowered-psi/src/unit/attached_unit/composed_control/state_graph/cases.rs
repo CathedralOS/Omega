@@ -550,9 +550,6 @@ pub(super) fn validate(
         source.return_type,
     )
     .is_some();
-    if mutable_reference_result {
-        super::guarded::validate_reference_roster(plan)?;
-    }
     for (offset, case) in cases.iter().enumerate() {
         let successor_plan = match &case.outcome {
             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
