@@ -180,7 +180,8 @@ pub(crate) fn infer_return_interval(
             ArithmeticDomain::Exact,
             "inferred return",
             &mut throwaway,
-        );
+        )
+        .value;
         if !throwaway.is_empty() {
             clean = false;
             break;

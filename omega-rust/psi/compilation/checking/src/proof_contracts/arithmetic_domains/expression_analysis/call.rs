@@ -150,8 +150,9 @@ fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) ->
         return None;
     };
     let mut throwaway = Vec::new();
-    let left = walk.analyze(*left, &mut throwaway);
-    let right = walk.analyze(*right, &mut throwaway);
+    let mut cast_queries = Vec::new();
+    let left = walk.analyze(*left, &mut throwaway, &mut cast_queries);
+    let right = walk.analyze(*right, &mut throwaway, &mut cast_queries);
     if !throwaway.is_empty() {
         return None;
     }
@@ -247,7 +248,7 @@ fn exact_ordinary_actual_intervals(
                 return Some(None);
             }
             let mut diagnostics = Vec::new();
-            let analysis = operand_walk.analyze(*argument, &mut diagnostics);
+            let analysis = operand_walk.analyze(*argument, &mut diagnostics, &mut Vec::new());
             diagnostics
                 .is_empty()
                 .then_some(Some((parameter.symbol, analysis.interval)))

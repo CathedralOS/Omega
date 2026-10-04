@@ -535,7 +535,8 @@ impl ArrivalWalk<'_, '_> {
             ArithmeticDomain::Exact,
             "state arrival",
             &mut diagnostics,
-        );
+        )
+        .value;
         if diagnostics.is_empty() {
             value.interval
         } else {

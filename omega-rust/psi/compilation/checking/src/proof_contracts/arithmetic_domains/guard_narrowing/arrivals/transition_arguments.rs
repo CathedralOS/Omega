@@ -56,7 +56,8 @@ pub(super) fn integer_bounds(
         ArithmeticDomain::Exact,
         "transition argument",
         &mut diagnostics,
-    );
+    )
+    .value;
     let (minimum, maximum) = (value.interval.low?, value.interval.high?);
     (diagnostics.is_empty() && minimum <= maximum).then_some((minimum, maximum))
 }

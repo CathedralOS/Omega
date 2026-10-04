@@ -15,9 +15,12 @@ use typed_trees::expression::TableCastExpression;
 
 pub(super) fn analyze(
     walk: &ExpressionWalk,
+    expression: typed_trees::expression::ExpressionHandle,
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
+    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
 ) -> Analysis {
+    let first_diagnostic = diagnostics.len();
     let program = walk.program;
     let primitive = program.primitive_type_reference(cast.target_type);
     // A recast is a byte-preserving view (`&x as &T`), not a numeric
@@ -28,6 +31,8 @@ pub(super) fn analyze(
     // preserve it in the arithmetic-domain walk as well so later integer
     // operations see the stated referee type.
     if cast.form.is_recast() {
+        walk.with_destination(None, ArithmeticDomain::Exact)
+            .analyze(cast.value, diagnostics, exact_integer_casts);
         return Analysis {
             domain: Some(ArithmeticDomain::Exact),
             interval: primitive
@@ -36,7 +41,7 @@ pub(super) fn analyze(
             primitive,
         };
     }
-    let source = source_value(walk, cast, primitive, diagnostics);
+    let source = source_value(walk, cast, primitive, diagnostics, exact_integer_casts);
     // Source facts precede target qualification. In particular a Wrapping cast
     // must not use its asserted target range to prove that same range, or
     // repair an out-of-range initial value.
@@ -64,6 +69,28 @@ pub(super) fn analyze(
     );
     require_float_to_integer_policy(walk, cast, &source, primitive, diagnostics);
     require_exact_integer_fit(walk, cast, &source, primitive, diagnostics);
+    if !diagnostics[first_diagnostic..]
+        .iter()
+        .any(Diagnostic::is_error)
+        && cast.semantic_domain.is_empty()
+        && cast.domain == ArithmeticDomain::Exact
+        && let (Some(source_type), Some(target_type)) = (source.primitive, primitive)
+        && source_type != target_type
+        && source_type != PrimitiveType::Addr
+        && target_type != PrimitiveType::Addr
+        && primitive_range(source_type).is_some()
+        && primitive_range(target_type).is_some()
+        && integer_interval_fits_primitive(source.interval, source_type, target_type)
+        && let (Some(minimum), Some(maximum)) = (source_interval.low, source_interval.high)
+    {
+        exact_integer_casts.push(crate::ExactIntegerCastFact {
+            expression,
+            source_type,
+            target_type,
+            minimum: numerics::bignum::BigInt::from_i64(minimum),
+            maximum: numerics::bignum::BigInt::from_i64(maximum),
+        });
+    }
     Analysis {
         domain: Some(cast.domain),
         interval: result_interval(cast, &source, primitive),
@@ -79,6 +106,7 @@ fn source_value(
     cast: &TableCastExpression,
     primitive: Option<PrimitiveType>,
     diagnostics: &mut Vec<Diagnostic>,
+    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
 ) -> Analysis {
     let program = walk.program;
     if cast.semantic_domain.is_empty()
@@ -106,7 +134,7 @@ fn source_value(
     let (Some(evaluated), Some(primitive)) = (anonymous, integer_target) else {
         return walk
             .with_destination(None, ArithmeticDomain::Exact)
-            .analyze(cast.value, diagnostics);
+            .analyze(cast.value, diagnostics, exact_integer_casts);
     };
     match evaluated
         .value

@@ -29,6 +29,8 @@ mod assignments;
 mod bitwise;
 mod call_result_bounds;
 mod cast_ranges;
+mod dispatch_environments;
+pub(crate) use dispatch_environments::dispatch_arm_environments;
 mod cited_element_bounds;
 mod dependent_products;
 mod dependent_relations;

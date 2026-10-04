@@ -39,6 +39,14 @@ pub(super) struct Analysis {
     pub(super) primitive: Option<PrimitiveType>,
 }
 
+/// The value judgment and the occurrence decisions made while establishing it.
+/// Cast decisions travel out of the same branch-sensitive walk; reconstructing
+/// them later from syntax loses the environment that justified an arm's cast.
+pub(super) struct CheckedAnalysis {
+    pub(super) value: Analysis,
+    pub(super) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
+}
+
 const NEUTRAL: Analysis = Analysis {
     domain: None,
     interval: Interval::UNBOUNDED,
@@ -63,8 +71,9 @@ pub(super) fn analyze(
     target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Analysis {
-    ExpressionWalk {
+) -> CheckedAnalysis {
+    let mut exact_integer_casts = Vec::new();
+    let value = ExpressionWalk {
         program,
         machine,
         state,
@@ -73,7 +82,11 @@ pub(super) fn analyze(
         target_domain,
         owner,
     }
-    .analyze(expression, diagnostics)
+    .analyze(expression, diagnostics, &mut exact_integer_casts);
+    CheckedAnalysis {
+        value,
+        exact_integer_casts,
+    }
 }
 
 /// The facts every node of one expression walk shares: where it is, what flow
@@ -104,7 +117,12 @@ impl ExpressionWalk<'_> {
         }
     }
 
-    fn analyze(&self, expression: ExpressionHandle, diagnostics: &mut Vec<Diagnostic>) -> Analysis {
+    fn analyze(
+        &self,
+        expression: ExpressionHandle,
+        diagnostics: &mut Vec<Diagnostic>,
+        exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    ) -> Analysis {
         let node = self.program.expression_table.expression(expression);
         if !matches!(
             node,
@@ -122,7 +140,7 @@ impl ExpressionWalk<'_> {
             let child_walk = self.with_destination(None, ArithmeticDomain::Exact);
             let mut analyze_child = |child: ExpressionHandle| {
                 if child.is_valid() {
-                    child_walk.analyze(child, diagnostics);
+                    child_walk.analyze(child, diagnostics, exact_integer_casts);
                 }
             };
             if matches!(node, ExpressionNode::Atomic(_)) {
@@ -150,13 +168,17 @@ impl ExpressionWalk<'_> {
         }
         match node {
             ExpressionNode::Binary(binary) => {
-                binary::analyze(self, expression, binary, diagnostics)
+                binary::analyze(self, expression, binary, diagnostics, exact_integer_casts)
             }
-            ExpressionNode::Unary(unary) => unary::analyze(self, unary, diagnostics),
-            ExpressionNode::Cast(cast) => cast::analyze(self, cast, diagnostics),
+            ExpressionNode::Unary(unary) => {
+                unary::analyze(self, unary, diagnostics, exact_integer_casts)
+            }
+            ExpressionNode::Cast(cast) => {
+                cast::analyze(self, expression, cast, diagnostics, exact_integer_casts)
+            }
             ExpressionNode::Call(call) => call::analyze(self, expression, call),
             ExpressionNode::Match(dispatch) => {
-                dispatch::analyze(self, expression, dispatch, diagnostics)
+                dispatch::analyze(self, expression, dispatch, diagnostics, exact_integer_casts)
             }
             ExpressionNode::Integer(value) => Analysis {
                 domain: None,

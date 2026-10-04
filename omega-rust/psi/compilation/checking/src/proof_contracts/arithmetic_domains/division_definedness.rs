@@ -264,7 +264,8 @@ pub(super) fn validate_concrete(
                     ArithmeticDomain::Exact,
                     owner,
                     &mut ignored,
-                );
+                )
+                .value;
                 if operation.domain.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
                     return;
                 }
@@ -286,6 +287,7 @@ pub(super) fn validate_concrete(
                     owner,
                     &mut ignored,
                 )
+                .value
                 .interval;
                 let mut ignored = Vec::new();
                 let right = analyze(
@@ -299,6 +301,7 @@ pub(super) fn validate_concrete(
                     owner,
                     &mut ignored,
                 )
+                .value
                 .interval;
                 validate_operands(
                     program,

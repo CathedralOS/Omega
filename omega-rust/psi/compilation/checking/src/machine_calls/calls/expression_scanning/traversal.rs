@@ -757,7 +757,16 @@ fn scan_expression_calls_at_position(
                 dispatch,
                 diagnostics,
             );
-            let mut scan = |value, executes| {
+            let environments =
+                crate::proof_contracts::arithmetic_domains::dispatch_arm_environments(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    dispatch,
+                    value_environment,
+                );
+            let mut scan = |value, executes, environment: &ValueEnvironment| {
                 scan_expression_calls(
                     program,
                     machine,
@@ -765,21 +774,26 @@ fn scan_expression_calls_at_position(
                     machine_symbols,
                     symbols,
                     writable_roots,
-                    value_environment,
+                    environment,
                     value,
                     executes,
                     boundary_operator_applications,
                     diagnostics,
                 )
             };
-            scan(dispatch.subject, executes);
+            scan(dispatch.subject, executes, value_environment);
             let mut remaining_executes = executes;
             let mut boolean_values = [false; 2];
-            for arm in program.expression_table.match_arms(dispatch.arms) {
+            for (arm, environment) in program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .zip(&environments)
+            {
                 let selected = match arm.pattern {
                     typed_trees::expression::MatchPattern::Wildcard => Some(true),
                     typed_trees::expression::MatchPattern::Value(pattern) => {
-                        scan(pattern, remaining_executes);
+                        scan(pattern, remaining_executes, value_environment);
                         if let ExpressionNode::Boolean(value) =
                             program.expression_table.expression(pattern)
                         {
@@ -806,7 +820,11 @@ fn scan_expression_calls_at_position(
                         }
                     }
                 };
-                scan(arm.value, remaining_executes && selected != Some(false));
+                scan(
+                    arm.value,
+                    remaining_executes && selected != Some(false),
+                    environment,
+                );
                 if selected == Some(true) || boolean_values == [true, true] {
                     remaining_executes = false;
                 }

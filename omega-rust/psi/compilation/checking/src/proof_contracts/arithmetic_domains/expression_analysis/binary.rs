@@ -37,13 +37,14 @@ pub(super) fn analyze(
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
     diagnostics: &mut Vec<Diagnostic>,
+    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
 ) -> Analysis {
     let mut operation = Operation {
         walk,
         expression,
         binary: *binary,
-        left: walk.analyze(binary.left, diagnostics),
-        right: walk.analyze(binary.right, diagnostics),
+        left: walk.analyze(binary.left, diagnostics, exact_integer_casts),
+        right: walk.analyze(binary.right, diagnostics, exact_integer_casts),
     };
     if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
         walk.program,

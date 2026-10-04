@@ -57,7 +57,8 @@ pub(crate) fn validate_total_specification_arithmetic(
         ArithmeticDomain::Exact,
         owner,
         &mut formation_diagnostics,
-    );
+    )
+    .value;
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
     // the totality walker below emits the directed hard error instead.
     diagnostics.extend(
@@ -78,6 +79,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             owner,
             &mut ignored_diagnostics,
         )
+        .value
         .domain
     };
     let expression_interval = |candidate| {
@@ -94,6 +96,7 @@ pub(crate) fn validate_total_specification_arithmetic(
                 owner,
                 &mut ignored_diagnostics,
             )
+            .value
             .interval,
         )
     };

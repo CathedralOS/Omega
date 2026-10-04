@@ -30,6 +30,12 @@ fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed
 fail/arithmetic/constructor_divisor_requires_nonzero rejected 469ms expected @c5d32a00863
 	partial exact division in construction of `QuotientBox` field `value`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial exact division in machine `divide` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/dispatch_cast_fact_escapes_arm rejected 415ms expected @6dd207b5fbb6+wt
+	Exact integer cast in machine `narrow` state `entry` cast expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `narrow` state `entry` terminal expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/arithmetic/dispatch_cast_wrong_arm rejected 422ms expected @6dd207b5fbb6+wt
+	Exact integer cast in machine `narrow` state `entry` cast expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `narrow` state `entry` terminal expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/divide_by_zero_rejected rejected 168ms expected @2d8ed253669f
 	anonymous division by zero has no exact numeric value
 fail/arithmetic/exact_aggregate_divisor_unproven rejected 431ms expected @c5d32a00863
@@ -1434,6 +1440,7 @@ pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms @2d8ed253669f
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 5261ms @2d8ed253669f
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms @2d8ed253669f
 pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms @2d8ed253669f
+pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 3169ms @6dd207b5fbb6+wt
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms @2d8ed253669f
 pass/arithmetic/runtime_exact_dispatch_divisor_exit checked 961ms @01974e342562+wt
 pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1304ms @2d8ed253669f

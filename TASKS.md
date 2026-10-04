@@ -2730,7 +2730,10 @@ deletions, which its commit lists.
   index/range bounds, recast geometry, domain field writes, Boolean recast
   admission). Remaining work:
   - retain each successful occurrence decision in `CheckFacts` and have stage
-    05 consume it without proof search; do not add duplicate provers;
+    05 consume it without proof search; do not add duplicate provers. Arithmetic
+    expression analysis now returns exact-cast decisions from its branch-local
+    walk; extend that output to the remaining primitive conditions, rather than
+    rebuilding decisions with a separate syntax traversal;
   - cover nested expressions, compiler-generated semantic-to-storage casts,
     assignment targets, abstract proposition carrier resolution, and the
     formation audit across aggregate and proposition positions before

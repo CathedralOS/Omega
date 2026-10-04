@@ -528,7 +528,8 @@ fn integer_meaning(
         ArithmeticDomain::Exact,
         "ordered operand type",
         &mut Vec::new(),
-    );
+    )
+    .value;
     // Ordinary call arithmetic deliberately leaves an unconstrained result
     // neutral. Ordering still knows the exact selected declaration's carrier;
     // querying it here does not grant repeat-call equality or a body-derived
