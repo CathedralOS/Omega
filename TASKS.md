@@ -697,10 +697,11 @@ defines the complete product bar.
     authority carried into native `NormalizedForeign`, not a fixture permission.
     Keep `pass/filesystem/runtime_local_host_result_dispatch_exit` as the Linux
     effect-ordering customer.
-  - **PROOF-CONTRACT-MIGRATION**: `pass/proofs/cauchy_predicates_compile` needs
-    positivity from `(Middle(middle_index)).den` and an entailment tier for
-    machine-parameterized `converges_together_at` (see
-    `source/library/core/cauchy.omg`). Keep exact bounds in
+  - **PROOF-CONTRACT-MIGRATION**: the local theorem repair checks
+    `pass/proofs/cauchy_predicates_compile`; publication still needs the native
+    `pass/proofs/runtime_static_result_projection_citation_exit` witness and
+    generalized fact-only citation erasure. See the owning item's frontier.
+    Keep exact bounds in
     `pass/proofs/proof_inductive_climbing_sum` and its unbounded negative.
 
   Native customers (under `tests/omega/pass`):
@@ -3693,6 +3694,28 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
      without hidden extensionality or new reduction; a quotient-refusing policy
      accepts representative operations and congruence but rejects the
      assumption-bearing quotient theorem.
+
+  Current frontier (unpublished `repair-theorem` checkpoint `8b9cb8dcc9a`,
+  macOS ARM64): `omega --check
+  tests/omega/pass/proofs/cauchy_predicates_compile/main.omg` checks 17 source
+  files. The proof/proposition/induction/Nat/Rat/contract/relevance corpus
+  checks 64 and rejects 81 without diagnostic regressions; a separate abstract
+  mathematical-call control rejects reuse of a linear receipt. Exact callable
+  substitution, nested field identity and isolated-parameter preservation now
+  reach checking. `omega run
+  tests/omega/pass/proofs/runtime_static_result_projection_citation_exit/main.omg`
+  requires accepted package inputs; `omega update --offline --project
+  tests/omega/pass/proofs/runtime_static_result_projection_citation_exit`
+  cannot produce them because the theorem call enters runtime structural
+  argument planning. `checking/src/machine_calls/fact_only_citations.rs` still
+  recognizes only empty nongeneric bodies. Replace that source-shape rule with
+  checked termination, effect and custody eligibility, settled once before
+  execution planning. Coordinate the citation skip in stage 04's live-owned
+  `execution/terminal_unit/control/statement_sequence.rs`; a narrow handoff was
+  requested on claim `03f901cb007048ba9c57d569fbdef49c`. This is an integration
+  dependency, not an unanswered language decision. Next acceptance: the same
+  native witness exits 70, preserving effectful/nonterminating and linear
+  ownership refusals; then publish the complete repair.
 
 - **PROOF-RELEVANCE-MIGRATION.** Erased arguments are not carrier-independent
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
