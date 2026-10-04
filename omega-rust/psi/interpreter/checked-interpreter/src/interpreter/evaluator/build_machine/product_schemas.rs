@@ -1,4 +1,4 @@
-//! Compiler-owned product-type-schema descriptions (`Build.product.schema`).
+//! Compiler-owned product-type-schema descriptions (`BuildProduct::schema`).
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product data declaration under the query occurrence's
@@ -9,11 +9,13 @@
 //! `product_schema_descriptions` table, so evaluated code can carry the
 //! marker but cannot read, convert, or fabricate the selection. No product
 //! receiver, body, initializer, or provider executes -- the query is a
-//! logical lookup over the authored frontier. `schema.path()` is the single
-//! inspection: it reads the description table and returns the selected
-//! declaration's canonical path as ordinary text.
+//! logical lookup over the authored frontier. `ProductTypeSchema::path(&schema)`
+//! is the single inspection: it reads the description table and returns the
+//! selected declaration's canonical path as ordinary text. Schema and provider
+//! path inspection share the exact-operation dispatch below; their issued
+//! description tables and role checks remain separate.
 
-use crate::interpreter::evaluator::build_machine::product_entries::PRODUCT_FACET_TYPE;
+use super::product_providers::PRODUCT_PROVIDER_DESCRIPTION_TYPE;
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
@@ -23,184 +25,90 @@ use crate::interpreter::evaluator::{
 /// refused by `described_product_schema` below.
 const PRODUCT_SCHEMA_DESCRIPTION_TYPE: &str = "$OmegaBuildProductTypeSchema";
 
+enum ProductDescriptionKind {
+    Schema,
+    Provider,
+}
+
 impl<'program> Evaluator<'program> {
-    /// `builder.product.schema(path)` as a value-position call: resolve
-    /// `path` under the CALL's lexical package scope and return an opaque
-    /// description marker.
-    pub(in crate::interpreter::evaluator) fn try_build_product_schema_value_call(
+    /// Inspect one issued description through its exact toolchain operation.
+    /// Both call positions use this owner: discarding the result cannot skip
+    /// marker/index validation, and unrelated `path` calls evaluate no operands
+    /// here. The role is selected by declaration identity, never marker shape.
+    pub(in crate::interpreter::evaluator) fn try_product_description_path_call(
         &mut self,
-        handle: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "schema" || !call.receiver.is_valid() {
+        if !target.is_valid() {
             return Ok(None);
         }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let is_facet = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
-        );
-        if !is_facet {
-            // An authored `BuildProduct` value can select the toolchain
-            // machine through member resolution, but only the compiler-issued
-            // facet may carry selection authority into a description.
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("BuildProduct", "schema", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product schema selection requires the compiler-issued Build.product facet"
-                        .to_owned(),
-                ));
-            }
+        let kind = if self.exact_build_facet_method("ProductTypeSchema", "path", target) {
+            ProductDescriptionKind::Schema
+        } else if self.exact_build_facet_method("ProductProviderRef", "path", target) {
+            ProductDescriptionKind::Provider
+        } else {
             return Ok(None);
-        }
-        if !self.exact_build_facet_method("BuildProduct", "schema", call.target_symbol) {
+        };
+        let [description] = arguments else {
             return Err(Halt::Trap(
-                "product schema selection did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        let occurrence = self.program.expression_table.source_span(handle);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        let [path] = arguments else {
-            return Err(Halt::Trap(
-                "product schema selection requires a path".to_owned(),
+                "product-description path access requires one explicit description".to_owned(),
             ));
         };
+        let description = self.eval_argument(*description, frame)?;
+        let description = self.deref_cell(description);
+        let (marker, rejection) = match kind {
+            ProductDescriptionKind::Schema => (
+                PRODUCT_SCHEMA_DESCRIPTION_TYPE,
+                "product-schema path access requires a compiler-issued ProductTypeSchema",
+            ),
+            ProductDescriptionKind::Provider => (
+                PRODUCT_PROVIDER_DESCRIPTION_TYPE,
+                "product-provider path access requires a compiler-issued ProductProviderRef",
+            ),
+        };
+        if !matches!(&*description.borrow(), Value::Struct { type_name, .. } if **type_name == *marker)
+        {
+            return Err(Halt::Trap(rejection.to_owned()));
+        }
+        let path = match kind {
+            ProductDescriptionKind::Schema => {
+                let index = self.described_product_schema(&description.borrow())?;
+                self.product_schema_descriptions[index]
+                    .canonical_path
+                    .clone()
+            }
+            ProductDescriptionKind::Provider => {
+                let index = self.described_product_provider(&description.borrow())?;
+                self.product_provider_descriptions[index]
+                    .canonical_path
+                    .clone()
+            }
+        };
+        Ok(Some(self.allocate_text(path.into_bytes())?))
+    }
+
+    /// Resolve an explicit facet query under the call's lexical package scope.
+    pub(in crate::interpreter::evaluator) fn try_build_product_schema_call(
+        &mut self,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        occurrence: source::SourceSpan,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if !target.is_valid() || !self.exact_build_facet_method("BuildProduct", "schema", target) {
+            return Ok(None);
+        }
+        let [facet, path] = arguments else {
+            return Err(Halt::Trap(
+                "product schema selection requires an explicit facet and path".to_owned(),
+            ));
+        };
+        self.require_product_facet(*facet, frame)?;
         let path = self.eval_product_schema_operand(*path, frame)?;
         self.issue_product_schema_description(&path, occurrence)
             .map(Some)
-    }
-
-    /// The statement-position twin: `builder.product.schema(path);` still
-    /// performs and checks the query, then drops the description.
-    pub(in crate::interpreter::evaluator) fn try_build_product_schema_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        if call.target.as_str() != "schema" || call.receiver.is_empty() {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let is_facet = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
-        );
-        if !is_facet {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("BuildProduct", "schema", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product schema selection requires the compiler-issued Build.product facet"
-                        .to_owned(),
-                ));
-            }
-            return Ok(false);
-        }
-        if !self.exact_build_facet_method("BuildProduct", "schema", call.target_symbol) {
-            return Err(Halt::Trap(
-                "product schema selection did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        let [path] = arguments else {
-            return Err(Halt::Trap(
-                "product schema selection requires a path".to_owned(),
-            ));
-        };
-        let path = self.eval_product_schema_operand(*path, frame)?;
-        self.issue_product_schema_description(&path, call.source_span)?;
-        Ok(true)
-    }
-
-    /// `schema.path()` as a value-position call: inspect the description and
-    /// return the selected declaration's canonical path as text. The marker
-    /// check is identical to `RequiredOutput::path`: an authored
-    /// `ProductTypeSchema {}` that still resolves the toolchain machine is
-    /// refused rather than allowed to mimic inspection.
-    pub(in crate::interpreter::evaluator) fn try_product_type_schema_path_value_call(
-        &mut self,
-        call: &typed_trees::expression::TableCallExpression,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "path" || !call.receiver.is_valid() {
-            return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let is_marker = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_SCHEMA_DESCRIPTION_TYPE
-        );
-        if !is_marker {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("ProductTypeSchema", "path", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product-schema path access requires a compiler-issued ProductTypeSchema"
-                        .to_owned(),
-                ));
-            }
-            return Ok(None);
-        }
-        if !self.exact_build_facet_method("ProductTypeSchema", "path", call.target_symbol) {
-            return Err(Halt::Trap(
-                "product-schema path access did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        let index = self.described_product_schema(&receiver.borrow())?;
-        let path = self.product_schema_descriptions[index]
-            .canonical_path
-            .clone()
-            .into_bytes();
-        Ok(Some(self.allocate_text(path)?))
-    }
-
-    /// The statement-position twin of `schema.path()`; the declared path is
-    /// evaluated and dropped.
-    pub(in crate::interpreter::evaluator) fn try_product_type_schema_path_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &Frame,
-    ) -> EvalResult<bool> {
-        if call.target.as_str() != "path" || call.receiver.is_empty() {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let is_marker = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_SCHEMA_DESCRIPTION_TYPE
-        );
-        if !is_marker {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("ProductTypeSchema", "path", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product-schema path access requires a compiler-issued ProductTypeSchema"
-                        .to_owned(),
-                ));
-            }
-            return Ok(false);
-        }
-        if !self.exact_build_facet_method("ProductTypeSchema", "path", call.target_symbol) {
-            return Err(Halt::Trap(
-                "product-schema path access did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        self.described_product_schema(&receiver.borrow())?;
-        Ok(true)
     }
 
     /// Rejoin a `ProductTypeSchema` runtime value to the description the

@@ -1,0 +1,1 @@
+product-schema path access requires a compiler-issued ProductTypeSchema

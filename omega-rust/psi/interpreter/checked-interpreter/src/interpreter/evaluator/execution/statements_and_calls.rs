@@ -506,6 +506,44 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
+        if self
+            .try_build_product_schema_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                call.source_span,
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        if self
+            .try_build_product_provider_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                call.source_span,
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        if self
+            .try_product_description_path_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
         // Activation facets require a runtime receiver. A declaration called
         // `write` or `close` is not a facet merely because its leaf matches;
         // let ordinary selected-target dispatch handle namespace calls below.
@@ -525,22 +563,10 @@ impl<'program> Evaluator<'program> {
             if self.try_build_log_write_line_statement(call, frame)? {
                 return Ok(Value::Unit);
             }
-            if self.try_build_product_schema_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_build_product_provider_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
             if self.try_build_output_obligation_statement(call, frame)? {
                 return Ok(Value::Unit);
             }
             if self.try_required_output_path_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_product_type_schema_path_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_product_provider_ref_path_statement(call, frame)? {
                 return Ok(Value::Unit);
             }
         }

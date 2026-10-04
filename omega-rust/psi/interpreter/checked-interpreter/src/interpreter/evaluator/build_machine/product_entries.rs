@@ -42,7 +42,20 @@ impl<'program> Evaluator<'program> {
                 "product entry selection requires an explicit facet and path and slot".to_owned(),
             ));
         };
-        let facet = self.eval_argument(*facet, frame)?;
+        self.require_product_facet(*facet, frame)?;
+        let path = self.eval_product_entry_operand(*path, frame)?;
+        let slot = self.eval_product_entry_operand(*slot, frame)?;
+        self.issue_product_entry_description(&path, &slot, occurrence)
+            .map(Some)
+    }
+
+    /// Validate the ordinary explicit facet operand shared by Product queries.
+    pub(in crate::interpreter::evaluator) fn require_product_facet(
+        &mut self,
+        expression: ExpressionHandle,
+        frame: &mut Frame,
+    ) -> EvalResult<()> {
+        let facet = self.eval_argument(expression, frame)?;
         let facet = self.deref_cell(facet);
         if !matches!(&*facet.borrow(), Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE)
         {
@@ -50,10 +63,7 @@ impl<'program> Evaluator<'program> {
                 "product selection requires the compiler-issued Build.product facet".to_owned(),
             ));
         }
-        let path = self.eval_product_entry_operand(*path, frame)?;
-        let slot = self.eval_product_entry_operand(*slot, frame)?;
-        self.issue_product_entry_description(&path, &slot, occurrence)
-            .map(Some)
+        Ok(())
     }
 
     /// Rejoin a `ProductEntryRef` runtime value to the description the

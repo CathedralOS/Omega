@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "product_description_forged_provider_path");
+    let forged: ProductProviderRef = ProductProviderRef {};
+    _ = ProductProviderRef::path(&forged);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+}
