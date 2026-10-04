@@ -167,7 +167,23 @@ fn complete_carriers(
                 }
                 vec![when_true.target, when_false.target]
             }
+            Terminator::StructuralCase { cases, .. } => {
+                if cases.iter().any(|edge| {
+                    edge.trivial_affine_discards
+                        .iter()
+                        .any(|place| affine.contains(place))
+                        || (reentered && edge.target == entry)
+                }) {
+                    return unsupported(
+                        "scalar graph whole parameter cleanup cannot replace existing branch custody",
+                    );
+                }
+                cases.iter().map(|edge| edge.target).collect()
+            }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnStructural {
                 cleanup_actions, ..
             } if cleanup_actions.iter().all(|action| {
                 matches!(action,
@@ -186,29 +202,17 @@ fn complete_carriers(
             {
                 Vec::new()
             }
-            // A structural result transfers one place to the caller and then
-            // runs the same ordered cleanup list a scalar return runs, so it
-            // is an exit on the same terms. The transferred place itself is
-            // the one thing this pass cannot schedule: it leaves here instead
-            // of being disposed, and the live-set walk consumes a managed
-            // place only through an operation operand, never through a
-            // terminator. Refuse that exact case by name rather than through
-            // the shape catch-all, which reported it as a missing scalar exit.
-            Terminator::ReturnStructural {
-                source,
-                cleanup_actions,
+            Terminator::ReturnUnitPartialAffine {
+                trivial_affine_discards,
+                residual_affine_discards,
                 ..
-            } if cleanup_actions.iter().all(|action| {
-                matches!(action,
-                    TerminalAffineCleanupAction::DiscardRoot(place) if !affine.contains(place)
-                )
-            }) =>
+            } if trivial_affine_discards
+                .iter()
+                .all(|place| !affine.contains(place))
+                && residual_affine_discards
+                    .iter()
+                    .all(|discard| !managed.contains(&discard.place)) =>
             {
-                if managed.contains(source) {
-                    return unsupported(
-                        "scalar graph structural result transfers a managed affine carrier",
-                    );
-                }
                 Vec::new()
             }
             Terminator::Crash { .. } => Vec::new(),
@@ -276,6 +280,14 @@ fn complete_carriers(
                 }
                 live.insert(0, result.place);
             }
+        }
+        // A terminator whose inspected or returned place carries the whole
+        // value consumes that place's custody before successor custody is
+        // reconciled: the selected case edge or the machine result takes it.
+        if let Terminator::StructuralCase { source, .. }
+        | Terminator::ReturnStructural { source, .. } = &blocks[position].terminator
+        {
+            live.retain(|place| *place != *source);
         }
         exits[position] = live;
         for successor in &successors[position] {
@@ -370,7 +382,20 @@ fn complete_carriers(
                     &producers,
                 );
             }
+            Terminator::StructuralCase { cases, .. } => {
+                for (edge, successor) in cases.iter_mut().zip(&successors[position]) {
+                    merge_discards(
+                        &mut edge.trivial_affine_discards,
+                        discards(*successor),
+                        &producers,
+                    );
+                }
+            }
             Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            }
+            | Terminator::ReturnUnitPartialAffine {
                 trivial_affine_discards,
                 ..
             } => {
