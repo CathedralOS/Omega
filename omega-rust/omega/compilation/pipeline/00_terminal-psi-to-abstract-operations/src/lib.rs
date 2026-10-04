@@ -35,6 +35,8 @@ mod optimization;
 pub mod provider_admission;
 mod provider_installation;
 mod retained_terminal;
+#[cfg(test)]
+mod terminal_decode_once;
 
 pub use retained_terminal::{
     PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
