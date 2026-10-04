@@ -6,6 +6,9 @@ use super::super::facts::RangeFacts;
 
 mod remainder_bounds;
 
+#[cfg(test)]
+mod tests;
+
 /// Seeds every fact a freshly bound name inherits from its value: the captured
 /// integer-place identity, the ensured call result bounds, and the source
 /// place's proven index/range facts (`alias_index`, with `alias_collection`
@@ -31,6 +34,14 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
     }
     facts.record_scalar_binding_dependency(program, machine, state, value, symbol, &target_label);
     facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
+    // Capture store-enforced field bounds and immutable parameter contracts at
+    // the binding point. They bound this value just as they bound a direct
+    // index; later reassignment retires the local's ordinary range facts.
+    seed_integer_bounds(
+        facts,
+        &target_label,
+        validation::standing_integer_bounds(program, machine, state, value),
+    );
     seed_ensured_call_result_bounds(program, facts, &target_label, value);
     remainder_bounds::seed(program, machine, state, facts, value, &target_label);
 
@@ -84,7 +95,15 @@ pub(in crate::checks::ranges) fn seed_ensured_call_result_bounds(
     label: &str,
     value: ExpressionHandle,
 ) {
-    let Some((low, high)) = ensured_call_result_bounds(program, value) else {
+    seed_integer_bounds(facts, label, ensured_call_result_bounds(program, value));
+}
+
+fn seed_integer_bounds(
+    facts: &mut RangeFacts<'_>,
+    label: &str,
+    bounds: Option<(Option<i64>, Option<i64>)>,
+) {
+    let Some((low, high)) = bounds else {
         return;
     };
     if let Some(exclusive) = high.and_then(|high| high.checked_add(1)) {

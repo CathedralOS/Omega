@@ -1,288 +1,83 @@
-// Fixed-capacity ring buffer over [i32 in Saturating; 8].
-//
-// Demonstrates: const-dispatch indexed read/write on a fixed array (the proven
-// pattern for runtime-indexed array access), modular head/tail arithmetic,
-// case members for push/pop commands, and multi-level guard ladders.
-//
-// Operations scripted:
-//   push(20) -> slots[0]=20, tail=1, size=1
-//   push(30) -> slots[1]=30, tail=2, size=2
-//   push(40) -> slots[2]=40, tail=3, size=3
-//   push(50) -> slots[3]=50, tail=4, size=4
-//   pop      -> last_pop=20, head=1, size=3
-//   push(5)  -> slots[4]=5,  tail=5, size=4
-//   push(15) -> slots[5]=15, tail=6, size=5
-//   pop      -> last_pop=30, head=2, size=4
-//   pop      -> last_pop=40, head=3, size=3
-//
-// Final state: head=3, tail=6, size=3.
-//   slots[3]=50, slots[4]=5, slots[5]=15 -> sum=70.
-//
-// Verification:
-//   size == 3            (3 elements remain)
-//   last_pop == 40       (last popped value)
-//   slots[3]+slots[4]+slots[5] == 70
-//
+// Fixed-capacity ring buffer over invocation-local storage.
+// Runtime indices are checked from Ring's head/tail invariant. Push and pop
+// borrow the ring explicitly; popped values and console input are locals.
+// The scripted sequence leaves 50, 5, 15 in slots 3, 4, 5: sum 70.
 // Expected exit: 70.
-
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Ring [copy] {
+data Ring [copy] where head < 8, tail < 8 {
     slots: [i32 in Saturating; 8];
-    head: i32 in Saturating;
-    tail: i32 in Saturating;
+    head: u64;
+    tail: u64;
     size: i32 in Saturating;
-    last_pop: i32 in Saturating;
 }
 
-data Main {
-    console: Binding<Console>;
-    ring: Ring;
-    pause: [u8; 256];
+// This sample scripts only available-capacity pushes and nonempty pops.
+machine Ring::push(ring: &mut Ring, value: i32 in Saturating) {
+    let slot: u64 = ring.tail;
+    ring.slots[slot] = value;
+    ring.tail = (slot + 1) % 8;
+    ring.size = ring.size + 1;
 }
 
-// ---------------------------------------------------------------------------
-// push(value): write value at slots[tail], then advance tail mod 8, size++.
-// Uses a dispatch chain because tail is a runtime value.
-// ---------------------------------------------------------------------------
-machine Main::push(main: &mut Main, value: i32 in Saturating) {
-    let t: i32 in Saturating = main.ring.tail;
-    main.ring.size = main.ring.size + 1;
-    // Advance tail mod 8.
-    transition t == 7 {
-        true -> tail_wrap(main, value, t)
-        _ -> tail_advance(main, value, t)
-    }
-
-    state tail_wrap(main: &mut Main, value: i32 in Saturating, t: i32 in Saturating) {
-        main.ring.tail = 0;
-        Main::write_slot(main, t, value);
-    }
-
-    state tail_advance(main: &mut Main, value: i32 in Saturating, t: i32 in Saturating) {
-        main.ring.tail = t + 1;
-        Main::write_slot(main, t, value);
-    }
+machine Ring::pop(ring: &mut Ring) -> i32 in Saturating {
+    let slot: u64 = ring.head;
+    let value: i32 in Saturating = ring.slots[slot];
+    ring.head = (slot + 1) % 8;
+    ring.size = ring.size - 1;
+    (value)
 }
 
-// Dispatch write to const-indexed slot. Necessary because native does not yet
-// support runtime-indexed array writes directly.
-machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-    transition idx == 0 {
-        true -> w0(main, value)
-        _ -> try_w1(main, idx, value)
+machine main() reaches Console {
+    let mut ring: Ring;
+    Console::write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
+    Ring::push(&mut ring, 20);
+    Ring::push(&mut ring, 30);
+    Ring::push(&mut ring, 40);
+    Ring::push(&mut ring, 50);
+    let first: i32 in Saturating = Ring::pop(&mut ring);
+    Ring::push(&mut ring, 5);
+    Ring::push(&mut ring, 15);
+    let second: i32 in Saturating = Ring::pop(&mut ring);
+    let last: i32 in Saturating = Ring::pop(&mut ring);
+    transition ring.size == 3 {
+        true -> check_popped(&ring, first, second, last)
+        _ -> bad_size()
     }
 
-    state w0(main: &mut Main, value: i32 in Saturating) { main.ring.slots[0] = value; }
-
-    state try_w1(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 1 {
-            true -> w1(main, value)
-            _ -> try_w2(main, idx, value)
+    state check_popped(ring: &Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
+        transition first == 20 && second == 30 && last == 40 {
+            true -> check_sum(ring)
+            _ -> bad_pop()
         }
     }
-
-    state w1(main: &mut Main, value: i32 in Saturating) { main.ring.slots[1] = value; }
-
-    state try_w2(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 2 {
-            true -> w2(main, value)
-            _ -> try_w3(main, idx, value)
-        }
-    }
-
-    state w2(main: &mut Main, value: i32 in Saturating) { main.ring.slots[2] = value; }
-
-    state try_w3(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 3 {
-            true -> w3(main, value)
-            _ -> try_w4(main, idx, value)
-        }
-    }
-
-    state w3(main: &mut Main, value: i32 in Saturating) { main.ring.slots[3] = value; }
-
-    state try_w4(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 4 {
-            true -> w4(main, value)
-            _ -> try_w5(main, idx, value)
-        }
-    }
-
-    state w4(main: &mut Main, value: i32 in Saturating) { main.ring.slots[4] = value; }
-
-    state try_w5(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 5 {
-            true -> w5(main, value)
-            _ -> try_w6(main, idx, value)
-        }
-    }
-
-    state w5(main: &mut Main, value: i32 in Saturating) { main.ring.slots[5] = value; }
-
-    state try_w6(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
-        transition idx == 6 {
-            true -> w6(main, value)
-            _ -> w7(main, value)
-        }
-    }
-
-    state w6(main: &mut Main, value: i32 in Saturating) { main.ring.slots[6] = value; }
-    state w7(main: &mut Main, value: i32 in Saturating) { main.ring.slots[7] = value; }
-}
-
-// ---------------------------------------------------------------------------
-// pop: read slots[head] into last_pop, advance head mod 8, size--.
-// ---------------------------------------------------------------------------
-machine Main::pop(main: &mut Main) {
-    let h: i32 in Saturating = main.ring.head;
-    main.ring.size = main.ring.size - 1;
-    // Advance head mod 8.
-    transition h == 7 {
-        true -> head_wrap(main, h)
-        _ -> head_advance(main, h)
-    }
-
-    state head_wrap(main: &mut Main, h: i32 in Saturating) {
-        main.ring.head = 0;
-        Main::read_slot(main, h);
-    }
-
-    state head_advance(main: &mut Main, h: i32 in Saturating) {
-        main.ring.head = h + 1;
-        Main::read_slot(main, h);
-    }
-}
-
-// Dispatch read from const-indexed slot into main.ring.last_pop.
-machine Main::read_slot(main: &mut Main, idx: i32 in Saturating) {
-    transition idx == 0 {
-        true -> r0(main)
-        _ -> try_r1(main, idx)
-    }
-
-    state r0(main: &mut Main) { main.ring.last_pop = main.ring.slots[0]; }
-
-    state try_r1(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 1 {
-            true -> r1(main)
-            _ -> try_r2(main, idx)
-        }
-    }
-
-    state r1(main: &mut Main) { main.ring.last_pop = main.ring.slots[1]; }
-
-    state try_r2(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 2 {
-            true -> r2(main)
-            _ -> try_r3(main, idx)
-        }
-    }
-
-    state r2(main: &mut Main) { main.ring.last_pop = main.ring.slots[2]; }
-
-    state try_r3(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 3 {
-            true -> r3(main)
-            _ -> try_r4(main, idx)
-        }
-    }
-
-    state r3(main: &mut Main) { main.ring.last_pop = main.ring.slots[3]; }
-
-    state try_r4(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 4 {
-            true -> r4(main)
-            _ -> try_r5(main, idx)
-        }
-    }
-
-    state r4(main: &mut Main) { main.ring.last_pop = main.ring.slots[4]; }
-
-    state try_r5(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 5 {
-            true -> r5(main)
-            _ -> try_r6(main, idx)
-        }
-    }
-
-    state r5(main: &mut Main) { main.ring.last_pop = main.ring.slots[5]; }
-
-    state try_r6(main: &mut Main, idx: i32 in Saturating) {
-        transition idx == 6 {
-            true -> r6(main)
-            _ -> r7(main)
-        }
-    }
-
-    state r6(main: &mut Main) { main.ring.last_pop = main.ring.slots[6]; }
-    state r7(main: &mut Main) { main.ring.last_pop = main.ring.slots[7]; }
-}
-
-// ---------------------------------------------------------------------------
-// main: run the scripted sequence, then verify the expected final state.
-// ---------------------------------------------------------------------------
-machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
-    Main::push(main, 20);
-    Main::push(main, 30);
-    Main::push(main, 40);
-    Main::push(main, 50);
-    Main::pop(main);          // pops 20; head=1
-    Main::push(main, 5);
-    Main::push(main, 15);
-    Main::pop(main);          // pops 30; head=2
-    Main::pop(main);          // pops 40; head=3; last_pop=40
-
-    // Verify size == 3.
-    transition main.ring.size == 3 {
-        true -> check_last_pop(main)
-        _ -> bad_size(main)
-    }
-
-    state check_last_pop(main: &mut Main) {
-        // last popped value should be 40.
-        transition main.ring.last_pop == 40 {
-            true -> check_sum(main)
-            _ -> bad_pop(main)
-        }
-    }
-
-    state check_sum(main: &mut Main) {
-        // Remaining elements: slots[3]=50, slots[4]=5, slots[5]=15 -> sum=70.
-        let sum: i32 in Saturating = main.ring.slots[3] + main.ring.slots[4] + main.ring.slots[5];
+    state check_sum(ring: &Ring) {
+        let sum: i32 in Saturating = ring.slots[3] + ring.slots[4] + ring.slots[5];
         transition sum == 70 {
-            true -> good(main)
-            _ -> bad_sum(main)
+            true -> good()
+            _ -> bad_sum()
         }
     }
-
-    state good(main: &mut Main) {
-        main.console.write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+    state good() {
+        Console::write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
+        transition { _ -> finish(70) }
     }
-
-    state bad_size(main: &mut Main) {
-        main.console.write_line("FAIL: wrong ring size (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+    state bad_size() {
+        Console::write_line("FAIL: wrong ring size (exit 71)");
+        transition { _ -> finish(71) }
     }
-
-    state bad_pop(main: &mut Main) {
-        main.console.write_line("FAIL: wrong last-popped value (exit 72)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(72);
+    state bad_pop() {
+        Console::write_line("FAIL: wrong last-popped value (exit 72)");
+        transition { _ -> finish(72) }
     }
-
-    state bad_sum(main: &mut Main) {
-        main.console.write_line("FAIL: wrong sum of remaining slots (exit 73)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(73);
+    state bad_sum() {
+        Console::write_line("FAIL: wrong sum of remaining slots (exit 73)");
+        transition { _ -> finish(73) }
+    }
+    state finish(code: i32) {
+        Console::write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(code);
     }
 }
