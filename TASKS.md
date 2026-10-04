@@ -2555,14 +2555,6 @@ lands alone with its corpus slice unchanged and no fallback path.
   **STATIC-MACHINE-MIGRATION** and the execution-planning owner. These are
   implementation dependencies, not unanswered language decisions.
 
-- **TRUST-REPORT-DELETED.** (new-scope)
-  `omega-rust/omega/compilation/realization/trust-model/src/admission_settlement.rs::reconstruct_trust_settlement`
-  builds a `TrustReport` (`trust-model/src/trust_report/`) on every compile,
-  calls `report.validate()`, and drops it. It has no other non-test consumer,
-  and `trust_report/mod.rs` compares equal plans and then their digests.
-  Delete `trust_report/` and its call. Acceptance: no `TrustReport` type
-  remains; the trust-ledger and grant behavior in the corpus is unchanged.
-
 - **AUTHORITY-REVIEW-RECEIPT-UNSEALED.** (new-scope)
   `TerminalAuthorityClosureReviewReceipt` only feeds the native artifact's
   identity hash; `NativeArtifact::validate` then recomputes that digest

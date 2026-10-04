@@ -15,11 +15,6 @@ use typed_trees::TypedTrees;
 mod authored;
 pub use authored::harvest_root_grants;
 
-pub(crate) struct ResolvedRootGrants<'a> {
-    pub(crate) providers: Vec<ResolvedSelectedProviderGrant>,
-    pub(crate) non_providers: Vec<(&'a str, NonProviderTrustGrant)>,
-}
-
 /// Package claims require package-level review; individual accepted-machine
 /// grants cannot substitute for it. The early typed checking gate reconstructs
 /// its own provider meanings, independent of later sealed checked admission.

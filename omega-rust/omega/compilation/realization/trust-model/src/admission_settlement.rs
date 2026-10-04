@@ -2,7 +2,6 @@
 //!
 //! This owner performs no policy-file I/O and never invents approval.
 
-use crate::root_grants::ResolvedRootGrants;
 use crate::{AcceptedTemplateClassifications, NonProviderTrustGrant, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
@@ -70,7 +69,7 @@ pub fn reconstruct_trust_settlement(
     package_aware: bool,
     accepted: &[TrustAdmission],
 ) -> Result<TrustAdmissionSettlement, Vec<Diagnostic>> {
-    let (obligations, resolved_grants) = reconstruct_obligations_and_grants(
+    let obligations = reconstruct_obligations(
         &checked.typed,
         checked,
         root_grants,
@@ -79,18 +78,7 @@ pub fn reconstruct_trust_settlement(
         accepted_template_classifications,
         package_aware,
     )?;
-    let settlement =
-        settle_trust_admissions(obligations, accepted).map_err(|diagnostic| vec![diagnostic])?;
-    let report = crate::trust_report::reconstruct_report(
-        checked,
-        root_grants,
-        provider_plans,
-        selected_provider_plans,
-        accepted_template_classifications,
-        Some(&resolved_grants),
-    )?;
-    report.validate().map_err(|diagnostic| vec![diagnostic])?;
-    Ok(settlement)
+    settle_trust_admissions(obligations, accepted).map_err(|diagnostic| vec![diagnostic])
 }
 
 /// Reconstruct every exact trust obligation from compiler-owned semantic
@@ -104,7 +92,7 @@ pub fn reconstruct_trust_obligations(
     accepted_template_classifications: &AcceptedTemplateClassifications,
     package_aware: bool,
 ) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
-    reconstruct_obligations_and_grants(
+    reconstruct_obligations(
         typed,
         checked,
         root_grants,
@@ -113,18 +101,17 @@ pub fn reconstruct_trust_obligations(
         accepted_template_classifications,
         package_aware,
     )
-    .map(|(obligations, _)| obligations)
 }
 
-fn reconstruct_obligations_and_grants<'a>(
+fn reconstruct_obligations(
     typed: &TypedTrees,
     checked: &checked_trees::CheckedTrees,
-    root_grants: &'a [String],
+    root_grants: &[String],
     provider_plans: &[effects::provider_plan::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     accepted_template_classifications: &AcceptedTemplateClassifications,
     package_aware: bool,
-) -> Result<(Vec<TrustAdmission>, ResolvedRootGrants<'a>), Vec<Diagnostic>> {
+) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
     let mut rows = Vec::<PreparedTrustObligation>::new();
     let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
@@ -139,7 +126,6 @@ fn reconstruct_obligations_and_grants<'a>(
             &provider_grants,
         )?;
     }
-    let mut non_provider_grants = Vec::new();
     for grant in root_grants {
         if let Some(provider_grant) = provider_grants
             .iter()
@@ -177,9 +163,6 @@ fn reconstruct_obligations_and_grants<'a>(
                 )
             }
         };
-        // Preserve per-grant error precedence: classification above must finish
-        // before resolving any later nonprovider selector, including duplicates.
-        non_provider_grants.push((grant.as_str(), subject));
         if !rows.iter().any(|row| row.commitment == commitment) {
             rows.push(PreparedTrustObligation {
                 commitment,
@@ -237,13 +220,7 @@ fn reconstruct_obligations_and_grants<'a>(
             ))]);
         }
     }
-    Ok((
-        resolved.into_values().collect(),
-        ResolvedRootGrants {
-            providers: provider_grants,
-            non_providers: non_provider_grants,
-        },
-    ))
+    Ok(resolved.into_values().collect())
 }
 
 pub fn settle_trust_admissions(
