@@ -253,19 +253,23 @@ pub(super) fn validate(
                 .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
                 && (checked.type_multiplicity(reference)
                     == language_semantics::Multiplicity::Linear
-                    || !members.iter().all(|member| {
-                        let checked_trees::data::DataMember::Variant(case) = member else {
-                            return false;
-                        };
-                        checked.data_payload_fields(case).iter().all(|field| {
-                            !field.relevance.is_erased()
-                                && matches!(
-                                    checked
-                                        .type_reference_table
-                                        .type_reference(field.type_reference),
-                                    TypeReferenceNode::Named { .. }
-                                )
-                        })
+                    || !members.iter().all(|member| match member {
+                        checked_trees::data::DataMember::Variant(case) => {
+                            checked.data_payload_fields(case).iter().all(|field| {
+                                !field.relevance.is_erased()
+                                    && matches!(
+                                        checked
+                                            .type_reference_table
+                                            .type_reference(field.type_reference),
+                                        TypeReferenceNode::Named { .. }
+                                    )
+                            })
+                        }
+                        // An erased member stores nothing the borrow loans;
+                        // the sum's storage stays its discriminated variants.
+                        checked_trees::data::DataMember::Field(field) => {
+                            field.relevance.is_erased()
+                        }
                     }))
             {
                 return unsupported("borrowed case operand requires a non-erased nominal sum");
