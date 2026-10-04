@@ -138,6 +138,8 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         BuiltinFunction::Max
         | BuiltinFunction::Min
         | BuiltinFunction::Sqrt
+        | BuiltinFunction::Abs
+        | BuiltinFunction::Clamp
         | BuiltinFunction::AsmLoadFence
         | BuiltinFunction::AsmStoreFence
         | BuiltinFunction::AsmFullFence

@@ -13,7 +13,8 @@
 //! own comment records: `lowering` translates items and then mathematical
 //! definitions into the symbol-resolved carrier; `selection` binds operator
 //! homes, which need no symbols yet; `symbols` builds the table and assigns
-//! identities; `lowering` marks the domain homes of token-bearing machines,
+//! identities; `lowering` normalizes exact arithmetic intrinsics and marks
+//! the domain homes of token-bearing machines,
 //! which need those just-assigned attached symbols; then `constant` and
 //! `selection` close in turn — constants need the table, the authored
 //! selection ledger needs substituted constants, operator obligations need

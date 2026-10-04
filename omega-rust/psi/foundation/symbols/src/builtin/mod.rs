@@ -329,10 +329,21 @@ pub enum BuiltinFunction {
     /// Total, proof-only projection of a fixed-width integer or address into
     /// mathematical Int. This has no callable implementation or runtime ABI.
     IntegerEmbed,
+    /// Source arithmetic intrinsics normalized after callee resolution. They
+    /// have identities so authored callbacks can shadow their spellings; they
+    /// never reach typing as executable operations.
+    Abs,
+    Clamp,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 100;
+    /// These source operations are expanded after resolution and never name
+    /// a runtime intrinsic in Terminal Psi or a target backend.
+    pub const fn is_source_normalization(self) -> bool {
+        matches!(self, Self::Abs | Self::Clamp)
+    }
+
+    pub const COUNT: usize = 102;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -435,6 +446,8 @@ impl BuiltinFunction {
         Self::AsmWriteMairEl1,
         Self::AsmWriteVbarEl1,
         Self::AsmWriteTpidrEl1,
+        Self::Abs,
+        Self::Clamp,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -588,6 +601,8 @@ impl BuiltinFunction {
             Self::ContentOld => "old",
             Self::ContentSeparate => "separate",
             Self::IntegerEmbed => "embed",
+            Self::Abs => "abs",
+            Self::Clamp => "clamp",
         }
     }
 
@@ -693,6 +708,8 @@ impl BuiltinFunction {
             Self::AsmWriteMairEl1 => 97,
             Self::AsmWriteVbarEl1 => 98,
             Self::AsmWriteTpidrEl1 => 99,
+            Self::Abs => 100,
+            Self::Clamp => 101,
         }
     }
 
@@ -738,6 +755,8 @@ impl BuiltinFunction {
             Self::Max
             | Self::Min
             | Self::Sqrt
+            | Self::Abs
+            | Self::Clamp
             | Self::FloatIsNan
             | Self::FloatMultiplyThenAddF32
             | Self::FloatMultiplyThenAddF64
@@ -815,6 +834,8 @@ impl BuiltinFunction {
             Self::Max
             | Self::Min
             | Self::Sqrt
+            | Self::Abs
+            | Self::Clamp
             | Self::FloatIsNan
             | Self::FloatMultiplyThenAddF32
             | Self::FloatMultiplyThenAddF64
@@ -1032,408 +1053,12 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
 
 pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BuiltinFunction::COUNT]
 {
-    [
+    BuiltinFunction::ALL.map(|function| {
         (
             SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::Max.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::Min.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::Sqrt.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmHlt.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmPortOut.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmPortIn.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmLoadFence.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmStoreFence.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmFullFence.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmDisableInterrupts.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmEnableInterrupts.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmSnapshotFlags.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmRestoreFlags.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadMsr.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteMsr.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadCr0.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadCr2.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadCr3.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadCr4.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr0.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr3.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteCr4.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatIsNan.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyThenAddF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyThenAddF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatIsFinite.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatIsInfinite.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatIsNormal.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatIsSubnormal.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatClassifyF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatClassifyF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::ContentOld.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::ContentSeparate.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatAddTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardZeroF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardZeroF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF32.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::IntegerEmbed.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmSerialize.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmInstructionSyncBarrier.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmSpinPause.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmYieldHint.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteBackInvalidate.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmInvalidate.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteBackNoInvalidate.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmNop.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWaitForEvent.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWaitForInterrupt.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmSendEvent.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmSendEventLocal.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadSctlrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadTcrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadTtbr0El1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadTtbr1El1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadMairEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadVbarEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadTpidrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadEsrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmReadFarEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteSctlrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteTcrEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteTtbr0El1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteTtbr1El1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteMairEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteVbarEl1.name()),
-        ),
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::AsmWriteTpidrEl1.name()),
-        ),
-    ]
+            SymbolNameRef::Static(function.name()),
+        )
+    })
 }
 
 /// Closed semantic identity for the fixed `core::*` mathematical
@@ -1602,7 +1227,14 @@ mod builtin_ordinal_tests {
         }
         assert_eq!(BuiltinFunction::from_name(""), None);
         assert_eq!(BuiltinFunction::from_name("Min"), None);
-        assert_eq!(BuiltinFunction::from_name("abs"), None);
+        assert_eq!(
+            BuiltinFunction::from_name("abs"),
+            Some(BuiltinFunction::Abs)
+        );
+        assert_eq!(
+            BuiltinFunction::from_name("clamp"),
+            Some(BuiltinFunction::Clamp)
+        );
     }
 
     #[test]

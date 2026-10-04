@@ -52,12 +52,10 @@ impl ValueClass {
     }
 }
 
-/// The value class of an assignment RHS, if it is unambiguously determinable:
-/// a literal (its literal class) OR a resolvable place -- `self.field`, a local
-/// -- whose declared type is a scalar primitive. Returns `None` for any
-/// computed expression (binary, call, cast, indexed) whose result type we do
-/// not resolve here -- those are left to the blanket-accepting general gate, so
-/// this never false-positives on them.
+/// Classify literals, declared places and resolved call results. Scalar builtin
+/// computations are numeric even before anonymous literals acquire a width.
+/// Unsupported results remain unknown; missing representation information is
+/// never used to invent a declared callable's result class.
 pub(super) fn value_class(
     program: &TypedTrees,
     machine: Option<&typed_trees::machine::Machine>,
@@ -114,10 +112,27 @@ pub(super) fn value_class(
         };
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
-        machine?;
-        let primitive = crate::proof_contracts::arithmetic_domains::call_return_type(program, call)
-            .and_then(|handle| program.primitive_type_reference(handle))?;
-        return Some(ValueClass::of_primitive(primitive));
+        let reference = match (machine, state) {
+            (Some(machine), Some(state)) => {
+                super::result_type::expression_result_type_reference(program, machine, state, value)
+            }
+            _ => crate::proof_contracts::arithmetic_domains::call_return_type(program, call),
+        };
+        if let Some(primitive) =
+            reference.and_then(|handle| program.primitive_type_reference(handle))
+        {
+            return Some(ValueClass::of_primitive(primitive));
+        }
+        // Anonymous numeric literals need no chosen width to establish that a
+        // resolved scalar computation produces a numeric value.
+        if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+            return None;
+        }
+        return program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            .filter(|function| function.is_scalar_computation())
+            .map(|_| ValueClass::Numeric);
     }
     // A place RHS (`self.field`, a local) needs the machine/state to resolve its
     // declared type. Without a machine context (e.g. a data field DEFAULT, which is

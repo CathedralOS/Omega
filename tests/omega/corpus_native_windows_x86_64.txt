@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -151,6 +151,7 @@ pass/calls/runtime_value_call_terminal_exit rejected 2731ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
 pass/calls/state_and_machine_names_exit built 646ms exit:0 @0484de104502
 pass/calls/statement_call_recursive_overload_compile checked 455ms @0484de104502
+pass/calls/static_arithmetic_name_callback_exit built 2495ms exit:7 @313d9f292579+wt
 pass/calls/structural_mut_to_shared_argument built 517ms @0484de104502
 pass/calls/structural_self_rooted_argument built 482ms @0484de104502
 pass/calls/transition_arg_local_from_embedded_call_exit built 1471ms exit:70 @0484de104502
