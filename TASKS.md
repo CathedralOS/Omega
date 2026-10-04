@@ -1829,6 +1829,252 @@ check corpus and the native corpus unchanged on the slices it names.
   three-field projected-transition cleanup and a trailing expression outside
   the old disjuncts; both check and execute. Existing outcomes are unchanged.
 
+## Checker simplification
+
+Owner ruling 2026-10-04: remove the checker's re-checking, duplicate analyses,
+shape gates and review/certificate support. The checker is stage 04
+(`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src`,
+about 253k lines) plus the `validation` crate it calls
+(`omega-rust/psi/compilation/checking`, about 169k lines). An audit at
+`c252be7fa2` estimates 40–60k of those lines decide nothing new. The rulings
+in [Trust ceremony](#trust-ceremony), [PCC removal](#pcc-removal) and
+[Lowering simplification](#lowering-simplification) apply here. Related items
+already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
+**LOWERING-READS-CHECKED-BORROW-CUSTODY**,
+**LOWERING-READS-CHECKED-CONTENT-CLASSES**, **TYPED-FROZEN-BEFORE-CHECKING**
+and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
+
+Each item lands in one commit, deletes what it replaces, and keeps every
+check-corpus verdict and diagnostic family unchanged unless the item says
+otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
+the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
+
+- **BORROW-CERTIFICATES-DELETED.** (new-scope) Borrow checking builds
+  `BorrowFacts` once (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs` → `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/borrow/`), writes compatibility,
+  mutation and call-compatibility "certificates", and then rebuilds the facts
+  from scratch to replay the certificates and report drift or forgery
+  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/correspondence.rs`: "A forged activation/weakening
+  plus a deleted certificate must not erase a comparison"). Nothing outside
+  the borrow checker reads the certificates. Delete:
+  - `initialize_checked_borrow_call_certificates` and the certificate fields
+    in checked trees;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/correspondence.rs`, `calls/evidence.rs` and
+    `calls.rs`'s `validate_compatibility`;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/resources/{retained_validation,lineage_replay,resource_reconstruction,certificate_planning}.rs`;
+  - the snapshot/replay half of `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/overlap/` and
+    `CompatibilityReplayDrift`;
+  - the dead export `replay_checked_borrow_certificates`.
+
+  Keep the conflict, writability, escape and persistence judgments, run once
+  over the single `BorrowFacts`, and keep the `direct_loan_resources` rows that
+  stage 05 consumes. Acceptance: `build_borrow_facts` runs once per check; the
+  borrow pass/fail corpus slices (`--filter borrows/,borrow/,references/`) are
+  unchanged.
+
+- **PERMISSION-REPLAY-DELETED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs` records permission
+  events (`prepare_permission_events`), and
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation.rs`'s
+  `validate_permission_source_replay` re-runs the recording into a second
+  `CheckFacts` and compares (`owned_selections_match`);
+  `linear_validation/recorded_events.rs` says "Receipt replay alone cannot
+  detect a forged establishment". Delete the replay and
+  `recorded_events.rs`; move the claim-join and unresolved-result
+  diagnostics into the single recording pass. Acceptance: one permission
+  recording per check; corpus `--filter ownership/,drops,linear` unchanged.
+
+- **CHECKER-REPLAYS-DELETED.** (new-scope) Delete the smaller self-checks:
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/monomorphization/identities.rs`
+    `replay_machine_specialization_identity` and the comparison against
+    stored commitments;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/rewrite.rs` `validate_pruned_product`, which re-extracts
+    edges from its own output;
+  - the second kernel check of mathematical declarations: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`
+    elaborates and checks them and discards the result, then `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof.rs`
+    re-runs `check_signature` "for the Terminal evidence encoding". Check once
+    in `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs` and pass the result on;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_scalar` building scalar graphs during facts and
+    again in `finalize_execution`, re-ranking each to confirm it matches;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress/qualification_correspondences.rs`
+    (replays qualification correspondences);
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/reads.rs` re-validating atomic
+    ordering, result custody and desugar shape that typing already decides;
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/program_validation.rs` `validate_atomic_result_custody`
+    (re-checks a stage 03 invariant) and the `opaque_property_receipts`
+    rejoin.
+
+  Acceptance: none of the named functions remain; corpus unchanged.
+
+- **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs` re-runs five whole-program validations
+  (`validate_conformance_applications`,
+  `validate_static_machine_selections_with_facts`,
+  `validate_generic_machine_contract_entailment`, `infer_operational_may`,
+  `validate_static_machine_call_contracts`) before the loop and on every
+  iteration, and repeats `bind_selected_operator_calls` (3 + N runs),
+  `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
+  (2) and `land_float_literal_destinations` (2–3). Make the loop specialize
+  and bind only; run each validation, receiver resolution and float landing
+  once after it converges. Coordinate with **TYPED-FROZEN-BEFORE-CHECKING**,
+  which moves the loop to its own stage. Acceptance: each named pass runs once
+  per check except the per-iteration specialize/bind step; the
+  generic-value-call fence and call-contract diagnostics are unchanged; corpus
+  `--filter generics,operators,traits/` unchanged.
+
+- **ONE-CHECKING-MODE.** (new-scope) `CheckingMode` Preliminary and Settled
+  differ only in whether pending opaque `[copy]` claims are tolerated, and
+  `allows_unresolved_toolchain_selections` is true for both, so the strict
+  finalization path (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+  `finalize_checked_authored_selections` and its `!allow_unresolved_toolchain`
+  branch) never runs. `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs` exists because the same
+  program is checked at both checkpoints and by package-review passes; its
+  preliminary-to-settled patching and executed-check counters serve only
+  package review. Replace the mode with an opaque-copy parameter, delete the
+  dead strict path, and delete the memo unless a measured compile-time
+  admission probe still needs it (record the measurement in the commit).
+  Acceptance: one checking entry; the memo's review-only counters are gone;
+  `omega --check` time on `samples/cli/basics/cli_mvp` does not regress.
+
+- **CHECK-ONCE-ACROSS-TARGETS.** (new-scope) The driver re-checks the whole
+  program for each selected target
+  (`omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
+  replaces the selected target's bodies and calls `lower_typed_trees` per
+  compile; inferred from reading, not measured). Psi already checks every
+  target-scoped body in one compilation (AGENTS.md: targets are data). Check
+  once and have each target's realization read the shared checked trees.
+  Coordinate with **PSI-TARGET-FAMILIES**. Acceptance: a two-target build
+  calls `lower_typed_trees` once (add a counter or trace); native corpus on
+  the host target unchanged.
+
+- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least ten separate engines
+  answer "what range can this integer take":
+  - stage 04: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts` (`RangeFacts`),
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/intervals.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evaluator`,
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/bounds` (`PlaceIntegerBounds`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking`
+    ranges (`Bounds`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/overlap/indexes.rs`
+    (`NormalizedBound`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges` `MergedBound` and the loop
+    invariant `Bounds`;
+  - validation: `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/interval.rs`,
+    `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`,
+    `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs`,
+    `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/integer_ranges.rs`,
+    `omega-rust/psi/compilation/checking/src/value_custody/struct_literals/construction_bounds.rs`;
+  - `omega-rust/psi/compilation/proof/src/checker/integer_ranges.rs`.
+
+  Keep one interval domain and one premise-chaining oracle in `validation`
+  (`arithmetic_domains`), and make every listed site a client. Float intervals
+  (`omega-rust/psi/compilation/checking/src/value_custody/expression_types/float_cast_proofs.rs`) stay
+  separate. This is large: land it per client, each commit deleting that
+  client's private engine. Acceptance: no private integer interval type
+  remains outside `arithmetic_domains`; corpus `--filter ranges,arithmetic/,
+  collections/,slices/,termination/,contracts` unchanged.
+
+- **ONE-ENSURES-PROVER.** (new-scope) Exit guarantees are decided twice:
+  `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment` (26k lines) judges
+  requires⇒ensures, and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/{exits,prover}` independently
+  proves exit `ensures` from flow. The two are bridged by "stand-downs":
+  `collect_contract_entailment_stand_downs` re-runs whole-program entailment
+  and discards its diagnostics, called from
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exit_membership.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contract_entailment.rs`
+  (twice) and
+  `omega-rust/omega/compilation/realization/selected-dispatch/src/execution_settlement.rs`.
+  Make the stage 04 prover the one decision over bodies and have it call the
+  entailment engine for proof-only and contract-to-contract judgments; delete
+  the stand-down bridge and the selected-dispatch call. Acceptance:
+  `collect_contract_entailment_stand_downs` is gone; corpus
+  `--filter contracts,proofs/,ensures` unchanged.
+
+- **QUOTIENT-CORRESPONDENCE-ROWS-DELETED.** (new-scope) Delete the Terminal
+  correspondence-row and certificate production for quotients:
+  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/correspondence_certificate.rs`,
+  the row emission in `relation_plan/terminal_bridge.rs` and
+  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/terminal_bridge.rs`,
+  `extract_non_executable_quotient_correspondences*`, and the review capture
+  `omega-rust/omega/packages/review-evidence/src/capture/quotients.rs`. The
+  stage 05 side is deleted by **PCC-CERTIFICATES-DELETED**. Keep quotient
+  formation and request checking (`equivalence_selection`,
+  `formation_collection`, `carrier_fence`) and the relation/theorem schema
+  judgments that **QUOTIENT-THEOREM-LIFT** and
+  **QUOTIENT-RUNTIME-REALIZATION** need; rewrite **QUOTIENT-THEOREM-LIFT** to
+  build on those judgments instead of the deleted bridge in the same commit.
+  Acceptance: `pass/proofs/quotient_*` and `fail/proofs/quotient_*` keep
+  their verdicts; no quotient code emits Terminal rows or certificates.
+
+- **CHECKER-RECORDS-ONCE.** (new-scope) Values the checker decides are
+  recomputed by later consumers instead of read from checked trees:
+  - `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
+    (`reconstruct_structural_call_custody`, "shared producer-side replay") is
+    called by stage 04 to build the plan and again by stage 05
+    (`unit/attached_unit/structural_calls.rs`) to compare;
+  - `omega-rust/psi/compilation/checking/src/machine_calls/machine_specialization_identity.rs` and
+    `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs` hash
+    commitments that stage 05, selected-dispatch, provider-planning and
+    compile-time each recompute and compare;
+  - Omega stage 00
+    (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs`)
+    calls `validate_exact_const_value_encoding` on Psi's typed trees, across
+    the firewall.
+
+  Store the custody plan once in checked trees and delete the recompute and
+  compare sites; replace the commitments with a plain identity key where one
+  is needed and delete the hashing; move the const-encoding decision into
+  checking and delete the stage 00 call. Acceptance: those three modules hold
+  no replay; no Omega crate references `checked.typed`; corpus unchanged.
+  (**LOWERING-READS-CHECKED-BORROW-CUSTODY** already covers the
+  `reference_result_custody` recompute in stage 05.)
+
+- **LOWERING-GATES-OUT-OF-CHECKER.** (new-scope) The checker carries lowering
+  capability gates and per-shape query variants:
+  - 16 `*_supported` functions (for example
+    `result_initializer_call_is_supported`, which matches
+    `if let [state] = … && matches!(…last(), Some(StatementNode::Expression(e)) …)`);
+  - 12 `has_*_contents` variants in
+    `omega-rust/psi/compilation/checking/src/value_custody/storage_contents.rs` (such as
+    `has_plain_owned_contents_with_numeric_constraints` and
+    `…_with_represented_constraints`);
+  - about 50 `…_with_…` function variants (for example
+    `land_anonymous_integer_expression{,_with_selected_match_arms,_with_warning}`).
+
+  Delete the `*_supported` gates: the checker decides legality and lowering
+  reports its own gaps (**UNIT-PLAN-GAPS-REPORTED-AT-SOURCE**). Replace each
+  variant family with one parameterized query. Acceptance: no `*_supported`
+  function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; one `has_contents` query takes
+  the constraint kind as a parameter; corpus unchanged.
+
+- **VALUES-SCALAR-PLANS-MERGED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar` (about 17k
+  lines) builds scalar and computation plans for lowering and checks nothing
+  ("Independent lowering replays that occurrence…"). It likely overlaps the
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit` plan routes (unverified). Merge it into the
+  single plan builder that **ONE-CALL-LOWERING** and
+  **ONE-TRANSITION-LOWERING** establish, deleting duplicated plan
+  construction. Depends on those two items. Acceptance: one plan builder
+  produces scalar and Unit computations; native corpus unchanged.
+
+- **CHECKER-REVIEW-EXPORTS-DELETED.** (new-scope) Delete checker code that
+  only package review or nothing uses:
+  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exit_membership.rs` (its only caller is
+    `omega-rust/omega/packages/review-evidence/src/capture/contracts/stand_downs.rs`),
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/review_sources.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`, the byte
+    `callable_shape` and substitutable-contract identities in
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contract_plan_facts.rs` and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_plan_facts.rs`, and
+    the review-only exports of `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/package_review.rs` (keep
+    `derive_pre_flow_value_origins`, `infer_machine_termination_summary` and
+    `typed_build_provider_selection` for compile-time callers);
+  - `recheck_contract_entailment_exit_membership_discharge`,
+    `recheck_contract_entailment_assumption_discharge`,
+    `prune_target_siblings_typed`, `validate_specialized_program`,
+    `validate_specialized_program_deferring_quotient_requests`,
+    `build_open_invariant_crash_sites`, `slice_tail_strictly_decreases`,
+    `validate_static_machine_selections`, `bind_checked_atomic_resident_access`
+    (`omega-rust/psi/compilation/checking/src/value_custody/placed_views/checked_atomic_resident.rs`) and
+    `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/legacy_candidates.rs`;
+  - the dead `enforce_crash_admission` parameter (always `true`), the
+    single-arm `match mode` and the per-machine check for the retired
+    `terminates by upper - lower` spelling in `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination.rs`.
+
+  Update the review-evidence callers in the same commit (they go with
+  **REVIEW-SINGLE-PROJECTION**). Grep each name again first. Acceptance: none
+  of the names remain; workspace build and the check corpus unchanged.
+
 ## Data-flow defects
 
 Each item removes one verified copy, rescan or repeated validation in the
