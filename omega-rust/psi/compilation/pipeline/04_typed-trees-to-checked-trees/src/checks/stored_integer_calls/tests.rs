@@ -4,7 +4,21 @@ use semantic_vocabulary::IntegerSign;
 use typed_trees::data::DataMember;
 
 fn program_with_storage(source: &str, width: u16, sign: IntegerSign) -> TypedTrees {
-    let mut program = crate::tests::front_end::typed_program(source);
+    let mut program = crate::tests::front_end::typed_program(&format!(
+        "{source}\ndata StoragePolicy {{}}\nmachine StoragePolicy::plan() {{}}"
+    ));
+    let policy_symbol = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "StoragePolicy")
+        .unwrap()
+        .symbol;
+    let policy_plan_machine_symbol = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "StoragePolicy::plan")
+        .unwrap()
+        .symbol;
     let data = program
         .data_definitions()
         .iter()
@@ -27,10 +41,12 @@ fn program_with_storage(source: &str, width: u16, sign: IntegerSign) -> TypedTre
         field_symbols: vec![field],
         schema_symbol: symbol,
         schema_field_symbols: vec![field],
-        policy_symbol: symbols::SymbolHandle::invalid(),
-        policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
+        policy_symbol,
+        policy_plan_machine_symbol,
         validated_layout: layout_plans::LayoutPlanReport {
-            schema_report_fingerprint: 0,
+            // Exact omega.schema.v2 report identity of the fixed schema
+            // Cell { value: i64; }, checked by ordinary plan validation.
+            schema_report_fingerprint: 0xe66b_91e5_b35b_8a82,
             entries: vec![layout_plans::LayoutFieldEntryReport {
                 field: "value".to_owned(),
                 member_identity: None,

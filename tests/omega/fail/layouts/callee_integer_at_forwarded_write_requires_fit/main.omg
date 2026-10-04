@@ -60,5 +60,6 @@ machine forward(dst: &mut i64, value: i64) { set(dst, value); }
 machine Main::main(main: &mut Main) {
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let leaf: &mut i64 = &mut view.value.value;
-    forward(leaf, 128);
+    transition { _ -> write(leaf) }
+    state write(destination: &mut i64) { forward(destination, 128); }
 }

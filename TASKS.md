@@ -3353,35 +3353,34 @@ unchanged, except for intended deletions, which its commit lists.
   cleanup prerequisites and mathematical proofs distinct from primitive
   operation conditions during this transition.
 
-  The local candidate checks runtime division/remainder with shared policy
-  rules and retains selected disequalities through writes, joins and named-state
-  transport. Immutable call actuals retain their bounds, including clamp then
-  widening. Assignments, scalar loans and normalized constructors share physical
-  integer fit checking and the occurrence-keyed `CheckFacts::stored_integer_writes`
-  table. Scalar fields, nested arrays and scalar match arms retain arithmetic
-  diagnostics at their evaluation occurrences. The 87 focused arithmetic,
-  construction and physical-boundary tests pass. Six constructor/match/storage
-  corpus cases retain their expected verdicts; three new failures are recorded.
-  At `229377b754`, the proved layout write returns 72 in both engines and both
-  upstream terminal guard/operand-order fixtures return 0 on macOS ARM64.
+  Source checking applies the shared division/remainder policies and carries
+  live integer constraints through writes and named states. Call-result bounds
+  intersect declared guarantees with bounds inferred from captured immutable
+  actuals. Assignments, scalar loans and normalized constructors share the
+  occurrence-keyed `CheckFacts::stored_integer_writes` table. Scalar fields,
+  nested arrays and scalar match arms check arithmetic at their evaluation
+  occurrences.
 
-  Private mutation facts now retain every direct integer assignment separately,
-  including overwritten values and writes before a crash, with source coordinates,
-  bounds, entry-value provenance and guards. Shared call-value binding preserves
-  completed operands and refuses to merge unknown observations across intervening
-  writes. Typed call-origin queries preserve all alternatives and representation
-  coordinates; missing projected receiver identities and effect-obscured origins
-  remain unknown. The 28 focused evidence/receiver controls pass.
+  The draft call consumer checks each retained integer assignment, including
+  overwritten values and pre-crash writes, against captured caller storage.
+  Four normalized call-admission controls pass. Real direct and intermediate
+  invalid-write fixtures produce the intended caller-width diagnostic, but
+  the valid runtime fixture currently also exposes unrelated library-call
+  rejection. Root writes and calls reached through named-state parameters need
+  complete storage-origin transport. Recasts must retain prior physical
+  coordinates instead of letting a later logical carrier erase an encoding.
+  Selected operators need the same complete performed-write coverage.
 
-  Remaining: compose those write occurrences through every call and named-state
-  path, authenticate destinations against captured origins, and discharge each
-  caller's physical width. A partial row inventory is not a complete transitive
-  effect; final values cannot justify earlier invalid stores. Preserve valid
-  logical-field borrows without inventing public caller requirements. Retain and
-  consume all other operation decisions before deleting any late gate. Public
-  layout literals remain unspellable; normalized constructor checks do not claim
-  that separate syntax work. The call-write admission consumer and replacement
-  cleanup execution path remain unfinished and unpublished.
+  `runtime_callee_integer_at_fitting_write_exit` is the execution customer:
+  direct and forwarding helpers write -128 and 127 through a legal `&mut i64`
+  loan to signed eight-bit storage, and neighboring byte 85 must survive.
+  After call admission, lowering must replay checked explicit alias arguments
+  and retain physical geometry through ordinary calls or a checked adapter.
+  A raw carrier-width pointer or delayed copy-out cannot establish that
+  contract. Complete those dependencies, retain and consume all other operation
+  decisions, and replace conditional-cleanup proof search before deleting any
+  late gate. Public layout literals remain separate unsupported syntax;
+  normalized constructor checks do not establish source-literal support.
 
   Boolean recast admission already enforces the exact representation set
   (shared implication, mutable equivalence), and source checking already owns

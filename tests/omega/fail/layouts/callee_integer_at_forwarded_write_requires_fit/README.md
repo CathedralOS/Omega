@@ -1,1 +1,1 @@
-Every concrete callee write must fit the caller’s physical integer field, including intermediate writes and forwarding calls. The semantic `i64` loan remains legal.
+The encoded field loan crosses a named-state parameter and a forwarding machine before the invalid store. Each transfer must preserve its signed eight-bit physical width; the semantic `i64` loan remains legal.
