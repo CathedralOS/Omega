@@ -125,6 +125,23 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
         && contract.entry_claims.is_empty()
         && contract.published_service_ceiling.is_empty()
         && function.attachment.is_none()
+        // A case terminator observes the parameter's tag and selected payload
+        // even when every ordinary instruction only consumes scalar values.
+        // Retain its incoming storage before deciding whether ABI fragments
+        // need a local home or an already-addressable value copy suffices.
+        && !function.blocks.iter().any(|block| {
+            let legalized_operations::LegalizedScalarTerminator::StructuralCase { source, .. } =
+                &block.terminator
+            else {
+                return false;
+            };
+            contract
+                .parameters
+                .iter()
+                .map(|parameter| &parameter.semantic)
+                .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
+                .any(|parameter| parameter.place == source.place())
+        })
         // Return cleanup calls can observe an original owned parameter even
         // when there is no ordinary body instruction using that parameter.
         && !function.blocks.iter().any(|block| matches!(&block.terminator,
