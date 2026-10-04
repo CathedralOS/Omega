@@ -20,6 +20,7 @@ pub(super) fn is_definition_subject(term: &ScalarTerm) -> bool {
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IeeeFloatField { .. }
+            | ScalarTerm::ViewExtent { .. }
     )
 }
 

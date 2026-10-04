@@ -794,7 +794,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/predicate_denotation/value_equalities.rs",
-        sha256: Some("2907397396f97feec3847127a7a05a26aacb5f72089abe32bf991aa4b6bd2031"),
+        sha256: Some("1df46f02791ae7c95c15c5344d76729ffd579bc526f444b18b58920ea7d2d615"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1829,7 +1829,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs",
-        sha256: Some("025aa42ac2975523d609b25ed3589303aad10c33bc36e61b450938454b69c9ce"),
+        sha256: Some("34b64688b8ad7b903438a8a2f8bbd3d8b06c61416b12aa886b236991cb7b9a62"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1844,7 +1844,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
-        sha256: Some("5c87fdffd46f5052a9b25005446ad3faad1d9f14a6bd5a5d000cbac3a4c7ab3b"),
+        sha256: Some("e93ca29ec037eeb6ec3b25fe89b114a1b8c80d8e089eb241929b4fca98059d1a"),
         inventory_machinery: false,
     },
     ImplementationSite {

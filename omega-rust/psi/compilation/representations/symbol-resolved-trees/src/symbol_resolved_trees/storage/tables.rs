@@ -518,6 +518,7 @@ mod tests {
             authored_target: None,
             target_family: SymbolHandle::invalid(),
             body_is_present: true,
+            body_status: crate::machine::MachineBodyStatus::Complete,
             has_structural_type_equations: false,
             structural_type_equations_pending: false,
             termination_plan: Default::default(),

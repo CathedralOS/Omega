@@ -230,6 +230,33 @@ pub(super) fn establishment_collection_length(
     })
 }
 
+/// A subslice's result extent is `end - start` in the view's own unit
+/// (elements for an element view, bytes for a byte sequence). The op's bound
+/// obligation validates `start <= end <= source length`, so the exact
+/// difference is the extent at the destination place.
+pub(super) fn subslice_extent_equation(operation: &Operation) -> Option<Proposition> {
+    let (start, end) = match &operation.kind {
+        OperationKind::ElementViewSubslice { start, end, .. }
+        | OperationKind::ByteSequenceSubslice { start, end, .. } => (*start, *end),
+        _ => return None,
+    };
+    let destination = operation.result.structural()?.place;
+    let integer_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64 is valid");
+    let scalar = semantic_vocabulary::ScalarType::Integer(integer_type);
+    let difference = semantic_vocabulary::ScalarTerm::exact_integer_subtract(
+        integer_type,
+        semantic_vocabulary::ScalarTerm::value(end, scalar),
+        semantic_vocabulary::ScalarTerm::value(start, scalar),
+    )
+    .ok()?;
+    Some(Proposition::Equal(
+        semantic_vocabulary::ScalarTerm::view_extent(destination, Vec::new(), integer_type),
+        difference,
+    ))
+}
+
 /// Retain both the source's extent and equality with a previous observation.
 /// These facts are independent: a caller-supplied view may have only the
 /// observation, while a loop header may retain its fixed backing extent but

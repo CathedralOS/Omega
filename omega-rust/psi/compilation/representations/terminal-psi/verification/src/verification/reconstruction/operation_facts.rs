@@ -797,6 +797,9 @@ pub(super) fn append_operation(
         {
             crate::verification::substitution::push_unique_fact(axioms, equation);
         }
+        if let Some(equation) = element_extent::subslice_extent_equation(operation) {
+            crate::verification::substitution::push_unique_fact(axioms, equation);
+        }
         if let Some(bounds) =
             crate::validation::byte_sequence::read::class_bounds(module, machine, operation)
         {
