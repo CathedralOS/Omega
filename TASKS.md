@@ -2446,6 +2446,38 @@ the corpus gate's job ([testing](tools/testing.md#running-one-test)). Board
 items that cite a deleted Rust test as acceptance mean the corresponding
 corpus fixture, or a new one.
 
+- **PACKAGE-FIXTURES-RETIRED.** (new-scope) Owner ruling 2026-10-04: no
+  package-manager fixture harness. Packages exercise cross-package behavior
+  through ordinary corpus fixtures that depend on them by `Source::Path`.
+  `tests/omega/packages/` (18 packages), `tests/omega/package-remotes/` and
+  `tests/omega/package-workspaces/` fed the package-manager Rust tests that
+  were cut; nothing runs them now. In one commit:
+  - Turn the real customers into corpus fixtures under `tests/omega/pass/`
+    or `tests/omega/fail/`, with outcomes recorded in the golden:
+    - `behavior-exclusions/{no-op-app,quiet-logger-app,checking-app,sink-app}`
+      (their current verdicts; `checking-app` and `sink-app` reject where an
+      exclusion is violated);
+    - `console-exit-app` (cited by **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**);
+    - the `build-scope-topology` composer (cited by
+      **TOPOLOGY-PLAN-VERIFICATION**).
+  - Keep only library packages a corpus fixture depends on:
+    `paradigm-internals` (used by the three `targets/single_target_internal_package_*`
+    fixtures) and the `assert-kit`/`logger-kit` libraries. Keep them where
+    the corpus runner does not treat them as fixtures.
+  - Delete the rest, including `REMOTE_PINS.md`, `package-remotes/` and
+    `package-workspaces/`. The remote mirrors under the `CathedralOS` GitHub
+    organization are outside this repository; list them in the commit for
+    the owner to archive.
+  - Update every reference: `tests/omega/README.md`,
+    `wiki/language_guide/packages.md`, `wiki/spec/packages/topology.md`,
+    `tools/test_affected.py` (and its test), the comment in
+    `omega-rust/omega/compilation/realization/provider-planning/src/target_machines.rs`,
+    and the board items that cite these paths.
+
+  Acceptance: `tools/corpus_gate.py` records the converted fixtures with
+  their verdicts; no file references a deleted package; the three
+  `targets/` fixtures keep their outcomes.
+
 - **RED-WINDOWS-HOST.** (new-scope) Two `package-source` tests
   (`omega-rust/omega/packages/source-acquisition/`) fail on Windows x86-64:
   - `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`
@@ -2821,8 +2853,9 @@ execution and retained outputs.
   package/target output sets on macOS and Windows. Negative lookups/metadata,
   substitution/link escapes, sealed mutation, cross-occurrence receipts, omitted
   outputs, interruption and final-check failure publish no partial set. The
-  former CLI and package-manager tests for this were deleted; add a package
-  fixture harness for it.
+  former CLI and package-manager tests for this were deleted; cover it with
+  corpus fixtures whose `build.omg` depends on a generator package by
+  `Source::Path`. There is no separate package harness.
 
 ## Process-exit contract
 
@@ -3562,8 +3595,10 @@ never permission to violate callable contracts. Reuse the shared checker in
 `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`.
 The packages in `tests/omega/packages/behavior-exclusions/` (`no-op-app`,
 `quiet-logger-app`, `checking-app`, `sink-app`, `assert-kit`, `logger-kit`)
-are the customers; their package-manager harness was deleted, so both items
-need a maintained harness that builds and runs them.
+are the customers. **PACKAGE-FIXTURES-RETIRED** turns the four apps into
+ordinary corpus fixtures with path dependencies on the two kits, so both
+items are accepted through `tools/corpus_gate.py`; there is no separate
+package harness.
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** Cover the full admitted entry/call closure.
   Executed selections
@@ -4906,7 +4941,8 @@ topology IR or trusted graph axiom.
   Refresh the stale test names in `wiki/spec/packages/topology.md`'s acceptance
   status when this lands.
 
-  Acceptance: a harness admits three component descriptions, publishes
+  Acceptance: a corpus fixture (the composer from
+  **PACKAGE-FIXTURES-RETIRED**) admits three component descriptions, publishes
   `payments.plan`, and `verify.omg` verifies it without source against a
   separately supplied `TopologyRequest`; exhaustion is unsuccessful
   verification. Keep the spec's
