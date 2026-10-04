@@ -81,6 +81,7 @@ pass/recast/runtime_recast_record_view_indexed_write_exit built 2185ms exit:70 i
 pass/recast/runtime_record_array_view_mutable_write_exit built 4386ms exit:70 interpreter-exit:70 interpreter:agrees @06ca7704be0a
 pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @f7e9667e2f4a
+pass/slices/runtime_indexed_record_field_range_exit built 2141ms exit:0 interpreter-exit:0 interpreter:agrees @94cfa8766f87
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt

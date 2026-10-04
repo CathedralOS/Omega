@@ -2097,10 +2097,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   annotations. Nonempty and UTF-8 domains do not survive arbitrary byte cuts.
   Keep the fixed-array range and guarded tail-call controls at **3** and **70**.
 
-  Remaining range customers include field/element ranges in ordinary bodies
-  (`ordinary_machine.rs`) and statement-call range operands in multi-state
-  bodies (`state_graph/mod.rs`, operation custody). Preserve exact endpoint,
-  source, access and evaluation-order replay as these routes converge.
   `termination/runtime_shrinking_slice_recursion_exit` now executes unchanged
   with native exit **70** on macOS ARM64, summing 10+20+15+25 through staged
   subslices and head reads. Whole element views use their existing element
