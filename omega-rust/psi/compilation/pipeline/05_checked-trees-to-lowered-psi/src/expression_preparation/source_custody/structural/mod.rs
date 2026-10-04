@@ -2028,7 +2028,7 @@ pub(crate) fn validate_local_ownership(
     let establishment_source = PermissionEventSource::Statement {
         statement_index: statement as usize,
     };
-    let provenance = if multiplicity == Multiplicity::Affine {
+    let provenance = if matches!(multiplicity, Multiplicity::Affine | Multiplicity::Linear) {
         local_value_provenance(checked, machine, state, statement as usize)?
     } else {
         language_semantics::PermissionProvenance::Unknown
@@ -2063,6 +2063,9 @@ pub(crate) fn validate_local_ownership(
         arena::Handle<checked_trees::BorrowLoanFact>,
         language_semantics::PermissionEventKind,
     )> = Vec::new();
+    // Claims each whole establishment minted, in event order; a linear
+    // local's live claim discharges at the call whose transfer rows name it.
+    let mut established_claims = Vec::new();
     for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine
             && event.state_symbol == state
@@ -2080,17 +2083,23 @@ pub(crate) fn validate_local_ownership(
             }
             continue;
         }
-        if event.multiplicity != multiplicity
-            || multiplicity != Multiplicity::Affine
-            || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
-            || event.provenance
-                != if selected_destination {
-                    language_semantics::PermissionProvenance::Unknown
-                } else {
-                    provenance
-                }
-            || event.obligation_live
-        {
+        let expected_provenance = if selected_destination {
+            language_semantics::PermissionProvenance::Unknown
+        } else {
+            provenance
+        };
+        let provenance_changed = if multiplicity == Multiplicity::Linear {
+            // A linear claim stays live from its establishment into the
+            // crossing that consumes it; each event names that claim.
+            event.claim_identity == language_semantics::PermissionClaimIdentity::Unknown
+                || event.provenance != expected_provenance
+        } else {
+            multiplicity != Multiplicity::Affine
+                || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
+                || event.provenance != expected_provenance
+                || event.obligation_live
+        };
+        if event.multiplicity != multiplicity || provenance_changed {
             return unsupported("structural local changed its whole no-code ownership provenance");
         }
         let segments =
@@ -2103,13 +2112,14 @@ pub(crate) fn validate_local_ownership(
         let (_, selected_type) =
             validation::structural_owned_path(&checked.typed, type_reference, segments)
                 .map_err(LoweringError::Unsupported)?;
-        if checked.type_multiplicity(selected_type) != Multiplicity::Affine {
-            return unsupported("structural local event changed its selected affine custody");
+        if checked.type_multiplicity(selected_type) != multiplicity {
+            return unsupported("structural local event changed its selected custody multiplicity");
         }
         match event.kind {
             PermissionEventKind::Establish
                 if segments.is_empty() && event.source == establishment_source =>
             {
+                established_claims.push(event.claim_identity);
                 establishments += 1
             }
             PermissionEventKind::AffineDrop
@@ -2134,6 +2144,31 @@ pub(crate) fn validate_local_ownership(
         .is_some()
     {
         return Ok(());
+    }
+    // A linear local's stream is its establishment plus the crossing that
+    // discharges its live claim — a whole transfer event, or the call whose
+    // claim transfers name the established claim.
+    if multiplicity == Multiplicity::Linear {
+        let discharge = |claim| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine)
+                .into_iter()
+                .flat_map(|plan| plan.operations.iter())
+                .filter_map(|operation| operation.call())
+                .flat_map(|call| call.claim_transfers())
+                .any(|transfer| transfer.claim_identity == claim)
+        };
+        if establishments == 1
+            && drops == 0
+            && selected_uses == 0
+            && (transfers > 0 || established_claims.iter().all(|claim| discharge(*claim)))
+        {
+            return Ok(());
+        }
+        return unsupported("structural local changed its whole linear ownership provenance");
     }
     if selected_uses > 1
         || establishments

@@ -77,8 +77,8 @@ use crate::unit::{
     PlaceId, ScalarType, ServiceId, ServiceReachId, ServiceReachSummary, StructuralAccess,
     StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    ValueDeclaration, allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id,
-    terminal_scalar_type, unsupported,
+    ValueDeclaration, allocate_dense, claim_id, lookup_claim_id, lookup_service_id, lookup_type_id,
+    place_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
@@ -213,6 +213,50 @@ impl ClaimBindings<'_> {
         bindings.push((identity, claim));
         Ok(claim)
     }
+}
+
+/// Rebase one completed-establishment claim occurrence onto this body's claim
+/// namespace. An identity the caller already holds — an entry claim, or a
+/// binding an earlier establishment minted — resolves through the grown
+/// table. A claim the checker established at this body's own statement mints
+/// its caller binding here instead: the identity's establishment coordinate
+/// is exactly that statement, so the minted `ClaimId` is that claim's only
+/// caller binding, and every later receipt, transfer and custody join
+/// resolves it the same way. Any other identity is custody this caller never
+/// held — the body cannot mint a binding for a claim some other point owns.
+pub(super) fn resolve_established_claim(
+    claims: &mut ClaimBindings<'_>,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    event: &checked_trees::FlowPermissionEventFact,
+) -> Result<ClaimId, LoweringError> {
+    if let Ok(bound) = lookup_claim_id(claims.bindings(), event.claim_identity) {
+        return Ok(bound);
+    }
+    let established_here = matches!(
+        event.claim_identity,
+        PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source:
+                language_semantics::PermissionEventSource::Statement {
+                    statement_index: establishment,
+                },
+            ..
+        } if machine_symbol == machine
+            && state_symbol == state
+            && establishment == statement_index
+    ) && event.provenance
+        == (language_semantics::PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: language_semantics::PermissionEventSource::Statement { statement_index },
+        });
+    if !established_here {
+        return lookup_claim_id(claims.bindings(), event.claim_identity);
+    }
+    claims.mint(event.claim_identity)
 }
 
 /// The structural type roster a frame reads.

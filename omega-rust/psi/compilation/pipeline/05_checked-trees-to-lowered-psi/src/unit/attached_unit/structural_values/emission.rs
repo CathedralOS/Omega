@@ -40,6 +40,76 @@ pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
     ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError>
     + 'a;
 
+/// Fresh linear construction carries the claims the checker established at
+/// the binding statement. They rebase onto the caller's claim namespace
+/// exactly like a linear boundary call result's: a held identity resolves,
+/// a claim established at this statement mints its caller binding, and each
+/// binding lands on the producing operation's result so downstream receipts
+/// and custody joins resolve it the same way.
+pub(in crate::unit::attached_unit) fn establishment_claims(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    claims: &mut super::super::operation_frame::ClaimBindings<'_>,
+) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+    let authored_state =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?.1;
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(authored_state.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return unsupported("linear structural value has no authored local");
+    };
+    let mut result_claims = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source
+                    == language_semantics::PermissionEventSource::Statement {
+                        statement_index: result.statement_index as usize,
+                    }
+                && event.kind == language_semantics::PermissionEventKind::Establish
+                && event.access == language_semantics::PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Linear
+                && event.obligation_live
+                && event.root == facts::PlaceRoot::Symbol(local.symbol)
+        })
+        .map(|event| {
+            let path = lower_structural_path(
+                &validation::structural_claim_path(
+                    &checked.typed,
+                    local.type_reference,
+                    checked
+                        .facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments),
+                )
+                .map_err(LoweringError::Unsupported)?,
+            )?;
+            super::super::operation_frame::resolve_established_claim(
+                claims,
+                machine,
+                state,
+                result.statement_index as usize,
+                event,
+            )
+            .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    result_claims.sort();
+    Ok(result_claims)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     checked: &CheckedTrees,
@@ -59,6 +129,7 @@ pub(crate) fn emit(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
 ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
     source_custody::validate(checked, machine, state, operation)?;
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -75,9 +146,7 @@ pub(crate) fn emit(
     let multiplicity = match result.multiplicity {
         Multiplicity::Affine => StructuralMultiplicity::Affine,
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-        Multiplicity::Linear => {
-            return unsupported("fresh structural value cannot create linear custody");
-        }
+        Multiplicity::Linear => StructuralMultiplicity::Linear,
     };
     let authored_state =
         crate::expression_preparation::source_custody::authored_state(checked, state)?.1;
@@ -327,6 +396,21 @@ pub(crate) fn emit(
             .ok_or(LoweringError::Unsupported(
                 "structural value place was not declared",
             ))?;
+    if !result_claims.is_empty() {
+        let result = emission
+            .operations
+            .operations
+            .iter_mut()
+            .filter_map(|operation| match &mut operation.result {
+                OperationResult::Structural(result) => Some(result),
+                _ => None,
+            })
+            .find(|result| result.place == place)
+            .ok_or(LoweringError::Unsupported(
+                "linear structural value producer is missing",
+            ))?;
+        result.claims = result_claims;
+    }
     let completed = completed_storage::completed_result(
         place,
         completed_declaration,
