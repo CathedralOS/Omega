@@ -23,8 +23,6 @@ pub(crate) struct AccountState {
     pub(crate) descriptors: BTreeMap<DescriptorId, ObjectId>,
     pub(crate) next_object_id: u64,
     pub(crate) next_descriptor_id: u64,
-    pub(crate) entries: u64,
-    pub(crate) total_logical_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -293,8 +291,12 @@ impl AccountState {
         }
     }
 
+    /// Recompute every ceiling from the committed namespace and object tables
+    /// and refuse a candidate that would exceed one. The per-path table is the
+    /// entry counter and the only place a symlink's logical bytes are recorded,
+    /// so there is no counter-only form of this check.
     pub(crate) fn recalculate_and_validate(
-        &mut self,
+        &self,
         limits: FilesystemSponsorLimits,
     ) -> Result<(), FilesystemSponsorError> {
         let entries = usize_to_u64(self.namespace.len())?;
@@ -356,8 +358,6 @@ impl AccountState {
                 attempted: total_logical_bytes,
             });
         }
-        self.entries = entries;
-        self.total_logical_bytes = total_logical_bytes;
         Ok(())
     }
 }

@@ -119,8 +119,8 @@ pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,
     FilesystemSponsorEntry, FilesystemSponsorError, FilesystemSponsorLimits,
     FilesystemSponsorNamespaceEntry, FilesystemSponsorNamespaceEntryKind,
-    FilesystemSponsorNamespaceSnapshot, FilesystemSponsorPath, FilesystemSponsorSnapshot,
-    PreparedFilesystemMutation, PreparedFilesystemOpen, PreparedFilesystemWrite,
+    FilesystemSponsorNamespaceSnapshot, FilesystemSponsorPath, PreparedFilesystemMutation,
+    PreparedFilesystemOpen, PreparedFilesystemWrite,
 };
 pub use value::{Cell, Value};
 

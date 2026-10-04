@@ -1,12 +1,10 @@
 //! Private staging and aggregate Build resource grants shared by compile and review.
 
-mod accounting;
 mod component_publication;
 pub(crate) use component_publication::publish_checked_component;
 mod inputs;
 mod order;
 mod preparation;
-pub(crate) use accounting::verify_build_session_accounting;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 pub use preparation::PackageSourcePreparation;

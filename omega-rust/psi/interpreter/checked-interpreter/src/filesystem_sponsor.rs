@@ -12,7 +12,7 @@
 //! `private_staging.rs` owns optional fresh-directory custody and cleanup;
 //! Omega still decides which grants and acceptance classification are lawful.
 //! `sponsor_errors.rs` carries the sponsor error, `snapshots.rs` sponsor
-//! paths, descriptors and namespace snapshots,
+//! paths, descriptors and the namespace snapshot staged-output capture reads,
 //! `prepared_transactions.rs` prepared mutations, opens, writes and
 //! account transactions, `accounts.rs` accounts, their state and object
 //! records and `tests.rs` the sponsor tests.
@@ -29,7 +29,6 @@ pub use prepared_transactions::{
 pub use snapshots::{
     FilesystemOpenDescriptor, FilesystemSponsorEntry, FilesystemSponsorNamespaceEntry,
     FilesystemSponsorNamespaceEntryKind, FilesystemSponsorNamespaceSnapshot, FilesystemSponsorPath,
-    FilesystemSponsorSnapshot,
 };
 pub use sponsor_errors::FilesystemSponsorError;
 
@@ -143,16 +142,6 @@ impl FilesystemSponsor {
         Ok(FilesystemSponsorPath {
             account_id: account.id,
             relative: relative.to_path_buf(),
-        })
-    }
-
-    pub fn snapshot(&self) -> Result<FilesystemSponsorSnapshot, FilesystemSponsorError> {
-        let account = self.lock_account()?;
-        Ok(FilesystemSponsorSnapshot {
-            entries: account.committed.entries,
-            total_logical_bytes: account.committed.total_logical_bytes,
-            unique_objects: usize_to_u64(account.committed.objects.len())?,
-            open_descriptors: usize_to_u64(account.committed.descriptors.len())?,
         })
     }
 
@@ -480,7 +469,7 @@ impl FilesystemSponsor {
     fn finish_fixed(
         &self,
         prepared: PreparedAccountTransaction,
-        mut candidate: AccountState,
+        candidate: AccountState,
         result: Result<(), FilesystemSponsorError>,
     ) -> Result<PreparedFilesystemMutation, FilesystemSponsorError> {
         if let Err(error) = result {
@@ -499,7 +488,7 @@ impl FilesystemSponsor {
     fn finish_open(
         &self,
         prepared: PreparedAccountTransaction,
-        mut candidate: AccountState,
+        candidate: AccountState,
         account_id: u64,
         result: Result<DescriptorId, FilesystemSponsorError>,
     ) -> Result<PreparedFilesystemOpen, FilesystemSponsorError> {

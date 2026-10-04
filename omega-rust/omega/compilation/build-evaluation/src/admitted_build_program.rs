@@ -28,10 +28,6 @@ pub(crate) struct AdmittedBuildProgram {
 }
 
 impl AdmittedBuildProgram {
-    pub const fn selected_build_machine_symbol(&self) -> SymbolHandle {
-        self.machine.symbol
-    }
-
     /// The normalized restricted build-host requests this activation asks of
     /// the host, in issue order. They describe the admitted authority in
     /// package vocabulary — never the host paths or live handles it binds —

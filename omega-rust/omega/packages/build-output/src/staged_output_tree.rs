@@ -208,11 +208,10 @@ impl BuildStagedOutputTree {
     }
 
     /// Materialize this retained canonical tree into an existing empty
-    /// concrete directory, then independently re-inspect the result.
+    /// concrete directory.
     ///
     /// Success returns the same compiler-issued commitment. Any invalid
-    /// retained shape, unsuitable destination, write failure, or observed
-    /// post-materialization drift rejects.
+    /// retained shape, unsuitable destination, or write failure rejects.
     pub fn materialize_into(
         &self,
         destination: impl AsRef<Path>,

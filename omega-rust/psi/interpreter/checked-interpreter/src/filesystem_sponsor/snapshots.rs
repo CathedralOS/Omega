@@ -1,4 +1,4 @@
-//! Sponsor paths, open descriptors and namespace snapshots.
+//! Sponsor paths, open descriptors and the committed namespace snapshot.
 
 use crate::filesystem_sponsor::accounts::DescriptorId;
 use std::path::{Path, PathBuf};
@@ -19,14 +19,6 @@ impl FilesystemSponsorPath {
 pub struct FilesystemOpenDescriptor {
     pub(crate) account_id: u64,
     pub(crate) descriptor_id: DescriptorId,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemSponsorSnapshot {
-    pub entries: u64,
-    pub total_logical_bytes: u64,
-    pub unique_objects: u64,
-    pub open_descriptors: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

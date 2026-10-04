@@ -25,10 +25,10 @@ use std::sync::Arc;
 
 /// One compiler-captured immutable source-tree entry.
 ///
-/// File entries retain the exact captured bytes and their content digest so a
-/// private materialization can be independently re-inspected. Symlink entries
-/// retain only the inert captured target spelling; captured links are never
-/// materialized or traversed.
+/// File entries retain the exact captured bytes and their content digest, which
+/// is the inventory's identity for this entry. Symlink entries retain only the
+/// inert captured target spelling; captured links are never materialized or
+/// traversed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CapturedSourceEntry {
     Directory,
@@ -287,8 +287,7 @@ impl CapturedBuildSourceInput {
         }
     }
 
-    /// Materialize this inventory into an existing empty concrete directory,
-    /// then independently re-inspect the result.
+    /// Materialize this inventory into an existing empty concrete directory.
     ///
     /// Only directories and regular files are materialized; captured symlink
     /// spellings remain inert evidence and produce no host link a build could
@@ -412,144 +411,6 @@ fn materialize_captured_source(
         if let CapturedSourceEntry::Directory = entry {
             set_captured_dir_mode(&captured_native_path(destination, relative_path)?)?;
         }
-    }
-    verify_materialized_source(input, destination)
-}
-
-fn verify_materialized_source(
-    input: &CapturedBuildSourceInput,
-    destination: &Path,
-) -> Result<(), CapturedSourceMaterializationError> {
-    let expected = input
-        .entries
-        .iter()
-        .filter(|(_, entry)| !matches!(entry, CapturedSourceEntry::Symlink { .. }))
-        .count();
-    let mut observed = 0usize;
-    let mut stack = vec![(destination.to_path_buf(), Vec::<u8>::new())];
-    while let Some((path, relative_path)) = stack.pop() {
-        let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
-            materialization_error(format!(
-                "cannot re-inspect materialized captured source `{relative_path:?}`: {error}"
-            ))
-        })?;
-        if relative_path.is_empty() {
-            if !metadata.is_dir() || metadata.file_type().is_symlink() {
-                return Err(materialization_error(
-                    "materialized captured-source backing is not a concrete directory",
-                ));
-            }
-        } else {
-            observed = observed.checked_add(1).ok_or_else(|| {
-                materialization_error("materialized captured source count overflow")
-            })?;
-            match input.entries.get(&relative_path) {
-                Some(CapturedSourceEntry::Directory) if metadata.is_dir() => {}
-                Some(CapturedSourceEntry::File {
-                    digest, executable, ..
-                }) if metadata.is_file() => {
-                    verify_materialized_captured_file(
-                        &path,
-                        &relative_path,
-                        &metadata,
-                        *digest,
-                        *executable,
-                    )?;
-                }
-                Some(_) => {
-                    return Err(materialization_error(format!(
-                        "materialized captured source `{relative_path:?}` has the wrong kind"
-                    )));
-                }
-                None => {
-                    return Err(materialization_error(format!(
-                        "materialized captured source contains unexpected entry `{relative_path:?}`"
-                    )));
-                }
-            }
-        }
-        if metadata.is_dir() {
-            let children = std::fs::read_dir(&path).map_err(|error| {
-                materialization_error(format!(
-                    "cannot enumerate materialized captured source `{relative_path:?}`: {error}"
-                ))
-            })?;
-            for child in children {
-                let child = child.map_err(|error| {
-                    materialization_error(format!(
-                        "cannot enumerate materialized captured source `{relative_path:?}`: {error}"
-                    ))
-                })?;
-                let name = captured_os_str_bytes(&child.file_name()).ok_or_else(|| {
-                    materialization_error(format!(
-                        "materialized captured source name under `{relative_path:?}` is not portable"
-                    ))
-                })?;
-                let mut child_relative = relative_path.clone();
-                if !child_relative.is_empty() {
-                    child_relative.push(b'/');
-                }
-                child_relative.extend_from_slice(&name);
-                stack.push((child.path(), child_relative));
-            }
-        }
-    }
-    if observed != expected {
-        return Err(materialization_error(format!(
-            "materialized captured source has {observed} entries; expected {expected}"
-        )));
-    }
-    Ok(())
-}
-
-fn verify_materialized_captured_file(
-    path: &Path,
-    relative_path: &[u8],
-    metadata: &std::fs::Metadata,
-    expected_digest: [u8; 32],
-    expected_executable: bool,
-) -> Result<(), CapturedSourceMaterializationError> {
-    if captured_file_is_executable(metadata) != expected_executable {
-        return Err(materialization_error(format!(
-            "materialized captured source file `{relative_path:?}` has the wrong executable class"
-        )));
-    }
-    let mut file = std::fs::File::open(path).map_err(|error| {
-        materialization_error(format!(
-            "cannot re-read materialized captured source file `{relative_path:?}`: {error}"
-        ))
-    })?;
-    let mut digest = Sha256::new();
-    let mut observed = 0u64;
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let count = file.read(&mut buffer).map_err(|error| {
-            materialization_error(format!(
-                "cannot re-read materialized captured source file `{relative_path:?}`: {error}"
-            ))
-        })?;
-        if count == 0 {
-            break;
-        }
-        observed = observed
-            .checked_add(count as u64)
-            .filter(|observed| *observed <= metadata.len())
-            .ok_or_else(|| {
-                materialization_error(format!(
-                    "materialized captured source file `{relative_path:?}` grew while verified"
-                ))
-            })?;
-        digest.update(&buffer[..count]);
-    }
-    if observed != metadata.len() {
-        return Err(materialization_error(format!(
-            "materialized captured source file `{relative_path:?}` changed length while verified"
-        )));
-    }
-    if <[u8; 32]>::from(digest.finalize()) != expected_digest {
-        return Err(materialization_error(format!(
-            "materialized captured source file `{relative_path:?}` content drifted"
-        )));
     }
     Ok(())
 }
@@ -780,8 +641,8 @@ fn validate_captured_executable_mode(
 
 /// A host without an executable file class cannot materialize a captured
 /// executable source file faithfully; the inventory refuses before any write
-/// rather than produce a snapshot whose re-inspection would disagree with
-/// the canonical metadata index the build's grants enforce.
+/// rather than produce a snapshot that disagrees with the canonical metadata
+/// index the build's grants enforce.
 #[cfg(not(unix))]
 fn validate_captured_executable_mode(
     relative_path: &[u8],

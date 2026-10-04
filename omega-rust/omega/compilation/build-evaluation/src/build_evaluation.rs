@@ -152,7 +152,6 @@ pub fn evaluate_build(
         evaluation_sponsor.as_ref(),
         artifact_only,
     )?;
-    let admitted_symbol = admitted.selected_build_machine_symbol();
     let restricted_build_requests = admitted.restricted_build_requests();
     if let Some(grants) = restricted_build_grants.as_mut() {
         for request in &restricted_build_requests {
@@ -200,11 +199,6 @@ pub fn evaluate_build(
             .unwrap_or_default();
         (configuration, accounting)
     };
-    if configuration.selected_build_machine_symbol != Some(admitted_symbol) {
-        return Err(vec![Diagnostic::error(
-            "build execution returned a selected symbol different from its admitted checkpoint",
-        )]);
-    }
     drop(restricted_build_grants);
     Ok(EvaluatedBuild {
         configuration,

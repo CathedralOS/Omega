@@ -28,41 +28,6 @@ pub enum CompileResolvedPackageReviewsError {
         path: PathBuf,
         error: FilesystemSponsorError,
     },
-    BuildEvaluationAccountingMismatch {
-        reported: Option<u64>,
-        sponsored: u64,
-    },
-    BuildLogAccountingMismatch {
-        reported: Option<u64>,
-        sponsored: u64,
-    },
-    BuildFilesystemAttemptAccountingMismatch {
-        reported: Option<u64>,
-        sponsored: u64,
-    },
-    BuildLiveFilesystemHandleAccountingMismatch {
-        reported_peak: Option<u64>,
-        sponsored_peak: u64,
-        sponsored_live: u64,
-    },
-    BuildLiveCellAccountingMismatch {
-        reported_invocation_peak: Option<u64>,
-        reported_session_peak: Option<u64>,
-        sponsored_peak: u64,
-        sponsored_live: u64,
-    },
-    BuildLiveTextByteAccountingMismatch {
-        reported_invocation_peak: Option<u64>,
-        reported_session_peak: Option<u64>,
-        sponsored_peak: u64,
-        sponsored_live: u64,
-    },
-    BuildResultCustodyAccountingMismatch {
-        reported_cells: Option<u64>,
-        sponsored_cells: u64,
-        reported_text_bytes: Option<u64>,
-        sponsored_text_bytes: u64,
-    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -172,62 +137,6 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 formatter,
                 "failed to sponsor package-review staging root `{}`: {error}",
                 path.display()
-            ),
-            Self::BuildEvaluationAccountingMismatch {
-                reported,
-                sponsored,
-            } => write!(
-                formatter,
-                "package-review build usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
-            ),
-            Self::BuildLogAccountingMismatch {
-                reported,
-                sponsored,
-            } => write!(
-                formatter,
-                "package-review BuildLog usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
-            ),
-            Self::BuildFilesystemAttemptAccountingMismatch {
-                reported,
-                sponsored,
-            } => write!(
-                formatter,
-                "package-review filesystem-attempt usage did not reconcile with its shared evaluator sponsor (reported {reported:?}, sponsored {sponsored})"
-            ),
-            Self::BuildLiveFilesystemHandleAccountingMismatch {
-                reported_peak,
-                sponsored_peak,
-                sponsored_live,
-            } => write!(
-                formatter,
-                "package-review live-filesystem-handle usage did not reconcile with its shared evaluator sponsor (reported peak {reported_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
-            ),
-            Self::BuildLiveCellAccountingMismatch {
-                reported_invocation_peak,
-                reported_session_peak,
-                sponsored_peak,
-                sponsored_live,
-            } => write!(
-                formatter,
-                "package-review live-cell usage did not reconcile with its shared evaluator sponsor (reported invocation peak {reported_invocation_peak:?}, reported session peak {reported_session_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
-            ),
-            Self::BuildLiveTextByteAccountingMismatch {
-                reported_invocation_peak,
-                reported_session_peak,
-                sponsored_peak,
-                sponsored_live,
-            } => write!(
-                formatter,
-                "package-review live-Text-byte usage did not reconcile with its shared evaluator sponsor (reported invocation peak {reported_invocation_peak:?}, reported session peak {reported_session_peak:?}, sponsored peak {sponsored_peak}, still live {sponsored_live})"
-            ),
-            Self::BuildResultCustodyAccountingMismatch {
-                reported_cells,
-                sponsored_cells,
-                reported_text_bytes,
-                sponsored_text_bytes,
-            } => write!(
-                formatter,
-                "package-review result custody did not reconcile with its shared evaluator sponsor (reported cells {reported_cells:?}, sponsored cells {sponsored_cells}, reported Text bytes {reported_text_bytes:?}, sponsored Text bytes {sponsored_text_bytes})"
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
                 write!(

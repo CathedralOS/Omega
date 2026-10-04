@@ -10,7 +10,7 @@ pub(crate) use identity::compiler_input_identity;
 use crate::build_session::{
     PackageBuildSession, PackageSourcePreparation, PreparedPackageSource,
     dependency_first_package_order, package_build_root, publish_checked_component,
-    reconcile_build_inputs, verify_build_session_accounting,
+    reconcile_build_inputs,
 };
 use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
@@ -20,7 +20,7 @@ use crate::resolution::graph::{
     ExactTargetPackageSourceClosure,
 };
 use crate::review::{CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint};
-use compilation_products::{BuildEvaluationAccounting, PreparedPackageBuild};
+use compilation_products::PreparedPackageBuild;
 use compiler::{CheckedCompilation, CheckedCompileRequest};
 use diagnostics::Diagnostic;
 use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
@@ -122,8 +122,6 @@ fn compile_occurrences(
     };
     let mut products: Vec<[Option<OccurrenceProducts>; 2]> =
         graph.packages().iter().map(|_| [None, None]).collect();
-    let mut usages = Vec::new();
-    let mut consumed = Vec::new();
     let mut checked_root = None;
 
     for key in dependency_first_package_order(closure) {
@@ -255,11 +253,6 @@ fn compile_occurrences(
                         entry_root: entry,
                         prepared,
                     });
-            match outcome.build_accounting {
-                BuildEvaluationAccounting::Executed(usage) => usages.push(Some(usage)),
-                BuildEvaluationAccounting::Consumed(receipt) => consumed.push(receipt),
-                BuildEvaluationAccounting::Unreported => {}
-            }
             let prepared = outcome.result.map_err(|diagnostics| Error::Compilation {
                 package: key.clone(),
                 diagnostics,
@@ -299,7 +292,6 @@ fn compile_occurrences(
             }
         }
     }
-    verify_build_session_accounting(&usages, &[], &consumed, session.evaluation_sponsor())?;
     checked_root.ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))
 }
 

@@ -1,5 +1,11 @@
-//! Materializing a retained tree onto the host filesystem and verifying the
-//! result against its commitment.
+//! Materializing a retained tree onto the host filesystem, and verifying a
+//! directory an earlier compilation wrote against this tree's commitment.
+//!
+//! Materialization does not re-read what it just wrote: the writer and the
+//! verifier would be this same code on this same retained tree. The verifier
+//! is reached only through `BuildStagedOutputTree::verify_materialized_at`,
+//! whose subject is a content-addressed directory a *previous* compilation
+//! left on disk.
 
 use crate::capture::{is_executable, same_file_observation};
 use crate::portable_paths::{
@@ -65,7 +71,6 @@ pub(crate) fn materialize_retained_tree(
         }
     }
 
-    verify_materialized_tree(destination, tree)?;
     Ok(tree.commitment)
 }
 

@@ -14,7 +14,7 @@
 
 use crate::build_session::{
     OccurrenceBuildInputs, dependency_first_package_order, package_build_root,
-    reconcile_build_inputs, verify_build_session_accounting,
+    reconcile_build_inputs,
 };
 use compilation_products::CheckedCompileRequest;
 
@@ -250,10 +250,6 @@ pub(super) fn compile_dependency_closure(
         checked_root: None,
         component_candidates: BTreeMap::new(),
         retained_obligation_ledger_total: 0,
-        discarded_build_usages: Vec::new(),
-        session_usages: Vec::new(),
-        consumed_build_charges: Vec::new(),
-        accounting_complete: true,
         occurrences: Vec::new(),
         carried_occurrences: 0,
         retained_policy_canonical_total: 0,
@@ -303,13 +299,6 @@ pub(super) fn compile_dependency_closure(
                 purpose,
                 checked_target,
             }) {
-                // A completed Build still consumed or reserved work when its
-                // product failed. Existing early exits without an outcome's
-                // telemetry (interpreter, continuation, or identity failures)
-                // retain their pre-existing reconciliation limitation.
-                if pass.accounting_complete {
-                    pass.verify_accounting()?;
-                }
                 return Err(error);
             }
         }
@@ -355,19 +344,6 @@ struct ClosurePass<'pass> {
     component_candidates:
         BTreeMap<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose), OccurrenceCompile>,
     retained_obligation_ledger_total: usize,
-    /// Sponsored build evaluations that ran inside a compile the
-    /// component-closure fence rejected: real session consumption no retained
-    /// review reports, reconciled beside the reviews at the session's end.
-    discarded_build_usages: Vec<build_evaluation::BuildEvaluationUsage>,
-    /// Usage reported into this session's sponsor: only evaluations this pass
-    /// actually ran. A carried occurrence's evaluation was consumed and
-    /// reconciled by the pass that ran it, so it reports nothing here and an
-    /// entirely carried pass's sponsor accounting reads as the empty session
-    /// it was.
-    session_usages: Vec<Option<build_evaluation::BuildEvaluationUsage>>,
-    /// Current-pass policy charges for consumed Pure values, not executions.
-    consumed_build_charges: Vec<checked_interpreter::BuildEvaluationConsumptionReceipt>,
-    accounting_complete: bool,
     occurrences: Vec<RetainedOccurrenceCompile>,
     /// Occurrences carried forward instead of compiled.
     carried_occurrences: usize,
@@ -890,7 +866,6 @@ impl ClosurePass<'_> {
             request,
             &self.preparation.pure_build_compilation,
         );
-        self.record_build_accounting(&outcome);
         let CheckedCompileOutcome {
             result: checked,
             prepared_source: mut retained,
@@ -952,7 +927,6 @@ impl ClosurePass<'_> {
                     request,
                     &self.preparation.pure_build_compilation,
                 );
-                self.record_build_accounting(&outcome);
                 retained = outcome.prepared_source;
                 let checked = outcome.result.map_err(|diagnostics| {
                     CompileResolvedPackageReviewsError::Compilation {
@@ -969,39 +943,6 @@ impl ClosurePass<'_> {
         });
         verify_selected_source_custody(scope, PackageSourceVerificationPhase::AfterCompilation)?;
         Ok((checked, occurrence_inputs))
-    }
-
-    /// Record the current request immediately, before any product/review error
-    /// can discard it. Historical usage stays on the configuration; only this
-    /// execution or this account's newly issued consumption receipt enters here.
-    fn record_build_accounting(&mut self, outcome: &CheckedCompileOutcome) {
-        use compilation_products::BuildEvaluationAccounting;
-        match &outcome.build_accounting {
-            BuildEvaluationAccounting::Executed(usage) => {
-                if outcome.result.is_err() {
-                    self.discarded_build_usages.push(*usage);
-                } else {
-                    self.session_usages.push(Some(*usage));
-                }
-            }
-            BuildEvaluationAccounting::Consumed(receipt) => {
-                self.consumed_build_charges.push(receipt.clone());
-            }
-            BuildEvaluationAccounting::Unreported => {
-                if outcome.result.is_err() {
-                    self.accounting_complete = false;
-                }
-            }
-        }
-    }
-
-    fn verify_accounting(&self) -> Result<(), CompileResolvedPackageReviewsError> {
-        verify_build_session_accounting(
-            &self.session_usages,
-            &self.discarded_build_usages,
-            &self.consumed_build_charges,
-            self.evaluation_sponsor,
-        )
     }
 
     /// Project a freshly checked compile into its compiler-issued review,
@@ -1241,10 +1182,9 @@ impl ClosurePass<'_> {
         Ok(())
     }
 
-    /// Reconcile this session's sponsored build usage and hand the retained
-    /// reviews, root compilation and occurrence compiles to the caller.
+    /// Hand the retained reviews, root compilation and occurrence compiles to
+    /// the caller.
     fn finish(self) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
-        self.verify_accounting()?;
         Ok(CompiledPackageReviews {
             reviews: CompilerIssuedPackageReviewSet {
                 reviews: self.reviews,

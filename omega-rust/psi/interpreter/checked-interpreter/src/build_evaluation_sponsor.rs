@@ -11,7 +11,7 @@
 //! resource.
 
 use std::sync::Arc;
-use std::sync::{Mutex, Weak};
+use std::sync::Mutex;
 
 use crate::{
     BuildEvaluationUsage, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
@@ -134,7 +134,6 @@ struct BuildEvaluationSponsorConsumption {
     peak_live_text_bytes: u64,
     result_cells: u64,
     result_text_bytes: u64,
-    retained_consumptions: u64,
 }
 
 /// Cloneable compiler-side authority for one aggregate resource account.
@@ -151,8 +150,6 @@ pub struct BuildEvaluationSponsor {
 /// live allocation, observed peak, or reusable permission to consume again.
 #[derive(Debug, Clone)]
 pub struct BuildEvaluationConsumptionReceipt {
-    account: Weak<BuildEvaluationSponsorAccount>,
-    occurrence: u64,
     usage: BuildEvaluationUsage,
 }
 
@@ -315,45 +312,15 @@ impl BuildEvaluationSponsor {
             limits.maximum_result_text_bytes(),
             "result-Text",
         )?;
-        let occurrence = consumed.retained_consumptions;
-        let next = occurrence
-            .checked_add(1)
-            .ok_or_else(|| "retained Build occurrence accounting overflowed".to_owned())?;
         consumed.fuel_units = fuel_units;
         consumed.build_log_bytes = build_log_bytes;
         consumed.result_cells = result_cells;
         consumed.result_text_bytes = result_text_bytes;
-        consumed.retained_consumptions = next;
-        Ok(BuildEvaluationConsumptionReceipt {
-            account: Arc::downgrade(&self.account),
-            occurrence,
-            usage,
-        })
+        Ok(BuildEvaluationConsumptionReceipt { usage })
     }
 
     /// Require each issued charge exactly once, in issuance order, for this
     /// exact account. Equal limits never make a foreign receipt acceptable.
-    pub fn verify_retained_consumptions(
-        &self,
-        receipts: &[BuildEvaluationConsumptionReceipt],
-    ) -> Result<(), String> {
-        let consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation retained-consumption account is unavailable".to_owned()
-        })?;
-        let account = Arc::downgrade(&self.account);
-        if receipts.len() as u64 != consumed.retained_consumptions
-            || receipts.iter().enumerate().any(|(position, receipt)| {
-                !Weak::ptr_eq(&account, &receipt.account) || receipt.occurrence != position as u64
-            })
-        {
-            return Err(
-                "retained Build charges are missing, duplicated, or belong to another account"
-                    .to_owned(),
-            );
-        }
-        Ok(())
-    }
-
     pub(crate) fn charge_fuel_unit(&self) -> Result<(), String> {
         let maximum = self.account.limits.maximum_fuel_units();
         let mut consumed = self.account.consumed.lock().map_err(|_| {
