@@ -516,9 +516,10 @@ the complete product bar; focused successes below do not establish that baseline
     call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
     Expression-owned structural receivers with nominal cleanup hooks or reference
-    debt still need the ordinary disposal schedule after observation; the scalar
-    construction path currently supports plain-owned contents only. Do not
-    describe nontrivial cleanup as a trivial affine discard.
+    debt still need the ordinary disposal schedule after observation. Preserve
+    `expressions/runtime_temporary_record_field_call_exit`: a call-produced
+    plain-owned record supports immediate field observation, with its call effect
+    performed once. Nontrivial cleanup must not become a trivial affine discard.
 
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
