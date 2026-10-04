@@ -1,0 +1,3 @@
+machine quotient(divisor: u32) -> [u32; 1] {
+    [42u32 / divisor]
+}

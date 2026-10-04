@@ -515,6 +515,15 @@ the complete product bar; focused successes below do not establish that baseline
     self.get_name(), .. }`) still decline at `outer calls: ordered statement
     call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
+    `pass/arithmetic/runtime_exact_projection_sibling_exit` now clears formation
+    checking and interprets to 70, but native production lacks a checked scalar
+    binding for the computed record receiver. Connect the existing structural
+    value producer to field observation, evaluating every initializer once and
+    retiring the temporary through ordinary cleanup. Do not replace the record
+    with its selected initializer or synthesize an authored local. Acceptance:
+    `python3 tools/corpus_gate.py --both --filter runtime_exact_projection_sibling_exit`
+    produces native/interpreter exit 70; its authored native oracle remains red.
+
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
     state forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)
@@ -3332,7 +3341,14 @@ unchanged, except for intended deletions, which its commit lists.
   operands use the shared integer constraint engine rather than an affine
   source-shape recognizer. Value dispatch now checks arm arithmetic under the
   shared comparison facts and joins arm ranges; it no longer falls through
-  to unknown-place analysis. At `313d9f2925` on macOS ARM64, the ordinary CLI
+  to unknown-place analysis. The same arithmetic walk checks evaluated
+  aggregate, projection and selector children before folding a known result;
+  atomic operations use their existing decoder's authored operands, not the
+  synthetic resident-update expression. Loose record-member numeric folding
+  and its compensating custody scans are removed: a projection retains its
+  declared carrier and cannot bypass sibling formation. The previously accepted
+  `fail/arithmetic/exact_aggregate_divisor_unproven` now rejects during checking.
+  At `313d9f2925` on macOS ARM64, the ordinary CLI
   command `omega run --both
   tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg`
   produces its authored exit 70 in both engines after normal package review.
@@ -3342,9 +3358,9 @@ unchanged, except for intended deletions, which its commit lists.
   `CheckFacts`, audit and retain the existing shift-count/Boolean/index
   judgments and other bounded-store forms, consume them in lowering, and
   remove Stage 05 proof search. Runtime checks do not establish complete
-  traversal of every aggregate/proposition position; include those positions
-  in the remaining formation audit. This prerequisite is not closed merely
-  because a negative rejects earlier.
+  traversal of every operation position; audit assignment targets and abstract
+  proposition carrier resolution before treating coverage as complete. This
+  prerequisite is not closed merely because a negative rejects earlier.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate

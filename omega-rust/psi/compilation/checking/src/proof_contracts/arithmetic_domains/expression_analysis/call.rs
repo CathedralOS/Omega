@@ -27,30 +27,9 @@ pub(super) fn analyze(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
-    // Call arguments are evaluated in the caller's environment at the call
-    // site, so they owe their own decision-17 representability proofs exactly
-    // like a statement-level expression. The result-bound passes below analyze
-    // operands into throwaway buffers because they only need intervals; the
-    // operands' own obligations are validated once here, into the caller's
-    // diagnostics (a speculative caller still passes a throwaway buffer and
-    // hears nothing). Previously these diagnostics were dropped entirely and
-    // an unbounded operand surfaced at terminal proof reconstruction as an
-    // opaque OperationProofUnavailable.
-    //
-    // The destination resets: an argument's type comes from the callee's
-    // parameter, not the enclosing statement's target, so neither the target
-    // primitive nor its declared domain may leak in.
-    let operand_walk = walk.with_destination(None, ArithmeticDomain::Exact);
-    if call.receiver.is_valid() {
-        operand_walk.analyze(call.receiver, diagnostics);
-    }
-    for argument in walk
-        .program
-        .expression_table
-        .expression_handles(call.arguments)
-    {
-        operand_walk.analyze(*argument, diagnostics);
-    }
+    // The shared expression walk has checked receiver and argument formation,
+    // including calls whose result folds before reaching this result query.
+    // Speculative interval queries below must not repeat those diagnostics.
     if let Some(result) = named_float_operation(walk, call, diagnostics) {
         return result;
     }
