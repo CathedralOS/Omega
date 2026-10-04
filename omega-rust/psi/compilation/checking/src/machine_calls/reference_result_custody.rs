@@ -739,7 +739,7 @@ fn returned_sources_with_calls(
                 program,
                 state,
                 path.symbol,
-                program.expression_table.expression_handles(*arguments),
+                program.statement_table.expression_handles(*arguments),
                 state.return_type,
                 active_origins,
             )?,
@@ -839,7 +839,7 @@ pub fn terminal_call_reference_sources(
         program,
         state,
         target.symbol,
-        program.expression_table.expression_handles(*arguments),
+        program.statement_table.expression_handles(*arguments),
         state.return_type,
         &mut vec![state.symbol],
     )
