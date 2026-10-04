@@ -3359,23 +3359,32 @@ unchanged, except for intended deletions, which its commit lists.
   actuals. Assignments, scalar loans and normalized constructors share the
   occurrence-keyed `CheckFacts::stored_integer_writes` table. Scalar fields,
   nested arrays and scalar match arms check arithmetic at their evaluation
-  occurrences.
+  occurrences. Value dispatch uses shared comparison facts within each arm
+  and joins arm ranges. The ordinary CLI customer
+  `runtime_exact_dispatch_divisor_exit` produces authored exit 70 in both
+  engines; its unconstrained-divisor negative rejects during checking. Its
+  README records package preparation. Complete the formation audit across
+  aggregate and proposition positions before claiming full traversal.
 
   The draft call consumer checks each retained integer assignment, including
   overwritten values and pre-crash writes, against captured caller storage.
-  Four normalized call-admission controls pass. Real direct and intermediate
-  invalid-write fixtures produce the intended caller-width diagnostic, but
-  the valid runtime fixture currently also exposes unrelated library-call
-  rejection. Root writes and calls reached through named-state parameters need
-  complete storage-origin transport. Recasts must retain prior physical
-  coordinates instead of letting a later logical carrier erase an encoding.
-  Selected operators need the same complete performed-write coverage.
+  Storage origins now follow named-state parameters, and recasts preserve
+  earlier physical coordinates. Normalized controls cover repeated writes,
+  forwarding, guarded assignments and ordinary owned builders. The direct,
+  intermediate and named-state invalid-write fixtures produce the intended
+  caller-width diagnostic. Recheck the public runtime customers after the
+  latest assignment-decision and builder-origin repairs; their last run still
+  rejected unrelated library writes. Selected operators capture actual
+  operand origins but still need complete performed-write coverage.
 
   `runtime_callee_integer_at_fitting_write_exit` is the execution customer:
   direct and forwarding helpers write -128 and 127 through a legal `&mut i64`
   loan to signed eight-bit storage, and neighboring byte 85 must survive.
-  After call admission, lowering must replay checked explicit alias arguments
-  and retain physical geometry through ordinary calls or a checked adapter.
+  Explicit alias argument custody replay passes its focused controls, but
+  `runtime_explicit_reference_alias_argument_exit` still fails lowering:
+  composed calls retain an erased alias as `StructuralLocal` rather than
+  capturing its original backing. Repair that source planning handoff, then
+  retain physical geometry through ordinary calls or a checked adapter.
   A raw carrier-width pointer or delayed copy-out cannot establish that
   contract. Complete those dependencies, retain and consume all other operation
   decisions, and replace conditional-cleanup proof search before deleting any
@@ -3391,34 +3400,12 @@ unchanged, except for intended deletions, which its commit lists.
   today with `OperationProofUnavailable` rejects from `omega --check` with a
   checking diagnostic, and the check corpus is otherwise unchanged.
 
-  Current frontier: plan-laid `IntegerAt` storage-fit judgments are retained
-  in the occurrence-keyed `CheckFacts::stored_integer_writes` table for
-  assignments, aliases and constructions. Exact division/remainder now reject an unproven
-  nonzero divisor or signed `MIN / -1` pair during checking, including ordinary
-  call results, state-edge stores and declared scalar domains. Correlated
-  operands use the shared integer constraint engine rather than an affine
-  source-shape recognizer. Value dispatch now checks arm arithmetic under the
-  shared comparison facts and joins arm ranges; it no longer falls through
-  to unknown-place analysis. The same arithmetic walk checks evaluated
-  aggregate, projection and selector children before folding a known result;
-  atomic operations use their existing decoder's authored operands, not the
-  synthetic resident-update expression. Loose record-member numeric folding
-  and its compensating custody scans are removed: a projection retains its
-  declared carrier and cannot bypass sibling formation. The previously accepted
+  Evaluated aggregate, projection and selector children are checked before a
+  known result is folded. Atomic operations use the decoder's authored operands;
+  projection folding preserves declared carriers and sibling formation checks.
   `fail/arithmetic/exact_aggregate_divisor_unproven` now rejects during checking.
-  At `313d9f2925` on macOS ARM64, the ordinary CLI
-  command `omega run --both
-  tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg`
-  produces its authored exit 70 in both engines after normal package review.
-  The fixture README records preparation; its unconstrained-divisor negative
-  rejects from `omega --check` with the nonzero checking diagnostic.
-  Remaining: retain those operation judgments in
-  `CheckFacts`, audit and retain the existing shift-count/Boolean/index
-  judgments and other bounded-store forms, consume them in lowering, and
-  remove Stage 05 proof search. Runtime checks do not establish complete
-  traversal of every operation position; audit assignment targets and abstract
-  proposition carrier resolution before treating coverage as complete. This
-  prerequisite is not closed merely because a negative rejects earlier.
+  Audit assignment targets and abstract proposition carrier resolution before
+  treating operation traversal as complete.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate

@@ -1502,18 +1502,20 @@ fn explicit_reference_alias_arguments_cross_guarded_call_graph() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../tests/omega/pass/calls/runtime_explicit_reference_alias_argument_exit/main.omg"
     )));
-    for machine in &checked.facts.flow.terminal_unit_effects.machines {
-        for operation in &machine.operations {
-            if let Some(call) = operation.call() {
-                eprintln!("ALIAS_CALL {} -> {} {:?}", checked.symbols.name(machine.machine), checked.symbols.name(call.target.machine), call.structural_arguments);
-            }
-        }
-    }
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("main"))
-        .expect("guarded ordinary calls retain the original alias backing");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .unwrap_or_else(|error| {
+            let arguments = checked.facts.flow.terminal_unit_effects.composed_machines
+                .iter().flat_map(|machine| &machine.states)
+                .flat_map(|state| &state.operations)
+                .filter_map(|operation| operation.call())
+                .map(|call| (call.coordinate, call.structural_arguments.to_vec()))
+                .collect::<Vec<_>>();
+            panic!("guarded ordinary calls must retain alias backing: {error:?}; composed arguments: {arguments:?}");
+        });
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &proof_admission::AdmissionProfile::default(),
-    ).expect("guarded alias calls verify independently");
+    )
+    .expect("guarded alias calls verify independently");
 }

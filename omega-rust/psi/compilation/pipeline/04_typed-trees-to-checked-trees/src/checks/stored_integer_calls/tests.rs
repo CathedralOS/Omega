@@ -94,7 +94,12 @@ fn field_loan_calls_check_each_direct_and_forwarded_value() {
                  machine run(cell: &mut Cell) {{ {callee}(&mut cell.value, {value}); }}"
             );
             let result = checked(&source);
-            assert_eq!(result.is_ok(), accepted, "{callee}({value}): {result:?}");
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "{callee}({value}): {:?}",
+                result.as_ref().err()
+            );
             if let Ok(checked) = result {
                 assert!(
                     checked
@@ -180,7 +185,12 @@ fn named_state_storage_origins_cover_calls_and_direct_writes() {
                  }}"
             );
             let result = checked(&source);
-            assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "{source}\n{:?}",
+                result.as_ref().err()
+            );
         }
     }
 }
@@ -196,7 +206,12 @@ fn recursive_calls_cannot_hide_an_invalid_store() {
              machine run(cell: &mut Cell) {{ repeat(&mut cell.value); }}"
         );
         let result = checked(&source);
-        assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{source}\n{:?}",
+            result.as_ref().err()
+        );
     }
 }
 
@@ -208,7 +223,7 @@ fn ordinary_named_state_reference_writes_stay_unencoded() {
             state write(output: &mut i64) { output = 128; }
         }";
     let result = checked(source);
-    assert!(result.is_ok(), "{result:?}");
+    assert!(result.is_ok(), "{:?}", result.as_ref().err());
 }
 
 #[test]
@@ -223,7 +238,7 @@ fn direct_guarded_assignment_reuses_its_established_landing() {
             state done() {}
         }";
     let result = checked(source);
-    assert!(result.is_ok(), "{result:?}");
+    assert!(result.is_ok(), "{:?}", result.as_ref().err());
     let checked = result.unwrap();
     let rows = checked
         .facts
@@ -247,26 +262,54 @@ fn owned_builder_array_writes_do_not_need_reference_origins() {
             entries[1].offset
         }";
     let result = checked(source);
-    assert!(result.is_ok(), "{result:?}");
+    assert!(result.is_ok(), "{:?}", result.as_ref().err());
 }
 
 #[test]
 fn spelled_operator_effects_are_checked_at_their_actual_storage() {
-    for (parameter, actual, accepted) in [
-        ("cell: &mut Cell", "&mut cell.value", false),
-        ("value: &mut i64", "value", true),
-    ] {
+    // A nominal operand selects the authored operator. An i64 reference
+    // expression can instead select builtin integer arithmetic, which would
+    // not exercise a mutating operator invocation at all.
+    for (carrier, accepted) in [("Cell", false), ("Ordinary", true)] {
         let source = format!(
             "data Cell {{ value: i64; }}
-             boundary operator + Store::write(destination: &mut i64, value: i64) -> i64;
-             machine run({parameter}) {{ let observed: i64 = ({actual}) + 128; }}"
+             data Ordinary {{ value: i64; }}
+             boundary operator + Store::write(destination: &mut {carrier}, value: i64) -> i64;
+             machine run(destination: &mut {carrier}) {{
+                 let observed: i64 = destination + 128;
+             }}"
         );
         let result = checked(&source);
-        assert_eq!(result.is_ok(), accepted, "{source}\n{result:?}");
-        if !accepted {
-            assert!(result.unwrap_err().iter().any(|error| {
-                error.message.contains("IntegerAt call") && error.message.contains("operator")
-            }));
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{source}\n{:?}",
+            result.as_ref().err()
+        );
+        match result {
+            Ok(checked) => {
+                let selected = checked
+                    .typed
+                    .operators()
+                    .iter()
+                    .find(|operator| checked.symbols.name(operator.symbol) == "Store::write")
+                    .expect("authored operator")
+                    .symbol;
+                assert!(
+                    checked.facts.operators.uses.iter().any(|(_, usage)| {
+                        usage.selected_operator_symbol == selected
+                            && usage.status
+                                == checked_trees::CheckedOperatorResolutionStatus::Resolved
+                    }),
+                    "the positive control must execute the selected declaration"
+                );
+            }
+            Err(errors) => assert!(
+                errors.iter().any(|error| {
+                    error.message.contains("IntegerAt call") && error.message.contains("operator")
+                }),
+                "{errors:?}"
+            ),
         }
     }
 }
