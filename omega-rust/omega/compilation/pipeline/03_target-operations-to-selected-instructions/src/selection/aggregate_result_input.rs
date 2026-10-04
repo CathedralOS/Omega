@@ -1013,7 +1013,6 @@ pub(super) fn block_parameter_shape(
             &signature.structural_types,
         );
     if parameter.access != terminal_psi::StructuralAccess::Owned
-        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
         || !parameter.projected_qualifications.is_empty()
     {

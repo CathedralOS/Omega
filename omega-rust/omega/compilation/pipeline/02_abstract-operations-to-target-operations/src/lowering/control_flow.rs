@@ -281,7 +281,7 @@ pub(super) fn lower(
                             .map(|row| (*row).clone())
                             .collect::<Vec<_>>(),
                     )
-                    && !super::unobserved_owned::parameter(parameter))
+                    && !owned_arguments::is_owned_parameter(parameter, structural_types))
                 || !places.insert(parameter.place)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

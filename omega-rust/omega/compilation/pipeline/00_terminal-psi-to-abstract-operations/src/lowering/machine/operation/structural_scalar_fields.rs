@@ -280,7 +280,8 @@ fn lower_integer_read(
     field: StructuralFieldId,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
-    let (structural_type, access) = readable_source_type(machine, source).ok_or_else(invalid)?;
+    let (structural_type, access) =
+        readable_source_type(machine, structural_types, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     // A call result's `Reference` shell keeps the loan's access on the type;
     // the observed record is its referent, the same peel the verifying and
@@ -335,19 +336,36 @@ fn lower_integer_read(
 
 fn readable_source_type(
     machine: &TerminalMachine,
+    structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {
     if machine
-        .entry_claims
+        .content_entry_claims
         .iter()
-        .any(|claim| claim.input == source)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == source)
+        .any(|claim| claim.input.root == source)
     {
         return None;
     }
+    // An observation retains the owner's obligation at its existing home.
+    // Reference and view carriers retain their separate claim-free contract;
+    // Terminal replay already checked current ownership and loan availability.
+    let owned_storage = |structural_type, access| {
+        access == StructuralAccess::Owned
+            && structural_types.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Record { .. }
+                            | StructuralTypeShape::Mixed { .. }
+                            | StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::FixedArray { .. }
+                    )
+            })
+    };
+    let has_entry_claim = machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == source);
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
@@ -360,7 +378,9 @@ fn readable_source_type(
         .find(|parameter| parameter.place == source)
     {
         return (parameter.access != StructuralAccess::WriteOnlyBorrow
-            && parameter.multiplicity != StructuralMultiplicity::Linear
+            && (owned_storage(parameter.structural_type, parameter.access)
+                || (parameter.multiplicity != StructuralMultiplicity::Linear
+                    && !has_entry_claim))
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty())
         .then_some((parameter.structural_type, parameter.access));
@@ -373,10 +393,12 @@ fn readable_source_type(
         .flat_map(|block| &block.operations)
         .filter_map(|operation| operation.result.structural())
         .find(|result| result.place == source)?;
-    (result.multiplicity != StructuralMultiplicity::Linear
+    ((owned_storage(result.structural_type, StructuralAccess::Owned)
+        || (result.multiplicity != StructuralMultiplicity::Linear
+            && result.claims.is_empty()
+            && !has_entry_claim))
         && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
+        && result.projected_qualifications.is_empty())
     .then_some((result.structural_type, StructuralAccess::Owned))
 }
 

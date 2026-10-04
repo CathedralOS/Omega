@@ -1,9 +1,11 @@
 //! Admit whole shared or exclusive byte views, address joins over plain
-//! referents or borrowed bounded byte owners, and plain owned structural
+//! referents or borrowed bounded byte owners, and whole owned structural
 //! arrivals. An owner loan, a shared byte view, or a whole owned bounded-byte
 //! value may carry qualifications. Loans retain their declared access;
 //! only shared loans freeze their referent. An owned arrival moves its complete `{length, bytes}` payload and
-//! exact predicate roster, which Terminal verification replayed at every edge.
+//! exact predicate and claim rosters, which Terminal verification replayed at
+//! every edge. Linear moves retain their existing claim identities; an arrival
+//! declaration neither issues nor disposes an obligation.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
@@ -48,11 +50,7 @@ pub(super) fn validate_structural_block_bindings(
                         || !module.structural_types.iter().any(|declaration| {
                             declaration.id == parameter.structural_type
                                 && match parameter.access {
-                                    terminal_psi::StructuralAccess::Owned => matches!(
-                                        parameter.multiplicity,
-                                        terminal_psi::StructuralMultiplicity::Affine
-                                            | terminal_psi::StructuralMultiplicity::Unrestricted
-                                    ),
+                                    terminal_psi::StructuralAccess::Owned => true,
                                     terminal_psi::StructuralAccess::SharedBorrow
                                     | terminal_psi::StructuralAccess::MutableBorrow
                                     | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
