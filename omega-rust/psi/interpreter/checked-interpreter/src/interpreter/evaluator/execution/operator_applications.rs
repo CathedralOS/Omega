@@ -136,8 +136,7 @@ impl<'program> Evaluator<'program> {
                 // inside the realization.
                 let entered_guard_depth = self.guard_depth;
                 self.guard_depth = 0;
-                let value =
-                    self.run_state_collect(machine, state, frame.self_cell.clone(), arguments);
+                let value = self.run_state_collect(machine, state, arguments);
                 self.guard_depth = entered_guard_depth;
                 Ok(Some(value?.unwrap_or(Value::Unit)))
             }

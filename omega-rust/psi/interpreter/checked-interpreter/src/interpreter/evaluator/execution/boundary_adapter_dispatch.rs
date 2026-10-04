@@ -84,8 +84,8 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        let (machine, state, instance) = self
-            .resolve_entry_state_symbol(dispatch.realization_state, frame)
+        let (machine, state) = self
+            .resolve_entry_state_symbol(dispatch.realization_state)
             .ok_or_else(|| {
                 Halt::Trap("selected boundary adapter lost its exact entry state".into())
             })?;
@@ -166,7 +166,7 @@ impl<'program> Evaluator<'program> {
         }
         let guard_depth = self.guard_depth;
         self.guard_depth = 0;
-        let result = self.run_state_collect(machine, state, instance, evaluated);
+        let result = self.run_state_collect(machine, state, evaluated);
         self.guard_depth = guard_depth;
         result.map(|value| value.unwrap_or(Value::Unit))
     }

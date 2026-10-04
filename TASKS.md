@@ -208,8 +208,7 @@ helper that passes does not close an item.
     the [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, storage
     partitioning and cleanup. Remove attachment/`is_self` as authority inputs,
-    including in provider argument correspondence and the checked
-    interpreter's activation cell.
+    including in interpreter provider argument correspondence.
   - Scratch fields become ordinary locals; pass only live values across
     states. Temporary-scoping design is deferred and not a prerequisite.
   - A case dispatch over a computed call subject evaluates it once
@@ -909,6 +908,12 @@ defines the complete product bar.
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking/`,
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`
   and `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`.
+
+  `pending/calls/runtime_static_tail_local_custody_exit` requires shared rank
+  evidence for a fused multi-machine roster with sibling finishing states.
+  `terminal_unit/state_graph/mod.rs` currently rejects it at `natural ranks`
+  when the fused roster exceeds the declaring machine's states. Preserve the
+  full cycle and explicit local borrow; acceptance is native/interpreter exit 0.
 
   Quotient/remainder, shifts and bitwise-AND actuals already use
   `install_nonpolynomial_terms`. Executing controls:

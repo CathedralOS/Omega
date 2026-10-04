@@ -204,7 +204,7 @@ struct FrameLocal {
     mutable_recast: Option<MutableScalarRecast>,
 }
 
-/// A lexical scope: the parameter / local bindings, plus the receiver (`self`) cell.
+/// A lexical scope containing only explicit parameter and local bindings.
 /// Statement execution threads the frame as `&mut`: `let` binds a local and a
 /// transition guard records its subject results, and both happen between
 /// expression evaluations rather than beneath a shared borrow.
@@ -213,16 +213,14 @@ pub(crate) struct Frame {
     /// Bindings in binding order; a rebinding of the same symbol replaces its
     /// entry. A state's frame is small, so the symbol scan is a linear pass.
     locals: Vec<FrameLocal>,
-    self_cell: Cell,
-    /// The machine whose state is currently executing. Lets a call/transition that names a
-    /// SIBLING state resolve it within this machine (rather than re-entering the machine's
-    /// entry state, which would recurse forever).
+    /// The executing machine's identity selects its checked call and build facts.
+    /// It denotes a declaration, never implicit receiver storage.
     machine_symbol: SymbolHandle,
     /// Exact state selected at entry; refreshed with the frame on every transition.
     state_symbol: SymbolHandle,
     /// Value-call results computed while evaluating THIS state pass's transition guards,
     /// keyed by call-expression handle. A transition subject is evaluated ONCE per
-    /// transition evaluation: the parser lowers `transition self.f(x) { true -> a
+    /// transition evaluation: the parser lowers `transition f(x) { true -> a
     /// false -> b }` into one guard per arm, each holding a COPY of the subject call, so
     /// a later arm must reuse the first arm's result (matching the native lowering)
     /// instead of re-running the callee's side effects. Copies have distinct handles, so
@@ -471,25 +469,11 @@ enum TransitionDecision<'program> {
     Named {
         state: &'program State,
         machine: &'program Machine,
-        instance: Cell,
         arguments: Vec<EvaluatedArgument>,
     },
 }
 
 impl Frame {
-    /// A frame with no bindings: owned-data initializers and host stubs
-    /// evaluate against the receiver alone.
-    fn bare(self_cell: Cell, machine_symbol: SymbolHandle) -> Self {
-        Self {
-            return_type: TypeReferenceHandle::invalid(),
-            locals: Vec::new(),
-            self_cell,
-            machine_symbol,
-            state_symbol: SymbolHandle::invalid(),
-            guard_call_results: Vec::new(),
-        }
-    }
-
     fn local(&self, symbol: SymbolHandle) -> Option<&FrameLocal> {
         if !symbol.is_valid() {
             return None;

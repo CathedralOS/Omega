@@ -301,7 +301,7 @@ impl<'program> Evaluator<'program> {
             }
             _ => return unsupported("nominal cleanup target argument custody drifted"),
         };
-        let _returned = self.run_state_collect(target, target_state, source, arguments)?;
+        let _returned = self.run_state_collect(target, target_state, arguments)?;
         Ok(())
     }
 }

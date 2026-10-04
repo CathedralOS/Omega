@@ -232,13 +232,12 @@ impl<'program> Evaluator<'program> {
             ))
         })?;
 
-        let instance = self.instantiate_machine(entry_machine)?;
         let arguments =
             self.entry_arrival_arguments(entry_machine, entry_state, provisioned_context)?;
         // The entry machine's value (its terminal `Value` transition / final expression)
         // becomes the process exit code when it has no explicit `exit_process`. Mirrors the
         // backend: `machine Main::main(...) -> i32` returns the exit status.
-        let returned = self.run_state_collect(entry_machine, entry_state, instance, arguments)?;
+        let returned = self.run_state_collect(entry_machine, entry_state, arguments)?;
         if let Some(value) = returned
             && let Some(code) = value.as_int()
         {
@@ -352,8 +351,7 @@ impl<'program> Evaluator<'program> {
             }
         };
 
-        let instance = self.instantiate_machine(machine)?;
-        let returned = self.run_state_collect(machine, entry_state, instance, Vec::new())?;
+        let returned = self.run_state_collect(machine, entry_state, Vec::new())?;
         let value = returned.ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` terminated without producing a value"
@@ -420,7 +418,6 @@ impl<'program> Evaluator<'program> {
             )));
         }
 
-        let instance = self.instantiate_machine(machine)?;
         let argument_cells = arguments
             .into_iter()
             .map(|argument| {
@@ -431,7 +428,7 @@ impl<'program> Evaluator<'program> {
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;
-        let returned = self.run_state_collect(machine, entry_state, instance, argument_cells)?;
+        let returned = self.run_state_collect(machine, entry_state, argument_cells)?;
         let value = returned.ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` terminated without producing a value"
@@ -526,7 +523,6 @@ impl<'program> Evaluator<'program> {
             )));
         }
 
-        let instance = self.instantiate_machine(machine)?;
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
             .map(|argument| {
@@ -561,8 +557,7 @@ impl<'program> Evaluator<'program> {
                 Ok(EvaluatedArgument::plain(cell))
             })
             .collect::<EvalResult<_>>()?;
-        let _terminal =
-            self.run_state_collect(machine, entry_state, instance, evaluated_arguments)?;
+        let _terminal = self.run_state_collect(machine, entry_state, evaluated_arguments)?;
         let impure = if allow_filesystem {
             self.non_fs_host_boundary_touched
         } else {
@@ -586,32 +581,7 @@ impl<'program> Evaluator<'program> {
             .collect())
     }
 
-    // ---- machine / data instantiation --------------------------------------
-
-    /// Allocate only explicitly machine-owned cells. A declaration namespace
-    /// is not an instance: its fields exist only when a value is constructed
-    /// or the entry bridge provisions an explicit context argument.
-    fn instantiate_machine(&mut self, machine: &Machine) -> EvalResult<Cell> {
-        let mut fields: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
-
-        // Machine-owned data (the `owned_data` span) are additional named cells.
-        for owned in self.program.machine_owned_data(machine) {
-            let value = if owned.initial_value.is_valid() {
-                let mut frame =
-                    Frame::bare(self.allocate_cell(Value::Unit)?, SymbolHandle::invalid());
-                self.eval_expression(owned.initial_value, &mut frame)?
-            } else {
-                self.default_value_for_type(owned.type_reference)?
-            };
-            fields.insert(owned.name.as_str().into(), self.allocate_cell(value)?);
-        }
-
-        self.allocate_cell(Value::Struct {
-            type_symbol: machine.symbol,
-            type_name: machine.name.as_str().into(),
-            fields,
-        })
-    }
+    // ---- explicit data construction ----------------------------------------
 
     /// Insert a `data` definition's fields (with defaults) into `fields`. Nested `data`
     /// members recurse so their own defaults are populated.
@@ -1000,7 +970,6 @@ impl<'program> Evaluator<'program> {
         &mut self,
         machine: &'program Machine,
         state: &'program State,
-        instance: Cell,
         arguments: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         self.call_depth += 1;
@@ -1008,7 +977,7 @@ impl<'program> Evaluator<'program> {
             self.call_depth -= 1;
             return unsupported("recursion depth budget exceeded");
         }
-        let result = self.run_state_collect_inner(machine, state, instance, arguments);
+        let result = self.run_state_collect_inner(machine, state, arguments);
         self.call_depth -= 1;
         result
     }
@@ -1017,7 +986,6 @@ impl<'program> Evaluator<'program> {
         &mut self,
         machine: &'program Machine,
         state: &'program State,
-        instance: Cell,
         arguments: Vec<EvaluatedArgument>,
     ) -> EvalResult<Option<Value>> {
         // MR4 admission: the cross-machine tail transition REBINDS these and
@@ -1025,7 +993,6 @@ impl<'program> Evaluator<'program> {
         // lowering) instead of recursing -- an admitted measured mutual
         // cycle must not consume interpreter call depth.
         let mut machine = machine;
-        let mut instance = instance;
         let mut state = state;
         let mut current_args = arguments;
         // Bindings accumulated across SAME-machine sibling transitions: the backend models a
@@ -1049,16 +1016,7 @@ impl<'program> Evaluator<'program> {
                 ));
             }
 
-            let mut frame = self.bind_frame(
-                state,
-                instance.clone(),
-                &current_args,
-                machine.symbol,
-                carried,
-            )?;
-            // An explicit subject replaces ambient storage for the whole
-            // activation, including subsequent state transitions.
-            instance = frame.self_cell.clone();
+            let mut frame = self.bind_frame(state, &current_args, machine.symbol, carried)?;
             self.validate_normal_cleanup_selection(machine, state)?;
 
             // Execute statements, watching for the first satisfied transition. A state
@@ -1136,13 +1094,10 @@ impl<'program> Evaluator<'program> {
                 Some(TransitionDecision::Named {
                     state: target_state,
                     machine: target_machine,
-                    instance: target_instance,
                     arguments,
                 }) => {
                     self.execute_normal_cleanup(machine, state, &frame, exit)?;
-                    if target_machine.symbol == machine.symbol
-                        && Cell::ptr_eq(&target_instance, &instance)
-                    {
+                    if target_machine.symbol == machine.symbol {
                         // Carry this state's bindings forward to the sibling state.
                         carried = frame.locals;
                         state = target_state;
@@ -1156,7 +1111,6 @@ impl<'program> Evaluator<'program> {
                     // the native SetDispatchState lowering. The carried
                     // locals clear: the callee binds a fresh frame.
                     machine = target_machine;
-                    instance = target_instance;
                     state = target_state;
                     current_args = arguments;
                     carried = Vec::new();
@@ -1172,7 +1126,6 @@ impl<'program> Evaluator<'program> {
     fn bind_frame(
         &self,
         state: &State,
-        self_cell: Cell,
         arguments: &[EvaluatedArgument],
         machine_symbol: SymbolHandle,
         carried: Vec<FrameLocal>,
@@ -1181,7 +1134,6 @@ impl<'program> Evaluator<'program> {
         let mut frame = Frame {
             return_type: state.return_type,
             locals: carried,
-            self_cell,
             machine_symbol,
             state_symbol: state.symbol,
             guard_call_results: Vec::new(),

@@ -398,22 +398,13 @@ impl<'program> Evaluator<'program> {
                 // machine invocation. Follow that identity: a machine names
                 // its entry, including self-reentry and foreign tail calls.
                 // Name fallback could execute a colliding sibling instead.
-                let resolved = if let Some(machine) = self.program.machine_by_symbol(path.symbol) {
-                    self.machine_entry_state(machine)
-                        .map(|state| (machine, state))
-                } else {
-                    self.program
-                        .machine_holding_state(path.symbol)
-                        .and_then(|machine| {
-                            self.find_state_by_symbol(machine, path.symbol)
-                                .map(|state| (machine, state))
-                        })
-                };
-                let (machine, state) = resolved.ok_or_else(|| {
-                    Halt::Unsupported(format!(
-                        "transition target `{state_name}` has no resolved machine or state"
-                    ))
-                })?;
+                let (machine, state) =
+                    self.resolve_entry_state_symbol(path.symbol)
+                        .ok_or_else(|| {
+                            Halt::Unsupported(format!(
+                                "transition target `{state_name}` has no resolved machine or state"
+                            ))
+                        })?;
 
                 let arguments = self.eval_state_arguments(
                     state,
@@ -424,7 +415,6 @@ impl<'program> Evaluator<'program> {
                 Ok(TransitionDecision::Named {
                     state,
                     machine,
-                    instance: frame.self_cell.clone(),
                     arguments,
                 })
             }
@@ -558,8 +548,8 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        let (machine, state, instance) =
-            self.resolve_static_call(call.target_symbol, call.target.as_str(), frame)?;
+        let (machine, state) =
+            self.resolve_static_call(call.target_symbol, call.target.as_str())?;
 
         let arguments = self.eval_state_arguments(
             state,
@@ -569,7 +559,7 @@ impl<'program> Evaluator<'program> {
             frame,
         )?;
 
-        self.run_state_collect(machine, state, instance, arguments)
+        self.run_state_collect(machine, state, arguments)
             .map(|value| value.unwrap_or(Value::Unit))
     }
 
@@ -578,8 +568,7 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn resolve_entry_state_symbol(
         &self,
         target_symbol: SymbolHandle,
-        frame: &Frame,
-    ) -> Option<(&'program Machine, &'program State, Cell)> {
+    ) -> Option<(&'program Machine, &'program State)> {
         if !target_symbol.is_valid() {
             return None;
         }
@@ -590,7 +579,7 @@ impl<'program> Evaluator<'program> {
             let machine = self.program.machine_holding_state(target_symbol)?;
             (machine, self.find_state_by_symbol(machine, target_symbol)?)
         };
-        Some((machine, state, frame.self_cell.clone()))
+        Some((machine, state))
     }
 
     /// Missing checked selection is malformed input, not a request to search
@@ -599,28 +588,20 @@ impl<'program> Evaluator<'program> {
         &self,
         target_symbol: SymbolHandle,
         target: &str,
-        frame: &Frame,
-    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
-        self.resolve_entry_state_symbol(target_symbol, frame)
+    ) -> EvalResult<(&'program Machine, &'program State)> {
+        self.resolve_entry_state_symbol(target_symbol)
             .ok_or_else(|| {
                 Halt::Unsupported(format!("call target `{target}` has no resolved state"))
             })
     }
 
     fn statement_receiver_is_namespace(&self, call: &TableCall) -> bool {
-        !self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .first()
-            .is_some_and(|member| member.is_self_receiver())
-            && self.is_declaration_namespace(call.receiver_symbol)
+        self.is_declaration_namespace(call.receiver_symbol)
     }
 
     /// Declaration namespaces are resolved symbols, not runtime places or
     /// strings to look up again. Both statement and value calls use this
-    /// classification before attempting storage lookup. Callers exclude the
-    /// legacy `self` path, whose root can also be a machine symbol.
+    /// classification before attempting storage lookup.
     pub(in crate::interpreter::evaluator) fn is_declaration_namespace(
         &self,
         symbol: SymbolHandle,
