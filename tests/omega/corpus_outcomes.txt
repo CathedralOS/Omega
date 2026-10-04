@@ -67,6 +67,9 @@ fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/implicit_call_operand_conversion_rejected rejected 584ms expected @cfe60a3a242
+	machine `Values::signed_operand` state `signed_operand` applies `Add` to a `i32` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
+	machine `Values::wide_operand` state `wide_operand` applies `Add` to a `u16` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
 fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 127ms expected @d9720a4fa49b+wt
 	state `roll` expects 1 argument(s), got 0
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `roll(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
@@ -306,6 +309,8 @@ fail/build/uefi_program_entry_wrong_calling_policy rejected 1360ms unexpected @2
 	target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication` boundary schema, but found 2
 fail/calls/affine_constructor_result_reuse rejected 635ms expected @2d8ed253669f
 	affine value `item` was already transferred or consumed; it cannot be moved here
+fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
+	state `Math::inspect` receives `buffer` as both mutable and read-only
 fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
 fail/calls/discarded_call_result rejected 339ms expected @2d8ed253669f
@@ -584,6 +589,8 @@ fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 282m
 	cannot prove index `main.i` is within length 1 in Main::main::loop_
 fail/dependent/requires_call_unproven_rejected rejected 366ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call helper from Main::main: main.a <= main.b (needs fact `main.a <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/dependent/state_arrival_byte_predicate_unproven_rejected rejected 836ms expected @cfe60a3a242
+	cannot prove requires contract for call checked from Main::main: valid_utf8(view) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 250ms expected @2d8ed253669f
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/domains/bodyful_owner_establishment_bypass rejected 816ms expected @2d8ed253669f
@@ -782,6 +789,12 @@ fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
+fail/machines/retired_self_expression rejected 0ms expected @cfe60a3a242
+	tests/omega/fail/machines/retired_self_expression/main.omg:1:26: implicit `self` is retired; name the explicit parameter or domain subject
+fail/machines/retired_self_receiver rejected 0ms expected @cfe60a3a242
+	tests/omega/fail/machines/retired_self_receiver/main.omg:2:29: `self` receivers are retired; declare an explicit named parameter and type
+fail/machines/retired_self_transition rejected 5ms expected @cfe60a3a242
+	tests/omega/fail/machines/retired_self_transition/main.omg:1:35: implicit `self` is retired; name the explicit parameter or domain subject
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
 fail/memory/bump_allocator_live_allocation_dropped rejected 651ms expected @2d8ed253669f
@@ -1298,13 +1311,17 @@ pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms @2d8ed253669f
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms @2d8ed253669f
 pass/arithmetic/runtime_exact_dispatch_divisor_exit checked 961ms @01974e342562+wt
 pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1304ms @2d8ed253669f
+pass/arithmetic/runtime_exact_projection_sibling_exit checked 6155ms @cfe60a3a242
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 973ms @d9720a4fa49b+wt
+pass/arithmetic/runtime_explicit_call_operand_policy_exit checked 9664ms @cfe60a3a242
 pass/arithmetic/runtime_float_nan_comparison_exit checked 4994ms @2d8ed253669f
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 4254ms @2d8ed253669f
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 1292ms @2d8ed253669f
 pass/arithmetic/runtime_integer_casts_exit checked 1369ms @2d8ed253669f
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 6268ms @2d8ed253669f
 pass/arithmetic/runtime_monte_carlo_pi_exit checked 1623ms @2d8ed253669f
+pass/arithmetic/runtime_nested_record_observation_exit rejected 6603ms @cfe60a3a242
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(4294967309)))
 pass/arithmetic/runtime_nested_unsigned_witness_exit checked 1419ms @2d8ed253669f
 pass/arithmetic/runtime_observed_call_bound_exit checked 1432ms @ca8c127c90c5
 pass/arithmetic/runtime_payload_range_narrowing_exit checked 1217ms @2d8ed253669f
@@ -1324,6 +1341,7 @@ pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 1593ms @8778c440
 pass/arithmetic/suffix_landed_operand_position_exit checked 2050ms @2d8ed253669f
 pass/arithmetic/typed_integer_remainder checked 285ms @2d8ed253669f
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1656ms @8778c440081
+pass/arrays/local_record_array_guard_exit checked 1631ms @cfe60a3a242
 pass/atomics/atomic_global_order_operations checked 290ms @2d8ed253669f
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms @2d8ed253669f
@@ -1332,8 +1350,11 @@ pass/atomics/shared_receiver_atomic_store rejected 2320ms @c47f8652484
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit checked 6638ms @cfe60a3a242
+pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 5998ms @cfe60a3a242
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 907ms @2d8ed253669f
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 1283ms @011fd400e8c1+wt
+pass/borrow/runtime_write_only_record_array_argument_exit checked 1544ms @cfe60a3a242
 pass/borrow/write_only_composed_forward_exit checked 1023ms @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
@@ -1345,8 +1366,7 @@ pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
 pass/borrows/case_payload_shared_transition_exit checked 2612ms @e8505b71528
 pass/borrows/case_payload_state_loan_exit checked 2340ms @e8505b71528
-pass/borrows/enum_selected_view_reference_exit rejected 5629ms @c5d32a00863
-	terminal-artifact production failed: Lowering(Unsupported("scalar graph whole parameter cleanup requires scalar or Unit exits and ordinary edges"))
+pass/borrows/enum_selected_view_reference_exit checked 6317ms @cfe60a3a242
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms @82ec69a91ceb+wt
@@ -1354,8 +1374,10 @@ pass/borrows/loop_descriptor_reformation_exit checked 1879ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit checked 817ms @21b65913386f+wt
-pass/borrows/nested_reference_leaf_projection_exit checked 800ms @21b65913386f+wt
+pass/borrows/nested_reference_leaf_projection_exit rejected 5976ms @cfe60a3a242
+	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow changes its local custody"))
 pass/borrows/owned_byte_value_call_exit checked 2324ms @07f252fc5f0d+wt
+pass/borrows/owned_nested_record_copy_exit checked 6433ms @cfe60a3a242
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
@@ -1363,6 +1385,9 @@ pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_reference_record_argument_exit checked 1049ms @d09ea69bfa27+wt
 pass/borrows/projected_reference_record_residual_exit checked 1064ms @d09ea69bfa27+wt
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
+pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms @cfe60a3a242
+pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms @cfe60a3a242
+pass/borrows/qualified_record_view_call_exit checked 5972ms @cfe60a3a242
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms @2816825e8941
@@ -1372,10 +1397,10 @@ pass/borrows/runtime_affine_local_case_return_exit rejected 5536ms @c5d32a00863
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "choose", reason: "scalar callee has no checked executable body", omission: Some("`choose` has no admitted body (local construction stopped at state graph: terminator: conditional successors: edge cleanup: no state plan, state 1)") })
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
+pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
-pass/borrows/runtime_record_byte_region_loan_exit incomplete 36117ms @c5d32a00863
-	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 22 unproved; the module is not shown invalid
+pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
@@ -1383,6 +1408,7 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1532ms @a3bac00e54bb+wt
+pass/borrows/static_projected_local_reference_exit checked 4618ms @cfe60a3a242
 pass/borrows/static_record_reference_return_exit checked 1105ms @2816825e8941
 pass/borrows/stored_reference_projection_exit checked 836ms @efc0f5f0f7a9+wt
 pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
@@ -1445,7 +1471,8 @@ pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8
 pass/calls/local_projected_field_scalar_result_argument_exit checked 1947ms @2d8ed253669f
 pass/calls/local_projected_field_shared_argument_exit checked 1272ms @2d8ed253669f
 pass/calls/local_record_forwarded_across_callee_states_exit checked 2197ms @0508a5426a27+wt
-pass/calls/local_record_leaf_loan_scalar_calls_exit checked 2445ms @ff6d0c077d78+wt
+pass/calls/local_record_leaf_loan_scalar_calls_exit rejected 4974ms @cfe60a3a242
+	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow changes its local custody"))
 pass/calls/local_record_mutable_argument_exit checked 1211ms @2d8ed253669f
 pass/calls/local_record_record_result_argument_exit checked 1977ms @2d8ed253669f
 pass/calls/local_record_shared_argument_exit checked 1248ms @2d8ed253669f
@@ -1492,8 +1519,10 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
 pass/calls/runtime_enum_self_method_exit checked 1484ms @ca8c127c90c5
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
+pass/calls/runtime_explicit_reference_alias_argument_exit checked 1587ms @cfe60a3a242
 pass/calls/runtime_fixed_element_view_field_loan_exit checked 1060ms @c3ad5f6e051f+wt
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
+pass/calls/runtime_guarded_boundary_tail_call_exit checked 4424ms @cfe60a3a242
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
 pass/calls/runtime_guarded_reference_return_before_crash_exit checked 565ms @73ef9378f1a6
 pass/calls/runtime_guarded_reference_return_crash checked 518ms @73ef9378f1a6
@@ -1637,6 +1666,9 @@ pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms @89d26
 pass/collections/runtime_maze_pathfind_exit checked 4147ms @2d8ed253669f
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms @2d8ed253669f
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms @5f978f80e84b+wt
+pass/collections/runtime_shared_array_dot_product_exit checked 9895ms @cfe60a3a242
+pass/collections/runtime_shared_array_polynomial_exit checked 12070ms @cfe60a3a242
+pass/collections/runtime_shared_fixed_array_cycle_exit checked 62943ms @cfe60a3a242
 pass/collections/runtime_signed_element_offset_read_exit checked 1469ms @2d8ed253669f
 pass/collections/runtime_slice_record_copy_exit checked 1181ms @83d1d7229173+wt
 pass/collections/runtime_vec_u32_growth_exit checked 22933ms @2d8ed253669f
@@ -1692,8 +1724,10 @@ pass/control_flow/guarded_jump_field_view_forward rejected 594ms @2ff81f36a14
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
+pass/control_flow/guarded_unit_completion_exit checked 5306ms @cfe60a3a242
 pass/control_flow/guarded_value_transition_roster rejected 2488ms @c5d32a00863
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/control_flow/indexed_record_state_argument_exit checked 4886ms @cfe60a3a242
 pass/control_flow/nested_affine_record_state_cycle_exit checked 884ms @fb3ce7840d9b
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/nested_structural_call_operand_exit checked 916ms @ff183e7f95fb+wt
@@ -1712,6 +1746,7 @@ pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656m
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms @2d8ed253669f
+pass/control_flow/runtime_later_state_shared_array_loan checked 1845ms @cfe60a3a242
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms @2d8ed253669f
 pass/control_flow/runtime_namespace_local_state_loan checked 834ms @2ff81f36a14
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1271ms @59d57ace39f0+wt
@@ -1790,6 +1825,7 @@ pass/dependent/mutable_referent_alias_corruption_restored_compile checked 283ms 
 pass/dependent/runtime_dependent_subtract_exit checked 1263ms @2d8ed253669f
 pass/dependent/runtime_requires_guarded_call_exit checked 1408ms @63377f7122bb+wt
 pass/dependent/runtime_sibling_len_index_exit checked 1465ms @921839635ad
+pass/dependent/state_arrival_byte_predicate_guarded_compile checked 959ms @cfe60a3a242
 pass/dependent/state_arrival_contract_guarded_compile checked 291ms @2d8ed253669f
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 294ms @2d8ed253669f
 pass/dependent/valuation_order_cycle checked 314ms @2d8ed253669f
@@ -1832,7 +1868,9 @@ pass/domains/utf8_field_write_from_param checked 471ms @6949147699f7
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms @4e4bfed13aee+wt
 pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt
+pass/drops/conditional_structural_return_cleanup_exit checked 4350ms @cfe60a3a242
 pass/drops/contextual_cleanup_exit checked 840ms @db0816c5dcd4+wt
+pass/drops/contextual_core_drop_exit checked 4447ms @cfe60a3a242
 pass/drops/core_drop_explicit_consume checked 261ms @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook checked 251ms @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook_body checked 240ms @0aa983f6af47+wt
@@ -1884,6 +1922,7 @@ pass/expressions/runtime_flat_boolean_logic_exit checked 1517ms @2d8ed253669f
 pass/expressions/runtime_float_record_field_reads_exit checked 4674ms @2d8ed253669f
 pass/expressions/runtime_indexed_float_record_fields_exit checked 5021ms @2d8ed253669f
 pass/expressions/runtime_nested_record_field_call_exit checked 684ms @91c11fd524d0
+pass/expressions/runtime_nested_record_field_reads_exit checked 5883ms @cfe60a3a242
 pass/expressions/runtime_numeric_cast_exit checked 4281ms @2d8ed253669f
 pass/expressions/runtime_temporary_record_field_call_exit checked 501ms @f70a22c80ac3
 pass/expressions/runtime_widened_comparison_exit checked 1648ms @2d8ed253669f
@@ -1980,6 +2019,8 @@ pass/generics/closed_indexed_quantity checked 6308ms @82ec69a91ce
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f
 pass/generics/const_data_param checked 288ms @2d8ed253669f
 pass/generics/declared_range_endpoint_inference checked 3910ms @2d8ed253669f
+pass/generics/foreign_case_membership_dispatch_exit checked 4364ms @cfe60a3a242
+pass/generics/foreign_case_payload_reads_exit checked 4992ms @cfe60a3a242
 pass/generics/generic_data_instantiation checked 295ms @2d8ed253669f
 pass/generics/generic_seq_consuming_map_filter checked 312ms @2d8ed253669f
 pass/generics/machine_bound_satisfied_at_call checked 303ms @2d8ed253669f
@@ -2034,6 +2075,8 @@ pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
 pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
+pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1141ms @cfe60a3a242
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph dropped or added a body effect"))
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
@@ -2048,14 +2091,17 @@ pass/locals/mutable_local_call_multistate_reassignment_exit checked 510ms @ca8c1
 pass/locals/mutable_local_call_reassignment_exit checked 1238ms @2d8ed253669f
 pass/locals/runtime_deferred_scalar_initialization_exit checked 1194ms @2d8ed253669f
 pass/locals/runtime_local_array_member_stores_without_mut_exit checked 1639ms @b077958d6785+wt
+pass/locals/runtime_local_qualified_view_member_read_exit checked 12373ms @cfe60a3a242
 pass/locals/runtime_local_record_array_element_field_reads_exit checked 1924ms @9435ec134b74+wt
-pass/memory/address_translation_canary rejected 6ms @c5d32a00863
-	tests/omega/pass/memory/address_translation_canary/translation.omg:253:47: `self` receivers are retired; declare an explicit named parameter and type
+pass/locals/runtime_local_view_member_element_read_exit checked 4020ms @cfe60a3a242
+pass/locals/static_local_field_names_exit checked 1406ms @cfe60a3a242
+pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
+	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms @2d8ed253669f
 pass/memory/interrupt_table_canary rejected 6ms @c5d32a00863
 	package-aware import `omega::language::std::calling` in tests/omega/pass/memory/interrupt_table_canary/cathedral/interrupt_roots.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
-pass/memory/secondary_processor_canary rejected 4ms @c5d32a00863
-	tests/omega/pass/memory/secondary_processor_canary/cathedral/processor_startup.omg:71:51: `self` receivers are retired; declare an explicit named parameter and type
+pass/memory/secondary_processor_canary rejected 3ms @cfe60a3a242
+	package-aware import `omega::language::std::calling` in tests/omega/pass/memory/secondary_processor_canary/cathedral/processor_startup.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f
 pass/modules/aggregate_machine_indices checked 308ms @2d8ed253669f
 pass/modules/boolean_equality_indices checked 354ms @2d8ed253669f
@@ -2193,6 +2239,7 @@ pass/proofs/runtime_sequential_relational_accumulator_exit checked 754ms @abeaf0
 pass/proofs/runtime_two_state_accumulator_exit checked 1028ms @ccbf3802c51a
 pass/providers/bare_byte_array_boundary_argument checked 1466ms @2d8ed253669f
 pass/providers/borrowed_service_field_forward_exit checked 944ms @5745c7562b65
+pass/providers/boundary_primitive_array_argument_exit checked 4140ms @cfe60a3a242
 pass/providers/boundary_scalar_field_store checked 1609ms @2d8ed253669f
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 1332ms @2d8ed253669f
 pass/providers/checked_boundary_operator_physical_custody checked 1269ms @2d8ed253669f
@@ -2200,8 +2247,12 @@ pass/providers/checked_boundary_requirement_dispatch_exit checked 2064ms @2d8ed2
 pass/providers/checked_fixed_operator_dispatch_exit checked 1244ms @2d8ed253669f
 pass/providers/checked_fixed_operator_physical_custody checked 910ms @2d8ed253669f
 pass/providers/component_owner_provider_override_compile checked 626ms @2d8ed253669f
+pass/providers/direct_boundary_array_snapshot_exit checked 4430ms @cfe60a3a242
 pass/providers/external_boundary_requirement_via_exit checked 8941ms @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms @2d8ed253669f
+pass/providers/foreign_multiregister_result_exit checked 5866ms @cfe60a3a242
+pass/providers/foreign_owned_record_exit checked 5220ms @cfe60a3a242
+pass/providers/foreign_record_result_exit checked 4756ms @cfe60a3a242
 pass/providers/kernel_import_result_chain_exit checked 654ms @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms @2d8ed253669f
 pass/providers/local_record_foreign_borrow_exit checked 2194ms @59d57ace39f0+wt
@@ -2232,6 +2283,7 @@ pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 5206ms @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb+wt
+pass/recast/runtime_field_precondition_capture_exit checked 10152ms @cfe60a3a242
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms @a3bac00e54bb+wt
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms @3b624377ec31
@@ -2289,16 +2341,21 @@ pass/slices/runtime_call_endpoint_view_exit checked 1625ms @637668355701+wt
 pass/slices/runtime_direct_view_requires_index_exit rejected 1393ms @45782ade0cba+wt
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
 pass/slices/runtime_element_view_requires_index_exit checked 1657ms @0991904fed3b+wt
+pass/slices/runtime_forwarded_view_runtime_index_exit checked 3837ms @cfe60a3a242
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 1689ms @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 1707ms @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 7001ms @d10c66094158
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
+pass/slices/runtime_literal_view_return_exit checked 4289ms @cfe60a3a242
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 1659ms @0991904fed3b+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit checked 1286ms @2d8ed253669f
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 1425ms @2d8ed253669f
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 732ms @de74b73e1452+wt
+pass/slices/runtime_qualified_record_copy_local_exit checked 8465ms @cfe60a3a242
 pass/slices/runtime_saturating_array_element_guard_exit checked 1543ms @2d8ed253669f
+pass/slices/runtime_shared_subslice_return_exit checked 4670ms @cfe60a3a242
+pass/slices/runtime_shared_whole_view_return_exit checked 4805ms @cfe60a3a242
 pass/slices/runtime_slice_element_runtime_index_read_exit checked 1421ms @2d8ed253669f
 pass/slices/runtime_slice_fixed_index_guard_exit checked 1138ms @8a91f26a0b28+wt
 pass/slices/runtime_slice_index_copy_dispatch_exit checked 901ms @4e4bfed13aee+wt
@@ -2343,14 +2400,18 @@ pass/structs/qualified_record_element_assignment_exit checked 825ms @e7a526bf3ac
 pass/structs/record_literal_array_field checked 7790ms @2d8ed253669f
 pass/structs/runtime_array_member_snapshot_exit checked 927ms @a951f37ea156+wt
 pass/structs/runtime_case_array_payload_exit checked 916ms @605c339eaa84
+pass/structs/runtime_completed_array_elements_exit checked 5112ms @cfe60a3a242
 pass/structs/runtime_composed_case_payload_reads_exit checked 28214ms @773e546aed6e+wt
 pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed253669f
 pass/structs/runtime_local_array_snapshot_exit checked 1138ms @a0af6064e4c8+wt
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f
+pass/structs/runtime_nonzero_array_elements_exit rejected 2961ms @cfe60a3a242
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 0)
 pass/structs/runtime_state_record_array_element_read_exit checked 1222ms @1f53680d77f7+wt
 pass/structs/runtime_struct_array_literal_exit checked 10339ms @17039e6ea406+wt
+pass/structs/runtime_view_array_elements_exit checked 5887ms @cfe60a3a242
 pass/structs/uninit_record_local_exit checked 1182ms @2d8ed253669f
 pass/structs/uninit_record_member_read checked 1316ms @2d8ed253669f
 pass/structs/uninit_record_member_store checked 1238ms @2d8ed253669f
@@ -2363,12 +2424,14 @@ pass/structural/case_payload_record_member_read checked 3162ms @527c7c316c6f+wt
 pass/structural/composed_case_field_store_exit checked 1122ms @ca8c127c90c5
 pass/structural/element_store checked 1287ms @2d8ed253669f
 pass/structural/local_record_receivers checked 302ms @4e4bfed13aee+wt
+pass/structural/runtime_enum_equality_exit checked 8139ms @cfe60a3a242
 pass/structural/runtime_mutable_record_copy_exit checked 1326ms @ca8c127c90c5
 pass/structural/runtime_provider_payload_array_exit checked 767ms @bbd0a9fdb8d4+wt
 pass/structural/runtime_selected_case_record_member_exit checked 1994ms @9f5f12201f80+wt
 pass/structural/runtime_state_local_whole_store_exit checked 1022ms @a917987f9778+wt
 pass/structural/runtime_structural_operand_snapshot_exit checked 1139ms @14f449e5e62b+wt
 pass/structural/runtime_structural_result_crash_branch_exit checked 704ms @77ccbf115d351847b97e16ff03b4e93c8e7a786f
+pass/structural/selected_record_payload_observations_exit checked 4647ms @cfe60a3a242
 pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f
@@ -2425,6 +2488,7 @@ pass/termination/named_computed_rank_endpoints checked 339ms @2d8ed253669f
 pass/termination/natural_call_variable_step checked 333ms @2d8ed253669f
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 363ms @2d8ed253669f
 pass/termination/quotient_endpoint_call_component checked 341ms @2d8ed253669f
+pass/termination/rank_endpoint_borrows_recovery checked 5529ms @cfe60a3a242
 pass/termination/rank_range_call_component checked 327ms @2d8ed253669f
 pass/termination/rank_range_call_declared_step_copy checked 320ms @2d8ed253669f
 pass/termination/rank_range_declared_step_copies checked 358ms @2d8ed253669f
@@ -2458,6 +2522,7 @@ pass/text/local_bounded_text_scalar_loan_exit incomplete 7392ms @c5d32a00863
 	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
 pass/text/mutable_bounded_byte_state_exit checked 712ms @63377f7122bb+wt
+pass/text/nested_mutable_receiver_byte_result_exit checked 5652ms @cfe60a3a242
 pass/text/nested_owned_byte_record_literal_exit checked 1087ms @ae42075f1dcc+wt
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1094ms @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms @5826c9701ec3+wt
@@ -2541,6 +2606,7 @@ pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3975ms @1
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 72946ms @9b253f5667e5
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 6670ms @58e4f6f8667
 pass/wire/runtime_wire_encode_byte_slice_exit checked 3388ms @58e4f6f8667
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 11673ms @cfe60a3a242
 pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit checked 38801ms @866d948d5b4a
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms @011fd400e8c1+wt
