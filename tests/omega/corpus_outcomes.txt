@@ -1569,6 +1569,7 @@ pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 184
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms @2d8ed253669f
 pass/calls/runtime_selected_reference_field_result_exit checked 2338ms @a9a2d3b913dd
 pass/calls/runtime_shared_ref_param_member_exit checked 835ms @2f8006be6cc9+wt
+pass/calls/runtime_state_reference_field_result_exit checked 3779ms @28b8fce37cfd+wt
 pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
 pass/calls/runtime_static_tail_local_custody_exit checked 1649ms @c5d32a008630+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 2398ms @c5d32a008630+wt

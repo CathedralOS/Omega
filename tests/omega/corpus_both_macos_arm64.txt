@@ -42,6 +42,7 @@ pass/calls/runtime_nested_value_call_guard_exit built 3472ms exit:70 interpreter
 pass/calls/runtime_owned_parameter_primitive_borrow_exit built 730ms exit:0 interpreter-exit:0 interpreter:agrees @51b4aa0b5a70+wt
 pass/calls/runtime_qualified_terminal_result_exit built 716ms exit:0 interpreter-exit:0 interpreter:agrees @4655ab8ed512
 pass/calls/runtime_selected_reference_field_result_exit built 3405ms exit:0 interpreter-exit:0 interpreter:agrees @a9a2d3b913dd
+pass/calls/runtime_state_reference_field_result_exit built 4327ms exit:0 interpreter-exit:0 interpreter:agrees @28b8fce37cfd+wt
 pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:0 interpreter-exit:0 interpreter:agrees @560687158d28
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
