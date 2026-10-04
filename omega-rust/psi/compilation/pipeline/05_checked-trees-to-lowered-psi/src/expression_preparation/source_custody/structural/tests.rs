@@ -1418,3 +1418,74 @@ fn erased_record_initializers_retain_independent_semantic_replay() {
         );
     }
 }
+
+#[test]
+fn whole_collection_borrows_replay_source_identity_and_access() {
+    for mutable in [false, true] {
+        let access = if mutable { "mut " } else { "" };
+        let checked = crate::front_end::checked_program(&format!(
+            "machine run() {{
+                let mut bytes: [u8; 8];
+                let view: &{access}[u8] = &{access}bytes;
+            }}"
+        ));
+        let values = &checked.facts.values.structural_values;
+        let (root, argument) = values
+            .roots
+            .iter()
+            .find_map(|(_, root)| match &values.nodes.get(root.root).kind {
+                CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+                | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
+                    Some((root, source))
+                }
+                _ => None,
+            })
+            .expect("whole collection view");
+        let (machine, state) = super::super::authored_state(&checked, root.state).unwrap();
+        let loan = if mutable {
+            crate::expression_preparation::bindings::LoanAccess::Mutable
+        } else {
+            crate::expression_preparation::bindings::LoanAccess::Shared
+        };
+        let replay = |argument, loan| {
+            super::slice_view::validate(
+                &checked,
+                machine,
+                state,
+                root.statement_ordinal,
+                root.expression,
+                argument,
+                loan,
+                checked_trees::CheckedElementViewRegion::WholeCollection,
+            )
+        };
+        replay(argument, loan).expect("authored whole collection loan");
+        let opposite = if mutable {
+            crate::expression_preparation::bindings::LoanAccess::Shared
+        } else {
+            crate::expression_preparation::bindings::LoanAccess::Mutable
+        };
+        let mut forged = argument.clone();
+        forged.access = opposite.planned_access();
+        assert!(
+            replay(&forged, opposite).is_err(),
+            "authored access cannot change even with a matching forged plan"
+        );
+        let mut forged = argument.clone();
+        forged.type_identity = "[u8; 9]".to_owned();
+        assert!(
+            replay(&forged, loan).is_err(),
+            "collection identity must match"
+        );
+        let mut forged = argument.clone();
+        forged
+            .path
+            .push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                1,
+            ));
+        assert!(
+            replay(&forged, loan).is_err(),
+            "whole collection cannot become an element"
+        );
+    }
+}

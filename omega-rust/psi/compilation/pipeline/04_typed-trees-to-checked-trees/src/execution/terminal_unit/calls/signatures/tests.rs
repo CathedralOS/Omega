@@ -53,3 +53,43 @@ fn an_owned_receiver_carries_its_own_records_multiplicity() {
         );
     }
 }
+
+#[test]
+fn namespace_qualification_requires_no_storage_but_boundary_ownership_does() {
+    let program = crate::tests::front_end::typed_program(
+        "data Score { value: u64; }
+         machine Space::write(score: &mut Score) { score.value = 70; }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| program.symbols.display_path(machine.symbol, "::") == "Space::write")
+        .expect("namespace-qualified machine");
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = ShapeCollector::new(&program);
+    let (attachment, structural, scalar) =
+        super::structural_scalar_signature(&program, &mut shapes, machine, state, &[], false)
+            .expect("explicit parameter owns the storage");
+    assert!(attachment.is_none());
+    assert!(scalar.is_empty());
+    assert_eq!(structural.len(), 1);
+    assert!(!structural[0].is_self);
+    assert_eq!(
+        structural[0].access,
+        checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert!(
+        super::structural_scalar_signature_with_storage(
+            &program,
+            &mut shapes,
+            machine,
+            state,
+            &[],
+            false,
+            super::AttachmentStorage::DataOwner,
+            &super::LocalConstructionTrace::default(),
+        )
+        .is_none(),
+        "a namespace cannot manufacture a boundary data owner"
+    );
+}

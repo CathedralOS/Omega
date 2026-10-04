@@ -1,7 +1,7 @@
 //! Replay custody for an element-view selection value: a `BorrowedSliceView`
 //! carrying a `SharedBorrow` argument or a `MutableSliceView` carrying a
 //! `MutableBorrow` one. The checked plan recorded the authored
-//! `place.as_slice()` or `place.as_mut_slice()` view's exact collection root
+//! `place.as_slice()`, `place.as_mut_slice()`, or whole-collection borrow's exact collection root
 //! symbol and member path; replay rebuilds that collection place and requires
 //! the view's access on the argument, the exact path, and the projected
 //! leaf's identity equal to the argument's recorded collection identity. Like
@@ -96,6 +96,19 @@ pub(super) fn validate(
             (source.source, None)
         } else {
             match checked.expression_table.expression(expression) {
+                ExpressionNode::Borrow(borrow) => {
+                    // A whole collection loan uses the same view descriptor
+                    // as a view call. Replay its authored access before the
+                    // common root, path, and collection-identity checks below.
+                    let access = match loan {
+                        LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
+                        LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
+                    };
+                    if borrow.access != access {
+                        return unsupported(refusal!(loan, "borrow changed its authored access"));
+                    }
+                    (borrow.target, None)
+                }
                 ExpressionNode::Call(call) => {
                     if !call.arguments.is_empty() {
                         return unsupported(refusal!(loan, "call gained arguments"));
