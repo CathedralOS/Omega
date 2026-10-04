@@ -287,8 +287,8 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
             &mut self.catalogs.temporary_places,
         )?;
-        // A named true successor with expression arguments may read the case
-        // payloads the guard's own case tests select.
+        // The selected outcome may evaluate payload reads in either successor
+        // arguments or completion operands. Both inherit the guard's dispatch.
         let first_successor_reads_payloads = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
                 successor_may_read_payloads(when_true)
@@ -298,9 +298,14 @@ impl StateGraphEmission<'_, '_> {
                 return_when_true: false,
                 ..
             } => successor_may_read_payloads(jump),
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => arms
-                .first()
-                .is_some_and(|arm| arm.successor().is_some_and(successor_may_read_payloads)),
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true: return_arm,
+                ..
+            } => return_may_read_payloads(return_arm),
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
+                arms.first().is_some_and(guarded_arm_may_read_payloads)
+            }
             _ => false,
         };
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
@@ -516,6 +521,11 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     arm_namespace,
+                    match &planned_guard {
+                        Some((planned, _)) if *return_when_true => &planned.established,
+                        _ => &[],
+                    },
+                    &[],
                     &[],
                     return_arm,
                     &mut evaluation,
@@ -545,6 +555,10 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     true_namespace,
+                    planned_guard
+                        .as_ref()
+                        .map_or(&[], |(guard, _)| guard.established.as_slice()),
+                    &[],
                     &[],
                     when_true,
                     &mut evaluation,
@@ -557,6 +571,8 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     values.clone(),
+                    &[],
+                    &[],
                     &[],
                     when_false,
                     &mut evaluation,
@@ -584,11 +600,31 @@ impl StateGraphEmission<'_, '_> {
                 .cases
                 .iter()
                 .map(|case| match &case.outcome {
-                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => self
-                        .conditional_return_arm(
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
+                        let payload_parameters = case
+                            .values
+                            .iter()
+                            .map(|(_, value)| *value)
+                            .collect::<Vec<_>>();
+                        let mut namespace = values.clone();
+                        namespace.extend(&payload_parameters);
+                        let established = case
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(ordinal, field)| EstablishedCasePayload {
+                                source: prepared.source,
+                                case: case.identity,
+                                field: *field,
+                                position: values.len() + ordinal,
+                            })
+                            .collect::<Vec<_>>();
+                        self.conditional_return_arm(
                             position,
                             &state_parameters,
-                            values.clone(),
+                            namespace,
+                            &established,
+                            &payload_parameters,
                             &case_subject_discards,
                             return_arm,
                             &mut evaluation,
@@ -597,7 +633,8 @@ impl StateGraphEmission<'_, '_> {
                             &mut next_edge,
                             &mut operations,
                         )
-                        .map(Some),
+                        .map(Some)
+                    }
                     checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Ok(None),
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?
@@ -618,15 +655,28 @@ impl StateGraphEmission<'_, '_> {
                     match arm {
                         checked_trees::CheckedGuardedJumpArmPlan::Jump(_) => staged.push(None),
                         checked_trees::CheckedGuardedJumpArmPlan::Return(plan) => {
-                            let namespace = if index == 0 {
-                                guarded_first_namespace.clone()
+                            let (namespace, established) = if index == 0 {
+                                match &planned_guard {
+                                    Some((guard, namespace)) => {
+                                        (namespace.clone(), guard.established.as_slice())
+                                    }
+                                    None => (guarded_first_namespace.clone(), &[][..]),
+                                }
                             } else {
-                                guarded_drafts[index - 1].5.clone()
+                                let draft = &guarded_drafts[index - 1];
+                                match &draft.4 {
+                                    ChainGuard::Decision((guard, namespace)) => {
+                                        (namespace.clone(), guard.established.as_slice())
+                                    }
+                                    ChainGuard::Value(_) => (draft.5.clone(), &[][..]),
+                                }
                             };
                             staged.push(Some(self.conditional_return_arm(
                                 position,
                                 &state_parameters,
                                 namespace,
+                                established,
+                                &[],
                                 &[],
                                 &plan.return_arm,
                                 &mut evaluation,
@@ -656,6 +706,8 @@ impl StateGraphEmission<'_, '_> {
                     position,
                     &state_parameters,
                     values.clone(),
+                    &[],
+                    &[],
                     &[],
                     return_arm,
                     &mut evaluation,
@@ -1298,6 +1350,23 @@ pub(super) fn successor_may_read_payloads(
     successor.scalar_arguments.iter().any(|argument| {
         argument.source == checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
     })
+}
+
+pub(super) fn guarded_arm_may_read_payloads(
+    arm: &checked_trees::CheckedGuardedJumpArmPlan,
+) -> bool {
+    match arm {
+        checked_trees::CheckedGuardedJumpArmPlan::Jump(plan) => {
+            successor_may_read_payloads(&plan.successor)
+        }
+        checked_trees::CheckedGuardedJumpArmPlan::Return(plan) => {
+            return_may_read_payloads(&plan.return_arm)
+        }
+    }
+}
+
+fn return_may_read_payloads(arm: &checked_trees::CheckedConditionalReturnArm) -> bool {
+    !matches!(arm, checked_trees::CheckedConditionalReturnArm::Unit { .. })
 }
 
 pub(super) fn plan_short_circuit_guard(

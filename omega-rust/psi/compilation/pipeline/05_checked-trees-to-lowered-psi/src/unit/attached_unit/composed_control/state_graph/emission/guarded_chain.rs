@@ -7,7 +7,7 @@ use super::super::super::super::super::{BlockId, StructuralParameterDeclaration,
 use super::super::super::super::{Operation, ValueDeclaration, allocate_dense};
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
-use super::state::{ChainGuard, plan_short_circuit_guard, successor_may_read_payloads};
+use super::state::{ChainGuard, guarded_arm_may_read_payloads, plan_short_circuit_guard};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 /// One staged chain arm: its decision block, the parameters and structural
@@ -59,9 +59,9 @@ impl StateGraphEmission<'_, '_> {
             evaluation.parameters = Vec::new();
             evaluation.block_structural_parameters = Vec::new();
             // A short-circuit guard stages the same planned decision a
-            // two-arm conditional uses; any other guard is one value. A
-            // return arm has no successor edge payloads to read.
-            let reads_payloads = arm.successor().is_some_and(successor_may_read_payloads);
+            // two-arm conditional uses; any other guard is one value. Either
+            // a successor or a completion can read its selected payloads.
+            let reads_payloads = guarded_arm_may_read_payloads(arm);
             let guard = if let Some(expression) = evaluation.branch_guard(
                 checked,
                 state.state,

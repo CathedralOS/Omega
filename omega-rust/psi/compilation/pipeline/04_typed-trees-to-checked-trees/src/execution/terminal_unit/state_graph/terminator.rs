@@ -84,6 +84,7 @@ pub(super) fn build(
         signatures,
         edge_calls,
         &result,
+        next_scalar_binding,
         operations,
         terminator_index,
         trace,

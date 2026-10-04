@@ -14,7 +14,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventKind,
     PermissionEventSource, ScalarCalleePlans, ShapeCollector, Signature, StatementNode,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    returns,
+    returns, terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
@@ -32,6 +32,7 @@ pub(super) fn build(
     signatures: &[Signature],
     edge_calls: EdgeCalls<'_>,
     result: &checked_trees::CheckedControlResultPlan,
+    next_scalar_binding: usize,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     transition_start: usize,
     trace: &LocalConstructionTrace,
@@ -39,7 +40,7 @@ pub(super) fn build(
     let EdgeCalls {
         scalar_callees,
         entry_claims,
-        ..
+        local_results,
     } = edge_calls;
     let &(machine, state) = fused.get(state_index)?;
     let (structural, _) = &signatures[state_index];
@@ -359,6 +360,29 @@ pub(super) fn build(
                             operations.extend(operand_calls);
                             checked_trees::CheckedConditionalReturnArm::Structural(operation)
                         };
+                    (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
+                }
+                TransitionTargetNode::Named { .. }
+                    if terminal_calls::invoked_callable(program, machine, transition).is_some() =>
+                {
+                    trace.phase("state graph: terminator: case successors: terminal call");
+                    let arm = terminal_calls::arm_call(
+                        program,
+                        facts,
+                        scalar_callees,
+                        shapes,
+                        machine,
+                        state,
+                        structural,
+                        entry_claims,
+                        local_results,
+                        operations,
+                        result,
+                        next_scalar_binding,
+                        transition,
+                        ordinal,
+                        trace,
+                    )?;
                     (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
                 }
                 TransitionTargetNode::Named {

@@ -1,4 +1,3 @@
-use super::dispatch_extraction::DispatchExtraction;
 use super::records;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
@@ -6,6 +5,7 @@ use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use records::append_argument_access;
 use symbols::SymbolHandle;
+use validation::DispatchExtraction;
 
 pub(super) struct BorrowAccessCollection<'a> {
     pub(super) program: &'a typed_trees::TypedTrees,
@@ -43,11 +43,10 @@ impl<'a> BorrowAccessCollection<'a> {
     /// Collect a transition arm's own target roster, whose payload bindings
     /// were copied out of the dispatch's saved subject before the call.
     pub(super) fn after_dispatch_extraction(mut self) -> Self {
-        self.dispatch_extraction = DispatchExtraction::of_transition_arm(
-            self.program,
-            self.state_symbol,
-            self.statement_index,
-        );
+        if let Some(state) = crate::semantic::calls::find_state(self.program, self.state_symbol) {
+            self.dispatch_extraction =
+                DispatchExtraction::of_transition_arm(self.program, state, self.statement_index);
+        }
         self
     }
 
@@ -107,7 +106,9 @@ impl<'a> BorrowAccessCollection<'a> {
 
     pub(super) fn reads_extracted_copy(&self, expression: ExpressionHandle) -> bool {
         self.dispatch_extraction
-            .reads_extracted_copy(self, expression)
+            .reads_extracted_copy(self.program, expression, |payload| {
+                self.is_plain_copy(payload)
+            })
     }
 
     pub(super) fn retain_receiver_accesses(&mut self, first_access: usize) {

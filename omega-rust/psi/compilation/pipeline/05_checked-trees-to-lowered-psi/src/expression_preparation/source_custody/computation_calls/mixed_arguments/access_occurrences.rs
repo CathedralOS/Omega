@@ -151,6 +151,33 @@ pub(crate) fn replay(
                     == language_semantics::Multiplicity::Unrestricted
         })
     };
+    // Only the exact terminal occurrence observes payloads already extracted
+    // by dispatch. Nested calls on the same statement keep their own schedule.
+    let dispatch_extraction = if matches!(
+        checked
+            .statement_table
+            .statements(source_state.statement_nodes)
+            .get(statement as usize),
+        Some(checked_trees::statement::StatementNode::Transition(_))
+    )
+        && crate::emission::call_source_custody::authored::transition_target_at_call(
+            checked,
+            state,
+            checked_trees::CheckedUnitCallCoordinate {
+                statement_index: statement,
+                call_ordinal: call.call_ordinal as u32,
+            },
+        )
+        .is_ok()
+    {
+        validation::DispatchExtraction::of_transition_arm(
+            &checked.typed,
+            source_state,
+            statement as usize,
+        )
+    } else {
+        validation::DispatchExtraction::default()
+    };
     let mut positions = Vec::with_capacity(arguments.len());
     let selected_access = |argument, formal| {
         // A range computes a new descriptor. It is observed in source order,
@@ -501,8 +528,8 @@ pub(crate) fn replay(
                         "computed shared borrow substituted or reordered an observation",
                     );
                 }
-                // A scalar copy finishes at this observation. Borrow formation
-                // instead remains live until its enclosing call completes.
+                // Saved dispatch payloads finish before target access 0; other
+                // scalar copies finish here. Loans retain their call lifetime.
                 if direct {
                     operand = Some(position);
                 }
@@ -510,7 +537,17 @@ pub(crate) fn replay(
                     (!observing_loan
                         && !matches!(table.expression(expression), ExpressionNode::Borrow(_))
                         && plain_copy(expression))
-                    .then_some(position + 1),
+                    .then(|| {
+                        if dispatch_extraction.reads_extracted_copy(
+                            &checked.typed,
+                            expression,
+                            plain_copy,
+                        ) {
+                            0
+                        } else {
+                            position + 1
+                        }
+                    }),
                 );
                 position += 1;
             }

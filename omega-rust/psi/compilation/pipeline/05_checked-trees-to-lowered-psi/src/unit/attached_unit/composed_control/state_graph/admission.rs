@@ -1365,7 +1365,7 @@ fn validate_guarded_return(
 /// that binding's ordinal in the namespace the arm inherits. Checked bodies
 /// and selected requirements share this completion contract; ordinary call
 /// admission below retains their distinct target and argument custody.
-fn validate_arm_call(
+pub(super) fn validate_arm_call(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     source: &checked_trees::state::State,
