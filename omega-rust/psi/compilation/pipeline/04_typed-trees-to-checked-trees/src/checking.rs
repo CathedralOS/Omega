@@ -359,9 +359,9 @@ fn lower_typed_trees_uncached(
     })?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
     // MP5: specialization selection happens before checked contract plans
-    // exist. Bind the selected machines' normalized contract identities now,
-    // validate the recorded relation, and make those identities part of the
-    // instance fingerprint used by caches and artifacts.
+    // exist. Bind the selected machines' normalized contract identities now
+    // and make them part of the instance fingerprint used by caches and
+    // artifacts.
     crate::monomorphization::bind_specialization_contract_identities(
         &mut program,
         &facts.contract_plans,

@@ -124,7 +124,7 @@ the round's immutable template metadata while owning their bindings.
 [Selection](src/monomorphization/selection.rs),
 [body cloning](src/monomorphization/body_cloning.rs),
 [body rewriting](src/monomorphization/body_rewriting.rs), and
-[identity encoding/replay](src/monomorphization/identities.rs) own those mechanisms.
+[identity encoding](src/monomorphization/identities.rs) own those mechanisms.
 Cloned runtime calls resolve subjects in a state-owned traversal rather than
 rediscovering their enclosing statement trees for each call. The collected
 subjects preserve the first lexical owner and exact generational handles.

@@ -1,4 +1,4 @@
-//! Canonical template and application commitments, including independent replay.
+//! Canonical template and application commitments.
 use super::{
     Diagnostic, Sha256, StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind,
     TypedTrees,
@@ -413,6 +413,12 @@ pub(super) fn accepted_template_commitment(
         .then(|| machine.name.as_str().to_owned())
 }
 
+/// MP5: specialization runs before checked contract plans exist, so it
+/// leaves each instance's selected machine-contract identities, conformance
+/// fingerprints, aggregate report fingerprint and commitment empty. This is
+/// their one computation: read the selected contracts from the plans and fold
+/// them, with the identities specialization recorded, into the instance
+/// fingerprint used by caches and artifacts.
 pub(crate) fn bind_specialization_contract_identities(
     program: &mut TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
@@ -420,69 +426,28 @@ pub(crate) fn bind_specialization_contract_identities(
     let operational = validation::infer_operational_may(program);
     validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let updates: Result<Vec<_>, _> = program
+    let identities: Result<Vec<_>, _> = program
         .machine_specializations
         .iter()
         .map(|specialization| {
-            replay_machine_specialization_identity(program, contracts, specialization, &operational)
+            machine_specialization_identity(program, contracts, specialization, &operational)
         })
         .collect();
-    let updates = updates.map_err(|diagnostic| vec![diagnostic])?;
-    for (specialization, replay) in program.machine_specializations.iter_mut().zip(updates) {
-        if !specialization
-            .machine_argument_contract_report_fingerprints
-            .is_empty()
-            && specialization.machine_argument_contract_report_fingerprints
-                != replay.machine_contract_report_fingerprints
-        {
-            return Err(vec![Diagnostic::error(
-                "generic specialization cache entry no longer matches its selected machine contract identities",
-            )]);
-        }
-        if !specialization
-            .machine_argument_contract_commitments
-            .is_empty()
-            && specialization.machine_argument_contract_commitments
-                != replay.machine_contract_commitments
-        {
-            return Err(vec![Diagnostic::error(
-                "generic specialization cache entry no longer matches its selected machine contract commitments",
-            )]);
-        }
-        if !specialization
-            .conformance_argument_report_fingerprints
-            .is_empty()
-            && specialization.conformance_argument_report_fingerprints
-                != replay.conformance_report_fingerprints
-        {
-            return Err(vec![Diagnostic::error(
-                "generic specialization cache entry no longer matches its selected conformance-map identities",
-            )]);
-        }
-        if !specialization.commitment.is_zero() && specialization.commitment != replay.commitment {
-            return Err(vec![Diagnostic::error(
-                "generic specialization cache entry has a stale authoritative commitment",
-            )]);
-        }
-        if specialization.report_fingerprint != 0
-            && specialization.report_fingerprint != replay.report_fingerprint
-        {
-            return Err(vec![Diagnostic::error(
-                "generic specialization cache entry has a stale aggregate report fingerprint",
-            )]);
-        }
+    let identities = identities.map_err(|diagnostic| vec![diagnostic])?;
+    for (specialization, identity) in program.machine_specializations.iter_mut().zip(identities) {
         specialization.machine_argument_contract_report_fingerprints =
-            replay.machine_contract_report_fingerprints;
-        specialization.machine_argument_contract_commitments = replay.machine_contract_commitments;
+            identity.machine_contract_report_fingerprints;
+        specialization.machine_argument_contract_commitments =
+            identity.machine_contract_commitments;
         specialization.conformance_argument_report_fingerprints =
-            replay.conformance_report_fingerprints;
-        specialization.report_fingerprint = replay.report_fingerprint;
-        specialization.commitment = replay.commitment;
+            identity.conformance_report_fingerprints;
+        specialization.report_fingerprint = identity.report_fingerprint;
+        specialization.commitment = identity.commitment;
     }
     Ok(())
 }
 
-struct ReplayedMachineSpecializationIdentity {
+struct MachineSpecializationIdentity {
     machine_contract_report_fingerprints: Vec<u64>,
     machine_contract_commitments: Vec<[u8; 32]>,
     conformance_report_fingerprints: Vec<u64>,
@@ -490,61 +455,17 @@ struct ReplayedMachineSpecializationIdentity {
     commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
 }
 
-fn replay_machine_specialization_identity(
+/// Encode one specialization's identity from the template contract and
+/// arguments specialization recorded plus the selected machines' contract
+/// identities. Specialization already validated the template commitment,
+/// the accepted-template custody and the closed conformance applications it
+/// recorded; this reads them as given.
+fn machine_specialization_identity(
     program: &TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
-) -> Result<ReplayedMachineSpecializationIdentity, Diagnostic> {
-    let template = crate::lookup::machine_by_symbol(program, specialization.template)
-        .ok_or_else(|| Diagnostic::error("generic specialization lost its template machine"))?;
-    match (
-        template.supply_mode,
-        &specialization.accepted_template_commitment,
-    ) {
-        (language_semantics::MachineSupplyMode::AdmissionClaim, None) => {
-            return Err(Diagnostic::error(
-                "accepted generic specialization lost its template trust commitment",
-            ));
-        }
-        (language_semantics::MachineSupplyMode::AdmissionClaim, Some(commitment))
-            if template.name.as_str() != commitment =>
-        {
-            return Err(Diagnostic::error(format!(
-                "accepted generic specialization records template commitment `{commitment}`, but its template identity no longer matches"
-            )));
-        }
-        (language_semantics::MachineSupplyMode::AdmissionClaim, Some(_)) => {}
-        (mode, Some(commitment)) => {
-            return Err(Diagnostic::error(format!(
-                "generic specialization records accepted template commitment `{commitment}`, but the retained template supply mode is {mode:?}"
-            )));
-        }
-        _ => {}
-    }
-    if specialization.template_contract_report_fingerprint == 0
-        || specialization.canonical_template_contract_bytes.is_empty()
-        || fnv1a_report_fingerprint(&specialization.canonical_template_contract_bytes)
-            != specialization.template_contract_report_fingerprint
-    {
-        return Err(Diagnostic::error(
-            "generic specialization is missing or mismatches its canonical pre-substitution template contract",
-        ));
-    }
-    let expected_template_commitment =
-        machine_template_commitment(&specialization.canonical_template_contract_bytes);
-    if specialization.template_contract_commitment.is_zero()
-        || specialization.template_contract_commitment != expected_template_commitment
-    {
-        return Err(Diagnostic::error(
-            "generic specialization is missing or mismatches its authoritative template commitment",
-        ));
-    }
-    if specialization.normalized_template_identity.is_empty() {
-        return Err(Diagnostic::error(
-            "generic specialization is missing its normalized template identity",
-        ));
-    }
+) -> Result<MachineSpecializationIdentity, Diagnostic> {
     let instance = crate::lookup::machine_by_symbol(program, specialization.instance)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its concrete instance"))?;
     let instance_identity = normalized_machine_identity(program, instance).ok_or_else(|| {
@@ -574,12 +495,6 @@ fn replay_machine_specialization_identity(
                 owner.name
             ),
         ))?;
-        if contract.commitment.is_zero() {
-            return Err(Diagnostic::error(format!(
-                "generic specialization selected `{}`, but its machine contract commitment is empty",
-                owner.name
-            )));
-        }
         let owner_identity = normalized_machine_identity(program, owner).ok_or_else(|| {
             Diagnostic::error(format!(
                 "generic specialization selected `{}`, but its owner identity cannot be normalized",
@@ -594,35 +509,11 @@ fn replay_machine_specialization_identity(
         machine_contract_commitments.push(contract.commitment.as_bytes());
     }
 
-    let mut conformance_report_fingerprints = Vec::new();
-    let mut conformance_commitments = Vec::new();
-    for application in &specialization.conformance_applications {
-        let conformance = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == application.declaration)
-            .ok_or_else(|| Diagnostic::error(format!(
-                "generic specialization references conformance symbol {:?}, but no package conformance exists",
-                application.declaration
-            )))?;
-        if program.closed_conformance_rows(conformance).is_none() {
-            return Err(Diagnostic::error(format!(
-                "generic specialization selected `{}`, but it is not a closed conformance map",
-                conformance
-                    .alias
-                    .as_ref()
-                    .map(|name| name.as_str())
-                    .unwrap_or("<unnamed-conformance>")
-            )));
-        }
-        if application.commitment.is_zero() {
-            return Err(Diagnostic::error(
-                "generic specialization selected a closed conformance with an empty commitment",
-            ));
-        }
-        conformance_report_fingerprints.push(application.report_fingerprint);
-        conformance_commitments.push(application.commitment.as_bytes());
-    }
+    let conformance_report_fingerprints = specialization
+        .conformance_applications
+        .iter()
+        .map(|application| application.report_fingerprint)
+        .collect();
 
     let mut bytes = Vec::new();
     encode_identity_bytes(
@@ -642,9 +533,9 @@ fn replay_machine_specialization_identity(
         encode_identity_text(owner, &mut bytes);
         bytes.extend(commitment);
     }
-    bytes.extend((conformance_commitments.len() as u64).to_le_bytes());
-    for commitment in &conformance_commitments {
-        bytes.extend(commitment);
+    bytes.extend((specialization.conformance_applications.len() as u64).to_le_bytes());
+    for application in &specialization.conformance_applications {
+        bytes.extend(application.commitment.as_bytes());
     }
     let operator_realization_bytes = validation::canonical_closed_operator_realization_bytes(
         program,
@@ -667,7 +558,7 @@ fn replay_machine_specialization_identity(
     let mut strong = Sha256::new();
     strong.update(b"omega.machine-specialization.v2\0");
     strong.update(&bytes);
-    Ok(ReplayedMachineSpecializationIdentity {
+    Ok(MachineSpecializationIdentity {
         machine_contract_report_fingerprints,
         machine_contract_commitments,
         conformance_report_fingerprints,
