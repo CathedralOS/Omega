@@ -115,7 +115,7 @@ impl<'program> Evaluator<'program> {
     /// compiler issued for it. Only the evaluator's own marker shape is
     /// admitted: an authored `ProductTypeSchema {}`, a foreign struct, or a
     /// description index outside the issued table cannot satisfy this check.
-    /// `roots.bind` consumption goes through `described_product_entry`, whose
+    /// `Build::bind` consumption goes through `described_product_entry`, whose
     /// distinct marker name makes a schema description unusable as an entry.
     pub(in crate::interpreter::evaluator) fn described_product_schema(
         &self,

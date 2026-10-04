@@ -82,7 +82,7 @@ scope-qualified paths before source assembly loads any generated unit.
 
 ## Root-binding implementation boundary
 
-`builder.roots.bind(Target::Slot, Product::entry);` is retained as a dedicated
+`Build::bind(builder, Target::Slot, Product::entry);` is retained as a dedicated
 Psi statement with separate product-context operand paths. It is not an ordinary
 machine invocation. The host resolver does not resolve those operands through
 host imports; selected-target/product admission still owns that resolution.
@@ -98,7 +98,7 @@ results, separate from host observations. This owner rejoins them to the exact
 prepared program and the occurrence's source/package before target selection.
 Requests are not target-admission evidence.
 
-Foreign helpers are admitted lexically: each `roots.bind` occurrence resolves
+Foreign helpers are admitted lexically: each `Build::bind` occurrence resolves
 its implementation against the product machines of its own source package, so a
 helper can bind its own package's entry but never the caller's private
 declarations. The exact machine symbol survives into Terminal production and

@@ -41,7 +41,7 @@
 //!   hosted console default.
 //! - `optimizations` is an exact set of individually named transformations.
 //!   It is empty by default; duplicates reject rather than acting like levels.
-//! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` executes
+//! - `Build::bind(builder, target::ProgramEntry, Exact::machine);` executes
 //!   through the original Build activation, including local helpers/reborrows.
 //!   Executed requests rejoin their lexical owner before exact product selection.
 //! - `builder.select_provider<Slot, Provider>(mode)` likewise records only

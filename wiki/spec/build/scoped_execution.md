@@ -201,7 +201,7 @@ names when lookup fails.
 Toolchain operations have designated product operands:
 
 ```omega
-builder.roots.bind(windows_x86_64::ProgramEntry, Application::start);
+Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
 builder.select_provider<windows_x86_64::Console, TestConsole>();
 builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 _ = builder.tests.group<Tests::memory>();

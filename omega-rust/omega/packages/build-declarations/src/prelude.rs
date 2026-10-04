@@ -81,7 +81,7 @@ pub data BuildLog {
 pub data BuildProduct {
 }
 // A restricted, non-callable product-entry description. Authored code can
-// retain, copy, and hand it to helpers, but only a `roots.bind` delegated
+// retain, copy, and hand it to helpers, but only a `Build::bind` delegated
 // operand can consume it, and only the compiler-issued marker value carries
 // the exact selected identity.
 pub data ProductEntryRef [copy] {

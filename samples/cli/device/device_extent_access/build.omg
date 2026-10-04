@@ -10,5 +10,5 @@ machine build(builder: &mut Build) {
     builder.accept_boundary<DeviceLoanProvider>();
     builder.select_representation<DeviceLoan, DeviceLoanRepresentation>();
     builder.select_representation<DeviceOrderingEvent, DeviceOrderingEventRepresentation>();
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
 }

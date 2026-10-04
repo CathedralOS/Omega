@@ -4,5 +4,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "product_entry_query_unknown_target");
     let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "launch", "unknown_target::ProgramEntry");
-    builder.roots.bind(windows_x86_64::ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }

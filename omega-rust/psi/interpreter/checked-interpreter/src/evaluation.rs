@@ -324,7 +324,7 @@ pub struct DescribedProductEntry {
     /// The selected machine's authored name, retained for diagnostics only.
     pub machine_name: String,
     /// The root slot spelling the description was selected for. A later
-    /// `roots.bind` must spell the same slot path.
+    /// `Build::bind` must spell the same slot path.
     pub slot: String,
 }
 
@@ -359,12 +359,12 @@ pub struct DescribedProductProvider {
     pub canonical_path: String,
 }
 
-/// One executed `roots.bind` declaration plus, when its implementation
+/// One executed `Build::bind` declaration plus, when its implementation
 /// operand was a delegated description, the exact product entry the compiler
 /// issued for it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedRootBinding {
-    /// The exact `roots.bind` statement that executed.
+    /// The exact `Build::bind` statement that executed.
     pub statement: typed_trees::statement::StatementHandle,
     /// `Some` when the implementation operand evaluated to a compiler-issued
     /// `ProductEntryRef` description instead of a product machine path.

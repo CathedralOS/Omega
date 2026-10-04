@@ -8,10 +8,10 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<left::Sink, left::Provider>();
     builder.select_provider<right::Sink, right::Provider>();
-    builder.roots.bind(macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
-    builder.roots.bind(linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
-    builder.roots.bind(linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));
-    builder.roots.bind(windows_x86_64::ProgramEntry, choose(builder, "windows_x86_64::ProgramEntry"));
+    Build::bind(builder, macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
+    Build::bind(builder, linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
+    Build::bind(builder, linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));
+    Build::bind(builder, windows_x86_64::ProgramEntry, choose(builder, "windows_x86_64::ProgramEntry"));
 }
 
 machine choose(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {

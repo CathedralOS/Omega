@@ -42,7 +42,7 @@ if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then
     exit 1
 fi
 
-[ "$(grep -Fc 'builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main);' "$OMEGA_BUILD")" -eq 1 ] || {
+[ "$(grep -Fc 'Build::bind(builder, alpha_bootstrap::ProgramEntry, Main::main);' "$OMEGA_BUILD")" -eq 1 ] || {
     echo "Interpreted Omega experiment: alpha_bootstrap is not one ordinary root" >&2
     exit 1
 }

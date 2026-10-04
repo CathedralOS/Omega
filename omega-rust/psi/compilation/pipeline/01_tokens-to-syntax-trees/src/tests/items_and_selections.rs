@@ -711,7 +711,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
 fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+            Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
         }
     "#;
     let tokens = Lexer::new(source)
@@ -766,7 +766,7 @@ fn root_binding_statement_rejects_malformed_operands() {
         "Slot::, Entry",
     ] {
         let source =
-            format!("machine build(builder: &mut Build) {{ builder.roots.bind({operands}); }}");
+            format!("machine build(builder: &mut Build) {{ Build::bind(builder, {operands}); }}");
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize malformed root binding");
@@ -783,7 +783,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
     // call nor a literal should be manufactured into a declaration spelling.
     for operand in ["setup::retain(entry)", "12"] {
         let source = format!(
-            "machine build(builder: &mut Build) {{ builder.roots.bind(Slot, {operand}); }}"
+            "machine build(builder: &mut Build) {{ Build::bind(builder, Slot, {operand}); }}"
         );
         let tokens = Lexer::new(&source).tokenize().expect("root binding tokens");
         let parsed = parse_syntax_trees(&tokens).expect("description expression syntax");

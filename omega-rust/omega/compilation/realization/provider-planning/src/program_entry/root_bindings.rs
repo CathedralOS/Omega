@@ -8,7 +8,7 @@ use super::RootBinding;
 
 /// Admission is lexical per occurrence package: the `implementation` operand
 /// resolves against the product machines declared in the package containing
-/// the `roots.bind` statement, or a public declaration selected through that
+/// the `Build::bind` statement, or a public declaration selected through that
 /// package's explicit product dependency alias, never the caller's. A borrowed
 /// root Build carries operational authority, not the caller's product namespace,
 /// so a foreign helper can bind its own package's entry while wrong-scope spellings

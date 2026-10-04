@@ -55,7 +55,7 @@ impl InterpretOptions {
 /// Interpret a checked program from one exact machine identity.
 ///
 /// Build/target selection owns this identity. The interpreter neither discovers
-/// an entry from source spelling nor retries alternate names. A `roots.bind`
+/// an entry from source spelling nor retries alternate names. A `Build::bind`
 /// selection already resolved its machine to a symbol under the binding
 /// occurrence's lexical package; [`BuildMachineEntry::Symbol`] consumes that
 /// identity directly so a same-named declaration elsewhere in the program

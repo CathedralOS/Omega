@@ -16,7 +16,7 @@
 // being the machine body's tail, a constant versus a dynamic subject, the
 // sum's case count on its own, and whether the arms share one successor.
 //
-// The `reaches Console` here and the `roots.bind(...ProgramEntry...)` lines
+// The `reaches Console` here and the `Build::bind(builder, ...ProgramEntry...)` lines
 // in `build.omg` are equally load-bearing: a machine with no terminal effect
 // demands no unit plan, so this program would check VACUOUSLY without them.
 use omega_language_std::console;

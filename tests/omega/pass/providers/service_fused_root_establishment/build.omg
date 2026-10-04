@@ -2,5 +2,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "service_fused_root_establishment");
     builder.select_provider<Ping, PingProvider>();
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

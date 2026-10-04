@@ -287,7 +287,7 @@ carries the charset note. Count is not verification.
   reduction, never by the label alone.
 - A machine with no terminal effect demands no unit plan, so a shrunk
   reproduction that drops the console binding checks VACUOUSLY. Keep one
-  effect and the `roots.bind(...ProgramEntry...)`.
+  effect and the `Build::bind(builder, ...ProgramEntry...)`.
 - Recording this roster costs two full native passes (one to see movement,
   one to record). Budget for that; the run is ~15 minutes of wall clock at
   nine compiles in flight, not the multi-hour figure the gate items imply.

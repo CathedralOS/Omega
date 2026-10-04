@@ -44,6 +44,12 @@ may separately select `TestConsole` for the exact Console requirement. Neither
 selection invokes application code. The Build operations themselves follow the
 ordinary static-machine argument rules; they have no receiver-syntax exemption.
 
+The root-binding form is `Build::bind(builder, Target::Slot, Product::entry)`.
+The first argument explicitly supplies the current activation's mutable Build
+value; ordinary helpers may forward that value. The remaining operands select
+the slot and entry rather than invoking either. There is no `roots` receiver
+facet or implicit Build argument.
+
 The entry selection identifies an exact static machine. When the entry shape
 permits provisioning, it designates one ordinary mutable context parameter,
 for example `machine Application::start(context: &mut Application)`. The

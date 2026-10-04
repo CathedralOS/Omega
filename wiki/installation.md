@@ -129,10 +129,10 @@ machine build(builder: &mut Build) {
         revision: "RELEASE_COMMIT",
         selection: PackageSelection::Named { package: "omega_language_std" }
     });
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
 }
 ```
 

@@ -6,5 +6,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "product_entry_query_ambiguous_leaf");
     let entry: ProductEntryRef = BuildProduct::entry(&builder.product, "launch", "windows_x86_64::ProgramEntry");
-    builder.roots.bind(windows_x86_64::ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }

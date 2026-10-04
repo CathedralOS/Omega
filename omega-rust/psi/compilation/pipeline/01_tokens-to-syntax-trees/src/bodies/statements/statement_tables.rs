@@ -61,21 +61,34 @@ pub(crate) fn root_binding_declaration(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return Ok(None);
     };
-    if call.target.as_str() != "bind" || !call.receiver.is_valid() {
+    if call.target.as_str() == "bind"
+        && !call.target_is_static
+        && call.receiver.is_valid()
+        && matches!(syntax_trees.expressions.expression(call.receiver),
+            ExpressionNode::Member(member) if member.member.as_str() == "roots")
+    {
+        return Err(ParseError::new(
+            "receiver-style root binding is retired; use Build::bind(builder, slot, entry)",
+        ));
+    }
+    if call.target.as_str() != "bind" || !call.target_is_static || !call.receiver.is_valid() {
         return Ok(None);
     }
-    let ExpressionNode::Member(member) = syntax_trees.expressions.expression(call.receiver) else {
+    let ExpressionNode::Name(owner) = syntax_trees.expressions.expression(call.receiver) else {
         return Ok(None);
     };
-    if member.member.as_str() != "roots" {
+    let owner = syntax_trees.expressions.identifier_path_members(*owner);
+    if !matches!(owner, [name] if name.as_str() == "Build") {
         return Ok(None);
     }
     let invalid = || {
         ParseError::new(
-            "root-slot binding requires exactly one slot path and one implementation path or description expression",
+            "root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
         )
     };
-    let [slot, implementation] = syntax_trees.expressions.expression_handles(call.arguments) else {
+    let [builder, slot, implementation] =
+        syntax_trees.expressions.expression_handles(call.arguments)
+    else {
         return Err(invalid());
     };
     if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
@@ -108,7 +121,7 @@ pub(crate) fn root_binding_declaration(
         }
     };
     Ok(Some(syntax_trees::statement::RootBinding {
-        receiver: member.receiver,
+        receiver: *builder,
         slot: operand(*slot)?,
         implementation: if matches!(
             syntax_trees.expressions.expression(*implementation),

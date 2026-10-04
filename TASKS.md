@@ -184,8 +184,8 @@ helper that passes does not close an item.
     (owner questions Q3 `trait-requirement-subject-binding` and Q1
     `provider-private-state-home`) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build files still use
-    `builder.roots.bind(...)` and `builder.select_provider<...>()`
-    receiver-style shapes that the build-declarations projector recognizes
+    `builder.select_provider<...>()` and other receiver-style shapes that
+    the build-declarations projector recognizes
     (`omega-rust/omega/packages/build-declarations/`); move them to
     `Build::`-qualified calls like `Build::package(builder, name)`. Do not
     restore implicit builder insertion.

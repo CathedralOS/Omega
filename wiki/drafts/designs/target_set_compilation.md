@@ -103,7 +103,7 @@ This is the load-bearing constraint: today the per-target program is a
   qualified declarations simultaneously — same qualified name, different
   target qualifier, coexisting in one syntax. That is a namespace/resolution
   model change in `symbol-resolved-trees`, not a loop refactor.
-- **Build evaluation observes the target.** `builder.roots.bind(
+- **Build evaluation observes the target.** `Build::bind(builder,
   linux_x86_64::ProgramEntry, ...)` and provider selections read it. One
   evaluation serving the set either makes the `Build` vocabulary set-aware or
   evaluates once per distinct build-relevant signature — an internal

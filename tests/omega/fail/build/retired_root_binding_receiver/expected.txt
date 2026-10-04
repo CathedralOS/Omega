@@ -1,0 +1,1 @@
+receiver-style root binding is retired

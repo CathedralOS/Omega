@@ -5,7 +5,7 @@
 // a different target's slot.
 machine build(builder: &mut Build) {
     Build::application(builder, "product_entry_description_slot_mismatch");
-    builder.roots.bind(windows_x86_64::ProgramEntry, describe(builder, "linux_arm64::ProgramEntry"));
+    Build::bind(builder, windows_x86_64::ProgramEntry, describe(builder, "linux_arm64::ProgramEntry"));
 }
 
 machine describe(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {

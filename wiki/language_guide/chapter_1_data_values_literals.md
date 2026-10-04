@@ -34,7 +34,7 @@ entry:
 machine build(builder: &mut Build) {
     Build::application(builder, "hello");
     // Declare the std dependency for this project's source layout.
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
 }
 ```
 

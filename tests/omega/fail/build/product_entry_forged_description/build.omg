@@ -4,5 +4,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "product_entry_forged_description");
     let forged: ProductEntryRef = ProductEntryRef {};
-    builder.roots.bind(windows_x86_64::ProgramEntry, forged);
+    Build::bind(builder, windows_x86_64::ProgramEntry, forged);
 }

@@ -107,10 +107,10 @@ machine build(builder: &mut Build) {
 machine choose(builder: &mut Build, correct: bool) {
     transition correct { true -> good(builder) _ -> bad(builder) }
     state good(builder: &mut Build) {
-        builder.roots.bind(macos_arm64::ProgramEntry, main);
-        builder.roots.bind(linux_arm64::ProgramEntry, main);
-        builder.roots.bind(linux_x86_64::ProgramEntry, main);
-        builder.roots.bind(windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
     state bad(builder: &mut Build) {
         _ = BuildProduct::entry(&builder.product, "incorrect_build_constant", "macos_arm64::ProgramEntry");

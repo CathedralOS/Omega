@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "selected_lowering_optimizer_component");
-    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Optimizations::enable(
         &mut builder.optimizations,
         Optimization::X86SelectXorZeroI64MaterializationV1,

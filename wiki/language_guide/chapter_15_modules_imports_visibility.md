@@ -92,7 +92,7 @@ but host-generated configuration is not target evidence. The
 
 Targets are explicit invocation inputs. They do not change the dependency graph.
 Executable applications bind target entries with
-`roots.bind(target::ProgramEntry, entry)` rows. The
+`Build::bind(builder, target::ProgramEntry, entry)` rows. The
 [multi-target contract](../spec/build/configuration.md) requires an explicit,
 nonempty target set and independent outcomes; it does not infer an `all` set
 from declarations or the compiler catalog.

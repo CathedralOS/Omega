@@ -812,7 +812,7 @@ fn dangerous_service_bindings(
 pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"hosted_main_program_entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
+        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"hosted_main_program_entry\");\n{}    Build::bind(builder, {root_owner}::ProgramEntry, Main::main);\n}}\n",
         fixture_dependency_declarations(canary)
     )
 }
@@ -848,7 +848,7 @@ pub fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
         );
     }
     build.push_str(&format!(
-        "    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "    Build::bind(builder, {root_owner}::ProgramEntry, Main::main);\n}}\n"
     ));
     build
 }

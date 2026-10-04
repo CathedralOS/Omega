@@ -232,16 +232,27 @@ fn record_text(
     }
     for diagnostic in diagnostics {
         record.push_str("\n\t");
-        record.push_str(&escape_diagnostic(diagnostic));
+        record.push_str(&escape_diagnostic(&sanitize(diagnostic)));
     }
-    sanitize(record)
+    record
 }
 
 /// Records must be checkout-portable: diagnostics and panic payloads render
 /// `path:line:col` positions with absolute fixture paths, so strip the repo
 /// root prefix before a record reaches the golden.
-fn sanitize(record: String) -> String {
-    record.replace(&format!("{}/", repo_root().display()), "")
+fn sanitize(diagnostic: &str) -> String {
+    // Strip before escaping: a Windows backslash otherwise becomes two
+    // characters and no longer matches the actual checkout path.
+    let root = repo_root();
+    let diagnostic = diagnostic
+        .replace(&format!("{}/", root.display()), "")
+        .replace(&format!("{}\\", root.display()), "");
+    if (diagnostic.starts_with("tests/") || diagnostic.starts_with("tests\\"))
+        && let Some((location, message)) = diagnostic.split_once(": ")
+    {
+        return format!("{}: {message}", location.replace('\\', "/"));
+    }
+    diagnostic
 }
 
 fn unique_build_dir(sequence: usize) -> PathBuf {
@@ -569,14 +580,37 @@ fn declared_realization_targets(root_path: &Path) -> Vec<String> {
     let Ok(text) = fs::read_to_string(parent.join("build.omg")) else {
         return Vec::new();
     };
+    let Ok(tokens) = source_files_to_tokens::Lexer::new(&text).tokenize() else {
+        return Vec::new();
+    };
+    let Ok(syntax) = tokens_to_syntax_trees::parse_syntax_trees(&tokens) else {
+        return Vec::new();
+    };
     let mut targets = Vec::new();
-    for occurrence in text.split("roots.bind(").skip(1) {
-        let Some(end) = occurrence.find("::") else {
+    // Read the slot operand structurally. An explicit Build argument can be
+    // a call containing commas, and comments may contain example bindings;
+    // neither should change which target this fixture actually declares.
+    for item in syntax.root_items() {
+        let syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
-        let target = occurrence[..end].trim();
-        if !target.is_empty() && !targets.iter().any(|seen| seen == target) {
-            targets.push(target.to_owned());
+        for state in syntax.items.state_handles(machine.states) {
+            let state = syntax.items.state(*state);
+            for statement in syntax.items.statements(state.statements) {
+                let syntax_trees::statement::StatementNode::RootBinding(binding) =
+                    syntax.statements.statement(*statement)
+                else {
+                    continue;
+                };
+                let [target, .., slot] = binding.slot.as_ref() else {
+                    continue;
+                };
+                if slot.as_str() == "ProgramEntry"
+                    && !targets.iter().any(|seen| seen == target.as_str())
+                {
+                    targets.push(target.as_str().to_owned());
+                }
+            }
         }
     }
     targets

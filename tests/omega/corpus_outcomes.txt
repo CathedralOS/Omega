@@ -267,7 +267,7 @@ fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/build_effects_undeclared rejected 1118ms unexpected @c5d32a00863
 	cleanup effect dependency in `write_build_log` has no exact structural residual disposition
-fail/build/build_machine_wrong_arity rejected 4ms expected @2d8ed253669f
+fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/duplicate_program_entry_binding rejected 831ms expected @2d8ed253669f
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
@@ -350,6 +350,8 @@ fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+w
 	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/retired_root_binding_receiver rejected 1ms expected @cb26b40f8674+wt
+	tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)
 fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b09f66e07ebd+wt
 	root binding names `launch`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace
 fail/build/static_machine_parameter_contract_mismatch rejected 71ms expected @2d8ed253669f

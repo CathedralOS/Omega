@@ -5,7 +5,7 @@
 //! (wiki/spec/build/behavior_exclusions.md): recording the call as it
 //! executes — not scanning the spelled text — is what makes a statically
 //! present but unexecuted call not a selection. The receiver must be the
-//! activation's original Build cell, the same authority `roots.bind`
+//! activation's original Build cell, the same authority `Build::bind`
 //! requires: a helper may assemble a selection only because the root Build
 //! value reaches its frame. A call evaluated on any other receiver claims
 //! an authority it does not have and traps rather than silently applying

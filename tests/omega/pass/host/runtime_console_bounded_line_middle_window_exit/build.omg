@@ -1,9 +1,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_console_bounded_line_middle_window_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::repeat);
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::repeat);
-    builder.roots.bind(linux_arm64::ProgramEntry, Main::repeat);
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::repeat);
-    builder.roots.bind(macos_x86_64::ProgramEntry, Main::repeat);
+    Build::bind(builder, windows_x86_64::ProgramEntry, Main::repeat);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::repeat);
+    Build::bind(builder, linux_arm64::ProgramEntry, Main::repeat);
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::repeat);
+    Build::bind(builder, macos_x86_64::ProgramEntry, Main::repeat);
 }
