@@ -1,4 +1,5 @@
 //! Exact local reference identity, separate from conservative write footprints.
+use super::place_paths::{push_unique_origin, single_place_origin};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
     FrameSourcePlace, Machine, MachineSymbols, State, StatementNode, StoredLocalOrigins,
@@ -6,7 +7,7 @@ use super::{
     caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
-use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origin;
+use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
@@ -189,7 +190,31 @@ pub(super) fn value_origin(
     stored: &[StoredLocalOrigins],
     implicit_borrow: bool,
 ) -> Option<FramePlaceOrigin> {
-    let declared = declared_initializer_origin(
+    single_place_origin(value_origins(
+        program,
+        machine,
+        expression,
+        symbols,
+        inference,
+        aliases,
+        stored,
+        implicit_borrow,
+    )?)
+}
+
+/// Every exact captured referent of one reference value. Singleton consumers
+/// collapse this set only when its complete candidates identify the same place.
+pub(super) fn value_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    implicit_borrow: bool,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let declared = declared_initializer_origins(
         program,
         machine,
         expression,
@@ -204,9 +229,12 @@ pub(super) fn value_origin(
         machine,
         caller_aliases::CallerWriteSite::Expression(expression),
     )?;
-    let origin = if results::call_expression(program, expression).is_some() {
-        declared
-    } else {
+    if results::call_expression(program, expression).is_some() {
+        // Declaration resolution already crossed the actual's stored boundary.
+        // Replaying capture here would load the resulting backing slot again.
+        return Some(declared);
+    }
+    let origins = {
         let isolated = program.statement_table.statements(state.statement_nodes)[..index]
             .iter()
             .filter_map(|statement| match statement {
@@ -224,7 +252,7 @@ pub(super) fn value_origin(
         if !diagnostics.is_empty() {
             return None;
         }
-        stable_alias_initializer_origin(
+        stable_alias_initializer_origins(
             program,
             machine,
             &machine_symbols,
@@ -239,14 +267,18 @@ pub(super) fn value_origin(
             stored,
         )?
     };
-    let mut origins =
-        captured_value_origins(program, expression, &origin, aliases, stored).into_iter();
-    let origin = origins.next()??;
-    if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
-        return None;
+    let mut captured = Vec::new();
+    for origin in origins {
+        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
+            let origin = origin?;
+            if origin.precision != FramePathPrecision::Exact {
+                return None;
+            }
+            validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+            push_unique_origin(&mut captured, origin);
+        }
     }
-    validate_source_projection(program, machine, state, index, &origin.source, stored)?;
-    Some(origin)
+    (!captured.is_empty()).then_some(captured)
 }
 
 /// Storage provenance for a reference-valued producer. Unlike an exact
@@ -263,6 +295,22 @@ pub(super) fn backing_origin(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
+    single_place_origin(backing_origins(
+        program, machine, expression, symbols, inference, aliases, stored,
+    )?)
+}
+
+/// Preserve a reference producer's complete backing set, including coarse
+/// collection coordinates. Exact-value consumers use `value_origins` instead.
+pub(super) fn backing_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<FramePlaceOrigin>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
@@ -285,7 +333,7 @@ pub(super) fn backing_origin(
     if !diagnostics.is_empty() {
         return None;
     }
-    let origin = stable_alias_initializer_origin(
+    let origins = stable_alias_initializer_origins(
         program,
         machine,
         &machine_symbols,
@@ -299,39 +347,41 @@ pub(super) fn backing_origin(
         true,
         stored,
     )?;
-    let mut candidates =
-        captured_value_origins(program, expression, &origin, aliases, stored).into_iter();
-    let origin = candidates.next()??;
-    if candidates.next().is_some()
-        || (!origin.source.root.is_valid() && !origin.source.is_static())
-        || !origin.source.builtin_coordinates
-    {
-        return None;
+    let mut captured = Vec::new();
+    for origin in origins {
+        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
+            let origin = origin?;
+            if (!origin.source.root.is_valid() && !origin.source.is_static())
+                || !origin.source.builtin_coordinates
+            {
+                return None;
+            }
+            if !origin.source.is_static() {
+                // Exact aliases retain the declared-value checks used by
+                // singleton consumers. Captured alternatives never weaken
+                // loaded-reference or nominal-selector authentication.
+                if origin.precision == FramePathPrecision::Exact {
+                    declared_initializer_origins(
+                        program, machine, expression, symbols, inference, false, aliases, stored,
+                    )?;
+                }
+                let mut prefix = origin.source.clone();
+                if let Some(position) = prefix.segments.iter().position(|segment| {
+                    matches!(
+                        segment,
+                        PlaceSegment::Index { .. }
+                            | PlaceSegment::FixedIndex { .. }
+                            | PlaceSegment::FixedRange { .. }
+                    )
+                }) {
+                    prefix.segments.truncate(position);
+                }
+                validate_source_projection(program, machine, state, index, &prefix, stored)?;
+            }
+            push_unique_origin(&mut captured, origin);
+        }
     }
-    if origin.source.is_static() {
-        return Some(origin);
-    }
-    // An exact alias may later serve exact-reference consumers. Preserve their
-    // existing source-declaration/selector authentication rather than allowing
-    // the conservative backing query to manufacture exact identity.
-    if origin.precision == FramePathPrecision::Exact {
-        declared_initializer_origin(
-            program, machine, expression, symbols, inference, false, aliases, stored,
-        )?;
-    }
-    let mut prefix = origin.source.clone();
-    if let Some(index) = prefix.segments.iter().position(|segment| {
-        matches!(
-            segment,
-            PlaceSegment::Index { .. }
-                | PlaceSegment::FixedIndex { .. }
-                | PlaceSegment::FixedRange { .. }
-        )
-    }) {
-        prefix.segments.truncate(index);
-    }
-    validate_source_projection(program, machine, state, index, &prefix, stored)?;
-    Some(origin)
+    (!captured.is_empty()).then_some(captured)
 }
 
 /// Alias rows are captured reference values. Resolve fresh field loads only
@@ -356,7 +406,7 @@ fn captured_value_origins(
     stored_origins::canonical_reference_origins(program, &Some(origin.clone()), &[], stored)
 }
 
-fn declared_initializer_origin(
+fn declared_initializer_origins(
     program: &TypedTrees,
     machine: &Machine,
     mut expression: ExpressionHandle,
@@ -365,7 +415,7 @@ fn declared_initializer_origin(
     implicit_borrow: bool,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
+) -> Option<Vec<FramePlaceOrigin>> {
     let explicit_borrow = matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Borrow(_)
@@ -379,22 +429,27 @@ fn declared_initializer_origin(
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         )?;
-        let origin = results::call_origin(
+        let returned = results::call_origins(
             program, machine, expression, symbols, inference, aliases, stored,
         )?;
         // The returned leaf names the caller-visible storage only after the
         // stored evidence resolves it: a leaf loaded inside the callee's
         // borrowed carrier lands on the caller's leaf slot, whose referent the
         // slot's own row supplies.
-        let mut origins =
-            stored_origins::canonical_reference_origins(program, &Some(origin), aliases, stored)
-                .into_iter();
-        let origin = origins.next()??;
-        if origins.next().is_some() {
-            return None;
+        let mut captured = Vec::new();
+        for origin in returned {
+            for origin in
+                stored_origins::canonical_reference_origins(program, &Some(origin), aliases, stored)
+            {
+                let origin = origin?;
+                if origin.precision != FramePathPrecision::Exact {
+                    return None;
+                }
+                validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+                push_unique_origin(&mut captured, origin);
+            }
         }
-        validate_source_projection(program, machine, state, index, &origin.source, stored)?;
-        return (origin.precision == FramePathPrecision::Exact).then_some(origin);
+        return (!captured.is_empty()).then_some(captured);
     }
     reference_origins::declared_origin_root(program, machine, expression)?;
     projections::validate_selectors(program, machine, expression)?;
@@ -422,9 +477,10 @@ fn declared_initializer_origin(
     if projections::validate_owned_source(program, machine, reference, &source).is_none() {
         return frozen_reference_origin(
             program, machine, state, index, expression, aliases, stored,
-        );
+        )
+        .map(|origin| vec![origin]);
     }
-    frame_place_path(program, expression)
+    frame_place_path(program, expression).map(|origin| vec![origin])
 }
 
 /// A loaded slot has identity only through a matching declaration-time leaf.

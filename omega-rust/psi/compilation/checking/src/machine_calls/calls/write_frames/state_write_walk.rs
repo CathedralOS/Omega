@@ -547,8 +547,10 @@ fn walk_state_write_prefix_inner(
         };
         let declared_stored_origins = match statement {
             StatementNode::LocalData(local)
-                if type_may_carry_write(program, local.type_reference)
-                    && !type_is_caller_isolated_local(program, local.type_reference)
+                if ((type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference))
+                    || (include_shared
+                        && type_reference_is_reference(program, local.type_reference)))
                     && declared_local_alias_origin.is_none() =>
             {
                 stored_origins::declaration_origins_for_query(
@@ -1192,22 +1194,12 @@ fn walk_state_write_prefix_inner(
                     || (include_shared
                         && type_reference_is_reference(program, local.type_reference))
                 {
-                    // An unknown read-only origin is local to this query. Add
-                    // it only after the exposure/effect checks: retaining a
-                    // binding is not admission to expose another alias slot.
-                    let origin = declared_local_alias_origin.or_else(|| {
-                        if !include_shared {
-                            return None;
-                        }
-                        reference_subjects::unknown_readonly_origin(
-                            program,
-                            local.type_reference,
-                            local.name.as_str(),
-                        )
-                    });
-                    if let Some(origin) = origin {
+                    if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else if let Some(origins) = declared_stored_origins {
+                        // A reference has one leaf but may retain several
+                        // captured referents. Preserve those established rows
+                        // before considering an unknown read-only binding.
                         inference.record_local(&origins);
                         stored.push(origins);
                     } else if let Some(origins) = (!include_shared)
@@ -1232,6 +1224,19 @@ fn walk_state_write_prefix_inner(
                         // whole proven referent set for later assignment and
                         // call substitution, including copies of this binding.
                         divergent_alias_origins.push((local.name.as_str().to_owned(), origins));
+                    } else if let Some(origin) = include_shared
+                        .then(|| {
+                            reference_subjects::unknown_readonly_origin(
+                                program,
+                                local.type_reference,
+                                local.name.as_str(),
+                            )
+                        })
+                        .flatten()
+                    {
+                        // This marker supplies no source identity. Exposure
+                        // and effect checks above still govern its retention.
+                        local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
                         let origins = stored_origins::unresolved_origins(
                             program,

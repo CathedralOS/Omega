@@ -5,7 +5,7 @@ use super::super::{TableCallExpression, machine_state_by_symbol, result_origins}
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
     Machine, StoredLocalOrigins, TopLevelSymbols, TypedTrees, caller_aliases, stored_origins,
-    type_reference_is_reference, value_origin,
+    type_reference_is_reference, value_origins,
 };
 pub(super) fn call_expression(
     program: &TypedTrees,
@@ -20,7 +20,7 @@ pub(super) fn call_expression(
     Some(call)
 }
 
-pub(super) fn call_origin(
+pub(super) fn call_origins(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
@@ -28,7 +28,7 @@ pub(super) fn call_origin(
     inference: &mut FrameInference,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
+) -> Option<Vec<FramePlaceOrigin>> {
     let call = call_expression(program, expression)?;
     let (_, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if !type_reference_is_reference(program, callee_state.return_type) {
@@ -49,7 +49,7 @@ pub(super) fn call_origin(
         inference,
         true,
         &|actual, _, implicit_borrow, inference| {
-            value_origin(
+            value_origins(
                 program,
                 machine,
                 actual,
@@ -59,7 +59,6 @@ pub(super) fn call_origin(
                 stored,
                 implicit_borrow,
             )
-            .map(|origin| vec![origin])
         },
         &|actual, reference, _| {
             stored_origins::reference_leaves_before_statement_for_query(
@@ -74,15 +73,19 @@ pub(super) fn call_origin(
             )
         },
     )?;
-    let [leaf] = returned.references.as_slice() else {
+    if !returned.cases.is_empty() || !returned.moves.is_empty() || returned.references.is_empty() {
         return None;
-    };
-    let origin = leaf.origin.as_ref()?;
-    (returned.cases.is_empty()
-        && returned.moves.is_empty()
-        && leaf.local_segments.is_empty()
-        && leaf.local_suffix.is_empty()
-        && origin.precision == FramePathPrecision::Exact
-        && origin.source.root.is_valid())
-    .then(|| origin.clone())
+    }
+    returned
+        .references
+        .into_iter()
+        .map(|leaf| {
+            let origin = leaf.origin?;
+            (leaf.local_segments.is_empty()
+                && leaf.local_suffix.is_empty()
+                && origin.precision == FramePathPrecision::Exact
+                && origin.source.root.is_valid())
+            .then_some(origin)
+        })
+        .collect()
 }

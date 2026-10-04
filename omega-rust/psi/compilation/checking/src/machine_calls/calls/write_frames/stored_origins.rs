@@ -234,7 +234,11 @@ pub(super) fn declaration_origins_for_query(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<StoredLocalOrigins> {
-    if super::type_reference_is_reference(program, local.type_reference) {
+    // The exact-reference prefix query captures whole read-only leaves here
+    // as well as aggregate leaves. The write-frame query keeps its existing
+    // exclusive alias/rebinding roster and does not reinterpret those aliases
+    // as stored carriers.
+    if !include_shared && super::type_reference_is_reference(program, local.type_reference) {
         return None;
     }
     let state = local_declaration_state(program, machine, local)?;
@@ -267,13 +271,13 @@ pub(super) fn declaration_origins_for_query(
         include_shared,
         &|expression, reference, _implicit_borrow, inference| {
             if include_shared {
-                super::reference_subjects::backing_origin(
+                super::reference_subjects::backing_origins(
                     program, machine, expression, symbols, inference, aliases, stored,
                 )
                 .or_else(|| {
                     super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                        .map(|origin| vec![origin])
                 })
-                .map(|origin| vec![origin])
             } else {
                 super::reference_origins::exclusive_reference_origins(
                     program, machine, expression, symbols, inference,
