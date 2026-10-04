@@ -258,8 +258,13 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   Generalize the touched operation or representation and remove its superseded
   path in the same change; do not land another source-shape recognizer, fallback
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
-  distinctions and independent verification. Optional optimization specialization
-  requires a correct general path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
+  distinctions. Optional optimization specialization requires a correct general
+  path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
+- **Verify at trust boundaries, not after every stage.** Foreign package review
+  and untrusted build-script execution verify; a stage never re-validates,
+  replays or rebuilds output the same compile just produced. Verifiers stay
+  exercised by the corpus runner and tests, off the default compile path. See
+  [verification placement](omega-rust/pipeline.md#verification-placement).
 - **Never push to `main` directly.** Reserve and publish through
   `tools/landing.py` ([tools/landing.md](tools/landing.md)); history is
   linear — rebase onto `main` and fast-forward, never merge

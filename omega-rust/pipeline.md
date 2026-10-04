@@ -366,8 +366,9 @@ cohesive representations, update their specifications and versioned schemas, and
 carry the change through producers, consumers, and customer acceptance.
 
 This defers human design review, not compiler checking or required evidence.
-Keep independent verification, rejection controls, and applicable tests; do not
-declare deferred audits complete. Preserve source-language meaning, observable
+Keep the verifiers that run at [trust boundaries](#verification-placement),
+rejection controls, and applicable tests; do not declare deferred audits
+complete. Preserve source-language meaning, observable
 behavior, trust guarantees, and the Psi/Omega firewall. Escalate genuinely missing
 language or trust decisions, not how existing behavior is represented in Psi.
 
@@ -503,9 +504,10 @@ Semantic distinctions, ABI constraints, missing proof obligations, and explicit
 implementation limits remain real. Never remove their rejection checks merely
 to admit more shapes. Specialized pattern matching is appropriate for optional
 optimizations with a correct general path, not as the only way to compile an
-ordinary combination. Independent verification must reconstruct and check the
-operation/evidence relationships, not trust a producer assertion or rediscover
-the original source idiom at each stage.
+ordinary combination. Where verification runs (see
+[verification placement](#verification-placement)), it reconstructs and checks
+the operation/evidence relationships; it does not trust a producer assertion or
+rediscover the original source idiom.
 
 When a customer exposes this pattern, identify the general operation or join that
 is missing and remove the superseded special path as that repair lands. Before
@@ -526,3 +528,22 @@ Keep the actual customer's command as the outer acceptance check; a passing
 isolated helper does not close an unchanged application failure. Do not expand
 the task board with one item per permutation, or treat this rule as permission
 for an unrelated whole-IR rewrite.
+
+## Verification placement
+
+Verification runs at trust boundaries:
+
+- a new or changed foreign package is verified when it is reviewed;
+- an untrusted build script is confined and checked while it executes.
+
+Proof-carrying code is removed; see [PCC removal](../TASKS.md#pcc-removal).
+
+A stage does not re-validate, replay or rebuild output that the same compile
+just produced. The producer and its checker would be the same code running in
+the same process on the same input, so the second pass cannot find anything
+the first missed, and every such pass costs compile time and a second copy of
+the stage's rules. A plan that violates its contract is a bug in the stage
+that produced it, for the corpus and the tests to find.
+
+The verifiers themselves stay. The corpus runner and the tests exercise them;
+the default compile path does not call them.

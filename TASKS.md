@@ -2281,22 +2281,8 @@ of a check the same flow already performed, not the check itself.
   Acceptance: stage 05 non-test sources call none of the listed predicates
   (source-scanning guard); check and native corpus unchanged.
 
-- **SELF-CHECK-POLICY.** (new-scope) Land first; the deletions below cite it.
-  The compositional-lowering rule in `omega-rust/pipeline.md` ("Independent
-  verification must reconstruct and check the operation/evidence
-  relationships, not trust a producer assertion") and the matching AGENTS.md
-  hard-rule wording have been applied at every internal seam, so stages
-  re-check their own fresh output in the same process with the same code.
-  Amend AGENTS.md and `omega-rust/pipeline.md` to say:
-  - verification runs at trust boundaries: new or changed foreign packages at
-    review time, and untrusted build scripts at execution (PCC is removed; see
-    **PCC removal**);
-  - a stage does not re-validate, replay or rebuild output that the same
-    compile just produced;
-  - the verifiers stay exercised by the corpus runner and tests, not on the
-    default compile path.
-
-  Acceptance: the amended text is on main and the items below link to it.
+The four items below take production-path self-checks out of the default
+compile under [verification placement](omega-rust/pipeline.md#verification-placement).
 
 - **SELECTION-CUSTODY-CHAIN-DELETED.** (new-scope)
   `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/optimized.rs::stage_optimized_instruction_selection`
