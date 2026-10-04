@@ -34,7 +34,11 @@ This includes the toolchain-authored build API: `Build::application(builder,
 "example")` and `Build::depend(builder, source)` pass the build context explicitly.
 Owned, shared, mutable and write-only access retain their normal contracts;
 removing receiver syntax removes no ownership, invariant, effect or proof check.
-Trait requirements and satisfiers use the same explicit parameter correspondence.
+Trait requirements and satisfiers use the same explicit parameter correspondence:
+a satisfier declares no parameter its requirement lacks. A boundary provider is
+therefore its satisfier machines, with no provider value or private state;
+state that outlives a call is a value the service returns and the caller passes
+back.
 Named states likewise receive explicit arguments on every incoming transition.
 
 Invocation scratch belongs in ordinary local bindings or local data instances.

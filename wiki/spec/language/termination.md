@@ -215,8 +215,7 @@ a missing or invalidated one. Bounded source-certificate support remains beside
 ## Composition and limits
 
 Provider artifacts retain public profile schemas structurally: profile identity,
-caller parameter or provider-receiver subject, exact projections, and owner route
-set. Provider receivers remain build-bound rather than relabeled caller inputs.
+caller parameter subject, exact projections, and owner route set.
 Routes are authorization catalogs, not membership. Composition resolves every
 reachable build-bound instance to its exact selected occurrence and admitted
 route receipt. A receipt may serve identical call demands but cannot rebind

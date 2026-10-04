@@ -165,8 +165,10 @@ service value.
 
 The carrier is affine by default: move it or borrow it; duplicating authority
 requires an authorized route. A session or other must-discharge obligation is a
-separate linear value returned by the service. The public service receiver is
-distinct from the provider's private state receiver.
+separate linear value returned by the service. A provider is its satisfier
+machines and holds no state: state that outlives one call is such a returned
+value (a session, window or registration), which the caller passes back
+explicitly.
 
 ### Local dynamic interfaces over bindings
 

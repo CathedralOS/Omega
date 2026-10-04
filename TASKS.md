@@ -108,7 +108,7 @@ helper that passes does not close an item.
   - Undecided: either the receiver form was lax (the static form is correct
     and both fixtures need a selected provider, changing what they pin), or a
     value-rooted boundary requirement call stays provider-free and needs a
-    static spelling. Record this in `OWNER_QUESTIONS.md` (it is next to Q3
+    static spelling. Record this in `OWNER_QUESTIONS.md` (it is next to Q2
     `trait-requirement-subject-binding`); it is not a fixture-authoring call.
   - Unverified: the corpus rows for both fixtures (`checked`) predate the
     parser's `self` rejection; re-run `python tools/corpus_gate.py --filter memory/`.
@@ -144,8 +144,8 @@ helper that passes does not close an item.
   unmigrated program pass.
   - Source remainder: boundary-trait requirements in
     `samples/gui/{window_app,window_demo,windowed_calculator}/main.omg`
-    (owner questions Q3 `trait-requirement-subject-binding` and Q1
-    `provider-private-state-home`) and the two memory canaries
+    (owner question Q2 `trait-requirement-subject-binding` and
+    **STATELESS-PROVIDERS**) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
       for assumed bindings,
     and facets such as test groups. Move their producers and consumers to
@@ -850,6 +850,39 @@ defines the complete product bar.
   occupied growth. Then complete generic element custody through the same
   route and use it in Squalr, with interpreter and matching-host native oracles.
 
+- **STATELESS-PROVIDERS.** (new-scope) Owner ruling 2026-10-04: a provider
+  is its satisfier machines and holds no state
+  ([machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
+  a satisfier declares no parameter its requirement lacks). The `self`
+  migration turned receiver state into a hidden `&mut Provider` parameter
+  that the requirement does not declare. For example,
+  `samples/gui/window_demo/main.omg`'s `data DemoGuiProvider { window, view,
+  app, space, … }` with
+  `DemoGuiProvider::window_create(demo_gui_provider: &mut DemoGuiProvider, …) satisfies Gui::window_create`.
+  - Redesign `Gui` (`source/library/std/macos_gui.omg` and the samples'
+    boundary traits) so `window_create` returns a `Window` record holding the
+    handles, selectors and autorelease pool; `blit`, `msg_peek` and the rest
+    take it explicitly, and teardown consumes it. Migrate `window_app`,
+    `window_demo`, `windowed_calculator` and `image_viewer`, plus any other
+    satisfier with provider fields (find them by the extra leading provider
+    parameter).
+  - Make conformance checking reject a satisfier parameter the requirement
+    lacks, and delete the provider-subject provisioning: the installation
+    adapter and checked interpreter call the satisfier with exactly the
+    requirement's arguments. Stage 05's "checked provider receiver requires
+    installation storage or qualification provisioning" refusal
+    (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs`)
+    goes with it.
+  - A foreign-bound provider whose fields hold vtable addresses
+    (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
+    not from provider data; owner question Q2 covers the subject-free
+    requirement side.
+
+  Acceptance: no satisfier declares a parameter its requirement lacks (a fail
+  fixture pins the rejection); the four GUI samples check;
+  `tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit`
+  still exits 70 in both engines.
+
 - **MACOS-APPLICATION-PUBLICATION.** Publish and run `samples/gui/window_app`,
   `window_demo` and `windowed_calculator` under the
   [macOS application contract](wiki/spec/build/macos_application.md). Reuse
@@ -877,14 +910,10 @@ defines the complete product bar.
     fence on write-only stores and atomic events in opaque provider candidates.
     Admit them only with a checked judgment preserving non-observation and
     exact access to places exposed by the requirement's mutable parameters.
-  - Behind both: owner question `provider-private-state-home` in
-    `OWNER_QUESTIONS.md`. The 30 stateful satisfiers need persistent
-    installation storage; stage 05's installation adapter refuses every
-    provider with fields until it is answered. Fused authority is not receiver
-    storage; no global state or weakened occurrence matching.
+  - Behind both: **STATELESS-PROVIDERS**. The GUI providers keep window
+    state in provider fields, which the static-machine contract forbids.
   General lowering goes through **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
-  **STATE-LOCAL-VALUE-FRONTIER**, keeping one occurrence-owned provider
-  receiver across calls and nested services.
+  **STATE-LOCAL-VALUE-FRONTIER**.
 
   Acceptance: all three publish a validated `.app` and execute on macOS ARM64
   with observed windows/rendering, input/close behavior and completion
@@ -4648,8 +4677,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     Carry all finite alternatives into call coverage and state transfers; every
     possible subject must be covered.
   - Keep exact public-schema, local admitted-receipt and build-bound provider
-    coverage per demand. Provider receivers do not become caller parameters;
-    route catalogs are not receipts. **COMPONENT-SUBSTRATE** owns installed
+    coverage per demand. Route catalogs are not receipts. **COMPONENT-SUBSTRATE** owns installed
     composition; **STATE-LOCAL-VALUE-FRONTIER** owns nested structural-result
     execution. Retire shape gates in
     `omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`

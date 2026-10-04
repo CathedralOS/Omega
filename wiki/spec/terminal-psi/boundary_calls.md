@@ -213,9 +213,10 @@ must equal the retained root declaration: missing, padded, stale, or unused rows
 reject. A primitive service use does not disappear because the service also
 appears in an abstract row's bound.
 
-An attachment retains its nominal context type and erased provider fields.
+An attachment retains its nominal context type and its erased `Binding<R>`
+fields.
 Each boundary declaration retains its authored owner kind: machine, trait
-signature, or legacy operator. Only trait signatures consume provider-field
+signature, or legacy operator. Only trait signatures consume binding-field
 roots; absence of a nominal attachment does not make an operator a trait call.
 Source replay checks the owner kind, and both Terminal and Omega attachment
 validation use it. The kind participates in canonical identity. Machine
@@ -226,7 +227,7 @@ custody.
 Sorted provider-attachment roots bind each used field to exactly its directly
 called bodyless requirements, not to an installed native provider. Missing
 attachments, duplicate/orphan roots, and roots forwarded as runtime arguments
-reject. An unused provider field keeps its type and attachment but no invented
+reject. An unused binding field keeps its type and attachment but no invented
 root. Ordinary callees retain their own direct requirements.
 
 An ordinary explicit context parameter has the exact attachment type and retains access

@@ -270,22 +270,17 @@ not in placeholder crates. Direct image construction does not assume a system
 linker. The optional `source/library/std` package has no compiler privilege;
 provider requirements and checked adapters use ordinary explicit bindings.
 
-For an empty provider, the installation adapter may construct the provider and
-lend its subject through an ordinary Terminal call. Derive the subject from the
-exact requirement position and join it through the retained checked parameter
-roster; neither receiver spelling nor unique carrier type establishes that role.
-A named subject stays an ordinary parameter on its direct machine, with no
-attachment. The installation entry has the boundary signature and independent
-custody validation. Nonempty providers require persistent installation storage.
-The checked interpreter provisions the same empty subject. After normal package
-review, the executable regression is:
+A provider carries no value or state ([machines](../wiki/spec/language/machines.md#static-declarations-and-explicit-state)):
+the installation adapter calls the selected satisfier machine with exactly the
+requirement's arguments, and the checked interpreter does the same. After
+normal package review, the executable regression is:
 
 ```sh
 omega run --both tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg
 ```
 
 On Linux x86_64 it returns native and interpreter exit 70, preserving the array
-argument between scalar arguments while the satisfier names its provider subject.
+argument between scalar arguments.
 
 ### Portable materialization and consumer ownership
 

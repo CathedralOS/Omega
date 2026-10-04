@@ -227,12 +227,9 @@ No new user-authored validity modifier or construction syntax is introduced.
 An independently installed binding names the stable slot, not one permanent era.
 A protocol may publish checked explicit duplication or stronger linear lifecycle
 obligations on the carrier; the requirement trait itself acquires no multiplicity.
-The provider implementation's multiplicity is separate: installation may retain
-one linear provider value while exposing affine bindings that route calls into its
-era. Provider teardown accounts for that provider value; it does not make each
-binding linear or each call consuming. Use a distinct linear session,
-registration, completion, or shutdown carrier when routing authority itself is
-not the exact-once obligation. Do not add `LinearBinding<R>` without a concrete
+A provider holds no state, so installation retains no provider value; bindings
+route calls into the installed era. An exact-once obligation is a distinct linear
+session, registration, completion or shutdown carrier that the service returns. Do not add `LinearBinding<R>` without a concrete
 protocol whose binding occurrence, rather than its provider or returned resource,
 must be consumed exactly once.
 
