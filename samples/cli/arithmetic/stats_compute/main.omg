@@ -1,22 +1,22 @@
 // Statistics compute kernel. Exercises f64 arithmetic end-to-end: mean,
 // variance, and a weighted sum over a small fixed dataset.
 //
-// Dataset (5 samples):  2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0
+// Dataset (8 samples):  2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0
 //   (8 values, mean = 40.0/8 = 5.0, variance = sum((xi-mean)^2)/N = 4.0)
 //
-// To stay within the working float surface (avoid the known arr[i]+arr[j]
-// binary bug) we accumulate using repeated machine calls that each add one
-// value to a running total field, rather than summing array elements directly.
+// Each input arrives through a named machine call, exercising repeated
+// mutation of the same floating-point fields.
 //
 // Verification ladder:
 //   mean  == 5.0  => mean - 5.0 == 0.0 within 0.01
 //   variance == 4.0  => variance > 3.9 && variance < 4.1
-//   weighted sum == 43.0 (weights: 1.0, 1.0, 1.5, 1.5, 2.0, 2.0, 2.5, 3.0)
+//   weighted sum == 82.5 (weights: 1.0, 1.0, 1.5, 1.5, 2.0, 2.0, 2.5, 3.0)
 //
 // Each check narrows via guard ladder (cannot exit with float directly).
 // Final exit: 70.
 //
 // Expected exit: 70.
+// Expected output contains: PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)
 
 use omega::language::core::float_operations;
 use omega_language_std::console;

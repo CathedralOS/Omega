@@ -578,7 +578,10 @@ defines the complete product bar.
     `algorithms/{binary_search_viz,sort_visualizer}`,
     `rendering/{bouncing_console,ripple_field,tick_marquee}`,
     `simulation/{cellular_automaton,game_of_life_glider,langtons_ant,random_walk}`.
-  - `arithmetic/stats_compute` needs non-tail self recursion to execute.
+  - `arithmetic/stats_compute` runs on macOS ARM64 with its PASS line and exit
+    70 (`5094be283192`, optimized CLI, closed stdin). Windows x86-64 and both
+    Linux hosts still need the same [runtime oracle](samples/cli/arithmetic/stats_compute/README.md#runtime-acceptance);
+    non-tail self recursion is not a reproduced blocker.
   - Text/index/match programs: missing operations belong to
     **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**,
     **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY**. Keep
