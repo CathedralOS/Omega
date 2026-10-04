@@ -348,35 +348,7 @@ pub(super) fn prepare(
             return unsupported("scalar Unit argument does not retain a plain primitive borrow");
         }
         if argument.access == checked_trees::CheckedStructuralAccess::Owned {
-            let source = if let Some(ordinal) = argument.source_structural_result_binding_ordinal()
-            {
-                let mut matches = results
-                    .iter()
-                    .filter(|(candidate, _)| *candidate == ordinal);
-                let (_, binding) = matches.next().ok_or(LoweringError::Unsupported(
-                    "effect operand has no completed structural result",
-                ))?;
-                let declaration = structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == binding.structural_type())
-                    .ok_or(LoweringError::Unsupported(
-                        "effect operand result has no carrier",
-                    ))?;
-                if matches.next().is_some()
-                    || !argument.path.is_empty()
-                    || declaration.identity != argument.type_identity
-                    || !binding.claims().is_empty()
-                {
-                    return unsupported("effect operand substituted its structural result");
-                }
-                terminal_psi::StructuralArgument {
-                    place: binding.place(),
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::Owned,
-                }
-            } else {
-                bindings.owned_argument(argument)?
-            };
+            let source = bindings.owned_call_argument(argument, results, structural_types)?;
             lowered_arguments.push(source);
             continue;
         }

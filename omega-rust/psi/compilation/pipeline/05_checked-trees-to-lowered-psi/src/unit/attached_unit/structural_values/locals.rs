@@ -129,6 +129,7 @@ pub(crate) fn bind_local(
     };
     locals.push(
         crate::expression_preparation::bindings::StructuralLocalBinding {
+            result_binding_ordinal: Some(result.binding_ordinal),
             root: facts::PlaceRoot::Symbol(local.symbol),
             structural_type,
             argument: terminal_psi::StructuralArgument {

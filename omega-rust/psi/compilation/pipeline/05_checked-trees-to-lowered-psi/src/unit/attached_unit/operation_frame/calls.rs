@@ -306,6 +306,7 @@ impl OperationFrame<'_, '_> {
             }
             self.evaluation.structural_locals.push(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
+                    result_binding_ordinal: Some(result.binding_ordinal),
                     root,
                     structural_type,
                     argument: terminal_psi::StructuralArgument {

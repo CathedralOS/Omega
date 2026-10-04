@@ -201,6 +201,26 @@ pub(crate) fn validate_computation_calls(
                                 checked, machine, state, call.coordinate, call.target.state,
                             )?;
                             let expression = flow.authored_expression;
+                            let authored =
+                                crate::emission::call_source_custody::authored::locate_source(
+                                    checked,
+                                    state,
+                                    call.coordinate,
+                                )?;
+                            if call.scalar_arguments.len() != authored.scalar_arguments.len() {
+                                return unsupported(
+                                    "structural receiver call changed its scalar operand roster",
+                                );
+                            }
+                            for (argument, (expression, _)) in
+                                call.scalar_arguments.iter().zip(&authored.scalar_arguments)
+                            {
+                                if let checked_trees::CheckedCallScalarArgument::Computation(root) =
+                                    argument
+                                {
+                                    pending.push((*root, false, *expression));
+                                }
+                            }
                             if !expression.is_valid() || structural_calls.contains(&expression) {
                                 return unsupported(
                                     "computed invocation evaluates a structural call twice",

@@ -48,6 +48,9 @@ impl LoanAccess {
 /// access is shared; access alone therefore cannot recover this type.
 #[derive(Clone, Debug)]
 pub(crate) struct StructuralLocalBinding {
+    /// The exact published result namespace alias, absent for parameter or
+    /// constructor homes established without an operation result binding.
+    pub(crate) result_binding_ordinal: Option<u32>,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) argument: StructuralArgument,
     pub(crate) structural_type: StructuralTypeId,
@@ -138,6 +141,7 @@ impl ScalarBindings {
             return unsupported("structural local has invalid or repeated identity");
         }
         self.structural_locals.push(StructuralLocalBinding {
+            result_binding_ordinal: None,
             root: facts::PlaceRoot::Symbol(symbol),
             structural_type,
             argument: StructuralArgument {
@@ -973,19 +977,80 @@ impl ScalarBindings {
         Ok(source.clone())
     }
 
-    /// Resolve a source-validated whole owned parameter without inventing a loan.
+    /// Argument preparation may add temporary results after the caller's
+    /// published storage. Their ordinals share one namespace and cannot alias.
+    pub(crate) fn owned_call_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        results: &[(
+            u32,
+            crate::emission::operation_emission::buffer::StructuralBinding,
+        )],
+        types: &[StructuralTypeDeclaration],
+    ) -> Result<StructuralArgument, LoweringError> {
+        let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
+            return self.owned_argument(argument);
+        };
+        let mut prepared = results
+            .iter()
+            .filter(|(candidate, _)| *candidate == ordinal);
+        let Some((_, binding)) = prepared.next() else {
+            let source = self.owned_argument(argument)?;
+            let local = self
+                .structural_locals
+                .iter()
+                .find(|row| row.result_binding_ordinal == Some(ordinal))
+                .ok_or(LoweringError::Unsupported(
+                    "owned result lost its published carrier",
+                ))?;
+            if !types.iter().any(|declaration| {
+                declaration.id == local.structural_type
+                    && declaration.identity == argument.type_identity
+            }) {
+                return unsupported("owned result substituted its published carrier");
+            }
+            return Ok(source);
+        };
+        if prepared.next().is_some()
+            || self
+                .structural_locals
+                .iter()
+                .any(|row| row.result_binding_ordinal == Some(ordinal))
+            || !argument.path.is_empty()
+            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+            || !binding.claims().is_empty()
+            || !types.iter().any(|declaration| {
+                declaration.id == binding.structural_type()
+                    && declaration.identity == argument.type_identity
+            })
+        {
+            return unsupported("owned operand substituted its prepared structural result");
+        }
+        Ok(StructuralArgument {
+            place: binding.place(),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })
+    }
+
+    /// Resolve a source-validated whole owned home without inventing a loan.
     pub(crate) fn owned_argument(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if let Some(root) = argument.structural_storage_root() {
-            let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
+        let root = argument.structural_storage_root();
+        let ordinal = argument.source_structural_result_binding_ordinal();
+        if root.is_some() || ordinal.is_some() {
+            let mut locals = self.structural_locals.iter().filter(|row| {
+                root.is_some_and(|root| row.root == root)
+                    || ordinal.is_some_and(|ordinal| row.result_binding_ordinal == Some(ordinal))
+            });
             let StructuralLocalBinding {
                 argument: source, ..
             } = locals.next().ok_or(LoweringError::Unsupported(
                 "computed owned structural operand lost its established local",
             ))?;
-            if !valid_structural_root(root)
+            if root.is_some_and(|root| !valid_structural_root(root))
                 || locals.next().is_some()
                 || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned
