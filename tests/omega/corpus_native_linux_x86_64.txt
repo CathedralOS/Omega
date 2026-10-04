@@ -62,9 +62,13 @@ pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
+pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 3537ms exit:70 @15c77983aab0
+pass/borrows/runtime_indexed_carrier_reference_read_exit built 2870ms exit:70 @15c77983aab0
 pass/borrows/runtime_record_byte_region_loan_exit built 21745ms exit:50 @c773c4ad3c34
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1431ms exit:70 @34627c25182b
 pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
+pass/borrows/static_carrier_bounded_reference_read_exit built 2854ms exit:70 @15c77983aab0
+pass/borrows/transition_shared_borrow_result built 2879ms exit:181 @15c77983aab0
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
 pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb
@@ -98,6 +102,7 @@ pass/calls/field_path_byte_subslice_exit built 975ms exit:70 @2d8ed253669f+wt
 pass/calls/generic_reference_forwarding_exit checked 1806ms @c00769b616a+wt
 pass/calls/guard_call_scalar_argument_exit built 1664ms exit:70 @9baafc0ace88
 pass/calls/guarded_value_call_arm_exit built 1036ms exit:70 @2d8ed253669f+wt
+pass/calls/indexed_self_root_call_arg built 3055ms exit:70 @15c77983aab0
 pass/calls/local_after_call_result_store_exit built 1168ms exit:70 @2d8ed253669f+wt
 pass/calls/local_array_direct_read_exit built 1222ms exit:70 @2d8ed253669f+wt
 pass/calls/local_fixed_byte_array_loan_exit built 2283ms exit:70 @2d8ed253669f+wt
@@ -232,7 +237,10 @@ pass/collections/runtime_dutch_flag_partition_exit built 2751ms exit:70 @2d8ed25
 pass/collections/runtime_fixed_vec_round_trip_exit built 1341ms exit:70 @9baafc0ace88
 pass/collections/runtime_frame_indexed_param_read_exit built 919ms exit:1 @2d8ed253669f+wt
 pass/collections/runtime_hoisted_index_write_exit built 1072ms exit:7 @2d8ed253669f+wt
+pass/collections/runtime_indexed_boolean_field_guard_exit built 11290ms exit:70 @15c77983aab0
 pass/collections/runtime_indexed_bounded_element_read_exit built 967ms exit:70 @2d8ed253669f+wt
+pass/collections/runtime_indexed_bounded_field_local_exit built 2917ms exit:70 @15c77983aab0
+pass/collections/runtime_indexed_float_field_compare_exit built 28918ms exit:70 @15c77983aab0
 pass/collections/runtime_indexed_record_field_read_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_indexed_struct_field_rmw_exit built 1305ms exit:1 @a3bac00e54bb+wt
 pass/collections/runtime_indexed_successor_argument_exit built 1434ms exit:70 @2d8ed253669f+wt
@@ -316,8 +324,8 @@ pass/core/numeric_trapping_conversion_overflow built 1690ms exit:signal signal:4
 pass/core/runtime_guarded_trapping_conversion_exit built 1194ms exit:70 @2d8ed253669f+wt
 pass/core/runtime_natural_termination_exit built 626ms exit:0 @2d8ed253669f+wt
 pass/core/self_read_only_receiver_compile checked 360ms @2d8ed253669f+wt
-pass/core/task_lifecycle_operations rejected 622ms @3284f31163c
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` calls `Main::settle`, which has no plan; `Main::settle` has no admitted body (local construction stopped at call operation: claim-free affine result, statement 1)") })
+pass/core/task_lifecycle_operations rejected 886ms @15c77983aab0
+	terminal-artifact production failed: Lowering(Unsupported("receiver-bearing suspension frontier lacks an exact Terminal receiver place join"))
 pass/core/zii_default_composite_exit built 1304ms exit:70 @2d8ed253669f+wt
 pass/data/case_first_payload_zero_established checked 378ms @2d8ed253669f+wt
 pass/data/case_membership_union_guard_exit built 1084ms exit:70 @2d8ed253669f+wt
@@ -433,7 +441,7 @@ pass/expressions/owned_match_values checked 438ms @2d8ed253669f+wt
 pass/expressions/qualified_call_result_argument checked 397ms @2d8ed253669f+wt
 pass/expressions/runtime_flat_boolean_logic_exit built 1316ms exit:70 @2d8ed253669f+wt
 pass/expressions/runtime_float_record_field_reads_exit built 3293ms exit:70 @2d8ed253669f+wt
-pass/expressions/runtime_indexed_float_record_fields_exit built 3331ms exit:70 @2d8ed253669f+wt
+pass/expressions/runtime_indexed_float_record_fields_exit built 8421ms exit:70 @15c77983aab0
 pass/expressions/runtime_numeric_cast_exit built 3007ms exit:70 @2d8ed253669f+wt
 pass/expressions/runtime_widened_comparison_exit built 1053ms exit:70 @2d8ed253669f+wt
 pass/expressions/scalar_match_boundary_composition_exit built 3438ms exit:70 @2d8ed253669f+wt
@@ -768,6 +776,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 280ms @2d8ed253669
 pass/slices/local_array_element_view_exit built 1375ms exit:70 @2d8ed253669f+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/slices/requires_field_count_alias_index_compile checked 281ms @2d8ed253669f+wt
+pass/slices/runtime_indexed_record_field_range_exit built 12267ms exit:0 @15c77983aab0
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1458ms exit:3 @34627c25182b
 pass/slices/runtime_join_meet_bound_exit built 826ms exit:70 @2d8ed253669f+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 801ms exit:21 @2d8ed253669f+wt
@@ -917,7 +926,8 @@ pass/text/runtime_carrier_indexed_read_exit built 1894ms exit:70 @2d8ed253669f+w
 pass/text/runtime_chained_string_append_exit built 3475ms exit:70 @2d8ed253669f+wt
 pass/text/runtime_local_struct_string_field_concat_exit rejected 1425ms @3284f31163c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 3)
-pass/text/runtime_mutable_string_parameter_concat_write_line built 2903ms @3284f31163c
+pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3357ms @15c77983aab0
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
 pass/text/runtime_number_to_decimal_exit built 4743ms exit:70 @2d8ed253669f+wt
 pass/text/runtime_owned_string_byte_view_exit built 1416ms exit:70 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit built 959ms exit:70 @9baafc0ace88
