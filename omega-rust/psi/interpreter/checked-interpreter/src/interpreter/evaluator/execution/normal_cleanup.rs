@@ -1,5 +1,5 @@
 //! Execute checked normal-edge actions before the current frame is retired.
-//! Unit and scalar returns select the same nominal action executor. A selected
+//! Unit, scalar and structural returns select the same nominal action executor. A selected
 //! dependency without an executable plan declines; typed-only evaluation has
 //! no authority to invent a cleanup call from a type or machine name.
 

@@ -190,7 +190,8 @@ fn composed_structural_return_cleans_only_the_selected_sibling() {
         r#"
         data Token { ready: bool; }
         machine Token::drop(owner: &mut Token) requires owner.ready { owner.ready = false; }
-        machine choose(flag: bool, first: Token, second: Token) -> Token {
+        machine choose(flag: bool, first: Token, second: Token) -> Token
+        requires first.ready; second.ready {
             transition flag { true -> first false -> second }
         }
     "#,
@@ -224,7 +225,12 @@ fn composed_structural_return_cleans_only_the_selected_sibling() {
                     EvaluatedArgument::plain(second.clone()),
                 ],
             )
-            .unwrap_or_else(|_| panic!("composed normal cleanup unexpectedly halted"));
+            .unwrap_or_else(|halt| match halt {
+                Halt::Exit(code) => panic!("composed normal cleanup exited {code}"),
+                Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => {
+                    panic!("composed normal cleanup: {message}")
+                }
+            });
         assert!(matches!(result, Some(Value::Struct { .. })));
         assert_eq!(is_ready(&first), flag);
         assert_eq!(is_ready(&second), !flag);
