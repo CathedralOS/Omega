@@ -23,8 +23,8 @@ use typed_trees::state::State;
 /// The shared body relation preserves each normal completion's origins and
 /// validates intervening writes, rebinding and exposure. This boundary retains
 /// its caller-specific input resolver: a body-derived source does not itself
-/// authorize borrowing the actual storage. Unresolved alternatives and cycles
-/// remain opaque; a return type or lifetime is never an origin.
+/// authorize borrowing the actual storage. Unresolved alternatives and recursive
+/// machine calls remain opaque; a return type or lifetime is never an origin.
 pub(crate) fn transparent_call_result_origins(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -191,8 +191,8 @@ pub(crate) fn transparent_place_expression_origins(
 
 /// Every proven parameter-relative route the callee's result may alias.
 /// Conditional arms keep their exact finite union; an arm that cannot name a
-/// caller-reachable parameter root fails the whole relation closed, and a
-/// re-entered state keeps recursive helper results explicitly opaque.
+/// caller-reachable parameter root fails the whole relation closed. Internal state
+/// cycles use the finite result solver; recursive machine calls remain opaque.
 pub(crate) fn transparent_callee_result_origins(
     program: &TypedTrees,
     callee_machine: &Machine,

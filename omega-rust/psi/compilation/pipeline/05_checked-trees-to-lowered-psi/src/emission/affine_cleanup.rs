@@ -5,15 +5,16 @@
 //! reference carriers enter at their result birth and are disposed before their owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
-//! Cyclic descriptor forwarding and nominal cleanup remain outside this pass.
+//! Cycles preserve the same finite carrier frontier; nominal cleanup remains
+//! outside this pass.
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::BlockId;
-use std::collections::VecDeque;
 use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalAffineCleanupAction, Terminator,
 };
 
+mod custody_flow;
 mod projected_transfers;
 
 /// The caller must first establish source no-code signature eligibility through
@@ -236,87 +237,15 @@ fn complete_carriers(
             "cyclic owned scalar graphs require exact structural forwarding custody",
         );
     }
-    let mut remaining = incoming.iter().map(Vec::len).collect::<Vec<_>>();
-    let mut ready = VecDeque::from([entry_position]);
-    let mut entries = vec![Vec::new(); blocks.len()];
-    let mut exits = vec![Vec::new(); blocks.len()];
-    let mut visited = 0usize;
-    while let Some(position) = ready.pop_front() {
-        visited += 1;
-        let mut live = if position == entry_position {
-            affine.clone()
-        } else {
-            incoming[position]
-                .first()
-                .map(|predecessor| exits[*predecessor].clone())
-                .unwrap_or_default()
-        };
-        for predecessor in &incoming[position] {
-            live.retain(|place| exits[*predecessor].contains(place));
-        }
-        entries[position] = live.clone();
-        for operation in &blocks[position].operations {
-            let arguments = projected_transfers::operands(&operation.kind);
-            for argument in arguments.iter().filter(|argument| {
-                argument.access == StructuralAccess::Owned && managed.contains(&argument.place)
-            }) {
-                if !argument.path.is_empty() {
-                    return unsupported(
-                        "scalar graph affine parameter transfer requires its whole place",
-                    );
-                }
-                let Some(live_position) = live.iter().position(|place| *place == argument.place)
-                else {
-                    return unsupported(
-                        "scalar graph owned operand transfers an unavailable affine parameter",
-                    );
-                };
-                live.remove(live_position);
-            }
-            // Ending a reference consumes its carrier just as an owned
-            // transfer does. Its backing remains with its original owner;
-            // no second carrier discard belongs on the eventual return.
-            if let terminal_psi::OperationKind::ReleaseReference { source } = &operation.kind
-                && managed.contains(source)
-            {
-                let Some(live_position) = live.iter().position(|place| place == source) else {
-                    return unsupported("reference release consumes an unavailable carrier");
-                };
-                live.remove(live_position);
-            }
-            if let Some(result) = operation.result.structural()
-                && births.iter().any(|(place, _)| *place == result.place)
-            {
-                if live.contains(&result.place) {
-                    return unsupported("scalar graph repeats a live descriptor birth");
-                }
-                live.insert(0, result.place);
-            }
-        }
-        // A terminator whose inspected or returned place carries the whole
-        // value consumes that place's custody before successor custody is
-        // reconciled: the selected case edge or the machine result takes it.
-        if let Terminator::StructuralCase { source, .. }
-        | Terminator::ReturnStructural { source, .. } = &blocks[position].terminator
-        {
-            live.retain(|place| *place != *source);
-        }
-        exits[position] = live;
-        for successor in &successors[position] {
-            if reentered && *successor == entry_position {
-                continue;
-            }
-            remaining[*successor] -= 1;
-            if remaining[*successor] == 0 {
-                ready.push_back(*successor);
-            }
-        }
-    }
-    if visited != blocks.len() {
-        return unsupported(
-            "owned scalar graph has unreachable or cyclic custody requiring structural forwarding evidence",
-        );
-    }
+    let custody_flow::Frontiers { entries, exits } = custody_flow::solve(
+        blocks,
+        entry_position,
+        &affine,
+        &managed,
+        &births,
+        &incoming,
+        &successors,
+    )?;
     // A join keeps precisely the owners live on every incoming path. The
     // other paths dispose their surviving roots on their own selected edge.
     // A later read cannot revive a discarded owner; frontier verification
