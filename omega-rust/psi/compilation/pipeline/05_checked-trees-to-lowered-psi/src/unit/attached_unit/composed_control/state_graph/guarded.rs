@@ -118,82 +118,19 @@ pub(super) fn validate(
             }
             _ => return unsupported("ordered return has no exact authored expression"),
         };
-        let result = match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-                if !reference_result =>
-            {
-                result
-            }
-            CheckedUnitEffectOperationPlan::Call(call)
-                if !reference_result && call.discard_result_on_return() == Some(false) =>
-            {
-                call.structural_result().ok_or(LoweringError::Unsupported(
-                    "ordered return call has no structural result",
-                ))?
-            }
-            CheckedUnitEffectOperationPlan::EstablishReference {
-                result,
-                source: reference_source,
-            } if reference_result => {
-                validate_reference_return(
-                    checked,
-                    plan,
-                    source,
-                    state,
-                    expression,
-                    *statement_ordinal,
-                    operation,
-                )?;
-                if !returned_reference_sources.contains(reference_source) {
-                    returned_reference_sources.push(reference_source.clone());
-                }
-                result
-            }
-            _ => return unsupported("ordered return lost its structural producer"),
-        };
-        if result.statement_index != *statement_ordinal
-            || result.type_identity != signature.type_identity
-            || result.multiplicity != signature.multiplicity
-        {
-            return unsupported("ordered return exchanged its destination or value custody");
-        }
-        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation {
-            let root = checked
-                .facts
-                .values
-                .structural_values
-                .root_for_expression(state.state, *statement_ordinal, expression)
-                .ok_or(LoweringError::Unsupported(
-                    "ordered return lost its exact value root",
-                ))?;
-            if root.root != *value {
-                return unsupported("ordered return exchanged its authored value");
-            }
-            crate::expression_preparation::source_custody::structural::validate(
-                checked,
-                plan.machine,
-                state.state,
-                operation,
-            )?;
-        } else if operation.call().is_some() {
-            crate::expression_preparation::source_custody::structural::validate_call_value(
-                checked,
-                plan.machine,
-                state.state,
-                expression,
-                operation,
-                &state.structural_parameters,
-            )?;
-        } else if matches!(
+        validate_structural_return(
+            checked,
+            plan,
+            source,
+            state,
+            expression,
+            *statement_ordinal,
             operation,
-            CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-        ) {
-            super::super::super::byte_locals::validate(checked, state.state, operation)?;
+        )?;
+        if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
+            && !returned_reference_sources.contains(source)
+        {
+            returned_reference_sources.push(source.clone());
         }
     }
     if reference_result
@@ -202,6 +139,98 @@ pub(super) fn validate(
         }) || returned_reference_sources.len() != plan.result_reference_sources.len())
     {
         return unsupported("ordered reference returns do not cover their candidate roster");
+    }
+    Ok(())
+}
+
+/// One selected structural completion retains the same exact value and ingress
+/// regardless of whether sibling arms invoke a machine or return other values.
+/// Selection topology owns only which producer executes, not its value custody.
+pub(super) fn validate_structural_return(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    expression: checked_trees::expression::ExpressionHandle,
+    statement_ordinal: u32,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let checked_trees::CheckedControlResultPlan::Structural(signature) = &plan.result else {
+        return unsupported("structural return has no structural result signature");
+    };
+    let reference_result = !plan.result_reference_sources.is_empty();
+    let result = match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            discard_result_on_return: false,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
+            if !reference_result =>
+        {
+            result
+        }
+        CheckedUnitEffectOperationPlan::Call(call)
+            if !reference_result && call.discard_result_on_return() == Some(false) =>
+        {
+            call.structural_result().ok_or(LoweringError::Unsupported(
+                "ordered return call has no structural result",
+            ))?
+        }
+        CheckedUnitEffectOperationPlan::EstablishReference { result, source: _ }
+            if reference_result =>
+        {
+            validate_reference_return(
+                checked,
+                plan,
+                source,
+                state,
+                expression,
+                statement_ordinal,
+                operation,
+            )?;
+            result
+        }
+        _ => return unsupported("ordered return lost its structural producer"),
+    };
+    if result.statement_index != statement_ordinal
+        || result.type_identity != signature.type_identity
+        || result.multiplicity != signature.multiplicity
+    {
+        return unsupported("ordered return exchanged its destination or value custody");
+    }
+    if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation {
+        let root = checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(state.state, statement_ordinal, expression)
+            .ok_or(LoweringError::Unsupported(
+                "ordered return lost its exact value root",
+            ))?;
+        if root.root != *value {
+            return unsupported("ordered return exchanged its authored value");
+        }
+        crate::expression_preparation::source_custody::structural::validate(
+            checked,
+            plan.machine,
+            state.state,
+            operation,
+        )?;
+    } else if operation.call().is_some() {
+        crate::expression_preparation::source_custody::structural::validate_call_value(
+            checked,
+            plan.machine,
+            state.state,
+            expression,
+            operation,
+            &state.structural_parameters,
+        )?;
+    } else if matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
+    ) {
+        super::super::super::byte_locals::validate(checked, state.state, operation)?;
     }
     Ok(())
 }

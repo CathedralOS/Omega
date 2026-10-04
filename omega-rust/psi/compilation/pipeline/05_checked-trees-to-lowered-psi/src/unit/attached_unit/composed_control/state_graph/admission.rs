@@ -746,22 +746,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         edges::return_discards(checked, plan.machine, source, state)?;
                         *statement_ordinal as usize
                     }
-                    checked_trees::CheckedConditionalReturnArm::Structural(
-                        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            result,
-                            ..
-                        },
-                    ) => result.statement_index as usize,
-                    // A structural value spelled as a call publishes the call
-                    // itself; its result binding sits on the arm's transition.
-                    checked_trees::CheckedConditionalReturnArm::Structural(
-                        checked_trees::CheckedUnitEffectOperationPlan::Call(call),
-                    ) if matches!(
-                        call.result(),
-                        checked_trees::CheckedUnitCallResult::Structural { .. }
-                    ) =>
-                    {
-                        call.coordinate.statement_index as usize
+                    checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+                        validate_structural_arm(
+                            checked,
+                            plan,
+                            source,
+                            state,
+                            return_source,
+                            return_ordinal,
+                            operation,
+                        )?
                     }
                     checked_trees::CheckedConditionalReturnArm::Call {
                         operands,
@@ -818,7 +812,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 )?;
             }
             // Both arms complete the machine: each is a terminal machine call,
-            // a Unit completion or a scalar return value, and at least one is
+            // a Unit completion or an ordinary returned value, and at least one is
             // a call.
             (
                 CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
@@ -863,6 +857,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 arm_source,
                                 arm_ordinal,
                                 operands,
+                                operation,
+                            )?;
+                        }
+                        checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+                            validate_structural_arm(
+                                checked,
+                                plan,
+                                source,
+                                state,
+                                arm_source,
+                                arm_ordinal,
                                 operation,
                             )?;
                         }
@@ -1330,14 +1335,20 @@ fn validate_guarded_return(
             Ok(*statement_ordinal)
         }
         (
-            checked_trees::CheckedConditionalReturnArm::Structural(
-                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    ..
-                },
-            ),
+            checked_trees::CheckedConditionalReturnArm::Structural(operation),
             TransitionTargetNode::Value(_),
-        ) => Ok(result.statement_index),
+        ) => {
+            validate_structural_arm(
+                checked,
+                plan,
+                source,
+                state,
+                transition,
+                ordinal as usize,
+                operation,
+            )?;
+            Ok(ordinal)
+        }
         (
             checked_trees::CheckedConditionalReturnArm::Scalar {
                 statement_ordinal,
@@ -1356,6 +1367,38 @@ fn validate_guarded_return(
     if retained_ordinal != ordinal {
         return unsupported("guarded completion changed its retained ordinal");
     }
+    Ok(ordinal)
+}
+
+/// All selected value arms rejoin their exact source through the same ordinary
+/// structural-return owner, independently of sibling completion forms.
+fn validate_structural_arm(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    transition: &checked_trees::statement::TableTransition,
+    ordinal: usize,
+    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+) -> Result<usize, LoweringError> {
+    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        return unsupported("structural arm is not an ordinary completion");
+    }
+    let checked_trees::statement::TransitionTargetNode::Value(expression) =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("structural arm has no authored returned value");
+    };
+    super::guarded::validate_structural_return(
+        checked,
+        plan,
+        source,
+        state,
+        *expression,
+        u32::try_from(ordinal)
+            .map_err(|_| LoweringError::Unsupported("structural return coordinate overflow"))?,
+        operation,
+    )?;
     Ok(ordinal)
 }
 
