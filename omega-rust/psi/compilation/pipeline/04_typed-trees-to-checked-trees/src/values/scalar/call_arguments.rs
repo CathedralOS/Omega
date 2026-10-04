@@ -242,12 +242,28 @@ pub(super) fn nested_structural_call_sites<'program>(
         },
         _ => None,
     };
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source.state_symbol);
     calls
         .iter()
         .filter_map(|source| {
             let is_transition_guard = transition_guard == Some(source.authored_expression);
+            // The first computed case subject also owns ordinary argument
+            // roots. Its surrounding case test is not the call expression;
+            // later guard and payload copies only observe the saved result.
+            let is_saved_subject = source.call_ordinal == 0
+                && state.is_some_and(|state| {
+                    validation::saved_dispatch_subject(
+                        program,
+                        state,
+                        statement_index,
+                        source.authored_expression,
+                    ) == Some((statement_index, source.authored_expression))
+                });
             if source.statement_index != statement_index
-                || (source.call_ordinal == 0 && !is_transition_guard)
+                || (source.call_ordinal == 0 && !is_transition_guard && !is_saved_subject)
                 || !program
                     .expression_table
                     .expression_is_valid(source.authored_expression)
