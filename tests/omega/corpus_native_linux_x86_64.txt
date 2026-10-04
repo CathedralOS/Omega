@@ -275,8 +275,8 @@ pass/control_flow/copy_enum_cycle_edge_write_frame checked 391ms @2d8ed253669f+w
 pass/control_flow/explicit_state_value_frontier checked 341ms @2d8ed253669f+wt
 pass/control_flow/field_subject_named_arm_chain built 925ms @2d8ed253669f+wt
 pass/control_flow/field_view_transfer_exit built 850ms exit:0 @2d8ed253669f+wt
-pass/control_flow/guarded_jump_field_view_forward rejected 423ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
+pass/control_flow/guarded_jump_field_view_forward rejected 909ms @15c77983aab
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph subslice field owner cannot lend the requested view"))
 pass/control_flow/guarded_leaf_branch_expansion checked 371ms @2d8ed253669f+wt
 pass/control_flow/guarded_mid_arm_return built 1070ms @2d8ed253669f+wt
 pass/control_flow/guarded_value_transition_roster built 3624ms exit:11 @89e3d147a38
