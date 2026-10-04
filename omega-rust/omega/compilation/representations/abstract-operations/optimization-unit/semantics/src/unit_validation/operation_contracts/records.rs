@@ -381,9 +381,10 @@ fn record_type(
         if !active.insert(current) {
             return false;
         }
-        // A record may embed a completed sum or mixed member as a whole
-        // field — the walk descends through every member-bearing shape.
-        // Fixed arrays carry every element as a member slot.
+        // Fields and array elements join the same declaration traversal.
+        // Classify descriptor leaves here so inserting an array between a
+        // record and its reference does not change construction custody.
+        // Reference leaves stop at their carrier; they do not own referents.
         let fields: Vec<&terminal_psi::StructuralFieldDeclaration> = match types
             .get(&current)
             .copied()
@@ -402,6 +403,14 @@ fn record_type(
                 pending.push((*element, false));
                 continue;
             }
+            Some(StructuralTypeShape::PrimitiveScalar(_)) => Vec::new(),
+            Some(StructuralTypeShape::Reference { .. })
+                if references
+                    && crate::unit_validation::references::referent(types, current).is_some() =>
+            {
+                Vec::new()
+            }
+            Some(_) if shared_view_members && shared_view_member(types, current) => Vec::new(),
             _ => return false,
         };
         pending.push((current, true));
@@ -421,15 +430,6 @@ fn record_type(
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
-                StructuralFieldType::Structural(child)
-                    if references
-                        && crate::unit_validation::references::referent(types, child).is_some() => {
-                }
-                // A shared-view member stores a relocated descriptor the same
-                // way a borrowed byte view does: the binding roster checks
-                // the loan source instead of owning referent cells.
-                StructuralFieldType::Structural(child)
-                    if shared_view_members && shared_view_member(types, child) => {}
                 // Predicates constrain the descriptor's current content, not
                 // the containing record's storage-loan permission. Both field
                 // presentations retain their backing through descriptor replay;
@@ -441,14 +441,6 @@ fn record_type(
                     carrier: terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                     ..
                 } if references || shared_view_members => {}
-                // Primitive arrays retain owned scalar storage as record fields.
-                // Replay the complete element chain, including below zero extents.
-                StructuralFieldType::Structural(child)
-                    if terminal_semantics::scalar_array_leaf_shape(
-                        types.values().copied(),
-                        child,
-                    )
-                    .is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
