@@ -459,20 +459,6 @@ fn check_known_length_index(
                 // initializer-label fact would describe a DIFFERENT value.
                 let initializer_label = hoist_temp_initializer_label(program, state, &index_label);
                 let initializer_label = initializer_label.as_deref();
-                // The temp's value is its initializer's, so the initializer's
-                // standing bounds (parameter `requires`, field `where` facts)
-                // bound it as well.
-                let (initializer_low, initializer_high) =
-                    hoist_temp_initializer(program, state, &index_label)
-                        .and_then(|initializer| {
-                            validation::standing_integer_bounds(
-                                program,
-                                machine,
-                                state,
-                                initializer,
-                            )
-                        })
-                        .unwrap_or_default();
                 let upper_bound_proven = facts.index_is_proven(&collection_label, &index_label)
                     || expression_integer_carrier_maximum(program, machine, state, index)
                         .is_some_and(|maximum| {
@@ -493,9 +479,6 @@ fn check_known_length_index(
                     || standing_high.is_some_and(|high| {
                         i64::try_from(length).is_ok_and(|length| high < length)
                     })
-                    || initializer_high.is_some_and(|high| {
-                        i64::try_from(length).is_ok_and(|length| high < length)
-                    })
                     || initializer_label.is_some_and(|label| {
                         facts.index_is_proven(&collection_label, label)
                             || facts.index_upper_bound_is_proven(label, length)
@@ -512,7 +495,6 @@ fn check_known_length_index(
                         || declared_range.is_some_and(|(low, _)| low >= 0)
                         || ensured_low.is_some_and(|low| low >= 0)
                         || standing_low.is_some_and(|low| low >= 0)
-                        || initializer_low.is_some_and(|low| low >= 0)
                         || initializer_label.is_some_and(|label| {
                             facts.non_negative_is_proven(label)
                                 || facts.non_negative_is_proven_via_ordering(label)
