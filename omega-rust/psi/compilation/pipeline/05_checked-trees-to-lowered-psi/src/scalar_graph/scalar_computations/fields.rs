@@ -990,9 +990,7 @@ pub(crate) fn prepare(
                             case.id,
                         ));
                         if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                            primitive_path.push(terminal_psi::StructuralPathSegment::Case(
-                                case.id,
-                            ));
+                            primitive_path.push(terminal_psi::StructuralPathSegment::Case(case.id));
                         }
                         selected_case_fields = Some(case.fields.as_slice());
                         continue;

@@ -169,7 +169,7 @@ pub fn local_scalar_record_field(
 /// synthetic record type; execution still needs its established case.
 fn selected_member_field<'program>(
     program: &'program TypedTrees,
-    record: &typed_trees::data::DataDefinition,
+    record: &'program typed_trees::data::DataDefinition,
     member: &typed_trees::expression::TableMemberExpression,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<&'program typed_trees::data::DataField> {
