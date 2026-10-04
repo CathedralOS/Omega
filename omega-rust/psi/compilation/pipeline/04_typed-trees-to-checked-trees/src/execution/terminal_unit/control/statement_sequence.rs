@@ -1730,6 +1730,18 @@ fn consume_result(
         return Some(());
     }
     let (result, discard_result_on_return) = producer.discardable_structural_result_mut()?;
+    if matches!(
+        access,
+        CheckedStructuralAccess::SharedBorrow
+            | CheckedStructuralAccess::MutableBorrow
+            | CheckedStructuralAccess::WriteOnlyBorrow
+    ) {
+        // A borrow argument rejoins the producer's loan, not its disposal
+        // debt: borrow custody rides the selected edge's claim partition, so
+        // a result whose return-discard the edge already owns (or never
+        // minted) borrows the same as one still carrying the flag.
+        return Some(());
+    }
     if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
         // Linear results never acquire automatic disposal debt. Moving a
         // whole result continues its checked call claim frontier; source flow
@@ -1743,14 +1755,10 @@ fn consume_result(
         }
         return None;
     }
-    match access {
-        // A projected transfer leaves its root owner alive until the
-        // exact complement is committed on the consumer continuation.
-        CheckedStructuralAccess::Owned if projected => {}
-        CheckedStructuralAccess::Owned => *discard_result_on_return = false,
-        CheckedStructuralAccess::SharedBorrow
-        | CheckedStructuralAccess::MutableBorrow
-        | CheckedStructuralAccess::WriteOnlyBorrow => {}
+    // A projected transfer leaves its root owner alive until the
+    // exact complement is committed on the consumer continuation.
+    if !projected {
+        *discard_result_on_return = false;
     }
     Some(())
 }
