@@ -25,6 +25,7 @@ pub(super) fn append_state_borrow_facts(
     state: &typed_trees::state::State,
     arenas: &mut BorrowFactArenas<'_>,
     state_loan_trackers: &mut Vec<StateLoanTracker>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     state_loan_trackers.clear();
     let mut writable_roots_span = arena::HandleSpan::empty();
@@ -51,6 +52,7 @@ pub(super) fn append_state_borrow_facts(
             machine.symbol,
             statement,
             state_loan_trackers,
+            call_frames,
         ) {
             let loan_segments = arenas
                 .access_segments

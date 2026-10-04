@@ -9,6 +9,7 @@ pub(super) fn loans(
     _state: &typed_trees::state::State,
     machine_symbol: symbols::SymbolHandle,
     statement: &checked_trees::statement::StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StatementBorrowLoan> {
     let Some(machine) = program
         .machines()
@@ -17,8 +18,8 @@ pub(super) fn loans(
     else {
         return Vec::new();
     };
-    let Some(effects) = validation::CallFrameResolver::new(program)
-        .and_then(|frames| frames.stored_reference_effects(machine, statement))
+    let Some(effects) =
+        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
     else {
         return Vec::new();
     };

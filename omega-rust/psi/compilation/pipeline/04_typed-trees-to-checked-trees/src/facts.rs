@@ -129,7 +129,13 @@ pub(crate) fn build_check_facts(
     static_machine_selections: validation::ValidatedStaticMachineSelections,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
-    let borrow = build_borrow_facts(program);
+    // One resolver serves this immutable fact-construction window, including
+    // stored-reference loans, flow classification, terminal ranking projections,
+    // termination progress proofs, mutation frames, and crash-route refinement.
+    // Retain failed preparation as well as success so individual statements do
+    // not rebuild the same symbol tables.
+    let call_frames = validation::CallFrameResolver::new(program);
+    let borrow = build_borrow_facts(program, call_frames.as_ref());
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
@@ -163,11 +169,6 @@ pub(crate) fn build_check_facts(
     // Form source flow and custody first. Their selected cleanup dispositions
     // complete the implicit execution graph; only then may effects and the
     // stronger capability, termination and callable-contract judgments publish.
-    // One frame resolver serves the whole immutable fact-construction window:
-    // flow classification, terminal ranking projections, termination progress
-    // proofs, mutation frames, and crash-route refinement all classify the
-    // same typed program.
-    let call_frames = validation::CallFrameResolver::new(program);
     // Keep declaration-owned handles stable while each iteration discards its
     // derived flow observations. Only newly bound invocation inputs schedule
     // another pass; selected custody is rebuilt from that pass's live facts.

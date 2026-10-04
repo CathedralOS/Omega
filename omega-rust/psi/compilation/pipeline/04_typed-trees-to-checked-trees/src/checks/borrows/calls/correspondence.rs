@@ -16,8 +16,12 @@ use checked_trees::{
     CheckFacts, FlowBorrowWeakeningReason, FlowConstraintKind, FlowConstraintRef, FlowStateFact,
 };
 
-pub(super) fn matches_source(program: &typed_trees::TypedTrees, facts: &CheckFacts) -> bool {
-    let expected = crate::borrow::build_borrow_facts(program);
+pub(super) fn matches_source(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let expected = crate::borrow::build_borrow_facts(program, call_frames);
     // There are no call judgments to authenticate in a call-free program.
     // Other borrow/resource validators still own its formation and mutations.
     if expected.calls.is_empty()
@@ -111,10 +115,13 @@ pub(super) fn matches_source(program: &typed_trees::TypedTrees, facts: &CheckFac
 
 /// Called only after the source-owned borrow roster has matched. Use the
 /// producer's source filters without its retained activation/weakening rows.
+/// Borrow the pass's resolver for this same immutable program: replay remains
+/// independent of retained evidence without rebuilding call frames per statement.
 pub(super) fn matches_entry_loans(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
@@ -205,7 +212,7 @@ pub(super) fn matches_entry_loans(
             reassigned_place,
             statement_index,
             statement,
-            None,
+            call_frames,
         );
         while loans
             .peek()

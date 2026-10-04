@@ -42,7 +42,12 @@ use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;
 use state::{BorrowFactArenas, append_state_borrow_facts};
 
-pub(crate) fn build_borrow_facts(program: &typed_trees::TypedTrees) -> BorrowFacts {
+/// The caller prepares call frames once for this immutable program. `None`
+/// retains failed preparation; source reconstruction must not retry it per call.
+pub(crate) fn build_borrow_facts(
+    program: &typed_trees::TypedTrees,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> BorrowFacts {
     let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
     let mut access_segments =
         arena::Arena::with_capacity(program.expression_table.expression_count());
@@ -73,6 +78,7 @@ pub(crate) fn build_borrow_facts(program: &typed_trees::TypedTrees) -> BorrowFac
                     state,
                     &mut arenas,
                     &mut state_loan_trackers,
+                    call_frames,
                 );
             }
         }

@@ -117,7 +117,7 @@ fn collect_compatibility<'p>(
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
     let mut certificates = Vec::new();
-    if !correspondence::matches_source(program, facts) {
+    if !correspondence::matches_source(program, facts, call_frames) {
         diagnostics.push(Diagnostic::error(
             "checked borrow call roster drifted from typed source or state-owned flow",
         ));
@@ -127,7 +127,7 @@ fn collect_compatibility<'p>(
         let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
             continue;
         };
-        if !correspondence::matches_entry_loans(program, facts, state_flow) {
+        if !correspondence::matches_entry_loans(program, facts, state_flow, call_frames) {
             diagnostics.push(Diagnostic::error(
                 "checked borrow call entry loans drifted from source lifecycle",
             ));

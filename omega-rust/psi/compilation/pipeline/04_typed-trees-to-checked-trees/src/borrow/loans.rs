@@ -107,6 +107,7 @@ pub(super) fn statement_borrow_loans(
     machine_symbol: SymbolHandle,
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StatementBorrowLoan> {
     match statement {
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
@@ -149,7 +150,9 @@ pub(super) fn statement_borrow_loans(
                 true,
             )
         }
-        StatementNode::Call(_) => stored_calls::loans(program, state, machine_symbol, statement),
+        StatementNode::Call(_) => {
+            stored_calls::loans(program, state, machine_symbol, statement, call_frames)
+        }
         StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
         | StatementNode::Expression(_)

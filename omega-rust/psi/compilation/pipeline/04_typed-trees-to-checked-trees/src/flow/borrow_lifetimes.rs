@@ -54,6 +54,9 @@ pub(crate) fn filter_expired_borrow_loans(
     })
 }
 
+/// Both flow construction and independent replay prepare their resolver before
+/// traversing statements. `None` is that immutable preparation's failed result,
+/// not a request to reconstruct the resolver for each loan-lifetime query.
 pub(crate) fn filter_reassigned_borrow_loans(
     borrow_weakenings: &mut arena::Arena<FlowBorrowWeakeningFact>,
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
@@ -75,10 +78,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     .is_some_and(|candidate| std::ptr::eq(candidate, statement))
             })
         });
-        let mut owned_frames = None;
         let effects = machine.and_then(|machine| {
-            crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-                .and_then(|frames| frames.stored_reference_effects(machine, statement))
+            call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
         });
         let Some(effects) = effects else {
             return source;
@@ -136,12 +137,9 @@ pub(crate) fn filter_reassigned_borrow_loans(
             program.type_reference_table.type_reference(reference),
             typed_trees::types::TypeReferenceNode::Reference { .. }
         ) {
-            let mut owned_frames = None;
-            let replacement =
-                crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-                    .and_then(|frames| {
-                        frames.assignment_replaces_reference_binding(machine, statement)
-                    });
+            let replacement = call_frames.and_then(|frames| {
+                frames.assignment_replaces_reference_binding(machine, statement)
+            });
             if replacement != Some(true) {
                 return source;
             }
