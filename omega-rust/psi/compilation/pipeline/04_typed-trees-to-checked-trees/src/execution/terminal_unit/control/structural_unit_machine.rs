@@ -6,12 +6,11 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan, Multiplicity, PermissionAccess,
-    PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode, TransitionExit,
-    TransitionGuardNode, TransitionTargetNode, TypedTrees,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralUnitControlMachinePlan,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
+    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource, PrimitiveType,
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees,
 };
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
@@ -78,13 +77,8 @@ pub(crate) fn build_structural_unit_control_machine(
         let parameters = structural_parameters;
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {
-                if parameter.is_self {
-                    parameter.access != CheckedStructuralAccess::MutableBorrow
-                        || !parameter.qualifications.is_empty()
-                } else {
-                    parameter.multiplicity != Multiplicity::Affine
-                        || !parameter.qualifications.is_empty()
-                }
+                parameter.multiplicity != Multiplicity::Affine
+                    || !parameter.qualifications.is_empty()
             })
             || parameters.len() + scalar_parameters.len()
                 != crate::execution::terminal_unit::types::abi_parameter_count(
@@ -130,13 +124,7 @@ pub(crate) fn build_structural_unit_control_machine(
                 )?;
                 let (target_parameters, target_scalar_parameters) = &signatures[target_index];
                 let arguments = program.statement_table.expression_handles(*arguments);
-                if arguments.len()
-                    != target_parameters
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .count()
-                        + target_scalar_parameters.len()
-                {
+                if arguments.len() != target_parameters.len() + target_scalar_parameters.len() {
                     return None;
                 }
                 let mut transferred_sources = BTreeSet::new();
@@ -144,25 +132,7 @@ pub(crate) fn build_structural_unit_control_machine(
                     .iter()
                     .enumerate()
                     .map(|(target_parameter_index, target)| {
-                        if target.is_self {
-                            let source_index =
-                                source_parameters.iter().position(|source| source.is_self)?;
-                            let source = &source_parameters[source_index];
-                            if source != target || !transferred_sources.insert(source_index) {
-                                return None;
-                            }
-                            return Some(CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
-                                target_parameter_index: u32::try_from(target_parameter_index)
-                                    .ok()?,
-                            });
-                        }
-                        let argument_index = program
-                            .state_parameters(&states[target_index])
-                            .iter()
-                            .take(target.position as usize)
-                            .filter(|parameter| !parameter.is_self)
-                            .count();
+                        let argument_index = usize::try_from(target.position).ok()?;
                         let argument = arguments.get(argument_index)?;
                         let place = crate::flow::canonical_place_from_expression_in_state(
                             program,
@@ -363,11 +333,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             &signatures[target_index];
                         let arguments = program.statement_table.expression_handles(*arguments);
                         if arguments.len()
-                            != target_parameters
-                                .iter()
-                                .filter(|parameter| !parameter.is_self)
-                                .count()
-                                + target_scalar_parameters.len()
+                            != target_parameters.len() + target_scalar_parameters.len()
                         {
                             return None;
                         }
@@ -376,29 +342,7 @@ pub(crate) fn build_structural_unit_control_machine(
                             .iter()
                             .enumerate()
                             .map(|(target_parameter_index, target)| {
-                                if target.is_self {
-                                    let source_index = source_parameters
-                                        .iter()
-                                        .position(|source| source.is_self)?;
-                                    let source = &source_parameters[source_index];
-                                    if source != target || !transferred_sources.insert(source_index)
-                                    {
-                                        return None;
-                                    }
-                                    return Some(CheckedStructuralControlTransferPlan {
-                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
-                                        target_parameter_index: u32::try_from(
-                                            target_parameter_index,
-                                        )
-                                        .ok()?,
-                                    });
-                                }
-                                let argument_index = program
-                                    .state_parameters(&states[target_index])
-                                    .iter()
-                                    .take(target.position as usize)
-                                    .filter(|parameter| !parameter.is_self)
-                                    .count();
+                                let argument_index = usize::try_from(target.position).ok()?;
                                 let argument = arguments.get(argument_index)?;
                                 let place = crate::flow::canonical_place_from_expression_in_state(
                                     program,

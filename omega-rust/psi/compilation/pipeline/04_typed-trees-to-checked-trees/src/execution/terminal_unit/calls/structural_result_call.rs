@@ -446,8 +446,8 @@ pub(super) fn build(
 }
 
 /// A parameter names caller storage only while it is mutably borrowed:
-/// `bag: &mut Bag` spells a `Reference` type; `&mut self` instead marks the
-/// parameter's `is_mutable` referent access on the bare data type.
+/// `bag: &mut Bag` spells a `Reference` type, while a binding declared on the
+/// bare record type carries that access in the parameter's own `is_mutable`.
 pub(crate) fn view_source_parameter_is_mutable(
     program: &TypedTrees,
     parameter: &typed_trees::signature::StateParameter,
@@ -460,22 +460,26 @@ pub(crate) fn view_source_parameter_is_mutable(
         .is_some()
 }
 
-/// The field symbol `root` names inside the `*self` receiver's attached data,
-/// when `self` is mutably borrowed — the root a minted view loan publishes
-/// for `self.<field>` storage. `None` for roots that are not `self` members
-/// and whenever `self` is not mutably borrowed.
-pub(crate) fn view_self_member_symbol(
+/// The field symbol `root` names inside this state's data binding, when that
+/// binding is mutably borrowed — the root a minted view loan publishes for
+/// `main.<field>` storage. `None` for roots that are not members of the
+/// binding's record and whenever the binding is not mutably borrowed.
+///
+/// The binding is the parameter declaring the machine's attached data, which
+/// `data_binding_parameter` names. The retired `self` flag no longer marks
+/// it, so asking for that flag refused every state unconditionally.
+pub(crate) fn view_data_member_symbol(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     machine: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<SymbolHandle> {
-    let parameters = program.state_parameters(state);
-    let self_parameter = parameters.iter().find(|parameter| parameter.is_self)?;
-    if !view_source_parameter_is_mutable(program, self_parameter) {
+    let owner = program.machine_by_symbol(machine)?;
+    let data_binding = program.data_binding_parameter(owner, program.state_parameters(state))?;
+    if !view_source_parameter_is_mutable(program, data_binding) {
         return None;
     }
-    let mut type_reference = self_parameter.type_reference;
+    let mut type_reference = data_binding.type_reference;
     let mut symbol = loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
@@ -484,10 +488,10 @@ pub(crate) fn view_self_member_symbol(
             _ => return None,
         }
     };
-    // The `&mut self` referee names the machine's `Self` alias rather than the
+    // A `&mut Self` referee names the machine's `Self` alias rather than the
     // data declaration; resolve it through the machine's attached data owner.
     if symbol == machine {
-        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
+        symbol = owner.attached_data_symbol;
     }
     let data = program
         .data_definitions()

@@ -906,10 +906,10 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
             {
                 break;
             }
-            // A minted view loan over `self.<field>` publishes the member's own
-            // symbol as its root: resolve it back to the receiver with the field
-            // projection restored ahead of the segments the target added.
-            if let Some(member) = crate::execution::terminal_unit::calls::view_self_member_symbol(
+            // A minted view loan over `main.<field>` publishes the member's own
+            // symbol as its root: resolve it back to the data binding with the
+            // field projection restored ahead of the segments the target added.
+            if let Some(member) = crate::execution::terminal_unit::calls::view_data_member_symbol(
                 program,
                 state,
                 machine.symbol,
@@ -953,8 +953,11 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         let facts::PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
+        // A member-rooted loan resolved above reports the machine itself as the
+        // root; the owning position is the parameter that declares the
+        // machine's attached data, not a retired receiver flag.
         let position = if root == machine.symbol {
-            authored.iter().position(|parameter| parameter.is_self)?
+            program.data_binding_position(machine.attached_data_symbol, authored)?
         } else {
             authored
                 .iter()

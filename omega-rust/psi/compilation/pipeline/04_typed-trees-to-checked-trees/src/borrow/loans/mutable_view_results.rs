@@ -4,18 +4,20 @@
 //! receiver — while the structural custody model asks which caller storage
 //! the returned borrow actually denotes. The tail walk answers that: the
 //! callee's return borrows, resolved through the callee's own locals back to
-//! a `&mut` parameter, the `*self` authority, or a `self` member.
+//! a `&mut` parameter, the machine's own authority, or a data-binding member.
 use super::argument_borrow_loan_place;
 use super::helper_call_borrow_loan_place;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
+use crate::execution::terminal_unit::calls::{
+    view_data_member_symbol, view_source_parameter_is_mutable,
+};
 use crate::semantic::calls::find_state_with_machine;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::TypeReferenceNode;
 use validation::reference_result_custody::mutable_borrowed_parts;
 
 /// The caller-side place a `&mut` structural-view result loans: the call
@@ -132,7 +134,7 @@ fn mutable_view_source(
                     .count(),
             )
         } else if root == callee_machine.symbol
-            || view_self_member_symbol(program, callee_state, callee_machine.symbol, root).is_some()
+            || view_data_member_symbol(program, callee_state, callee_machine.symbol, root).is_some()
         {
             MutableViewSource::SelfReceiver
         } else {
@@ -236,8 +238,8 @@ fn initializer_borrow_place(
     }
 }
 
-/// Caller-frame roots for the tail walk: `*self`, one of `self`'s member
-/// fields, or a `&mut` parameter of the callee state.
+/// Caller-frame roots for the tail walk: the machine itself, one of its
+/// data-binding member fields, or a `&mut` parameter of the callee state.
 fn view_source_root_is_caller_storage(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -248,53 +250,5 @@ fn view_source_root_is_caller_storage(
         || program.state_parameters(state).iter().any(|parameter| {
             parameter.symbol == root && view_source_parameter_is_mutable(program, parameter)
         })
-        || view_self_member_symbol(program, state, machine, root).is_some()
-}
-
-fn view_source_parameter_is_mutable(
-    program: &TypedTrees,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
-    parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
-}
-
-/// The field symbol `root` names inside the `*self` receiver's attached data,
-/// when `self` is mutably borrowed — the root a minted view loan publishes
-/// for `self.<field>` storage.
-fn view_self_member_symbol(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    machine: SymbolHandle,
-    root: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let parameters = program.state_parameters(state);
-    let self_parameter = parameters.iter().find(|parameter| parameter.is_self)?;
-    if !view_source_parameter_is_mutable(program, self_parameter) {
-        return None;
-    }
-    let mut type_reference = self_parameter.type_reference;
-    let mut symbol = loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => break *symbol,
-            _ => return None,
-        }
-    };
-    if symbol == machine {
-        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)?;
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
+        || view_data_member_symbol(program, state, machine, root).is_some()
 }

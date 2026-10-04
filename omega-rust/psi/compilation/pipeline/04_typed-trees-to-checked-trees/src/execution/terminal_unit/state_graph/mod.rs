@@ -1749,7 +1749,6 @@ enum SuccessorGuard {
     TargetState,
     ArgumentCount,
     StructuralArgument,
-    ReceiverTransfer,
     SubsliceTransfer,
     LiteralTransfer,
     ResultTransfer,
@@ -1784,7 +1783,6 @@ impl SuccessorEdge {
                     SuccessorGuard::StructuralArgument => {
                         guard_phase!($edge, "structural argument")
                     }
-                    SuccessorGuard::ReceiverTransfer => guard_phase!($edge, "receiver transfer"),
                     SuccessorGuard::SubsliceTransfer => {
                         guard_phase!($edge, "byte-subslice transfer")
                     }
@@ -2008,12 +2006,7 @@ fn successor_bindings(
     let arguments = program.statement_table.expression_handles(*arguments);
     let target_parameters = program.state_parameters(target);
     mark(SuccessorGuard::ArgumentCount);
-    if arguments.len()
-        != target_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-    {
+    if arguments.len() != target_parameters.len() {
         return None;
     }
     let (source_structural, source_scalar) = &signatures[source_index];
@@ -2036,14 +2029,7 @@ fn successor_bindings(
             }),
         _ => None,
     };
-    let argument_at = |position: u32| {
-        let position = target_parameters
-            .iter()
-            .take(position as usize)
-            .filter(|parameter| !parameter.is_self)
-            .count();
-        arguments.get(position).copied()
-    };
+    let argument_at = |position: u32| arguments.get(position as usize).copied();
     let source_position = |position: u32| {
         let mut argument = argument_at(position)?;
         // `value as T` on a structural type ascribes the same value, so the
@@ -2075,56 +2061,6 @@ fn successor_bindings(
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
-            if target.is_self {
-                mark(SuccessorGuard::ReceiverTransfer);
-                let Some(source_index) = source_structural
-                    .iter()
-                    .position(|parameter| parameter.is_self)
-                else {
-                    // A source state that never declared `self` still rides
-                    // the machine's ambient receiver: the edge forwards the
-                    // entry receiver descriptor rather than a source
-                    // parameter, under the same access narrowing a carried
-                    // `self` would take.
-                    let mut receiver = signatures
-                        .first()?
-                        .0
-                        .iter()
-                        .find(|parameter| parameter.is_self)?
-                        .clone();
-                    if receiver.access == CheckedStructuralAccess::MutableBorrow
-                        && target.access == CheckedStructuralAccess::SharedBorrow
-                    {
-                        receiver.access = CheckedStructuralAccess::SharedBorrow;
-                    }
-                    if receiver != *target {
-                        return None;
-                    }
-                    return Some(CheckedStructuralControlTransferPlan {
-                        source:
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver,
-                        target_parameter_index: u32::try_from(target_index).ok()?,
-                    });
-                };
-                // The receiver keeps its invocation place, but an edge may
-                // restrict mutable access to a shared state view. Every other
-                // part of its custody remains exact; the reverse gains authority.
-                let mut transferred = source_structural[source_index].clone();
-                if transferred.access == CheckedStructuralAccess::MutableBorrow
-                    && target.access == CheckedStructuralAccess::SharedBorrow
-                {
-                    transferred.access = CheckedStructuralAccess::SharedBorrow;
-                }
-                if transferred != *target {
-                    return None;
-                }
-                return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                        index: u32::try_from(source_index).ok()?,
-                    },
-                    target_parameter_index: u32::try_from(target_index).ok()?,
-                });
-            }
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             // Forward a whole parameter before planning any new loan. This
@@ -2190,8 +2126,7 @@ fn successor_bindings(
                 else {
                     return None;
                 };
-                if target.is_self
-                    || target.access != CheckedStructuralAccess::SharedBorrow
+                if target.access != CheckedStructuralAccess::SharedBorrow
                     || target.multiplicity != Multiplicity::Unrestricted
                     || literal.access != CheckedStructuralAccess::SharedBorrow
                     || literal.type_identity != target.type_identity

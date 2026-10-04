@@ -87,9 +87,6 @@ pub(crate) fn structural_computation_argument(
     {
         return Some(argument);
     }
-    if target.is_self {
-        return None;
-    }
     if let Some(argument) =
         borrowed_view_argument(program, borrow, machine, state, call, &place, target)
     {
@@ -276,20 +273,11 @@ fn exact_actual(
     else {
         return None;
     };
-    let target_parameters = program.state_parameters(target_state);
-    let receiver_count = target_parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .count();
-    let exact_actual = if target.is_self {
-        receiver_count == 1 && target_position == 0 && authored.receiver == expression
-    } else {
-        program
-            .expression_table
-            .expression_handles(authored.arguments)
-            .get(target_position.checked_sub(receiver_count)?)
-            == Some(&expression)
-    };
+    let exact_actual = program
+        .expression_table
+        .expression_handles(authored.arguments)
+        .get(target_position)
+        == Some(&expression);
     if authored.target_symbol != call.target_symbol || !exact_actual {
         return None;
     }
@@ -311,22 +299,6 @@ pub(crate) fn borrowed_storage_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    // A receiver argument binds `self` to `self` across machines: both sides'
-    // receiver referees are machine-keyed `Named { machine, "Self" }` nodes,
-    // so nominal identity can never join them. The join key is the shared
-    // attachment data, resolved from its declaration rather than an interned
-    // Named (a machine that never names its attachment elsewhere has none).
-    let self_receiver = if target.is_self {
-        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)
-    } else {
-        None
-    };
-    let self_attached = self_receiver.and_then(|(owner, _)| {
-        program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner.attached_data_symbol)
-    });
     // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
@@ -350,28 +322,17 @@ pub(crate) fn borrowed_storage_argument(
     ) {
         return None;
     }
-    let target_identity = if let Some(attached) = self_attached {
-        super::super::types::closed_data_identity(program, attached, &[])
-    } else if target.is_self {
-        let (owner, _) =
-            crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
-        let reference = program
-            .type_reference_table
-            .find_named_type_reference(owner.attached_data_symbol)?;
-        base_type_identity(program, reference, &[])?
-    } else {
-        base_type_identity(program, referee, &[])?
-    };
-    let mut receiver_argument = false;
+    let target_identity = base_type_identity(program, referee, &[])?;
     let parameters = program.state_parameters(state);
-    let (reference, source) = if let Some(position) = parameters.iter().position(|parameter| {
-        parameter.symbol == symbol || (parameter.is_self && symbol == machine)
-    }) {
+    let (reference, source) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
         let parameter = &parameters[position];
         if parameter.is_const {
             return None;
         }
-        let mut reference = match program.type_reference_table.type_reference(
+        let reference = match program.type_reference_table.type_reference(
             validation::peel_declared_constraints(program, parameter.type_reference),
         ) {
             TypeReferenceNode::Reference {
@@ -389,50 +350,12 @@ pub(crate) fn borrowed_storage_argument(
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. }
                 if target_access == CheckedStructuralAccess::SharedBorrow
-                    || parameter.is_mutable
-                    || parameter.is_self =>
+                    || parameter.is_mutable =>
             {
                 parameter.type_reference
             }
             _ => return None,
         };
-        if parameter.is_self {
-            let owner = (crate::lookup::machine_by_symbol(program, machine))?;
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(reference)
-            else {
-                return None;
-            };
-            if *symbol != owner.symbol && *symbol != owner.attached_data_symbol {
-                return None;
-            }
-            if let Some((callee_owner, _)) = self_receiver {
-                // Receiver-to-receiver on the whole attachment: the caller's
-                // `self` may loan only the attachment the callee's `self`
-                // formal denotes. A projected receiver (`self.field.m()`)
-                // binds the member's own attachment instead, so the whole-
-                // storage check below handles it through the normal path.
-                if place.segments.is_empty() {
-                    if owner.attached_data_symbol != callee_owner.attached_data_symbol {
-                        return None;
-                    }
-                    receiver_argument = true;
-                }
-            }
-            if !receiver_argument && place.segments.is_empty() {
-                // Unprojected `self` names the whole attachment; canonicalize
-                // to the interned data Named when one exists.
-                match program
-                    .type_reference_table
-                    .find_named_type_reference(owner.attached_data_symbol)
-                {
-                    Some(found) => reference = found,
-                    None => {
-                        return None;
-                    }
-                }
-            }
-        }
         let parameter_index = dense_structural_index(program, parameters, position)?;
         (
             reference,
@@ -490,17 +413,7 @@ pub(crate) fn borrowed_storage_argument(
             source,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         );
-    if receiver_argument {
-        // The receiver's storage is the attachment itself: its declaration's
-        // multiplicity is the whole-storage evidence, and the shape collected
-        // below from the same declaration retains its complete field closure.
-        if !matches!(
-            self_attached.map(|data| data.properties.multiplicity),
-            Some(Multiplicity::Affine | Multiplicity::Unrestricted)
-        ) {
-            return None;
-        }
-    } else if whole_storage
+    if whole_storage
         && (!matches!(
             program
                 .type_reference_table
@@ -547,11 +460,7 @@ pub(crate) fn borrowed_storage_argument(
         return None;
     }
     let mut shapes = ShapeCollector::new(program);
-    let identity = if let Some((callee_owner, _)) = self_receiver {
-        (shapes.add_attached_application(callee_owner, &[]))?
-    } else {
-        (shapes.add_type(reference, &[], &[]))?
-    };
+    let identity = shapes.add_type(reference, &[], &[])?;
     // Borrow the established endpoint in place, including its shared view and
     // provider members. Contents are classified recursively from authored types:
     // the old shape whitelist erased slice access and made valid loans depend
@@ -589,12 +498,6 @@ pub(crate) fn borrowed_storage_argument(
                 CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             )
         });
-    // A whole-attachment receiver loan forwards the caller's `self` as the
-    // callee's borrowed receiver: custody stays with the machine's storage.
-    // The statement lane performs the same receiver-to-receiver binding without
-    // reading the field closure. The is_self tail below still verifies the
-    // authored receiver place and rules out an overlapping exclusive actual;
-    // other loans retain the supported closure checked above.
     // Constraints qualify the established endpoint without changing its loan.
     // Only represented value constraints enter this route; the formal retains
     // its qualifications and Terminal independently proves them from the exact
@@ -604,69 +507,11 @@ pub(crate) fn borrowed_storage_argument(
             && !validation::has_plain_owned_contents_with_represented_constraints(
                 program, reference,
             ))
-        || (!receiver_argument && !structural_referent && !primitive_scalar)
+        || (!structural_referent && !primitive_scalar)
     {
         return None;
     }
-    if target.is_self {
-        let site = crate::semantic::calls::find_call_site(
-            program,
-            machine,
-            state.symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )?;
-        let mut receiver = crate::flow::canonical_receiver_place_for_call_site(
-            program,
-            machine,
-            state.symbol,
-            &site,
-            call.statement_index,
-        )?;
-        crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut receiver);
-        // Captured self retains the machine namespace; contextual expression
-        // resolution uses its actual formal. Normalize only that exact pair,
-        // leaving every projected field and unrelated root unchanged.
-        if receiver.root == facts::PlaceRoot::Symbol(machine) {
-            receiver.root = facts::PlaceRoot::Symbol(
-                parameters
-                    .iter()
-                    .find(|parameter| parameter.is_self)?
-                    .symbol,
-            );
-        }
-        let expected_root = if place.root == facts::PlaceRoot::Symbol(machine) {
-            facts::PlaceRoot::Symbol(
-                parameters
-                    .iter()
-                    .find(|parameter| parameter.is_self)?
-                    .symbol,
-            )
-        } else {
-            place.root
-        };
-        if !call.has_receiver
-            || receiver.root != expected_root
-            || receiver.segments != place.segments
-        {
-            return None;
-        }
-        // The receiver is retained separately from the explicit access roster.
-        // Shared loans exclude exclusive actuals; mutable loans exclude every
-        // simultaneous observation of the same root.
-        if borrow
-            .argument_accesses
-            .span(call.accesses)?
-            .iter()
-            .any(|access| {
-                access.root_symbol == symbol
-                    && (target_access == CheckedStructuralAccess::MutableBorrow
-                        || access.kind.is_exclusive())
-            })
-        {
-            return None;
-        }
-    } else if exact_structural_borrow_access(
+    if exact_structural_borrow_access(
         program,
         borrow,
         machine,
@@ -682,12 +527,8 @@ pub(crate) fn borrowed_storage_argument(
     // Storage identity was checked against the exact referee above. The call
     // presents that storage through the formal's carrier, as ordinary calls
     // do: a fixed byte array loan uses a bounded byte view, while its owned
-    // backing remains a fixed array. Receivers keep their attachment identity.
-    let presentation_identity = if target.is_self {
-        identity
-    } else {
-        shapes.add_type(target.type_reference, &[], &[])?
-    };
+    // backing remains a fixed array.
+    let presentation_identity = shapes.add_type(target.type_reference, &[], &[])?;
     if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source
         && let Some((ordinal, _)) = program.state_local_declaration(state, symbol)
         && validation::reference_result_custody::primitive_local_source(program, state, ordinal)
