@@ -934,7 +934,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs",
-        sha256: Some("48101dab6836102981178f5193cfeba1571256fa0e2465509fa68c1931d93113"),
+        sha256: Some("8398ea8ee679c056dae86ed629db59ba5bbd90cc9d040c2b7577fc1e7375260f"),
         inventory_machinery: false,
     },
     ImplementationSite {

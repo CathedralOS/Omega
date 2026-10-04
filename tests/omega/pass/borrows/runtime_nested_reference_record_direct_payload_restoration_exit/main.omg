@@ -1,0 +1,27 @@
+// Cross two stored references before retiring both owners and restoring backing.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { prefix: i32; value: i32 [0..=100]; ready: bool; }
+data Message { stamp: i32; body: &Cell; }
+data Envelope { stamp: i32; message: &Message; }
+data Main { console: Binding<Console>; cell: Cell; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.cell.prefix = 29;
+    main.cell.value = 70;
+    main.cell.ready = true;
+    let message: Message = Message { stamp: 11, body: &main.cell };
+    let envelope: Envelope = Envelope { stamp: 12, message: &message };
+    let observed: i32 [0..=100] = envelope.message.body.value;
+    let ready: bool = envelope.message.body.ready;
+    let stamp: i32 = envelope.message.stamp;
+    let envelope_stamp: i32 = envelope.stamp;
+    main.cell.value = 81;
+    transition observed == 70 && ready && stamp == 11 && envelope_stamp == 12 && main.cell.value == 81 && main.cell.prefix == 29 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

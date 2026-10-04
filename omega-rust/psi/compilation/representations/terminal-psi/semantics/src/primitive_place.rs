@@ -169,7 +169,9 @@ pub fn primitive_read_field<'a>(
     let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
         return None;
     };
-    if is_static_structural_path(carrier) {
+    // Static selectors can still cross a stored pointer. Such a read has no
+    // canonical owned leaf, just as a runtime-selected observation does.
+    if is_static_structural_path(carrier) && !carrier.contains(&StructuralPathSegment::Referent) {
         return None;
     }
     let ProjectionTip::Declared(record) =

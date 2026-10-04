@@ -65,6 +65,7 @@ impl Builder<'_, '_> {
                 field.primitive_type,
                 CheckedScalarComputationKind::StructuralField {
                     source_expression: expression,
+                    source_type: field.type_reference,
                     receiver_value,
                     subject: CheckedUnitStructuralArgumentPlan {
                         source,
@@ -76,6 +77,7 @@ impl Builder<'_, '_> {
                         access: CheckedStructuralAccess::SharedBorrow,
                     },
                     field: field.field,
+                    field_identity: field.field_identity,
                 },
             ),
         )

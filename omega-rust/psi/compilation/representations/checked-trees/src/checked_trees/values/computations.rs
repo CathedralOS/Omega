@@ -157,12 +157,18 @@ pub enum CheckedScalarComputationKind {
     /// the containing owner or assigning it a scalar parameter position.
     StructuralField {
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// Root storage carrier after borrowed ingress has been resolved.
+        source_type: typed_trees::types::TypeReferenceHandle,
+        /// The checked path retains stored-reference crossings and ends at the
+        /// dereferenced declaration owning the final field.
         subject: CheckedUnitStructuralArgumentPlan,
         /// Evaluated structural dependency. Zero observes existing storage;
         /// otherwise the complete value is established once before the read
         /// and its temporary is retired only after the observation completes.
         receiver_value: super::structural_values::CheckedStructuralValueHandle,
         field: SymbolHandle,
+        /// Exact final field identity, appended to the checked subject path.
+        field_identity: String,
     },
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {

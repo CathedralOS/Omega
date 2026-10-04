@@ -147,29 +147,19 @@ pub(crate) fn validate_computation_calls(
             }
             CheckedScalarComputationKind::StructuralField {
                 source_expression,
-                receiver_value,
                 subject,
-                field,
+                source_type,
+                receiver_value,
+                ..
             } => {
-                dispatch::source_scope(
-                    checked,
-                    machine,
-                    state,
-                    authored_scope,
-                    *source_expression,
-                    node.primitive_type,
-                )?;
                 let receiver_operands =
-                    crate::expression_preparation::source_custody::record_fields::validate_source(
+                    crate::expression_preparation::source_custody::record_fields::receiver_operands(
                         checked,
                         machine,
                         state,
                         statement,
-                        *source_expression,
                         *receiver_value,
-                        subject,
-                        *field,
-                        node.primitive_type,
+                        *source_type,
                     )?;
                 if receiver_value.is_valid() {
                     // Structural replay has checked every retained call against

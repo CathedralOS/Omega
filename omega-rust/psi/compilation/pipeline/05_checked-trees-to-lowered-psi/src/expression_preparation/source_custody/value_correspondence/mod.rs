@@ -234,27 +234,9 @@ impl Context<'_> {
                     )
                     .is_ok()
             }
-            Computation::StructuralField {
-                source_expression,
-                receiver_value,
-                subject,
-                field,
-            } => crate::declarations::state_declaration(self.checked, self.state).is_ok_and(
-                |(machine, _)| {
-                    crate::expression_preparation::source_custody::record_fields::validate_source(
-                        self.checked,
-                        machine.symbol,
-                        self.state,
-                        self.statement,
-                        *source_expression,
-                        *receiver_value,
-                        subject,
-                        *field,
-                        node.primitive_type,
-                    )
-                    .is_ok()
-                },
-            ),
+            // Source checking already resolved this field observation. Lowering
+            // uses its checked receiver dependency without rereading the source.
+            Computation::StructuralField { .. } => true,
             Computation::CaseMembership {
                 source_expression,
                 subject,

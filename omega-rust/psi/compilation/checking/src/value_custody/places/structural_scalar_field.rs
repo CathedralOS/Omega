@@ -31,10 +31,12 @@ pub struct StructuralScalarField {
     pub type_reference: TypeReferenceHandle,
     /// Data declaration containing the final scalar field or selected payload.
     pub carrier_type_reference: TypeReferenceHandle,
-    /// Declared case and carrier-field identities and literal fixed-array
-    /// selections in authored order, excluding the final scalar field.
+    /// Declared case and carrier-field identities, literal fixed-array
+    /// selections and stored-reference crossings in authored order, excluding
+    /// the final scalar field.
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub field: SymbolHandle,
+    pub field_identity: String,
     pub primitive_type: PrimitiveType,
     /// Governs subsequent arithmetic; observing storage does not erase policy.
     pub domain: ArithmeticDomain,
@@ -98,6 +100,7 @@ pub fn structural_scalar_field(
     // Every step is resolved under its own declaration. Reusing only the final
     // field spelling would confuse identically shaped children of this root.
     for step in steps.iter().rev().take(steps.len() - 1) {
+        carrier = readable_projection_carrier(program, carrier, &mut path)?;
         let member = match step {
             Step::Member(member) => member,
             // The checker's place facts fold a constant selector to its
@@ -137,6 +140,7 @@ pub fn structural_scalar_field(
         ));
         carrier = field.type_reference;
     }
+    carrier = readable_projection_carrier(program, carrier, &mut path)?;
     let record = crate::program_scope::data_definitions::data_definition_by_symbol(
         program,
         program.type_reference_symbol(carrier),
@@ -167,9 +171,38 @@ pub fn structural_scalar_field(
         carrier_type_reference: carrier,
         path,
         field: field.symbol,
+        field_identity: field.path_identity(),
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(field.type_reference),
     })
+}
+
+/// Stored descriptors contribute explicit crossings to the checked path. Root
+/// borrowed storage is already peeled by `structural_source`; retaining only
+/// these declared crossings lets lowering follow the plan without rediscovering
+/// reference access from the authored expression.
+fn readable_projection_carrier(
+    program: &TypedTrees,
+    mut carrier: TypeReferenceHandle,
+    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+) -> Option<TypeReferenceHandle> {
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference {
+                referee,
+                access:
+                    language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                ..
+            } => {
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                carrier = *referee;
+            }
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => return Some(carrier),
+        }
+    }
+    None
 }
 
 /// Select under the current receiver declaration, retaining the case edge

@@ -1,7 +1,10 @@
 //! Record projections bind a declared field once, then resolve the current local place
 //! at each evaluation site. They materialize an ordinary scalar binding before
 //! later effects; neither a synthetic parameter nor a delayed return load may
-//! stand in for that observation. Source replay separately reconstructs custody.
+//! stand in for that observation. Stage 04 retains the root type and field identity
+//! together with explicit stored-reference crossings; lowering consumes that plan.
+//! Reads through references use PrimitiveScalarRead because they observe a value
+//! without naming a canonical owned leaf. Terminal independently checks custody.
 //! The same leaf declaration can occur below several children of one root.
 //! Bind the complete checked subject to its canonical carrier path, rather than
 //! conflating reads by final field identity or projected type alone.
@@ -168,7 +171,7 @@ pub(crate) struct Binding {
     /// a byte-carrier loan read.
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    /// Exact declared path for the ordinary float primitive-read operation.
+    /// Exact declared path for a float observation or stored-reference crossing.
     primitive_path: Vec<terminal_psi::StructuralPathSegment>,
     /// The checked coordinate of the loan's one non-literal index segment,
     /// when the captured path selects an element by runtime value.
@@ -995,10 +998,12 @@ pub(crate) fn prepare(
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let node = plans.nodes.get(handle);
             let CheckedScalarComputationKind::StructuralField {
-                source_expression,
+                source_type,
+                field_identity,
                 receiver_value,
                 subject,
                 field,
+                ..
             } = &node.kind
             else {
                 continue;
@@ -1009,51 +1014,7 @@ pub(crate) fn prepare(
             {
                 continue;
             }
-            let field_symbol = checked.symbols.get(*field);
-            if !field.is_valid() || field_symbol.kind != symbols::SymbolKind::Field {
-                return unsupported("record read has no resolved field identity");
-            }
-            let owner_symbol =
-                if checked.symbols.get(field_symbol.parent).kind == symbols::SymbolKind::Variant {
-                    checked.symbols.get(field_symbol.parent).parent
-                } else {
-                    field_symbol.parent
-                };
-            let mut owners = checked
-                .data_definitions()
-                .iter()
-                .filter(|owner| owner.symbol == owner_symbol);
-            let owner = owners.next().ok_or(LoweringError::Unsupported(
-                "record read has no declared field owner",
-            ))?;
-            if owners.next().is_some() {
-                return unsupported("record read has ambiguous field owners");
-            }
-            let authored = checked
-                .data_members(owner)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Field(candidate) if candidate.symbol == *field => Some(candidate),
-                    DataMember::Variant(variant) if variant.symbol == field_symbol.parent => {
-                        checked
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|candidate| candidate.symbol == *field)
-                    }
-                    _ => None,
-                })
-                .ok_or(LoweringError::Unsupported("record read field is absent"))?;
-            let identity = authored.path_identity();
-            let source = validation::structural_scalar_field(
-                &checked.typed,
-                root.machine,
-                root.state,
-                root.statement_ordinal,
-                *source_expression,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "record read lost its source declaration path",
-            ))?;
+            let identity = field_identity.clone();
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
@@ -1090,7 +1051,7 @@ pub(crate) fn prepare(
                     subject.element_suffix,
                 ),
                 None => {
-                    let root_identity = checked.normalized_type_identity(source.type_reference);
+                    let root_identity = checked.normalized_type_identity(*source_type);
                     let mut declarations = types
                         .iter()
                         .filter(|declaration| declaration.identity == root_identity.as_str());
@@ -1127,23 +1088,7 @@ pub(crate) fn prepare(
                     node.primitive_type,
                 ),
             };
-            let mut primitive_path =
-                if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                    carrier_path.clone()
-                } else {
-                    Vec::new()
-                };
-            // Terminal's scalar field read names record fields followed by at
-            // most one literal element selection; a deeper element path
-            // (`rows[1].cells[2].value`) has no read form yet.
-            if walk.iter().enumerate().any(|(position, segment)| {
-                matches!(
-                    segment,
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                ) && position + 1 != walk.len()
-            }) {
-                return unsupported("record read selects an element below a trailing element");
-            }
+            let mut primitive_path = carrier_path.clone();
             let mut selected_case_fields = None;
             for segment in &walk {
                 let identity = match segment {
@@ -1164,10 +1109,24 @@ pub(crate) fn prepare(
                         path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
                             case.id,
                         ));
-                        if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                            primitive_path.push(terminal_psi::StructuralPathSegment::Case(case.id));
-                        }
+                        primitive_path.push(terminal_psi::StructuralPathSegment::Case(case.id));
                         selected_case_fields = Some(case.fields.as_slice());
+                        continue;
+                    }
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                        let StructuralTypeShape::Reference { referent, .. } = declaration.shape
+                        else {
+                            return unsupported(
+                                "record read referent has no reference declaration",
+                            );
+                        };
+                        declaration = types
+                            .iter()
+                            .find(|declaration| declaration.id == referent)
+                            .ok_or(LoweringError::Unsupported(
+                                "record read referent type is absent",
+                            ))?;
+                        primitive_path.push(terminal_psi::StructuralPathSegment::Referent);
                         continue;
                     }
                     // A literal element of a fixed array of records selects
@@ -1183,10 +1142,8 @@ pub(crate) fn prepare(
                         path.push(
                             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index),
                         );
-                        if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                            primitive_path
-                                .push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                        }
+                        primitive_path
+                            .push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                         declaration = types
                             .iter()
                             .find(|declaration| declaration.id == element)
@@ -1225,11 +1182,9 @@ pub(crate) fn prepare(
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     selected.id,
                 ));
-                if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                    primitive_path.push(terminal_psi::StructuralPathSegment::Field(
-                        selected.identity.clone(),
-                    ));
-                }
+                primitive_path.push(terminal_psi::StructuralPathSegment::Field(
+                    selected.identity.clone(),
+                ));
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == nested)
@@ -1270,19 +1225,17 @@ pub(crate) fn prepare(
             }
             let bounded_leaf =
                 terminal_semantics::scalar_field_requires_evidence(&retained.field_type);
-            if matches!(leaf_scalar_type, ScalarType::IeeeFloat(_)) {
-                primitive_path.push(terminal_psi::StructuralPathSegment::Field(
-                    retained.identity.clone(),
-                ));
-            }
+            primitive_path.push(terminal_psi::StructuralPathSegment::Field(
+                retained.identity.clone(),
+            ));
             let byte_overlay = byte_overlay
-                .map(|overlay| overlay.field(checked, &source.path, source.field, scalar_type))
+                .map(|overlay| overlay.field(checked, &subject.path, *field, scalar_type))
                 .transpose()?;
             let mut element_path = element_suffix;
             if runtime_index.is_some() {
-                element_path.push(terminal_psi::StructuralPathSegment::Field(
-                    retained.identity.clone(),
-                ));
+                // The capture selects the receiver; the checked observation
+                // continues from it, including every stored-reference crossing.
+                element_path.extend_from_slice(&primitive_path[carrier_path.len()..]);
             }
             bindings.push(Binding {
                 symbol: *field,
@@ -1456,24 +1409,12 @@ pub(crate) fn type_roots(
         .filter(|(_, root)| root.machine == machine)
     {
         for handle in super::reachable_nodes(checked, &[root.root])? {
-            let CheckedScalarComputationKind::StructuralField {
-                source_expression, ..
-            } = &plans.nodes.get(handle).kind
+            let CheckedScalarComputationKind::StructuralField { source_type, .. } =
+                &plans.nodes.get(handle).kind
             else {
                 continue;
             };
-            let Some(source) = validation::structural_scalar_field(
-                &checked.typed,
-                machine,
-                root.state,
-                root.statement_ordinal,
-                *source_expression,
-            ) else {
-                continue;
-            };
-            let identity = checked
-                .normalized_type_identity(source.type_reference)
-                .into_string();
+            let identity = checked.normalized_type_identity(*source_type).into_string();
             if !types.contains(&identity) {
                 types.push(identity);
             }
@@ -1582,8 +1523,12 @@ fn observe(
     source: semantic_vocabulary::PlaceId,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let scalar_type = binding.scalar_type;
-    if let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
-        binding.path.as_slice()
+    let crosses_reference = binding
+        .primitive_path
+        .contains(&terminal_psi::StructuralPathSegment::Referent);
+    if !crosses_reference
+        && let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
+            binding.path.as_slice()
         && let Some(payload) =
             bindings.established_case_payload(source, *case, binding.field, scalar_type)?
     {
@@ -1695,6 +1640,11 @@ fn observe(
     }
     let leaf_type = binding.leaf_scalar_type;
     let leaf = match leaf_type {
+        _ if crosses_reference => LoweredDirectExpression::PrimitiveRead {
+            source: PrimitiveReadSource::Place(source),
+            path: binding.primitive_path.clone(),
+            scalar_type: leaf_type,
+        },
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
                 source: source.into(),
