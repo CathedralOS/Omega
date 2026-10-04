@@ -2,8 +2,8 @@
 //!
 //! Builtin and declared operators supply their own result semantics. Ordinary
 //! calls intersect independent declared, selected-constant and ensured bounds;
-//! one guarantee must not hide another. Body inference is optional when no
-//! contract supplies a bound. Even an unknown value retains its declared
+//! one guarantee must not hide another. Body inference can tighten a declared
+//! range using captured immutable actuals. Even an unknown value retains its declared
 //! carrier and policy.
 //! Unknown values are not untyped values, regardless of the call's receiver.
 
@@ -13,7 +13,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_range,
 };
 use crate::proof_contracts::arithmetic_domains::return_ranges::{
-    ensured_call_result_interval, infer_return_interval, resolve_unique_self_call_state,
+    ensured_call_result_interval, infer_return_interval,
 };
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, TableCallExpression, TypedTrees,
@@ -36,17 +36,18 @@ pub(super) fn analyze(
     let analysis = named_operator_result(walk.program, call)
         .or_else(|| bounding_builtin_result(walk, call))
         .unwrap_or_else(|| {
-            match (
+            [
                 selected_const_call_result(walk, expression),
                 declared_return_range(walk, call),
-            ) {
-                (Some(selected), Some(declared)) => Analysis {
-                    interval: selected.interval.intersect(declared.interval),
-                    ..selected
-                },
-                (Some(analysis), None) | (None, Some(analysis)) => analysis,
-                (None, None) => inferred_return_range(walk, call).unwrap_or(NEUTRAL),
-            }
+                inferred_return_range(walk, call),
+            ]
+            .into_iter()
+            .flatten()
+            .reduce(|accepted, additional| Analysis {
+                interval: accepted.interval.intersect(additional.interval),
+                ..accepted
+            })
+            .unwrap_or(NEUTRAL)
         });
     with_declared_result_carrier(walk.program, call, analysis)
 }
@@ -302,11 +303,18 @@ fn exact_ordinary_actual_intervals(
     Some(intervals.into_iter().flatten().collect())
 }
 
-/// ch15 stage 2 (modular return-range inference): with no DECLARED range, infer
-/// the callee's return interval from its body (sound, permissive).
+/// Infer an additional call-specific bound from a completely captured body.
+/// This bound intersects the declared result range at the common call join.
 fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
     let program = walk.program;
-    let (callee, state) = resolve_unique_self_call_state(program, walk.machine, call)?;
+    if !call.selects_only_nominal_route() || !call.machine_arguments.is_empty() {
+        return None;
+    }
+    let (callee, state) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+    if !program.machine_type_parameters(callee).is_empty() {
+        return None;
+    }
     let primitive = program.primitive_type_reference(state.return_type);
     let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
     let interval = infer_return_interval(program, callee, state, primitive, &actuals)?;

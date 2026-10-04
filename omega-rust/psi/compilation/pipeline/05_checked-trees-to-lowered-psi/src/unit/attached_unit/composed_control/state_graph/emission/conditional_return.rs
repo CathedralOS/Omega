@@ -140,10 +140,19 @@ impl StateGraphEmission<'_, '_> {
                     checked_trees::CheckedUnitCallResult::Structural { .. } => {
                         super::super::guarded::complete_structural_return(
                             checked,
-                            plan,
                             state,
+                            super::super::cleanup::coordinate(
+                                checked,
+                                state,
+                                return_arm
+                                    .statement_ordinal()
+                                    .ok_or(LoweringError::Unsupported(
+                                        "return arm lost its source coordinate",
+                                    ))? as usize,
+                                false,
+                            )?,
                             operation,
-                            &planned[..planned.len() - 1],
+                            self.catalogs,
                             state_parameters,
                             &mut arm_evaluation,
                             next_edge,

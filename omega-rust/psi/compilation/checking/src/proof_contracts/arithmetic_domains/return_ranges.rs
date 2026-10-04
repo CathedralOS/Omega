@@ -89,50 +89,6 @@ thread_local! {
     static INFERRING_RETURN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// The unique self/sibling machine+state a receiver-free `self.target(..)` call
-/// resolves to (mirrors `call_return_type`'s resolution but keeps the state so
-/// its body can be analyzed). `None` on a non-self receiver or an ambiguous
-/// match (sound: bail rather than guess).
-pub(crate) fn resolve_unique_self_call_state<'program>(
-    program: &'program TypedTrees,
-    current_machine: &Machine,
-    call: &TableCallExpression,
-) -> Option<(&'program Machine, &'program State)> {
-    let receiver_is_self = !call.receiver.is_valid()
-        || matches!(
-            program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path)
-                if matches!(
-                    program.expression_table.name_path_members(path.members),
-                    [only] if only.is_self_receiver()
-                )
-        );
-    if !receiver_is_self {
-        return None;
-    }
-    let target = call.target.as_str();
-    let attached_data = current_machine.attached_data.as_ref()?;
-    let mut matches = program.machines().iter().filter_map(|candidate| {
-        let same_data = candidate
-            .attached_data
-            .as_ref()
-            .is_some_and(|data| data.as_str() == attached_data.as_str());
-        if !same_data {
-            return None;
-        }
-        let state = program
-            .machine_states(candidate)
-            .iter()
-            .find(|state| state.name.as_str() == target)?;
-        Some((candidate, state))
-    });
-    let first = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(first)
-}
-
 /// Infer a normal-return bound from a fully captured callee body. A declared
 /// return range remains in force; this query can only supply a tighter bound
 /// for the current invocation. Immutable scalar actuals carry copied values,

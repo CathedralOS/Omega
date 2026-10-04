@@ -762,29 +762,19 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        checked,
-        plan,
-        state,
-        operation,
-        &[],
-        parameters,
-        evaluation,
-        next_edge,
-        operations,
+        checked, state, exit, operation, catalogs, parameters, evaluation, next_edge, operations,
     )
 }
 
-/// Complete an already emitted structural producer. Operand preparations are
-/// part of this selected exit's lifetime and precede the state's earlier
-/// results in reverse-establishment cleanup order. The returned value is
-/// transferred, so it participates in correspondence without being discarded.
+/// Complete an emitted structural producer using the selected exit's checked
+/// cleanup order and the current places established by operand preparation.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_structural_return(
     checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
+    exit: checked_trees::FlowClaimJoinExit,
     operation: &CheckedUnitEffectOperationPlan,
-    preparations: &[CheckedUnitEffectOperationPlan],
+    catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     next_edge: &mut u64,
