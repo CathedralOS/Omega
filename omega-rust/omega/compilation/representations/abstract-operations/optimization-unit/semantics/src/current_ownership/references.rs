@@ -11,7 +11,7 @@ use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, call_source_type,
     contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
-    leaf_referent, leaf_type, reference_access, reference_source_type,
+    leaf_referent, leaf_type, reference_access, reference_source_type, storage_projection_type,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -48,14 +48,16 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
     if origin_place(left) != origin_place(right) {
         return false;
     }
+    // Distinct runtime selector identities may select the same element. Origin
+    // replay retains their coordinates but cannot infer disjointness from them.
     let overlaps_path = |path: &[terminal_psi::StructuralPathSegment]| match right {
         ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => {
-            path.starts_with(&identity.path) || identity.path.starts_with(path)
+            terminal_semantics::structural_paths_may_overlap(path, &identity.path)
         }
         ReferenceOrigin::Alternatives { paths, .. } => paths
             .iter()
-            .any(|other| path.starts_with(other) || other.starts_with(path)),
+            .any(|other| terminal_semantics::structural_paths_may_overlap(path, other)),
     };
     match left {
         ReferenceOrigin::Primitive(_) => true,
@@ -447,13 +449,14 @@ fn normalized_source(
         .as_ref()
         .filter(|origins| !origins.is_empty())
         .ok_or_else(invalid)?;
-    let expected = reference_source_type(function, structural_types, source).ok_or_else(invalid)?;
+    let expected =
+        storage_projection_type(function, structural_types, source).ok_or_else(invalid)?;
     let mut alternatives = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        if reference_source_type(function, structural_types, &resolved) != Some(expected) {
+        if storage_projection_type(function, structural_types, &resolved) != Some(expected) {
             return Err(invalid());
         }
         alternatives.push(normalized_direct_source(
@@ -561,15 +564,7 @@ fn normalized_direct_source(
         }
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
-    } else if reference_source_type(function, structural_types, source).is_some()
-        && source.path.iter().all(|segment| {
-            matches!(
-                segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        })
-    {
+    } else if storage_projection_type(function, structural_types, source).is_some() {
         let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
             path: source.path.clone(),

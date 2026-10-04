@@ -497,6 +497,26 @@ pub(crate) fn is_reference_projection(
         && source.access != terminal_psi::StructuralAccess::Owned
 }
 
+/// Type an admitted storage projection without granting reference formation.
+/// Ordinary calls retain their own access, case and index obligations; result
+/// formation separately applies `reference_source_type`. Rebinding a borrowed
+/// name must preserve its complete path, including selected payloads and indices.
+pub(crate) fn storage_projection_type(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    source: &terminal_psi::StructuralArgument,
+) -> Option<StructuralTypeId> {
+    if source.path.last() == Some(&terminal_psi::StructuralPathSegment::Referent) {
+        return projected_carrier_type(function, types, source);
+    }
+    let contract = structural_source_contract(function, source.place)?;
+    super::structural_catalog::resolve_structural_path(
+        types,
+        contract.structural_type,
+        &source.path,
+    )
+}
+
 /// Direct storage loans use the same contract for arrival parameters and local
 /// operation results. Their field/index paths never dereference a permission
 /// carrier; those projections end in `Referent` and retain their own checks.

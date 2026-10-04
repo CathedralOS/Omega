@@ -1221,16 +1221,18 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: whole mutable view locals, shared view returns (one descriptor-value
-    return path), record byte-region recasts, field-precondition capture and
-    captured whole-local loans through direct and conditional completion all
-    execute. Ordinary helper calls preserve backing through shared scalar
-    views, local record/array leaf loans, nested reference crossings and owned
-    record parameter subloans. On macOS ARM64, `omega run --both` executes
-    `tests/omega/pass/calls/local_record_leaf_loan_scalar_calls_exit/main.omg`
-    (70) and `tests/omega/pass/calls/runtime_owned_parameter_primitive_borrow_exit/main.omg`
-    (0) with interpreter agreement. Remaining: the other producer/read/call/state
-    compositions, using facts at the formation occurrence.
+  - State: local loans, returned shared views, record byte-region recasts and
+    nested reference crossings execute. Ordinary calls now preserve runtime
+    selectors and selected payload prefixes through borrowed state parameters.
+    On macOS ARM64, `omega run --both` executes
+    `tests/omega/pass/calls/{runtime_indexed_scalar_calls_exit,runtime_case_payload_indexed_calls_exit}/main.omg`
+    with exit 70 in both engines; `calls/{case_scrutinee_self_dispatch_exit,nested_call_tail_roots_exit}`
+    execute with exit 0. Endpoint typing is separate from reference formation;
+    access, bounds, case activity and origin overlap remain independently checked.
+    Remaining: `run/borrows/transition_shared_borrow` stops in stage 05 at
+    `reference completion has no exact returned leaf origins`. Repair the
+    returned-source query while retaining every producer/read/call/state
+    composition and the facts at its formation occurrence.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

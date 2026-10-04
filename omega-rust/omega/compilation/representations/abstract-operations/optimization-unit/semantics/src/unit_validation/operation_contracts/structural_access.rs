@@ -427,16 +427,7 @@ pub(crate) fn structural_arguments_match(
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
         }
-        let actual_type = if case_projection {
-            terminal_semantics::canonical_static_projection(
-                types.values().copied(),
-                source.structural_type,
-                &argument.path,
-            )
-            .map(|(_, declaration)| declaration.id)
-        } else {
-            resolve_structural_path(types, source.structural_type, &argument.path)
-        };
+        let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
         if actual_type.is_none()
             && !byte_field_presentation
             && !fixed_array_presentation

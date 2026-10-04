@@ -548,7 +548,8 @@ fn formal_projection_type(
 
 /// A `.., Referent` source names the suspended root of the located carrier
 /// leaf; an empty path names a primitive referent root place directly. A
-/// static field/fixed-index path retains the exact borrowed ingress address.
+/// complete projection retains selected payload and runtime-index coordinates.
+/// Endpoint typing is independent of descriptor-slot identity and formation.
 fn normalized_source(
     function: &AbstractFunction,
     custody: &Custody,
@@ -561,17 +562,24 @@ fn normalized_source(
     let origins = origins.as_ref().filter(|origins| !origins.is_empty())?;
     let projected_type = |argument: &StructuralArgument| {
         let (contract, _) = source_contract(function, custody, argument.place)?;
-        let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
-            declarations,
-            argument.place,
+        if argument.path.last() == Some(&StructuralPathSegment::Referent) {
+            let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
+                declarations,
+                argument.place,
+                contract,
+                &argument.path,
+                None,
+            )?;
+            return terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+                declarations,
+                contract,
+                &location.path,
+            );
+        }
+        optimization_unit_semantics::structural_projection_type(
+            declarations.iter(),
             contract,
             &argument.path,
-            None,
-        )?;
-        terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-            declarations,
-            contract,
-            &location.path,
         )
     };
     let expected = projected_type(source)?;
@@ -619,7 +627,11 @@ fn normalized_direct_source(
         // contract. A projected local and a projected parameter denote the
         // same custody operation; neither is a callee-local formal origin.
         let (contract, _) = source_contract(function, custody, source.place)?;
-        leaf_type(declarations, contract, &source.path)?;
+        optimization_unit_semantics::structural_projection_type(
+            declarations.iter(),
+            contract,
+            &source.path,
+        )?;
         Some(if source.path.is_empty() {
             Root::Place(source.place)
         } else {

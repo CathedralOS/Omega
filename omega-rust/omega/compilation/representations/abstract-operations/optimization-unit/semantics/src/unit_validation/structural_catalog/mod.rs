@@ -16,6 +16,8 @@ mod provider_specialization;
 mod type_declarations;
 mod witnesses;
 
+pub use paths::structural_projection_type;
+
 pub(crate) use function_catalog::{structural_root_key, validate_function_structural_catalog};
 pub(crate) use paths::{
     byte_carrier_leaf_window, resolve_leaf_copy_path, resolve_structural_path,

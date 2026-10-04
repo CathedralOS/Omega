@@ -79,7 +79,7 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
         right
             .paths()
             .iter()
-            .any(|right| left.starts_with(right) || right.starts_with(left))
+            .any(|right| terminal_semantics::structural_paths_may_overlap(left, right))
     })
 }
 
@@ -677,9 +677,25 @@ fn shared_source_compatible(
             })
 }
 
+/// Rebind ordinary borrowed storage without granting a new reference. Its
+/// operation owns bounds, case and access checks; formation and result mapping
+/// separately retain reference_source_type's stricter eligibility rules.
+fn storage_projection_type(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Option<StructuralTypeId> {
+    let carrier = source_contract(function, custody, source.place)?;
+    if let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() {
+        return leaf_referent(types, carrier, fields);
+    }
+    optimization_unit_semantics::structural_projection_type(types.iter(), carrier, &source.path)
+}
+
 /// A `.., Referent` source names a suspended child of the located carrier
-/// leaf; an empty path names the whole ingress referent directly. A static
-/// field/fixed-index path retains the exact borrowed ingress address.
+/// leaf; an empty path names the whole ingress referent directly. Every
+/// selected payload and runtime index retains its exact storage coordinate.
 fn normalized_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
@@ -693,13 +709,13 @@ fn normalized_source(
         .as_ref()
         .filter(|origins| !origins.is_empty())
         .ok_or_else(invalid)?;
-    let expected = reference_source_type(function, custody, types, source).ok_or_else(invalid)?;
+    let expected = storage_projection_type(function, custody, types, source).ok_or_else(invalid)?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        if reference_source_type(function, custody, types, &resolved) != Some(expected) {
+        if storage_projection_type(function, custody, types, &resolved) != Some(expected) {
             return Err(invalid());
         }
         candidates.push(normalized_direct_source(
@@ -750,7 +766,7 @@ fn normalized_direct_source(
             return Err(invalid());
         }
         Ok((Root::Place(source.place), None))
-    } else if direct_storage_type(function, types, source).is_some() {
+    } else if storage_projection_type(function, custody, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
         if custody.leaves.iter().any(|((carrier, path), leaf)| {
             leaf.root.place() == source.place

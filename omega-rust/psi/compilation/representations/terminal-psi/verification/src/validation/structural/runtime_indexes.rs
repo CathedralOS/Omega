@@ -84,7 +84,7 @@ fn admits_runtime_indexes(kind: &OperationKind) -> bool {
 /// A dynamic view never proves a literal selector from its type. Such a
 /// selector still needs a RuntimeIndex operation obligation; downgrading it
 /// to FixedIndex must not erase its bound while preserving the same geometry.
-pub(super) fn checked_projection_type(
+pub(in crate::validation) fn checked_projection_type(
     module: &TerminalModule,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],

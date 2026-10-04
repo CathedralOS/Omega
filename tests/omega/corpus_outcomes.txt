@@ -1515,6 +1515,7 @@ pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8ed253669f
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382792161+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms @63377f7122bb+wt
+pass/calls/runtime_case_payload_indexed_calls_exit checked 2987ms @faab7e6c1b7d+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
 pass/calls/runtime_case_terminal_payload_result_exit checked 1182ms @987a6f356be0
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms @92bbd31b7820

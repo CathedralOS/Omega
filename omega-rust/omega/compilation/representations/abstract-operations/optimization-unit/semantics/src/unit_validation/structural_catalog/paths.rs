@@ -1,3 +1,10 @@
+//! Projection geometry shared by call admission, origin replay and leaf copies.
+//!
+//! A selected payload and a runtime element compose in the same walk as record
+//! fields. Resolving their endpoint grants no case activity, index bound or loan
+//! permission; operation validation and custody replay establish those separately.
+//! Byte snapshots retain their distinct leaf-shape rule below.
+
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
 
@@ -39,7 +46,8 @@ pub(crate) fn resolve_structural_path(
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     resolve_path(
-        types,
+        types.values().copied(),
+        |identity| types.get(&identity).copied(),
         structural_type,
         path,
         terminal_psi::StructuralFieldType::canonical_leaf_shape,
@@ -53,30 +61,93 @@ pub(crate) fn resolve_leaf_copy_path(
     structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    // Case copies carry their own active-payload evidence in StructuralCopyPath.
+    // General endpoint geometry must not admit them as Ordinary copies.
+    if path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+    {
+        return None;
+    }
     resolve_path(
-        types,
+        types.values().copied(),
+        |identity| types.get(&identity).copied(),
         structural_type,
         path,
         terminal_psi::StructuralFieldType::leaf_copy_shape,
     )
 }
 
-fn resolve_path(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+/// Resolve storage endpoint geometry in a validated declaration catalog.
+/// Case activity, runtime bounds, access, qualifications and live custody remain
+/// independent operation judgments. This does not authorize reference formation
+/// or cross a Reference carrier; callers must replay that crossing separately.
+pub fn structural_projection_type<'types>(
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_path(
+        declarations.clone(),
+        |identity| {
+            declarations
+                .clone()
+                .find(|declaration| declaration.id == identity)
+        },
+        structural_type,
+        path,
+        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn resolve_path<'types>(
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    declaration: impl Fn(StructuralTypeId) -> Option<&'types terminal_psi::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     field_shape: fn(
         &terminal_psi::StructuralFieldType,
     ) -> Option<terminal_psi::StructuralTypeShape>,
 ) -> Option<StructuralTypeId> {
-    types.get(&structural_type)?;
+    declaration(structural_type)?;
+    let mut payload_fields = None;
     for segment in path {
-        let declaration = types.get(&structural_type)?;
+        let declaration = declaration(structural_type)?;
+        if let terminal_psi::StructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let (terminal_psi::StructuralTypeShape::Sum { cases }
+            | terminal_psi::StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+            else {
+                return None;
+            };
+            payload_fields = Some(
+                cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case)?
+                    .fields
+                    .as_slice(),
+            );
+            continue;
+        }
+        if payload_fields.is_some()
+            && !matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
+        {
+            return None;
+        }
         structural_type = match (segment, &declaration.shape) {
-            (
-                terminal_psi::StructuralPathSegment::Field(identity),
-                terminal_psi::StructuralTypeShape::Record { fields },
-            ) => {
+            (terminal_psi::StructuralPathSegment::Field(identity), shape) => {
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        terminal_psi::StructuralTypeShape::Record { fields }
+                        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => {
+                            fields.as_slice()
+                        }
+                        _ => return None,
+                    },
+                };
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
@@ -84,10 +155,10 @@ fn resolve_path(
                     terminal_psi::StructuralFieldType::Structural(next) => *next,
                     leaf => {
                         let shape = field_shape(leaf)?;
-                        *types
-                            .iter()
-                            .find(|(_, declaration)| declaration.shape == shape)
-                            .map(|(id, _)| id)?
+                        declarations
+                            .clone()
+                            .find(|declaration| declaration.shape == shape)?
+                            .id
                     }
                 }
             }
@@ -113,7 +184,7 @@ fn resolve_path(
             _ => return None,
         };
     }
-    Some(structural_type)
+    payload_fields.is_none().then_some(structural_type)
 }
 
 /// Whether a leaf copy mints a record out of a byte carrier: `path` ends at
@@ -128,6 +199,14 @@ pub(crate) fn byte_carrier_leaf_window(
     path: &[terminal_psi::StructuralPathSegment],
     expected: StructuralTypeId,
 ) -> bool {
+    // This is the byte-window alternative of an Ordinary copy, so it has the
+    // same payload-evidence boundary as resolve_leaf_copy_path.
+    if path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+    {
+        return false;
+    }
     let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last()
     else {
         return false;

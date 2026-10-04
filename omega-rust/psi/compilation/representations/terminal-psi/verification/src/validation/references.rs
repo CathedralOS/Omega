@@ -1484,6 +1484,27 @@ fn shared_source_compatible(
             == Some(StructuralAccess::SharedBorrow)
 }
 
+/// Identify the endpoint of an admitted storage projection. Origin replay is
+/// shared by ordinary calls and reference results, but it does not grant
+/// reference formation. Their operation validators retain access, case and
+/// index obligations; result formation additionally keeps `source_type`'s
+/// restrictions. Preserve the complete selector path when rebinding storage.
+fn storage_projection_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &StructuralArgument,
+) -> Option<StructuralTypeId> {
+    if source.path.last() == Some(&StructuralPathSegment::Referent) {
+        return projected_carrier_type(module, machine, source);
+    }
+    let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
+    super::structural::runtime_indexes::checked_projection_type(
+        module,
+        signature.structural_type,
+        &source.path,
+    )
+}
+
 fn normalized_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1507,14 +1528,14 @@ fn normalized_source(
                 "borrowed reference source has no exact incoming storage",
             )
         })?;
-    let expected = source_type(module, machine, source)
+    let expected = storage_projection_type(module, machine, source)
         .ok_or_else(|| invalid(machine, "borrowed reference source type is absent"))?;
     let mut alternatives = Vec::with_capacity(origins.len());
     for origin in origins {
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
-        if source_type(module, machine, &resolved) != Some(expected) {
+        if storage_projection_type(module, machine, &resolved) != Some(expected) {
             return Err(invalid(
                 machine,
                 "borrowed reference source changes its incoming type",
@@ -1589,7 +1610,7 @@ fn normalized_direct_source(
         }
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
-    } else if direct_storage_type(module, machine, source).is_some() {
+    } else if storage_projection_type(module, machine, source).is_some() {
         if live.iter().any(|reference| {
             origin_root(&reference.root) == source.place
                 && !shared_source_compatible(module, machine, reference, source.access)

@@ -31,6 +31,7 @@ pub use error::OptimizationUnitValidationError;
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::byte_field_root;
+pub use unit_validation::structural_catalog::structural_projection_type;
 
 /// Current declaration and producer authority for one structural place.
 /// Availability, the selected projection and use-site loan compatibility are
