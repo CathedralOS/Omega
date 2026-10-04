@@ -10,9 +10,9 @@ machine consume(receipt: Receipt) {
 }
 
 machine relay(receipt: Receipt, selected: bool) {
-    transition selected {
-        true -> consume(receipt)
-        false -> consume(receipt)
+    transition {
+        selected -> consume(receipt)
+        _ -> consume(receipt)
     }
 }
 
