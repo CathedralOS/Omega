@@ -225,7 +225,11 @@ pub(crate) fn lower_statement_node(
             // Retain the same operand custody for statement and value uses.
             if matches!(
                 BuildOperation::from_call_target(call.target.as_str()),
-                Some(BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion)
+                Some(
+                    BuildOperation::ProviderSelection
+                        | BuildOperation::ServiceExclusion
+                        | BuildOperation::RepresentationSelection
+                )
             ) && !call.discards_result
             {
                 let expression = retain_build_declaration_call_expression(lowerer, lowered_call);

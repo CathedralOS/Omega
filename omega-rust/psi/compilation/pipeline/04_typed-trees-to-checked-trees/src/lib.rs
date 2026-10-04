@@ -79,7 +79,7 @@ pub use package_review::{
     derive_pre_flow_value_origins, infer_checked_crash_causes, infer_checked_machine_crash_causes,
     infer_machine_termination_summary, late_bound_member_declaration_from_exact_owner,
     resolve_checked_builtin_float_operator_requirement, typed_build_declaration_operand,
-    typed_build_declaration_selection, typed_build_provider_selection,
+    typed_build_declaration_selection, typed_build_operation, typed_build_provider_selection,
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
     typed_product_provider_selection_operand, typed_provider_selection_expressions,
 };

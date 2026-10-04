@@ -17,8 +17,6 @@ mod test_support;
 #[cfg(test)]
 mod tests;
 
-const SELECTION_MARKER: &str = "select_representation";
-
 /// Harvest representation selections from the one build machine already
 /// admitted by project discovery. Calls elsewhere remain inert syntax.
 pub fn harvest_opaque_representation_selections(
@@ -27,12 +25,8 @@ pub fn harvest_opaque_representation_selections(
 ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut record = |target: &str,
-                      arguments: &[typed_trees::expression::StaticMachineArgument],
+    let mut record = |arguments: &[typed_trees::expression::StaticMachineArgument],
                       source_span: SourceSpan| {
-        if target != SELECTION_MARKER {
-            return;
-        }
         match close_selection(typed, machine.symbol, arguments, source_span) {
             Ok(selection) => {
                 if let Some(prior) =
@@ -60,26 +54,16 @@ pub fn harvest_opaque_representation_selections(
 
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
-            match statement {
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let typed_trees::expression::ExpressionNode::Call(call) =
-                        typed.expression_table.expression(*expression)
-                    {
-                        record(
-                            call.target.as_str(),
-                            &call.machine_arguments,
-                            typed.expression_table.source_span(*expression),
-                        );
-                    }
-                }
-                typed_trees::statement::StatementNode::Call(call) => {
-                    record(
-                        call.target.as_str(),
-                        &call.machine_arguments,
-                        call.source_span,
-                    );
-                }
-                _ => {}
+            if let typed_trees::statement::StatementNode::Expression(expression) = statement
+                && typed_trees_to_checked_trees::typed_build_operation(typed, *expression)
+                    == Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection)
+                && let typed_trees::expression::ExpressionNode::Call(call) =
+                    typed.expression_table.expression(*expression)
+            {
+                record(
+                    &call.machine_arguments,
+                    typed.expression_table.source_span(*expression),
+                );
             }
         }
     }

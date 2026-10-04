@@ -35,11 +35,13 @@ use std::sync::Arc;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataProperties, TypeParameter, TypeParameterKind};
-use typed_trees::expression::StaticMachineArgument;
+use typed_trees::expression::{
+    ExpressionNode, StaticMachineArgument, TableCallExpression, TableNamePath,
+};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::StatementNode;
 use typed_trees::trait_definition::{
     Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
 };
@@ -138,6 +140,15 @@ fn named_argument(path: &'static str, symbol: SymbolHandle) -> StaticMachineArgu
 
 pub fn fixture() -> Fixture {
     let mut sources = SourceMap::default();
+    let prelude_id = sources
+        .add_with_metadata(
+            PathBuf::from("<build-prelude>"),
+            String::from("Build"),
+            PathBuf::from("toolchain"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
     let toolchain_source = "trait OpaqueRepresentation<Opaque>;\n";
     let toolchain_id = sources
         .add_with_metadata(
@@ -164,6 +175,11 @@ pub fn fixture() -> Fixture {
     let other_source_span = SourceSpan::new(user_id, Span::new(27, 33));
 
     let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let build_type = symbols.insert_root(
+        SymbolKind::Data,
+        SymbolNameRef::Source(SourceSpan::new(prelude_id, Span::new(0, 5))),
+    );
+    let builder = symbols.insert_root(SymbolKind::Parameter, SymbolNameRef::Borrowed("builder"));
     let trait_symbol = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Source(trait_span));
     let trait_parameter =
         symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Borrowed("Opaque"));
@@ -196,6 +212,34 @@ pub fn fixture() -> Fixture {
         symbols: symbols.finish(),
         ..Default::default()
     };
+    typed.push_data_definition(DataDefinition {
+        symbol: build_type,
+        name: Identifier::generated("Build"),
+        ..Default::default()
+    });
+    let build_reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: build_type,
+        name: Identifier::generated("Build"),
+    });
+    let build_borrow = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: build_reference,
+            access: language_semantics::ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+    let namespace = typed
+        .expression_table
+        .insert(ExpressionNode::Name(TableNamePath {
+            symbol: build_type,
+            ..Default::default()
+        }));
+    let builder_expression = typed
+        .expression_table
+        .insert(ExpressionNode::Name(TableNamePath {
+            symbol: builder,
+            ..Default::default()
+        }));
 
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,
@@ -319,19 +363,35 @@ pub fn fixture() -> Fixture {
             second_call_span,
         ),
     ] {
-        typed.statement_table.push_statement(
-            &mut statements,
-            StatementNode::Call(TableCall {
+        let arguments = typed
+            .expression_table
+            .insert_expression_handles([builder_expression]);
+        let expression = typed
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: namespace,
                 target: Identifier::generated("select_representation"),
                 machine_arguments: vec![
                     named_argument(opaque_path, opaque),
                     named_argument(conformance_path, conformance),
                 ]
                 .into_boxed_slice(),
-                source_span,
-                ..Default::default()
-            }),
-        );
+                arguments,
+                target_symbol: SymbolHandle::invalid(),
+                static_machine_parameter: SymbolHandle::invalid(),
+                static_requirement_dispatch: None,
+                quotient_operation: None,
+                private_layout_operation: None,
+                layout_query: None,
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            }));
+        typed
+            .expression_table
+            .set_source_span(expression, source_span);
+        typed
+            .statement_table
+            .push_statement(&mut statements, StatementNode::Expression(expression));
     }
 
     let mut machine = Machine {
@@ -339,15 +399,22 @@ pub fn fixture() -> Fixture {
         name: Identifier::generated("build"),
         ..Default::default()
     };
-    typed.push_machine_state(
-        &mut machine,
-        State {
-            symbol: run_state,
-            name: Identifier::generated("run"),
-            statement_nodes: statements,
+    let mut state = State {
+        symbol: run_state,
+        name: Identifier::generated("run"),
+        statement_nodes: statements,
+        ..Default::default()
+    };
+    typed.push_state_parameter(
+        &mut state,
+        typed_trees::signature::StateParameter {
+            symbol: builder,
+            name: Identifier::generated("builder"),
+            type_reference: build_borrow,
             ..Default::default()
         },
     );
+    typed.push_machine_state(&mut machine, state);
     typed.push_machine(machine);
 
     let machine = typed

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.1, "load1_start": 5.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -349,8 +349,12 @@ fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+w
 	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/representation_selection_fabricated_activation rejected 1578ms expected @9daaa9bd9280+wt
+	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/retired_provider_selection_receiver rejected 5ms expected @944ee0efb38f+wt
 	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
+fail/build/retired_representation_receiver rejected 3ms expected @9daaa9bd9280+wt
+	tests/omega/fail/build/retired_representation_receiver/main.omg:2:34: receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)
 fail/build/retired_root_binding_receiver rejected 1ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)
 fail/build/retired_service_exclusion_receiver rejected 1ms expected @6fa34b94762b+wt

@@ -70,10 +70,10 @@ candidate:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.select_representation<
+    Build::select_representation<
         InterruptAcknowledgement,
         PicAckRepresentation
-    >();
+    >(builder);
 }
 ```
 

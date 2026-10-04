@@ -55,9 +55,9 @@ enum BuildOperationForm {
 
 fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
     match operation {
-        BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion => {
-            BuildOperationForm::StaticBuildArgument
-        }
+        BuildOperation::ProviderSelection
+        | BuildOperation::ServiceExclusion
+        | BuildOperation::RepresentationSelection => BuildOperationForm::StaticBuildArgument,
         BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
@@ -66,9 +66,9 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
         BuildOperation::OptimizationSelection | BuildOperation::OptimizationReportRequest => {
             BuildOperationForm::PreludeDataReceiver("Optimizations")
         }
-        BuildOperation::RepresentationSelection
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest => BuildOperationForm::Marker,
+        BuildOperation::BoundaryAcceptance | BuildOperation::WireCompatibilityRequest => {
+            BuildOperationForm::Marker
+        }
     }
 }
 
@@ -140,17 +140,23 @@ pub(crate) fn checked_expression_call_intrinsic(
     if super::provider_selection::is_provider_selection_call(program, call) {
         return Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection);
     }
-    if BuildOperation::from_call_target(call.target.as_str())
-        == Some(BuildOperation::ServiceExclusion)
+    if let Some(
+        operation @ (BuildOperation::ServiceExclusion | BuildOperation::RepresentationSelection),
+    ) = BuildOperation::from_call_target(call.target.as_str())
         && super::provider_selection::has_explicit_build_argument(program, call)
         && program
             .expression_table
             .expression_handles(call.arguments)
             .len()
             == 1
-        && call.machine_arguments.len() == 1
+        && call.machine_arguments.len()
+            == if operation == BuildOperation::ServiceExclusion {
+                1
+            } else {
+                2
+            }
     {
-        return Some(AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion);
+        return Some(operation.intrinsic());
     }
     checked_call_intrinsic(
         program,

@@ -128,6 +128,11 @@ pub(super) fn admitted_build_declaration_call(
                 1,
                 1..=1,
             ),
+            Some(BuildOperation::RepresentationSelection) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection,
+                2,
+                1..=1,
+            ),
             _ => return false,
         };
     if call.target_symbol.is_valid()

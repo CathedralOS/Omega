@@ -11,7 +11,7 @@ use typed_trees::statement::TransitionExit;
 /// harvests statically, which evaluation serves as a no-op so the build
 /// machine runs through it: the CH10 root grant marker
 /// (`b.accept_boundary<path>();` desugars to `accept_boundary#<path>`),
-/// representation selection, and the wire-compatibility request marker.
+/// and the wire-compatibility request marker.
 /// Provider selections and behavior exclusions are not among them: those
 /// are evaluated selections which record only when the call actually runs.
 pub(in crate::interpreter::evaluator) fn is_statically_harvested_build_declaration(
@@ -19,11 +19,7 @@ pub(in crate::interpreter::evaluator) fn is_statically_harvested_build_declarati
 ) -> bool {
     matches!(
         BuildOperation::from_call_target(call_target),
-        Some(
-            BuildOperation::BoundaryAcceptance
-                | BuildOperation::RepresentationSelection
-                | BuildOperation::WireCompatibilityRequest
-        )
+        Some(BuildOperation::BoundaryAcceptance | BuildOperation::WireCompatibilityRequest)
     )
 }
 

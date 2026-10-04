@@ -46,6 +46,24 @@ pub fn typed_build_declaration_selection(
     authored_selections::is_build_declaration_selection(program, expression)
 }
 
+/// Classify the exact compiler Build operation, not an ordinary same-named call.
+pub fn typed_build_operation(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<language_semantics::declaration_selection::BuildOperation> {
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let operation = language_semantics::declaration_selection::BuildOperation::from_call_target(
+        call.target.as_str(),
+    )?;
+    (authored_selections::checked_expression_call_intrinsic(program, call)
+        == Some(operation.intrinsic()))
+    .then_some(operation)
+}
+
 /// Exact product declaration authorized by a checked Build call's operand.
 pub fn typed_build_declaration_operand(
     program: &TypedTrees,

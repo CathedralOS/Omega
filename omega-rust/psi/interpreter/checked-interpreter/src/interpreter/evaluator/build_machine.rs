@@ -18,3 +18,26 @@ pub(in crate::interpreter::evaluator) mod product_providers;
 pub(in crate::interpreter::evaluator) mod product_schemas;
 pub(in crate::interpreter::evaluator) mod provider_selections;
 pub(in crate::interpreter::evaluator) mod root_bindings;
+
+use super::{Cell, EvalResult, Evaluator, Halt};
+
+impl Evaluator<'_> {
+    /// A Build declaration borrows this activation's original cell. A value
+    /// with the same type is not authority to configure the product.
+    pub(in crate::interpreter::evaluator) fn require_root_build_argument(
+        &self,
+        builder: Cell,
+        spelling: &str,
+    ) -> EvalResult<()> {
+        if self
+            .root_build
+            .as_ref()
+            .is_some_and(|root| Cell::ptr_eq(&builder, root))
+        {
+            return Ok(());
+        }
+        Err(Halt::Trap(format!(
+            "Build operation `{spelling}` requires the current activation's original Build value"
+        )))
+    }
+}

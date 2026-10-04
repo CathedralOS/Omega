@@ -218,7 +218,7 @@ pub enum BuildOperation {
     /// root authority, build-time rejection, and the retained transitive
     /// trust record belong to Omega's build evaluation and package review.
     AssumedBindingContract,
-    /// `select_representation<Type, Representation>()`.
+    /// `Build::select_representation<Type, Representation>(builder)`.
     RepresentationSelection,
     /// `Build::exclude_service<BoundaryTrait>(b)`.
     ServiceExclusion,

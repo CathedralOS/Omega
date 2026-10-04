@@ -8,7 +8,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "device_extent_access");
     builder.accept_boundary<DeviceLoanProvider>();
-    builder.select_representation<DeviceLoan, DeviceLoanRepresentation>();
-    builder.select_representation<DeviceOrderingEvent, DeviceOrderingEventRepresentation>();
+    Build::select_representation<DeviceLoan, DeviceLoanRepresentation>(builder);
+    Build::select_representation<DeviceOrderingEvent, DeviceOrderingEventRepresentation>(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
 }

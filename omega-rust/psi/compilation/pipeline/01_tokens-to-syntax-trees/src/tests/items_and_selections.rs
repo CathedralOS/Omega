@@ -815,7 +815,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.select_representation<interrupt::Ack, platform::AckRepresentation>();
+            Build::select_representation<interrupt::Ack, platform::AckRepresentation>(builder);
         }
     "#;
     let tokens = Lexer::new(source)

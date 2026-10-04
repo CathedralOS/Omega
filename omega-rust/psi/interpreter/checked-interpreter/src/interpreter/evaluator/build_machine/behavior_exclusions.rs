@@ -11,8 +11,7 @@
 //! an authority it does not have and traps rather than silently applying
 //! or silently dropping.
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value,
-    trap,
+    EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value, trap,
 };
 use crate::{
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
@@ -210,21 +209,6 @@ impl<'program> Evaluator<'program> {
                 "evaluated {type_name} value names no declared compiler-owned case"
             ))
         })
-    }
-
-    /// The argument must dereference to the activation's original Build cell
-    /// — the same authority `execute_root_binding` requires.
-    fn require_root_build_argument(&self, builder: Cell, spelling: &str) -> EvalResult<()> {
-        if self
-            .root_build
-            .as_ref()
-            .is_some_and(|root| Cell::ptr_eq(&builder, root))
-        {
-            return Ok(());
-        }
-        Err(Halt::Trap(format!(
-            "behavior exclusion `{spelling}` requires the current activation's original Build value"
-        )))
     }
 
     fn record_executed_exclusion(

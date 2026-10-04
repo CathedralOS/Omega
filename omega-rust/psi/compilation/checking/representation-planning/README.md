@@ -7,7 +7,7 @@ complete carrier's cleanup and copy properties, then replays retained selections
 against the final typed graph.
 
 Start at [representation_selection.rs](src/representation_selection.rs). It
-harvests `Build::select_representation<Opaque, Conformance>()`
+harvests `Build::select_representation<Opaque, Conformance>(builder)`
 from the authoritative build machine, closes the exact named conformance, and
 validates its compiler-owned trait, opaque subject, and concrete carrier. It
 does not accept byte sizes, alignments, ABI classes, or movement rules from

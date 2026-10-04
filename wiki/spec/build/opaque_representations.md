@@ -1,11 +1,15 @@
 # Opaque representation selection
 
-`Build::select_representation<Opaque, Conformance>()` selects one exact named
+`Build::select_representation<Opaque, Conformance>(builder)` selects one exact named
 satisfaction of compiler-owned `OpaqueRepresentation<Opaque>`. A declaration
 is inert until selected. The compiler derives its descriptor from the concrete
 carrier; Build cannot author sizes, alignment, ABI classes, offsets, movement
 rules, or numeric representation IDs. Compiler-owned families such as `Ptr<T>`
 derive from pinned TargetSemantics without an authored selection.
+
+The namespace supplies no receiver. `builder` is an explicit mutable borrow of
+the current Build activation; an ordinary same-named machine does not select a
+representation. Receiver-style selection is retired.
 
 ## Demand and uniqueness
 
