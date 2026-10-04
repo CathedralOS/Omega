@@ -60,6 +60,7 @@ pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 inter
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
 pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
 pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
+pass/expressions/runtime_nested_record_field_call_exit built 1043ms exit:0 interpreter-exit:0 interpreter:agrees @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/expressions/runtime_temporary_record_field_call_exit built 851ms exit:0 interpreter-exit:0 interpreter:agrees @f70a22c80ac3
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189

@@ -267,7 +267,7 @@ defines the complete product bar.
   operations and remove superseded whole-machine recognizers as you go.
   **SAMPLE-CORPUS** and **CANARY-CORPUS** keep the full program oracles.
 
-  - **Computed calls and state transfers.** Finish mixed scalar/structural
+  - **Computed calls and state transfers.** Finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results and boundary consumers on the common
     `EstablishStructuralValue` route. Stage 05's
@@ -279,12 +279,15 @@ defines the complete product bar.
     literal's tail fields (`Handle { name: Item::name(item), .. }`) decline at
     `outer calls: ordered statement call`
     (`.../04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_occurrences.rs`);
-    add a corpus fixture. Expression-owned structural values with nominal
+    add a corpus fixture. Selected expression-owned calls need edge-specific
+    cleanup when transferring earlier caller owners. Structural values with nominal
     cleanup hooks or reference debt need the ordinary disposal schedule;
     nontrivial cleanup must not become a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
     call-produced plain-owned record supports immediate field observation,
     its call effect performed once),
+    `pass/expressions/runtime_nested_record_field_call_exit` (nested call results,
+    named-owned locals and ordered mixed scalar/structural operands, exit 0),
     `pass/calls/inline_record_scalar_call_arguments_exit`,
     `pass/boundary/static_foreign_scalar_result_locals_exit`,
     `pass/boundary/later_state_requirement_scalar_result_exit` (exit 70).

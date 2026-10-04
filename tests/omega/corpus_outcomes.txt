@@ -1875,6 +1875,7 @@ pass/expressions/qualified_call_result_argument checked 297ms @2d8ed253669f
 pass/expressions/runtime_flat_boolean_logic_exit checked 1517ms @2d8ed253669f
 pass/expressions/runtime_float_record_field_reads_exit checked 4674ms @2d8ed253669f
 pass/expressions/runtime_indexed_float_record_fields_exit checked 5021ms @2d8ed253669f
+pass/expressions/runtime_nested_record_field_call_exit checked 684ms @91c11fd524d0
 pass/expressions/runtime_numeric_cast_exit checked 4281ms @2d8ed253669f
 pass/expressions/runtime_temporary_record_field_call_exit checked 501ms @f70a22c80ac3
 pass/expressions/runtime_widened_comparison_exit checked 1648ms @2d8ed253669f
