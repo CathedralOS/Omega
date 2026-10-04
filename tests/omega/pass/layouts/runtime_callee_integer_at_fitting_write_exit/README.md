@@ -1,0 +1,1 @@
+A direct helper and a forwarding helper write fitting signed-byte values through an ordinary `&mut i64` loan. The caller observes 127 and the neighboring byte remains 85; both execution engines must exit 0.

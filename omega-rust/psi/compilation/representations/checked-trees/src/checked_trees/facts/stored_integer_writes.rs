@@ -22,6 +22,15 @@ pub enum StoredIntegerWriteSite {
         expression: ExpressionHandle,
         statement_index: usize,
     },
+    /// Universal decision for this complete outer invocation: every execution
+    /// of this leaf write, including distinct nested invocations, fits the row's
+    /// physical width. Published only after the entire call scope is admitted;
+    /// this is not the identity of one particular nested execution.
+    Call {
+        statement_index: usize,
+        call_ordinal: usize,
+        write: arena::Handle<super::mutation::PerformedIntegerWrite>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

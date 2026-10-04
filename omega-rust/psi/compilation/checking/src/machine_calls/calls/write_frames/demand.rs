@@ -427,6 +427,52 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// Every storage origin the actual assignment writes. An empty set denotes
+    /// a reference binding replacement; unavailable provenance stays `None`.
+    pub fn assignment_destination_origins(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+        let StatementNode::Assignment(assignment) = statement else {
+            return None;
+        };
+        if !matches!(
+            self.assignment_write_target(machine, statement)?,
+            AssignmentWriteTarget::LocalBindingReplacement { .. }
+        ) && !self.expression_reference_bindings_are_stable(machine, assignment.value)
+        {
+            return None;
+        }
+        super::caller_aliases::assignment_destination_origins(
+            self.program,
+            machine,
+            &self.symbols,
+            self.machine_symbols(machine)?.as_ref(),
+            statement,
+            &|state| self.state_assignments(machine, state),
+        )
+    }
+
+    /// Finite address substitutions use the existing storage-root SCC law:
+    /// a selector-growing dependency cannot lie on a recursive root cycle.
+    pub fn storage_origin_substitutions_are_finite(
+        &self,
+        bindings: &[(SymbolHandle, super::caller_aliases::LocalWriteSource)],
+    ) -> bool {
+        let mut substitutions = super::cycle_substitutions::Substitutions::default();
+        for (target, source) in bindings {
+            if !target.is_valid() || !source.root.is_valid() {
+                return false;
+            }
+            let from = substitutions.parameter(self.program.symbols.get(*target).parent, *target);
+            let to =
+                substitutions.parameter(self.program.symbols.get(source.root).parent, source.root);
+            substitutions.insert(from, to, !source.segments.is_empty());
+        }
+        substitutions.is_finite()
+    }
+
     fn state_assignments(
         &self,
         machine: &Machine,

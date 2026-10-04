@@ -7,6 +7,10 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
+use validation::{CallFrameResolver, LocalWriteSource};
+
+#[cfg(test)]
+mod tests;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 fn reference_type(
@@ -66,12 +70,14 @@ fn stable_parameter(
 struct ParameterOrigins {
     parameter: SymbolHandle,
     sources: Vec<SymbolHandle>,
+    storage: Vec<Option<LocalWriteSource>>,
 }
 
 struct ParameterEdge {
     source: usize,
     target: usize,
     parameters: Vec<(SymbolHandle, SymbolHandle)>,
+    storage: Vec<(SymbolHandle, Option<Vec<LocalWriteSource>>)>,
 }
 
 /// Resolve a Named transition argument to the source parameter carrying its
@@ -129,9 +135,10 @@ fn tracked_source_parameter<'a>(
     }
 }
 
-fn parameter_edges(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+fn parameter_edges<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    frames: Option<&CallFrameResolver<'program>>,
 ) -> Vec<ParameterEdge> {
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
@@ -178,9 +185,28 @@ fn parameter_edges(
                         _ => continue,
                     };
                 let state = &states[target_index];
+                let captured =
+                    frames.and_then(|frames| frames.transition_write_origins(machine, target));
+                let mut storage = Vec::new();
                 let mut nonself_index = 0;
                 let mut mapped = Vec::new();
                 for parameter in program.state_parameters(state) {
+                    if tracked_parameter(program, parameter) {
+                        let sources = if parameter.is_self {
+                            program
+                                .state_parameters(source)
+                                .iter()
+                                .find(|candidate| candidate.is_self)
+                                .map(|candidate| vec![root_storage(program, candidate.symbol)])
+                        } else {
+                            captured
+                                .as_ref()
+                                .and_then(|captured| captured.arguments.get(nonself_index))
+                                .cloned()
+                                .flatten()
+                        };
+                        storage.push((parameter.symbol, sources));
+                    }
                     let source_parameter = if parameter.is_self {
                         program
                             .state_parameters(source)
@@ -208,6 +234,7 @@ fn parameter_edges(
                     source: source_index,
                     target: target_index,
                     parameters: mapped,
+                    storage,
                 });
             }
         }
@@ -219,7 +246,10 @@ fn parameter_edges(
 /// each state parameter can carry, solved to a fixed point over the
 /// machine's named parameter edges. The solution does not depend on which
 /// state asks, so one solve serves every state of the machine.
-pub(crate) struct MachineParameterOrigins(Vec<Vec<ParameterOrigins>>);
+pub(crate) struct MachineParameterOrigins {
+    rows: Vec<Vec<ParameterOrigins>>,
+    storage_available: bool,
+}
 
 impl MachineParameterOrigins {
     /// Whether this solve covers every state `machine` currently stores; a
@@ -229,7 +259,7 @@ impl MachineParameterOrigins {
         program: &typed_trees::TypedTrees,
         machine: &typed_trees::machine::Machine,
     ) -> bool {
-        self.0.len() == program.machine_states(machine).len()
+        self.rows.len() == program.machine_states(machine).len()
     }
 }
 
@@ -237,11 +267,48 @@ pub(crate) fn machine_parameter_origins(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
+    solve_parameter_origins(program, machine, None)
+}
+
+/// Prepare once for all writes/calls in this machine. Values and addresses
+/// share the same named edges and fixed point, but retain distinct transfer
+/// semantics: changing referent contents never changes address provenance.
+pub(crate) fn machine_storage_origins<'program>(
+    program: &'program typed_trees::TypedTrees,
+    frames: &CallFrameResolver<'program>,
+    machine: &'program typed_trees::machine::Machine,
+) -> MachineParameterOrigins {
+    solve_parameter_origins(program, machine, Some(frames))
+}
+
+fn solve_parameter_origins<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    frames: Option<&CallFrameResolver<'program>>,
+) -> MachineParameterOrigins {
     let states = program.machine_states(machine);
     if states.is_empty() {
-        return MachineParameterOrigins(Vec::new());
+        return MachineParameterOrigins {
+            rows: Vec::new(),
+            storage_available: frames.is_some(),
+        };
     }
-    let edges = parameter_edges(program, machine);
+    let edges = parameter_edges(program, machine, frames);
+    // Reuse the storage substitution owner's SCC law. Recursive selector
+    // growth is unknown, rather than truncated by an arbitrary iteration cap.
+    let bindings = edges
+        .iter()
+        .flat_map(|edge| &edge.storage)
+        .flat_map(|(target, sources)| {
+            sources
+                .iter()
+                .flatten()
+                .filter(|source| source.root.is_valid())
+                .map(move |source| (*target, source.clone()))
+        })
+        .collect::<Vec<_>>();
+    let storage_available =
+        frames.is_some_and(|frames| frames.storage_origin_substitutions_are_finite(&bindings));
     let mut origins = states
         .iter()
         .enumerate()
@@ -252,6 +319,11 @@ pub(crate) fn machine_parameter_origins(
                 .filter(|parameter| tracked_parameter(program, parameter))
                 .map(|parameter| ParameterOrigins {
                     parameter: parameter.symbol,
+                    storage: if index == 0 && storage_available {
+                        vec![Some(root_storage(program, parameter.symbol))]
+                    } else {
+                        Vec::new()
+                    },
                     sources: if index == 0 {
                         vec![parameter.symbol]
                     } else {
@@ -274,6 +346,35 @@ pub(crate) fn machine_parameter_origins(
             }
             changed |= !reachable[edge.target];
             reachable[edge.target] = true;
+            if storage_available {
+                for (target, sources) in &edge.storage {
+                    let mut incoming = Vec::new();
+                    match sources {
+                        None => incoming.push(None),
+                        Some(sources) => {
+                            for source in sources {
+                                incoming.extend(transport_storage(
+                                    program,
+                                    machine,
+                                    &origins[edge.source],
+                                    source,
+                                ));
+                            }
+                        }
+                    }
+                    if let Some(row) = origins[edge.target]
+                        .iter_mut()
+                        .find(|row| row.parameter == *target)
+                    {
+                        for source in incoming {
+                            if !row.storage.contains(&source) {
+                                row.storage.push(source);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
             for (target, source) in &edge.parameters {
                 let sources = origins[edge.source]
                     .iter()
@@ -298,7 +399,81 @@ pub(crate) fn machine_parameter_origins(
             break;
         }
     }
-    MachineParameterOrigins(origins)
+    MachineParameterOrigins {
+        rows: origins,
+        storage_available,
+    }
+}
+
+fn root_storage(program: &typed_trees::TypedTrees, root: SymbolHandle) -> LocalWriteSource {
+    LocalWriteSource {
+        root,
+        segments: Vec::new(),
+        representation: None,
+        path: program.symbols.name(root).to_owned(),
+        collection_coarse: false,
+    }
+}
+
+fn transport_storage(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    rows: &[ParameterOrigins],
+    source: &LocalWriteSource,
+) -> Vec<Option<LocalWriteSource>> {
+    if !source.root.is_valid() {
+        return vec![None];
+    }
+    if let Some(row) = rows.iter().find(|row| row.parameter == source.root) {
+        return row
+            .storage
+            .iter()
+            .map(|parent| {
+                parent
+                    .as_ref()
+                    .and_then(|parent| parent.substitute_storage(source))
+            })
+            .collect();
+    }
+    // A proven private allocation retains its declaration identity. Reference
+    // locals must already have been resolved by the caller-prefix owner.
+    for state in program.machine_states(machine) {
+        if let Some((_, local)) = program.state_local_declaration(state, source.root) {
+            return if !reference_type(program, local.type_reference) {
+                vec![Some(source.clone())]
+            } else {
+                vec![None]
+            };
+        }
+        if program.state_parameters(state).iter().any(|parameter| {
+            parameter.symbol == source.root && !reference_type(program, parameter.type_reference)
+        }) {
+            return vec![Some(source.clone())];
+        }
+    }
+    vec![None]
+}
+
+/// Rebase any captured state-local address to invocation storage. Unknown is
+/// distinct from an unreachable empty set. Private owned allocations retain
+/// their exact roots; no caller origin is invented for an unresolved alias.
+pub(crate) fn entry_storage_origins(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    solved: &MachineParameterOrigins,
+    source: &LocalWriteSource,
+) -> Option<Vec<LocalWriteSource>> {
+    if !solved.storage_available {
+        return None;
+    }
+    let index = program
+        .machine_states(machine)
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)?;
+    transport_storage(program, machine, solved.rows.get(index)?, source)
+        .into_iter()
+        .collect()
 }
 
 /// The entry-parameter identities `state`'s stable parameters carry on every
@@ -316,7 +491,7 @@ pub(crate) fn state_origins(
     else {
         return Vec::new();
     };
-    solved.0[state_index]
+    solved.rows[state_index]
         .iter()
         .filter_map(|row| {
             let [source] = row.sources.as_slice() else {

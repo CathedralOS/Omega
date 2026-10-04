@@ -14,6 +14,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod source_geometry;
+pub use source_geometry::stored_integer_source_may_require_fit;
+
 #[cfg(test)]
 mod tests;
 
@@ -145,18 +148,13 @@ fn destination_projections(
             .filter(|origin| origin.local_segments.len() == longest)
         {
             let source = origin.source.as_ref().ok_or(())?;
-            if !source.root.is_valid() {
-                return Err(());
-            }
-            let (carrier, mut path) = match &source.representation {
-                Some((carrier, path)) => (*carrier, path.clone()),
-                None => (
-                    root_type(program, machine, state, source.root).ok_or(())?,
-                    source.segments.clone(),
-                ),
-            };
-            path.extend_from_slice(&segments[longest..]);
-            if let Some(projection) = typed_projection(program, carrier, &path)? {
+            if let Some(projection) = stored_integer_source_projection(
+                program,
+                machine,
+                state,
+                source,
+                &segments[longest..],
+            )? {
                 if !projections.contains(&projection) {
                     projections.push(projection);
                 }
@@ -174,6 +172,49 @@ fn destination_projections(
     Ok(typed_projection(program, direct_type, segments)?
         .into_iter()
         .collect())
+}
+
+/// Resolve the physical encoding reached through an authenticated storage
+/// origin. Assignment and invocation checking share declaration traversal and
+/// recast coordinates; neither may infer geometry from the rendered footprint.
+/// `Ok(None)` is an authenticated destination with ordinary storage. `Err(())`
+/// withholds that conclusion when a root, stored-reference crossing or selector
+/// cannot be established. The source may name any alternative retained by the
+/// prefix owner; consumers must check every alternative.
+pub fn stored_integer_source_projection(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    source: &crate::LocalWriteSource,
+    suffix: &[PlaceSegment],
+) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
+    if source.collection_coarse && !suffix.is_empty() {
+        return Err(());
+    }
+    let (carrier, mut path) = source_coordinates(program, machine, state, source)?;
+    path.extend_from_slice(suffix);
+    typed_projection(program, carrier, &path)
+}
+
+fn source_coordinates(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    source: &crate::LocalWriteSource,
+) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
+    if !source.root.is_valid() {
+        return Err(());
+    }
+    let declared = root_type(program, machine, state, source.root).ok_or(())?;
+    let (carrier, path) = match &source.representation {
+        Some((carrier, path)) => (*carrier, path.clone()),
+        None => (declared, source.segments.clone()),
+    };
+    program
+        .type_reference_table
+        .contains_type_reference(carrier)
+        .then_some((carrier, path))
+        .ok_or(())
 }
 
 fn root_type(
@@ -199,9 +240,22 @@ fn root_type(
 /// in an outer record cannot hide a selected IntegerAt field.
 fn typed_projection(
     program: &TypedTrees,
-    mut carrier: TypeReferenceHandle,
+    carrier: TypeReferenceHandle,
     path: &[PlaceSegment],
 ) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
+    Ok(typed_storage_projection(program, carrier, path)?.stored)
+}
+
+struct StorageProjection {
+    reference: TypeReferenceHandle,
+    stored: Option<(SymbolHandle, IntegerType)>,
+}
+
+fn typed_storage_projection(
+    program: &TypedTrees,
+    mut carrier: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Result<StorageProjection, ()> {
     let mut selected_case = None;
     for (position, segment) in path.iter().enumerate() {
         if position != 0 && crate::reference_shell(program, carrier).is_some() {
@@ -245,8 +299,11 @@ fn typed_projection(
                 }
                 .ok_or(())?;
                 if position + 1 == path.len() {
-                    return Ok(stored_integer_field_type(program, carrier, field.symbol)?
-                        .map(|stored| (field.symbol, stored)));
+                    return Ok(StorageProjection {
+                        reference: field.type_reference,
+                        stored: stored_integer_field_type(program, carrier, field.symbol)?
+                            .map(|stored| (field.symbol, stored)),
+                    });
                 }
                 carrier = field.type_reference;
             }
@@ -292,7 +349,13 @@ fn typed_projection(
             }
         }
     }
-    Ok(None)
+    if selected_case.is_some() {
+        return Err(());
+    }
+    Ok(StorageProjection {
+        reference: carrier,
+        stored: None,
+    })
 }
 
 /// The same exact declared-field geometry is shared by assignment and value

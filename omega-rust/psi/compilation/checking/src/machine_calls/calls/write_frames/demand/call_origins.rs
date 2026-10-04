@@ -26,6 +26,14 @@ impl<'program> CallFrameResolver<'program> {
         self.invocation_write_origins(machine, CallerWriteSite::Expression(expression))
     }
 
+    pub fn transition_write_origins(
+        &self,
+        machine: &'program Machine,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) -> Option<CallWriteOrigins> {
+        self.invocation_write_origins(machine, CallerWriteSite::Transition(target))
+    }
+
     fn invocation_write_origins(
         &self,
         machine: &'program Machine,
@@ -62,17 +70,48 @@ impl<'program> CallFrameResolver<'program> {
                     program.expression_table.expression_handles(call.arguments),
                 )
             }
+            CallerWriteSite::Transition(target) => {
+                let typed_trees::statement::TransitionTargetNode::Named {
+                    path, arguments, ..
+                } = program.statement_table.transition_target(target)
+                else {
+                    return None;
+                };
+                (
+                    path.symbol,
+                    "",
+                    ExpressionHandle::invalid(),
+                    Vec::new(),
+                    program.statement_table.expression_handles(*arguments),
+                )
+            }
             _ => return None,
         };
-        let argument_types = frames::call_targets::call_argument_types(
-            program,
-            machine,
-            target,
-            name,
-            &receiver_members,
-            site,
-            &self.symbols,
-        );
+        let argument_types = if matches!(site, CallerWriteSite::Transition(_)) {
+            let entry = frames::machine_state_by_symbol(program, target)
+                .map(|(_, state)| state)
+                .or_else(|| {
+                    program
+                        .machine_by_symbol(target)
+                        .and_then(|target_machine| program.machine_states(target_machine).first())
+                })?;
+            program
+                .state_parameters(entry)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| parameter.type_reference)
+                .collect()
+        } else {
+            frames::call_targets::call_argument_types(
+                program,
+                machine,
+                target,
+                name,
+                &receiver_members,
+                site,
+                &self.symbols,
+            )
+        };
         with_caller_origin_context(
             program,
             machine,
@@ -103,6 +142,19 @@ impl<'program> CallFrameResolver<'program> {
                             && !self
                                 .statement_value_may_write_paths(machine, statement)
                                 .is_some_and(|paths| paths.is_empty())
+                    }
+                    CallerWriteSite::Transition(_) => {
+                        let typed_trees::statement::StatementNode::Transition(transition) =
+                            statement
+                        else {
+                            return None;
+                        };
+                        match transition.guard {
+                            typed_trees::statement::TransitionGuardNode::When(condition) => {
+                                self.operand_may_change_origins(machine, condition)
+                            }
+                            _ => false,
+                        }
                     }
                     _ => false,
                 };

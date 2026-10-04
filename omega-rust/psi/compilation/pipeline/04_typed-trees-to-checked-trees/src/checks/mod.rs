@@ -42,6 +42,7 @@
 mod borrows;
 pub(crate) mod contracts;
 pub(crate) mod current_scalar_values;
+mod stored_integer_calls;
 
 // Ownership and custody: linear obligations, retained content, and values
 // live across a suspending call.
@@ -231,6 +232,12 @@ fn check_checked_facts_recording_with_crash_admission(
         proven_machine_contracts,
     ) {
         diagnostics.append(&mut contract_diagnostics);
+    }
+
+    if let Err(mut store_diagnostics) =
+        stored_integer_calls::check(program, facts, call_frames.as_ref())
+    {
+        diagnostics.append(&mut store_diagnostics);
     }
 
     if let Err(mut multiplicity_diagnostics) =

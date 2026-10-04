@@ -383,3 +383,126 @@ fn shared_record_disposition_uses_the_produced_carrier() {
         .expect("exact loan and source custody verify independently");
     }
 }
+
+#[test]
+fn local_disposition_rejoins_each_selected_normal_exit() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Output { value: u64; }
+        machine make(value: u64) -> Output { Output { value: value } }
+        machine choose(value: u64) -> Output {
+            let result: Output = make(value);
+            result
+        }
+        machine main() crashes Trap {
+            let first: Output = choose(70);
+            let second: Output = choose(71);
+            transition first.value == 70 && second.value == 71 {
+                true -> done()
+                _ -> bad()
+            }
+            state done() {}
+            state bad() { crash Trap; }
+        }
+    "#,
+    );
+    crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+        .expect("each selected normal edge retires its exact local owners");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let drops = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(handle, event)| {
+            (event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.kind == PermissionEventKind::AffineDrop
+                && event.source == PermissionEventSource::StateExit)
+                .then_some((handle, event.clone()))
+        })
+        .collect::<Vec<_>>();
+    let (first, original) = drops.first().expect("local selected drops");
+    let sibling = drops
+        .iter()
+        .find(|(_, event)| event.root == original.root && event.evaluation != original.evaluation)
+        .expect("same owner on another selected exit")
+        .1
+        .evaluation;
+    let disposition = checked
+        .facts
+        .contextual_cleanup
+        .dispositions
+        .iter()
+        .find_map(|(handle, row)| {
+            if row.machine != machine.symbol
+                || row.state != state.symbol
+                || row.root != original.root
+                || row.source != PermissionEventSource::StateExit
+            {
+                return None;
+            }
+            let evaluation = match row.exit.kind {
+                checked_trees::FlowClaimJoinExitKind::FinalExpression => {
+                    checked_trees::FlowPermissionEvaluation::Statement
+                }
+                checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
+                    let StatementNode::Transition(transition) = &checked
+                        .statement_table
+                        .statements(state.statement_nodes)[row.exit.statement_index]
+                    else {
+                        return None;
+                    };
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                        if row.exit.kind == checked_trees::FlowClaimJoinExitKind::TransitionTarget {
+                            transition.target
+                        } else {
+                            transition.continuation
+                        },
+                    )
+                }
+                _ => return None,
+            };
+            (evaluation == original.evaluation).then_some(handle)
+        })
+        .expect("exact selected disposition paired with the drop");
+    for corruption in [
+        "missing",
+        "duplicate",
+        "retargeted",
+        "obligation",
+        "drop and disposition missing",
+    ] {
+        let mut forged = checked.clone();
+        let permissions = &mut forged.facts.flow.ownership.permissions;
+        match corruption {
+            "missing" => permissions.get_mut(*first).machine_symbol = Default::default(),
+            "duplicate" => {
+                permissions.insert(original.clone());
+            }
+            "retargeted" => permissions.get_mut(*first).evaluation = sibling,
+            "obligation" => permissions.get_mut(*first).obligation_live = true,
+            "drop and disposition missing" => {
+                permissions.get_mut(*first).machine_symbol = Default::default();
+                forged
+                    .facts
+                    .contextual_cleanup
+                    .dispositions
+                    .get_mut(disposition)
+                    .machine = Default::default();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            crate::lower_machine(&forged, crate::TerminalMachineSelection::Name("main")).is_err(),
+            "{corruption} selected death must not match a sibling's cleanup"
+        );
+    }
+}

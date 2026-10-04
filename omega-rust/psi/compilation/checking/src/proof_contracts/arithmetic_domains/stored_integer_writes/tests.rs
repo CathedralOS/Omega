@@ -519,3 +519,126 @@ fn declaration_field_projection_does_not_cross_unknown_stored_references() {
         "a stored reference needs its contents' origin, not the enclosing declaration"
     );
 }
+
+#[test]
+fn stored_integer_source_geometry_authenticates_fields_and_recast_coordinates() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         data Ordinary { value: i64; }
+         machine inspect(cell: &mut Cell, ordinary: &mut Ordinary, raw: &mut [u8; 1]) {}",
+        8,
+        IntegerSign::Signed,
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let parameters = program.state_parameters(state);
+    let field = |name: &str| {
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == name)
+            .unwrap();
+        let [DataMember::Field(field)] = program.data_members(data) else {
+            panic!("field");
+        };
+        field.symbol
+    };
+    let mut source = crate::LocalWriteSource {
+        representation: None,
+        path: "not a source of declaration identity".to_owned(),
+        collection_coarse: false,
+        root: parameters[0].symbol,
+        segments: Vec::new(),
+    };
+    let selected = [PlaceSegment::Field {
+        symbol: field("Cell"),
+    }];
+    assert_eq!(
+        stored_integer_source_projection(&program, machine, state, &source, &selected),
+        Ok(Some((
+            field("Cell"),
+            IntegerType::new(IntegerSign::Signed, 8).unwrap()
+        )))
+    );
+    assert!(
+        stored_integer_source_projection(
+            &program,
+            machine,
+            state,
+            &source,
+            &[PlaceSegment::Field {
+                symbol: field("Ordinary")
+            }]
+        )
+        .is_err()
+    );
+    source.collection_coarse = true;
+    assert!(
+        stored_integer_source_projection(&program, machine, state, &source, &selected).is_err()
+    );
+    source.collection_coarse = false;
+    source.root = parameters[2].symbol;
+    source.segments = vec![PlaceSegment::FixedIndex { index: 0 }];
+    source.representation = Some((parameters[0].type_reference, selected.to_vec()));
+    assert_eq!(
+        stored_integer_source_projection(&program, machine, state, &source, &[]),
+        Ok(Some((
+            field("Cell"),
+            IntegerType::new(IntegerSign::Signed, 8).unwrap()
+        ))),
+        "the recast's logical carrier selects encoding, not its raw byte backing"
+    );
+    source.root = SymbolHandle::invalid();
+    assert!(stored_integer_source_projection(&program, machine, state, &source, &[]).is_err());
+}
+
+#[test]
+fn stored_integer_source_effect_reach_includes_owned_descendants_and_unknown_referents() {
+    let program = program_with_storage(
+        "data Cell { value: i64; }
+         data Ordinary { value: i64; }
+         data Nested { cells: [Cell; 2]; }
+         data Borrowed { value: &mut i64; }
+         machine inspect(nested: &mut Nested, ordinary: &mut Ordinary, borrowed: &mut Borrowed) {}",
+        8,
+        IntegerSign::Signed,
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let sources = program
+        .state_parameters(state)
+        .iter()
+        .map(|parameter| crate::LocalWriteSource {
+            representation: None,
+            path: String::new(),
+            collection_coarse: false,
+            root: parameter.symbol,
+            segments: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        stored_integer_source_projection(&program, machine, state, &sources[0], &[]),
+        Ok(None)
+    );
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, machine, state, &sources[0]),
+        Ok(true),
+        "a nonencoded aggregate itself can contain encoded integer leaves"
+    );
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, machine, state, &sources[1]),
+        Ok(false)
+    );
+    assert_eq!(
+        stored_integer_source_may_require_fit(&program, machine, state, &sources[2]),
+        Err(()),
+        "a stored reference's semantic i64 type does not establish its referent encoding"
+    );
+    let mut total = program.clone();
+    total.plan_laid_layouts[0].integer_fields[0].write_is_total = true;
+    assert_eq!(
+        stored_integer_source_may_require_fit(&total, machine, state, &sources[0]),
+        Ok(false),
+        "normalized total encoding requires no narrower concrete-value obligation"
+    );
+}

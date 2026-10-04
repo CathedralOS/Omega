@@ -30,6 +30,7 @@ mod dynamic_conformance;
 pub(crate) mod field_domain;
 pub(crate) mod index_compatibility;
 mod integer_writes;
+pub(crate) use integer_writes::obligations::integer_write_obligation;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 mod placed_views_and_uses;

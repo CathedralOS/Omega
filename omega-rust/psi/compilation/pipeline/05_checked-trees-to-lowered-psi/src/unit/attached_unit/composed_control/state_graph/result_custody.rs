@@ -1,7 +1,7 @@
 //! Rejoin local establishment and the authored per-edge ownership partition.
 //!
-//! StateExit records the lexical affine remainder even when a selected edge
-//! transfers that local. It is not an instruction to drop on every successor.
+//! StateExit records the selected affine remainder at each exact normal exit.
+//! Distinct outgoing edges retain distinct evaluation coordinates.
 //! Reconstruct the transfer roster from source, check its exact permission rows,
 //! then subtract the selected edge's transfers. A transfer is a whole local
 //! passed to the target state or, after selection, into one of the edge's
@@ -494,6 +494,107 @@ fn retired_in_body(
     Ok(retired)
 }
 
+/// Match each selected death to its existing outgoing source coordinate.
+/// Distinct exit lanes may retire the same lexical owner; duplicate deaths on
+/// one lane or a death on a different state/statement are not interchangeable.
+fn selected_drop_evaluations(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::state::State,
+    local: symbols::SymbolHandle,
+) -> Result<Vec<checked_trees::FlowPermissionEvaluation>, LoweringError> {
+    use checked_trees::{FlowClaimJoinExitKind, FlowPermissionEvaluation};
+    let invalid = || LoweringError::Unsupported("Unit graph local cleanup lost its selected exit");
+    let mut flows = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter_map(|(_, flow)| {
+            (flow.machine_symbol == machine && flow.state_symbol == state.symbol).then_some(flow)
+        });
+    let flow = flows.next().ok_or_else(invalid)?;
+    if flows.next().is_some() {
+        return Err(invalid());
+    }
+    let outgoing = checked
+        .facts
+        .flow
+        .control
+        .outgoing
+        .span(flow.outgoing)
+        .ok_or_else(invalid)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let mut evaluations = Vec::new();
+    for (_, disposition) in
+        checked
+            .facts
+            .contextual_cleanup
+            .dispositions
+            .iter()
+            .filter(|(_, row)| {
+                row.machine == machine
+                    && row.state == state.symbol
+                    && row.source == PermissionEventSource::StateExit
+                    && row.root == facts::PlaceRoot::Symbol(local)
+            })
+    {
+        if disposition.exit.state_symbol != state.symbol
+            || !checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span(disposition.path)
+                .ok_or_else(invalid)?
+                .is_empty()
+        {
+            return Err(invalid());
+        }
+        let target = match disposition.exit.kind {
+            FlowClaimJoinExitKind::FinalExpression => Default::default(),
+            FlowClaimJoinExitKind::TransitionTarget
+            | FlowClaimJoinExitKind::TransitionContinuation => {
+                let Some(StatementNode::Transition(transition)) =
+                    statements.get(disposition.exit.statement_index)
+                else {
+                    return Err(invalid());
+                };
+                if disposition.exit.kind == FlowClaimJoinExitKind::TransitionTarget {
+                    transition.target
+                } else {
+                    transition.continuation
+                }
+            }
+            FlowClaimJoinExitKind::CallResult { .. } => return Err(invalid()),
+        };
+        if outgoing
+            .iter()
+            .filter(|exit| {
+                exit.machine_symbol == machine
+                    && exit.state_symbol == state.symbol
+                    && exit.statement_index == disposition.exit.statement_index
+                    && exit.transition_target == target
+            })
+            .count()
+            != 1
+        {
+            return Err(invalid());
+        }
+        let evaluation = if target.is_valid() {
+            FlowPermissionEvaluation::TransitionTarget(target)
+        } else {
+            FlowPermissionEvaluation::Statement
+        };
+        if evaluations.contains(&evaluation) {
+            return Err(invalid());
+        }
+        evaluations.push(evaluation);
+    }
+    Ok(evaluations)
+}
+
 /// Validate the complete disposal roster, not the producer's representation.
 ///
 /// Construction replay and call-source replay independently check result type,
@@ -562,22 +663,22 @@ pub(super) fn validate_disposition(
             PermissionEventSource::Statement {
                 statement_index: result.statement_index as usize,
             },
+            checked_trees::FlowPermissionEvaluation::Statement,
         ));
     }
     match role {
-        // The receipt's arm transfers establish the destination; its residual
-        // parameters, not the dead source place, carry each source's death.
-        Some(SelectionRole::Destination) => expected.push((
-            PermissionEventKind::AffineDrop,
-            PermissionEventSource::StateExit,
-        )),
         Some(SelectionRole::Source) => {}
-        None if result.multiplicity == Multiplicity::Affine => expected.push((
-            PermissionEventKind::AffineDrop,
-            PermissionEventSource::StateExit,
-        )),
-        None => {
-            return unsupported("Unit graph local requires an explicit linear disposition");
+        role => {
+            if role.is_none() && result.multiplicity != Multiplicity::Affine {
+                return unsupported("Unit graph local requires an explicit linear disposition");
+            }
+            for evaluation in selected_drop_evaluations(checked, machine, source, local.symbol)? {
+                expected.push((
+                    PermissionEventKind::AffineDrop,
+                    PermissionEventSource::StateExit,
+                    evaluation,
+                ));
+            }
         }
     }
     for (statement_index, statement) in statements.iter().enumerate() {
@@ -602,6 +703,7 @@ pub(super) fn validate_disposition(
                         call_ordinal: 0,
                         target_symbol: path.symbol,
                     },
+                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target),
                 ));
             }
         }
@@ -618,11 +720,13 @@ pub(super) fn validate_disposition(
         .ok_or(LoweringError::Unsupported(
             "Unit graph local operand call lost its authored occurrence",
         ))?;
-        expected.extend(
-            operand_moves
-                .into_iter()
-                .map(|source| (PermissionEventKind::Transfer, source)),
-        );
+        expected.extend(operand_moves.into_iter().map(|source| {
+            (
+                PermissionEventKind::Transfer,
+                source,
+                checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target),
+            )
+        }));
     }
     // A local's initializer can conserve an earlier value's origin. Reuse
     // the ordinary construction replay rather than manufacturing provenance
@@ -637,8 +741,10 @@ pub(super) fn validate_disposition(
     if events().count() != expected.len() {
         return unsupported("Unit graph local ownership roster drifted");
     }
-    for (kind, source) in expected {
-        let mut matching = events().filter(|event| event.kind == kind && event.source == source);
+    for (kind, source, evaluation) in expected {
+        let mut matching = events().filter(|event| {
+            event.kind == kind && event.source == source && event.evaluation == evaluation
+        });
         let event = matching.next().ok_or(LoweringError::Unsupported(
             "Unit graph local ownership evidence missing",
         ))?;

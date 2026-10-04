@@ -135,6 +135,7 @@ pub(crate) struct StateWritePrefix {
 /// and the prefix origins it closes over.
 #[derive(Clone)]
 pub(crate) struct AssignmentPrefix {
+    pub(crate) isolated_locals: Vec<String>,
     pub(crate) target: AssignmentWriteTarget,
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
@@ -493,6 +494,7 @@ fn walk_state_write_prefix_inner(
                 record.push((
                     statement_index,
                     AssignmentPrefix {
+                        isolated_locals: isolated_local_roots.clone(),
                         target: AssignmentWriteTarget::Storage { paths: vec![path] },
                         aliases: Vec::new(),
                         divergent: Vec::new(),
@@ -699,6 +701,7 @@ fn walk_state_write_prefix_inner(
                             record.push((
                                 statement_index,
                                 AssignmentPrefix {
+                                    isolated_locals: isolated_local_roots.clone(),
                                     target,
                                     aliases: local_alias_origins.clone(),
                                     divergent: divergent_alias_origins.clone(),
@@ -761,6 +764,7 @@ fn walk_state_write_prefix_inner(
                             record.push((
                                 statement_index,
                                 AssignmentPrefix {
+                                    isolated_locals: isolated_local_roots.clone(),
                                     target: AssignmentWriteTarget::Storage {
                                         paths: paths.clone(),
                                     },
@@ -933,6 +937,7 @@ fn walk_state_write_prefix_inner(
                         record.push((
                             statement_index,
                             AssignmentPrefix {
+                                isolated_locals: isolated_local_roots.clone(),
                                 target,
                                 aliases: local_alias_origins.clone(),
                                 divergent: divergent_alias_origins.clone(),
@@ -965,6 +970,7 @@ fn walk_state_write_prefix_inner(
                     record.push((
                         statement_index,
                         AssignmentPrefix {
+                            isolated_locals: isolated_local_roots.clone(),
                             target: AssignmentWriteTarget::Storage {
                                 paths: paths.clone(),
                             },

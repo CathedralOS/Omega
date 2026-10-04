@@ -759,6 +759,50 @@ pub(super) fn checked_whole_affine_discard_parameters(
     checked_whole_affine_discard_parameters_excluding_results(program, facts, machine, state, &[])
 }
 
+/// A lexical cleanup roster describes owners, while permission production now
+/// records a drop on each selected normal exit. Rejoin equal owner facts across
+/// distinct exits without treating two events on the same exit as one disposal.
+/// The selected-edge plans keep the actual order and outgoing coordinates.
+fn state_exit_cleanup_roots<'facts>(
+    facts: &'facts CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+) -> Option<Vec<&'facts checked_trees::FlowPermissionEventFact>> {
+    let mut roots = Vec::<&checked_trees::FlowPermissionEventFact>::new();
+    let mut occurrences = Vec::new();
+    for (_, event) in facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+    {
+        let occurrence = (event.root, event.segments, event.evaluation);
+        if occurrences.contains(&occurrence) {
+            return None;
+        }
+        occurrences.push(occurrence);
+        if let Some(prior) = roots
+            .iter()
+            .find(|prior| prior.root == event.root && prior.segments == event.segments)
+        {
+            let mut same_exit = (**prior).clone();
+            same_exit.evaluation = event.evaluation;
+            if same_exit != *event {
+                return None;
+            }
+        } else {
+            roots.push(event);
+        }
+    }
+    Some(roots)
+}
+
 fn checked_whole_affine_discard_parameters_excluding_results(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -887,18 +931,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         })
         .collect::<Vec<_>>();
     let mut discard_parameters = Vec::new();
-    for (_, event) in facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state.symbol
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-        })
-    {
+    for event in state_exit_cleanup_roots(facts, machine, state.symbol)? {
         if matches!(event.root, facts::PlaceRoot::Symbol(symbol) if result_locals.contains(&symbol))
         {
             continue;
@@ -956,12 +989,7 @@ pub(super) fn state_exit_result_locals(
         .primitive_type_reference(state.return_type)
         .is_some();
     let mut results = Vec::new();
-    for (_, drop) in permissions.permissions.iter().filter(|(_, event)| {
-        event.machine_symbol == machine.symbol
-            && event.state_symbol == state.symbol
-            && event.source == PermissionEventSource::StateExit
-            && event.kind == PermissionEventKind::AffineDrop
-    }) {
+    for drop in state_exit_cleanup_roots(facts, machine.symbol, state.symbol)? {
         let facts::PlaceRoot::Symbol(symbol) = drop.root else {
             return None;
         };
@@ -1247,4 +1275,71 @@ pub(super) fn state_exit_result_locals(
         results.push(symbol);
     }
     Some(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structural_result_cleanup_retains_distinct_normal_exits() {
+        let checked = crate::tests::front_end::checked_program(
+            "data Output { value: u64; }
+             machine make(value: u64) -> Output { Output { value: value } }
+             machine main() crashes Trap {
+                 let first: Output = make(70);
+                 let second: Output = make(71);
+                 transition first.value == 70 && second.value == 71 {
+                     true -> done()
+                     _ -> bad()
+                 }
+                 state done() {}
+                 state bad() { crash Trap; }
+             }",
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let roots = state_exit_cleanup_roots(&checked.facts, machine.symbol, state.symbol)
+            .expect("one lexical owner may die on distinct selected exits");
+        assert_eq!(roots.len(), 2);
+        let plan = build_state_plan(&checked, &checked.facts, machine, state)
+            .expect("structural result locals keep the named-edge cleanup plan");
+        assert_eq!(plan.edges.len(), 2);
+
+        let duplicate = roots[0].clone();
+        let mut corrupted = checked.facts.clone();
+        corrupted.flow.ownership.permissions.insert(duplicate);
+        assert!(
+            state_exit_cleanup_roots(&corrupted, machine.symbol, state.symbol).is_none(),
+            "a duplicate disposal on the same selected exit is still invalid"
+        );
+
+        let mut corrupted = checked.facts.clone();
+        let root = roots[0].root;
+        let (handle, _) = corrupted
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find(|(_, event)| {
+                event.root == root
+                    && event.kind == PermissionEventKind::AffineDrop
+                    && event.evaluation != roots[0].evaluation
+            })
+            .unwrap();
+        corrupted
+            .flow
+            .ownership
+            .permissions
+            .get_mut(handle)
+            .obligation_live = true;
+        assert!(
+            state_exit_cleanup_roots(&corrupted, machine.symbol, state.symbol).is_none(),
+            "different obligation facts cannot collapse into a common lexical roster"
+        );
+    }
 }

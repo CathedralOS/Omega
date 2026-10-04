@@ -125,7 +125,7 @@ pub struct CallWriteOrigins {
 
 /// Proven referent of a local reference leaf. Coarse storage paths cannot
 /// acquire a field or index suffix when a consumer transports a write.
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
     /// Logical recast carrier and selectors, separate from the raw backing.
     pub representation: Option<(super::TypeReferenceHandle, Vec<facts::PlaceSegment>)>,
@@ -137,6 +137,35 @@ pub struct LocalWriteSource {
     /// the coarse source path.
     pub root: SymbolHandle,
     pub segments: Vec<facts::PlaceSegment>,
+}
+
+impl LocalWriteSource {
+    /// Substitute relative storage using the frame owner's coordinate algebra.
+    /// Text paths are only display/footprint payload; they never select fields.
+    pub fn substitute_storage(&self, relative: &Self) -> Option<Self> {
+        if !self.root.is_valid()
+            || !relative.root.is_valid()
+            || (self.collection_coarse && !relative.segments.is_empty())
+        {
+            return None;
+        }
+        let coordinate = |source: &Self| super::place_paths::FrameSourcePlace {
+            root: source.root,
+            segments: source.segments.clone(),
+            representation: source.representation.clone(),
+            builtin_coordinates: true,
+            ..Default::default()
+        };
+        let source = coordinate(self).append_relative(&coordinate(relative));
+        Some(Self {
+            root: source.root,
+            segments: source.segments,
+            representation: source.representation,
+            // Keep the coarse observer path; exact selectors live above.
+            path: self.path.clone(),
+            collection_coarse: self.collection_coarse || relative.collection_coarse,
+        })
+    }
 }
 
 impl From<FramePlaceOrigin> for LocalWriteSource {
@@ -205,6 +234,51 @@ pub(super) fn assignment_write_paths(
             &evidence.stored,
         ),
     }
+}
+
+/// Address provenance of the performed store, not the contents before it.
+/// The same recorded assignment prefix distinguishes replacing a reference
+/// slot from writing its referent and retains every current alias alternative.
+pub(super) fn assignment_destination_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    machine_symbols: &super::MachineSymbols<'_>,
+    statement: &StatementNode,
+    state_assignments: &StateAssignments<'_>,
+) -> Option<Vec<LocalWriteSource>> {
+    let (state, _, index) =
+        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
+    let assignments = state_assignments(state);
+    let (_, evidence) = assignments.iter().find(|(ordinal, _)| *ordinal == index)?;
+    if matches!(
+        evidence.target,
+        AssignmentWriteTarget::LocalBindingReplacement { .. }
+    ) {
+        return Some(Vec::new());
+    }
+    let StatementNode::Assignment(assignment) = statement else {
+        return None;
+    };
+    let mut inference = FrameInference::for_state(state.symbol);
+    for local in &evidence.stored {
+        inference.record_local(local);
+    }
+    let origins = super::alias_origins::stable_alias_initializer_origins(
+        program,
+        machine,
+        machine_symbols,
+        &mut inference,
+        assignment.target,
+        program.state_parameters(state),
+        &evidence.isolated_locals,
+        &evidence.aliases,
+        &evidence.divergent,
+        symbols,
+        true,
+        &evidence.stored,
+    )?;
+    Some(origins.into_iter().map(LocalWriteSource::from).collect())
 }
 
 fn assignment_evidence(
