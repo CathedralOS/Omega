@@ -1,0 +1,24 @@
+// Two views borrow one original scalar home and survive ordinary helper calls.
+machine signed_value(value: &i32) -> i32 { value }
+machine unsigned_value(value: &u32) -> u32 { value }
+
+machine inspect(value: i32) -> u32 {
+    let signed: &i32 = &value;
+    let unsigned: &u32 = &value as &u32;
+    let observed: i32 = signed_value(signed);
+    transition observed == -17 {
+        true -> unsigned_value(unsigned)
+        _ -> 0
+    }
+}
+
+machine main() crashes Trap {
+    let bits: u32 = inspect(-17);
+    let other: u32 = inspect(-16);
+    transition bits == 4294967279 && other == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

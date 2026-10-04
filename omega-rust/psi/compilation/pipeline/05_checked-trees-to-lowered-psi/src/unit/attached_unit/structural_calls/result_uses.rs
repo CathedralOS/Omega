@@ -1348,7 +1348,13 @@ pub(crate) fn validate_consumer(
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
         if let Some(expression) = expression
             && super::super::reference_results::validate_consumer(
-                checked, caller, coordinate, argument, parameter, expression,
+                checked,
+                caller,
+                coordinate,
+                argument,
+                parameter,
+                expression,
+                source_position,
             )?
         {
             if authored.boundary

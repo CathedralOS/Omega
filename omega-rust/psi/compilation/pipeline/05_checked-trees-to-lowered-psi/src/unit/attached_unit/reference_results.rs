@@ -433,6 +433,7 @@ pub(super) fn validate_consumer(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
     expression: checked_trees::expression::ExpressionHandle,
+    source_position: u32,
 ) -> Result<bool, LoweringError> {
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
@@ -481,32 +482,46 @@ pub(super) fn validate_consumer(
         }
         return Ok(true);
     }
-    let Some((producer, (result, custody))) = caller.operations.iter().find_map(|operation| {
-        let produced = ordinary_structural_result(operation)?;
-        (produced.0.binding_ordinal == binding_ordinal).then_some((operation, produced))
-    }) else {
+    // A stored reference's consumer depends on its declared carrier and live
+    // producer, not on whether formation or a call published that carrier.
+    let mut producers = caller
+        .operations
+        .iter()
+        .enumerate()
+        .filter_map(|(index, operation)| {
+            operation
+                .structural_result_binding()
+                .filter(|result| result.binding_ordinal == binding_ordinal)
+                .map(|result| (index, operation, result))
+        });
+    let Some((producer_index, producer, result)) = producers.next() else {
         return Ok(false);
     };
-    if !custody.reference_loan.is_valid() {
-        return Ok(false);
+    if producers.next().is_some() {
+        return unsupported("reference consumer has ambiguous producer custody");
     }
-    super::structural_calls::validate_custody(checked, caller.machine, caller.state, producer)?;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)
         .get(result.statement_index as usize)
     else {
-        return unsupported("reference result consumer has no authored local");
+        return Ok(false);
     };
-    let (referent, _) = validation::reference_result_custody::mutable_borrowed_parts(
+    let Some((referent, source_access)) = validation::reference_result_custody::stored_loan_parts(
         &checked.typed,
         local.type_reference,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "reference local lost its declared reference type",
-    ))?;
+    ) else {
+        return Ok(false);
+    };
+    // Descriptor and erased-alias operands retain their existing representation
+    // joins. This route crosses a stored Reference shell of the declared type.
+    if result.type_identity
+        != checked
+            .normalized_type_identity(local.type_reference)
+            .as_str()
+    {
+        return Ok(false);
+    }
     let primitive = checked.primitive_type_reference(referent).is_some();
     let plain_record = checked
         .typed
@@ -524,9 +539,121 @@ pub(super) fn validate_consumer(
     if !primitive && !plain_record {
         return unsupported("reference consumer has no plain record or primitive referent");
     }
+    let loan = match producer {
+        CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+            validate_local_establishment(checked, caller.state, result, source)?;
+            None
+        }
+        _ => {
+            let Some((_, custody)) = ordinary_structural_result(producer) else {
+                return unsupported("reference carrier producer has no retained custody");
+            };
+            if !custody.reference_loan.is_valid() {
+                return unsupported("reference carrier producer lost its source loan");
+            }
+            super::structural_calls::validate_custody(
+                checked,
+                caller.machine,
+                caller.state,
+                producer,
+            )?;
+            Some(custody.reference_loan)
+        }
+    };
+    let mut consumers = caller
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(_, operation)| {
+            operation
+                .call()
+                .is_some_and(|call| call.coordinate == coordinate)
+        });
+    let (consumer_index, _) = consumers.next().ok_or(LoweringError::Unsupported(
+        "reference consumer has no exact call occurrence",
+    ))?;
+    if consumers.next().is_some()
+        || producer_index >= consumer_index
+        || result.statement_index >= coordinate.statement_index
+        // The caller roster is a custody inventory: expression preparations
+        // may be appended after later body operations. A release's authored
+        // frontier, not its vector position, decides whether this use is live.
+        || caller.operations.iter().any(|operation| {
+            matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                binding_ordinal: released, statement_index, ..
+            } if *released == binding_ordinal && *statement_index <= coordinate.statement_index)
+        })
+        || result.multiplicity != Multiplicity::Affine
+        || parameter.multiplicity != Multiplicity::Unrestricted
+        // Borrow occurrence replay establishes access, not qualification proof.
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || parameter.is_self
+        || parameter.fused_service_erasure.is_some()
+        || argument.access != parameter.access
+        || argument.type_identity != parameter.type_identity
+        || argument.access == CheckedStructuralAccess::Owned
+        || (source_access != CheckedStructuralAccess::MutableBorrow
+            && source_access != argument.access)
+    {
+        return unsupported("reference consumer changed its live carrier or formal custody");
+    }
+    if let Some(loan) = loan {
+        let boundary = validation::reference_result_custody::release_boundary(
+            &checked.typed,
+            &checked.facts,
+            caller.machine,
+            caller.state,
+            loan,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "reference consumer has no weakening boundary",
+        ))?;
+        if coordinate.statement_index >= boundary
+            || (argument.path.len() > 1 && !active_result_loan(checked, caller, coordinate, loan))
+        {
+            return unsupported("reference consumer is outside its captured loan lifetime");
+        }
+    }
+    validate_carrier_argument(
+        checked,
+        caller,
+        coordinate,
+        argument,
+        expression,
+        source_position,
+        local,
+        referent,
+    )?;
+    Ok(true)
+}
+
+/// Reconstruct the same stored-reference crossing and authored observation for
+/// every reference birth. Captured places retain the local loan subject; the
+/// Terminal path additionally crosses the carrier to its original backing.
+fn validate_carrier_argument(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    expression: checked_trees::expression::ExpressionHandle,
+    source_position: u32,
+    local: &checked_trees::statement::TableLocalData,
+    referent: checked_trees::types::TypeReferenceHandle,
+) -> Result<(), LoweringError> {
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let (target, explicit_access) = match checked.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
         _ => (expression, None),
+    };
+    let requested_access = match argument.access {
+        CheckedStructuralAccess::SharedBorrow => language_semantics::ReferenceAccess::Shared,
+        CheckedStructuralAccess::MutableBorrow => language_semantics::ReferenceAccess::Mutable,
+        CheckedStructuralAccess::WriteOnlyBorrow => language_semantics::ReferenceAccess::WriteOnly,
+        CheckedStructuralAccess::Owned => {
+            return unsupported("reference operand cannot own its referent");
+        }
     };
     let (projected_path, root) =
         crate::expression_preparation::source_custody::structural_places::walk_exact_place(
@@ -538,59 +665,97 @@ pub(super) fn validate_consumer(
             CheckedUnitStructuralPathSegment::Field(_)
                 | CheckedUnitStructuralPathSegment::FixedIndex(_)
         )
-    }) || explicit_access
-        .is_some_and(|access| access != language_semantics::ReferenceAccess::Mutable)
+    }) || explicit_access.is_some_and(|access| access != requested_access)
         || (!projected_path.is_empty() && explicit_access.is_none())
     {
-        return unsupported("reference consumer is not an exact static mutable projection");
+        return unsupported("reference consumer lacks exact projected borrow custody");
     }
     let selected = if projected_path.is_empty() {
         referent
     } else {
         validation::declared_place_type_raw(&checked.typed, machine, Some(state), target).ok_or(
-            LoweringError::Unsupported("reference consumer projection lost its declared type"),
+            LoweringError::Unsupported("reference projection lost its declared type"),
         )?
     };
     let mut expected_path = Vec::with_capacity(projected_path.len() + 1);
     expected_path.push(CheckedUnitStructuralPathSegment::Referent);
     expected_path.extend(projected_path);
-    let boundary = validation::reference_result_custody::release_boundary(
-        &checked.typed,
-        &checked.facts,
-        caller.machine,
-        caller.state,
-        custody.reference_loan,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "reference consumer has no weakening boundary",
-    ))?;
     if argument.path != expected_path
-        || argument.access != CheckedStructuralAccess::MutableBorrow
-        || parameter.access != argument.access
-        || argument.type_identity != parameter.type_identity
         || checked.normalized_type_identity(selected).as_str() != argument.type_identity
-        || result.type_identity
-            != checked
-                .normalized_type_identity(local.type_reference)
-                .as_str()
-        || result.multiplicity != Multiplicity::Affine
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || parameter.multiplicity != Multiplicity::Unrestricted
-        || coordinate.statement_index <= result.statement_index
-        || coordinate.statement_index >= boundary
         || !matches!(checked.expression_table.expression(root), ExpressionNode::Name(path)
             if path.symbol == local.symbol && path.head_symbol == local.symbol
                 && checked.expression_table.name_path_members(path.members).len() == 1)
     {
-        return unsupported("reference consumer differs from its live captured referent");
+        return unsupported("reference consumer differs from its captured referent");
     }
-    if expected_path.len() > 1
-        && !active_result_loan(checked, caller, coordinate, custody.reference_loan)
-    {
-        return unsupported("projected reference consumer has no active captured parent loan");
+    let authored = crate::emission::call_source_custody::authored::locate_source(
+        checked,
+        caller.state,
+        coordinate,
+    )?;
+    let signature = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        caller.machine,
+        authored.source_target,
+    )?;
+    let explicit_self = authored.explicit_arguments.len()
+        > signature
+            .parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+    let explicit_position = signature
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| explicit_self || !parameter.is_self)
+        .position(|(position, _)| position == source_position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "reference consumer lost its explicit formal",
+        ))?;
+    if authored.explicit_arguments.get(explicit_position) != Some(&expression) {
+        return unsupported("reference consumer substituted its authored operand");
     }
-    Ok(true)
+    let captured = crate::expression_preparation::source_custody::borrow_occurrences::call(
+        checked,
+        caller.machine,
+        caller.state,
+        coordinate,
+        authored.source_target,
+    )?;
+    let accesses =
+        crate::expression_preparation::source_custody::computation_calls::replay_call_accesses(
+            checked,
+            caller.machine,
+            caller.state,
+            coordinate.statement_index,
+            captured,
+            &authored.explicit_arguments,
+        )?;
+    let position = accesses
+        .get(explicit_position)
+        .ok_or(LoweringError::Unsupported(
+            "reference consumer lost its captured operand",
+        ))?
+        .operand_position()?;
+    let place = crate::emission::call_source_custody::projected_receivers::observation_place(
+        checked,
+        caller.machine,
+        caller.state,
+        coordinate.statement_index as usize,
+        target,
+    )?;
+    let kind = match argument.access {
+        CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+        CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+        CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
+        CheckedStructuralAccess::Owned => {
+            return unsupported("reference operand requires borrowed access");
+        }
+    };
+    crate::expression_preparation::source_custody::borrow_occurrences::validate_place_argument_at(
+        checked, captured, position, &place, kind,
+    )
 }
 
 fn active_result_loan(

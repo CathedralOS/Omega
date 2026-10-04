@@ -305,20 +305,56 @@ pub(super) fn argument(
         if local.symbol != view_symbol
             || result.statement_index as usize >= call.statement_index
             || !names_whole_local(program, call, expression, view_symbol)
-            || exact_structural_argument_access(
-                program, facts, machine, state, call, place, access,
-            )? != access
         {
             return None;
         }
-        return Some(CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
-            path: Vec::new(),
-            type_identity: target_identity.to_owned(),
-            access,
-        });
+        // A slice result is already its descriptor. Its produced type can
+        // differ from an element-only local annotation; result admission and
+        // receiving view replay authenticate that descriptor and its backing.
+        // Lending it does not cross a stored Reference shell.
+        if crate::execution::terminal_unit::types::borrowed_slice_view(
+            program,
+            parameter.type_reference,
+        ) {
+            if exact_structural_argument_access(
+                program, facts, machine, state, call, place, access,
+            )? != access
+            {
+                return None;
+            }
+            return Some(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: target_identity.to_owned(),
+                access,
+            });
+        }
+        // A stored reference instead lends its Referent. Reuse the common
+        // storage plan, then translate its authenticated local into this
+        // sequence's result namespace without changing access or projection.
+        let mut argument = super::computation_arguments::borrowed_storage_argument(
+            program,
+            &facts.borrow,
+            machine,
+            source_state,
+            call,
+            place,
+            parameter,
+        )?;
+        if argument.source
+            != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: view_symbol,
+            })
+            || argument.type_identity != target_identity
+        {
+            return None;
+        }
+        argument.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        };
+        return Some(argument);
     }
     // A `&[u8]`/`&'a V` borrowed-view result forwarded whole as the actual:
     // the producer already loaned its own storage, so the argument names the

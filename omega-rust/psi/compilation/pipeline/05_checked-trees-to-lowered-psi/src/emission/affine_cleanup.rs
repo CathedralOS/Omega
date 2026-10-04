@@ -1,8 +1,8 @@
 //! Complete no-code affine carrier custody after a body's operation graph exists.
 //!
 //! Callers supply only entry owners whose cleanup they delegate here. Existing
-//! statement cleanup remains authoritative; otherwise unhandled borrowed-view
-//! carriers enter at their result birth and are disposed before their owners.
+//! statement cleanup remains authoritative; otherwise unhandled view and
+//! reference carriers enter at their result birth and are disposed before their owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
 //! Cyclic descriptor forwarding and nominal cleanup remain outside this pass.
@@ -79,6 +79,7 @@ fn complete_carriers(
                 || !(matches!(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::ElementView { .. }
+                        | terminal_psi::StructuralTypeShape::Reference { .. }
                 ) || declaration.shape.is_borrowed_byte_view())
             {
                 return None;
@@ -269,6 +270,17 @@ fn complete_carriers(
                     return unsupported(
                         "scalar graph owned operand transfers an unavailable affine parameter",
                     );
+                };
+                live.remove(live_position);
+            }
+            // Ending a reference consumes its carrier just as an owned
+            // transfer does. Its backing remains with its original owner;
+            // no second carrier discard belongs on the eventual return.
+            if let terminal_psi::OperationKind::ReleaseReference { source } = &operation.kind
+                && managed.contains(source)
+            {
+                let Some(live_position) = live.iter().position(|place| place == source) else {
+                    return unsupported("reference release consumes an unavailable carrier");
                 };
                 live.remove(live_position);
             }

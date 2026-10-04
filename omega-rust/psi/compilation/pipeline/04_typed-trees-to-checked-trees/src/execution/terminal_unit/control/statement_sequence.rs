@@ -38,7 +38,7 @@ use crate::execution::terminal_unit::control::structural_operands;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
+    ShapeCollector, is_unit, machine_binders, parameter_qualifications,
 };
 
 use checked_trees::CheckedUnitStructuralReturnPlan;
@@ -1665,12 +1665,8 @@ fn consume_result(
     access: CheckedStructuralAccess,
     projected: bool,
 ) -> Option<()> {
-    // Every structural producer except an established reference.
     let mut producers = operations.iter_mut().filter(|operation| {
-        !matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EstablishReference { .. }
-        ) && operation
+        operation
             .structural_result_binding()
             .is_some_and(|result| result.binding_ordinal == binding_ordinal)
     });
@@ -1688,12 +1684,19 @@ fn consume_result(
     ) {
         return (access != CheckedStructuralAccess::Owned || !projected).then_some(());
     }
-    if let Some(custody) = producer
+    let reference_carrier = matches!(
+        producer,
+        CheckedUnitEffectOperationPlan::EstablishReference { .. }
+    ) || producer
         .call()
         .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
-        && custody.reference_loan.is_valid()
-    {
-        // A borrowed result is consumed by a borrow of matching access:
+        .is_some_and(|custody| custody.reference_loan.is_valid());
+    if reference_carrier {
+        // Formation and call results own the same permission carrier. Lending
+        // its referent leaves disposal with the producer; it does not require
+        // an owned-result discard flag or transfer the borrowed backing.
+        // Argument admission retains exact access, path and loan lifetime.
+        // A borrowed result is used by a borrow of matching access:
         // `&mut` results only by a projected `&mut` argument (a re-borrow —
         // the whole exclusive loan cannot move), while a `&` result's loan
         // is shareable, so a `&` argument admits the forward projected or

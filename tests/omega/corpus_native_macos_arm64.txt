@@ -924,6 +924,7 @@ pass/recast/runtime_recast_record_view_indexed_write_exit built 1576ms exit:70 @
 pass/recast/runtime_record_array_view_mutable_write_exit built 3951ms exit:70 @06ca7704be0a
 pass/recast/runtime_scalar_parameter_shared_views_exit built 990ms exit:70 @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
+pass/recast/runtime_shared_parameter_view_calls_exit built 670ms exit:0 @cd7399e98041+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
 pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1

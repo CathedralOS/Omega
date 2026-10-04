@@ -1089,6 +1089,8 @@ fail/recast/reference_let_pun_requires_recast rejected 155ms expected @a3bac00e5
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/scalar_parameter_view_footprint_rejected rejected 311ms expected @9782e38b64ab+wt
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
+fail/recast/shared_parameter_view_mutable_call_rejected rejected 131ms expected @cd7399e98041+wt
+	argument `value` for state `entry` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
 fail/recast/unbounded_offset_names_the_bound rejected 544ms unexpected @c5d32a00863
@@ -2301,6 +2303,7 @@ pass/recast/runtime_recast_record_view_indexed_write_exit checked 1653ms @3b6243
 pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms @def08a434d7a+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt
+pass/recast/runtime_shared_parameter_view_calls_exit checked 538ms @cd7399e98041+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms @a3bac00e54bb+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 928ms @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
