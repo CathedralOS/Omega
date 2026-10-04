@@ -10,9 +10,8 @@
 //! Final live locals rebind in declaration order at the selected cleanup edge;
 //! this preserves disposal order without remapping survivors after every move.
 use super::super::{
-    OperationResult, StructuralFieldId, StructuralFieldType, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
-    place_id,
+    StructuralFieldId, StructuralFieldType, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, allocate_dense, place_id,
 };
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
@@ -796,23 +795,6 @@ pub(crate) fn emit(
         operations,
     );
     Ok(())
-}
-
-pub(crate) fn declarations(
-    operations: &OperationBuffer,
-) -> impl Iterator<Item = StructuralPlaceDeclaration> + '_ {
-    operations
-        .iter()
-        .filter_map(|operation| match &operation.result {
-            OperationResult::Structural(result) => Some(StructuralPlaceDeclaration {
-                id: result.place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation.id,
-                    structural_type: result.structural_type,
-                },
-            }),
-            _ => None,
-        })
 }
 
 /// Complete selected scalar operands before ending the source locals' lives.

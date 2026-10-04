@@ -193,7 +193,7 @@ pub(crate) fn emit_call_leaf(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut catalogs.temporary_places,
     )?;
-    crate::scalar_graph::scalar_computations::copies::retain_declarations(
+    crate::emission::operation_emission::place_declarations::retain_operation_results(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut catalogs.temporary_places,
     )?;

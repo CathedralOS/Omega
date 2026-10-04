@@ -883,7 +883,7 @@ pub(super) fn emit(
         )
         .chain(computed_array_places)
         .collect::<Vec<_>>();
-    crate::scalar_graph::scalar_computations::copies::retain_declarations(
+    crate::emission::operation_emission::place_declarations::retain_operation_results(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut structural_places,
     )?;

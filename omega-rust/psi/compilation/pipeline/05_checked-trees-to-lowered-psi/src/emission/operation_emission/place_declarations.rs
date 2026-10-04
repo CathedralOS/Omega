@@ -55,3 +55,44 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
         machine.structural_places.sort_by_key(|place| place.id);
     }
 }
+
+/// Structural storage exists at an emitted result, independently of the source
+/// expression or body representation that selected its producer.
+pub(crate) fn operation_results<'a>(
+    operations: impl Iterator<Item = &'a terminal_psi::Operation>,
+) -> impl Iterator<Item = StructuralPlaceDeclaration> {
+    operations.filter_map(|operation| {
+        let result = operation.result.structural()?;
+        Some(StructuralPlaceDeclaration {
+            id: result.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation.id,
+                structural_type: result.structural_type,
+            },
+        })
+    })
+}
+
+/// A body may already have declared an ordinary result encountered by this
+/// scan. Reuse only the exact producer and carrier; a conflicting identity is
+/// an emission error, not a reason to replace the earlier declaration.
+pub(crate) fn retain_operation_results<'a>(
+    operations: impl Iterator<Item = &'a terminal_psi::Operation>,
+    declarations: &mut Vec<StructuralPlaceDeclaration>,
+) -> Result<(), crate::lowering_error::LoweringError> {
+    for declaration in operation_results(operations) {
+        if let Some(existing) = declarations
+            .iter()
+            .find(|existing| existing.id == declaration.id)
+        {
+            if *existing != declaration {
+                return crate::lowering_error::unsupported(
+                    "computed result conflicts with an existing place declaration",
+                );
+            }
+        } else {
+            declarations.push(declaration);
+        }
+    }
+    Ok(())
+}
