@@ -3,25 +3,23 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use compiler::CheckedCompilation;
-use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema};
+use effects::provider_plan::{ProviderBinding, ProviderPlan, ServiceMethod, ServiceSchema};
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
 use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use package_evidence::record::{
-    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner,
-};
 use std::collections::{BTreeMap, BTreeSet};
+use symbols::SymbolHandle;
 use terminal_psi_to_abstract_operations::provider_admission;
 
 /// One compiler-issued semantic-binding proposal together with the exact
 /// checked service schema from which a consumer may author permission rows.
 ///
-/// The schema is review material, not policy: this carrier never assigns an
-/// authority class from a service path or readable method name. A caller must
-/// explicitly choose exact requirement identities and submit the resulting
-/// binding for a complete checked recompilation.
+/// The schema and any hosted permission rows are review proposals, not grants.
+/// Permissions bind exact requirement identities to the compiler's hosted-leaf
+/// classifications; consumer scoping removes them from non-root/build inputs.
+/// The resulting binding still requires complete checked recompilation and
+/// the project's explicit policy decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticBindingReviewCandidate {
     binding: AcceptedSemanticBinding,
@@ -226,59 +224,18 @@ pub(super) fn candidate_semantic_binding_inputs(
                             }
                         })?;
                 }
-            }
-            inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
-                review.key().clone(),
-                review.checked_context(),
-                binding,
-            ));
-        }
-        for role in [
-            AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-        ] {
-            let candidates = review
-                .projection()
-                .selected_providers()
-                .iter()
-                .filter_map(|provider| {
-                    candidate_hosted_exit_provider_package(provider, role)
-                        .map(|package| (provider, package))
-                })
-                .collect::<Vec<_>>();
-            let (provider, package) = match candidates.as_slice() {
-                [] => continue,
-                [candidate] => *candidate,
-                _ => {
-                    return Err(
-                        CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+            } else {
+                // Cached nominations are package-local, not root-local.
+                // A hosted candidate may propose permissions, but only this
+                // invocation's product root may carry them into policy.
+                binding = binding
+                    .with_terminal_authority_permissions(Vec::new())
+                    .map_err(|_| {
+                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                             consumer: review.key().clone(),
                             role,
-                            candidate_count: candidates.len(),
-                        },
-                    );
-                }
-            };
-            let invalid = || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: review.key().clone(),
-                role,
-            };
-            let mut binding = AcceptedSemanticBinding::new(
-                role,
-                package,
-                provider.schema_declaration().path(),
-                provider.schema().identity_digest(),
-                provider.selected_plan_digest(),
-            )
-            .map_err(|_| invalid())?;
-            if review.key() == root
-                && review.checked_context().purpose() == DependencyPurpose::Product
-            {
-                binding = binding
-                    .with_terminal_authority_permissions(
-                        candidate_hosted_exit_permissions(provider, role).ok_or_else(invalid)?,
-                    )
-                    .map_err(|_| invalid())?;
+                        }
+                    })?;
             }
             inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
                 review.key().clone(),
@@ -302,7 +259,7 @@ pub(super) fn candidate_semantic_binding_inputs(
 /// when a Console provider declares their external rows. The separate
 /// ProcessExit role proposes only termination, never console I/O authority.
 fn candidate_hosted_exit_permissions(
-    provider: &CheckedPackageProviderReview,
+    provider: &ProviderPlan,
     role: AcceptedSemanticBindingRole,
 ) -> Option<Vec<ServiceTerminalAuthorityPermission>> {
     const LEAVES: [(&str, TerminalAuthorityClass, bool); 3] = [
@@ -333,7 +290,7 @@ fn candidate_hosted_exit_permissions(
             return None;
         }
         permissions.push(ServiceTerminalAuthorityPermission::new(
-            provider.schema().identity_digest(),
+            provider.schema.identity_digest(),
             method.requirement_identity.clone(),
             TerminalAuthorityDisposition::from_classes([class]),
         ));
@@ -350,7 +307,6 @@ fn candidate_hosted_exit_permissions(
 /// referenced path may nominate at most one (package, path) candidate.
 pub(super) fn candidate_service_bindings(
     checked: &CheckedCompilation,
-    projection: &CheckedPackageReviewProjection,
     consumer: &PackageKey,
 ) -> Result<Vec<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
     const HOST_SERVICE_PATHS: &[(&str, AcceptedSemanticBindingRole)] = &[
@@ -361,25 +317,14 @@ pub(super) fn candidate_service_bindings(
         ("TimeHost", AcceptedSemanticBindingRole::TimeHostService),
     ];
     let mut bindings = Vec::new();
+    let referenced = checked_callable_service_references(checked, consumer)?;
     for (path, role) in HOST_SERVICE_PATHS {
-        let all_refs = projection
-            .callables()
-            .iter()
-            .flat_map(callable_service_references)
-            .collect::<Vec<_>>();
-        let referenced = all_refs
-            .into_iter()
-            .filter(|service| {
-                service.path() == *path
-                    && matches!(service.owner(), PackageReviewNominalOwner::Package(_))
-            })
-            .cloned()
-            .collect::<BTreeSet<_>>();
         let mut candidate_packages = referenced
             .iter()
-            .filter_map(|service| match service.owner() {
-                PackageReviewNominalOwner::Package(package) => Some(package),
-                _ => None,
+            .filter_map(|&service| {
+                (checked.typed.symbols.display_path(service, "::") == *path)
+                    .then(|| checked.typed.symbols.symbol_package_identity(service))
+                    .flatten()
             })
             .collect::<BTreeSet<_>>();
         // A root-bound ProgramEntry is not a package callable, so a
@@ -562,73 +507,191 @@ pub(super) fn candidate_target_entry_binding(
     )))
 }
 
-fn callable_service_references(
-    callable: &CheckedPackageCallableReview,
-) -> Vec<&PackageReviewNominalIdentity> {
+/// Binding nomination consumes symbol-backed checked facts, not their audit
+/// rendering. Keep the public/boundary/build surface and exact invocation
+/// edges distinct from transitive reach; neither can stand in for the other.
+fn checked_callable_service_references(
+    checked: &CheckedCompilation,
+    consumer: &PackageKey,
+) -> Result<Vec<SymbolHandle>, CompileResolvedPackageReviewsError> {
     let mut services = Vec::new();
-    if let Some(reach) = callable.declared_service_reach() {
-        services.extend(reach);
-    }
-    if let Some(reach) = callable.checked_service_reach().realized() {
-        services.extend(reach);
-    }
-    if let Some(reach) = callable.checked_service_reach().concrete() {
-        services.extend(reach);
-    }
-    for reach in callable.unresolved_installation_reaches() {
-        services.extend(reach.upper_bound());
-    }
-    if let Some(invocations) = callable.declared_synchronous_invocations() {
+    let reaches = &checked.facts.service_reaches;
+    for machine in checked.machines().iter().filter(|machine| {
+        checked
+            .typed
+            .symbols
+            .symbol_package_identity(machine.symbol)
+            == Some(consumer.identity())
+            && (machine.is_public
+                || machine.supply_mode.is_boundary_declaration()
+                || Some(machine.symbol) == checked.build().selected_build_machine_symbol)
+    }) {
+        let missing = || CompileResolvedPackageReviewsError::Compilation {
+            package: consumer.clone(),
+            diagnostics: vec![diagnostics::Diagnostic::error(format!(
+                "checked callable `{}` has no service-reach or synchronous-invocation facts",
+                checked.typed.symbols.display_path(machine.symbol, "::"),
+            ))],
+        };
+        let reach = reaches.for_machine(machine.symbol).ok_or_else(missing)?;
+        let invocations = checked
+            .facts
+            .synchronous_invocations
+            .machines
+            .iter()
+            .find(|fact| fact.machine == machine.symbol)
+            .ok_or_else(missing)?;
+        let published = match reach.interface {
+            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
+            language_semantics::ServiceReachInterface::InternalInferred => None,
+        };
+        let body = (machine.body_is_present
+            && matches!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::CheckedBody
+                    | language_semantics::MachineSupplyMode::Boundary
+            ))
+        .then_some([reach.inferred_transitive, reach.concrete_transitive]);
+        for row in published
+            .into_iter()
+            .chain(body.into_iter().flatten())
+            .chain(
+                reach
+                    .unresolved_installation_reaches
+                    .iter()
+                    .map(|reach| reach.upper_bound),
+            )
+        {
+            for &service in reaches.rows.services(row) {
+                services.push(
+                    reaches
+                        .services
+                        .definition(service)
+                        .ok_or_else(missing)?
+                        .symbol,
+                );
+            }
+        }
+        let published_invocations = match invocations.plan.interface {
+            language_semantics::SynchronousInvocationInterface::PublishedCeiling => {
+                invocations.published_targets.as_slice()
+            }
+            language_semantics::SynchronousInvocationInterface::InternalInferred => &[],
+        };
         services.extend(
-            invocations
+            published_invocations
                 .iter()
-                .filter_map(|invocation| invocation.service()),
+                .chain(&invocations.checked_inferred_targets)
+                .filter_map(|target| match target {
+                    flow_effects::InvocationTarget::Service(symbol) => Some(*symbol),
+                    flow_effects::InvocationTarget::Parameter(_) => None,
+                }),
         );
     }
-    services.extend(
-        callable
-            .realized_synchronous_invocations()
+    services.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    services.dedup();
+    Ok(services)
+}
+
+/// Retain hosted proposals while the checked provider plans still exist.
+/// Permissions remain proposals for the subsequent policy decision. The
+/// consumer-scoping step removes them from dependency and build-host inputs,
+/// including candidates recovered from the package-local review cache.
+pub(super) fn candidate_hosted_exit_bindings(
+    checked: &CheckedCompilation,
+    consumer: &PackageKey,
+) -> Result<Vec<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
+    let mut bindings = Vec::new();
+    for role in [
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+    ] {
+        let candidates = checked
+            .execution()
+            .selected_provider_provenance
             .iter()
-            .filter_map(|invocation| invocation.service()),
-    );
-    services
+            .filter_map(|retained| {
+                candidate_hosted_exit_provider_package(checked, retained, role)
+                    .map(|package| (retained, package))
+            })
+            .collect::<Vec<_>>();
+        let (retained, package) = match candidates.as_slice() {
+            [] => continue,
+            [candidate] => *candidate,
+            _ => {
+                return Err(
+                    CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                        consumer: consumer.clone(),
+                        role,
+                        candidate_count: candidates.len(),
+                    },
+                );
+            }
+        };
+        let invalid = || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+            consumer: consumer.clone(),
+            role,
+        };
+        let provider = &retained.plan;
+        let binding = AcceptedSemanticBinding::new(
+            role,
+            package,
+            checked
+                .typed
+                .symbols
+                .display_path(retained.provider.schema.symbol(), "::"),
+            provider.schema.identity_digest(),
+            provider.identity_digest(),
+        )
+        .map_err(|_| invalid())?;
+        let binding = binding
+            .with_terminal_authority_permissions(
+                candidate_hosted_exit_permissions(provider, role).ok_or_else(invalid)?,
+            )
+            .map_err(|_| invalid())?;
+        bindings.push(SemanticBindingReviewCandidate::new(
+            binding,
+            provider.schema.clone(),
+        ));
+    }
+    Ok(bindings)
 }
 
 fn candidate_hosted_exit_provider_package(
-    provider: &CheckedPackageProviderReview,
+    checked: &CheckedCompilation,
+    retained: &provider_planning::SelectedProviderReviewProvenance,
     role: AcceptedSemanticBindingRole,
 ) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-    let package = provider.provider_type_package()?;
+    let provider = &retained.plan;
+    let package = provider.provider_type_package_identity?;
+    let schema = retained.provider.schema.symbol();
+    let schema_package = checked.typed.symbols.symbol_package_identity(schema);
+    let schema_path = checked.typed.symbols.display_path(schema, "::");
     let expected_schema_owner = match role {
         AcceptedSemanticBindingRole::ConsoleExitProcessI32 => {
-            provider.service_schema() == "Console"
-                && provider.schema_declaration().owner()
-                    == PackageReviewNominalOwner::Package(package)
+            schema_path == "Console" && schema_package == Some(package)
         }
         AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
-            provider.service_schema() == "ProcessExit"
-                && matches!(
-                    provider.schema_declaration().owner(),
-                    PackageReviewNominalOwner::ToolchainSource(_)
-                )
+            schema_path == "ProcessExit"
+                && schema_package.is_none()
+                && checked.typed.symbols.symbol_source_origin(schema)
+                    == Some(source::SourceOrigin::Toolchain)
         }
         _ => false,
     };
     (expected_schema_owner
-        && provider.realizing_package() == Some(package)
+        && provider.origin_package_identity == Some(package)
         && candidate_hosted_exit_methods(provider).any(|method| method.name == "exit_process"))
     .then_some(package)
 }
 
-fn candidate_hosted_exit_methods(
-    provider: &CheckedPackageProviderReview,
-) -> impl Iterator<Item = &ServiceMethod> {
-    provider.rows().iter().filter_map(|row| {
+fn candidate_hosted_exit_methods(provider: &ProviderPlan) -> impl Iterator<Item = &ServiceMethod> {
+    provider.rows.iter().filter_map(|row| {
         if matches!(
             row.binding,
             ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
         ) {
-            provider.schema().method_for_row(row)
+            provider.schema.method_for_row(row)
         } else {
             None
         }

@@ -1,7 +1,7 @@
 //! Pins one persisted review record's exact bytes and the record key's byte
 //! layout. A record written by an earlier build of the same stamp must decode
-//! unchanged, so a failure here is a format change: bump `RECORD_VERSION` or
-//! the key domain rather than editing the pinned bytes.
+//! unchanged, so changing the pinned bytes requires an explicit
+//! `RECORD_VERSION` or key-domain bump.
 
 use super::record_codec::{decode_record, encode_record};
 use super::{CachedCompiledReview, CachedOccurrenceFacts, compiled_review_key};
@@ -38,7 +38,7 @@ use target::TargetProfile;
 /// the current Terminal Psi vocabulary marker, which a vocabulary bump changes
 /// independently of this record layout.
 const PINNED_RECORD_PAYLOAD: &str = concat!(
-    "4f4d47435245560103000101010101010101010101010101010101010101010101010101010101010101060000000000",
+    "4f4d47435245560104000101010101010101010101010101010101010101010101010101010101010101060000000000",
     "000073616d706c6522222222222222222222222222222222222222222222222222222222222222223333333333333333",
     "333333333333333333333333333333333333333333333333010c000000000000006c696e75785f7838365f3634010b00",
     "0000000000006d61636f735f61726d363407000000000000006d616368696e6501950000000000000003000000040000",
@@ -379,6 +379,14 @@ fn compiled_review_record_keeps_its_exact_bytes() {
     let mut reencoded = Vec::new();
     encode_record(&decoded, &mut reencoded);
     assert_eq!(reencoded, payload);
+
+    // Version 3 lacks hosted nominations in the candidate roster. Even an
+    // otherwise intact record with a valid trailer must be rebuilt.
+    let mut previous = payload.clone();
+    previous[8..10].copy_from_slice(&3u16.to_le_bytes());
+    let previous_digest = Sha256::digest(&previous);
+    previous.extend_from_slice(&previous_digest);
+    assert!(decode_record(&previous).is_none());
 
     // A flipped payload byte fails the trailer check rather than decoding.
     let mut corrupt = stored;

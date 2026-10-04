@@ -162,9 +162,18 @@ through its use. Compiler transcripts, replay records, and certificate caches
 are not ordinary lock acceptance. Existing ledger wrappers do not mandate an
 additional lock-certification or package-promotion workflow.
 
-Open contract-entailment obligations cannot be accepted by policy. An exact
-locally rechecked discharge may close one; accepted axioms remain disclosed
-assumptions. A postcondition the entailment engine stands down on may carry
+Unproved source contracts reject in Psi checking, before any package review or
+policy decision. Every normal return, including a tail call to another
+machine, owes the caller's guarantee. Accepted axioms remain disclosed
+assumptions; project policy cannot make an invalid proof valid.
+
+An arithmetic entailment engine's stand-down is not a final checking verdict:
+the ordinary checker can prove the guarantee through another route, including
+transparent propositions and explicitly assigned proof evidence. The legacy
+review ledger retains these engine-local questions and a narrower discharge
+encoding; it must not reject a checked program merely because that encoding
+does not describe the proof route that succeeded. A postcondition the
+entailment engine stands down on may carry
 checked exit evidence when the live facts at every normal exit prove it: a
 membership's exact subject and domain application, or a scalar predicate such
 as a bound on post-state storage. A scalar predicate is proved from the entry
@@ -176,8 +185,8 @@ or selected subset supplies no discharge. This evidence rejoins the original
 obligation, callable contract commitment and checked source custody. The open
 question and its discharge remain separate canonical rows. Recovering those
 rows alone does not establish the claim: fresh source reconstruction must
-reproduce the exit evidence before ordinary package results close that
-obligation.
+reproduce the exit evidence before the legacy ledger records that discharge.
+Neither that ledger nor its rendering is an input to source contract checking.
 
 Reports separate mechanical checking from admissions and from
 producer/signature/audit metadata. A signature records custody, not review quality;

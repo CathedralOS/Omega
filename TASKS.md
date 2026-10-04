@@ -2553,8 +2553,9 @@ same flow already performed, not the check itself.
     `acceptance.md` ("Native preparation compares fresh findings") to state
     that compiles trust accepted packages, citing this ruling.
 
-  Depends on **REVIEW-INPUTS-FROM-CHECKED**, which removes the compile's
-  dependence on review output. Native compiles currently reach it through
+  Binding nomination now consumes checked reach/provider facts, and Psi
+  checking owns source contracts and representation selections without a
+  review projection. The remaining per-compile review workflow is reached through
   `compile_project.rs::compile_one_prepared_target` →
   `accept_ordinary_closure_evidence` → `compare_package_policy_changes`, and
   `--check` builds the reviews and then discards them
@@ -2990,22 +2991,6 @@ lands alone with its corpus slice unchanged and no fallback path.
   Acceptance: one gate call per request; an audit of a package whose build
   requests scoped filesystem execution performs no host effect; corpus
   `--filter build` is unchanged.
-
-- **REVIEW-INPUTS-FROM-CHECKED.** (new-scope) Prerequisite of
-  **COMPILE-TRUSTS-ACCEPTED-PACKAGES**: the compile reads three of its
-  inputs from review output.
-  - `review/candidate/semantic_bindings.rs::candidate_service_bindings`
-    walks `projection.callables()` to discover FilesystemHost/TimeHost
-    bindings. Read the checked compilation instead.
-  - `policy.representation().rejoin_foreign_demands` (`package_pass.rs`)
-    is the only check of consumer by-value opaque demands against producer
-    availability. It is a language rule, so move it into checking.
-  - Rejecting open contract-entailment obligations (`root_policy.rs`,
-    `package_change.rs`) is a language rule, so move it into checking.
-
-  Move all three in one commit. Acceptance: no compile input reads a review
-  projection; the opaque-representation and entailment rejection fixtures
-  still reject from `--check` with no package manager involved.
 
 - **REVIEW-SINGLE-PROJECTION.** (new-scope) review-evidence (62.8k non-test
   lines) projects every `CheckedCompilation` twice, and then validates

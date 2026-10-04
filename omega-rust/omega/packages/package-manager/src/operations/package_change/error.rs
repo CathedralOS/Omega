@@ -1,4 +1,3 @@
-use crate::declarations::PackageKey;
 use crate::lock::{HistoricalPackagePolicyError, PackageLockError};
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
 use crate::review::{CompileResolvedPackageReviewsError, PackagePolicyChangeError};
@@ -7,10 +6,6 @@ use std::fmt;
 #[derive(Debug)]
 pub enum PackageChangeError {
     Compilation(CompileResolvedPackageReviewsError),
-    UndischargedContract {
-        package: Box<PackageKey>,
-        count: usize,
-    },
     Comparison(PackagePolicyChangeError),
     SourceSubject(CanonicalSourceClosureSubjectError),
     Decisions(HistoricalPackagePolicyError),
@@ -25,11 +20,6 @@ impl fmt::Display for PackageChangeError {
             Self::Compilation(error) => {
                 write!(formatter, "package candidate checking failed: {error}")
             }
-            Self::UndischargedContract { package, count } => write!(
-                formatter,
-                "package {:?} has {count} unresolved contract obligations; project decisions cannot discharge proofs",
-                package.name().as_str()
-            ),
             Self::Comparison(error) => {
                 write!(formatter, "package candidate comparison failed: {error}")
             }
@@ -58,9 +48,7 @@ impl std::error::Error for PackageChangeError {
             Self::SourceSubject(error) => Some(error),
             Self::Decisions(error) => Some(error),
             Self::Lock(error) => Some(error),
-            Self::UndischargedContract { .. } | Self::RejectedChanges | Self::AllocationFailed => {
-                None
-            }
+            Self::RejectedChanges | Self::AllocationFailed => None,
         }
     }
 }

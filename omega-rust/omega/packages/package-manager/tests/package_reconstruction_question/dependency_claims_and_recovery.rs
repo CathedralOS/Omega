@@ -438,7 +438,7 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
-fn dependency_contract_entailment_stand_down_propagates_but_cannot_be_admitted() {
+fn dependency_contract_entailment_uses_the_checked_proposition_judgment() {
     let temporary = temporary_root("open-contract-entailment-composition");
     let dependency = temporary.join("dependency");
     let root = temporary.join("root");
@@ -453,15 +453,14 @@ machine build(builder: &mut Build) {
 "#,
     )
     .expect("write contract dependency build");
-    // The ordinary exit proves the guarantee through its transparent
-    // proposition. Contract entailment stands down on a proposition guarantee,
-    // and package exit evidence covers only domain memberships and scalar
-    // predicates, so the obligation stays open for a later discharge.
+    // An arithmetic-engine stand-down does not erase a successful proposition
+    // proof. The dependency's real guarantee, not its review encoding, controls
+    // whether checking succeeds.
     std::fs::write(
         dependency.join("main.omg"),
         r#"pub proposition paired(a: u64, b: u64) = min(a, b) >= 1;
 
-pub machine unchecked_claim(a: u64, b: u64)
+pub machine preserve_claim(a: u64, b: u64)
 requires
     paired(a, b)
 ensures
@@ -470,7 +469,7 @@ ensures
 }
 "#,
     )
-    .expect("write unresolved contract entailment");
+    .expect("write proved proposition contract");
     std::fs::write(
         root.join("build.omg"),
         r#"
@@ -492,101 +491,62 @@ machine build(builder: &mut Build) {
         &temporary.join("build"),
         SemanticBindingReview::Explicit(&[]),
     )
-    .expect("compile unresolved contract-entailment closure");
+    .expect("the proposition checker proves the dependency's unchanged entry requirement");
     let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
-    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        &closure.for_exact_target(target::TargetProfile::WindowsX64),
-        &reviews,
-        reconstruction_limits,
-    )
-    .expect("compose locally reconstructed contract-entailment obligation");
-
-    let root_entry = composed
-        .entries()
-        .iter()
-        .find(|entry| entry.package() == closure.graph().root())
-        .expect("selected root result");
-    assert!(
-        root_entry
-            .results()
-            .open_contract_entailment_obligations()
-            .is_empty()
-    );
-    let propagated = composed
-        .root_open_contract_entailment_obligations()
-        .collect::<Vec<_>>();
-    let [(owner, _, obligation)] = propagated.as_slice() else {
-        panic!("one dependency contract-entailment obligation must propagate to the root")
-    };
-    assert_eq!(owner.name().as_str(), "contract_surface");
-    assert_eq!(
-        obligation.status(),
-        OrdinaryPackageObligationStatus::OpenLaterDischarge
-    );
-    assert_eq!(
-        obligation.row().kind(),
-        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
-    );
-    assert_eq!(
-        obligation.row().risk(),
-        PackageReviewCanonicalRowRisk::Blocking
-    );
-
-    let conflicts = compare_review_only_initial_capabilities(
-        &reviews,
-        &closure.for_exact_target(target::TargetProfile::WindowsX64),
-        conflict_limits,
-    )
-    .expect("derive exact fresh contract-entailment conflicts");
-    assert!(conflicts.packages().iter().any(|package| {
-        package.conflicts().iter().any(|conflict| {
-            conflict.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
-                && conflict.risk() == PackageReviewCanonicalRowRisk::Blocking
-        })
-    }));
-    assert!(matches!(
-        bind_fresh_package_root_policy(
-            &closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &reviews,
-            reconstruction_limits,
-            conflict_limits,
-            None,
-        ),
-        Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
-            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
-        ))
-    ));
     let accepted_policy = accepted_policy_fixture::accepted_policy(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &reviews,
     );
-    assert!(matches!(
-        bind_fresh_package_root_policy(
-            &closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &reviews,
-            reconstruction_limits,
-            conflict_limits,
-            Some(&accepted_policy),
-        ),
-        Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
-            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
-        ))
-    ));
-    assert!(matches!(
-        accept_ordinary_closure_evidence(
-            &closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &reviews,
-            reconstruction_limits,
-            conflict_limits,
-            Some(&accepted_policy),
-        ),
-        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
-            FreshPackageRootPolicyError::UnresolvedLaterDischarge(
-                PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
-            )
-        ))
-    ));
+    bind_fresh_package_root_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+        reconstruction_limits,
+        conflict_limits,
+        Some(&accepted_policy),
+    )
+    .expect("the root policy consumes the successful checked proposition judgment");
+    accept_ordinary_closure_evidence(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+        reconstruction_limits,
+        conflict_limits,
+        Some(&accepted_policy),
+    )
+    .expect("ordinary admission cannot reopen the checked proposition obligation");
+
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"pub proposition paired(a: u64, b: u64) = min(a, b) >= 1;
+pub machine preserve_claim(a: u64, b: u64)
+requires paired(a, b)
+ensures paired(b, 0)
+{}
+"#,
+    )
+    .expect("write a genuinely unproved dependency guarantee");
+    let invalid = resolve_external_closure(&root, temporary.join("invalid-cache"));
+    let error = compile_resolved_package_reviews(
+        &invalid.for_exact_target(target::TargetProfile::WindowsX64),
+        &temporary.join("invalid-build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .err()
+    .expect("dependency contracts must reject before package review");
+    let package_manager::review::CompileResolvedPackageReviewsError::Compilation {
+        package,
+        diagnostics,
+    } = error
+    else {
+        panic!("expected dependency source checking failure: {error:?}");
+    };
+    assert_eq!(package.name().as_str(), "contract_surface");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot establish proposition ensure")),
+        "{diagnostics:?}"
+    );
 
     remove_temporary_tree(&temporary);
 }

@@ -161,18 +161,6 @@ pub fn review_package_change_reusing(
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;
-    for review in reviews.reviews() {
-        let count = review
-            .obligation_results()
-            .open_contract_entailment_obligations()
-            .len();
-        if count != 0 {
-            return Err(PackageChangeError::UndischargedContract {
-                package: Box::new(review.key().clone()),
-                count,
-            });
-        }
-    }
     let changes = compare_package_policy_changes(
         accepted,
         &reviews,
