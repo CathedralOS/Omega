@@ -157,23 +157,41 @@ pub(crate) fn validate_structural(
     {
         return unsupported("structural call result disagrees with its declared carrier");
     }
-    // The named arm invocation can follow subject, guard and operand calls
-    // in the same statement. Its exact target occurrence, rather than preorder
-    // zero, identifies the result that completes the enclosing machine.
+    // The completing transition arm names the result's authored destination.
+    // A spelled `-> Target(..)` invocation owns preorder zero as the exact
+    // named occurrence, and its target handle must match. A value arm like
+    // `true -> (call(..))` completes through its authored call expression
+    // instead; `locate_source` already bound that expression to this exact
+    // coordinate, so it only needs to be the arm's declared value. An
+    // expression that is not the arm's value — a dispatch subject, a guard —
+    // falls through to the case-subject and authored-local recognizers.
     let statements = checked.statement_table.statements(state.statement_nodes);
     if let Some(StatementNode::Transition(transition)) =
         statements.get(result.statement_index as usize)
-        && authored.source_site.is_none()
     {
-        if super::authored::transition_target_at_call(checked, caller_state, coordinate)?
-            != transition.target
-            || !statements[result.statement_index as usize..]
-                .iter()
-                .all(|statement| matches!(statement, StatementNode::Transition(_)))
-        {
-            return unsupported("transition result differs from its authored named target");
+        let authored_completion = match authored.source_site {
+            None => Some(
+                super::authored::transition_target_at_call(checked, caller_state, coordinate)?
+                    == transition.target,
+            ),
+            Some(checked_trees::NominalMachineUseSite::Expression(expression)) => matches!(
+                checked.statement_table.transition_target(transition.target),
+                checked_trees::statement::TransitionTargetNode::Value(value)
+                    if *value == expression
+            )
+            .then_some(true),
+            Some(checked_trees::NominalMachineUseSite::Statement(_)) => None,
+        };
+        if let Some(completion) = authored_completion {
+            if !completion
+                || !statements[result.statement_index as usize..]
+                    .iter()
+                    .all(|statement| matches!(statement, StatementNode::Transition(_)))
+            {
+                return unsupported("transition result differs from its authored completion");
+            }
+            return Ok(());
         }
-        return Ok(());
     }
     if coordinate.call_ordinal != 0 {
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
