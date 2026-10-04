@@ -204,6 +204,8 @@ pub use bounded_denotation::{
     verify_bounded_certificate_with_machine_parameters,
 };
 pub(crate) use certificate::run_on_verification_stack;
+#[cfg(test)]
+pub(crate) use certificate::verification_workers_started;
 pub use certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
 };

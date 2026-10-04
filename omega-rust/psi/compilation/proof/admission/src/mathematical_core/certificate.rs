@@ -66,10 +66,22 @@ pub struct MathematicalCertificate {
 /// commit only as recursion actually descends.
 const VERIFICATION_STACK_SIZE: usize = 256 * 1024 * 1024;
 
+#[cfg(test)]
+thread_local! {
+    static VERIFICATION_WORKERS_STARTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn verification_workers_started() -> usize {
+    VERIFICATION_WORKERS_STARTED.get()
+}
+
 /// Run `f` on a scoped worker thread with [`VERIFICATION_STACK_SIZE`].
 /// A panic on the worker is re-thrown on the caller's stack unchanged:
 /// the wide stack absorbs depth, it never decides a different answer.
 pub(crate) fn run_on_verification_stack<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+    #[cfg(test)]
+    VERIFICATION_WORKERS_STARTED.update(|count| count + 1);
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(VERIFICATION_STACK_SIZE)
