@@ -829,12 +829,14 @@ fn cycle_operation_eligible(
                 || operation.result.scalar().is_some()
                 || operation.result.structural().is_some_and(|result| {
                     case_source == Some(result.place)
-                                    // An affine boundary result disposed on
-                                    // every outgoing edge never becomes
-                                    // loop-carried custody either.
+                                    // An affine boundary result confined the
+                                    // same way an in-module call's is never
+                                    // becomes loop-carried custody either.
                                     || (result.multiplicity == StructuralMultiplicity::Affine
-                                        && trivially_discarded_on_all_edges(
+                                        && result_disposed_before_reentry(
+                                            machine,
                                             block,
+                                            cyclic_blocks,
                                             result.place,
                                         ))
                 }))
@@ -1329,31 +1331,6 @@ fn byte_field_boundary_loan(
             .is_some();
     }
     false
-}
-
-/// Whether every outgoing edge of `block` commits an exact no-code affine
-/// discard of `place`, so a produced value cannot cross the cycle backedge.
-fn trivially_discarded_on_all_edges(block: &terminal_psi::Block, place: PlaceId) -> bool {
-    match &block.terminator {
-        Terminator::Jump {
-            trivial_affine_discards,
-            ..
-        } => trivial_affine_discards.contains(&place),
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false]
-            .iter()
-            .all(|edge| edge.trivial_affine_discards.contains(&place)),
-        Terminator::StructuralCase { cases, .. } => {
-            !cases.is_empty()
-                && cases
-                    .iter()
-                    .all(|case| case.trivial_affine_discards.contains(&place))
-        }
-        _ => false,
-    }
 }
 
 fn persistent_receiver(

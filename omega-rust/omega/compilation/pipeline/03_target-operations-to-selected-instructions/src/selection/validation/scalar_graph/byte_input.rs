@@ -6,8 +6,9 @@ use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-    SelectedLocalStorageSlot,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBoundarySettlement,
+    SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedLocalStorageSlot,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 
 pub(super) fn validate(
@@ -68,5 +69,33 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
+    let pointer = super::structural::result(replay, result.place, 0)?;
+    replay.transport.memory.push(SelectedMemoryAccess {
+        instruction: SelectedInstructionId(
+            replay
+                .instruction_cursor
+                .try_into()
+                .map_err(|_| replay.invalid())?,
+        ),
+        origin: SelectedMemoryAccessOrigin::Operation(row.operation),
+        place: result.place,
+        byte_offset: 0,
+        byte_count: layout.shape.byte_size,
+        role: SelectedMemoryAccessRole::AddressLocal { slot },
+    });
+    replay.check_instruction(
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        replay
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| replay.invalid())?,
+        &[pointer],
+        &SelectedInstructionProvenance::default(),
+    )?;
+    replay.transport.pointers.push((result.place, pointer));
     Ok(true)
 }

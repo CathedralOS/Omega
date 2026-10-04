@@ -6,8 +6,9 @@ use super::{
 use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-    SelectedLocalStorageSlot,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBoundarySettlement,
+    SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedLocalStorageSlot,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 
 pub(super) fn emit(
@@ -76,5 +77,39 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
+    // Publish the slot's address the same way an indirect call result does:
+    // projected reads (tag membership, payload fields) resolve the place
+    // through `runtime_address` to this home. The address carry is not itself
+    // an operation site — the settlement claims this operation's single
+    // attribution row for the read-byte span.
+    let pointer = super::structural::transport_register(builder, result.place, 0)?;
+    builder.transport.memory.push(SelectedMemoryAccess {
+        instruction: SelectedInstructionId(
+            builder
+                .instructions
+                .len()
+                .try_into()
+                .map_err(|_| SelectedInstructionError::custody())?,
+        ),
+        origin: SelectedMemoryAccessOrigin::Operation(row.operation),
+        place: result.place,
+        byte_offset: 0,
+        byte_count: layout.shape.byte_size,
+        role: SelectedMemoryAccessRole::AddressLocal { slot },
+    });
+    builder.emit(
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| SelectedInstructionError::custody())?,
+        &[pointer],
+        Default::default(),
+    )?;
+    builder.transport.pointers.push((result.place, pointer));
     Ok(true)
 }

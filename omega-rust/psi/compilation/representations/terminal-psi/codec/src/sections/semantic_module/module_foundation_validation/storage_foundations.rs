@@ -1332,6 +1332,10 @@ pub(super) fn validate_integer_structural_field(
                     | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                    // A boundary call's result is the same class of readable
+                    // observation source: the call's declared result custody
+                    // is the local's own, as it is for an in-module call.
+                    | OperationKind::BoundaryCall { .. }
                     | OperationKind::StructuralLeafCopy { .. }
                     | OperationKind::StructuralCaseLeafCopy { .. }
                     // A loan carrier is equally a readable observation source:
