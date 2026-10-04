@@ -1164,7 +1164,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/affine_cleanup.rs",
-        sha256: Some("eb02b43bd69373ba5ffd1e51e56fdf12e524711d0391f6f284f00a07646c3591"),
+        sha256: Some("02af62371b5d40b117818877a5e3d11a65c13ee13823c349304fa092e23f739d"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1174,7 +1174,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/block_views.rs",
-        sha256: Some("46554ac173548045621572dbfb487fc67a10f5fd6544ffc55254a1b94a340daf"),
+        sha256: Some("ac19cb4a27c830ccaa209bd92749dfe01d01544b219ddc6985681faf89b2e141"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1429,7 +1429,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier.rs",
-        sha256: Some("3fec32f98bebf21d2a68dbacd7ccd66dfc64f5ae490230851407e395325e28ff"),
+        sha256: Some("7d19e9340c7621532d76fa34b3af57a775fb6f71697e052bee0cc6ea2b02c1a1"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1439,12 +1439,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/block_parameters.rs",
-        sha256: Some("78fd5141b51d0a970b1ef84bc807fd838e668588b3da9cb512e245c5ce3a550b"),
+        sha256: Some("6556968c7feec657bcf2cfd3dd275755e6476adf51125fb01a8977ccb934ec70"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/operations.rs",
-        sha256: Some("fdb4523f196ac2c73008ae441a86d96c35e8bdd4b822c55d9d132800a1a4a3fc"),
+        sha256: Some("c438677a5c868dc0f548576fbded9a358a5ab7e844ae39c74720d4bd96f6ed76"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1454,7 +1454,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/terminators.rs",
-        sha256: Some("f34fffb067737f5fde4ad6caa3a4ff1f61d5f48451e83ee0c041dd7bd67a289d"),
+        sha256: Some("ffb6b783af1f8437d2a94021dc1b28997781dc00b828bace835a328ee3b69d16"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1649,12 +1649,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/claim_transfers/argument_claims.rs",
-        sha256: Some("2cae29804467d9d1d4fe293fbbdf0de99a0d0cdc93e1e7933cc7b66e5e405340"),
+        sha256: Some("ad1fcfee9526931abe55dcda8124c1beae30f87920df6cb7b72322d3809cef32"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/claim_transfers/transfer_roster.rs",
-        sha256: Some("347ca6627f90acedb65cab1ead6620f9f512a0f3427c85a625d3903cf0e16518"),
+        sha256: Some("583decb17af4bb5abfdaa8a7b57a8bc4f93e13fd25220750a4411e901bb72358"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1684,7 +1684,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs",
-        sha256: Some("98ee4cde09ef4ba5cdd4aaa5b8f0d0920f99110e09812af68d9668848deaba87"),
+        sha256: Some("74092e0a3a40968f0b5ab6a33254fe435335c149088308a71b420c6a3b35c252"),
         inventory_machinery: false,
     },
     ImplementationSite {

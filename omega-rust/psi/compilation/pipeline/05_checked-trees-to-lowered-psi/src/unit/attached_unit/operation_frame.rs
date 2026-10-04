@@ -254,7 +254,7 @@ pub(super) fn claim_established_here(
         && event.source == language_semantics::PermissionEventSource::Statement { statement_index }
         && event.kind == language_semantics::PermissionEventKind::Establish
         && event.access == language_semantics::PermissionAccess::Owned
-        && event.multiplicity == Multiplicity::Linear
+        && event.multiplicity == language_semantics::Multiplicity::Linear
         && event.obligation_live
         && matches!(
             event.claim_identity,
