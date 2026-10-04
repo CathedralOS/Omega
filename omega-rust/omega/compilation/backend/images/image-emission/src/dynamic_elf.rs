@@ -252,14 +252,9 @@ pub fn emit_admitted_dynamic_elf_image(
             }));
         }
     };
-    let emission = DynamicElfImageEmission { admitted, output };
-    if let Err(diagnostic) = validate_dynamic_elf_image_emission(artifact, &emission) {
-        return Err(Box::new(DynamicElfImageEmissionError {
-            admitted: emission.admitted,
-            diagnostic,
-        }));
-    }
-    Ok(emission)
+    // The output was derived from these exact bytes just above; it is not
+    // derived a second time to compare against itself.
+    Ok(DynamicElfImageEmission { admitted, output })
 }
 
 /// Independently replay one admitted dynamic ELF production-emission join.
@@ -267,6 +262,7 @@ pub fn validate_dynamic_elf_image_emission(
     artifact: &ObjectArtifact,
     emission: &DynamicElfImageEmission,
 ) -> Result<(), Diagnostic> {
+    super::function_fragments::replay::validate(artifact)?;
     let expected = derive_output(artifact, &emission.admitted)?;
     if emission.output != expected {
         return Err(Diagnostic::error(
@@ -280,7 +276,6 @@ fn derive_output(
     artifact: &ObjectArtifact,
     admitted: &ValidatedElfDynamicExecutable,
 ) -> Result<EmittedImageOutput, Diagnostic> {
-    super::function_fragments::replay::validate(artifact)?;
     let target = artifact.target();
     if target != admitted.image().target
         || target.object_format != ObjectFormat::Elf

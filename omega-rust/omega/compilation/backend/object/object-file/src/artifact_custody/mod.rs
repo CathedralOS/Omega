@@ -52,21 +52,19 @@ pub fn stage_validated_optimized_object_artifact_shared(
     terminal: terminal_codec::CanonicalTerminalArtifact,
     source: std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer>,
 ) -> Result<StagedValidatedOptimizedObjectArtifact, OptimizedObjectArtifactError> {
-    validate_optimized_relocation_free_object_container(&source)
-        .map_err(OptimizedObjectArtifactError::Source)?;
+    // The container was staged in this compile and is consumed as produced;
+    // `validate_optimized_object_artifact` replays it for retained readers.
     validate_terminal_join(&terminal, &source)?;
     let artifact = construct_artifact(&terminal, &source)?;
     let manifest = construct_manifest(&artifact);
     let custody = receipt(&artifact, &manifest);
-    let staged = StagedValidatedOptimizedObjectArtifact {
+    Ok(StagedValidatedOptimizedObjectArtifact {
         terminal,
         source,
         artifact,
         manifest,
         custody,
-    };
-    validate_optimized_object_artifact(&staged)?;
-    Ok(staged)
+    })
 }
 
 pub fn validate_optimized_object_artifact(

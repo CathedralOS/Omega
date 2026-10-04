@@ -32,6 +32,8 @@ fn validate(
     artifact: &ObjectArtifact,
     private_functions: Option<&[machine_code::CompilerPrivateMachineCodeFunction]>,
 ) -> Result<(), Error> {
+    object_file::validate_optimized_relocation_free_object_container(source)
+        .map_err(Error::Source)?;
     source::admit(source)?;
     let text = source.source().text_section();
     let layout = &artifact.object.layout;

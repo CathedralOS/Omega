@@ -17,9 +17,10 @@ Both image products share the emission-parts shape without sharing their
 result type or independent replay.
 
 The remaining lifecycle is visible in `native_artifact.rs`:
-`from_emitted_parts` derives physical evidence,
+`from_emitted_parts` derives physical evidence once and seals the artifact
+over the parts the same compile produced, without replaying them;
 `from_replayed_parts` reconstructs retained custody, and `validate` replays the
-joins before the artifact can be returned. Receiving-policy checks belong to
+joins before such an artifact can be returned. Receiving-policy checks belong to
 explicit ecosystem admission, not a default deny-all gate on emission. Structural
 validation alone grants no receiving authority; the mandatory producer gate's
 removal is tracked by `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`.

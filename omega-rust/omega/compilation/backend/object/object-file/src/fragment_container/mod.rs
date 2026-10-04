@@ -37,15 +37,16 @@ pub fn stage_optimized_relocation_free_object_container(
         .map_err(RelocationFreeObjectContainerError::InvalidObject)?;
     let manifest = construct_manifest(&source, &object, &container)?;
     let custody = receipt(&manifest, &object, &container);
-    let staged = StagedOptimizedRelocationFreeObjectContainer {
+    // The container was encoded from `object` just above; it is not decoded
+    // again here. `validate_optimized_relocation_free_object_container`
+    // replays the whole join for retained-artifact readers and tests.
+    Ok(StagedOptimizedRelocationFreeObjectContainer {
         source,
         object: std::sync::Arc::new(object),
         container: std::sync::Arc::new(container),
         manifest,
         custody,
-    };
-    validate_optimized_relocation_free_object_container(&staged)?;
-    Ok(staged)
+    })
 }
 
 fn object_error(error: RelocationFreeObjectFromTextError) -> RelocationFreeObjectContainerError {

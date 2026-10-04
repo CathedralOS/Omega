@@ -1,7 +1,4 @@
-use super::{
-    Error, attribution, host, source,
-    validation::validate_function_fragment_object_artifact_with_private_functions,
-};
+use super::{Error, attribution, host, source};
 use crate::{
     ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarCallStack,
     ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
@@ -242,10 +239,8 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
         foreign_calls,
         byte_literal_pool,
     };
-    validate_function_fragment_object_artifact_with_private_functions(
-        source,
-        &artifact,
-        private_functions,
-    )?;
+    // The object is projected from the container this compile just placed;
+    // `validate_function_fragment_object_artifact_with_private_functions`
+    // replays that projection for retained-artifact readers and tests.
     Ok(artifact)
 }

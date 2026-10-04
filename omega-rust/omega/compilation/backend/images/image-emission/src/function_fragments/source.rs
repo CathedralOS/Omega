@@ -126,9 +126,9 @@ pub(super) fn frame(
     }
 }
 
+/// Check that the container's function roster has a shape this object
+/// publisher supports. The container itself is not decoded again here.
 pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Result<(), Error> {
-    object_file::validate_optimized_relocation_free_object_container(source)
-        .map_err(Error::Source)?;
     let fragments = fragments(source);
     if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8

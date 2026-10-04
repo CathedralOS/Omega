@@ -26,12 +26,10 @@ pub struct PreparedDynamicElfPublication<'artifact> {
 }
 
 impl<'artifact> PreparedDynamicElfPublication<'artifact> {
-    /// Replay the dynamic artifact, then admit its local output name and the
-    /// text-derivation evidence the dynamic writer retained.
+    /// Admit the local output name and the text-derivation evidence the
+    /// dynamic writer retained. The artifact was sealed by the compile that
+    /// publishes it and is not replayed here, matching the direct route.
     pub fn new(artifact: &'artifact DynamicElfNativeArtifact) -> Result<Self, String> {
-        artifact
-            .validate()
-            .map_err(|error| format!("dynamic ELF publication replay failed: {error}"))?;
         let output = artifact.image().output();
         if Path::new(&output.file_name).components().count() != 1 {
             return Err("dynamic ELF artifact supplied a non-local output filename".to_owned());

@@ -111,12 +111,15 @@ pub type DynamicElfNativeArtifactEmissionParts =
 impl DynamicElfNativeArtifact {
     /// Complete fresh source-free dynamic emission by deriving every physical
     /// child that is supported by the exact Terminal/object/final-image join.
+    /// The artifact is sealed over the parts this compile just produced; it is
+    /// not replayed. [`Self::from_replayed_parts`] and [`Self::validate`]
+    /// replay it for retained-artifact readers.
     pub fn from_emitted_parts(
         parts: DynamicElfNativeArtifactEmissionParts,
     ) -> Result<Self, &'static str> {
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(parts.image.emission().admitted().image()).as_bytes();
-        let physical_evidence = match derive_physical_evidence(
+        let (physical_evidence, physical_evidence_gap) = match derive_physical_evidence(
             &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
@@ -127,28 +130,31 @@ impl DynamicElfNativeArtifact {
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
         )? {
-            NativePhysicalEvidenceDerivation::Complete(evidence) => Some(evidence),
-            NativePhysicalEvidenceDerivation::Unavailable
-            | NativePhysicalEvidenceDerivation::Blocked(_) => None,
+            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
         };
-        Self::from_replayed_parts(DynamicElfNativeArtifactParts {
-            target: parts.target,
-            psi_artifact: parts.psi_artifact,
-            object: parts.object,
-            image: parts.image,
-            selected_provider_closure_report_identity: parts
-                .selected_provider_closure_report_identity,
-            selected_provider_closure_digest: parts.selected_provider_closure_digest,
-            selected_provider_plans: parts.selected_provider_plans,
-            provider_executions: parts.provider_executions,
-            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: parts.terminal_authority_closure_review,
-            boundary_application_coverage: parts.boundary_application_coverage,
-            physical_evidence_scope: parts.physical_evidence_scope,
-            physical_evidence,
-        })
+        Ok(Self::seal(
+            DynamicElfNativeArtifactParts {
+                target: parts.target,
+                psi_artifact: parts.psi_artifact,
+                object: parts.object,
+                image: parts.image,
+                selected_provider_closure_report_identity: parts
+                    .selected_provider_closure_report_identity,
+                selected_provider_closure_digest: parts.selected_provider_closure_digest,
+                selected_provider_plans: parts.selected_provider_plans,
+                provider_executions: parts.provider_executions,
+                terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+                terminal_authority_permission_policy_identity: parts
+                    .terminal_authority_permission_policy_identity,
+                terminal_authority_closure_review: parts.terminal_authority_closure_review,
+                boundary_application_coverage: parts.boundary_application_coverage,
+                physical_evidence_scope: parts.physical_evidence_scope,
+                physical_evidence,
+            },
+            physical_evidence_gap,
+        ))
     }
 
     /// Reconstruct a retained candidate while independently replaying every
@@ -175,6 +181,17 @@ impl DynamicElfNativeArtifact {
             NativePhysicalEvidenceDerivation::Unavailable
             | NativePhysicalEvidenceDerivation::Complete(_) => None,
         };
+        let artifact = Self::seal(parts, physical_evidence_gap);
+        artifact.validate()?;
+        Ok(artifact)
+    }
+
+    /// Assemble the artifact and its identity over `parts` and the derived
+    /// evidence gap.
+    fn seal(
+        parts: DynamicElfNativeArtifactParts,
+        physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
+    ) -> Self {
         let mut artifact = Self {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -196,8 +213,7 @@ impl DynamicElfNativeArtifact {
             identity: DynamicElfNativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
-        artifact.validate()?;
-        Ok(artifact)
+        artifact
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {

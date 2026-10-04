@@ -686,7 +686,6 @@ pub fn bind_hosted_receiver(
     if artifact.hosted_receiver.is_some() {
         return Err(invalid(artifact.target));
     }
-    crate::function_fragments::replay::validate(artifact)?;
     let (receiver_byte_count, receiver_alignment) = receiver_layout(
         artifact,
         source,

@@ -14,7 +14,7 @@ use crate::{
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
-use object_file::{StagedValidatedOptimizedObjectArtifact, validate_optimized_object_artifact};
+use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
@@ -50,8 +50,7 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
     replay_settlement(&settlement, &source)?;
-    validate_optimized_object_artifact(&source)
-        .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Source)?;
+    // The object artifact was staged in this compile; it is not decoded again.
     validate_retained_installed_provider_continuation(&source)?;
     validate_optimized_program_storage_semantic_wrapper_encoding(&encoding)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
@@ -81,7 +80,9 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
         manifest,
         custody,
     };
-    validate_optimized_program_storage_semantic_wrapper_object(&staged)?;
+    // `validate_optimized_program_storage_semantic_wrapper_object` replays
+    // this join for retained-artifact readers and tests; the stage does not
+    // replay what it just built.
     Ok(staged)
 }
 

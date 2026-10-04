@@ -120,9 +120,13 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
 
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
-    /// projection and every currently supported physical child.
+    /// projection and every currently supported physical child. The artifact
+    /// is sealed over the parts this compile just produced; it is not
+    /// replayed (verification placement in `omega-rust/pipeline.md`).
+    /// [`Self::from_replayed_parts`] and [`Self::validate`] replay it for
+    /// retained-artifact readers.
     pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
-        let physical_evidence = match derive_physical_evidence(
+        let (physical_evidence, physical_evidence_gap) = match derive_physical_evidence(
             &parts.physical_evidence_scope,
             &parts.psi_artifact,
             parts.target,
@@ -133,9 +137,9 @@ impl NativeArtifact {
             &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
         )? {
-            NativePhysicalEvidenceDerivation::Complete(evidence) => Some(evidence),
-            NativePhysicalEvidenceDerivation::Unavailable
-            | NativePhysicalEvidenceDerivation::Blocked(_) => None,
+            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
+            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
+            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
         };
         // Fragment calls already belong to the object and its emitted image.
         // Check the independent projection instead of appending calls after
@@ -146,24 +150,27 @@ impl NativeArtifact {
         if !custody.is_empty() && parts.image.foreign_calls() != custody {
             return Err("native artifact image differs from fragment foreign call custody");
         }
-        Self::from_replayed_parts(NativeArtifactParts {
-            target: parts.target,
-            psi_artifact: parts.psi_artifact,
-            object: parts.object,
-            image: parts.image,
-            selected_provider_closure_report_identity: parts
-                .selected_provider_closure_report_identity,
-            selected_provider_closure_digest: parts.selected_provider_closure_digest,
-            selected_provider_plans: parts.selected_provider_plans,
-            provider_executions: parts.provider_executions,
-            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: parts.terminal_authority_closure_review,
-            boundary_application_coverage: parts.boundary_application_coverage,
-            physical_evidence_scope: parts.physical_evidence_scope,
-            physical_evidence,
-        })
+        Ok(Self::seal(
+            NativeArtifactParts {
+                target: parts.target,
+                psi_artifact: parts.psi_artifact,
+                object: parts.object,
+                image: parts.image,
+                selected_provider_closure_report_identity: parts
+                    .selected_provider_closure_report_identity,
+                selected_provider_closure_digest: parts.selected_provider_closure_digest,
+                selected_provider_plans: parts.selected_provider_plans,
+                provider_executions: parts.provider_executions,
+                terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+                terminal_authority_permission_policy_identity: parts
+                    .terminal_authority_permission_policy_identity,
+                terminal_authority_closure_review: parts.terminal_authority_closure_review,
+                boundary_application_coverage: parts.boundary_application_coverage,
+                physical_evidence_scope: parts.physical_evidence_scope,
+                physical_evidence,
+            },
+            physical_evidence_gap,
+        ))
     }
 
     /// Rejoin already verified proof admission with target artifacts while
@@ -187,6 +194,17 @@ impl NativeArtifact {
             NativePhysicalEvidenceDerivation::Unavailable
             | NativePhysicalEvidenceDerivation::Complete(_) => None,
         };
+        let artifact = Self::seal(parts, physical_evidence_gap);
+        artifact.validate()?;
+        Ok(artifact)
+    }
+
+    /// Assemble the artifact and its identity over `parts` and the derived
+    /// evidence gap.
+    fn seal(
+        parts: NativeArtifactParts,
+        physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
+    ) -> Self {
         let mut artifact = Self {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
@@ -208,8 +226,7 @@ impl NativeArtifact {
             identity: NativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
-        artifact.validate()?;
-        Ok(artifact)
+        artifact
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {

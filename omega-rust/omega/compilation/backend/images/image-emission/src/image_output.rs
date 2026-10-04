@@ -4,9 +4,11 @@
 //! the caller's [`ExecutableImageEmissionRequest`] select the direct writer
 //! (ELF, Mach-O or PE over a static image, owned here) or the dynamic ELF
 //! lane (`dynamic_elf`), and [`validate_executable_image`] replays that
-//! selection. The direct lane retains the sealed terminal-Psi image carrier
-//! and invokes independent final-image replay before returning. Nothing here
-//! constructs machine code or installation authority.
+//! selection for retained-artifact readers. The direct lane retains the
+//! sealed terminal-Psi image carrier and builds the final image once; it
+//! does not replay the object it was just handed (verification placement in
+//! `omega-rust/pipeline.md`). Nothing here constructs machine code or
+//! installation authority.
 
 mod application_metadata;
 pub use application_metadata::ImageApplicationMetadataError;
@@ -390,7 +392,6 @@ pub(crate) fn emit_direct_executable_image_signed(
     subsystem: u16,
     code_signature_identifier: Option<&str>,
 ) -> Result<ExecutableImage, Diagnostic> {
-    super::function_fragments::replay::validate(artifact)?;
     validate_x86_scalar_fma_provider(artifact)?;
     if !can_emit_executable_image(artifact.target) {
         return Err(Diagnostic::error(format!(
@@ -484,6 +485,8 @@ pub(crate) fn emit_direct_executable_image_signed(
 ///
 /// This repeats final-text relocation-envelope validation and requires the
 /// recomputed evidence to equal the evidence sealed by image construction.
+/// Retained-artifact readers (installation binding, native artifact replay)
+/// call it; emission does not.
 pub fn validate_direct_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,

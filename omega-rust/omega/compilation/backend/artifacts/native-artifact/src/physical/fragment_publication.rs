@@ -75,8 +75,8 @@ pub(crate) fn derive_scope(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     object: &ObjectArtifact,
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
-    image_emission::validate_function_fragment_object_artifact(source, object)
-        .map_err(|_| "fragment publication object failed independent source replay")?;
+    // `object` was projected from `source` in this compile; the projection is
+    // not replayed here (verification placement in `omega-rust/pipeline.md`).
     let foreign_call_custody = image_emission::derive_normalized_foreign_call_custody(source)
         .map_err(|_| "fragment publication foreign call custody failed source replay")?;
     let relocation_free_object = source.shared_object();

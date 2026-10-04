@@ -2256,75 +2256,19 @@ of a check the same flow already performed, not the check itself.
   Acceptance: stage 05 non-test sources call none of the listed predicates
   (source-scanning guard); check and native corpus unchanged.
 
-The four items below take production-path self-checks out of the default
-compile under [verification placement](omega-rust/pipeline.md#verification-placement).
-
-- **SELECTION-CUSTODY-CHAIN-DELETED.** (new-scope)
-  `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/optimized.rs::stage_optimized_instruction_selection`
-  calls `validate_optimized_selection_custody` (`src/optimized/validation.rs`),
-  which re-legalizes (`validate_legalized_operations`) and re-validates the
-  selection work the same call just performed. Stage 04's liveness,
-  live-range and legality staging types each keep their predecessor and re-run
-  its custody validator
-  (`omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/liveness/staging/validation.rs`,
-  `.../analyses/live_ranges/staging/validation.rs`,
-  `.../analyses/legality/custody.rs`). Delete these validators, and the
-  retained predecessors kept only for them, in one commit. Acceptance:
-  `validate_optimized_selection_custody` and the staged
-  liveness/live-range/legality custody validators no longer exist outside
-  tests, and the native corpus is unchanged.
-
-- **ALLOCATION-REPLAY-DELETED.** (new-scope) Register allocation's result
-  (`omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs::stage_register_allocation`,
-  `into_replayed_evidence`) keeps its replay inputs, and later stages replay
-  the allocation:
-  - stage 06's `stage_optimized_post_allocation_machine_plan`
-    (`omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs`,
-    `.replay_allocation()`);
-  - `omega-rust/omega/compilation/backend/machine-emission/src/function_realization/fixed_frame.rs::stage_fixed_frame_function_relative_realization`,
-    which calls `.replay_allocation()` and then
-    `validate_optimized_post_allocation_machine_plan_custody`.
-
-  Consume the allocation as produced; delete the replay inputs, the replays
-  and that validator in one commit. Acceptance: `replay_allocation` and
-  `into_replayed_evidence` are gone, and the native corpus is unchanged.
-
-- **MACHINE-EMISSION-SELF-VALIDATION-DELETED.** (new-scope) Each
-  machine-emission step (`omega-rust/omega/compilation/backend/machine-emission/src/`)
-  validates what it just produced:
-  - `fragment_emission/mod.rs` calls `validate_source`, then
-    `validate_optimized_function_fragment_emission` (which repeats
-    `validate_source` and `validate_resolved_function_fragments`);
-  - `frame_application/` and `text_placement/` repeat the pattern;
-  - `function_realization/fixed_frame.rs` ends with
-    `validate_fixed_frame_function_relative_realization`;
-  - stage 07's encoding validator
-    (`omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/selected_form_encoding.rs`,
-    `validate_optimized_layout_independent_selected_form_encoding`) re-encodes
-    every instruction.
-
-  Delete these validators from the production path in one commit. Acceptance:
-  emission and encoding call none of the named validators outside tests, and
-  native corpus bytes are unchanged.
-
-- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Image emission and the native
-  artifact re-check bytes the same compile just emitted:
-  - `omega-rust/omega/compilation/backend/images/image-emission/src/image_output.rs::validate_direct_executable_image`
-    builds the final image a second time (`image::build_final_image`) and
-    compares;
-  - `image-emission/src/function_fragments/` carries a `FragmentReplay`
-    (`replay.rs`) and calls `replay::validate`, decoding our own x86/aarch64
-    instructions;
-  - `omega-rust/omega/compilation/backend/object/object-file/src/fragment_container/validation.rs`
-    decodes the container just encoded;
-  - `NativeArtifact::from_replayed_parts`
-    (`omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`)
-    re-validates the image and decodes the Terminal module again.
-
-  Delete these from the production path in one commit; the decode-replay code
-  stays only where retained artifacts or tests use it. Acceptance: emitting an
-  image builds it once, decodes none of its own instructions or containers,
-  and leaves native corpus bytes unchanged.
+- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct image emission, the
+  fragment and container stages and `NativeArtifact::from_emitted_parts`
+  now build and seal an image once. One rebuild remains, on a path this
+  macOS host cannot run:
+  `omega-rust/omega/compilation/backend/images/image-emission/src/dynamic_elf.rs`
+  `validate_dynamic_elf_image_emission` builds the final image a second time
+  (`image::build_final_image`) to compare against the writer bytes that
+  `emit_admitted_dynamic_elf_image` accepts from its caller. Pass the
+  emitted image through instead of rebuilding it, under
+  [verification placement](omega-rust/pipeline.md#verification-placement);
+  the comparison stays only where a retained artifact is read back.
+  Acceptance: dynamic ELF emission builds its image once, and the
+  `linux_x86_64` native corpus leg on a Linux host is unchanged.
 
 ## Trust ceremony
 
