@@ -3321,7 +3321,14 @@ unchanged, except for intended deletions, which its commit lists.
   nonzero divisor or signed `MIN / -1` pair during checking, including ordinary
   call results, state-edge stores and declared scalar domains. Correlated
   operands use the shared integer constraint engine rather than an affine
-  source-shape recognizer. Remaining: retain those operation judgments in
+  source-shape recognizer. Value dispatch now checks arm arithmetic under the
+  shared comparison facts and joins arm ranges; it no longer falls through
+  to unknown-place analysis. The macOS ARM64 corpus native/interpreter run of
+  `arithmetic/runtime_exact_dispatch_divisor_exit` produces its authored exit
+  70. Its outer command is `omega run --both
+  tests/omega/pass/arithmetic/runtime_exact_dispatch_divisor_exit/main.omg`;
+  ordinary project package review remains necessary for CLI execution.
+  Remaining: retain those operation judgments in
   `CheckFacts`, audit and retain the existing shift-count/Boolean/index
   judgments and other bounded-store forms, consume them in lowering, and
   remove Stage 05 proof search. Runtime checks do not establish complete

@@ -8,12 +8,13 @@
 //! not depend on its structure (`folded_values`), then dispatches on the node:
 //! operators raise their domain and overflow obligations in `binary` and
 //! `unary`, conversions in `cast`, call results take their declared or
-//! inferred bounds in `call`, and places read their flow-tracked interval in
-//! `place`.
+//! inferred bounds in `call`, `dispatch` checks branches and joins their result
+//! bounds, and places read their flow-tracked interval in `place`.
 
 mod binary;
 mod call;
 mod cast;
+mod dispatch;
 mod folded_values;
 mod place;
 mod unary;
@@ -111,6 +112,9 @@ impl ExpressionWalk<'_> {
             ExpressionNode::Unary(unary) => unary::analyze(self, unary, diagnostics),
             ExpressionNode::Cast(cast) => cast::analyze(self, cast, diagnostics),
             ExpressionNode::Call(call) => call::analyze(self, expression, call, diagnostics),
+            ExpressionNode::Match(dispatch) => {
+                dispatch::analyze(self, expression, dispatch, diagnostics)
+            }
             ExpressionNode::Integer(value) => Analysis {
                 domain: None,
                 interval: literal_interval(value),

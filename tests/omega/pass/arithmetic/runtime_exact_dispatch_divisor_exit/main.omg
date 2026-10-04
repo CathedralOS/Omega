@@ -1,0 +1,20 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine quotient(choose: bool) -> u32 {
+    let divisor: u32 = match choose { true -> 3u32, _ -> 7u32 };
+    42u32 / divisor
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: u32 = quotient(true);
+    let second: u32 = quotient(false);
+    transition first == 14 && second == 6 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
