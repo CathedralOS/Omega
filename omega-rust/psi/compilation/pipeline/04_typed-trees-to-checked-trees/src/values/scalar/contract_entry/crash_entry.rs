@@ -14,7 +14,6 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-
 pub(crate) fn lower_machine_entry_crash_contract_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,

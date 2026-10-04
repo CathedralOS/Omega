@@ -447,4 +447,3 @@ pub(crate) fn permission_kind_for_move(
     }
     PermissionEventKind::Transfer
 }
-

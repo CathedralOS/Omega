@@ -576,16 +576,6 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        // The synthesized wire encoder (chapter 20, wire stage 2a)?
-        if let Some(value) = self.try_wire_encode_call(call, frame)? {
-            return Ok(value);
-        }
-
-        // The synthesized wire decoder (chapter 20, wire stage 2b)?
-        if let Some(value) = self.try_wire_decode_call(call, frame)? {
-            return Ok(value);
-        }
-
         let (machine, state) =
             self.resolve_static_call(call.target_symbol, call.target.as_str())?;
 

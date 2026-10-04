@@ -65,7 +65,8 @@ fn a_dangling_link_leaf_resolves_to_its_target_and_leaves_the_write_root() {
     symlink(&escape, &link).expect("authorize only the link name");
     assert!(!escape.exists(), "the link target starts absent");
 
-    let grants = canonical_grants(write_root(1, inside.0.clone())).expect("the write root resolves");
+    let grants =
+        canonical_grants(write_root(1, inside.0.clone())).expect("the write root resolves");
 
     // The two steps `authorized_native_path` composes for a follow-resolved
     // write. A `None` root is the refusal: the open is never reached.
@@ -79,7 +80,10 @@ fn a_dangling_link_leaf_resolves_to_its_target_and_leaves_the_write_root() {
         grants.matching_root(&resolved, true).is_none(),
         "the link target is outside every grant"
     );
-    assert!(!escape.exists(), "nothing is created outside the write root");
+    assert!(
+        !escape.exists(),
+        "nothing is created outside the write root"
+    );
 }
 
 /// The refusal above is a property of the TARGET, not of symlinks. A dangling
@@ -91,7 +95,8 @@ fn a_dangling_link_leaf_inside_the_write_root_stays_authorized() {
     let link = inside.0.join("x");
     symlink("y", &link).expect("authorize only the link name");
 
-    let grants = canonical_grants(write_root(1, inside.0.clone())).expect("the write root resolves");
+    let grants =
+        canonical_grants(write_root(1, inside.0.clone())).expect("the write root resolves");
 
     let resolved = resolve_for_check(&link).expect("the link's own parent exists");
     assert_eq!(resolved, inside.canonical().join("y"));

@@ -22,8 +22,8 @@
 //!   nested messages). Borrowed non-byte slices can encode but need owning
 //!   destination storage to decode. Unsupported shapes decline generation.
 //! * Only operations with at least one statement call site whose argument
-//!   types render exactly (a borrow of a named `let` local or of a `self`
-//!   field). Every site for one (schema, operation) must agree on one
+//!   types render exactly (a borrow of a named `let` local or of a field
+//!   of a named data parameter). Every site for one (schema, operation) must agree on one
 //!   signature, or no machine is emitted — a wrong callee is worse than a
 //!   standing wall.
 //! * Never for uncalled pairs: an unused generated machine whose body meets
@@ -237,7 +237,7 @@ pub(crate) fn generated_wire_codec_source(
     }
 
     // Plain `data` declarations also serve call-site typing: `&sample` names a
-    // `let sample: BlobSample`, `&mut self.buffer` a field of `Main`. The
+    // `let sample: BlobSample`, `&mut main.buffer` a field of `Main`. The
     // field map completes before member resolution so a nested-message
     // member can name a declaration declared after it.
     let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
@@ -577,8 +577,8 @@ fn store_type_facts(
 }
 
 /// The field-name -> declared-type map for a `data` declaration (used to read
-/// `self` field types at call sites). Declarations carrying case variants are
-/// declined — `self.field` typing needs the plain record shape.
+/// data-parameter field types at call sites). Declarations carrying case variants are
+/// declined — field typing needs the plain record shape.
 fn collect_plain_fields(
     syntax_trees: &SyntaxTrees,
     data: &syntax_trees::item::DataDefinition,
@@ -852,9 +852,10 @@ fn collect_call_sites(
 }
 
 /// Render each call argument as the parameter type it must bind: a borrow of a
-/// named local (`&sample` -> `&BlobSample` via its `let` type) or of a `self`
-/// field (`&mut self.buffer` -> `&mut [u8; 64]` via the attached data's
-/// field). Anything else declines so no machine binds a guessed signature.
+/// named local (`&sample` -> `&BlobSample` via its `let` type) or of a field
+/// of a named data parameter (`&mut main.buffer` -> `&mut [u8; 64]` via
+/// `main: &mut Main`). Anything else declines so no machine binds a guessed
+/// signature.
 fn render_argument_types(
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
@@ -885,14 +886,9 @@ fn render_argument_types(
                 local_type(syntax_trees, machine, members[0].as_str())?
             }
             ExpressionNode::Member(member) => {
-                // `&mut self.buffer` reads the attached data's fields; a named
-                // `&mut Data` parameter (`main.buffer` in `main: &mut Main`)
-                // carries the same declaration through the machine's parameter
-                // list. Both spellings name the same storage.
+                // A named `&mut Data` parameter (`main.buffer` in
+                // `main: &mut Main`) carries the field's declaration.
                 let data_name = match syntax_trees.tables.expressions.expression(member.receiver) {
-                    ExpressionNode::SelfValue => {
-                        machine.attached_data.as_ref()?.as_str().to_string()
-                    }
                     ExpressionNode::Name(path) => {
                         let members = syntax_trees
                             .tables

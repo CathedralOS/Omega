@@ -269,5 +269,3 @@ pub(crate) fn conjunction(left: Boolean, right: Boolean) -> Boolean {
         .expression()
         .expect("known checked path conjunction")
 }
-
-

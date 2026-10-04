@@ -215,4 +215,3 @@ pub(crate) fn operand_observations_agree(
                 })
     })
 }
-

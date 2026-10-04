@@ -795,4 +795,3 @@ pub(crate) fn proves(
     known(&normalized_required, &truths) == Some(true)
         || evaluate(required, &mut ordinary) == Some(true)
 }
-

@@ -14,7 +14,6 @@ pub(crate) use super::call_values::target_machine;
 use super::call_values::{Actual, actual_at, captured_actual};
 use crate::flow::CanonicalPlace;
 
-
 fn actual<'program>(
     program: &'program TypedTrees,
     state: &FlowStateFact,

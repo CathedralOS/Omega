@@ -13,7 +13,6 @@ use crate::{
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
 use checked_trees::CheckedTrees;
-pub use evaluator::execution::wire_verification::WireCodecVerification;
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -265,21 +264,6 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             product_entry_compatibility: None,
         }
     }
-}
-
-/// Independently verify `schema`'s synthesized compact_binary codec against
-/// the public `Encode<compact_binary, S>`/`StrictDecode<compact_binary, S>`
-/// requirement: the codec's emissions are byte-compared against a reference
-/// framing written from the contract alone, its strict decoder is
-/// round-tripped over them, and malformed frames must clear the soundness
-/// flag. `Ok` names the checks that ran plus any requirement the
-/// realization cannot exercise; `Err` is a proven divergence.
-pub fn verify_wire_schema_codec(
-    program: &TypedTrees,
-    schema: &typed_trees::wire::WireSchema,
-) -> Result<WireCodecVerification, String> {
-    let mut evaluator = Evaluator::new(program, &[]);
-    evaluator.verify_synthesized_wire_codec(schema)
 }
 
 /// Materialize the interpreter's ordinary zero representation for a compiler-

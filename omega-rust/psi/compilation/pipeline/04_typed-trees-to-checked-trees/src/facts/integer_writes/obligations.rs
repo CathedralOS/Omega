@@ -8,7 +8,6 @@ use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 use typed_trees::types::PrimitiveType;
 
-
 /// Return the condition sufficient for this occurrence to fit its destination.
 /// A missing condition conservatively requires the write to fit unconditionally;
 /// a missing value is not evidence that the occurrence performs no write.

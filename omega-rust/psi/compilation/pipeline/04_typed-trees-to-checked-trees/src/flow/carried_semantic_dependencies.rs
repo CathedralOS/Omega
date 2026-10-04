@@ -119,9 +119,7 @@ pub(crate) fn derive_checked_semantic_dependencies(
     for plan in &facts.flow.terminal_structural_scalar_returns.machines {
         let exposure = machine_signature_exposure(program, plan.machine);
         for cleanup in &plan.cleanup_actions {
-            let checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) =
-                cleanup
-            else {
+            let checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) = cleanup else {
                 continue;
             };
             push_cleanup_machine(&mut rows, plan.machine, cleanup.cleanup_machine, exposure);

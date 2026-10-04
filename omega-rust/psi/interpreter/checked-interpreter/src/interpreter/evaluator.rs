@@ -11,8 +11,7 @@
 //! - execution: `execution` (states and transitions),
 //!   `statements_and_calls`, `expressions_and_value_calls`,
 //!   `scalar_operations`, `casts_and_recasts`, `numeric_landing`,
-//!   `host_dispatch`, `boundary_adapter_dispatch`, `boundary_console`,
-//!   `wire_codec`;
+//!   `host_dispatch`, `boundary_adapter_dispatch`, `boundary_console`;
 //! - build-machine facets: `build_log`, `build_paths`, `root_bindings`,
 //!   `output_obligations`, `product_entries`, `product_providers`,
 //!   `product_schemas`;

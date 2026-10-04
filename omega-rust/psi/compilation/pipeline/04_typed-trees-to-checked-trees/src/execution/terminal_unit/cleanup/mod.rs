@@ -14,8 +14,7 @@ mod partial_affine_cleanup;
 mod residuals;
 
 pub(crate) use cleanup_evidence::{
-    machine_has_content_evidence, service_reach_is_empty,
-    service_reach_plan_is_empty,
+    machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
 };
 pub(crate) use nominal_requirements::{
     checked_requires_expressions, direct_boolean_field_requirement,

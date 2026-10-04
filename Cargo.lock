@@ -2268,7 +2268,6 @@ name = "typed-trees-to-checked-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-interpreter",
  "checked-trees",
  "diagnostics",
  "facts",

@@ -39,12 +39,8 @@ impl Execution<'_, '_, '_> {
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_capture_writes = self.operand_writes.len();
                 self.expression(pattern, contexts, constraints);
-                let pattern_operand = self.capture_operand(
-                    pattern,
-                    pattern_capture_writes,
-                    *contexts,
-                    *constraints,
-                );
+                let pattern_operand =
+                    self.capture_operand(pattern, pattern_capture_writes, *contexts, *constraints);
                 if let Ok(ordinal) = u32::try_from(ordinal)
                     && let Some(arm_index) =
                         dispatch.arms.start().arena_index().checked_add(ordinal)

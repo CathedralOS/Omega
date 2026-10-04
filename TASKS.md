@@ -2962,6 +2962,26 @@ common fields once, active payload only, loan escape rejection, dynamic-index
 relationships, recursive reference types, snapshot independence and explicit
 exhaustion rather than truncation. Descriptions never create grants or access.
 
+- **WIRE-CODEC-LIBRARY.** (new-scope) Depends on the reflection work
+  above. Wire `Schema::encode`/`Schema::decode` are realized by
+  `omega-rust/omega/packages/compilation-inputs/src/wire_codec_sources.rs`,
+  which renders Omega codec machines as source text from syntax trees and
+  injects them as `.omega/generated/wire-codec.omg`. Both engines run those
+  machines. This contradicts [reflection](wiki/spec/language/reflection.md#explicit-operation-selection):
+  encoding is an ordinary library machine selected per member. The generator
+  only covers call sites whose argument types render from a named local or a
+  data-parameter field, and only "directly expressible" member shapes.
+  Implement the compact_binary codec in Omega in `source/library/std/wire.omg`
+  over the reflection serializer, satisfying its `Encode`/`StrictDecode`
+  requirements. Then delete the generator, its injection in
+  `omega-rust/omega/packages/compilation-inputs/src/source_assembly.rs`, and
+  the intrinsic special cases for codec calls
+  (`omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/wire_codecs.rs`,
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections/intrinsic_calls.rs`).
+  Acceptance: the `tests/omega/pass/wire/` and `fail/wire/` fixtures and
+  `samples/cli/systems/wire_protocol` keep their outcomes in both engines
+  with no generated source.
+
 ## Scoped build execution
 
 Implement [scoped build execution](wiki/spec/build/scoped_execution.md) for

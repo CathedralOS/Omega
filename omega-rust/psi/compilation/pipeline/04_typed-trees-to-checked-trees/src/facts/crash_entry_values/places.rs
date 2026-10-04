@@ -7,7 +7,6 @@ use checked_trees::{CheckedStructuralPredicatePathSegment, CrashPredicateExpress
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-
 fn entry_place_at_write_boundary(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
@@ -329,4 +328,3 @@ enum Projection {
     Member(String),
     Index(usize),
 }
-

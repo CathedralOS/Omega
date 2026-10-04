@@ -13,7 +13,6 @@ use typed_trees::{TypedTrees, statement::StatementNode};
 
 pub(super) mod obligations;
 
-
 pub(super) fn retain(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,

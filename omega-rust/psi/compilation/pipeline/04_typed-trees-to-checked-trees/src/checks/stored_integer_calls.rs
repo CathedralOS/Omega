@@ -11,7 +11,6 @@ use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
 use validation::{CallFrameResolver, CallWriteOrigins, LocalWriteSource};
 
-
 struct Invocation<'a> {
     state: &'a FlowStateFact,
     call: &'a FlowCallFact,

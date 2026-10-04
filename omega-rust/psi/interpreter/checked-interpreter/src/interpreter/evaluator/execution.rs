@@ -7,9 +7,7 @@
 //! for calls whose resolved target is a stateless boundary requirement,
 //! `scalar_operations`,
 //! `casts_and_recasts` and `numeric_landing` for scalar work, `host_dispatch`,
-//! `boundary_adapter_dispatch` and `boundary_console` for leaving the program,
-//! and `wire_codec` with `wire_verification` for the encoded form crossing
-//! that edge.
+//! `boundary_adapter_dispatch` and `boundary_console` for leaving the program.
 
 pub(in crate::interpreter::evaluator) mod boundary_adapter_dispatch;
 pub(in crate::interpreter::evaluator) mod boundary_console;
@@ -22,5 +20,3 @@ pub(in crate::interpreter::evaluator) mod operator_applications;
 pub(in crate::interpreter::evaluator) mod scalar_operations;
 pub(in crate::interpreter::evaluator) mod statements_and_calls;
 pub(in crate::interpreter::evaluator) mod states_and_transitions;
-pub(in crate::interpreter::evaluator) mod wire_codec;
-pub(crate) mod wire_verification;

@@ -52,7 +52,6 @@ use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
 /// provenance, never an affirmed origin.
 const MAX_ENTRY_PROVENANCE_DEPTH: u32 = 64;
 
-
 /// Lower a body's current Boolean observation in the invocation namespace.
 /// The predicate reader owns the algebra; this owner only rejoins each exact
 /// place to the entry operand whose storage still survives at this point.
