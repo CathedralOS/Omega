@@ -1256,8 +1256,9 @@ crash and native exit behavior.
     mixed call/value arms, and writes through terminal and generic reference
     results retain the caller's backing storage.
   - Remaining:
-    - finish multi-state callee reference-origin substitution beyond the
-      admitted single-state query, and compose guarded normal reference returns
+    - finish multi-state callee reference-origin substitution and returned-local
+      custody for alternative subplaces beyond the admitted single-state query,
+      and compose guarded normal reference returns
       with subsequent crash completion (currently omitted at `transition form`);
     - claim-transferring arm calls.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
