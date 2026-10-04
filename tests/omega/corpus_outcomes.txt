@@ -1414,6 +1414,7 @@ pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms @2d8e
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382792161+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms @63377f7122bb+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
+pass/calls/runtime_case_terminal_payload_result_exit checked 1129ms @9d538dd9a056
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 1428ms @2d8ed253669f
