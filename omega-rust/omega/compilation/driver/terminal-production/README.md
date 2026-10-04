@@ -82,7 +82,10 @@ every source ownership shape's end-to-end coverage.
 
 Whole owned Linear values retain their existing claim identities and typed paths
 through local binding moves, structural state arguments including swaps, and
-ordinary unconditional terminal calls. An explicit consuming call may finish
+ordinary terminal calls, including selected conditional and guarded arms with
+scalar or Unit completion. Each arm retains its exact authored invocation and
+transfers the inherited owner only on that executed path. An explicit consuming
+call may finish
 through the exact owner-designated `T::drop` plan for the admitted scalar-record
 carrier. The cleanup edge consumes
 that live claim while the hook receives only a temporary exclusive loan; an
@@ -97,7 +100,10 @@ An owner hook cannot erase a child's independent obligation. Missing owner
 permission, duplicate transfer, and live-owner overwrite remain rejected.
 The maintained [local-move and terminal-call fixture](../../../../../tests/omega/pass/calls/runtime_linear_terminal_owner_disposition_exit/main.omg)
 and [state-swap fixture](../../../../../tests/omega/pass/calls/runtime_linear_state_owner_disposition_exit/main.omg)
-execute the complete disposition path in both engines.
+execute the complete disposition path in both engines. The
+[conditional scalar fixture](../../../../../tests/omega/pass/calls/runtime_linear_guarded_owner_disposition_exit/main.omg)
+and [guarded Unit fixture](../../../../../tests/omega/pass/calls/runtime_linear_guarded_unit_owner_disposition_exit/main.omg)
+exercise both alternatives without duplicating or renaming the inherited claim.
 
 ### Structural predicate production
 

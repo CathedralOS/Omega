@@ -1311,8 +1311,8 @@ crash and native exit behavior.
   [state contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
   a terminal call is an ordinary invocation whose normal result completes the
   caller; an internal state target remains a jump.
-  - Where: stage 05's `unit/attached_unit/composed_control/state_graph/admission.rs::validate_arm_call`
-    still declines claim transfers on guarded and conditional call arms.
+  - Where: host trap-exit validation for
+    `calls/runtime_guarded_reference_return_crash` remains unavailable on this host.
   - State: Unit, scalar, record, qualified-scalar, case-payload, boundary
     requirement, shared and mutable-reference returns through finite internal
     state cycles, and effectful-guard/operand-order forms execute in both engines.
@@ -1322,7 +1322,8 @@ crash and native exit behavior.
     reference calls from projected state parameters. Guarded reference, scalar
     and Unit completions before a crash fallback also execute in both engines.
     Whole Linear owners retain their exact claim identities through local moves,
-    reordered state arrivals and unconditional terminal calls. Ordinary consuming
+    reordered state arrivals and unconditional, conditional, and guarded terminal
+    calls, including scalar and Unit completions. Ordinary consuming
     core `drop` uses the exact owner-authorized normal scalar-record cleanup plan.
   - Remaining:
     - validate the native trap oracle for
@@ -1330,13 +1331,15 @@ crash and native exit behavior.
       exits. The current macOS host leaves both that program and system-clang
       `int main(void) { __builtin_trap(); }` in uninterruptible exit. Checking
       admits the fixture; the interpreter leg declines, so no cross-engine trap
-      agreement has been established;
-    - guarded and conditional claim-transferring arm calls.
+      agreement has been established.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
     `samples/cli/systems/note_vault` depend on `Filesystem::create_dir_all`.
 
-  Acceptance: add guarded and conditional claim-transferring arm calls executing
-  in both engines. Keep `pass/calls/runtime_linear_terminal_owner_disposition_exit`
+  Acceptance: establish the crash fixture's native trap oracle on a host that can
+  reap trap exits. Keep `pass/calls/runtime_linear_guarded_owner_disposition_exit`
+  and `pass/calls/runtime_linear_guarded_unit_owner_disposition_exit` at 0 in both
+  engines, exercising both selected alternatives. Keep
+  `pass/calls/runtime_linear_terminal_owner_disposition_exit`
   and `pass/calls/runtime_linear_state_owner_disposition_exit` at 0 in both
   engines, including sequential local moves and swapped same-typed state owners. Keep
   `pass/calls/runtime_guarded_terminal_mutable_reference_result_exit` and

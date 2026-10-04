@@ -172,7 +172,10 @@ replay consumes all old owned roots before establishing destinations, including
 swaps and self-loops. Whole Linear arrivals rehome each live claim to its exact
 destination while preserving the claim identity and typed path; they neither
 create replacement claims nor copy a source obligation. Ordinary call transfer
-rejoins that current home. Affine cleanup follows reverse establishment order
+rejoins that current home, including terminal calls on conditional and guarded
+arms. Alternative arms inherit the same claim identity; only the selected
+invocation transfers it, and each path independently accounts for its owner.
+Affine cleanup follows reverse establishment order
 derived from dominance, not serialized block IDs. Retained frontier snapshots
 independently rejoin cleanup and rebinding. Conditional claim-lineage changes,
 claim-bearing result joins, and broader qualified or projected Linear transfers
