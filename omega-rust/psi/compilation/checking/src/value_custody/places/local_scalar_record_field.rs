@@ -1,4 +1,4 @@
-//! Exact declaration custody for a scalar observation of local record storage.
+//! Exact declaration custody for a scalar observation of local structural storage.
 
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
@@ -22,9 +22,9 @@ pub struct LocalScalarRecordField {
     pub local_statement_ordinal: u32,
     /// Whole local declaration, before any field projection.
     pub type_reference: TypeReferenceHandle,
-    /// Record containing the final scalar field.
+    /// Data declaration containing the final scalar field or selected payload.
     pub carrier_type_reference: TypeReferenceHandle,
-    /// Declared carrier-field identities and literal fixed-array element
+    /// Declared case and carrier-field identities and literal fixed-array
     /// selections in authored order, excluding the final scalar field.
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub field: SymbolHandle,
@@ -58,9 +58,6 @@ pub fn local_scalar_record_field(
         }
         match program.expression_table.expression(receiver) {
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return None;
-                }
                 steps.push(Step::Member(member));
                 receiver = member.receiver;
             }
@@ -124,21 +121,10 @@ pub fn local_scalar_record_field(
             program,
             program.type_reference_symbol(carrier),
         )?;
-        let field = super::exact_data_member_field(
-            program,
-            record,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )?;
-        if field.relevance.is_erased()
-            || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-            || program.symbols.get(field.symbol).parent != record.symbol
-            || !program.data_type_parameters(record).is_empty()
-            || program.data_members(record).iter().filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol)).count() != 1
-        {
+        if !program.data_type_parameters(record).is_empty() {
             return None;
         }
+        let field = selected_member_field(program, record, member, &mut path)?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             field.path_identity(),
         ));
@@ -148,20 +134,7 @@ pub fn local_scalar_record_field(
         program,
         program.type_reference_symbol(carrier),
     )?;
-    let field = super::exact_data_member_field(
-        program,
-        record,
-        leaf.member_symbol,
-        leaf.member.as_str(),
-        None,
-    )?;
-    if program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-        || program.symbols.get(field.symbol).parent != record.symbol
-        || program.data_members(record).iter().filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol)).count() != 1
-        || field.relevance.is_erased()
-    {
-        return None;
-    }
+    let field = selected_member_field(program, record, leaf, &mut path)?;
     let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
     if !matches!(
         primitive_type,
@@ -189,6 +162,67 @@ pub fn local_scalar_record_field(
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(field.type_reference),
     })
+}
+
+/// Select under the current receiver declaration, retaining the case edge
+/// before its payload field. A selected case is a path coordinate, not a
+/// synthetic record type; execution still needs its established case.
+fn selected_member_field<'program>(
+    program: &'program TypedTrees,
+    record: &typed_trees::data::DataDefinition,
+    member: &typed_trees::expression::TableMemberExpression,
+    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+) -> Option<&'program typed_trees::data::DataField> {
+    let field = super::exact_data_member_field(
+        program,
+        record,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|variant| variant.as_str()),
+    )?;
+    if field.relevance.is_erased()
+        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+    {
+        return None;
+    }
+    let owner = if let Some(case_name) = &member.case_variant {
+        let mut variants = program.data_members(record).iter().filter_map(|member| {
+            let DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.name == *case_name).then_some(variant)
+        });
+        let variant = variants.next()?;
+        if variants.next().is_some()
+            || !variant.symbol.is_valid()
+            || program.symbols.get(variant.symbol).kind != symbols::SymbolKind::Variant
+            || program.symbols.get(variant.symbol).parent != record.symbol
+            || program
+                .data_payload_fields(variant)
+                .iter()
+                .filter(|candidate| candidate.symbol == field.symbol)
+                .count()
+                != 1
+        {
+            return None;
+        }
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
+            variant.path_identity(),
+        ));
+        variant.symbol
+    } else {
+        if program
+            .data_members(record)
+            .iter()
+            .filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol))
+            .count()
+            != 1
+        {
+            return None;
+        }
+        record.symbol
+    };
+    (program.symbols.get(field.symbol).parent == owner).then_some(field)
 }
 
 /// One projection between the local root and the observed scalar field.

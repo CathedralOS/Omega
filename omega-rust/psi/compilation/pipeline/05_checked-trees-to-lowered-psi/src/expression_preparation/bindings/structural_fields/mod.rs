@@ -37,6 +37,7 @@ pub(crate) struct StructuralScalarFieldBinding {
 pub(crate) struct StructuralFieldBindings {
     roots: Vec<StructuralScalarFieldBinding>,
     locals: Vec<(symbols::SymbolHandle, PlaceId, StructuralTypeId)>,
+    established_payloads: Vec<EstablishedCasePayload>,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
 }
 
@@ -99,6 +100,23 @@ impl StructuralFieldBindings {
         }
     }
 
+    pub(crate) fn established_payload(
+        &self,
+        source: PlaceId,
+        case: StructuralCaseId,
+        field: StructuralFieldId,
+    ) -> Result<Option<usize>, LoweringError> {
+        let mut rows = self
+            .established_payloads
+            .iter()
+            .filter(|row| row.source == source && row.case == case && row.field == field);
+        let position = rows.next().map(|row| row.position);
+        if rows.next().is_some() {
+            return unsupported("case payload has duplicate established values");
+        }
+        Ok(position)
+    }
+
     pub(crate) fn declarations(&self) -> &[StructuralTypeDeclaration] {
         &self.declarations
     }
@@ -157,10 +175,16 @@ pub(crate) fn defer_case_payloads(fields: &mut [StructuralScalarFieldBinding]) {
 
 /// Bind reads of payloads a dominating dispatch selected on every incoming path.
 pub(crate) fn establish_case_payloads(
-    fields: &mut [StructuralScalarFieldBinding],
+    fields: &mut StructuralFieldBindings,
     established: &[EstablishedCasePayload],
 ) {
-    for field in fields {
+    // Locals and parameters share the selected edge's value namespace. A
+    // temporary subject need not have a parameter-root binding to retain it.
+    fields
+        .established_payloads
+        .retain(|prior| !established.iter().any(|row| row.source == prior.source));
+    fields.established_payloads.extend_from_slice(established);
+    for field in &mut fields.roots {
         let rows = established
             .iter()
             .filter(|row| row.source == field.source)
@@ -201,6 +225,7 @@ impl StructuralScalarFieldBinding {
         StructuralFieldBindings {
             roots: bindings,
             locals: Vec::new(),
+            established_payloads: Vec::new(),
             declarations,
         }
     }

@@ -1251,6 +1251,24 @@ impl ScalarBindings {
         Ok(expression)
     }
 
+    /// A selected dispatch copied this scalar payload before the arm began.
+    /// The returned position is already in the emitted value namespace.
+    pub(crate) fn established_case_payload(
+        &self,
+        source: PlaceId,
+        case: semantic_vocabulary::StructuralCaseId,
+        field: semantic_vocabulary::StructuralFieldId,
+        scalar_type: ScalarType,
+    ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
+        Ok(self
+            .structural_fields
+            .established_payload(source, case, field)?
+            .map(|position| LoweredDirectExpression::Parameter {
+                position,
+                scalar_type,
+            }))
+    }
+
     /// Observe a checked index field at its authored operand position. The call
     /// expansion carries this value across later argument effects.
     pub(crate) fn runtime_index_field(
