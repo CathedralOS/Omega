@@ -507,7 +507,7 @@ pub(super) fn return_value_operation(
         .map(|operation| (operation, Vec::new()));
     }
     if crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type) {
-        return named_view_result_operation(
+        return shared_reference_result_operation(
             program,
             shapes,
             state,
@@ -698,13 +698,11 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     Some(CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source })
 }
 
-/// The `EstablishReference` producer for one authored `(place)` return target
-/// of a borrowed `&'a V` named result: the place resolves to an immutable
-/// structural parameter or a record-field path inside one, and the storage it
-/// bottoms out in is exactly the `&'a V` value itself — `self` for a receiver
-/// borrow, `self.field` for a stored named reference. Unlike the slice-view
-/// lane there are no endpoints: the whole stored borrow is the result.
-fn named_view_result_operation(
+/// Shared reference returns use the same exact ingress reconstruction as
+/// checked-plan admission. A projected borrow names the referent storage;
+/// a carried reference forwards its existing loan rather than borrowing
+/// the reference carrier itself.
+fn shared_reference_result_operation(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
@@ -714,44 +712,39 @@ fn named_view_result_operation(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let return_type = state.return_type;
-    let statement_index = usize::try_from(statement_ordinal).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let source = validation::reference_result_custody::initializer_source(
         program,
-        state.symbol,
-        statement_index,
+        state,
         expression,
+        return_type,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
+    else {
         return None;
     };
-    let authored = program.state_parameters(state);
-    let position = authored
+    let authored_position = program
+        .state_parameters(state)
         .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
-    let carrier = &authored[position];
-    if carrier.is_mutable
-        || !matches!(
-            crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                program,
-                carrier.type_reference,
-            ),
-            Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned)
-        )
-    {
+        .enumerate()
+        .filter(|(_, parameter)| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)?
+        .0;
+    if parameters.get(parameter_index as usize)?.position as usize != authored_position {
         return None;
     }
-    let parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
-    let (storage, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
         program,
-        state.symbol,
-        statement_index,
-        &place,
+        return_type,
+        language_semantics::ReferenceAccess::Shared,
     )?;
-    // The stored value reached by the projection must be exactly the result's
-    // `&'a V`: the named borrow already lives in the carrier's frame.
-    if program.normalized_type_identity(storage) != program.normalized_type_identity(return_type) {
+    if source.access != CheckedStructuralAccess::SharedBorrow
+        || source.type_identity != shapes.add_type(referee, &[], &[])?
+    {
         return None;
     }
     let type_identity = shapes.add_view_type(
@@ -759,39 +752,14 @@ fn named_view_result_operation(
         &[],
         language_semantics::ReferenceAccess::Shared,
     )?;
-    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
-        program,
-        return_type,
-        language_semantics::ReferenceAccess::Shared,
-    )?;
-    let referent_identity = shapes.add_type(referee, &[], &[])?;
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
         binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity: type_identity.clone(),
+        type_identity,
         multiplicity: Multiplicity::Affine,
     };
     *count = count.checked_add(1)?;
-    // A member projection reaches the stored `&'a V` field itself; the
-    // loaned leaf the result names is its referent, one segment deeper —
-    // the same `Referent` tail `formal_record_sources` spells for `&mut`
-    // record leaves. A whole-borrow parameter already names its referent
-    // leaf, so its source path stays empty.
-    let mut path = path;
-    if !path.is_empty() {
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-    }
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        source: CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: referent_identity,
-            access: CheckedStructuralAccess::SharedBorrow,
-        },
-    })
+    Some(CheckedUnitEffectOperationPlan::EstablishReference { result, source })
 }
 
 /// The `EstablishReference` producer for one authored `&mut place` return
