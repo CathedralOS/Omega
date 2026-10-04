@@ -307,7 +307,7 @@ impl Evaluation {
         {
             return unsupported("structural value binding was established twice");
         }
-        let (_, source) =
+        let (machine, source) =
             crate::expression_preparation::source_custody::authored_state(checked, state)?;
         let local = match checked
             .statement_table
@@ -324,6 +324,17 @@ impl Evaluation {
         };
         let mut local_symbol = symbols::SymbolHandle::invalid();
         if let Some(local) = local {
+            // The element-declared view spelling (`let v: u8 = coll[a..b]`)
+            // binds the subslice's own result type; a declared view keeps its
+            // spelling. Custody and carrier resolve on the bound type.
+            let binding_type =
+                crate::expression_preparation::source_custody::structural::declared_view_binding_type(
+                    checked,
+                    machine,
+                    source,
+                    local.type_reference,
+                    local.initial_value,
+                );
             // A `&T` local holds shared-borrow custody of the referent's
             // storage; its carrier identity is the record `T`, matching the
             // structural type `add_type` recorded for the result. A `&mut`
@@ -333,11 +344,11 @@ impl Evaluation {
             let shared_borrow =
                 crate::expression_preparation::source_custody::structural::shared_borrow_record_referent(
                     checked,
-                    local.type_reference,
+                    binding_type,
                 );
             let mutable_borrow = validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
-                local.type_reference,
+                binding_type,
             );
             // A `&mut` slice view's carrier is its element-view carrier
             // exactly as a `&` view's is: `let slots: &mut [Cell] = ..` binds
@@ -364,17 +375,17 @@ impl Evaluation {
                 .or(
                     crate::expression_preparation::source_custody::structural::mutable_view_carrier(
                         checked,
-                        local.type_reference,
+                        binding_type,
                     ),
                 )
                 .or(
                     crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                         checked,
-                        local.type_reference,
+                        binding_type,
                     ),
                 ) {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
-                None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
+                None => super::parameters::structural_carrier_type(checked, binding_type)?,
             };
             // Only an affine result rides the loan ledger: `&mut` locals and
             // a `&` local that binds a record `&T` call result. A `&` local
@@ -384,7 +395,7 @@ impl Evaluation {
                 if mutable_borrow.is_some() || record_call_result || reference_carrier {
                     Multiplicity::Affine
                 } else {
-                    checked.type_multiplicity(local.type_reference)
+                    checked.type_multiplicity(binding_type)
                 };
             if !local.symbol.is_valid()
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity

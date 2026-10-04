@@ -2172,6 +2172,24 @@ fn validate_operand_producers(
             else {
                 return unsupported("Unit structural result producer has no authored local");
             };
+            // The element-declared view spelling (`let v: u8 = coll[a..b]`)
+            // binds the subslice's own result type, not the authored element;
+            // a declared view keeps its spelling. Without an authored state
+            // the declaration is taken as written.
+            let binding_type = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )
+            .map(|(machine, state)| {
+                crate::expression_preparation::source_custody::structural::declared_view_binding_type(
+                    checked,
+                    machine,
+                    state,
+                    local.type_reference,
+                    local.initial_value,
+                )
+            })
+            .unwrap_or(local.type_reference);
             // A `&T` producer keeps the authored reference on its local but
             // joins the referent's carrier: compare the slice/record the
             // view names, not the borrow shell. A `&mut` producer's carrier
@@ -2179,12 +2197,12 @@ fn validate_operand_producers(
             // record carrier, primitives keep the `ref-mut` shell.
             let view_carrier = crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                 checked,
-                local.type_reference,
+                binding_type,
             )
             .or(
                 crate::expression_preparation::source_custody::structural::mutable_view_carrier(
                     checked,
-                    local.type_reference,
+                    binding_type,
                 ),
             );
             // The producer roster includes every local, even while rejoining
@@ -2209,7 +2227,7 @@ fn validate_operand_producers(
                     .normalized_type_identity(view_carrier.unwrap_or(
                         crate::unit::attached_unit::parameters::structural_carrier_type(
                             checked,
-                            local.type_reference,
+                            binding_type,
                         )?,
                     ))
                     .into_string()

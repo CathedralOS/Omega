@@ -660,7 +660,7 @@ pub(crate) fn binding_site(
     else {
         return unsupported("view subslice binding lost its range source");
     };
-    let (_, authored) =
+    let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (declared_type, site) = match statements.get(result.statement_index as usize) {
@@ -670,7 +670,13 @@ pub(crate) fn binding_site(
                 && local.initial_value == *expression =>
         {
             (
-                local.type_reference,
+                crate::expression_preparation::source_custody::structural::declared_view_binding_type(
+                    checked,
+                    machine,
+                    authored,
+                    local.type_reference,
+                    local.initial_value,
+                ),
                 checked_trees::CheckedSubsliceSite::LocalBinding,
             )
         }

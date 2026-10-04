@@ -701,7 +701,7 @@ pub(crate) fn validate_namespace(
     binding: &checked_trees::CheckedScalarExpressionBindings,
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
-    let (_, state) = authored_state(checked, binding.state)?;
+    let (machine, state) = authored_state(checked, binding.state)?;
     let preceding = program
         .statement_table
         .statements(state.statement_nodes)
@@ -726,7 +726,13 @@ pub(crate) fn validate_namespace(
                     if !local.is_mutable
                         && local.initial_value.is_valid()
                         && program
-                            .primitive_type_reference(local.type_reference)
+                            .primitive_type_reference(structural::declared_view_binding_type(
+                                checked,
+                                machine,
+                                state,
+                                local.type_reference,
+                                local.initial_value,
+                            ))
                             .is_some() =>
                 {
                     Some(local.symbol)
