@@ -597,8 +597,8 @@ fail/dependent/case_where_payload_write_exit_open rejected 73ms expected @3a2d2f
 	data `Interval`'s default domain is still FALSE at state exit: the invariant window opened on `main.interval` in a predecessor state must close first -- restore the `where` facts before this consumption point (ch11 window transport)
 fail/dependent/case_where_sibling_payload_scope rejected 165ms expected @2d8ed253669f
 	data `Pair` case `B` constraint names `x`, which is not in scope: a case `where` fact may read only the case's payload bindings and the data's common fields (a sibling case's payload is never in scope)
-fail/dependent/case_where_unproved_bound_rejected rejected 316ms expected @2d8ed253669f
-	data `Interval` case `Range` literal cannot prove the case constraint: a `where`-mentioned field's value is neither a literal nor a declared-range place whose interval decides the fact -- spell a literal, or constrain the value's declared range
+fail/dependent/case_where_unproved_bound_rejected rejected 360ms expected @e68154c271d
+	data `Interval` case `Range` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/dependent/case_where_zero_refuted_first_case_rejected rejected 320ms expected @2d8ed253669f
 	construction of `Main` omits gated field `v`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 94ms expected @a7a8cec34dad+wt

@@ -337,6 +337,7 @@ pass/data/payload_less_case_equality checked 326ms @2d8ed253669f+wt
 pass/data/property_carry_declared checked 345ms @2d8ed253669f+wt
 pass/data/record_pattern_let_exit built 987ms exit:70 @2d8ed253669f+wt
 pass/data/runtime_case_reassignment_exit built 979ms exit:70 @2d8ed253669f+wt
+pass/data/runtime_constructor_observation_exit built 4016ms exit:70 @e68154c271d
 pass/data/runtime_data_properties_exit built 935ms exit:70 @2d8ed253669f+wt
 pass/data/runtime_mixed_case_common_fields_exit built 1014ms exit:70 @2d8ed253669f+wt
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1028ms exit:70 @9baafc0ace88
