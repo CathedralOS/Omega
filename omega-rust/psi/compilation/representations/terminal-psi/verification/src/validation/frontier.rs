@@ -263,6 +263,7 @@ pub(super) struct FrontierWalk<'a> {
     /// composing their incoming projections through borrowed arrivals.
     shared_loans: &'a shared_loans::SharedLoans<'a>,
     descriptor_loans: &'a descriptor_loans::DescriptorLoans,
+    borrowed_reference_sources: &'a super::references::BorrowedSources,
     /// The ultimate place each borrowed block parameter may alias, with the
     /// canonical prefix beneath that place. Machine parameters and
     /// non-parameter places alias only themselves, so they need no row.
@@ -303,6 +304,7 @@ pub(super) fn validate_structural_frontier(
     let origins = super::borrowed_windows::borrowed_storage_origins(module, machine);
     let shared_loans = shared_loans::SharedLoans::new(machine, &origins);
     let descriptor_loans = descriptor_loans::DescriptorLoans::new(module, machine);
+    let borrowed_reference_sources = super::references::BorrowedSources::new(module, machine);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
     let window_aliases = crate::validation::borrowed_windows::window_aliases_from_origins(&origins);
@@ -315,6 +317,7 @@ pub(super) fn validate_structural_frontier(
         borrowed_references: &borrowed_references,
         shared_loans: &shared_loans,
         descriptor_loans: &descriptor_loans,
+        borrowed_reference_sources: &borrowed_reference_sources,
         window_aliases: &window_aliases,
     };
     let mut returned_reference_sources = Vec::new();

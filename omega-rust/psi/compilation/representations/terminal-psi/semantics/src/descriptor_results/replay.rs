@@ -125,10 +125,38 @@ impl<'a> Replay<'a> {
         let Some(Some(origins)) = state.get(&DescriptorLocation::whole(location.root)) else {
             return Some(location.clone());
         };
-        let mut canonical = None;
+        if origins.is_empty()
+            || origins
+                .iter()
+                .any(|origin| !matches!(origin, Origin::Storage(_)))
+        {
+            return Some(location.clone());
+        }
+        let mut locations = self.storage_origins(machine, state, location)?.into_iter();
+        let first = locations.next()?;
+        locations
+            .all(|candidate| candidate == first)
+            .then_some(first)
+    }
+    /// Exact storage alternatives are distinct from descriptor payload origins.
+    /// Edge bindings already substituted each predecessor in the snapshot; an
+    /// unknown binding or captured incoming slot cannot manufacture an address.
+    fn storage_origins(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let origins = state
+            .get(&DescriptorLocation::whole(location.root))?
+            .as_ref()?;
+        if origins.is_empty() {
+            return None;
+        }
+        let mut locations = Vec::with_capacity(origins.len());
         for origin in origins {
             let Origin::Storage(backing) = origin else {
-                return Some(location.clone());
+                return None;
             };
             let mut suffix = location.path.as_slice();
             let root_type = *machine.place_types.get(&location.root)?;
@@ -154,15 +182,11 @@ impl<'a> Replay<'a> {
             let mut target = backing.clone();
             target.path.extend_from_slice(suffix);
             descriptor_path(self.types, backing_type, &target.path)?;
-            if canonical
-                .as_ref()
-                .is_some_and(|previous| previous != &target)
-            {
-                return None;
+            if !locations.contains(&target) {
+                locations.push(target);
             }
-            canonical = Some(target);
         }
-        canonical.or_else(|| Some(location.clone()))
+        Some(locations)
     }
     fn read(
         &self,
@@ -1098,6 +1122,20 @@ impl<'a> DescriptorAnalysis<'a> {
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
         self.replay
             .canonical_storage(machine, states.get(&position)?, location)
+    }
+    /// Complete storage addresses at this exact current-body position. This
+    /// never flattens descriptor contents or incoming slots into owned storage.
+    pub fn storage_origins(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<DescriptorLocation>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+        self.replay
+            .storage_origins(machine, states.get(&position)?, location)
     }
     pub fn source_origins(
         &mut self,

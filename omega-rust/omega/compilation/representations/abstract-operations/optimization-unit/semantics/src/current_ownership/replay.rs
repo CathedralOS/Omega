@@ -201,6 +201,7 @@ pub(super) fn validate_current_ownership_cfg(
                 function,
                 functions,
                 structural_types,
+                pins.reference_sources(),
                 block_id,
                 node_index,
                 &node.operation,

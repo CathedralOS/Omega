@@ -64,6 +64,74 @@ pub(super) struct LiveReference {
     parent: ReferenceParent,
 }
 
+/// Borrowed block names are immutable addresses whose exact incoming storage
+/// alternatives are reconstructed once at the block-entry snapshot. Unknown
+/// storage remains an explicit failed query, never an alias or origin grant.
+pub(super) struct BorrowedSources {
+    sources: Vec<(PlaceId, Option<Vec<StructuralArgument>>)>,
+}
+
+impl BorrowedSources {
+    pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
+        use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
+        use terminal_semantics::descriptor_results::{DescriptorAnalysis, terminal_graph};
+        let mut sources = Vec::new();
+        if machine.blocks.iter().all(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .all(|parameter| parameter.access == StructuralAccess::Owned)
+        }) {
+            return Self { sources };
+        }
+        let graph = terminal_graph(module);
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+        for block in &machine.blocks {
+            for parameter in &block.structural_parameters {
+                // Descriptor payloads have their own captured-origin owner;
+                // their incoming backing is not the address of this binding.
+                if parameter.access == StructuralAccess::Owned
+                    || terminal_semantics::descriptor_results::is_shared_descriptor(
+                        module.structural_types.iter(),
+                        parameter.structural_type,
+                    )
+                {
+                    continue;
+                }
+                let origins = analysis
+                    .storage_origins(
+                        machine.id,
+                        (block.id, 0),
+                        &DescriptorLocation::whole(parameter.place),
+                    )
+                    .and_then(|origins| {
+                        origins
+                            .into_iter()
+                            .map(|origin| {
+                                let signature =
+                                    super::structural::result_contracts::source_signature(
+                                        machine,
+                                        origin.root,
+                                    )?;
+                                Some(StructuralArgument {
+                                    place: origin.root,
+                                    path: descriptor_path(
+                                        &module.structural_types,
+                                        signature.structural_type,
+                                        &origin.path,
+                                    )?,
+                                    access: parameter.access,
+                                })
+                            })
+                            .collect()
+                    });
+                sources.push((parameter.place, origins));
+            }
+        }
+        Self { sources }
+    }
+}
+
 pub(crate) fn argument_owns_references(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -946,16 +1014,18 @@ pub(super) fn validate_machine(
                 declaration.id == expected_referent
                     && matches!(declaration.shape, StructuralTypeShape::Record { .. })
             });
-            // Dynamic result addresses currently represent one whole mutable
-            // record under one borrowed formal. General reference-bearing
-            // records and inter-formal selections keep their explicit fence.
+            // Alternative addresses retain one whole reference beneath one
+            // borrowed formal. Each leaf's access is checked below, including
+            // shared results and attenuation from an exclusive ingress.
+            // Reference-bearing records and inter-formal selections stay out.
             if !path.is_empty()
                 || !record
-                || reference_access(module, result.structural_type)
-                    != Some(StructuralAccess::MutableBorrow)
+                || !matches!(
+                    reference_access(module, result.structural_type),
+                    Some(StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow)
+                )
                 || mapping.sources.iter().any(|source| {
                     source.place != first.place
-                        || source.access != StructuralAccess::MutableBorrow
                         || source.path.is_empty()
                         || source.path.iter().any(|segment| {
                             !matches!(
@@ -968,7 +1038,7 @@ pub(super) fn validate_machine(
             {
                 return Err(invalid(
                     machine,
-                    "reference result alternatives require one mutable record ingress",
+                    "reference result alternatives require one borrowed record ingress",
                 ));
             }
         }
@@ -1415,6 +1485,47 @@ fn shared_source_compatible(
 }
 
 fn normalized_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    borrowed_sources: &BorrowedSources,
+    live: &[LiveReference],
+    source: &StructuralArgument,
+) -> Result<(ReferenceOrigin, ReferenceParent), ModuleError> {
+    let Some((_, origins)) = borrowed_sources
+        .sources
+        .iter()
+        .find(|(place, _)| *place == source.place)
+    else {
+        return normalized_direct_source(module, machine, live, source);
+    };
+    let origins = origins
+        .as_ref()
+        .filter(|origins| !origins.is_empty())
+        .ok_or_else(|| {
+            invalid(
+                machine,
+                "borrowed reference source has no exact incoming storage",
+            )
+        })?;
+    let expected = source_type(module, machine, source)
+        .ok_or_else(|| invalid(machine, "borrowed reference source type is absent"))?;
+    let mut alternatives = Vec::with_capacity(origins.len());
+    for origin in origins {
+        let mut resolved = origin.clone();
+        resolved.path.extend_from_slice(&source.path);
+        resolved.access = source.access;
+        if source_type(module, machine, &resolved) != Some(expected) {
+            return Err(invalid(
+                machine,
+                "borrowed reference source changes its incoming type",
+            ));
+        }
+        alternatives.push(normalized_direct_source(module, machine, live, &resolved)?);
+    }
+    combine_alternative_origins(machine, alternatives)
+}
+
+fn normalized_direct_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
     live: &[LiveReference],
@@ -1897,6 +2008,7 @@ pub(super) fn apply_operation(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     operation: &terminal_psi::Operation,
+    borrowed_sources: &BorrowedSources,
     live: &mut Vec<LiveReference>,
 ) -> Result<(), ModuleError> {
     match &operation.kind {
@@ -2133,19 +2245,24 @@ pub(super) fn apply_operation(
             }
             continue;
         }
-        if super::structural::result_contracts::source_signature(machine, argument.place)
-            .is_some_and(|source| contains_reference(module, source.structural_type))
-            || live
-                .iter()
-                .any(|reference| origin_root(&reference.root) == argument.place)
-        {
-            if !is_reference_projection(module, machine, argument) {
+        let carrier_or_suspended =
+            super::structural::result_contracts::source_signature(machine, argument.place)
+                .is_some_and(|source| contains_reference(module, source.structural_type))
+                || live
+                    .iter()
+                    .any(|reference| origin_root(&reference.root) == argument.place);
+        let borrowed_binding = borrowed_sources
+            .sources
+            .iter()
+            .any(|(place, _)| *place == argument.place);
+        if carrier_or_suspended || borrowed_binding {
+            if carrier_or_suspended && !is_reference_projection(module, machine, argument) {
                 return Err(invalid(
                     machine,
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let root = normalized_source(module, machine, live, argument)?.0;
+            let root = normalized_source(module, machine, borrowed_sources, live, argument)?.0;
             normalized_arguments.push((
                 vec![root],
                 argument.access,
@@ -2338,7 +2455,8 @@ pub(super) fn apply_operation(
                     reference.carrier_path = path.clone();
                     reference
                 } else {
-                    let (root, parent) = normalized_source(module, machine, live, &source)?;
+                    let (root, parent) =
+                        normalized_source(module, machine, borrowed_sources, live, &source)?;
                     LiveReference {
                         identity: ReferenceIdentity {
                             place: result.place,
@@ -2385,50 +2503,66 @@ fn combine_alternative_references(
     let mut reference = alternatives
         .next()
         .ok_or_else(|| invalid(machine, "reference result has no possible origin"))?;
-    let mut paths = Vec::new();
+    let mut origins = vec![(reference.root.clone(), reference.parent.clone())];
     for alternative in alternatives {
         if reference.identity != alternative.identity
             || reference.carrier != alternative.carrier
             || reference.carrier_path != alternative.carrier_path
-            || reference.parent != ReferenceParent::Root(reference.root.clone())
-            || alternative.parent != ReferenceParent::Root(alternative.root.clone())
-            || origin_root(&reference.root) != origin_root(&alternative.root)
         {
             return Err(invalid(
                 machine,
                 "reference result alternatives change carrier or ingress custody",
             ));
         }
-        let ReferenceOrigin::IngressLeaf(identity) = alternative.root else {
-            return Err(invalid(
-                machine,
-                "reference result alternatives require exact ingress paths",
-            ));
-        };
-        paths.push(identity.path);
+        origins.push((alternative.root, alternative.parent));
     }
-    if !paths.is_empty() {
-        let ReferenceOrigin::IngressLeaf(identity) = &reference.root else {
+    (reference.root, reference.parent) = combine_alternative_origins(machine, origins)?;
+    Ok(reference)
+}
+
+/// Joining possible addresses grants no parent substitution. All alternatives
+/// must retain direct custody beneath the same ingress, with distinct paths.
+fn combine_alternative_origins(
+    machine: &TerminalMachine,
+    alternatives: Vec<(ReferenceOrigin, ReferenceParent)>,
+) -> Result<(ReferenceOrigin, ReferenceParent), ModuleError> {
+    if alternatives.len() == 1 {
+        return Ok(alternatives.into_iter().next().expect("one origin"));
+    }
+    let place = alternatives
+        .first()
+        .map(|(root, _)| origin_root(root))
+        .ok_or_else(|| invalid(machine, "reference result has no possible origin"))?;
+    let mut paths = Vec::new();
+    for (root, parent) in alternatives {
+        if parent != ReferenceParent::Root(root.clone()) || origin_root(&root) != place {
             return Err(invalid(
                 machine,
-                "reference result alternatives require exact ingress paths",
-            ));
-        };
-        paths.push(identity.path.clone());
-        paths.sort();
-        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(invalid(
-                machine,
-                "reference result alternatives duplicate one origin",
+                "reference result alternatives change carrier or ingress custody",
             ));
         }
-        reference.root = ReferenceOrigin::Alternatives {
-            place: identity.place,
-            paths,
-        };
-        reference.parent = ReferenceParent::Root(reference.root.clone());
+        match root {
+            ReferenceOrigin::IngressLeaf(identity) => paths.push(identity.path),
+            ReferenceOrigin::Alternatives {
+                paths: candidates, ..
+            } => paths.extend(candidates),
+            ReferenceOrigin::Primitive(_) => {
+                return Err(invalid(
+                    machine,
+                    "reference result alternatives require exact ingress paths",
+                ));
+            }
+        }
     }
-    Ok(reference)
+    paths.sort();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(invalid(
+            machine,
+            "reference result alternatives duplicate one origin",
+        ));
+    }
+    let root = ReferenceOrigin::Alternatives { place, paths };
+    Ok((root.clone(), ReferenceParent::Root(root)))
 }
 
 pub(super) fn transfer_return(

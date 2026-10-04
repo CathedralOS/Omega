@@ -57,6 +57,10 @@ pub(super) struct AddressJoinPins {
 }
 
 impl AddressJoinPins {
+    pub(super) fn reference_sources(&self) -> &borrowed_regions::BorrowedReferenceSources {
+        self.borrowed_regions.reference_sources()
+    }
+
     pub(super) fn descriptor_requirements(
         &self,
     ) -> Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement> {

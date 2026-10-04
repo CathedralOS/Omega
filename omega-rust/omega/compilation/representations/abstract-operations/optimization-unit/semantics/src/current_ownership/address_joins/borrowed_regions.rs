@@ -20,6 +20,9 @@ use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorSourceOrigin, DescriptorStoredCallEffect,
 };
 
+pub(in crate::current_ownership) type BorrowedReferenceSources =
+    BTreeMap<PlaceId, Option<Vec<terminal_psi::StructuralArgument>>>;
+
 type ObservationKey = (Position, PlaceId, Vec<StructuralPathSegment>);
 
 pub(in crate::current_ownership) struct Access {
@@ -30,6 +33,9 @@ pub(in crate::current_ownership) struct Access {
 
 #[derive(Default)]
 pub(in crate::current_ownership) struct BorrowedRegions {
+    // Exact incoming storage is distinct from conservative overlap geometry.
+    // An unresolved borrowed binding retains None, never its own phantom root.
+    reference_sources: BorrowedReferenceSources,
     aliases: AliasSources,
     // Exact immediate parent edges are distinct from transitive backing. The
     // address-join suspension judgment must recognize a fresh child of a join.
@@ -106,6 +112,21 @@ impl BorrowedRegions {
             catalog.push(function);
         }
         let graph = crate::descriptor_results::optimized_catalog_graph(catalog, &declarations);
+        let mut reference_sources = BorrowedReferenceSources::new();
+        for parameter in function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+        {
+            if parameter.access != StructuralAccess::Owned
+                && !terminal_semantics::descriptor_results::is_shared_descriptor(
+                    declarations.iter(),
+                    parameter.structural_type,
+                )
+            {
+                reference_sources.insert(parameter.place, None);
+            }
+        }
         let mut returned = BTreeMap::new();
         let mut sources = BTreeMap::new();
         let mut descriptor_sources = BTreeSet::new();
@@ -117,6 +138,37 @@ impl BorrowedRegions {
             let mut analysis = DescriptorAnalysis::new(&declarations, graph);
             flow = analysis.flow(function.machine);
             if let Some(current) = graph.iter().find(|machine| machine.id == function.machine) {
+                for block in &function.blocks {
+                    for parameter in &block.structural_parameters {
+                        if !reference_sources.contains_key(&parameter.place) {
+                            continue;
+                        }
+                        let origins = analysis
+                            .storage_origins(
+                                function.machine,
+                                (block.id, 0),
+                                &DescriptorLocation::whole(parameter.place),
+                            )
+                            .and_then(|origins| {
+                                origins
+                                    .into_iter()
+                                    .map(|origin| {
+                                        let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
+                                            &declarations,
+                                            *current.place_types.get(&origin.root)?,
+                                            &origin.path,
+                                        )?;
+                                        Some(terminal_psi::StructuralArgument {
+                                            place: origin.root,
+                                            path,
+                                            access: parameter.access,
+                                        })
+                                    })
+                                    .collect()
+                            });
+                        reference_sources.insert(parameter.place, origins);
+                    }
+                }
                 let mut queries: BTreeMap<Position, BTreeSet<DescriptorLocation>> = BTreeMap::new();
                 for (position, step) in &current.flow {
                     let observed = queries.entry(*position).or_default();
@@ -370,6 +422,7 @@ impl BorrowedRegions {
             }
         }
         Self {
+            reference_sources,
             aliases,
             parents,
             returned,
@@ -382,6 +435,10 @@ impl BorrowedRegions {
             relations: None,
             writes: BTreeMap::new(),
         }
+    }
+
+    pub(super) fn reference_sources(&self) -> &BorrowedReferenceSources {
+        &self.reference_sources
     }
 
     pub(super) fn descriptor_flow(&self) -> Option<&BTreeMap<Position, DescriptorFlowStep>> {

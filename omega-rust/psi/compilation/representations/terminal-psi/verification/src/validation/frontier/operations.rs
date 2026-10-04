@@ -51,6 +51,7 @@ pub(super) fn apply_operation(
         machine,
         machines,
         operation,
+        walk.borrowed_reference_sources,
         &mut frontier.references,
     )?;
     validate_owned_reads(module, machine, operation, frontier)?;

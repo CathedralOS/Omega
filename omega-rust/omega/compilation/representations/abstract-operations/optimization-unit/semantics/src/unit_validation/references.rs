@@ -832,11 +832,15 @@ pub(crate) fn validate_function_references(
                         terminal_psi::StructuralTypeShape::Record { .. }
                     )
                 })
-                || reference_access(types, result.structural_type)
-                    != Some(terminal_psi::StructuralAccess::MutableBorrow)
+                || !matches!(
+                    reference_access(types, result.structural_type),
+                    Some(
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::SharedBorrow
+                    )
+                )
                 || mapping.sources.iter().any(|source| {
                     source.place != first.place
-                        || source.access != terminal_psi::StructuralAccess::MutableBorrow
                         || source.path.is_empty()
                         || source.path.iter().any(|segment| {
                             !matches!(

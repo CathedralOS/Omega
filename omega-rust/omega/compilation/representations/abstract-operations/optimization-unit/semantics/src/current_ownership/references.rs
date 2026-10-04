@@ -5,6 +5,7 @@
 //! are reconstructed from operations and checked call interfaces; no
 //! producer-supplied lifetime or origin table is authority.
 
+use super::address_joins::borrowed_regions::BorrowedReferenceSources;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
@@ -34,7 +35,6 @@ enum CallRegion {
 
 mod call_paths;
 use call_paths::{call_dependency_conflict, call_reference_custody};
-
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
@@ -421,7 +421,54 @@ fn shared_source_compatible(
             == Some(StructuralAccess::SharedBorrow)
 }
 
+/// Resolve a borrowed arrival at its binding point before checking the current
+/// loan frontier. Every possible backing retains its own custody check.
 fn normalized_source(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    borrowed_sources: &BorrowedReferenceSources,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    source: &StructuralArgument,
+) -> Result<(ReferenceOrigin, ReferenceParent), OptimizationUnitValidationError> {
+    let Some(origins) = borrowed_sources.get(&source.place) else {
+        return normalized_direct_source(function, structural_types, block, node, live, source);
+    };
+    let invalid = || {
+        invalid(
+            function,
+            block,
+            Some(node),
+            "borrowed reference source has no exact incoming storage",
+        )
+    };
+    let origins = origins
+        .as_ref()
+        .filter(|origins| !origins.is_empty())
+        .ok_or_else(invalid)?;
+    let expected = reference_source_type(function, structural_types, source).ok_or_else(invalid)?;
+    let mut alternatives = Vec::with_capacity(origins.len());
+    for origin in origins {
+        let mut resolved = origin.clone();
+        resolved.path.extend_from_slice(&source.path);
+        resolved.access = source.access;
+        if reference_source_type(function, structural_types, &resolved) != Some(expected) {
+            return Err(invalid());
+        }
+        alternatives.push(normalized_direct_source(
+            function,
+            structural_types,
+            block,
+            node,
+            live,
+            &resolved,
+        )?);
+    }
+    combine_alternative_origins(function, block, node, alternatives)
+}
+
+fn normalized_direct_source(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
@@ -813,6 +860,7 @@ pub(super) fn apply_operation(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    borrowed_sources: &BorrowedReferenceSources,
     block: BlockId,
     node: u32,
     operation: &O,
@@ -1322,13 +1370,15 @@ pub(super) fn apply_operation(
             }
             continue;
         }
-        if structural_source_contract(function, argument.place)
+        let carrier_or_suspended = structural_source_contract(function, argument.place)
             .is_some_and(|source| contains_reference(structural_types, source.structural_type))
             || live
                 .iter()
-                .any(|reference| origin_place(&reference.root) == argument.place)
-        {
-            if !is_reference_projection(function, structural_types, argument) {
+                .any(|reference| origin_place(&reference.root) == argument.place);
+        if carrier_or_suspended || borrowed_sources.contains_key(&argument.place) {
+            if carrier_or_suspended
+                && !is_reference_projection(function, structural_types, argument)
+            {
                 return Err(invalid(
                     function,
                     block,
@@ -1336,8 +1386,15 @@ pub(super) fn apply_operation(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let (root, _) =
-                normalized_source(function, structural_types, block, node, live, argument)?;
+            let (root, _) = normalized_source(
+                function,
+                structural_types,
+                borrowed_sources,
+                block,
+                node,
+                live,
+                argument,
+            )?;
             normalized_arguments.push((
                 vec![root],
                 argument.access,
@@ -1569,8 +1626,15 @@ pub(super) fn apply_operation(
                     reference.carrier_path = path.clone();
                     reference
                 } else {
-                    let (root, parent) =
-                        normalized_source(function, structural_types, block, node, live, &source)?;
+                    let (root, parent) = normalized_source(
+                        function,
+                        structural_types,
+                        borrowed_sources,
+                        block,
+                        node,
+                        live,
+                        &source,
+                    )?;
                     LiveReference {
                         identity: ReferenceIdentity {
                             place: result.place,
@@ -1672,38 +1736,64 @@ fn combine_alternative_references(
     };
     let mut alternatives = alternatives.into_iter();
     let mut reference = alternatives.next().ok_or_else(invalid)?;
-    let mut paths = Vec::new();
+    let mut origins = vec![(reference.root.clone(), reference.parent.clone())];
     for alternative in alternatives {
         if reference.identity != alternative.identity
             || reference.carrier != alternative.carrier
             || reference.carrier_path != alternative.carrier_path
-            || reference.parent != ReferenceParent::Root(reference.root.clone())
-            || alternative.parent != ReferenceParent::Root(alternative.root.clone())
-            || origin_place(&reference.root) != origin_place(&alternative.root)
         {
             return Err(invalid());
         }
-        let ReferenceOrigin::IngressLeaf(identity) = alternative.root else {
-            return Err(invalid());
-        };
-        paths.push(identity.path);
+        origins.push((alternative.root, alternative.parent));
     }
-    if !paths.is_empty() {
-        let ReferenceOrigin::IngressLeaf(identity) = &reference.root else {
-            return Err(invalid());
-        };
-        paths.push(identity.path.clone());
-        paths.sort();
-        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+    (reference.root, reference.parent) =
+        combine_alternative_origins(function, block, node, origins)?;
+    Ok(reference)
+}
+
+/// Multiple storage alternatives preserve direct custody under one ingress.
+/// This joins origins without manufacturing a carrier or a parent resource.
+fn combine_alternative_origins(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    alternatives: Vec<(ReferenceOrigin, ReferenceParent)>,
+) -> Result<(ReferenceOrigin, ReferenceParent), OptimizationUnitValidationError> {
+    let invalid = || {
+        invalid(
+            function,
+            block,
+            Some(node),
+            "reference result alternatives change ingress custody",
+        )
+    };
+    let mut alternatives = alternatives.into_iter();
+    let (root, parent) = alternatives.next().ok_or_else(invalid)?;
+    if alternatives.len() == 0 {
+        return Ok((root, parent));
+    }
+    let place = origin_place(&root);
+    let mut paths = Vec::new();
+    for (origin, origin_parent) in std::iter::once((root, parent)).chain(alternatives) {
+        if origin_parent != ReferenceParent::Root(origin.clone()) || origin_place(&origin) != place
+        {
             return Err(invalid());
         }
-        reference.root = ReferenceOrigin::Alternatives {
-            place: identity.place,
-            paths,
-        };
-        reference.parent = ReferenceParent::Root(reference.root.clone());
+        match origin {
+            ReferenceOrigin::IngressLeaf(identity) => paths.push(identity.path),
+            ReferenceOrigin::Alternatives {
+                paths: alternatives,
+                ..
+            } => paths.extend(alternatives),
+            ReferenceOrigin::Primitive(_) => return Err(invalid()),
+        }
     }
-    Ok(reference)
+    paths.sort();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(invalid());
+    }
+    let root = ReferenceOrigin::Alternatives { place, paths };
+    Ok((root.clone(), ReferenceParent::Root(root)))
 }
 
 /// A structural return whose source carries reference leaves must match the
