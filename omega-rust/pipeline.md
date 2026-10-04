@@ -177,16 +177,13 @@ does not load or mutate project policy files.
 owns provider choices and calling, component and task planning.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
-[`external-root-writer/`](omega/compilation/realization/external-root-writer/src/lib.rs)
-joins a selected external-root provider plan to its installed post-handoff
-entry writer; no compiler route calls it yet. Provider grants resolve through backend
-provider evidence, without depending on compiler trust-report reconstruction.
+Provider grants resolve through backend provider evidence.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
 handoff.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
-owns trust obligation reconstruction and exact report records, consuming source
+owns trust obligation reconstruction and admission, consuming source
 judgments and selected-provider evidence. The CLI supplies policy admissions;
 the compiler sequences admission. Its checked-tree input remains a transitional
 boundary. Host file writing and timing have no dependency on these semantics.

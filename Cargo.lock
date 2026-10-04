@@ -604,25 +604,6 @@ name = "extents"
 version = "0.1.0"
 
 [[package]]
-name = "external-root-writer"
-version = "0.1.0"
-dependencies = [
- "checked-trees",
- "diagnostics",
- "effects",
- "executable-installation",
- "external-roots",
- "facts",
- "language-semantics",
- "layout-plans",
- "post-handoff-writer-plan",
- "program-entry-plan",
- "provider-planning",
- "source",
- "symbols",
-]
-
-[[package]]
 name = "external-roots"
 version = "0.1.0"
 dependencies = [
