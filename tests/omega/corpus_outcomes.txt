@@ -1490,7 +1490,7 @@ pass/calls/runtime_shared_ref_param_member_exit checked 835ms @2f8006be6cc9+wt
 pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
 pass/calls/runtime_std_math_sin_cos_exit checked 39961ms @ca8c127c90c5
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms @2d8ed253669f
-pass/calls/runtime_terminal_requirement_projected_context_exit checked 448ms @2dc4bef33609
+pass/calls/runtime_terminal_requirement_projected_context_exit checked 619ms @560687158d28
 pass/calls/runtime_trailing_state_mut_param_phase_exit checked 970ms @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms @2d8ed253669f
 pass/calls/runtime_value_call_dispatch_results_exit checked 1550ms @2d8ed253669f
