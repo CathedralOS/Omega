@@ -92,7 +92,7 @@ pub(crate) fn declaration<'a>(
     // member operations fill each leaf — so the roster scans operations,
     // not initializer kinds.
     let establishment = !local.initial_value.is_valid()
-        && crate::expression_preparation::source_custody::authored_state(checked, state.symbol)
+        && crate::declarations::state_declaration(checked, state.symbol)
             .ok()
             .is_some_and(|(machine, _)| {
                 crate::unit::attached_unit::bodies::statement_establishes_local(
@@ -155,8 +155,7 @@ pub(super) fn validate(
     argument: &CheckedUnitStructuralArgumentPlan,
     source: &ReceiverSource,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let (ordinal, local) = declaration(
         checked,
         state,
@@ -263,8 +262,7 @@ pub(super) fn validate_returned_reference(
     ordinal: usize,
     local: &checked_trees::statement::TableLocalData,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let binding =
         argument
             .source_structural_result_binding_ordinal()

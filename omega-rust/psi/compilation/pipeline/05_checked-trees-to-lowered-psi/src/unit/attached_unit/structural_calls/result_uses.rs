@@ -44,8 +44,8 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
     }
     call.structural_custody().is_some_and(|custody| {
         !custody.reference_loan.is_valid() && custody.returned_claim_transfers.is_empty()
-    }) && crate::expression_preparation::source_custody::authored_state(checked, call.target.state)
-        .is_ok_and(|(_, callee_state)| {
+    }) && crate::declarations::state_declaration(checked, call.target.state).is_ok_and(
+        |(_, callee_state)| {
             let returned = callee_state.return_type;
             checked.typed.normalized_type_identity(returned).as_str() == binding.type_identity
                 && ((matches!(
@@ -54,7 +54,8 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
                 ) && validation::has_cleanup_owned_contents(&checked.typed, returned))
                     || (binding.multiplicity == Multiplicity::Unrestricted
                         && validation::is_closed_primitive_array_type(&checked.typed, returned)))
-        })
+        },
+    )
 }
 
 /// The structural result binding of a call, ordinary or boundary.
@@ -138,10 +139,8 @@ fn validate_linear_result_consumer(
     }
     super::validate_custody(checked, machine, state, producer)?;
     super::validate_custody(checked, machine, state, operation)?;
-    let (_, producer_state) = crate::expression_preparation::source_custody::authored_state(
-        checked,
-        *producer_target_state,
-    )?;
+    let (_, producer_state) =
+        crate::declarations::state_declaration(checked, *producer_target_state)?;
     let projected_qualifications = validation::structural_result_projected_qualifications(
         &checked.typed,
         producer_state.return_type,
@@ -157,8 +156,7 @@ fn validate_linear_result_consumer(
         *producer_coordinate,
         result,
     )?;
-    let (_, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source_state) = crate::declarations::state_declaration(checked, state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(source_state.statement_nodes)
@@ -671,8 +669,7 @@ fn shared_view_binding(
     state: symbols::SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Result<bool, LoweringError> {
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(authored.statement_nodes)
@@ -770,12 +767,9 @@ pub(crate) fn validate_usage(
             let result_local_symbol = checked
                 .statement_table
                 .statements(
-                    crate::expression_preparation::source_custody::authored_state(
-                        checked,
-                        caller.state,
-                    )?
-                    .1
-                    .statement_nodes,
+                    crate::declarations::state_declaration(checked, caller.state)?
+                        .1
+                        .statement_nodes,
                 )
                 .get(result.statement_index as usize)
                 .and_then(|statement| match statement {
@@ -846,10 +840,7 @@ pub(crate) fn validate_usage(
                 .owned_selection_at(caller.state, destination.statement_index)
                 .is_none()
         {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller.state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;
             if let Some(StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
@@ -1168,10 +1159,7 @@ pub(crate) fn validate_usage(
             .ok_or(LoweringError::Unsupported(
                 "returned reference has no exact transfer boundary",
             ))?;
-            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller.state,
-            )?;
+            let (_, authored) = crate::declarations::state_declaration(checked, caller.state)?;
             if (boundary as usize)
                 < checked
                     .statement_table
@@ -1202,10 +1190,7 @@ pub(crate) fn validate_usage(
             .ok_or(LoweringError::Unsupported(
                 "reference result has no exact weakening boundary",
             ))?;
-            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller.state,
-            )?;
+            let (_, authored) = crate::declarations::state_declaration(checked, caller.state)?;
             if (boundary as usize)
                 < checked
                     .statement_table
@@ -1303,8 +1288,7 @@ pub(crate) fn validate_consumer(
         caller.state,
         caller.operations,
     )?;
-    let (source_machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (source_machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let signature = crate::emission::call_source_custody::authored::target_signature(
         checked,
@@ -1731,8 +1715,7 @@ fn whole_local_array_loan(
     {
         return Ok(false);
     }
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -1819,8 +1802,7 @@ fn whole_local_bounded_owner_loan(
     if !argument.path.is_empty() || result.multiplicity != Multiplicity::Unrestricted {
         return Ok(false);
     }
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -2211,7 +2193,7 @@ fn validate_operand_producers(
             // binds the subslice's own result type, not the authored element;
             // a declared view keeps its spelling. Without an authored state
             // the declaration is taken as written.
-            let binding_type = crate::expression_preparation::source_custody::authored_state(
+            let binding_type = crate::declarations::state_declaration(
                 checked,
                 caller.state,
             )
@@ -2278,13 +2260,7 @@ fn validate_operand_producers(
                     super::super::parameters::source_path(
                         checked,
                         source_machine,
-                        Some(
-                            crate::expression_preparation::source_custody::authored_state(
-                                checked,
-                                caller.state,
-                            )?
-                            .1,
-                        ),
+                        Some(crate::declarations::state_declaration(checked, caller.state)?.1),
                         local.type_reference,
                         expression,
                     )
@@ -2371,13 +2347,7 @@ fn validate_operand_producers(
                 let (root, path, access) = super::super::parameters::source_place_path(
                     checked,
                     source_machine,
-                    Some(
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked,
-                            caller.state,
-                        )?
-                        .1,
-                    ),
+                    Some(crate::declarations::state_declaration(checked, caller.state)?.1),
                     signature.return_type,
                     expression.unwrap(),
                 )?;
@@ -2585,8 +2555,7 @@ fn claimed_result_consumer(
     // frontier the consume retires: a sibling mint at the same coordinate —
     // or an establish event re-minting an identity established elsewhere —
     // leaves claim custody this consume never carries.
-    let (_, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (_, source_state) = crate::declarations::state_declaration(checked, caller.state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(source_state.statement_nodes)

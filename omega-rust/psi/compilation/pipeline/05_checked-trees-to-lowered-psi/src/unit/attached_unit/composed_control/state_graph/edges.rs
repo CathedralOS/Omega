@@ -165,9 +165,8 @@ pub(super) fn validate_bindings(
     // signature retained it: a graph-erased receiver still occupies its
     // authored formal position but no operand slot. Count authored `self`
     // formals, not signature rows, so both shapes map to the same operand.
-    let target_formals =
-        crate::expression_preparation::source_custody::authored_state(checked, edge.target_state)
-            .map(|(_, state)| checked.state_parameters(state))?;
+    let target_formals = crate::declarations::state_declaration(checked, edge.target_state)
+        .map(|(_, state)| checked.state_parameters(state))?;
     let explicit_argument_position = |position: u32| {
         position as usize
             - target_formals
@@ -1550,8 +1549,7 @@ pub(super) fn validate_fallback(
     // Reconstruct their complement from the authored pair and the closed sum
     // declaration rather than trusting a retained coverage flag. The ordinary
     // guard rejoin still authenticates the value actually emitted.
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     if let Some(StatementNode::Transition(when_true)) = checked.statement_table
         .statements(source.statement_nodes).get(guard_ordinal as usize)
         && let (TransitionGuardNode::When(first), TransitionGuardNode::When(second)) =
@@ -1829,8 +1827,7 @@ fn validate_projected_loan_source(
     expression: checked_trees::expression::ExpressionHandle,
     subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
-    let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, source.symbol)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, source.symbol)?;
     if machine.symbol != machine_symbol {
         return unsupported("Unit graph projected loan changed its source machine");
     }

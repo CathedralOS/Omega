@@ -159,7 +159,7 @@ impl<'a> IndexedWriteLeaf<'a> {
         checked: &CheckedTrees,
         state: SymbolHandle,
     ) -> Result<Option<CheckedScalarExpressionRole>, LoweringError> {
-        let (_, authored) = source_custody::authored_state(checked, state)?;
+        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
             .statement_table
             .statements(authored.statement_nodes)
@@ -270,7 +270,7 @@ fn indexed_target(
     let IndexedWriteLeaf::ElementView(write) = leaf else {
         return Ok(assignment.target);
     };
-    let (machine, state) = source_custody::authored_state(checked, state_symbol)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let mut target = assignment.target;
     for segment in write.path.iter().rev() {
         match (segment, checked.expression_table.expression(target)) {
@@ -464,7 +464,7 @@ pub(crate) fn validate_assignment(
     leaf: IndexedWriteLeaf<'_>,
 ) -> Result<(), LoweringError> {
     let wording = leaf.wording();
-    let (owner, state) = source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let indexed_expression = indexed_target(checked, state_symbol, assignment, leaf)?;
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(indexed_expression)
     else {
@@ -715,7 +715,7 @@ fn validate_owned_byte_local(
     symbol: SymbolHandle,
     collection: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
-    let (_, state) = source_custody::authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let ExpressionNode::Name(name) = checked.expression_table.expression(collection) else {
         return unsupported("byte write local differs from its authored collection");
     };

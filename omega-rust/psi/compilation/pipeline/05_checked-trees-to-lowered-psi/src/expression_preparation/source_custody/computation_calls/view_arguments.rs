@@ -98,7 +98,7 @@ pub(super) fn validate(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression,
         _ => return unsupported("view operand has no named or projected source"),
     };
-    let (caller, _) = super::authored_state(checked, state.symbol)?;
+    let (caller, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     let source = crate::emission::call_source_custody::projected_receivers::source(
         checked,
         caller.symbol,

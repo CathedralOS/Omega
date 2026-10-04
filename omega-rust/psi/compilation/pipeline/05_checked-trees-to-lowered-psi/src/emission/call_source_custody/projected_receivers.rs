@@ -125,8 +125,7 @@ fn resolve_source(
     purpose: SourceUse,
     statement_index: Option<(usize, bool)>,
 ) -> Result<ReceiverSource, LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state)?;
     if machine.symbol != caller {
         return unsupported("projected receiver has a different authored caller");
     }
@@ -838,10 +837,7 @@ pub(crate) fn validate(
             )?
         }
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller_state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
             let Some(checked_trees::statement::StatementNode::Call(call)) = checked
                 .statement_table
                 .statements(state.statement_nodes)
@@ -886,8 +882,7 @@ pub(crate) fn validate(
         }
         None => return Ok(()),
     };
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
     if let Some((ordinal, local)) = locals::returned_reference(
         checked,
         state,

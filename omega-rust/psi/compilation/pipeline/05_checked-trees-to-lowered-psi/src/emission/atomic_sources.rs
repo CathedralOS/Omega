@@ -72,8 +72,7 @@ pub(crate) fn validate(
     destination: symbols::SymbolHandle,
     access: &CheckedAtomicAccessPlan,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let statement = access.statement_index as usize;
     let carrier = match (statements.get(statement), &access.event) {

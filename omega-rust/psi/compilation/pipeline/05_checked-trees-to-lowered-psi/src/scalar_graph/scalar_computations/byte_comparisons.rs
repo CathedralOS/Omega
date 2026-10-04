@@ -55,10 +55,7 @@ impl Expansion<'_> {
                 Vec::new(),
             )
         } else {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                site.state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
             let root = match subject.source {
                 Source::Parameter { parameter_index } => {
                     let (position, _) = self
@@ -208,10 +205,7 @@ impl Expansion<'_> {
                 Vec::new(),
             )
         } else {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                site.state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
             let root = match subject.source {
                 Source::Parameter { parameter_index } => {
                     let (position, _) = self

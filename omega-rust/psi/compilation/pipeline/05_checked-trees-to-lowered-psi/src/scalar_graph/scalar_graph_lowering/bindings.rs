@@ -77,7 +77,8 @@ pub(super) fn prepare(
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Prepared, LoweringError> {
-    let (source_machine, source_state) = source_custody::authored_state(checked, state.state)?;
+    let (source_machine, source_state) =
+        crate::declarations::state_declaration(checked, state.state)?;
     // A fused graph lowers states authored under sibling machines; every
     // custody, computation-root, and statement lookup keys on the state's own
     // owner, not the graph's dispatch machine.

@@ -12,8 +12,7 @@ pub(super) fn validate(
     plan: &CheckedBoundaryScalarReturnMachinePlan,
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, plan.state)?;
     let mut attachments = program
         .data_definitions()
         .iter()

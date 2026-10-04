@@ -21,8 +21,7 @@ pub(super) fn validate_receipt(
     statement: u32,
     receipt: &FlowOwnedSelectionReceipt,
 ) -> Result<(), LoweringError> {
-    let (owner, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (expression, destination, reference) = match statements.get(statement as usize) {
         Some(StatementNode::LocalData(local)) if !local.is_mutable => {
@@ -390,11 +389,10 @@ pub(super) fn source_plan_matches(
     symbol: SymbolHandle,
     plan: &CheckedUnitStructuralArgumentSourcePlan,
 ) -> bool {
-    let (owner, authored) =
-        match crate::expression_preparation::source_custody::authored_state(checked, state) {
-            Ok(authored) => authored,
-            Err(_) => return false,
-        };
+    let (owner, authored) = match crate::declarations::state_declaration(checked, state) {
+        Ok(authored) => authored,
+        Err(_) => return false,
+    };
     let parameters = checked.state_parameters(authored);
     if parameters
         .iter()

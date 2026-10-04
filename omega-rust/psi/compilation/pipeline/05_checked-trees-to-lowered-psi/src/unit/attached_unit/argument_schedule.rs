@@ -66,8 +66,7 @@ pub(super) fn build(
 ) -> Result<Vec<Step>, LoweringError> {
     let operations = &plan.operations[..plan.operations.len() - 1];
     let mut steps = build_operations(checked, plan.machine, plan.state, operations)?;
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, plan.state)?;
     let end = u32::try_from(
         checked
             .statement_table

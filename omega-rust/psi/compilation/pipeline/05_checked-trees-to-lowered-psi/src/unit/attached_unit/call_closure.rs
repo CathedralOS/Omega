@@ -484,10 +484,7 @@ pub(super) fn validate_unit_operation_sequence(
                     )
                 {
                     let (_, source) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked,
-                            machine.state,
-                        )?;
+                        crate::declarations::state_declaration(checked, machine.state)?;
                     let Some(checked_trees::statement::StatementNode::Assignment(assignment)) =
                         checked
                             .statement_table

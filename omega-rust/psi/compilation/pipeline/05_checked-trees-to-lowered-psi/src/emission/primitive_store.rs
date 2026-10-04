@@ -112,8 +112,7 @@ pub(crate) fn validate_assignment(
     path: &[CheckedUnitStructuralPathSegment],
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let parameter = checked
         .state_parameters(state)
         .get(destination.position as usize)
@@ -204,8 +203,7 @@ pub(crate) fn validate_element_rosters(
             continue;
         }
         let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
-        let (machine, state) =
-            crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+        let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
         let elements = validation::declared_place_type_raw(
             &checked.typed,
             machine,
@@ -252,8 +250,7 @@ fn authored_store(
     LoweringError,
 > {
     use checked_trees::statement::StatementNode;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -414,8 +411,7 @@ fn value_role_at(
         .strip_prefix(target_path)
         .filter(|suffix| !suffix.is_empty())
         .ok_or_else(mismatch)?;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let mut reference = validation::declared_place_type_raw(
         &checked.typed,
         machine,
@@ -472,8 +468,7 @@ fn validate_array_element_value(
     else {
         return Err(mismatch());
     };
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let expected = validation::declared_place_type_raw(
         &checked.typed,
         machine,
@@ -515,8 +510,7 @@ fn validate_assignment_value(
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     use checked_trees::expression::ExpressionNode;
-    let (machine, _state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (machine, _state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let binding_destination = match checked.expression_table.expression(assignment.target) {
         ExpressionNode::Name(name) => name.symbol,
         _ => symbols::SymbolHandle::invalid(),

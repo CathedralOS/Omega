@@ -59,8 +59,7 @@ pub(super) fn validate_witness(
     for rank in &plan.natural_ranks {
         // A fused roster's rank names a foreign machine's state; the witness,
         // custody subjects, and entry parameters all belong to that owner.
-        let (owner, state) =
-            crate::expression_preparation::source_custody::authored_state(checked, rank.state)?;
+        let (owner, state) = crate::declarations::state_declaration(checked, rank.state)?;
         let Some(witness) = &owner.termination_plan.implementation_witness else {
             return unsupported("Unit graph has a substituted ranking witness");
         };

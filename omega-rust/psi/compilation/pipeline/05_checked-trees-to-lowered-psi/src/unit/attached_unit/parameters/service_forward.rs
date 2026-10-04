@@ -117,10 +117,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 target.state,
             )?;
             let (source_machine, source_state) =
-                crate::expression_preparation::source_custody::authored_state(
-                    checked,
-                    caller.state,
-                )?;
+                crate::declarations::state_declaration(checked, caller.state)?;
             for (ordinal, (formal, argument)) in target
                 .parameters
                 .iter()

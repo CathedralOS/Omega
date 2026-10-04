@@ -1,8 +1,8 @@
 //! Lower ordinary calls retained by scalar evaluation using their checked custody.
 //! Unit effects and structural values share argument admission and call emission.
 use super::{
-    CheckedTrees, LoweringError, Multiplicity, QualifiedScalarType, source_custody, storage,
-    terminal_scalar_type, unsupported,
+    CheckedTrees, LoweringError, Multiplicity, QualifiedScalarType, storage, terminal_scalar_type,
+    unsupported,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -252,8 +252,8 @@ pub(super) fn prepare(
         state.state,
         *coordinate,
     )?;
-    let (_, caller_state) = source_custody::authored_state(checked, state.state)?;
-    let (_, callee_state) = source_custody::authored_state(checked, *target_state)?;
+    let (_, caller_state) = crate::declarations::state_declaration(checked, state.state)?;
+    let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
     if flow_call.has_receiver || flow_call.service_reach != *service_reach {
         return unsupported("effect call substituted its captured source call metadata");
     }

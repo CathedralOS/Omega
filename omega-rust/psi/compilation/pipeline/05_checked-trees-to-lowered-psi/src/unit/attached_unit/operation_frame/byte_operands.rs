@@ -143,10 +143,7 @@ impl OperationFrame<'_, '_> {
             self.private_places.push(declaration);
             return Ok(destination);
         }
-        let (machine, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let place = bindings.shared_structural_place(
             source,
             machine,

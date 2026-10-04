@@ -136,8 +136,7 @@ impl<'a> Expansion<'a> {
         &mut self,
         state: symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
-        let (owner, _) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, state)?;
+        let (owner, _) = crate::declarations::state_declaration(self.checked, state)?;
         self.machine = owner.symbol;
         Ok(())
     }

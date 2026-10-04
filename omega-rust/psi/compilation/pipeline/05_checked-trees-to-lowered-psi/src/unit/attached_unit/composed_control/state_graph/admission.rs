@@ -158,9 +158,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     let authored = plan
         .states
         .iter()
-        .map(|state| {
-            crate::expression_preparation::source_custody::authored_state(checked, state.state)
-        })
+        .map(|state| crate::declarations::state_declaration(checked, state.state))
         .collect::<Result<Vec<_>, _>>()?;
     if authored.iter().enumerate().any(|(index, (_, source))| {
         authored[..index]
@@ -1211,10 +1209,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             }
             false
         } else {
-            let (owner, source) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                boundary.state,
-            )?;
+            let (owner, source) = crate::declarations::state_declaration(checked, boundary.state)?;
             // A qualified top-level requirement such as `Float::add` names a
             // semantic namespace, not a data attachment, and stage 04's
             // `build_boundary_machine` retains no attachment identity for it.

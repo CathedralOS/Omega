@@ -123,8 +123,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             _ => return unsupported("nominal scalar return cleanup frontier drifted"),
         }
     }
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (source, state) = crate::declarations::state_declaration(checked, plan.state)?;
     if source.symbol != plan.machine
         || checked.primitive_type_reference(state.return_type) != Some(plan.result_type)
     {

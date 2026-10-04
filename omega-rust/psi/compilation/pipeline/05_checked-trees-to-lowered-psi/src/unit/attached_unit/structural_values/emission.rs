@@ -53,8 +53,7 @@ pub(in crate::unit::attached_unit) fn establishment_claims(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     claims: &mut super::super::operation_frame::ClaimBindings<'_>,
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    let authored_state =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?.1;
+    let authored_state = crate::declarations::state_declaration(checked, state)?.1;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(authored_state.statement_nodes)
@@ -170,8 +169,7 @@ pub(crate) fn emit(
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
         Multiplicity::Linear => StructuralMultiplicity::Linear,
     };
-    let authored_state =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?.1;
+    let authored_state = crate::declarations::state_declaration(checked, state)?.1;
     let sources = checked
         .facts
         .flow
@@ -538,8 +536,7 @@ fn prepare_owners(
             owners.push(owner.clone());
         }
     }
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     for crate::expression_preparation::bindings::StructuralLocalBinding {
         root, argument, ..
@@ -595,9 +592,8 @@ fn prepare_owners(
     // Selected parameter sources join the frontier as owners: their ingress
     // places are real signature places and their residual slots die on the
     // receipt's actual death edge like any local source.
-    let source_parameters = checked.state_parameters(
-        crate::expression_preparation::source_custody::authored_state(checked, state)?.1,
-    );
+    let source_parameters =
+        checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
     if let Some((_, receipt)) = checked
         .facts
         .flow
@@ -1094,10 +1090,7 @@ impl Emission<'_, '_, '_> {
                 if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
                     return unsupported("scalar case place changed its leaf type");
                 }
-                let authored = crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                )?;
+                let authored = crate::declarations::state_declaration(self.checked, self.state)?;
                 let argument = crate::expression_preparation::bindings::ScalarBindings::new(
                     self.values.iter().map(|value| value.scalar_type),
                 )
@@ -1793,10 +1786,7 @@ impl Emission<'_, '_, '_> {
                     self.operations,
                 ));
             }
-            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                self.state,
-            )?;
+            let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
             let site = match self
                 .checked
                 .statement_table
@@ -1865,10 +1855,7 @@ impl Emission<'_, '_, '_> {
         )
         .with_structural_parameters(&self.evaluation.structural_parameters)
         .with_structural_locals(&self.evaluation.structural_locals);
-        let (machine, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
             LoanAccess::Shared => {
@@ -2010,10 +1997,7 @@ impl Emission<'_, '_, '_> {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<&StructuralParameterDeclaration>, LoweringError> {
-        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let (position, parameter) = match &argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {

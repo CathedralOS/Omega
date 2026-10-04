@@ -168,7 +168,7 @@ pub(super) fn prepare(
     {
         return unsupported("scalar graph cycle has no dominating loop header");
     }
-    let (machine, _) = source_custody::authored_state(checked, entry.state)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, entry.state)?;
     if machine.symbol != graph.machine {
         return unsupported("scalar loop has a foreign source state");
     }
@@ -186,7 +186,7 @@ pub(super) fn prepare(
             return unsupported("scalar loop ranking requires one loop header");
         };
         let (header_machine, header_source) =
-            source_custody::authored_state(checked, graph.states[*header].state)?;
+            crate::declarations::state_declaration(checked, graph.states[*header].state)?;
         if header_machine
             .termination_plan
             .implementation_witness
@@ -198,7 +198,7 @@ pub(super) fn prepare(
     }
     for header in headers {
         let (header_machine, _) =
-            source_custody::authored_state(checked, graph.states[header].state)?;
+            crate::declarations::state_declaration(checked, graph.states[header].state)?;
         let Some(witness) = &header_machine.termination_plan.implementation_witness else {
             continue;
         };
@@ -331,7 +331,7 @@ fn validate_rank<'a>(
     for edge in &rank.covered_cyclic_edges {
         for state_symbol in [edge.source_state, edge.target_state] {
             let (member_machine, member_source) =
-                source_custody::authored_state(checked, state_symbol)?;
+                crate::declarations::state_declaration(checked, state_symbol)?;
             if member_sources
                 .iter()
                 .all(|(_, state)| state.symbol != member_source.symbol)
@@ -524,7 +524,7 @@ fn validate_runtime_rank(
         let row = graph.states.iter().find(|row| row.state == state).ok_or(
             LoweringError::Unsupported("scalar loop lost a runtime component row"),
         )?;
-        let (owner, source) = source_custody::authored_state(checked, state)?;
+        let (owner, source) = crate::declarations::state_declaration(checked, state)?;
         source_custody::parameter_storage(checked, owner.symbol, row)?;
         if checked
             .machine_states(owner)

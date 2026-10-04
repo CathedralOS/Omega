@@ -2,9 +2,7 @@
 //! Rejoin the selected nominal meaning and parameter occurrence before comparing
 //! the checked observation. This also detects erasure or operand substitution.
 
-use super::{
-    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, authored_state, unsupported,
-};
+use super::{CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, unsupported};
 pub(crate) fn authored(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
@@ -27,7 +25,7 @@ pub(crate) fn authored(
     ) {
         return Ok(None);
     }
-    let (machine, _) = authored_state(checked, state.symbol)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     let selected = match checked.expression_table.expression(binary.right) {
         ExpressionNode::Name(selected) => {
             if !validation::has_exact_case_membership_meaning(

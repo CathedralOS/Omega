@@ -1031,7 +1031,7 @@ fn returning_view_discard(
         return false;
     };
     let Ok((source_machine, source_state)) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)
+        crate::declarations::state_declaration(checked, state.state)
     else {
         return false;
     };

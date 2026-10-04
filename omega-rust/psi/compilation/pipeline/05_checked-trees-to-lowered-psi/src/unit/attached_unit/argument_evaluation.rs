@@ -308,8 +308,7 @@ impl Evaluation {
         {
             return unsupported("structural value binding was established twice");
         }
-        let (machine, source) =
-            crate::expression_preparation::source_custody::authored_state(checked, state)?;
+        let (machine, source) = crate::declarations::state_declaration(checked, state)?;
         let local = match checked
             .statement_table
             .statements(source.statement_nodes)

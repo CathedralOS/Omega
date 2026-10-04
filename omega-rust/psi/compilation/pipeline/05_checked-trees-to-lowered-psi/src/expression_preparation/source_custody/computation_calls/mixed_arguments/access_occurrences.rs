@@ -89,8 +89,7 @@ pub(crate) fn replay(
             "computed shared borrow has a stale observation roster",
         ))?;
     let table = &checked.expression_table;
-    let (source_machine, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (source_machine, source_state) = crate::declarations::state_declaration(checked, state)?;
     let plain_copy = |expression| {
         // The borrow roster records reads of captured places, not the type of
         // a newly produced range descriptor. Its dynamic Index projects the

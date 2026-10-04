@@ -57,8 +57,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         // Complete-set validation separately rejects missing required roots.
         return Ok(true);
     };
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
     if owner.symbol != machine {
         return unsupported("provider call lost its authored machine");
     }

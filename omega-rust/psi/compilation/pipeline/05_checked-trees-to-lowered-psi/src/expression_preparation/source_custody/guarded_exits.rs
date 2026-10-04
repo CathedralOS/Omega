@@ -5,7 +5,7 @@
 //! unchanged subject removes the need for an authored fallback.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, ExpressionNode, LoweringError, ScalarType,
-    StatementNode, TransitionGuardNode, authored_state, storage_reads, unsupported, validate_pure,
+    StatementNode, TransitionGuardNode, storage_reads, unsupported, validate_pure,
 };
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarGuardedExit};
 
@@ -15,7 +15,7 @@ pub(crate) fn validate(
     arms: arena::HandleSpan<CheckedScalarGuardedExit>,
     fallback: Option<&CheckedScalarBranchDestination>,
 ) -> Result<usize, LoweringError> {
-    let (_, state) = authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let arms = checked
         .facts
@@ -147,7 +147,7 @@ fn destination(
             statement_ordinal,
             is_continuation: false,
         } if *statement_ordinal == ordinal => {
-            let (_, source) = authored_state(checked, state)?;
+            let (_, source) = crate::declarations::state_declaration(checked, state)?;
             completion_expression(checked, source, ordinal as usize)?;
             Ok(())
         }

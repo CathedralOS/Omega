@@ -28,10 +28,9 @@ pub(super) fn lower(
             checked,
             target_machine,
         )?;
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, target_state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, target_state)?;
     let (caller_machine, caller_authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+        crate::declarations::state_declaration(checked, caller_state)?;
     let caller_parameters = checked.state_parameters(caller_authored);
     if target.entry_state()? != target_state
         || target.structural_parameters().len() != arguments.len()

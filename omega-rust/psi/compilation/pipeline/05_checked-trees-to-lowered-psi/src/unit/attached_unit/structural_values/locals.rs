@@ -41,8 +41,7 @@ pub(crate) fn bind_local(
         }
         _ => return Ok(()),
     };
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

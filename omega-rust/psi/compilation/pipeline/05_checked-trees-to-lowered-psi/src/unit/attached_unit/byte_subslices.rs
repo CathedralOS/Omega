@@ -56,8 +56,7 @@ fn locate<'a>(
     let coordinate = call.coordinate;
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
-    let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, state)?;
     let signature = crate::emission::call_source_custody::authored::target_signature(
         checked,
         machine.symbol,

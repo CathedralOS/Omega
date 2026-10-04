@@ -13,8 +13,7 @@ impl Context<'_> {
     /// buffer's live length is not its backing array's capacity.
     pub(super) fn type_owned_length(&self, source: ExpressionHandle) -> Option<u64> {
         let (machine, state) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
-                .ok()?;
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         let receiver = validation::collection_length_receiver(
             &self.checked.typed,
             machine,
@@ -195,8 +194,7 @@ impl Context<'_> {
         ) else {
             return false;
         };
-        let Ok((machine, state)) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
+        let Ok((machine, state)) = crate::declarations::state_declaration(self.checked, self.state)
         else {
             return false;
         };
@@ -238,8 +236,7 @@ impl Context<'_> {
             return None;
         }
         let (machine, state) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
-                .ok()?;
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         match self.checked.expression_table.expression(source) {
             ExpressionNode::String(bytes) => return u64::try_from(bytes.len()).ok(),
             ExpressionNode::Borrow(borrow) => return self.static_extent(borrow.target, depth + 1),
@@ -348,8 +345,7 @@ impl Context<'_> {
         let ExpressionNode::Indexed(_) = self.checked.expression_table.expression(source) else {
             return false;
         };
-        let Ok((machine, state)) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
+        let Ok((machine, state)) = crate::declarations::state_declaration(self.checked, self.state)
         else {
             return false;
         };

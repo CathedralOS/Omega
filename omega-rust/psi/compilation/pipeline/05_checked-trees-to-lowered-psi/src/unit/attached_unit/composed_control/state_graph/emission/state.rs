@@ -280,10 +280,7 @@ impl StateGraphEmission<'_, '_> {
         let capture_boundary = match conditional_true_ordinal {
             Some(statement) => statement,
             None => {
-                let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-                    checked,
-                    state.state,
-                )?;
+                let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
                 u32::try_from(
                     checked
                         .statement_table
@@ -1312,8 +1309,7 @@ pub(super) fn return_root_discards(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     state_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state.state)?;
     let discards = edges::return_discards(checked, owner.symbol, source, state)?;
     let mut local_discards =
         result_custody::local_discards(checked, owner.symbol, source, state, None)?

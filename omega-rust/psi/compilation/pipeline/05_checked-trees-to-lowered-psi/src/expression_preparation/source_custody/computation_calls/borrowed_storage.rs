@@ -39,7 +39,7 @@ pub(super) fn source(
     if !table.expression_is_valid(named) {
         return unsupported("borrowed operand has a stale source expression");
     }
-    let (caller, _) = super::authored_state(checked, state.symbol)?;
+    let (caller, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     let source = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }

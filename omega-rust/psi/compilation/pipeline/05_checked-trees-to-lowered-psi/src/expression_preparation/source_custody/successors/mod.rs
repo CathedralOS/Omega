@@ -13,7 +13,7 @@ use language_semantics::{
 };
 use symbols::SymbolHandle;
 
-use super::{authored_state, parameter_storage};
+use super::parameter_storage;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
@@ -22,7 +22,7 @@ pub(super) fn validate(
     source_state: SymbolHandle,
     successor: &CheckedScalarSuccessor,
 ) -> Result<(), LoweringError> {
-    let (machine, state) = authored_state(checked, source_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, source_state)?;
     let Some(StatementNode::Transition(transition)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -48,7 +48,8 @@ pub(super) fn validate(
     else {
         return unsupported("scalar successor is not an authored state transfer");
     };
-    let (target_machine, target_state) = authored_state(checked, successor.target)?;
+    let (target_machine, target_state) =
+        crate::declarations::state_declaration(checked, successor.target)?;
     let actuals = checked.statement_table.expression_handles(*arguments);
     let formals = checked.state_parameters(target_state);
     // Authored actuals omit an implicit `self`; the ambient borrowed receiver

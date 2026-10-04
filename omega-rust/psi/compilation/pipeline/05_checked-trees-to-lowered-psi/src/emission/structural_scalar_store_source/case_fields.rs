@@ -38,8 +38,7 @@ pub(crate) fn validate(
             ),
             _ => return unsupported("case store source replay received another operation"),
         };
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if owner.symbol != machine {
         return unsupported("case store has a different authored machine");
     }

@@ -1,9 +1,7 @@
 //! Rejoin mutable entry storage to the exact current-state parameter frontier.
 
 use super::super::Multiplicity;
-use super::{
-    CheckedTrees, LoweringError, authored_state, supported_mutable_parameter, unsupported,
-};
+use super::{CheckedTrees, LoweringError, supported_mutable_parameter, unsupported};
 mod owned;
 mod owned_types;
 
@@ -84,7 +82,7 @@ pub(crate) fn parameter_storage<'checked>(
     machine: symbols::SymbolHandle,
     graph: &checked_trees::CheckedScalarStateGraph,
 ) -> Result<&'checked [checked_trees::CheckedScalarParameterStorage], LoweringError> {
-    let (owner, state) = authored_state(checked, graph.state)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, graph.state)?;
     if owner.symbol != machine {
         return unsupported("scalar parameter storage belongs to another machine");
     }

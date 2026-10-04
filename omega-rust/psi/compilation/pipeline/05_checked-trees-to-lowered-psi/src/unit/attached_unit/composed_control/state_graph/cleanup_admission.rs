@@ -26,8 +26,7 @@ pub(super) fn validate(
     authored: &State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
-    let (owner, original) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let (owner, original) = crate::declarations::state_declaration(checked, state.state)?;
     if owner.symbol != machine || original.symbol != authored.symbol {
         return Err(invalid());
     }

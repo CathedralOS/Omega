@@ -1,7 +1,7 @@
 //! Replay an intrinsic enum equality as one complete observation transaction.
 //! Its generated memberships are not independently authored Boolean values:
 //! only the exact ordered roster and its equivalence template denote equality.
-use super::{authored_state, case_sources};
+use super::case_sources;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -48,7 +48,7 @@ pub(crate) fn validate_application(
     ) {
         return Ok(false);
     }
-    let (machine, source_state) = authored_state(checked, state)?;
+    let (machine, source_state) = crate::declarations::state_declaration(checked, state)?;
     let source_type = |source| {
         validation::declared_place_type_raw(&checked.typed, machine, Some(source_state), source)
             .or_else(|| {

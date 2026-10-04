@@ -328,10 +328,7 @@ impl Expansion<'_> {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
                 let (machine, state) =
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        site.state,
-                    )?;
+                    crate::declarations::state_declaration(self.checked, site.state)?;
                 if argument.path.iter().any(|segment| {
                     matches!(
                         segment,

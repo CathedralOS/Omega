@@ -16,8 +16,7 @@ pub(crate) fn validate(
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     crate::unit::attached_unit::primitive_locals::validate_roster(checked, plan)?;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("structural scalar store has a different authored machine");
     }
@@ -390,9 +389,7 @@ pub(crate) fn validate(
                 .is_err()
                 {
                     let (machine, authored) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked, plan.state,
-                        )?;
+                        crate::declarations::state_declaration(checked, plan.state)?;
                     let (root, mut prefix) = local_store_destination(
                         checked,
                         machine.symbol,
@@ -709,8 +706,7 @@ pub(crate) fn validate_assignment(
     assignment: &checked_trees::statement::TableAssignment,
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<(), LoweringError> {
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if owner.symbol != machine || statement_index != store.statement_index {
         return unsupported("structural scalar store has a different authored machine");
     }
@@ -865,8 +861,7 @@ fn validate_record_stores(
     stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
     view_stores: &[&checked_trees::CheckedByteSequenceStorePlan],
 ) -> Result<(), LoweringError> {
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if owner.symbol != machine {
         return unsupported("structural scalar store has a different authored machine");
     }

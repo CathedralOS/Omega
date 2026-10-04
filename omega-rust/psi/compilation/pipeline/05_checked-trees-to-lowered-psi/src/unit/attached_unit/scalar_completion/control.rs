@@ -23,8 +23,7 @@ pub(super) fn validate(
         return unsupported("ordinary body has conflicting completion owners");
     }
     let prefix = validate_contracted_tail(checked, machine.machine, machine.state, control)?;
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     if !matches!(machine.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
@@ -78,8 +77,7 @@ pub(crate) fn validate_tail(
     state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (source, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if !checked.machine_contracts(source).is_empty() || !checked.state_contracts(state).is_empty() {
         return unsupported("ordered scalar control lost its exact source signature");
     }
@@ -97,8 +95,7 @@ fn validate_contracted_tail(
     state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (source, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if checked
         .machine_contracts(source)
         .iter()
@@ -125,8 +122,7 @@ fn validate_signature_and_exits(
     state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (source, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if source.symbol != machine
         || checked.machine_states(source).len() != 1
         || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
@@ -177,8 +173,7 @@ fn unconditional(
     control: &checked_trees::CheckedUnitScalarControlPlan,
     statement_ordinal: u32,
 ) -> Result<usize, LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let prefix = statement_ordinal as usize;
     let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
@@ -223,8 +218,7 @@ fn conditional(
     state_symbol: symbols::SymbolHandle,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<usize, LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let CheckedScalarStateTerminator::Conditional {
         guard_statement_ordinal,

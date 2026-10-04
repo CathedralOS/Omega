@@ -65,7 +65,7 @@ pub(crate) fn bindings(
     numbering: ParameterNumbering,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<(SymbolHandle, PlaceId, ScalarType)>, LoweringError> {
-    let (_, state) = super::authored_state(checked, state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state)?;
     let authored = checked.state_parameters(state);
     let mut bindings = Vec::new();
     for (dense_position, (position, parameter)) in parameters.iter().enumerate() {

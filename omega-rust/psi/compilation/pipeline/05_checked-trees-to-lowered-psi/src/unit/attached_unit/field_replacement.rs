@@ -462,8 +462,7 @@ pub(crate) fn validate_array_element_replacements(
     roster: &[&CheckedUnitEffectOperationPlan],
     literal: checked_trees::CheckedStructuralValueHandle,
 ) -> Result<(), LoweringError> {
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
     // The destination is the literal's exact declared array: every dimension a
     // literal extent matching the roster, with no qualification the element
     // stores could not carry.

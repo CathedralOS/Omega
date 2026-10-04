@@ -184,10 +184,7 @@ impl OperationFrame<'_, '_> {
                     self.structural_types.declarations(),
                 )
             {
-                let (_, source) = crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                )?;
+                let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
                 if let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
                     .checked
                     .statement_table
@@ -248,10 +245,7 @@ impl OperationFrame<'_, '_> {
             self.state,
             coordinate,
         )?;
-        let (_, source) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
         // A nested call can have ordinal zero when the initializer itself is
         // a constructor. Only the exact initializer occurrence owns the local.
         let is_statement_result = matches!(

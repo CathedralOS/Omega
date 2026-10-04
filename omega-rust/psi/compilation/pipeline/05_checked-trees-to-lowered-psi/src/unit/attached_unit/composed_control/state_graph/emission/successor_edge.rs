@@ -164,10 +164,8 @@ impl StateGraphEmission<'_, '_> {
         // the graph erased, or a proof-only formal the erased lane emits
         // below. Iterate the target's authored parameter list so every
         // retained row's position is still visited.
-        let (_, authored_target) = crate::expression_preparation::source_custody::authored_state(
-            checked,
-            target_state.state,
-        )?;
+        let (_, authored_target) =
+            crate::declarations::state_declaration(checked, target_state.state)?;
         let authored_parameters = checked.state_parameters(authored_target);
         for argument_position in 0..authored_parameters.len() {
             let runtime_row = target_state

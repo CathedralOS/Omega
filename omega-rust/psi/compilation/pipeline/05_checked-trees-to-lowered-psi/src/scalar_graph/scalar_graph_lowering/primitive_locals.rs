@@ -2,7 +2,7 @@
 
 use super::super::{StructuralTypeId, allocate_dense, lookup_type_id, place_id};
 use super::{
-    CheckedScalarMachineGraph, CheckedTrees, LoweringError, PlaceId, ScalarType, source_custody,
+    CheckedScalarMachineGraph, CheckedTrees, LoweringError, PlaceId, ScalarType,
     terminal_scalar_type, unsupported,
 };
 use crate::emission::store_destination::StoreDestination;
@@ -22,7 +22,7 @@ pub(crate) fn allocate(
 ) -> Result<Vec<PrimitiveLocal>, LoweringError> {
     let mut locals = Vec::new();
     for state in &graph.states {
-        let (_, source) = source_custody::authored_state(checked, state.state)?;
+        let (_, source) = crate::declarations::state_declaration(checked, state.state)?;
         let statements = checked.statement_table.statements(source.statement_nodes);
         if state
             .primitive_locals

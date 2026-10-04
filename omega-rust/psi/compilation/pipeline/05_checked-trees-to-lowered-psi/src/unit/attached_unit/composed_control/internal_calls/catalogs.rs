@@ -69,8 +69,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
     // owner machine, not the composed plan's dispatch machine.
     let mut owners = vec![machine];
     for state in states {
-        let (owner, _) =
-            crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+        let (owner, _) = crate::declarations::state_declaration(checked, state.state)?;
         if !owners.contains(&owner.symbol) {
             owners.push(owner.symbol);
         }

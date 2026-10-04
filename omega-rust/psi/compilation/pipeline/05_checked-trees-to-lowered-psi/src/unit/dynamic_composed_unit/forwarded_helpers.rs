@@ -399,8 +399,7 @@ pub(crate) fn materialize_helper_body(
     {
         return unsupported("forwarded helper omitted or changed its body");
     }
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, body.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, body.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let mut reserved_entry = ids.block.get();
     let mut evaluation = Evaluation::new(&mut reserved_entry)?;
@@ -563,8 +562,7 @@ fn unit_helper_statement_count(
     state_symbol: SymbolHandle,
 ) -> Result<usize, LoweringError> {
     use checked_trees::types::TypeReferenceNode;
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (source, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let mut result_type = state.return_type;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         checked.type_reference_table.type_reference(result_type)

@@ -369,16 +369,15 @@ pub(super) fn emit(
     // resolve the receiver's storage. The signature's own `position` is the
     // dense declaration index, not the authored coordinate this roster keys.
     if let Some(parameter) = parameters.iter().find(|parameter| parameter.is_self)
-        && let Some(position) =
-            crate::expression_preparation::source_custody::authored_state(checked, plan.state)
-                .ok()
-                .and_then(|(_, state)| {
-                    checked
-                        .state_parameters(state)
-                        .iter()
-                        .position(|parameter| parameter.is_self)
-                })
-                .and_then(|position| u32::try_from(position).ok())
+        && let Some(position) = crate::declarations::state_declaration(checked, plan.state)
+            .ok()
+            .and_then(|(_, state)| {
+                checked
+                    .state_parameters(state)
+                    .iter()
+                    .position(|parameter| parameter.is_self)
+            })
+            .and_then(|position| u32::try_from(position).ok())
         && !evaluation
             .structural_parameters
             .iter()

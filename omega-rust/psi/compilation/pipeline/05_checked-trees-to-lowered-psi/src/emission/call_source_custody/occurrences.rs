@@ -152,9 +152,7 @@ fn service_receiver_matches(
     if !receiver.is_valid() || !checked.expression_table.expression_is_valid(receiver) {
         return false;
     }
-    let Ok((machine, state)) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)
-    else {
+    let Ok((machine, state)) = crate::declarations::state_declaration(checked, caller_state) else {
         return false;
     };
     if machine.symbol != caller_machine {

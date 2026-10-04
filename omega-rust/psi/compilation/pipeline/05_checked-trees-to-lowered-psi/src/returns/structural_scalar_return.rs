@@ -491,32 +491,31 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     // A borrowed receiver the machine leaves ambient on its attachment
     // carrier owns no forwarded formal; the retained source positions
     // partition the authored positions around that one gap.
-    let ambient_position =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)
-            .ok()
-            .and_then(|(_, callee_state)| {
-                checked
-                    .state_parameters(callee_state)
-                    .iter()
-                    .position(|parameter| {
-                        parameter.is_self
-                            && matches!(
-                                checked
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                checked_trees::types::TypeReferenceNode::Reference { .. }
-                            )
-                    })
-            })
-            .filter(|_| {
-                !plan
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self)
-            })
-            // A roster that forwards self unflagged still maps its position — only a
-            // position the map actually excluded counts as the ambient gap.
-            .filter(|position| !positions.contains(&u32::try_from(*position).unwrap_or(u32::MAX)));
+    let ambient_position = crate::declarations::state_declaration(checked, plan.state)
+        .ok()
+        .and_then(|(_, callee_state)| {
+            checked
+                .state_parameters(callee_state)
+                .iter()
+                .position(|parameter| {
+                    parameter.is_self
+                        && matches!(
+                            checked
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            checked_trees::types::TypeReferenceNode::Reference { .. }
+                        )
+                })
+        })
+        .filter(|_| {
+            !plan
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.is_self)
+        })
+        // A roster that forwards self unflagged still maps its position — only a
+        // position the map actually excluded counts as the ambient gap.
+        .filter(|position| !positions.contains(&u32::try_from(*position).unwrap_or(u32::MAX)));
     if positions.len() != parameter_count
         || positions
             .iter()

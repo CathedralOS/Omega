@@ -17,7 +17,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, computations, source_custody, storage, unsupported,
+    StructuralTypeDeclaration, computations, storage, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -161,7 +161,7 @@ pub(super) fn prepare(
     else {
         return unsupported("scalar structural statement has no value producer");
     };
-    let (_, source) = source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -811,7 +811,7 @@ pub(super) fn exit_target(
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<usize, LoweringError> {
-    let (machine, source) = source_custody::authored_state(checked, state)?;
+    let (machine, source) = crate::declarations::state_declaration(checked, state)?;
     let graph = checked
         .facts
         .flow

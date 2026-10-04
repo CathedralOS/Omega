@@ -137,7 +137,7 @@ fn place_loan_declaration(
         return None;
     }
     let (authored_machine, authored_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state).ok()?;
+        crate::declarations::state_declaration(checked, state).ok()?;
     if authored_machine.symbol != machine
         || !matches!(checked.statement_table.statements(authored_state.statement_nodes).get(index),
             Some(StatementNode::LocalData(candidate)) if candidate.symbol == local.symbol

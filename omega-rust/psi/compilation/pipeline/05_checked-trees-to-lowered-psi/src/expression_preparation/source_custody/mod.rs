@@ -216,34 +216,6 @@ pub(crate) struct SourceRoot {
     pub primitive_type: PrimitiveType,
 }
 
-pub(crate) fn authored_state(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-) -> Result<
-    (
-        &checked_trees::machine::Machine,
-        &checked_trees::state::State,
-    ),
-    LoweringError,
-> {
-    let program = &checked.typed;
-    let mut states = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter_map(move |candidate| {
-                (state.is_valid() && candidate.symbol == state).then_some((machine, candidate))
-            })
-    });
-    let (machine, state) = states.next().ok_or(LoweringError::Unsupported(
-        "scalar source custody has no authored state",
-    ))?;
-    if states.next().is_some() {
-        return unsupported("scalar source custody has ambiguous state ownership");
-    }
-    Ok((machine, state))
-}
-
 /// The source-role ordinal of the `let` at `statement`: the authored local
 /// ordinal its `LocalInitializer` and `CallArgument` roles carry, not the
 /// dense binding ordinal its plan assigns.
@@ -252,7 +224,7 @@ pub(crate) fn source_local_ordinal(
     state: symbols::SymbolHandle,
     statement: u32,
 ) -> Result<u32, LoweringError> {
-    let (_, state) = authored_state(checked, state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state)?;
     u32::try_from(
         checked
             .typed
@@ -268,7 +240,7 @@ pub(crate) fn locate(
     role: CheckedScalarExpressionRole,
 ) -> Result<SourceRoot, LoweringError> {
     let program = &checked.typed;
-    let (machine, state) = authored_state(checked, state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let authored = statements
         .get(statement as usize)
@@ -785,7 +757,7 @@ pub(crate) fn validate_namespace(
     binding: &checked_trees::CheckedScalarExpressionBindings,
 ) -> Result<(), LoweringError> {
     let program = &checked.typed;
-    let (machine, state) = authored_state(checked, binding.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, binding.state)?;
     let preceding = program
         .statement_table
         .statements(state.statement_nodes)

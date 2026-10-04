@@ -4,8 +4,8 @@
 use super::super::{StructuralFieldId, StructuralFieldType};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId, QualifiedScalarType,
-    StructuralPathSegment, StructuralTypeDeclaration, computations, source_custody, storage,
-    terminal_scalar_type, unsupported,
+    StructuralPathSegment, StructuralTypeDeclaration, computations, storage, terminal_scalar_type,
+    unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -31,7 +31,7 @@ pub(super) fn prepare(
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
-    let (_, source) = source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
         .statement_table
         .statements(source.statement_nodes)

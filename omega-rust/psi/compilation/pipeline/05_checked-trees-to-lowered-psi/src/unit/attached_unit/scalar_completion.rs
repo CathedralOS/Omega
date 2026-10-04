@@ -25,8 +25,7 @@ pub(super) fn validate(
     if machine.structural_result.is_some() {
         return unsupported("ordinary completion has both scalar and structural results");
     }
-    let (source, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    let (source, state) = crate::declarations::state_declaration(checked, machine.state)?;
     let statements = checked
         .typed
         .statement_table

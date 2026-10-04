@@ -12,8 +12,7 @@ pub(super) fn validate(
     let ProofFact::Membership(membership) = fact else {
         return unsupported("structural membership custody received another fact kind");
     };
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("structural membership belongs to another machine");
     }

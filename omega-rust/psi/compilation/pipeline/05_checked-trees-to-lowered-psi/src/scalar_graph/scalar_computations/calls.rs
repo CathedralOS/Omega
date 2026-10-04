@@ -357,10 +357,7 @@ impl Expansion<'_> {
             self.checked,
             target_machine,
         )?;
-        let (_, source_state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            target_state,
-        )?;
+        let (_, source_state) = crate::declarations::state_declaration(self.checked, target_state)?;
         let parameters = callee.structural_parameters();
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;

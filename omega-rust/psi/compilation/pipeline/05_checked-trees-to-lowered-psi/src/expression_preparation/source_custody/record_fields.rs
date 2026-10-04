@@ -62,8 +62,7 @@ fn field_receiver_source<'a>(
     field: SymbolHandle,
     primitive: PrimitiveType,
 ) -> Result<Option<StructuralValueSource<'a>>, LoweringError> {
-    let (owner, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
     let statement_node = checked
         .statement_table
         .statements(authored.statement_nodes)
@@ -188,4 +187,3 @@ pub(crate) fn field_receiver_sources(
     }
     Ok(sources)
 }
-

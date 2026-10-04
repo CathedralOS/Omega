@@ -194,7 +194,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if anonymous {
         anonymous::validate(checked, partial)?;
         let (source_machine, source_state) =
-            crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+            crate::declarations::state_declaration(checked, plan.state)?;
         if source_machine.symbol != plan.machine
             || checked
                 .statement_table

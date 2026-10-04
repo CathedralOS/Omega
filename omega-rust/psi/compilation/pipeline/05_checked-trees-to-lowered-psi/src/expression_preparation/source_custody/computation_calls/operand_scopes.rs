@@ -119,8 +119,7 @@ pub(super) fn value(
             // Selecting an arithmetic policy keeps the operand's payload.
             // Reconstruct that fact from source types instead of assuming
             // every wrapper can disappear or treating it as a conditional.
-            let (owner, source_state) =
-                crate::expression_preparation::source_custody::authored_state(checked, state)?;
+            let (owner, source_state) = crate::declarations::state_declaration(checked, state)?;
             let operand_type = validation::expression_result_type_reference(
                 checked,
                 owner,

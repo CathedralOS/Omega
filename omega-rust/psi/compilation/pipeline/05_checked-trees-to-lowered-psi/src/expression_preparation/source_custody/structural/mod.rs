@@ -163,8 +163,7 @@ pub(crate) fn validate(
     else {
         return unsupported("structural construction operation absent");
     };
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
     let plans = &checked.facts.values.structural_values;
     if !plans.nodes.is_valid(*value) {
         return unsupported("structural construction has a stale value root");
@@ -377,8 +376,7 @@ pub(crate) fn validate_value(
         operand_calls: calls,
         selection,
     } = value_source;
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
     if owner.symbol != machine {
         return unsupported("structural construction substituted its owner or result type");
     }
@@ -924,9 +922,7 @@ pub(crate) fn validate_value(
                     } = &source_node.kind
                     {
                         let (authored_machine, authored) =
-                            crate::expression_preparation::source_custody::authored_state(
-                                checked, state,
-                            )?;
+                            crate::declarations::state_declaration(checked, state)?;
                         let root = owned_selection::validate_copied_projection(
                             checked,
                             authored_machine,
@@ -1157,8 +1153,7 @@ fn authored_destination(
     retained_expression: ExpressionHandle,
     operand_position: &Option<checked_trees::CheckedArrayConstructionSource>,
 ) -> Result<(ExpressionHandle, TypeReferenceHandle), LoweringError> {
-    let (owner, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
     Ok(
         if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
             call_ordinal,
@@ -1293,8 +1288,7 @@ fn sibling_owns_role(
     role: CheckedScalarExpressionRole,
 ) -> Result<bool, LoweringError> {
     let plans = &checked.facts.values.structural_values;
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let authored_statement = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -1586,8 +1580,7 @@ pub(crate) fn operand_source(
     statement: u32,
     role: CheckedScalarExpressionRole,
 ) -> Result<(ExpressionHandle, PrimitiveType), LoweringError> {
-    let (machine, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, source) = crate::declarations::state_declaration(checked, state)?;
     let mut pending = Vec::new();
     match checked
         .statement_table
@@ -1913,8 +1906,7 @@ pub(crate) fn local_value_provenance(
     statement: usize,
 ) -> Result<language_semantics::PermissionProvenance, LoweringError> {
     use language_semantics::{PermissionEventSource, PermissionProvenance};
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(source.statement_nodes);
     if let Some((_, receipt)) = checked.facts.flow.ownership.owned_selection_at(
         state,
@@ -1965,11 +1957,7 @@ pub(crate) fn local_value_provenance(
     // Whole local moves and aggregate construction below still preserve their
     // source value's provenance.
     if let ExpressionNode::Call(call) = checked.expression_table.expression(local.initial_value)
-        && crate::expression_preparation::source_custody::authored_state(
-            checked,
-            call.target_symbol,
-        )
-        .is_ok()
+        && crate::declarations::state_declaration(checked, call.target_symbol).is_ok()
     {
         return Ok(PermissionProvenance::Established {
             machine_symbol: machine,
@@ -2103,8 +2091,7 @@ pub(crate) fn validate_local_ownership(
         return unsupported("structural local changed its materialized custody multiplicity");
     }
     let multiplicity = checked.type_multiplicity(type_reference);
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     if !symbol.is_valid()
         || checked
             .state_parameters(source)
@@ -2368,8 +2355,7 @@ fn replays_loan_event(
                 let Some(boundary) = loan.last_use_statement_index.checked_add(1) else {
                     return false;
                 };
-                let Ok((_, authored)) =
-                    crate::expression_preparation::source_custody::authored_state(checked, state)
+                let Ok((_, authored)) = crate::declarations::state_declaration(checked, state)
                 else {
                     return false;
                 };

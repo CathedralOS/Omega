@@ -6,8 +6,8 @@
 //! roster reconstructed from the authored parameter type.
 
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, authored_state,
-    unsupported, validate_pure,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, unsupported,
+    validate_pure,
 };
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralParameterField};
@@ -38,7 +38,7 @@ pub(crate) fn complementary(
         .checked_add(1)
         .ok_or(LoweringError::Unsupported("fallback ordinal overflow"))?;
     let (first, second) = (guard(ordinal)?, guard(next)?);
-    let (_, source) = authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     Ok(checked_trees::values::guard_complement::exact_complement(
         first,
         second,

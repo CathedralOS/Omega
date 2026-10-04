@@ -59,8 +59,7 @@ pub(crate) fn validate_assignment(
     assignment: &checked_trees::statement::TableAssignment,
     store: &checked_trees::CheckedByteSequenceStorePlan,
 ) -> Result<(), LoweringError> {
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if owner.symbol != machine {
         return unsupported("byte-field store has a different authored machine");
     }
@@ -207,8 +206,7 @@ fn validate_descriptor_source(
             _ => unsupported("view-field descriptor substituted its literal contents"),
         };
     }
-    let (machine, owner) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, owner) = crate::declarations::state_declaration(checked, state)?;
     let target =
         validation::expression_result_type_reference(&checked.typed, machine, owner, authored)
             .ok_or(LoweringError::Unsupported(
@@ -431,10 +429,7 @@ pub(crate) fn validate_value(
             )
         }
         (ByteValue::Whole { root, capacity }, _) => {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                state_symbol,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
             let source =
                 crate::emission::call_source_custody::projected_receivers::store_destination(
                     checked,
@@ -518,10 +513,7 @@ pub(crate) fn validate_value(
             },
             _,
         ) => {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                state_symbol,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
             let source =
                 crate::emission::call_source_custody::projected_receivers::store_destination(
                     checked,

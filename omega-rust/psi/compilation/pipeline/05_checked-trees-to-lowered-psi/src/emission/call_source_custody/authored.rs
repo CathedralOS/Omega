@@ -64,8 +64,7 @@ pub(crate) fn locate(
     target_state: SymbolHandle,
 ) -> Result<AuthoredCall, LoweringError> {
     let call = locate_source(checked, caller_state, coordinate)?;
-    let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, caller_state)?;
     if machine.symbol != caller_machine
         || call.target_machine != target_machine
         || call.target_state != target_state
@@ -99,10 +98,7 @@ pub(crate) fn transition_target_at_call(
         nested::AuthoredOccurrence::StatementRoot => {
             // An unconditional named invocation owns the statement root in the
             // same occurrence walk. Recover its handle from that exact statement.
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller_state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
             match checked
                 .statement_table
                 .statements(state.statement_nodes)
@@ -129,8 +125,7 @@ pub(crate) fn locate_source(
     coordinate: CheckedUnitCallCoordinate,
 ) -> Result<AuthoredCall, LoweringError> {
     let program = &checked.typed;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -395,8 +390,7 @@ pub(crate) fn linear_terminal_invocation(
     statement_index: u32,
 ) -> Result<bool, LoweringError> {
     use checked_trees::statement::TransitionGuardNode;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     // A paired `Always` arm is the fallthrough of a guarded tail: its call is
     // an arm's, even though it is final and unguarded.
@@ -430,8 +424,7 @@ pub(super) fn named_terminal_arguments(
     statement_index: u32,
 ) -> Result<(SymbolHandle, &[ExpressionHandle]), LoweringError> {
     use checked_trees::statement::{TransitionExit, TransitionGuardNode};
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let Some(StatementNode::Transition(transition)) = statements.get(statement_index as usize)
     else {

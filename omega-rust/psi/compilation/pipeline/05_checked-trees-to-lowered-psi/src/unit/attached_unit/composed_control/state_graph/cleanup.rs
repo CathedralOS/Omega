@@ -45,8 +45,7 @@ pub(super) fn coordinate(
     statement_index: usize,
     continuation: bool,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
     let statement = checked
         .statement_table
         .statements(authored.statement_nodes)

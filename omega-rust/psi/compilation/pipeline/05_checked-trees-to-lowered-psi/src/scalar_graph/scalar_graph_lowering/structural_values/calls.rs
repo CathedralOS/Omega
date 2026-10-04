@@ -109,7 +109,7 @@ impl Preparation<'_> {
         &mut self,
         producer: &checked_trees::CheckedStructuralValueCall,
     ) -> Result<PlaceId, LoweringError> {
-        let (machine, source) = source_custody::authored_state(self.checked, self.state)?;
+        let (machine, source) = crate::declarations::state_declaration(self.checked, self.state)?;
         let caller = super::super::unit_operations::Caller::published(
             self.checked,
             machine.symbol,

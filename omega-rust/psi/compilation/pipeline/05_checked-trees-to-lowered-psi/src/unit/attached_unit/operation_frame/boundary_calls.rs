@@ -410,8 +410,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
         let checked = self.checked;
         let machine = self.machine;
-        let (_, state) =
-            crate::expression_preparation::source_custody::authored_state(checked, self.state)?;
+        let (_, state) = crate::declarations::state_declaration(checked, self.state)?;
         let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
             .statement_table
             .statements(state.statement_nodes)

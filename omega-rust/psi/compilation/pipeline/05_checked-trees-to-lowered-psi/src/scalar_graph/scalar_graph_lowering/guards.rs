@@ -173,7 +173,7 @@ fn validate_second_guard(
     use crate::expression_preparation::source_custody;
     use checked_trees::statement::{StatementNode, TransitionGuardNode};
 
-    let (_, source) = source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     match checked
         .statement_table
         .statements(source.statement_nodes)
@@ -202,7 +202,8 @@ fn validate_fallback(
     use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
     let program = &checked.typed;
-    let state = program.state_by_symbol(state)
+    let state = program
+        .state_by_symbol(state)
         .ok_or(LoweringError::Unsupported(
             "scalar guard has no authored state",
         ))?;

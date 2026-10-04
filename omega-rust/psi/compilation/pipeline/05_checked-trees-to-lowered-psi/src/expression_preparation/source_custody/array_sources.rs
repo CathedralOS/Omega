@@ -15,8 +15,7 @@ pub(crate) fn construction_expression(
     checked_trees::expression::ExpressionHandle,
     checked_trees::types::TypeReferenceHandle,
 )> {
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state).ok()?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state).ok()?;
     if owner.symbol != machine {
         return None;
     }

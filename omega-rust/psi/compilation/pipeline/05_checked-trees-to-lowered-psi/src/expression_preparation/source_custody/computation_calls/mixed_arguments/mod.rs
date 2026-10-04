@@ -1,6 +1,5 @@
 //! Rejoin one invocation before its dense operands enter producer resolution.
 
-use super::super::authored_state;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind,
@@ -60,7 +59,7 @@ pub(crate) fn rejoin_computation_call_arguments(
     else {
         return unsupported("computed invocation is not a call");
     };
-    let (caller, caller_state) = authored_state(checked, state)?;
+    let (caller, caller_state) = crate::declarations::state_declaration(checked, state)?;
     if caller.symbol != machine
         || checked
             .statement_table
@@ -115,7 +114,7 @@ pub(crate) fn rejoin_computation_call_arguments(
     else {
         return unsupported("computed invocation source is not an authored call");
     };
-    let (owner, target) = authored_state(checked, *target_state)?;
+    let (owner, target) = crate::declarations::state_declaration(checked, *target_state)?;
     let parameters = checked.state_parameters(target);
     let authored = checked.expression_table.expression_handles(call.arguments);
     let has_receiver = !checked.call_has_no_runtime_receiver(call, owner, target);

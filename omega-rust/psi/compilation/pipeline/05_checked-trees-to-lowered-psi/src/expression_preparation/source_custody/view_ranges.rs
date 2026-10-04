@@ -110,7 +110,7 @@ pub(crate) fn validate_operand(
     {
         return unsupported("computed subslice changed its expression or view custody");
     }
-    let (caller, _) = super::authored_state(checked, state.symbol)?;
+    let (caller, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     let operation = validation::subslice_expression(&checked.typed, expression).ok_or(
         LoweringError::Unsupported("computed subslice lost its readable range expression"),
     )?;

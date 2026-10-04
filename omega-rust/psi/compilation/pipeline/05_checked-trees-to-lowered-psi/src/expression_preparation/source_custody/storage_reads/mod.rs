@@ -3,8 +3,7 @@
 use super::super::{CheckedBooleanExpression, CheckedScalarExpression, Multiplicity};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
-    PrimitiveType, SourceRoot, StatementNode, authored_state, supported_mutable_parameter,
-    unsupported,
+    PrimitiveType, SourceRoot, StatementNode, supported_mutable_parameter, unsupported,
 };
 pub(super) mod case_membership;
 
@@ -76,7 +75,7 @@ pub(crate) fn validate_normal_result_read_expression(
     expression: ExpressionHandle,
     retained: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let (machine, source_state) = authored_state(checked, state)?;
+    let (machine, source_state) = crate::declarations::state_declaration(checked, state)?;
     let primitive = checked
         .primitive_type_reference(source_state.return_type)
         .filter(|primitive| supported_mutable_parameter(*primitive));
@@ -120,7 +119,7 @@ fn validate_reads(
     expression: ExpressionHandle,
     retained: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let (machine, state) = authored_state(checked, state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state)?;
     if let ExpressionNode::Unary(unary) = checked.expression_table.expression(expression)
         && unary.operator == checked_trees::expression::UnaryOperator::LogicalNot
         && let CheckedScalarExpression::Boolean(value) = retained
@@ -544,7 +543,7 @@ fn authored_owned_field(
     }).count() != 1 {
         return unsupported("owned scalar field has no unique relevant identity");
     }
-    let (machine, _) = authored_state(checked, state.symbol)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, state.symbol)?;
     if validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
         .and_then(|reference| checked.primitive_type_reference(reference))
         != Some(primitive)
@@ -1212,7 +1211,7 @@ fn collect_authored_storage_reads(
             }
         }
         ExpressionNode::Member(member) => {
-            let (machine, _) = authored_state(checked, state.symbol)?;
+            let (machine, _) = crate::declarations::state_declaration(checked, state.symbol)?;
             // Only source-backed places and their exact collection metadata
             // retain existing structural-read owners. A retained field, length,
             // or predicate tag cannot turn a closed value (or a corrupted
@@ -1338,7 +1337,7 @@ fn collect_authored_storage_reads(
             )?;
         }
         ExpressionNode::Indexed(indexed) => {
-            let (machine, _) = authored_state(checked, state.symbol)?;
+            let (machine, _) = crate::declarations::state_declaration(checked, state.symbol)?;
             if let Some((symbol, primitive, kind)) =
                 authored_indexed_primitive_read(checked, state, scope, machine, expression)?
             {

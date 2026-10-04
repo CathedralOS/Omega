@@ -80,7 +80,7 @@ pub(crate) fn validate_operand_provenance(
     )>,
     LoweringError,
 > {
-    let (machine, state) = super::authored_state(checked, state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, state)?;
     let target =
         validation::expression_result_type_reference(&checked.typed, machine, state, operand)
             .ok_or(LoweringError::Unsupported(

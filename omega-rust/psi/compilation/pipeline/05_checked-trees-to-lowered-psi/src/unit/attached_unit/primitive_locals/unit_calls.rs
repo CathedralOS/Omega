@@ -33,8 +33,7 @@ pub(in crate::unit::attached_unit) fn validate(
         caller.state,
         *coordinate,
     )?;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
     if machine.symbol != caller.machine
         || authored.target_machine != *target_machine
         || authored.target_state != *target_state

@@ -104,8 +104,7 @@ impl RangeStorage {
         destination: Option<PlaceId>,
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
-        let (machine, authored) =
-            crate::expression_preparation::source_custody::authored_state(checked, state)?;
+        let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
         let (place, establishment) = if let Some(element) = self.collection_element {
             let destination = destination.ok_or(LoweringError::Unsupported(
                 "collection range has no reserved whole-view descriptor",
@@ -243,8 +242,7 @@ pub(crate) fn storage(
     ) {
         return unsupported("range storage requires a readable loan");
     }
-    let (machine, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
     // The `coll[a..b]` spelling carries its collection through the indexed
     // operation; the whole-extent spelling (`let v: &T = coll`) spells no
     // `..` at all — its expression is the collection itself, behind the
@@ -537,8 +535,7 @@ pub(crate) fn emit(
     if result_type != source.structural_type {
         return unsupported("view subslice changed its view type");
     }
-    let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, site.state)?;
     let retained_count = values.len();
     let mut positions = [None, None];
     for (ordinal, (value, role)) in [
@@ -613,8 +610,7 @@ pub(crate) fn replay(
     ),
     LoweringError,
 > {
-    let (machine, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
+    let (machine, authored) = crate::declarations::state_declaration(checked, site.state)?;
     let Some(operation) = validation::subslice_expression(&checked.typed, site.expression) else {
         // The whole-extent spelling `let v: &T = coll` authors no `..`
         // operation — its endpoints stay omitted and its expression names
@@ -851,8 +847,7 @@ pub(crate) fn binding_site(
     else {
         return unsupported("view subslice binding lost its range source");
     };
-    let (machine, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (declared_type, site) = match statements.get(result.statement_index as usize) {
         Some(checked_trees::statement::StatementNode::LocalData(local))

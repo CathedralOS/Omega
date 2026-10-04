@@ -39,8 +39,9 @@
 //!
 //! Beside the route: `producer_result` names what a plan family hands back —
 //! its source mapping and its operand, debug and conformance completion modes
-//! — and `terminal_identities` and `lowering_error` carry the identity and
-//! failure vocabulary every producer shares. `direct_calls` is the one place
+//! — `terminal_identities` and `lowering_error` carry the identity and
+//! failure vocabulary every producer shares, and `declarations` maps a checked
+//! state symbol to its declared machine and state. `direct_calls` is the one place
 //! a direct in-module call's facts choose its Terminal call operation, and
 //! the one reader of those operations' callee and operand lanes.
 
@@ -60,6 +61,7 @@ mod proofs;
 mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
+mod declarations;
 mod direct_calls;
 mod lowered_machine_provenance;
 mod lowering_error;

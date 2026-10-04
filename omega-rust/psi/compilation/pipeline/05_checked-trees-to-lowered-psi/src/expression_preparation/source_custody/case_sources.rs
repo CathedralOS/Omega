@@ -67,8 +67,7 @@ pub(crate) fn membership(
     subject: &CheckedScalarComputationStructuralArgument,
     case: symbols::SymbolHandle,
 ) -> Result<Vec<(ExpressionHandle, Computation)>, LoweringError> {
-    let (source_machine, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (source_machine, source_state) = crate::declarations::state_declaration(checked, state)?;
     if source_machine.symbol != machine || !checked.expression_table.expression_is_valid(expression)
     {
         return unsupported("computed case observation has no exact source owner");

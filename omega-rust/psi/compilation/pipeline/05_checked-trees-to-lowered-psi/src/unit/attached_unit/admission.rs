@@ -197,8 +197,7 @@ fn validate_linear_transition_calls(
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     use checked_trees::statement::{StatementNode, TransitionTargetNode};
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     for call in machine
         .operations

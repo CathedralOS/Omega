@@ -21,8 +21,7 @@ pub(crate) fn lower(
     views: &ContractViewNamespace<'_>,
     next_obligation: &mut u64,
 ) -> Result<Vec<ContractClause>, LoweringError> {
-    let (source, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (source, source_state) = crate::declarations::state_declaration(checked, state)?;
     let contract = checked
         .facts
         .contract_plans

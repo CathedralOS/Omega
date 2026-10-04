@@ -789,10 +789,7 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("reference establishment produced no structural result");
         };
-        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let local = matches!(
             self.checked
                 .statement_table
@@ -828,10 +825,7 @@ impl OperationFrame<'_, '_> {
         parameter_index: u32,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameter = self
             .checked
             .state_parameters(authored)
@@ -1083,10 +1077,7 @@ impl OperationFrame<'_, '_> {
                         return unsupported("primitive store local is not an owned whole place");
                     }
                     let (_, authored) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )?;
+                        crate::declarations::state_declaration(self.checked, self.state)?;
                     let local = crate::emission::structural_scalar_store_source::local_destination(
                         self.checked,
                         authored,
@@ -2256,10 +2247,7 @@ impl OperationFrame<'_, '_> {
         statement_index: u32,
         value: ValueDeclaration,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let (_, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
             .checked
             .statement_table

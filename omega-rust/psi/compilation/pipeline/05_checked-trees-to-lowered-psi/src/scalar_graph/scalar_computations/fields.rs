@@ -59,10 +59,7 @@ impl super::Expansion<'_> {
         target: usize,
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
-        let (machine, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            site.state,
-        )?;
+        let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let mut completed = None;
         let mut discards = Vec::new();
         let expression = if receiver.is_valid() {
@@ -221,8 +218,7 @@ pub(crate) fn prepare_place_observations(
     state: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
 ) -> Result<std::sync::Arc<[PlaceObservation]>, LoweringError> {
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let mut loans = Vec::new();
     for (statement_index, statement) in checked
         .statement_table
@@ -419,8 +415,7 @@ fn captured_place_subject(
     symbol: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<CapturedPlaceSubject>, LoweringError> {
-    let (source_machine, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (source_machine, source_state) = crate::declarations::state_declaration(checked, state)?;
     if source_machine.symbol != machine {
         return Ok(None);
     }

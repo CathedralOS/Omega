@@ -24,8 +24,7 @@ pub(crate) fn validate(
     else {
         return unsupported("literal local has no establishment");
     };
-    let (owner, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (reference, expression, is_mutable, _local) = match statements
         .get(result.statement_index as usize)

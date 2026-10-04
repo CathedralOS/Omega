@@ -16,10 +16,7 @@ impl Emission<'_, '_, '_> {
         &mut self,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        let authored = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let authored = crate::declarations::state_declaration(self.checked, self.state)?;
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals);

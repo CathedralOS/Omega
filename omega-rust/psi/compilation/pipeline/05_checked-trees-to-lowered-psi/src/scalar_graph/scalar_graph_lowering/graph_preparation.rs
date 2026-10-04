@@ -6,7 +6,6 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
-use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_graph_successor;
 use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
@@ -132,7 +131,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         && states.iter().all(|state| {
             matches!(state.structural_parameters.as_slice(), [receiver] if receiver.is_self)
                 && state.structural_parameters == entry_state.structural_parameters
-                && source_custody::authored_state(checked, state.state)
+                && crate::declarations::state_declaration(checked, state.state)
                     .is_ok_and(|(owner, _)| checked.machine_states(owner).len() == 1)
         });
     if entry_state.structural_parameters.len() != structural_parameters.len()

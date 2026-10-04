@@ -41,8 +41,7 @@ pub(crate) fn validate_store_and_initializer_calls(
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     use checked_trees::statement::StatementNode;
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, plan.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let has_stores = statements
         .iter()
@@ -258,8 +257,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
         // Boundary machines and operators have no Binding requirement receiver.
         return Ok(None);
     };
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     if machine.symbol != caller_machine {
         return unsupported("binding receiver belongs to another authored machine");
     }
@@ -515,10 +513,7 @@ pub(crate) fn validate_operation(
                 return unsupported("discarded scalar result changed its authored signature");
             }
         } else {
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller_state,
-            )?;
+            let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
             let statements = checked
                 .typed
                 .statement_table
@@ -798,8 +793,7 @@ fn validate_parameter_arguments(
     {
         return Ok(());
     }
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let target = authored::target_signature(checked, machine.symbol, call.source_target)?;
     let positions = crate::unit::attached_unit::call_parameters::structural_positions(
         checked, planned, &target,

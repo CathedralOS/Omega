@@ -52,9 +52,16 @@ impl StateGraphEmission<'_, '_> {
                     CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => {
                         // Admission authenticated a single final expression or
                         // unconditional value transition after the body.
-                        let (_, authored) = crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
-                        checked.statement_table.statements(authored.statement_nodes).len().checked_sub(1)
-                            .ok_or(LoweringError::Unsupported("structural return has no source statement"))?
+                        let (_, authored) =
+                            crate::declarations::state_declaration(checked, state.state)?;
+                        checked
+                            .statement_table
+                            .statements(authored.statement_nodes)
+                            .len()
+                            .checked_sub(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "structural return has no source statement",
+                            ))?
                     }
                     CheckedComposedUnitControlTerminatorPlan::ReturnCase { result } => {
                         result.statement_ordinal as usize

@@ -20,7 +20,7 @@ pub(super) fn replay(
     dispatch: symbols::SymbolHandle,
     retained: &CheckedScalarStateGraph,
 ) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
-    let (owner, source) = source_custody::authored_state(checked, retained.state)?;
+    let (owner, source) = crate::declarations::state_declaration(checked, retained.state)?;
     if checked
         .state_contracts(source)
         .iter()

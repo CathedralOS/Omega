@@ -56,7 +56,7 @@ pub(crate) fn validate_assignment(
     assignment: &TableAssignment,
     write: &CheckedRepresentationViewStorePlan,
 ) -> Result<(), LoweringError> {
-    let (owner, state) = source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     if owner.symbol != machine {
         return unsupported("representation view store changed its authored machine");
     }
@@ -262,7 +262,7 @@ pub(crate) fn record_view_leaf_destination(
     statement_index: usize,
     target: checked_trees::expression::ExpressionHandle,
 ) -> Result<Option<RecordViewLeafDestination>, LoweringError> {
-    let (owner, state) = source_custody::authored_state(checked, state_symbol)?;
+    let (owner, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let ExpressionNode::Member(member) = checked.expression_table.expression(target) else {
         return Ok(None);
     };

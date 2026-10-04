@@ -57,8 +57,7 @@ pub(crate) fn unconditional_call_position(
     state: SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<usize, LoweringError> {
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let statements = checked.statement_table.statements(source.statement_nodes);
     let prefix = statements
         .get(..coordinate.statement_index as usize)
@@ -90,8 +89,7 @@ fn authored_execution(
     caller_state: SymbolHandle,
     statement_index: u32,
 ) -> Result<Vec<(u32, AuthoredOccurrence, bool)>, LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let statement = statements
         .get(statement_index as usize)
@@ -479,10 +477,7 @@ fn authored_execution(
                     )?;
                 } else {
                     let (owner, target) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked,
-                            call.target_symbol,
-                        )?;
+                        crate::declarations::state_declaration(checked, call.target_symbol)?;
                     let scalar_result = checked
                         .primitive_type_reference(target.return_type)
                         .is_some();

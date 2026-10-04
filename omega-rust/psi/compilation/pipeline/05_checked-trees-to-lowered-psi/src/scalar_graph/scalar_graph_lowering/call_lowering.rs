@@ -300,7 +300,7 @@ pub(crate) fn lower_scalar_graph_successor(
             "scalar successor lost its source state",
         ))?;
     let (source_machine, source_state_typed) =
-        source_custody::authored_state(checked, source_state)?;
+        crate::declarations::state_declaration(checked, source_state)?;
     let mut ranges = Vec::new();
     let mut structural_arguments = Vec::new();
     for transfer in plans

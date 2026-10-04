@@ -32,8 +32,7 @@ pub(super) fn validate(
         return Ok(replayed);
     };
     let arguments = &planned.structural_arguments;
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let signature = authored::target_signature(checked, machine.symbol, call.source_target)?;
     let byte_view_access = |parameter: &checked_trees::signature::StateParameter| {
         let TypeReferenceNode::Reference {

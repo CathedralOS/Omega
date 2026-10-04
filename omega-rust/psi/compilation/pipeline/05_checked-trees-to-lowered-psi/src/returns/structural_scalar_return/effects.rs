@@ -13,8 +13,7 @@ pub(super) fn validate(
     types: StructuralScalarReturnTypes<'_>,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<bool, LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("scalar return effects have a different authored machine");
     }

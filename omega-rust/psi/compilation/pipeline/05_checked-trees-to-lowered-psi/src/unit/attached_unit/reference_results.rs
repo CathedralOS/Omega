@@ -27,8 +27,7 @@ pub(super) fn validate_establishment(
     else {
         return unsupported("reference establishment has no carrier producer");
     };
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, machine.state)?;
     if matches!(
         checked
             .statement_table
@@ -137,8 +136,7 @@ pub(super) fn validate_local_establishment(
     result: &CheckedUnitStructuralResultBindingPlan,
     source: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let ordinal = result.statement_index as usize;
     let expected = validation::reference_result_custody::primitive_local_source(
         &checked.typed,
@@ -189,8 +187,7 @@ pub(super) fn validate_composed_establishment(
     source: &checked_trees::CheckedUnitStructuralArgumentPlan,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
     if validation::reference_result_custody::shared_borrowed_parts(
         &checked.typed,
         authored.return_type,
@@ -358,8 +355,7 @@ pub(super) fn validate_releases(
         .ok_or(LoweringError::Unsupported(
             "reference carrier has no exact weakening boundary",
         ))?;
-        let (_, authored) =
-            crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+        let (_, authored) = crate::declarations::state_declaration(checked, machine.state)?;
         if boundary as usize
             >= checked
                 .statement_table
@@ -438,8 +434,7 @@ pub(super) fn validate_consumer(
     let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
         return Ok(false);
     };
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
     // A reference record is a constructed value or an ordinary structural
     // call's result.
     let record_result = caller.operations.iter().find_map(|operation| match operation {
@@ -641,8 +636,7 @@ fn validate_carrier_argument(
     local: &checked_trees::statement::TableLocalData,
     referent: checked_trees::types::TypeReferenceHandle,
 ) -> Result<(), LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
     let (target, explicit_access) = match checked.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
         _ => (expression, None),

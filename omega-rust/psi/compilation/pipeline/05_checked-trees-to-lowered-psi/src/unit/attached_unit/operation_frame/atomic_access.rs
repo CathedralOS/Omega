@@ -32,10 +32,7 @@ impl OperationFrame<'_, '_> {
         let parameter = self.parameters.get(access.parameter_index as usize).ok_or(
             LoweringError::Unsupported("atomic event parameter is absent"),
         )?;
-        let (_, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let authored_destination = self
             .checked
             .state_parameters(state)

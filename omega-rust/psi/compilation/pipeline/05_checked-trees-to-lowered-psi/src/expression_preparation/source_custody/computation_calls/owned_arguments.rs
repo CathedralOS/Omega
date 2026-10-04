@@ -94,7 +94,7 @@ pub(super) fn validate(
     // own permission event; this read does not replace that disposition.
     borrow_rows::validate_shared_argument_at(checked, call, access_position, source.symbol)?;
     if checked.type_multiplicity(source.type_reference) == Multiplicity::Affine {
-        let (owner, _) = super::authored_state(checked, state.symbol)?;
+        let (owner, _) = crate::declarations::state_declaration(checked, state.symbol)?;
         let ownership = &checked.facts.flow.ownership;
         let mut transfers = ownership
             .permissions

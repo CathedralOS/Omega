@@ -15,10 +15,7 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let primitive_home = self.immutable_local_borrow_home(source)?;
-        let (machine, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let mut locals = self.evaluation.structural_locals.clone();
         locals.extend(primitive_home);
         let argument = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
@@ -78,10 +75,7 @@ impl Emission<'_, '_, '_> {
         let Some(facts::PlaceRoot::Symbol(symbol)) = source.structural_storage_root() else {
             return Ok(None);
         };
-        let (_, state) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let Some((statement, local)) = self.checked.typed.state_local_declaration(state, symbol)
         else {
             return Ok(None);

@@ -389,7 +389,7 @@ pub(super) fn admit_calls<'a>(
         // A fused roster's call sites record their facts under the machine
         // that authored the state, not the composed plan's dispatch machine.
         let caller = CallerView::state(
-            crate::expression_preparation::source_custody::authored_state(checked, state.state)?
+            crate::declarations::state_declaration(checked, state.state)?
                 .0
                 .symbol,
             state,

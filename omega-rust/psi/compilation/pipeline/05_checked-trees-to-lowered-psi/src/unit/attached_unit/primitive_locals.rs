@@ -49,7 +49,7 @@ fn declaration(
     symbol: symbols::SymbolHandle,
     before: u32,
 ) -> Result<&TableLocalData, LoweringError> {
-    let (_, state) = crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state)?;
     let mut matches = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -91,8 +91,7 @@ pub(crate) fn validate_roster(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, plan.state)?;
     for (ordinal, statement) in checked
         .statement_table
         .statements(state.statement_nodes)
@@ -165,8 +164,7 @@ fn validate_establishment(
             "primitive local statement ordinal exhausted",
         ))?;
     let local = declaration(checked, state, *symbol, next)?;
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     if !matches!(checked.statement_table.statements(authored.statement_nodes).get(*statement_index as usize),
         Some(StatementNode::LocalData(actual)) if actual.symbol == *symbol)
         || checked.primitive_type_reference(local.type_reference) != Some(*primitive_type)
@@ -262,8 +260,7 @@ pub(super) fn validate_argument_source(
     // Ordinary bodies and composed states establish the same primitive home.
     // Rejoin its authored state and borrow occurrence, not the body's family.
     let local = declaration(checked, caller.state, symbol, coordinate.statement_index)?;
-    let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let (machine, _) = crate::declarations::state_declaration(checked, caller.state)?;
     let (root, path, access) =
         parameters::source_path(checked, machine, None, local.type_reference, expression)?;
     if machine.symbol != caller.machine

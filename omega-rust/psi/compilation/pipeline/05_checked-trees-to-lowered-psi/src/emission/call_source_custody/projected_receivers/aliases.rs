@@ -120,7 +120,7 @@ pub(crate) fn parameter_source(
     formation: bool,
 ) -> Result<Option<super::ReceiverSource>, LoweringError> {
     let (authored_machine, authored_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+        crate::declarations::state_declaration(checked, state)?;
     if authored_machine.symbol != machine {
         return unsupported("receiver alias state belongs to another machine");
     }

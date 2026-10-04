@@ -28,8 +28,7 @@ pub(crate) fn discards_result(
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<bool, LoweringError> {
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let statement = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -49,8 +48,7 @@ pub(crate) fn initializes_immutable_local(
     state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<bool, LoweringError> {
-    let (_, source) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, source) = crate::declarations::state_declaration(checked, state)?;
     let statement = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -83,8 +81,7 @@ pub(crate) fn validate_discarded_structural(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     let Some(StatementNode::Call(call)) = checked
         .statement_table
         .statements(state.statement_nodes)
@@ -133,8 +130,7 @@ pub(crate) fn validate_structural(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     // A call establishes its declared result regardless of whether that
     // value is named, returned, assigned, or supplied to another call. The
     // consuming operation owns its destination and cleanup; nesting cannot
@@ -343,8 +339,7 @@ pub(crate) fn validate(
     caller_state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<(), LoweringError> {
-    let (machine, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     if coordinate.call_ordinal == 0
         && matches!(checked.statement_table.statements(state.statement_nodes)
             .get(coordinate.statement_index as usize), Some(StatementNode::Call(call)) if call.discards_result)

@@ -189,8 +189,7 @@ pub(super) fn emit_prefix(
         .with_structural_parameters(parameters)
         .with_structural_observations(structural_types)
         .with_place_observations(place_observations);
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {
         let source = &checked.state_parameters(authored)[parameter.source_position as usize];
         if source.is_mutable {

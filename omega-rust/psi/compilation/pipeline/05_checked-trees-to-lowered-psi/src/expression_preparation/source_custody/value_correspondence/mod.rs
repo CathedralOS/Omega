@@ -170,8 +170,7 @@ impl Context<'_> {
         if !self.selected_builtin(source) {
             return false;
         }
-        let Ok((machine, state)) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
+        let Ok((machine, state)) = crate::declarations::state_declaration(self.checked, self.state)
         else {
             return false;
         };
@@ -240,24 +239,22 @@ impl Context<'_> {
                 receiver_value,
                 subject,
                 field,
-            } => crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                self.state,
-            )
-            .is_ok_and(|(machine, _)| {
-                crate::expression_preparation::source_custody::record_fields::validate_source(
-                    self.checked,
-                    machine.symbol,
-                    self.state,
-                    self.statement,
-                    *source_expression,
-                    *receiver_value,
-                    subject,
-                    *field,
-                    node.primitive_type,
-                )
-                .is_ok()
-            }),
+            } => crate::declarations::state_declaration(self.checked, self.state).is_ok_and(
+                |(machine, _)| {
+                    crate::expression_preparation::source_custody::record_fields::validate_source(
+                        self.checked,
+                        machine.symbol,
+                        self.state,
+                        self.statement,
+                        *source_expression,
+                        *receiver_value,
+                        subject,
+                        *field,
+                        node.primitive_type,
+                    )
+                    .is_ok()
+                },
+            ),
             Computation::CaseMembership {
                 source_expression,
                 subject,
@@ -267,25 +264,23 @@ impl Context<'_> {
                 // replay and ordinary value correspondence for every field.
                 // Its truth is not assumed, and field bounds remain owed.
                 node.primitive_type == PrimitiveType::Bool
-                    && crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
+                    && crate::declarations::state_declaration(self.checked, self.state).is_ok_and(
+                        |(machine, _)| {
+                            crate::expression_preparation::source_custody::case_sources::membership(
+                                self.checked,
+                                machine.symbol,
+                                self.state,
+                                *source_expression,
+                                subject,
+                                *case,
+                            )
+                            .is_ok_and(|fields| {
+                                fields
+                                    .iter()
+                                    .all(|(_, field)| self.computation(*field, active))
+                            })
+                        },
                     )
-                    .is_ok_and(|(machine, _)| {
-                        crate::expression_preparation::source_custody::case_sources::membership(
-                            self.checked,
-                            machine.symbol,
-                            self.state,
-                            *source_expression,
-                            subject,
-                            *case,
-                        )
-                        .is_ok_and(|fields| {
-                            fields
-                                .iter()
-                                .all(|(_, field)| self.computation(*field, active))
-                        })
-                    })
             }
             Computation::SelectedComparison {
                 operator_use,
@@ -614,10 +609,7 @@ impl Context<'_> {
                     && cast.semantic_domain.is_empty()
                     && let Some(target) = self.checked.primitive_type_reference(cast.target_type)
                     && let Ok((machine, state)) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )
+                        crate::declarations::state_declaration(self.checked, self.state)
                     && validation::expression_result_type_reference(
                         &self.checked.typed,
                         machine,
@@ -715,7 +707,8 @@ impl Context<'_> {
             } => {
                 let mut authored = source;
                 if !element_path.is_empty() {
-                    let Ok((machine, state)) = super::authored_state(self.checked, self.state)
+                    let Ok((machine, state)) =
+                        crate::declarations::state_declaration(self.checked, self.state)
                     else {
                         return false;
                     };
@@ -787,7 +780,9 @@ impl Context<'_> {
                 // symbol.
                 let expected_root = match root {
                     checked_trees::CheckedStorageRoot::Parameter { index: position } => {
-                        let Ok((_, state)) = super::authored_state(self.checked, self.state) else {
+                        let Ok((_, state)) =
+                            crate::declarations::state_declaration(self.checked, self.state)
+                        else {
                             return false;
                         };
                         let Some(parameter) =
@@ -803,7 +798,9 @@ impl Context<'_> {
                     checked_trees::CheckedStorageRoot::ViewLocal { symbol }
                     | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => *symbol,
                 };
-                let Ok((machine, _)) = super::authored_state(self.checked, self.state) else {
+                let Ok((machine, _)) =
+                    crate::declarations::state_declaration(self.checked, self.state)
+                else {
                     return false;
                 };
                 // A store destination projects an erased carrier local
@@ -855,7 +852,8 @@ impl Context<'_> {
         source: ExpressionHandle,
         symbol: symbols::SymbolHandle,
     ) -> Option<bool> {
-        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let (machine, state) =
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         let receiver = validation::collection_length_receiver(
             &self.checked.typed,
             machine,
@@ -878,7 +876,8 @@ impl Context<'_> {
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<bool> {
-        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let (machine, state) =
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         let receiver = validation::collection_length_receiver(
             &self.checked.typed,
             machine,
@@ -1000,10 +999,9 @@ impl Context<'_> {
             // the exact case reference and subject projection must rejoin this
             // parameter's authored namespace position, path, and case identity.
             Boolean::StructuralCaseMembership { subject, case } => {
-                let Ok((_, state)) = crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                ) else {
+                let Ok((_, state)) =
+                    crate::declarations::state_declaration(self.checked, self.state)
+                else {
                     return false;
                 };
                 let Ok(Some((symbol, path, authored_case))) =
@@ -1236,7 +1234,8 @@ impl Context<'_> {
         if !self.builtin(source) {
             return false;
         }
-        let Ok((machine, state)) = super::authored_state(self.checked, self.state) else {
+        let Ok((machine, state)) = crate::declarations::state_declaration(self.checked, self.state)
+        else {
             return false;
         };
         let capacity = |operand| {
@@ -1383,7 +1382,8 @@ impl Context<'_> {
                 path,
             ));
         }
-        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let (machine, state) =
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         if let Ok(authored) =
             crate::emission::call_source_custody::projected_receivers::store_destination(
                 self.checked,
@@ -1435,7 +1435,7 @@ impl Context<'_> {
         {
             return None;
         }
-        let (_, state) = super::authored_state(self.checked, self.state).ok()?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state).ok()?;
         if self
             .checked
             .state_parameters(state)
@@ -1483,7 +1483,8 @@ impl Context<'_> {
         &self,
         source: ExpressionHandle,
     ) -> Option<(u32, Vec<checked_trees::CheckedUnitStructuralPathSegment>)> {
-        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let (machine, state) =
+            crate::declarations::state_declaration(self.checked, self.state).ok()?;
         let authored =
             crate::emission::call_source_custody::projected_receivers::store_destination(
                 self.checked,
@@ -1538,11 +1539,7 @@ impl Context<'_> {
             }
             _ => {
                 let (machine, state) =
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
-                    )
-                    .ok()?;
+                    crate::declarations::state_declaration(self.checked, self.state).ok()?;
                 // This shared query includes resolved call results and retains
                 // their qualification shells; the caller's destination is not
                 // an arithmetic-domain witness for a completed call.
@@ -1627,11 +1624,8 @@ impl Context<'_> {
             {
                 return None;
             }
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                self.state,
-            )
-            .ok()?;
+            let (_, state) =
+                crate::declarations::state_declaration(self.checked, self.state).ok()?;
             let mut locals = self
                 .checked
                 .statement_table
@@ -1747,9 +1741,7 @@ impl Context<'_> {
         ) {
             return None;
         }
-        let (machine, _) =
-            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
-                .ok()?;
+        let (machine, _) = crate::declarations::state_declaration(self.checked, self.state).ok()?;
         validation::builtin_constant_array_projection_type(
             &self.checked.typed,
             machine.symbol,

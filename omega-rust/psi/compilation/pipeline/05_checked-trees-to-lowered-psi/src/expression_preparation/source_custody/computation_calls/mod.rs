@@ -5,8 +5,7 @@
 use super::super::{CheckedBooleanExpression, CheckedScalarExpression};
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, PrimitiveType, StatementNode,
-    authored_state, parameter_binding_is_unique, preceding_local, structural_parameter_at,
-    unsupported,
+    parameter_binding_is_unique, preceding_local, structural_parameter_at, unsupported,
 };
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
@@ -241,7 +240,8 @@ pub(crate) fn validate_computation_calls(
                     && let Some(facts::PlaceRoot::Expression(canonical_subject)) =
                         subject.structural_storage_root()
                 {
-                    let (_, authored_state) = authored_state(checked, state)?;
+                    let (_, authored_state) =
+                        crate::declarations::state_declaration(checked, state)?;
                     let mut receivers = expression_membership(checked, *source_expression, true)?
                         .into_iter()
                         .filter(|expression| {
@@ -879,7 +879,7 @@ fn validate_local_availability(
     statement: u32,
     expressions: &[ExpressionHandle],
 ) -> Result<(), LoweringError> {
-    let (_, state) = authored_state(checked, state)?;
+    let (_, state) = crate::declarations::state_declaration(checked, state)?;
     let pending = checked
         .statement_table
         .statements(state.statement_nodes)

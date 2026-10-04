@@ -18,8 +18,7 @@ pub(crate) fn validate(
     expected: checked_trees::types::TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
-    let (owner, source_state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (owner, source_state) = crate::declarations::state_declaration(checked, state)?;
     let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
         return unsupported("owned value operand lost its source name");
     };
@@ -148,8 +147,7 @@ fn validate_linear_transfer(
         Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
         PermissionEventSource, PermissionProvenance,
     };
-    let (_, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(authored.statement_nodes)

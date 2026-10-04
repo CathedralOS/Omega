@@ -137,9 +137,7 @@ pub(super) fn owner(
     checked: &super::CheckedTrees,
     state: symbols::SymbolHandle,
 ) -> Result<symbols::SymbolHandle, super::LoweringError> {
-    Ok(
-        crate::expression_preparation::source_custody::authored_state(checked, state)?
-            .0
-            .symbol,
-    )
+    Ok(crate::declarations::state_declaration(checked, state)?
+        .0
+        .symbol)
 }
