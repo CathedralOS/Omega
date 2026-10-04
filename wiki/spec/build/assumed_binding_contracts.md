@@ -47,7 +47,7 @@ reaches WritableMemory;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
-    builder.select_provider<RangeSupplier, EchoSupplier>();
+    Build::select_provider<RangeSupplier, EchoSupplier>(builder);
     builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 }
 ```

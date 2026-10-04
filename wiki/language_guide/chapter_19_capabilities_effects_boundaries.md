@@ -208,7 +208,7 @@ explicitly assume a relationship between two compatible boundary contracts:
 ```omega
 machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
-    builder.select_provider<RangeSupplier, EchoSupplier>();
+    Build::select_provider<RangeSupplier, EchoSupplier>(builder);
     builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 }
 ```
@@ -279,7 +279,7 @@ satisfies Supplied::value {
 }
 
 machine build(builder: &mut Build) {
-    builder.select_provider<Supplied, ZeroProvider>();
+    Build::select_provider<Supplied, ZeroProvider>(builder);
     builder.assume_binding_contract<Expected::value, Supplied::value>();
 }
 ```
@@ -659,7 +659,7 @@ relationships. Build selects a candidate, not authored plan rows:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.select_provider<selected_target::Console, TestConsole>();
+    Build::select_provider<selected_target::Console, TestConsole>(builder);
 }
 ```
 

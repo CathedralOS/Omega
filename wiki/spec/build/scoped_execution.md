@@ -202,7 +202,7 @@ Toolchain operations have designated product operands:
 
 ```omega
 Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
-builder.select_provider<windows_x86_64::Console, TestConsole>();
+Build::select_provider<windows_x86_64::Console, TestConsole>(builder);
 builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 _ = builder.tests.group<Tests::memory>();
 ```

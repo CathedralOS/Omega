@@ -33,7 +33,7 @@ Build provider selection. Compiler-catalog semantic primitives are automatic.
 Target defaults still supply boundary float implementations; overrides must
 satisfy the canonical arithmetic contract, not choose a different meaning for `+`.
 
-`Build::select_provider<Slot, Provider>()` is ordinary typed vocabulary. Slot
+`Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait, package-qualified same-path boundary-
 operator family, or top-level boundary requirement. Provider resolves to one
 provider-data symbol. Both retain compiler-derived package ownership. Plans and
@@ -41,7 +41,21 @@ checked adapters rejoin exact slot, realizing machine, provider, schema, and
 requirement owners. Leaf names, strings, normalized signatures, ordinals,
 declaration order, and compact fingerprints cannot select overloads.
 
-Selection is nominal and argument-free except for the declared composition mode.
+The first value argument is the current activation's original mutable `Build`
+value, passed explicitly as for other static Build operations. Helpers forward
+that argument; neither the `Build::` namespace nor a same-shaped fabricated
+value grants selection authority. The interpreter verifies the activation's
+identity, not merely the argument's type. Receiver-style
+`builder.select_provider<Slot, Provider>()` is not an alternate call form.
+
+Selection configuration is nominal, apart from the optional declared composition
+mode supplied after `builder`:
+
+```omega
+Build::select_provider<Console, CapturedConsole>(builder);
+Build::select_provider<Console, CapturedConsole>(builder, CompositionMode::Independent);
+```
+
 Runtime-variable descriptors are ordinary capability values. Static target
 handles and descriptors belong inside selected target realizations, not value
 arguments to provider selection. Distinct authored configurations use distinct
