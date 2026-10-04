@@ -1456,7 +1456,8 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d9
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
 pass/calls/case_payload_clone_observation_exit checked 2727ms @e8505b71528
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
-pass/calls/case_scrutinee_self_dispatch_exit checked 914ms @b9ead894da43+wt
+pass/calls/case_scrutinee_self_dispatch_exit rejected 6695ms @faab7e6c1b7
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(2), block: BlockId(17), node: Some(0), reason: "borrowed reference source has no exact incoming storage" }))
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
@@ -1499,7 +1500,8 @@ pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
-pass/calls/nested_call_tail_roots_exit checked 1397ms @b9ead894da43+wt
+pass/calls/nested_call_tail_roots_exit rejected 7346ms @faab7e6c1b7
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(2), block: BlockId(17), node: Some(0), reason: "borrowed reference source has no exact incoming storage" }))
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
@@ -1544,7 +1546,8 @@ pass/calls/runtime_guarded_terminal_operand_order_exit checked 463ms @e2a12bf7c0
 pass/calls/runtime_guarded_terminal_reference_result_exit checked 2478ms @3214ae815320
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms @4f20c0c110be
-pass/calls/runtime_indexed_scalar_calls_exit checked 1536ms @63377f7122bb+wt
+pass/calls/runtime_indexed_scalar_calls_exit rejected 4779ms @faab7e6c1b7
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(2), reason: "borrowed reference source type is absent" }))
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms @2d8ed253669f
 pass/calls/runtime_local_case_terminal_payload_result_exit checked 576ms @cbbe113c2c24
@@ -2544,7 +2547,8 @@ pass/text/runtime_chained_string_append_exit checked 1690ms @2d8ed253669f
 pass/text/runtime_local_struct_string_field_concat_exit rejected 1325ms @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 3)
 pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms @11b293f8af86+wt
-pass/text/runtime_mutable_string_parameter_concat_write_line checked 2845ms @3284f31163c
+pass/text/runtime_mutable_string_parameter_concat_write_line rejected 4922ms @faab7e6c1b7
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source type is absent" }))
 pass/text/runtime_number_to_decimal_exit rejected 504ms @c5d32a00863
 	partial wrapping division in machine `Main::main` state `digit_div` assignment: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 pass/text/runtime_owned_string_byte_view_exit checked 1422ms @73da00dde06d+wt
