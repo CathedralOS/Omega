@@ -35,13 +35,19 @@ machine observe_outer(outer: &mut Outer, second: bool) -> u64 {
     selected.value
 }
 
+machine shared_identity(node: &Node) -> &Node { node }
+
 machine shared_pick(pair: &Pair, second: bool) -> &Node {
     transition { _ -> select(second, pair) }
     state select(second: bool, pair: &Pair) -> &Node {
         transition second {
-            true -> &pair.right
-            false -> &pair.left
+            true -> selected(&pair.right)
+            false -> selected(&pair.left)
         }
+    }
+    state selected(node: &Node) -> &Node {
+        let forwarded: &Node = shared_identity(node);
+        forwarded
     }
 }
 
