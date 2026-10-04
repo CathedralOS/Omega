@@ -56,12 +56,7 @@ pub(super) fn proves<'program>(
     // A missing checked operator row is not builtin authority. Rejoin the
     // declaration meaning before either symbolic or concrete comparison.
     if !has_builtin_operators(program, &facts.operators, expression)
-        || !validation::has_builtin_bound_expression_meaning(
-            program,
-            machine,
-            program.machine_states(machine).first(),
-            expression,
-        )
+        || !evaluator.has_builtin_meaning(expression)
     {
         return false;
     }
@@ -112,6 +107,71 @@ struct ExitScalars<'program, 'facts> {
 }
 
 impl ExitScalars<'_, '_> {
+    /// Inherited expressions retain their requirement's declaration identities.
+    /// Their checked conformance scope binds that telescope to the satisfying
+    /// state's parameters. Do not interpret them as names from the machine's
+    /// own entry contract, or borrow a different conformance's substitution.
+    fn inherited_parameters(
+        &self,
+    ) -> Option<(
+        &typed_trees::signature::StateSignature,
+        &[typed_trees::signature::StateParameter],
+    )> {
+        let mut contracts = self
+            .facts
+            .proof
+            .contract_facts
+            .iter()
+            .filter_map(|(_, contract)| {
+                (contract.fact == self.contract
+                    && contract.kind == checked_trees::ContractProofFactKind::Ensures
+                    && contract.owner
+                        == (checked_trees::ContractProofFactOwner::MachineState {
+                            machine_symbol: self.exit.machine_symbol,
+                            state_symbol: self.exit.state_symbol,
+                        }))
+                .then_some(contract)
+                .filter(|contract| contract.inherited_scope.is_some())
+            });
+        let contract = contracts.next()?;
+        if contracts.next().is_some() {
+            return None;
+        }
+        let (definition, requirement, state, _) =
+            crate::semantic::facts::inherited_contract_scope_parts(
+                self.program,
+                &self.facts.proof,
+                contract,
+            )?;
+        Some((
+            requirement,
+            validation::inherited_satisfier_parameters(
+                self.program,
+                definition,
+                requirement,
+                state,
+            )?,
+        ))
+    }
+
+    fn has_builtin_meaning(&self, expression: ExpressionHandle) -> bool {
+        if let Some((signature, _)) = self.inherited_parameters() {
+            validation::has_builtin_parameter_bound_expression_meaning(
+                self.program,
+                signature.symbol,
+                self.program.state_signature_parameters(signature),
+                expression,
+            )
+        } else {
+            validation::has_builtin_bound_expression_meaning(
+                self.program,
+                self.machine,
+                self.program.machine_states(self.machine).first(),
+                expression,
+            )
+        }
+    }
+
     fn current_predicate(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
         // The scalar leaf resolver can rebind entry parameters through exact
@@ -365,7 +425,42 @@ impl ExitScalars<'_, '_> {
         let PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
-        if self
+        let inherited_parameter = self
+            .inherited_parameters()
+            .and_then(|(signature, actuals)| {
+                self.program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .zip(actuals)
+                    .find_map(|(formal, actual)| {
+                        if formal.symbol != root {
+                            return None;
+                        }
+                        let stable =
+                            if validation::reference_shell(self.program, actual.type_reference)
+                                .is_some()
+                            {
+                                self.program
+                                    .machine_states(self.machine)
+                                    .iter()
+                                    .find(|state| state.symbol == self.exit.state_symbol)
+                                    .is_some_and(|state| {
+                                        validation::state_reference_parameter_binding_is_stable(
+                                            self.program,
+                                            self.machine,
+                                            state,
+                                            actual.symbol,
+                                        )
+                                    })
+                            } else {
+                                !actual.is_mutable
+                            };
+                        stable.then_some(actual.symbol)
+                    })
+            });
+        if let Some(actual) = inherited_parameter {
+            place.root = PlaceRoot::Symbol(actual);
+        } else if self
             .program
             .state_parameters(entry)
             .iter()

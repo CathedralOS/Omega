@@ -1027,6 +1027,19 @@ defines the complete product bar.
     suffix was store-enforced: re-prove dependent reads after a write
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
     mutation controls).
+    Relational out-parameter checking is exercised by
+    `pass/dependent/boundary_equality_recast_witness_compile`: the shared
+    ordered-value store substitutes exact signature parameters and derives
+    bounds at the observation, without retaining facts across supporting
+    writes. The end-to-end customer is
+    `pass/dependent/runtime_relational_postcondition_exit` (authored exit 70).
+    On macOS ARM64, `python3 tools/corpus_gate.py --native --filter
+    dependent/runtime_relational_postcondition_exit` reaches stage 04's
+    `call operation: boundary contracts` refusal in
+    `execution/terminal_unit/calls/trait_boundary_call.rs`; complete ordinary
+    Boolean postcondition transport there, then execute the oracle. Its
+    provider's inherited guarantees now bind through the retained conformance
+    scope; stale-place, cross-call and false-provider controls must still reject.
   - Library: `source/library/core/numeric_conversion.omg` (suffixed widening
     results), `source/library/std/console.omg` (`ByteRead::Byte` payload and
     state parameters), `source/library/std/time.omg` (subsecond fields/locals,

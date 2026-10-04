@@ -560,6 +560,42 @@ pub(super) fn record(
     comparison: &typed_trees::expression::TableBinaryExpression,
     positive: bool,
 ) {
+    let meanings = [comparison.left, comparison.right]
+        .map(|expression| integer_meaning(program, machine, state, expression));
+    for (expression, meaning) in [comparison.left, comparison.right]
+        .into_iter()
+        .zip(meanings)
+    {
+        if meaning.is_none()
+            && !matches!(program.expression_table.expression(expression),
+                ExpressionNode::Integer(literal)
+                    if literal.landing().is_none()
+                        && (literal.value_i64().is_some() || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
+        {
+            return;
+        }
+    }
+    record_comparison(environment, comparison, positive, |expression| {
+        let meaning = meanings[usize::from(expression != comparison.left)];
+        (
+            operand(program, machine, state, expression),
+            meaning.and_then(|(primitive, _)| integer_carrier_ceiling(primitive)),
+        )
+    });
+}
+
+/// Publish an admitted integer comparison in one relation store. The caller
+/// establishes builtin meaning and integer carriers in the expression's own
+/// scope, then supplies exact current operand identities and optional carrier
+/// ceilings. Contract substitution and executable guards share normalization,
+/// write invalidation and edge transport rather than maintaining separate
+/// literal/equality proof paths.
+pub(super) fn record_comparison(
+    environment: &mut ValueEnvironment,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    positive: bool,
+    mut observation: impl FnMut(ExpressionHandle) -> (Option<Operand>, Option<Operand>),
+) {
     let unequal = matches!(
         (comparison.operator, positive),
         (BinaryOperator::NotEqual, true) | (BinaryOperator::Equal, false)
@@ -585,26 +621,10 @@ pub(super) fn record(
         }
         _ => return,
     };
-    let left_meaning = integer_meaning(program, machine, state, left);
-    let right_meaning = integer_meaning(program, machine, state, right);
-    let bounded_integer = |expression, meaning: Option<(PrimitiveType, ArithmeticDomain)>| {
-        meaning.is_some()
-            || matches!(program.expression_table.expression(expression),
-                ExpressionNode::Integer(literal)
-                    if literal.landing().is_none()
-                        && (literal.value_i64().is_some() || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
-    };
-    // An anonymous comparison literal has no carrier yet, but its exact value
-    // can still be an ordered operand if it lies in the fixed-integer window.
-    // Retain its anonymous identity: this does not stamp a guessed width.
-    if !bounded_integer(left, left_meaning) || !bounded_integer(right, right_meaning) {
-        return;
-    }
+    let (left, left_ceiling) = observation(left);
+    let (right, right_ceiling) = observation(right);
     if unequal {
-        let (Some(left), Some(right)) = (
-            operand(program, machine, state, left),
-            operand(program, machine, state, right),
-        ) else {
+        let (Some(left), Some(right)) = (left, right) else {
             return;
         };
         let relation = Relation {
@@ -621,15 +641,15 @@ pub(super) fn record(
     // in the same relation store as guards, rather than unifying symbol atoms:
     // a write to either operand must retire the equality before a later use.
     // The guard owner checks selected operator meaning before calling here;
-    // bounded_integer above excludes float equality and its NaN semantics.
-    for (ceiling_expression, ceiling_meaning, value_expression) in std::iter::once((
-        left,
-        left_meaning,
-        right,
+    // Both producers exclude float equality and its NaN semantics.
+    for (ceiling, carrier_ceiling, value) in std::iter::once((
+        left.clone(),
+        left_ceiling,
+        right.clone(),
     ))
-    .chain(equal.then_some((right, right_meaning, left)))
+    .chain(equal.then_some((right, right_ceiling, left)))
     {
-        let Some(value) = operand(program, machine, state, value_expression) else {
+        let Some(value) = value else {
             continue;
         };
         // An observed ceiling need not have a repeatable identity. Its finite
@@ -637,12 +657,7 @@ pub(super) fn record(
         // when a call temporary disappears at a state edge. This says nothing
         // about the value returned by any subsequent invocation. The subject
         // retains its exact identity and ordinary write invalidation.
-        let carrier_ceiling =
-            ceiling_meaning.and_then(|(primitive, _)| integer_carrier_ceiling(primitive));
-        for ceiling in operand(program, machine, state, ceiling_expression)
-            .into_iter()
-            .chain(carrier_ceiling)
-        {
+        for ceiling in ceiling.into_iter().chain(carrier_ceiling) {
             let relation = Relation {
                 left: ceiling,
                 right: value.clone(),
@@ -867,6 +882,51 @@ fn composed_ceiling_gap(
     if needed <= 0 {
         return true;
     }
+    composed_gaps(relations, value, BoundDirection::Upper)
+        .into_iter()
+        .any(|(ceiling, gap)| gap >= needed && admits(ceiling))
+}
+
+#[derive(Clone, Copy)]
+enum BoundDirection {
+    Lower,
+    Upper,
+}
+
+/// Project the same live difference constraints used for overflow into a
+/// place's interval. Query without caching: a derived bound must disappear
+/// when a supporting operand is written, even if the subject itself survives.
+pub(super) fn interval(environment: &ValueEnvironment, subject: &Operand) -> Interval {
+    let mut result = Interval::UNBOUNDED;
+    for direction in [BoundDirection::Lower, BoundDirection::Upper] {
+        for (operand, gap) in composed_gaps(&environment.ordered_values, subject, direction) {
+            let bounds = match operand {
+                Operand::Integer(literal, _) => Some(literal_interval(literal)),
+                Operand::Place { path, .. } => environment.get(path),
+                _ => None,
+            };
+            let Some(bounds) = bounds else { continue };
+            let derived = match direction {
+                BoundDirection::Lower => Interval {
+                    low: bounds.low.and_then(|low| low.checked_add(gap)),
+                    high: None,
+                },
+                BoundDirection::Upper => Interval {
+                    low: None,
+                    high: bounds.high.and_then(|high| high.checked_sub(gap)),
+                },
+            };
+            result = result.intersect(derived);
+        }
+    }
+    result
+}
+
+fn composed_gaps<'value>(
+    relations: &'value [Relation],
+    value: &'value Operand,
+    direction: BoundDirection,
+) -> Vec<(&'value Operand, i64)> {
     let mut operands: Vec<&Operand> = vec![value];
     for relation in relations {
         for operand in [&relation.left, &relation.right] {
@@ -875,9 +935,10 @@ fn composed_ceiling_gap(
             }
         }
     }
-    let mut dist: Vec<(&Operand, i64)> = vec![(value, 0)];
-    let known_gap = |dist: &[(&Operand, i64)], operand: &Operand| {
-        dist.iter()
+    let mut distances: Vec<(&Operand, i64)> = vec![(value, 0)];
+    let known_gap = |distances: &[(&Operand, i64)], operand: &Operand| {
+        distances
+            .iter()
             .find(|(known, _)| **known == *operand)
             .map(|(_, gap)| *gap)
     };
@@ -887,28 +948,29 @@ fn composed_ceiling_gap(
             let Some(floor) = relation.minimum_difference() else {
                 continue;
             };
-            let Some(gap) = known_gap(&dist, &relation.right) else {
+            let (next, previous) = match direction {
+                BoundDirection::Upper => (&relation.left, &relation.right),
+                BoundDirection::Lower => (&relation.right, &relation.left),
+            };
+            let Some(gap) = known_gap(&distances, previous).and_then(|gap| gap.checked_add(floor))
+            else {
                 continue;
             };
-            let gap = gap.saturating_add(floor);
-            match dist.iter_mut().find(|(known, _)| **known == relation.left) {
+            match distances.iter_mut().find(|(known, _)| *known == next) {
                 Some((_, known)) if *known >= gap => {}
                 Some((_, known)) => {
                     *known = gap;
                     improved = true;
                 }
                 None => {
-                    dist.push((&relation.left, gap));
+                    distances.push((next, gap));
                     improved = true;
                 }
-            }
-            if gap >= needed && admits(&relation.left) {
-                return true;
             }
         }
         if !improved {
             break;
         }
     }
-    false
+    distances
 }

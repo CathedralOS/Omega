@@ -297,11 +297,11 @@ pub(super) fn append_contract_semantic_facts(
     }
 }
 
-/// Resolve one inherited contract fact's migrated proposition endpoint: the
+/// Resolve one inherited contract fact's declaration and satisfying scope: the
 /// declaring trait, its requirement signature, and the satisfying state the
 /// fact is owned by. `None` fails closed -- the fact keeps its authored schema
 /// identity rather than publishing a partial substitution.
-fn inherited_contract_scope_parts<'program>(
+pub(crate) fn inherited_contract_scope_parts<'program>(
     program: &'program typed_trees::TypedTrees,
     proof: &'program ProofFacts,
     contract: &ContractProofFact,

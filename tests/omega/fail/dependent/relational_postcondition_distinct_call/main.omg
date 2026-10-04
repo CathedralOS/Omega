@@ -1,0 +1,16 @@
+use omega::language::core::binding;
+pub boundary trait MapBounds {
+    machine equal(offset: &mut u32, ceiling: &mut u32)
+    ensures offset == ceiling;
+    machine bound(ceiling: &mut u32) ensures ceiling <= 8;
+}
+data Main { bounds: Binding<MapBounds>; bytes: [u8; 12]; offset: u32; ceiling: u32; other: u32; }
+machine Main::main(context: &mut Main) reaches MapBounds {
+    context.bounds.equal(&mut context.offset, &mut context.ceiling);
+    // Same formal spelling does not connect these different actual places.
+    context.bounds.bound(&mut context.other);
+    transition { _ -> observe(context.offset, context) }
+    state observe(offset: u32, context: &mut Main) {
+        let word: &u32 = &context.bytes[offset] as &u32;
+    }
+}

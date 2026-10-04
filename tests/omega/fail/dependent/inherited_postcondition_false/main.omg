@@ -1,0 +1,14 @@
+// A satisfaction edge must prove its inherited predicate using the exact
+// provider parameters; declaring the promise cannot excuse a contradictory body.
+pub boundary trait MapBounds {
+    machine establish(offset: &mut u32, ceiling: &mut u32)
+    ensures offset == ceiling && ceiling <= 8;
+}
+data MapProvider {}
+machine MapProvider::establish(start: &mut u32, end: &mut u32)
+satisfies MapBounds::establish
+ensures start == end && end <= 8
+{
+    start = 9;
+    end = 4;
+}

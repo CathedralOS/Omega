@@ -1276,15 +1276,11 @@ fn signed_joint_multiply_negation_guard(
     place_path(program, value)
 }
 
-/// R4 witness mint (out-params as witnesses): a BOUNDARY callee's
-/// `ensures <param> <OP> <literal>` bounds the `&mut` OUT-ARGUMENT's place
-/// the moment the call returns -- the boundary model's citable fact
-/// (design brief: a boundary machine MINTS facts; ensures are the trusted
-/// tier the way requires are the checked tier). Called after the call
-/// clears the environment; each conjunct that names a signature parameter bound by
-/// a literal seeds the matching argument place, intersected with the
-/// place's type + declared ranges. Conjunctions split; anything else is
-/// skipped (sound -- fewer facts).
+/// A selected boundary's normal-return guarantees describe its reference
+/// arguments after the call's writes. Bind exact formal symbols to the caller's
+/// live operands, never by-value snapshots to possibly changed storage. Import
+/// comparisons into the ordinary ordered-value store: equality, strict order
+/// and literal bounds then share chaining, invalidation and state-edge joins.
 pub(crate) fn seed_out_param_ensures(
     program: &TypedTrees,
     machine: &Machine,
@@ -1295,12 +1291,25 @@ pub(crate) fn seed_out_param_ensures(
 ) {
     use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
+    let Some(state) = state else { return };
     let arguments = program.statement_table.expression_handles(call.arguments);
-    let parameters: Vec<&typed_trees::signature::StateParameter> = program
-        .state_signature_parameters(signature)
+    let parameters = program.state_signature_parameters(signature);
+    let bindings = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .collect();
+        .zip(arguments)
+        .filter_map(|(parameter, argument)| {
+            crate::reference_shell(program, parameter.type_reference)?;
+            let place = match program.expression_table.expression(*argument) {
+                ExpressionNode::Borrow(borrow) => borrow.target,
+                _ => *argument,
+            };
+            Some((
+                parameter.symbol,
+                ordered_values::operand(program, machine, state, place)?,
+            ))
+        })
+        .collect::<Vec<_>>();
     for contract in program
         .signature_contracts
         .span_or_empty(signature.contracts)
@@ -1312,25 +1321,15 @@ pub(crate) fn seed_out_param_ensures(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            seed_ensures_conjunct(
-                program,
-                machine,
-                state,
-                &parameters,
-                arguments,
-                *expression,
-                environment,
-            );
+            seed_ensures_conjunct(program, signature, &bindings, *expression, environment);
         }
     }
 }
 
 fn seed_ensures_conjunct(
     program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
-    parameters: &[&typed_trees::signature::StateParameter],
-    arguments: &[ExpressionHandle],
+    signature: &typed_trees::signature::StateSignature,
+    bindings: &[(symbols::SymbolHandle, ordered_values::Operand)],
     conjunct: ExpressionHandle,
     environment: &mut ValueEnvironment,
 ) {
@@ -1339,78 +1338,108 @@ fn seed_ensures_conjunct(
     };
     if comparison.operator == BinaryOperator::And {
         let (left, right) = (comparison.left, comparison.right);
-        seed_ensures_conjunct(
-            program,
-            machine,
-            state,
-            parameters,
-            arguments,
-            left,
-            environment,
-        );
-        seed_ensures_conjunct(
-            program,
-            machine,
-            state,
-            parameters,
-            arguments,
-            right,
-            environment,
-        );
+        seed_ensures_conjunct(program, signature, bindings, left, environment);
+        seed_ensures_conjunct(program, signature, bindings, right, environment);
         return;
     }
-    // `param <OP> literal` (param on either side).
-    let (param_expr, literal, name_on_left) =
-        if let Some(literal) = literal_i64(program, comparison.right) {
-            (comparison.left, literal, true)
-        } else if let Some(literal) = literal_i64(program, comparison.left) {
-            (comparison.right, literal, false)
-        } else {
-            return;
-        };
-    let ExpressionNode::Name(path) = program.expression_table.expression(param_expr) else {
-        return;
-    };
-    let [param_name] = program.expression_table.name_path_members(path.members) else {
-        return;
-    };
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.name.as_str() == param_name.as_str())
-    else {
-        return;
-    };
-    // A value formal denotes the argument snapshot, not the caller's live
-    // storage after other arguments or the callee may have changed it. Only
-    // a reference formal can publish a postcondition about that storage.
-    if crate::reference_shell(program, parameters[position].type_reference).is_none() {
+    let parameters = program.state_signature_parameters(signature);
+    if !crate::has_builtin_parameter_bound_expression_meaning(
+        program,
+        signature.symbol,
+        parameters,
+        conjunct,
+    ) {
         return;
     }
-    let Some(argument) = arguments.get(position).copied() else {
-        return;
-    };
-    // The out-argument spells `&mut <place>`; unwrap to the place.
-    let place_expr = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(inner) => inner.target,
-        _ => argument,
-    };
-    let Some(place) = place_path(program, place_expr) else {
-        return;
-    };
-    let (_, low, high) = bound_from(place.clone(), comparison.operator, literal, name_on_left);
-    let mut interval = Interval { low, high };
-    if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
-        if let Some(type_interval) = program
-            .primitive_type_reference(handle)
-            .and_then(primitive_range)
+    for expression in [comparison.left, comparison.right] {
+        let primitive = crate::parameter_expression_result_type_reference(
+            program,
+            signature.symbol,
+            parameters,
+            expression,
+        )
+        .and_then(|reference| {
+            crate::value_custody::places::unwrapped_type_reference(program, reference)
+        })
+        .and_then(|reference| program.primitive_type_reference(reference));
+        if !primitive.is_some_and(|primitive| {
+            primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()
+        }) && literal_i64(program, expression).is_none()
         {
-            interval = interval.intersect(type_interval);
-        }
-        if let Some(declared_range) = range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared_range);
+            return;
         }
     }
-    environment.narrow(place, interval);
+    ordered_values::record_comparison(environment, comparison, true, |expression| {
+        (
+            postcondition_operand(program, signature, bindings, expression, 0),
+            None,
+        )
+    });
+}
+
+fn postcondition_operand(
+    program: &TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
+    bindings: &[(symbols::SymbolHandle, ordered_values::Operand)],
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<ordered_values::Operand> {
+    use ordered_values::Operand;
+    if depth >= 128 {
+        return None;
+    }
+    if let Some(value) = literal_i64(program, expression) {
+        return Some(Operand::Integer(
+            numerics::literals::IntegerLiteral::from_value(value),
+            None,
+        ));
+    }
+    let child =
+        |expression| postcondition_operand(program, signature, bindings, expression, depth + 1);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            Some(Operand::Integer(literal.clone(), literal.landing()))
+        }
+        ExpressionNode::Name(name) => bindings
+            .iter()
+            .find(|(formal, _)| formal.is_valid() && *formal == name.symbol)
+            .map(|(_, actual)| actual.clone()),
+        ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
+            let Operand::Place {
+                root,
+                mut fields,
+                path,
+            } = child(member.receiver)?
+            else {
+                return None;
+            };
+            fields.push(member.member_symbol);
+            Some(Operand::Place {
+                root,
+                fields,
+                path: format!("{path}.{}", member.member),
+            })
+        }
+        ExpressionNode::Binary(binary) => {
+            let reference = crate::parameter_expression_result_type_reference(
+                program,
+                signature.symbol,
+                program.state_signature_parameters(signature),
+                expression,
+            )?;
+            let primitive = program.primitive_type_reference(reference)?;
+            if primitive == PrimitiveType::Addr || primitive_range(primitive).is_none() {
+                return None;
+            }
+            Some(Operand::Binary {
+                operator: binary.operator,
+                primitive,
+                domain: program.arithmetic_domain_for_type_reference(reference),
+                operands: vec![child(binary.left)?, child(binary.right)?],
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Join the evaluated arguments and stable facts of every incoming path.

@@ -1,0 +1,39 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait MapBounds {
+    machine establish(offset: &mut u32, ceiling: &mut u32)
+    ensures offset == ceiling && ceiling <= 8;
+}
+
+data MapProvider {}
+machine MapProvider::establish(start: &mut u32, end: &mut u32)
+satisfies MapBounds::establish
+ensures start == end && end <= 8
+{
+    start = 4;
+    end = 4;
+}
+
+data Main {
+    console: Binding<Console>;
+    bounds: Binding<MapBounds>;
+    bytes: [u8; 12];
+    offset: u32;
+    ceiling: u32;
+}
+
+machine Main::main(context: &mut Main) reaches Console, MapBounds {
+    context.bytes[4] = 70;
+    context.bounds.establish(&mut context.offset, &mut context.ceiling);
+    transition { _ -> observe(context.offset, context.ceiling, context) }
+    state observe(offset: u32, ceiling: u32, context: &mut Main) {
+        let word: &u32 = &context.bytes[offset] as &u32;
+        transition word == 70 {
+            true -> passed(context)
+            false -> failed(context)
+        }
+    }
+    state passed(context: &mut Main) { context.console.exit_process(70); }
+    state failed(context: &mut Main) { context.console.exit_process(1); }
+}
