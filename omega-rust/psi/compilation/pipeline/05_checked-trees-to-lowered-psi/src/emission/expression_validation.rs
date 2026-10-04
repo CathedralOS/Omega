@@ -24,6 +24,12 @@ pub(crate) fn validate_boolean_parameter_types(
         Ok(())
     }
     match expression {
+        LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+            if operand.scalar_type() != ScalarType::Boolean {
+                return unsupported("Boolean observation lost its scalar type");
+            }
+            validate_direct_parameter_types(operand, parameter_types)
+        }
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
         LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
@@ -169,6 +175,9 @@ fn validate_path_parameter_types(
 
 pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
+        LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+            direct_expression_contains_short_circuit(operand)
+        }
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
@@ -204,6 +213,16 @@ pub(crate) fn validate_short_circuit_expression(
     expression: &LoweredBooleanReturnExpression,
 ) -> Result<(), LoweringError> {
     match expression {
+        LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+            if operand.scalar_type() != ScalarType::Boolean
+                || direct_expression_contains_short_circuit(operand)
+            {
+                return unsupported(
+                    "Boolean scalar observation has an invalid carrier or evaluation shape",
+                );
+            }
+            Ok(())
+        }
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }

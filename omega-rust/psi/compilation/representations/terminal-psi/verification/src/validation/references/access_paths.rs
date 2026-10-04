@@ -1,4 +1,4 @@
-//! Nonescaping call paths join exact typed crossings to existing loan custody.
+//! Nonescaping reads and call paths join typed crossings to existing loan custody.
 //! No path walk mints a permission or broadens escaping reference formation.
 
 use super::{
@@ -8,9 +8,9 @@ use super::{
     leaf_reference_type, origin_root, origins_overlap, shared_source_compatible, source_type,
 };
 
-/// Resolve a nonescaping call path without manufacturing a new loan.
+/// Resolve a nonescaping storage access without manufacturing a new loan.
 /// Live traversal separately authenticates each crossed descriptor and origin.
-pub(in crate::validation) fn call_source_type(
+pub(in crate::validation) fn access_source_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
     source: &StructuralArgument,
@@ -78,41 +78,41 @@ pub(in crate::validation) fn call_source_type(
     leaf_reference_type(module, current, &source.path[prefix_start..])
 }
 
-/// A synchronous borrow retains every possible final origin and protects the
+/// An observation or synchronous borrow retains every final origin and protects the
 /// descriptor storage read along the way. It creates no persistent child loan.
-pub(super) struct CallReferenceCustody {
+pub(super) struct AccessReferenceCustody {
     pub(super) origins: Vec<ReferenceOrigin>,
     pub(super) dependencies: Vec<ReferenceOrigin>,
 }
 
-pub(super) fn call_reference_custody(
+pub(super) fn access_reference_custody(
     module: &TerminalModule,
     machine: &TerminalMachine,
     live: &[LiveReference],
     argument: &StructuralArgument,
-) -> Result<CallReferenceCustody, ModuleError> {
+) -> Result<AccessReferenceCustody, ModuleError> {
     let invalid_path = || {
         invalid(
             machine,
-            "reference call path exceeds its exact type or access",
+            "reference access path exceeds its exact type or access",
         )
     };
     let invalid_live = || {
         invalid(
             machine,
-            "reference call descriptor is absent, ambiguous or suspended",
+            "reference access descriptor is absent, ambiguous or suspended",
         )
     };
     let invalid_opaque = || {
         invalid(
             machine,
-            "reference call crossing has no exact stored lineage",
+            "reference access crossing has no exact stored lineage",
         )
     };
-    call_source_type(module, machine, argument, true).ok_or_else(invalid_path)?;
+    access_source_type(module, machine, argument, true).ok_or_else(invalid_path)?;
     let mut current =
         super::super::structural::result_contracts::source_signature(machine, argument.place)
-            .ok_or_else(|| invalid(machine, "reference call root is absent"))?
+            .ok_or_else(|| invalid(machine, "reference access root is absent"))?
             .structural_type;
     let mut cursors = vec![(argument.place, Vec::new(), Vec::new())];
     let cursor_budget = live
@@ -216,7 +216,7 @@ pub(super) fn call_reference_custody(
             if origins.is_empty() {
                 return Err(invalid_live());
             }
-            return Ok(CallReferenceCustody {
+            return Ok(AccessReferenceCustody {
                 origins,
                 dependencies,
             });

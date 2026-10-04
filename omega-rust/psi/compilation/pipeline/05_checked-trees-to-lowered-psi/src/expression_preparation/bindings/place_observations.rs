@@ -1,4 +1,4 @@
-//! Captured byte-backed record loans and scalar observations of their layout.
+//! Captured place observations and byte-backed record layout observations.
 //! Preparing a loan retains normalized geometry, not a list of source reads.
 //! Each use resolves current backing custody; byte reads retain independent
 //! bounds and source replay remains with its existing owner.
@@ -117,29 +117,50 @@ pub(crate) enum LoanedSource {
     Local(symbols::SymbolHandle),
 }
 
-/// A recast loan retains storage and layout, not a table of source reads.
+/// A place loan retains storage and its observation view, not a table of reads.
 /// Shared by the state's scalar namespaces; each observation resolves the live
 /// backing anew. Geometry cannot grant access or replace source replay.
 #[derive(Clone)]
-pub(crate) struct ByteRecordLoan {
+pub(crate) struct PlaceObservation {
     pub(crate) statement_index: u32,
     pub(crate) symbol: symbols::SymbolHandle,
-    pub(crate) capture: Result<ByteRecordCapture, LoweringError>,
+    pub(crate) capture: Result<PlaceObservationCapture, LoweringError>,
 }
 
 #[derive(Clone)]
-pub(crate) struct ByteRecordCapture {
+pub(crate) struct PlaceObservationCapture {
     pub(crate) coordinate: Option<semantic_vocabulary::PlaceId>,
     pub(crate) source: LoanedSource,
     pub(crate) carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
     pub(crate) selector_primitive: Option<PrimitiveType>,
-    pub(crate) overlay: ByteOverlaySource,
-    pub(crate) layout: validation::RecastScalarLayout,
+    pub(crate) observation: ObservationKind,
+}
+
+#[derive(Clone)]
+pub(crate) enum ObservationKind {
+    ByteRecord {
+        overlay: ByteOverlaySource,
+        layout: validation::RecastScalarLayout,
+    },
+    Primitive(PrimitiveObservation),
+}
+
+/// The declaration-owned scalar leaf and its observation carrier are distinct:
+/// a conditional Boolean view never changes the storage's declared type.
+#[derive(Clone)]
+pub(crate) struct PrimitiveObservation {
+    pub(crate) scalar_type: ScalarType,
+    pub(crate) viewed_type: ScalarType,
+    pub(crate) field: Option<semantic_vocabulary::StructuralFieldId>,
+    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    pub(crate) element_path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) element: Option<semantic_vocabulary::StructuralTypeId>,
+    pub(crate) view_container: bool,
 }
 
 pub(crate) fn byte_record_observation(
-    loans: &[ByteRecordLoan],
+    loans: &[PlaceObservation],
     bindings: &super::ScalarBindings,
     symbol: symbols::SymbolHandle,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -159,6 +180,9 @@ pub(crate) fn byte_record_observation(
     // Preparing a declaration must not reject an unused unsupported loan.
     // Its observation, if any, owns the retained capture failure.
     let loan = loan.capture.as_ref().map_err(Clone::clone)?;
+    let ObservationKind::ByteRecord { overlay, layout } = &loan.observation else {
+        return Ok(None);
+    };
     // Geometry consumes only path positions. The scratch assignment markers
     // below stand for these ordered expressions, never emitted source evidence.
     let mut selectors = Vec::new();
@@ -179,21 +203,20 @@ pub(crate) fn byte_record_observation(
     }
     append_observation_path(bindings, element_path, &mut leaf_path, &mut selectors)?;
     let scalar_type = terminal_scalar_type(primitive)?;
-    let geometry =
-        loan.layout
-            .scalar_path_geometry(&leaf_path)
-            .ok_or(LoweringError::Unsupported(
-                "record byte observation lost its normalized scalar leaf",
-            ))?;
-    let projection = loan.overlay.geometry(geometry, &leaf_path, scalar_type)?;
+    let geometry = layout
+        .scalar_path_geometry(&leaf_path)
+        .ok_or(LoweringError::Unsupported(
+            "record byte observation lost its normalized scalar leaf",
+        ))?;
+    let projection = overlay.geometry(geometry, &leaf_path, scalar_type)?;
     if projection.indices.len() != selectors.len() {
         return unsupported("record byte observation changed its runtime coordinate roster");
     }
-    let source = bindings.byte_record_backing(loan.source)?;
+    let source = bindings.observation_backing(loan.source)?;
     let (prefix, coordinate) = match &loan.runtime_index {
         Some(_) => (
             loan.carrier_path.as_slice(),
-            bindings.byte_record_coordinate(symbol)?,
+            bindings.observation_coordinate(symbol)?,
         ),
         None => {
             let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) =

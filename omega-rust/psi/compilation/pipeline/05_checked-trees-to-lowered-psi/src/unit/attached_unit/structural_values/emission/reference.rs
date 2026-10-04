@@ -5,7 +5,7 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
-use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
+use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings, StructuralLocalBinding};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan};
 
 impl Emission<'_, '_, '_> {
@@ -14,13 +14,16 @@ impl Emission<'_, '_, '_> {
         source: &CheckedUnitStructuralArgumentPlan,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
+        let primitive_home = self.immutable_local_borrow_home(source)?;
         let (machine, state) = crate::expression_preparation::source_custody::authored_state(
             self.checked,
             self.state,
         )?;
+        let mut locals = self.evaluation.structural_locals.clone();
+        locals.extend(primitive_home);
         let argument = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_locals(&locals)
             .borrowed_structural_argument(source, machine, self.checked.state_parameters(state))?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
         // A borrowed join names the referent itself, even when that referent
@@ -63,5 +66,84 @@ impl Emission<'_, '_, '_> {
         }
 
         unsupported("reference destination is neither its carrier nor referent")
+    }
+
+    /// Immutable scalar locals are values until an address is observed. Rejoin
+    /// their authored ordinal to the completed SSA value, then give that value
+    /// one shared home using the same operation as addressable scalar ingress.
+    fn immutable_local_borrow_home(
+        &mut self,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<Option<StructuralLocalBinding>, LoweringError> {
+        let Some(facts::PlaceRoot::Symbol(symbol)) = source.structural_storage_root() else {
+            return Ok(None);
+        };
+        let (_, state) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        let Some((statement, local)) = self.checked.typed.state_local_declaration(state, symbol)
+        else {
+            return Ok(None);
+        };
+        let Some(primitive) = self.checked.primitive_type_reference(local.type_reference) else {
+            return Ok(None);
+        };
+        if local.is_mutable {
+            return Ok(None);
+        }
+        if statement >= self.statement as usize
+            || source.access != CheckedStructuralAccess::SharedBorrow
+            || !source.path.is_empty()
+            || self
+                .checked
+                .normalized_type_identity(local.type_reference)
+                .as_str()
+                != source.type_identity
+        {
+            return unsupported("immutable primitive borrow changed its source or access");
+        }
+        let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
+        let ordinal = crate::expression_preparation::source_custody::source_local_ordinal(
+            self.checked,
+            self.state,
+            u32::try_from(statement).map_err(|_| {
+                LoweringError::Unsupported("primitive local statement ordinal overflow")
+            })?,
+        )?;
+        let bindings =
+            self.evaluation
+                .scalar_bindings
+                .as_ref()
+                .ok_or(LoweringError::Unsupported(
+                    "immutable primitive borrow has no completed scalar namespace",
+                ))?;
+        let position = bindings.immutable_local_value(ordinal as usize, scalar_type)?;
+        let value = self.values.get(position).ok_or(LoweringError::Unsupported(
+            "immutable primitive borrow lost its completed scalar value",
+        ))?;
+        if value.scalar_type != scalar_type {
+            return unsupported("immutable primitive borrow changes its completed scalar type");
+        }
+        let structural_type = lookup_type_id(self.type_ids, &source.type_identity)?;
+        let place = self.evaluation.immutable_primitive_home(
+            symbol,
+            value,
+            structural_type,
+            self.structural_types,
+            self.next_place,
+            self.operations,
+            self.temporary_places,
+        )?;
+        Ok(Some(StructuralLocalBinding {
+            result_binding_ordinal: None,
+            root: facts::PlaceRoot::Symbol(symbol),
+            structural_type,
+            argument: terminal_psi::StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+        }))
     }
 }

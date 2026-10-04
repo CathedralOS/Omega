@@ -42,19 +42,17 @@ pub(crate) struct ScalarLocal {
     pub(crate) name: String,
     pub(crate) primitive_type: PrimitiveType,
     pub(crate) arithmetic_domain: ArithmeticDomain,
-    /// The captured place of a shared `&` local, or of an immutable `&mut`
-    /// place-loan local: the borrow target inside its `&place`/`&place as
-    /// &T` initializer. Reads through the local re-evaluate that place at
-    /// the use point rather than a value the binding itself stores.
-    pub(crate) shared_loan_place: Option<ExpressionHandle>,
+    /// A reference binding is observed through its established carrier. It owns
+    /// no scalar value ordinal, regardless of the expression that produced it.
+    pub(crate) is_reference: bool,
 }
 
 impl ScalarLocal {
     /// Immutable value bindings own a `Local` position and a binding
-    /// ordinal; shared `&` loans carry a place and stay out of the
+    /// ordinal; reference carriers stay out of the
     /// value-binding namespace.
     pub(crate) fn is_value_binding(&self) -> bool {
-        !self.is_mutable && self.shared_loan_place.is_none()
+        !self.is_mutable && !self.is_reference
     }
 }
 

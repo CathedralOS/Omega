@@ -22,6 +22,11 @@ pub(crate) struct LoweredByteSequenceOperand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredBooleanReturnExpression {
+    /// A scalar Boolean observation, including a representation view whose
+    /// source storage remains at its original scalar carrier.
+    ScalarObservation {
+        operand: Box<LoweredDirectExpression>,
+    },
     StructuralCaseMembership {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
@@ -112,6 +117,9 @@ pub(crate) fn emit_boolean_expression(
     operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
+        LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+            emit_direct_expression(operand, parameters, next_value_identity, operations)
+        }
         LoweredBooleanReturnExpression::Constant { value } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity

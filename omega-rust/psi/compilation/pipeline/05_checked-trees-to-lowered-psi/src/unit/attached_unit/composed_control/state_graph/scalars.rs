@@ -174,8 +174,8 @@ pub(super) fn emit_prefix(
     parameters: &[(u32, StructuralParameterDeclaration)],
     primitive_storage: &[(SymbolHandle, PlaceId, ScalarType)],
     structural_types: &[StructuralTypeDeclaration],
-    byte_record_loans: &std::sync::Arc<
-        [crate::expression_preparation::bindings::recast_records::ByteRecordLoan],
+    place_observations: &std::sync::Arc<
+        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
     >,
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
@@ -188,7 +188,7 @@ pub(super) fn emit_prefix(
         .with_primitive_storage(primitive_storage)
         .with_structural_parameters(parameters)
         .with_structural_observations(structural_types)
-        .with_byte_record_loans(byte_record_loans);
+        .with_place_observations(place_observations);
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {

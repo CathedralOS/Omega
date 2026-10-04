@@ -62,20 +62,6 @@ pub(super) fn build(
         .unwrap_or_default();
     let reference_loan = if !forwarded_reference_sources.is_empty() {
         arena::Handle::invalid()
-    } else if crate::execution::terminal_unit::reference_results::parts(
-        program,
-        target_state.return_type,
-    )
-    .is_some()
-    {
-        crate::execution::terminal_unit::reference_results::result_loan(
-            program,
-            facts,
-            machine.symbol,
-            state,
-            call,
-            result,
-        )?
     } else if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
         program,
         target_state.return_type,
@@ -85,7 +71,7 @@ pub(super) fn build(
             program,
             target_state.return_type,
         )
-        .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none())
+        .is_some()
     {
         // Both accesses retain the exact call's loan, activation and release.
         // Origin reconstruction belongs to the shared reference-result owner;

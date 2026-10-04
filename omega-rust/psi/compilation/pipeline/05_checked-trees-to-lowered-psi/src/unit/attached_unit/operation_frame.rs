@@ -745,21 +745,6 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("primitive reference ingress changed its source custody");
         }
-        let mut homes = self
-            .evaluation
-            .primitive_storage
-            .iter()
-            .filter(|row| row.0 == parameter.symbol);
-        if let Some((_, place, existing_type)) = homes.next() {
-            if homes.next().is_some() || *existing_type != scalar_type {
-                return unsupported("primitive ingress has ambiguous storage");
-            }
-            return Ok(StructuralArgument {
-                place: *place,
-                path: Vec::new(),
-                access: StructuralAccess::SharedBorrow,
-            });
-        }
         let position = match &self.evaluation.scalar_bindings {
             Some(bindings) => bindings.immutable_position(parameter_index as usize)?,
             None => parameter_index as usize,
@@ -781,33 +766,15 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("primitive ingress value and storage carrier disagree");
         }
-        let producer = self.operations.allocate();
-        let place = crate::unit::place_id(crate::unit::allocate_dense(self.next_place)?);
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: producer,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                place,
-                structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-                qualification_establishments: Vec::new(),
-            }),
-            kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
-        });
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        });
-        self.evaluation
-            .primitive_storage
-            .push((parameter.symbol, place, scalar_type));
+        let place = self.evaluation.immutable_primitive_home(
+            parameter.symbol,
+            value,
+            structural_type,
+            self.structural_types.declarations(),
+            self.next_place,
+            self.operations,
+            self.private_places,
+        )?;
         Ok(StructuralArgument {
             place,
             path: Vec::new(),
@@ -1175,7 +1142,7 @@ impl OperationFrame<'_, '_> {
         ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_primitive_storage(&self.evaluation.primitive_storage)
             .with_view_locals(&self.evaluation.view_locals)
-            .with_byte_record_loans(&self.evaluation.byte_record_loans)
+            .with_place_observations(&self.evaluation.place_observations)
             .with_element_views(&self.evaluation.element_views)
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals)
@@ -1202,7 +1169,7 @@ impl OperationFrame<'_, '_> {
                     .clone()
                     .with_structural_locals(&self.evaluation.structural_locals)
                     .with_view_locals(&self.evaluation.view_locals)
-                    .with_byte_record_loans(&self.evaluation.byte_record_loans);
+                    .with_place_observations(&self.evaluation.place_observations);
                 &dense
             }
             None => {
@@ -1356,7 +1323,7 @@ impl OperationFrame<'_, '_> {
                 Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_))
             ) {
             let bindings = self.dense_assignment_namespace();
-            let coordinate = bindings.byte_record_coordinate(loan.symbol)?;
+            let coordinate = bindings.observation_coordinate(loan.symbol)?;
             Some(crate::emission::operation_emission::emit_direct_expression(
                 &coordinate,
                 self.values,
@@ -2620,7 +2587,7 @@ impl OperationFrame<'_, '_> {
             })
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
-            .with_byte_record_loans(&self.evaluation.byte_record_loans);
+            .with_place_observations(&self.evaluation.place_observations);
         let destination = place_id(allocate_dense(self.next_place)?);
         let site = ViewRangeSite {
             state: self.state,

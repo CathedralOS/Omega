@@ -23,11 +23,16 @@ pub(super) fn parameter_type(
     if !parameter.symbol.is_valid() || parameter.is_self || parameter.is_const {
         return None;
     }
+    reference_type(checked, parameter.type_reference)
+}
+
+pub(super) fn reference_type(
+    checked: &CheckedTrees,
+    type_reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<(PrimitiveType, StructuralAccess)> {
     let TypeReferenceNode::Reference {
         access, referee, ..
-    } = checked
-        .type_reference_table
-        .type_reference(parameter.type_reference)
+    } = checked.type_reference_table.type_reference(type_reference)
     else {
         return None;
     };
@@ -36,10 +41,10 @@ pub(super) fn parameter_type(
         language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
         language_core::ReferenceAccess::WriteOnly => return None,
     };
-    // Arithmetic policy selects operations on the payload; it does not add
-    // membership restrictions. Reconstruct the same primitive carrier from the
-    // authored declaration without erasing range or nominal-domain obligations.
-    let primitive = validation::unrestricted_builtin_primitive(&checked.typed, *referee)?;
+    // Observation does not establish new domain membership. The existing
+    // carrier retains its qualifications; ingress binding below independently
+    // verifies the supported parameter custody and declared qualifications.
+    let primitive = checked.primitive_type_reference(*referee)?;
     (primitive != PrimitiveType::Addr).then_some((primitive, access))
 }
 

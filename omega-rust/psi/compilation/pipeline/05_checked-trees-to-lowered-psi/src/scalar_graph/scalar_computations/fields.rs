@@ -35,9 +35,10 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
 };
-pub(crate) use crate::expression_preparation::bindings::recast_records::LoanedSource;
-use crate::expression_preparation::bindings::recast_records::{
-    ByteOverlayField, ByteOverlaySource, ByteRecordCapture, ByteRecordLoan, byte_overlay_read,
+pub(crate) use crate::expression_preparation::bindings::place_observations::LoanedSource;
+use crate::expression_preparation::bindings::place_observations::{
+    ByteOverlayField, ByteOverlaySource, ObservationKind, PlaceObservation,
+    PlaceObservationCapture, PrimitiveObservation, byte_overlay_read,
 };
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
@@ -221,12 +222,12 @@ enum LoanedPathSegment {
     RuntimeIndex(ExpressionHandle),
 }
 
-pub(crate) fn prepare_byte_record_loans(
+pub(crate) fn prepare_place_observations(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
-) -> Result<std::sync::Arc<[ByteRecordLoan]>, LoweringError> {
+) -> Result<std::sync::Arc<[PlaceObservation]>, LoweringError> {
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let mut loans = Vec::new();
@@ -245,38 +246,78 @@ pub(crate) fn prepare_byte_record_loans(
         else {
             continue;
         };
+        let statement_index = u32::try_from(statement_index).map_err(|_| {
+            LoweringError::Unsupported("place observation statement ordinal overflow")
+        })?;
+        let primitive = checked.primitive_type_reference(*referee).is_some();
+        let operations = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .map(|plan| plan.operations.as_slice())
+            .or_else(|| {
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(machine)
+                    .and_then(|plan| plan.states.iter().find(|row| row.state == state))
+                    .map(|state| state.operations.as_slice())
+            });
+        let established = operations.is_some_and(|operations| operations.iter().any(|operation| {
+            matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                if result.statement_index == statement_index)
+        }));
+        if primitive
+            && (established
+                || checked
+                    .facts
+                    .values
+                    .structural_values
+                    .root_for_expression(state, statement_index, local.initial_value)
+                    .is_some())
+        {
+            // An actual reference carrier owns its capture and observations.
+            continue;
+        }
         let identity = checked.normalized_type_identity(*referee);
-        if !types.iter().any(|declaration| {
-            declaration.identity == identity.as_str()
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        }) {
+        if !primitive
+            && !types.iter().any(|declaration| {
+                declaration.identity == identity.as_str()
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            })
+        {
             continue;
         }
         let capture = (|| {
-            let Some(loan) = record_loan_subject(checked, machine, state, local.symbol, types)?
+            let Some(loan) = captured_place_subject(checked, machine, state, local.symbol, types)?
             else {
                 return Ok(None);
             };
-            let Some(overlay) = loan.byte_overlay else {
-                return Ok(None);
+            let observation = if let Some(primitive) = loan.primitive {
+                ObservationKind::Primitive(primitive)
+            } else {
+                let Some(overlay) = loan.byte_overlay else {
+                    return Ok(None);
+                };
+                if loan.view_container || !loan.element_suffix.is_empty() {
+                    return Ok(None);
+                }
+                let Some(layout) =
+                    validation::recast_scalar_layout(&checked.typed, overlay.referee)
+                else {
+                    return unsupported("record byte observation has no normalized scalar layout");
+                };
+                ObservationKind::ByteRecord { overlay, layout }
             };
-            // A byte-region record view is not an element-view descriptor. The
-            // captured coordinate belongs to its fixed backing array.
-            if loan.view_container || !loan.element_suffix.is_empty() {
-                return Ok(None);
-            }
-            let Some(layout) = validation::recast_scalar_layout(&checked.typed, overlay.referee)
-            else {
-                return unsupported("record byte observation has no normalized scalar layout");
-            };
-            Ok(Some(ByteRecordCapture {
+            Ok(Some(PlaceObservationCapture {
                 coordinate: None,
                 source: loan.source,
                 carrier_path: loan.carrier_path,
                 runtime_index: loan.runtime_index,
                 selector_primitive: loan.selector_primitive,
-                overlay,
-                layout,
+                observation,
             }))
         })();
         let capture = match capture {
@@ -284,10 +325,8 @@ pub(crate) fn prepare_byte_record_loans(
             Ok(None) => continue,
             Err(error) => Err(error),
         };
-        loans.push(ByteRecordLoan {
-            statement_index: u32::try_from(statement_index).map_err(|_| {
-                LoweringError::Unsupported("record loan statement ordinal overflow")
-            })?,
+        loans.push(PlaceObservation {
+            statement_index,
             symbol: local.symbol,
             capture,
         });
@@ -348,17 +387,18 @@ fn captured_subject_path(
     }
 }
 
-/// The established place a record-loan local borrows from: the captured
+/// The established place an observation local borrows from: the captured
 /// root join, the canonical prefix to the referent, the referee's
 /// structural declaration at that prefix, and — when the prefix ends on a
 /// `u8` element (`&self.buf[0] as &T`) — the referee record the byte region
 /// overlays.
-struct RecordLoanSubject {
+struct CapturedPlaceSubject {
     access: language_core::ReferenceAccess,
     source: LoanedSource,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     terminal: StructuralTypeId,
+    primitive: Option<PrimitiveObservation>,
     byte_overlay: Option<ByteOverlaySource>,
     typed_overlay: Option<TypedRecordOverlay>,
     /// The checked coordinate of the loan's non-literal index, when the
@@ -378,19 +418,19 @@ struct RecordLoanSubject {
     element_suffix: Vec<terminal_psi::StructuralPathSegment>,
 }
 
-/// A record-loan local is a silent loan marker: it mints no established
+/// A captured place observation is a silent loan marker: it mints no established
 /// place of its own, so a member read through it must resolve the structural
 /// parameter the loan captured plus the canonical path from that root to the
 /// referee. `None` means the local is not such a loan; `Some` carries the
 /// captured source join, the canonical prefix, and the declared type the
 /// prefix ends on so the ordinary subject walk can continue there.
-fn record_loan_subject(
+fn captured_place_subject(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     symbol: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
-) -> Result<Option<RecordLoanSubject>, LoweringError> {
+) -> Result<Option<CapturedPlaceSubject>, LoweringError> {
     let (source_machine, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if source_machine.symbol != machine {
@@ -421,10 +461,12 @@ fn record_loan_subject(
     if !matches!(
         *access,
         language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-    ) || !matches!(
-        checked.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { .. }
-    ) {
+    ) || (checked.primitive_type_reference(*referee).is_none()
+        && !matches!(
+            checked.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::Named { .. }
+        ))
+    {
         return Ok(None);
     }
     let mut initializer = local.initial_value;
@@ -558,7 +600,9 @@ fn record_loan_subject(
     // set only when that index ends the prefix (`a[i]` cannot extend into a
     // `u8` element's members, so a byte-carrier prefix always ends there).
     let mut tail = None;
-    for segment in segments {
+    let mut primitive_field = None;
+    let segment_count = segments.len();
+    for (segment_ordinal, segment) in segments.into_iter().enumerate() {
         match segment {
             LoanedPathSegment::Field(identity) => {
                 let StructuralTypeShape::Record { fields } = &declaration.shape else {
@@ -568,12 +612,33 @@ fn record_loan_subject(
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record loan's captured field is absent",
                 ))?;
-                let StructuralFieldType::Structural(nested) = selected.field_type else {
-                    return unsupported("record loan's captured field is not structural");
-                };
                 if matching.next().is_some() || selected.relevance.is_erased() {
                     return unsupported("record loan's captured field is ambiguous or erased");
                 }
+                // Refined and bounded scalar declarations keep their original
+                // field identity so the ordinary read retains its restrictions.
+                // Atomic cells are a distinct access family, never plain loans.
+                if let Some(scalar_type) = selected.field_type.scalar_type()
+                    && !matches!(selected.field_type, StructuralFieldType::Atomic(_))
+                {
+                    if checked.primitive_type_reference(*referee).is_none() {
+                        return unsupported(
+                            "record observation cannot replace a scalar storage endpoint",
+                        );
+                    }
+                    if segment_ordinal + 1 != segment_count {
+                        return unsupported("primitive observation continues below a scalar field");
+                    }
+                    primitive_field = Some((selected.id, scalar_type));
+                    carrier_path.push(terminal_psi::StructuralPathSegment::Field(
+                        selected.identity.clone(),
+                    ));
+                    tail = None;
+                    break;
+                }
+                let StructuralFieldType::Structural(nested) = selected.field_type else {
+                    return unsupported("record loan's captured field is not structural");
+                };
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     selected.id,
                 ));
@@ -753,7 +818,35 @@ fn record_loan_subject(
         Some(split) => (path.split_off(split), carrier_path.split_off(split)),
         None => (Vec::new(), Vec::new()),
     };
-    Ok(Some(RecordLoanSubject {
+    let primitive = checked
+        .primitive_type_reference(*referee)
+        .map(|viewed| {
+            let (field, scalar_type) = match primitive_field {
+                Some((field, scalar_type)) => (Some(field), scalar_type),
+                None => match declaration.shape {
+                    StructuralTypeShape::PrimitiveScalar(scalar_type) => (None, scalar_type),
+                    _ => {
+                        return unsupported("primitive observation has no declared scalar storage");
+                    }
+                },
+            };
+            Ok(PrimitiveObservation {
+                scalar_type,
+                viewed_type: terminal_scalar_type(viewed)?,
+                field,
+                path: if runtime_split.is_some() {
+                    carrier.clone()
+                } else {
+                    path.clone()
+                },
+                element_path: element_suffix.clone(),
+                element: selected_element,
+                view_container,
+            })
+        })
+        .transpose()?;
+    Ok(Some(CapturedPlaceSubject {
+        primitive,
         access: *access,
         source,
         path,
@@ -790,7 +883,7 @@ pub(crate) fn loaned_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
         return Ok(None);
     };
-    let Some(loan) = record_loan_subject(checked, machine, state, symbol, types)? else {
+    let Some(loan) = captured_place_subject(checked, machine, state, symbol, types)? else {
         return Ok(None);
     };
     if loan.access != language_core::ReferenceAccess::Mutable {
@@ -850,7 +943,7 @@ pub(crate) fn loaned_primitive_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
         return Ok(None);
     };
-    let Some(loan) = record_loan_subject(checked, machine, state, *symbol, types)? else {
+    let Some(loan) = captured_place_subject(checked, machine, state, *symbol, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {
@@ -870,7 +963,7 @@ pub(crate) fn loaned_primitive_store(
 }
 
 fn captured_store_path(
-    loan: &RecordLoanSubject,
+    loan: &CapturedPlaceSubject,
 ) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, LoweringError> {
     let mut path = Vec::new();
     for segment in &loan.carrier_path {
@@ -986,7 +1079,7 @@ pub(crate) fn prepare(
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
-                } => record_loan_subject(checked, root.machine, root.state, symbol, types)?,
+                } => captured_place_subject(checked, root.machine, root.state, symbol, types)?,
                 _ => None,
             };
             let (
@@ -1544,7 +1637,7 @@ fn observe(
             return byte_overlay_read(
                 source,
                 &binding.carrier_path,
-                bindings.byte_record_coordinate(symbol)?,
+                bindings.observation_coordinate(symbol)?,
                 overlay.offset,
                 overlay.stored_type,
                 binding.scalar_type,

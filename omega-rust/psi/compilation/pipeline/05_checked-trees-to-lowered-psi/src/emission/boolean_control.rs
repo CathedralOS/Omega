@@ -222,6 +222,7 @@ pub(crate) fn lower_boolean_value_decision(
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
+        | LoweredBooleanReturnExpression::ScalarObservation { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }

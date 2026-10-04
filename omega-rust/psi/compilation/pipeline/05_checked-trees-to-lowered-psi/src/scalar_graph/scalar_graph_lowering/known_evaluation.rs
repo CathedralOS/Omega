@@ -463,6 +463,7 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
+        | LoweredBooleanReturnExpression::ScalarObservation { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
         | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }

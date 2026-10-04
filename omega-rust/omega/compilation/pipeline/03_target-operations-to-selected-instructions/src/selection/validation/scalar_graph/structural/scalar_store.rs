@@ -123,7 +123,7 @@ pub(super) fn validate(
     if row.result.is_some() || !declared {
         return Err(replay.invalid());
     }
-    let mut pointer = if pointer_slots.is_empty() {
+    let pointer = if pointer_slots.is_empty() {
         super::runtime_address::projection_base(
             source,
             replay,
@@ -135,56 +135,15 @@ pub(super) fn validate(
     } else {
         super::place_pointer(replay, row, destination.place(), 0)?
     };
-    // Every reference crossing ends its own contiguous address region. Preserve
-    // each pointer load before applying the following region's offset or indices.
-    let mut leaf_indices = indices.as_slice();
-    for slot in pointer_slots {
-        let slot_indices = indices
-            .get(slot.indices.clone())
-            .ok_or_else(|| replay.invalid())?;
-        let address = super::runtime_address::scale(
-            replay,
-            row,
-            destination.place(),
-            slot.byte_offset,
-            pointer,
-            slot_indices,
-        )?;
-        let (address, displacement) = super::memory_pointer(
-            replay,
-            row,
-            destination.place(),
-            address,
-            slot.byte_offset,
-            8,
-        )?;
-        super::runtime_address::footprint(
-            replay,
-            row,
-            destination.place(),
-            slot.byte_offset,
-            8,
-            slot_indices,
-            super::runtime_address::Written::None,
-        )?;
-        let loaded = super::result(replay, destination.place(), slot.byte_offset)?;
-        replay.check_instruction(
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            replay
-                .constraints
-                .keys
-                .load64
-                .ok_or_else(|| replay.invalid())?,
-            &[address, loaded],
-            &super::provenance(row),
-        )?;
-        pointer = loaded;
-        leaf_indices = indices
-            .get(slot.indices.end..)
-            .ok_or_else(|| replay.invalid())?;
-    }
+    let (pointer, leaf_index) = super::runtime_address::cross_references(
+        replay,
+        row,
+        destination.place(),
+        pointer,
+        indices,
+        &pointer_slots,
+    )?;
+    let leaf_indices = &indices[leaf_index..];
     let (_, register, _, scalar) = replay
         .resolve(value.value)
         .ok_or_else(|| replay.invalid())?;

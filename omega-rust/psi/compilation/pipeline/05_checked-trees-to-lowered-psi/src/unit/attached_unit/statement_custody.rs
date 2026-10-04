@@ -164,9 +164,9 @@ fn place_loan_declaration(
     if initializer.access != reference.access {
         return None;
     }
-    // Shared scalar aliases can have observation roots without establishing a
-    // structural value. Every other retained root is a real producer whose
-    // operation must survive, even if a damaged roster no longer mentions it.
+    // A retained structural root establishes its reference carrier regardless
+    // of the referent's scalar or record shape. Its operation must survive,
+    // even if a damaged roster no longer mentions it.
     let structural_root = checked
         .facts
         .values
@@ -178,13 +178,7 @@ fn place_loan_declaration(
                 && root.statement_ordinal as usize == index
                 && root.expression == local.initial_value
         });
-    if structural_root
-        && !(reference.access == ReferenceAccess::Shared
-            && checked
-                .typed
-                .primitive_type_reference(reference.referee)
-                .is_some())
-    {
+    if structural_root {
         return None;
     }
     let flows = checked

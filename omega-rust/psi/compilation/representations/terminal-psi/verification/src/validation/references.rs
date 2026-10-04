@@ -15,9 +15,11 @@ use super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
     Terminator,
 };
-mod call_paths;
-pub(super) use call_paths::call_source_type;
-use call_paths::{call_dependency_conflict, call_reference_custody, descriptor_storage_available};
+mod access_paths;
+pub(super) use access_paths::access_source_type;
+use access_paths::{
+    access_reference_custody, call_dependency_conflict, descriptor_storage_available,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ReferenceIdentity {
@@ -541,7 +543,7 @@ pub(crate) fn is_reference_projection(
     machine: &TerminalMachine,
     source: &StructuralArgument,
 ) -> bool {
-    call_source_type(module, machine, source, true).is_some()
+    access_source_type(module, machine, source, true).is_some()
         && source.path.contains(&StructuralPathSegment::Referent)
         && source.access != StructuralAccess::Owned
 }
@@ -1944,6 +1946,18 @@ fn check_operation_root_access(
     if live.is_empty() {
         return Ok(());
     }
+    // A shared child freezes mutation, not observations through its owner.
+    // Keep carrier storage separate: reading a pointer as owned scalar data
+    // is still forbidden. Stores and atomic events retain their own authority.
+    let observing = matches!(
+        operation.kind,
+        OperationKind::PrimitiveScalarRead { .. }
+            | OperationKind::StructuralCaseMembership { .. }
+            | OperationKind::IntegerStructuralField { .. }
+            | OperationKind::BooleanStructuralField { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
+    );
     let regions = super::structural::access_regions::operation_regions(module, machine, operation);
     let unresolved = !regions.iter().any(|(root, _)| *root == place);
     let overlaps_path = |path: &[StructuralPathSegment]| {
@@ -1968,6 +1982,13 @@ fn check_operation_root_access(
     if live.iter().any(|reference| {
         (reference.carrier == place && overlaps_path(&reference.carrier_path))
             || (origin_root(&reference.root) == place
+                && !(observing
+                    && shared_source_compatible(
+                        module,
+                        machine,
+                        reference,
+                        StructuralAccess::SharedBorrow,
+                    ))
                 && match &reference.root {
                     ReferenceOrigin::Primitive(_) => true,
                     ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
@@ -2040,8 +2061,25 @@ pub(super) fn apply_operation(
         OperationKind::EstablishStructuralCase { .. } => {
             return establish_constructor(module, machine, operation, live);
         }
-        OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::StructuralCaseMembership { source, .. } => {
+        OperationKind::PrimitiveScalarRead { source, path } => {
+            if path.contains(&StructuralPathSegment::Referent) {
+                // Observation borrows the existing permission for this use;
+                // it neither consumes the carrier nor substitutes its origin.
+                access_reference_custody(
+                    module,
+                    machine,
+                    live,
+                    &StructuralArgument {
+                        place: *source,
+                        path: path.clone(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )?;
+            } else {
+                check_operation_root_access(module, machine, live, operation, *source)?;
+            }
+        }
+        OperationKind::StructuralCaseMembership { source, .. } => {
             check_operation_root_access(module, machine, live, operation, *source)?
         }
         OperationKind::IntegerStructuralField { source, .. }
@@ -2127,7 +2165,7 @@ pub(super) fn apply_operation(
     let mut moved = BTreeSet::new();
     for (argument_position, argument) in arguments.iter().enumerate() {
         if argument.path.contains(&StructuralPathSegment::Referent) {
-            let custody = call_reference_custody(module, machine, live, argument)?;
+            let custody = access_reference_custody(module, machine, live, argument)?;
             if arguments.iter().enumerate().any(|(position, other)| {
                 position != argument_position
                     && call_dependency_conflict(&custody.dependencies, other)

@@ -152,32 +152,22 @@ fn projected_local(
     else {
         return None;
     };
-    function.blocks.iter().flat_map(|block| &block.nodes).find_map(|node| {
-        let (operation, result) = match &node.operation {
-            O::EstablishRecord { psi_operation, result, .. }
-            | O::EstablishZeroedStructural { psi_operation, result }
-            | O::EstablishScalarArray { psi_operation, result, .. } | O::EstablishStructuralArray { psi_operation, result, .. }
-            | O::EstablishCase { psi_operation, result, .. }
-            | O::StructuralLeafCopy { psi_operation, result, .. }
-            | O::MoveStructuralField { psi_operation, result, .. }
-            | O::CallStructural {
-                psi_operation,
-                result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            | O::BoundaryCall {
-                psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                ..
-            } => (*psi_operation, result),
-            _ => return None,
-        };
-        (operation == producer
-            && result.place == source
-            && result.structural_type == structural_type
-            && matches!(result.multiplicity, StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine)
-            && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
-            && result.claims.is_empty()).then_some(result)
-    })
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| {
+            let (operation, result) = node.operation.structural_result()?;
+            (operation == producer
+                && result.place == source
+                && result.structural_type == structural_type
+                && matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty())
+            .then_some(result)
+        })
 }

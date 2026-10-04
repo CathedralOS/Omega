@@ -476,7 +476,7 @@ pub(super) fn lower_unit_structural_types_including(
             };
             for state in states {
                 let loans =
-                    crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+                    crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
                         checked,
                         *machine,
                         state,

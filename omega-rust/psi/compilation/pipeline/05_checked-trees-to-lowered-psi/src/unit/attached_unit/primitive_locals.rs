@@ -407,3 +407,63 @@ impl OperationFrame<'_, '_> {
         })
     }
 }
+
+impl super::argument_evaluation::Evaluation {
+    /// One immutable scalar value receives one original addressable home.
+    /// Callers authenticate its source declaration and already-evaluated value;
+    /// all later loans reuse this home, independent of their observation type.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::unit::attached_unit) fn immutable_primitive_home(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        value: &terminal_psi::ValueDeclaration,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        declarations: &[StructuralTypeDeclaration],
+        next_place: &mut u64,
+        operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+        places: &mut Vec<StructuralPlaceDeclaration>,
+    ) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
+        let mut types = declarations.iter().filter(|row| row.id == structural_type);
+        if !symbol.is_valid()
+            || types.next().map(|row| &row.shape)
+                != Some(&StructuralTypeShape::PrimitiveScalar(value.scalar_type))
+            || types.next().is_some()
+        {
+            return unsupported("primitive value home lost its exact storage declaration");
+        }
+        let mut homes = self.primitive_storage.iter().filter(|row| row.0 == symbol);
+        if let Some((_, place, scalar_type)) = homes.next() {
+            if homes.next().is_some() || *scalar_type != value.scalar_type {
+                return unsupported("primitive value has ambiguous original storage");
+            }
+            return Ok(*place);
+        }
+        let producer = operations.allocate();
+        let place = place_id(allocate_dense(next_place)?);
+        operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: producer,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+                qualification_establishments: Vec::new(),
+            }),
+            kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
+        });
+        places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
+        self.primitive_storage
+            .push((symbol, place, value.scalar_type));
+        Ok(place)
+    }
+}

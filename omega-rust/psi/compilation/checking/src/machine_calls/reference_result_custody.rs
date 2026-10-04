@@ -7,9 +7,7 @@ use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod primitive_locals;
@@ -2004,7 +2002,7 @@ pub fn shared_place_borrowed_parts(
 }
 
 /// Source reference use multiplicity does not encode the lifetime obligation
-/// of a materialized carrier. Mutable carrier custody must end exactly once.
+/// of a materialized carrier. Reference carrier custody must end exactly once.
 pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
     if parts(program, reference).is_some()
         || shared_borrowed_parts(program, reference).is_some()
@@ -2248,24 +2246,38 @@ pub fn result_loan(
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
-    let StatementNode::LocalData(local) = program
+    let statement = program
         .statement_table
         .statements(state.statement_nodes)
-        .get(result.statement_index as usize)?
-    else {
-        return None;
+        .get(result.statement_index as usize)?;
+    let local = match statement {
+        StatementNode::LocalData(local) => local,
+        StatementNode::Call(authored)
+            if authored.discards_result
+                && !call.authored_expression.is_valid()
+                && call.statement_index == result.statement_index as usize
+                && call.call_ordinal == 0
+                && authored.target_symbol == call.target_symbol =>
+        {
+            // An explicitly discarded result has no binding lifetime. Its
+            // materialized carrier still owes ordinary completion cleanup;
+            // no fabricated named-local loan may stand in for that debt.
+            // The call/result custody replay separately authenticates operands,
+            // result type and every callee completion's exact returned origins.
+            return Some(arena::Handle::invalid());
+        }
+        _ => return None,
     };
     // `mutable_borrowed_parts` peels every `&mut`, including the whole
     // primitive references `parts` already owns; those keep the ingress and
-    // leaf rosters. Non-primitive shared and mutable views use the same
-    // complete result relation; their declared access still determines the
-    // independent caller loan checked below. Primitive shared results remain
-    // Unrestricted and reach custody through `permits_disposal`.
+    // leaf rosters. Shared and mutable views use the same complete result
+    // relation; their declared access still determines the independent caller
+    // loan checked below. A materialized shared primitive carrier retains this
+    // loan obligation even though source observations do not consume it.
     let mutable_view = parts(program, local.type_reference).is_none()
         && mutable_borrowed_parts(program, local.type_reference).is_some();
     let shared_view = parts(program, local.type_reference).is_none()
-        && shared_borrowed_parts(program, local.type_reference)
-            .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none());
+        && shared_borrowed_parts(program, local.type_reference).is_some();
     if !mutable_view && !shared_view {
         parts(program, local.type_reference)?;
     }
@@ -2584,295 +2596,6 @@ pub fn result_loan(
     Some(handle)
 }
 
-/// Reconstruct the `&mut T` result's caller-side storage loan the same way
-/// `result_loan` does for a primitive referee: the signature's declared
-/// source applied at this exact call site — the receiver for a `&mut self`
-/// callee (elision rule 3), else the one unambiguous reference argument —
-/// replayed as the recorded loan's (root, segments). The callee's own
-/// completion independently verifies the returned place's ingress; this
-/// replay pins the caller's substitution, activation and weakening.
-///
-/// Name, member and whole-borrow actuals spell exact places; a local actual
-/// resolves through the loans already recorded for it (the same rebase the
-/// borrow tracker performs). Indexed actuals keep their index segment;
-/// computed receivers, nested-call actuals and borrow-carrying owned
-/// carriers stay opaque and reject the whole lane.
-pub fn mutable_result_loan(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
-    result: &CheckedUnitStructuralResultBindingPlan,
-) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
-    let Some(StatementNode::LocalData(local)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return None;
-    };
-    if local.is_mutable || mutable_borrowed_parts(program, local.type_reference).is_none() {
-        return None;
-    }
-    let ExpressionNode::Call(expression) = program.expression_table.expression(local.initial_value)
-    else {
-        return None;
-    };
-    if expression.target_symbol != call.target_symbol
-        || call.authored_expression != local.initial_value
-        || call.statement_index != result.statement_index as usize
-        || call.call_ordinal != 0
-    {
-        return None;
-    }
-    let Some(callee_machine) = program.machine_holding_state(call.target_symbol) else {
-        return None;
-    };
-    let Some(callee) = program
-        .machine_states(callee_machine)
-        .iter()
-        .find(|candidate| candidate.symbol == call.target_symbol)
-    else {
-        return None;
-    };
-    if mutable_borrowed_parts(program, callee.return_type).is_none()
-        || program.normalized_type_identity(local.type_reference)
-            != program.normalized_type_identity(callee.return_type)
-    {
-        return None;
-    }
-    let Some(expected) = mutable_result_source_places(
-        program,
-        facts,
-        machine,
-        state,
-        call.statement_index,
-        expression,
-        callee_machine,
-        callee,
-    ) else {
-        return None;
-    };
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, candidate)| candidate)
-        .filter(|candidate| {
-            candidate.machine_symbol == machine && candidate.state_symbol == state.symbol
-        });
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
-    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-        facts.borrow.state_owns_loan(borrowing, *handle) && loan.owner_symbol == local.symbol
-    });
-    let Some((handle, loan)) = loans.next() else {
-        return None;
-    };
-    if loans.next().is_some()
-        || loan.statement_index != call.statement_index
-        || loan.kind != checked_trees::BorrowAccessKind::Mutable
-        || !facts.borrow.loan_owner_path(loan).is_empty()
-        || !expected.iter().any(|(root, segments)| {
-            *root == loan.root_symbol && segments.as_slice() == facts.borrow.loan_segments(loan)
-        })
-    {
-        return None;
-    }
-    let flow = state_flow(facts, machine, state.symbol)?;
-    let mut activations = facts
-        .flow
-        .borrow_lifetimes
-        .activations
-        .span_or_empty(flow.borrow_activations)
-        .iter()
-        .filter(|activation| activation.loan == handle);
-    let activation = activations.next()?;
-    if activations.next().is_some()
-        || activation.source
-            != (checked_trees::FlowInvalidationSource::Statement {
-                statement_index: loan.statement_index,
-            })
-    {
-        return None;
-    }
-    release_boundary(program, facts, machine, state.symbol, handle)?;
-    Some(handle)
-}
-
-/// The caller-side places a `-> &mut T` call's declared return source can
-/// name, spelled as recorded-loan (root, segments) candidates: the receiver
-/// for a `&mut self` callee, else the one unambiguous reference argument's
-/// actual, rebased through any loans the actual's root already carries. This
-/// mirrors the resolution `helper_call_borrow_loan_place` performs so the
-/// produced custody and this replay answer the same place.
-pub fn mutable_result_source_places(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    callee_machine: &typed_trees::machine::Machine,
-    callee: &typed_trees::state::State,
-) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
-    let parameters = program.state_parameters(callee);
-    let mut candidates = Vec::new();
-    // The callee's own completion names the authored parameter its `&mut`
-    // tail rejoined: replay it here and substitute the caller's actual for
-    // that position — the receiver for `self`, else the positional
-    // non-receiver argument. This is the primary derivation: it is exact
-    // for non-`self` return sources, which the elision rule below cannot
-    // see once a `&mut self` receiver is present.
-    if let Some((tail_index, tail_expression)) = mutable_return_tail(program, callee)
-        && let Some((position, _)) = mutable_return_source(
-            program,
-            facts,
-            callee_machine.symbol,
-            callee,
-            tail_index,
-            tail_expression,
-        )
-        && let Some(actual) = if parameters[position].is_self {
-            call.receiver.is_valid().then_some(call.receiver)
-        } else {
-            let index = parameters
-                .iter()
-                .take(position)
-                .filter(|parameter| !parameter.is_self)
-                .count();
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .get(index)
-                .copied()
-        }
-        && let Some((root, segments)) =
-            mutable_source_place(program, machine, state, statement_index, actual)
-    {
-        candidates.extend(rebase_place_through_local_loans(
-            program,
-            facts,
-            machine,
-            state.symbol,
-            statement_index,
-            root,
-            segments,
-        ));
-    }
-    let actual = if parameters.iter().any(|parameter| parameter.is_self) {
-        if !call.receiver.is_valid() {
-            return if candidates.is_empty() {
-                None
-            } else {
-                Some(candidates)
-            };
-        }
-        Some(call.receiver)
-    } else {
-        let mut ref_positions: Vec<(usize, Option<String>)> = Vec::new();
-        let mut position = 0usize;
-        for parameter in parameters {
-            if parameter.is_self {
-                continue;
-            }
-            let index = position;
-            position = position.saturating_add(1);
-            if is_reference_node(program, parameter.type_reference) {
-                ref_positions.push((
-                    index,
-                    reference_lifetime(program, parameter.type_reference).map(str::to_owned),
-                ));
-            } else if parameter_returns_borrow(program, parameter.type_reference) {
-                // A borrow-carrying owned carrier resolves leaf by leaf; that
-                // structural frontier names no single direct place.
-                return if candidates.is_empty() {
-                    None
-                } else {
-                    Some(candidates)
-                };
-            }
-        }
-        let position = match reference_lifetime(program, callee.return_type) {
-            Some(output) => {
-                let mut matching = ref_positions
-                    .iter()
-                    .filter(|(_, lifetime)| lifetime.as_deref() == Some(output));
-                let Some((index, _)) = matching.next().filter(|_| matching.next().is_none()) else {
-                    return if candidates.is_empty() {
-                        None
-                    } else {
-                        Some(candidates)
-                    };
-                };
-                Some(*index)
-            }
-            None => match ref_positions.as_slice() {
-                [(single, _)] => Some(*single),
-                _ => None,
-            },
-        };
-        position.and_then(|position| {
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .get(position)
-                .copied()
-        })
-    };
-    if let Some(actual) = actual
-        && let Some((root, segments)) =
-            mutable_source_place(program, machine, state, statement_index, actual)
-    {
-        candidates.extend(rebase_place_through_local_loans(
-            program,
-            facts,
-            machine,
-            state.symbol,
-            statement_index,
-            root,
-            segments,
-        ));
-    }
-    (!candidates.is_empty()).then_some(candidates)
-}
-
-/// The final `&mut` tail one `-> &mut T` state's authored body spells: a
-/// terminal expression statement or an unconditional ordinary value
-/// transition target, the same shapes `mutable_reference_result_operation`
-/// produces `EstablishReference` for.
-pub fn mutable_return_tail(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-) -> Option<(usize, typed_trees::expression::ExpressionHandle)> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let index = statements.len().checked_sub(1)?;
-    match statements.get(index)? {
-        StatementNode::Expression(expression) => Some((index, *expression)),
-        StatementNode::Transition(transition)
-            if transition.guard == TransitionGuardNode::Always
-                && transition.exit == TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            let TransitionTargetNode::Value(expression) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                return None;
-            };
-            Some((index, *expression))
-        }
-        _ => None,
-    }
-}
-
-/// One actual's place spelled the way `borrow_access_place` spells it: borrows
-/// unwrap to their target, members append the resolved field (pushing a `Case`
-/// segment for payload fields), an attached-machine receiver roots at the
-/// member itself, and index steps keep their normalized selector segment.
-/// Every other shape stays opaque to the result loan.
 fn mutable_source_place(
     program: &TypedTrees,
     machine: SymbolHandle,
@@ -3515,60 +3238,6 @@ fn is_reference_node(program: &TypedTrees, reference: TypeReferenceHandle) -> bo
         TypeReferenceNode::Constrained { base_type, .. } => is_reference_node(program, *base_type),
         _ => false,
     }
-}
-
-/// The explicit lifetime name on a reference type, seeing through a
-/// `Constrained` shell. `None` for an elided reference or a non-reference.
-fn reference_lifetime<'a>(
-    program: &'a TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<&'a str> {
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference { lifetime, .. } => {
-            lifetime.as_ref().map(|name| name.as_str())
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => reference_lifetime(program, *base_type),
-        _ => None,
-    }
-}
-
-/// Whether one non-reference parameter type structurally carries a borrow:
-/// a record, array, or slice containing a reference field somewhere. That
-/// shape resolves through the structural leaf frontier, not this lane's
-/// direct source.
-fn parameter_returns_borrow(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    fn visit(
-        program: &TypedTrees,
-        reference: TypeReferenceHandle,
-        seen: &mut Vec<SymbolHandle>,
-    ) -> Option<bool> {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { .. } => Some(true),
-            TypeReferenceNode::Constrained { base_type, .. } => visit(program, *base_type, seen),
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => visit(program, *element_type, seen),
-            TypeReferenceNode::Named { symbol, .. } => {
-                if seen.contains(symbol) {
-                    return None;
-                }
-                let data = crate::program_scope::data_definitions::data_definition_by_symbol(
-                    program, *symbol,
-                )?;
-                seen.push(*symbol);
-                let mut carries = false;
-                for member in program.data_members(data) {
-                    let typed_trees::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    carries |= visit(program, field.type_reference, seen)?;
-                }
-                seen.pop();
-                Some(carries)
-            }
-            _ => Some(false),
-        }
-    }
-    visit(program, reference, &mut Vec::new()) == Some(true)
 }
 
 pub fn release_statement(

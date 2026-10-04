@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 7.58, "load1_start": 7.58, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 20.53, "load1_start": 4.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -179,6 +179,8 @@ fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb87859
 	mutable argument `source` for state `clone` is not writable in this state
 fail/borrows/duplicate_retained_subject_arguments rejected 117ms expected @cb6b089b27de+wt
 	state `take` receives `main` as mutable more than once
+fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
+	cannot prove index `2` is within length 2
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expected @f3a79ef091a9
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/local_array_borrow_operand_read rejected 191ms expected @a0af6064e4c8+wt
@@ -1410,14 +1412,19 @@ pass/borrows/returned_record_method_receiver_exit checked 1304ms @011fd400e8c1+w
 pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 2144ms @f935383e1d47+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
+pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms @3fa817733300+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d47+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
+pass/borrows/runtime_discarded_reference_release_exit checked 3696ms @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
+pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
+pass/borrows/runtime_state_boolean_reference_exit checked 3855ms @3fa817733300+wt
+pass/borrows/runtime_state_fixed_element_reference_exit checked 4291ms @3fa817733300+wt
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
@@ -1456,8 +1463,7 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d9
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
 pass/calls/case_payload_clone_observation_exit checked 2727ms @e8505b71528
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
-pass/calls/case_scrutinee_self_dispatch_exit rejected 6695ms @faab7e6c1b7
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(2), block: BlockId(17), node: Some(0), reason: "borrowed reference source has no exact incoming storage" }))
+pass/calls/case_scrutinee_self_dispatch_exit checked 5982ms @3fa817733300+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
@@ -1500,8 +1506,7 @@ pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
-pass/calls/nested_call_tail_roots_exit rejected 7346ms @faab7e6c1b7
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentReferenceCustodyViolation { machine: MachineId(2), block: BlockId(17), node: Some(0), reason: "borrowed reference source has no exact incoming storage" }))
+pass/calls/nested_call_tail_roots_exit checked 6064ms @3fa817733300+wt
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
@@ -1547,8 +1552,7 @@ pass/calls/runtime_guarded_terminal_operand_order_exit checked 463ms @e2a12bf7c0
 pass/calls/runtime_guarded_terminal_reference_result_exit checked 2478ms @3214ae815320
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms @4f20c0c110be
-pass/calls/runtime_indexed_scalar_calls_exit rejected 4779ms @faab7e6c1b7
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(2), reason: "borrowed reference source type is absent" }))
+pass/calls/runtime_indexed_scalar_calls_exit checked 4702ms @3fa817733300+wt
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms @2d8ed253669f
 pass/calls/runtime_local_case_terminal_payload_result_exit checked 576ms @cbbe113c2c24

@@ -231,3 +231,46 @@ pub(super) fn footprint(
     }
     Ok(())
 }
+
+/// Evaluate captured pointer slots in path order before observing the final
+/// region. Stores and reads use the same address operation; replay checks each
+/// load and footprint independently of construction.
+pub(super) fn cross_references(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    mut pointer: VirtualRegisterId,
+    indices: &[LegalizedRuntimeIndexOperand],
+    pointer_slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
+    // Every reference crossing ends its own contiguous address region. Preserve
+    // each pointer load before applying the following region's offset or indices.
+    let mut leaf_index = 0;
+    for slot in pointer_slots {
+        let slot_indices = indices.get(slot.indices.clone()).ok_or_else(invalid)?;
+        let address = scale(builder, row, place, slot.byte_offset, pointer, slot_indices)?;
+        let (address, displacement) =
+            super::memory_pointer(builder, row, place, address, slot.byte_offset, 8)?;
+        footprint(
+            builder,
+            row,
+            place,
+            slot.byte_offset,
+            8,
+            slot_indices,
+            Written::None,
+        )?;
+        let loaded = super::transport_register(builder, place, slot.byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::Load64 {
+                byte_offset: displacement,
+            },
+            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            &[address, loaded],
+            super::provenance(row),
+        )?;
+        pointer = loaded;
+        leaf_index = slot.indices.end;
+    }
+    Ok((pointer, leaf_index))
+}

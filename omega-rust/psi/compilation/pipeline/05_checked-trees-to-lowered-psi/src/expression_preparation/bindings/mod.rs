@@ -9,7 +9,9 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
 
-pub(crate) mod recast_records;
+pub(crate) mod primitive_reads;
+pub(crate) use primitive_reads::primitive_storage_read;
+pub(crate) mod place_observations;
 pub(crate) mod structural_cases;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
@@ -92,8 +94,9 @@ pub(crate) struct ScalarBindings {
     element_views: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     /// Established immutable view locals an observation may root at.
     view_locals: Vec<view_locals::ViewLocalBinding>,
-    byte_record_loans:
-        std::sync::Arc<[crate::expression_preparation::bindings::recast_records::ByteRecordLoan]>,
+    place_observations: std::sync::Arc<
+        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
+    >,
 }
 
 impl ScalarBindings {
@@ -603,7 +606,7 @@ impl ScalarBindings {
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             view_locals: Vec::new(),
-            byte_record_loans: std::sync::Arc::from([]),
+            place_observations: std::sync::Arc::from([]),
         }
     }
 
@@ -642,23 +645,23 @@ impl ScalarBindings {
         self
     }
 
-    pub(crate) fn with_byte_record_loans(
+    pub(crate) fn with_place_observations(
         mut self,
         loans: &std::sync::Arc<
-            [crate::expression_preparation::bindings::recast_records::ByteRecordLoan],
+            [crate::expression_preparation::bindings::place_observations::PlaceObservation],
         >,
     ) -> Self {
-        self.byte_record_loans = loans.clone();
+        self.place_observations = loans.clone();
         self
     }
 
     /// Captured coordinates are private scalar homes, never authored local slots.
-    pub(crate) fn byte_record_coordinate(
+    pub(crate) fn observation_coordinate(
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut matching = self
-            .byte_record_loans
+            .place_observations
             .iter()
             .filter(|loan| loan.symbol == symbol);
         let loan = matching.next().ok_or(LoweringError::Unsupported(
@@ -682,11 +685,11 @@ impl ScalarBindings {
 
     /// Resolve the backing at the observation, without establishing a second
     /// place for a recast marker or granting a read through write-only custody.
-    pub(crate) fn byte_record_backing(
+    pub(crate) fn observation_backing(
         &self,
-        source: crate::expression_preparation::bindings::recast_records::LoanedSource,
+        source: crate::expression_preparation::bindings::place_observations::LoanedSource,
     ) -> Result<PlaceId, LoweringError> {
-        use crate::expression_preparation::bindings::recast_records::LoanedSource;
+        use crate::expression_preparation::bindings::place_observations::LoanedSource;
         match source {
             LoanedSource::Parameter(position) => {
                 let (_, parameter) = self.structural_parameters.get(position as usize).ok_or(
@@ -739,8 +742,8 @@ impl ScalarBindings {
         element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         primitive: PrimitiveType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
-        crate::expression_preparation::bindings::recast_records::byte_record_observation(
-            &self.byte_record_loans,
+        crate::expression_preparation::bindings::place_observations::byte_record_observation(
+            &self.place_observations,
             self,
             symbol,
             path,
@@ -1184,6 +1187,33 @@ impl ScalarBindings {
             ))
     }
 
+    /// Rejoin an immutable local's source ordinal to its already-evaluated
+    /// scalar value. Addressable storage must never replay its initializer.
+    pub(crate) fn immutable_local_value(
+        &self,
+        ordinal: usize,
+        scalar_type: ScalarType,
+    ) -> Result<usize, LoweringError> {
+        let position =
+            self.parameter_count
+                .checked_add(ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "immutable local namespace overflow",
+                ))?;
+        let (value, actual_type) =
+            self.authored
+                .get(position)
+                .copied()
+                .flatten()
+                .ok_or(LoweringError::Unsupported(
+                    "immutable local has no established scalar value",
+                ))?;
+        if actual_type != scalar_type {
+            return unsupported("immutable local addressable home changes its scalar type");
+        }
+        Ok(value)
+    }
+
     /// The dense value position of one binding-ordinal slot: the scalar
     /// formals, then each established scalar result in binding order.
     pub(crate) fn immutable_position(&self, position: usize) -> Result<usize, LoweringError> {
@@ -1216,7 +1246,16 @@ impl ScalarBindings {
                 symbol,
                 primitive_type,
             } => {
-                if self.primitive_storage.iter().any(|row| row.0 == *symbol) {
+                if self
+                    .place_observations
+                    .iter()
+                    .any(|row| row.symbol == *symbol)
+                    || self.primitive_storage.iter().any(|row| row.0 == *symbol)
+                    || self
+                        .structural_locals
+                        .iter()
+                        .any(|row| row.root == facts::PlaceRoot::Symbol(*symbol))
+                {
                     // Retain the read occurrence for emission, not an entry snapshot.
                     return Ok(());
                 }
@@ -1259,7 +1298,16 @@ impl ScalarBindings {
                 *position = self.authored_position(*position)?
             }
             CheckedBooleanExpression::StorageRead { symbol } => {
-                if self.primitive_storage.iter().any(|row| row.0 == *symbol) {
+                if self
+                    .place_observations
+                    .iter()
+                    .any(|row| row.symbol == *symbol)
+                    || self.primitive_storage.iter().any(|row| row.0 == *symbol)
+                    || self
+                        .structural_locals
+                        .iter()
+                        .any(|row| row.root == facts::PlaceRoot::Symbol(*symbol))
+                {
                     return Ok(());
                 }
                 *expression = CheckedBooleanExpression::Local {

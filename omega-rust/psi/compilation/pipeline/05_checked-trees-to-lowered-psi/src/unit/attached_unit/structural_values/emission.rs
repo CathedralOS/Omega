@@ -727,7 +727,7 @@ impl Emission<'_, '_, '_> {
         for step in schedule {
             let (index, staged) = match step {
                 Step::CaptureBefore(statement) => {
-                    self.evaluation.capture_record_coordinates_before(
+                    self.evaluation.capture_observation_coordinates_before(
                         statement,
                         self.structural_types,
                         self.values,

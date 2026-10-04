@@ -1256,18 +1256,22 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: local loans, returned shared views, record byte-region recasts and
-    nested reference crossings execute. Ordinary calls now preserve runtime
-    selectors and selected payload prefixes through borrowed state parameters.
-    On macOS ARM64, `omega run --both` executes
-    `tests/omega/pass/calls/{runtime_indexed_scalar_calls_exit,runtime_case_payload_indexed_calls_exit}/main.omg`
-    with exit 70 in both engines; `calls/{case_scrutinee_self_dispatch_exit,nested_call_tail_roots_exit}`
-    execute with exit 0. Endpoint typing is separate from reference formation;
-    access, bounds, case activity and origin overlap remain independently checked.
-    Remaining: `run/borrows/transition_shared_borrow` stops in stage 05 at
-    `reference completion has no exact returned leaf origins`. Repair the
-    returned-source query while retaining every producer/read/call/state
-    composition and the facts at its formation occurrence.
+  - State: returned primitive shared references, Boolean observations and
+    captured runtime-index loans execute through the common storage-read path.
+    On macOS ARM64 (`3fa8177333` plus this change), the native/interpreter corpus
+    agrees at authored exits for 32 reference, re-view and slice-transfer controls.
+    `pass/borrows/runtime_{state_fixed_element_reference,state_boolean_reference,captured_primitive_reference}_exit`
+    exit 70 in both engines; `run/borrows/{transition_shared_borrow,shared_local_borrow}`
+    exit 0. Captured selectors retain their declaration-time address, and
+    immutable scalar loans materialize the completed value without replaying its
+    initializer. Discarded returned carriers receive ordinary continuation cleanup.
+    Exact source coordinates remain separate from conservative effect footprints;
+    access, bounds, live backing and disposal remain independently checked.
+    Remaining: scalar observations from reference-bearing array elements, such as
+    `messages[index].body.value` (also with a literal index), stop at stage 04's
+    `scalar local: pure initializer`. Compose the selected carrier's ordinary
+    source path and stored-reference custody through scalar observation; do not
+    add an array/reference producer exception or substitute a guessed backing.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

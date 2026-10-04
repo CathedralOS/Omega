@@ -62,8 +62,11 @@ pub(super) fn lower_operation(
     // operations route through the custody-aware argument lowering below.
     let (accessed_root, referent_access) = match operation {
         AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
-        AbstractOperation::PrimitiveScalarRead { source, .. }
-        | AbstractOperation::StructuralCaseMembership { source, .. }
+        // Primitive paths retain every explicit reference crossing. Their
+        // ordinary access check traverses the full live lineage, even when
+        // the first carrier alone would permit a whole-reference observation.
+        AbstractOperation::PrimitiveScalarRead { source, .. } => (Some(*source), false),
+        AbstractOperation::StructuralCaseMembership { source, .. }
         | AbstractOperation::StructuralCase { source, .. }
         | AbstractOperation::StructuralScalarFieldRead { source, .. } => {
             // A scalar or case observation spelled on a live reference

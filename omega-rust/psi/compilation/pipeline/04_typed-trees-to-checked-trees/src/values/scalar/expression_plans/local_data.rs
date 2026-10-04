@@ -7,9 +7,8 @@
 //! suppress the ordinary computation builder that owns runtime evaluation.
 
 use super::{
-    ArithmeticDomain, CheckedLocatedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, PrimitiveType, ScalarLocal,
-    StatementPlanner, TypeReferenceNode, TypedTrees, lower_call_arguments,
+    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    ExpressionNode, LoweredCallArguments, ScalarLocal, StatementPlanner, lower_call_arguments,
     lower_direct_call_binding_arguments, lower_return_expression, lower_selected_operator_operands,
     retain_call_arguments, scalar_qualified_call_expression,
 };
@@ -123,19 +122,8 @@ pub(super) fn plan(
                 .is_none()
         })
     else {
-        // A shared `&` local binds no value of its own: reads through it
-        // re-evaluate the captured place at the use point, so the roster
-        // entry carries that place for operands to lower.
-        if let Some((place, primitive_type, arithmetic_domain)) = shared_loan_place(program, local)
-        {
-            locals.push(ScalarLocal {
-                is_mutable: local.is_mutable,
-                symbol: local.symbol,
-                name: local.name.as_str().to_owned(),
-                primitive_type,
-                arithmetic_domain,
-                shared_loan_place: Some(place),
-            });
+        if let Some(binding) = super::super::primitive_reference_read::local(program, local) {
+            locals.push(binding);
         }
         return;
     };
@@ -223,63 +211,6 @@ pub(super) fn plan(
         name: local.name.as_str().to_owned(),
         primitive_type,
         arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
-        shared_loan_place: None,
+        is_reference: false,
     });
-}
-
-/// A place-loan local's captured place: the borrow target inside its
-/// `&place` initializer, possibly under a recast, with the referee's
-/// primitive carrier and domain for the operand reads that re-evaluate
-/// the place. An immutable `&mut place` binding reads the same way: it
-/// cannot be reseated, so it names that one place for its scope, exactly
-/// the carrier `statement_sequence::local_data` plans as an exclusive
-/// place loan and whose writes rejoin that place's store. A reseatable
-/// binding, a view, a non-scalar or address-sized referee keeps no scalar
-/// operand.
-pub(crate) fn shared_loan_place(
-    program: &TypedTrees,
-    local: &typed_trees::statement::TableLocalData,
-) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    PrimitiveType,
-    ArithmeticDomain,
-)> {
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(local.type_reference)
-    else {
-        return None;
-    };
-    let readable_loan = match access {
-        language_semantics::ReferenceAccess::Shared => true,
-        language_semantics::ReferenceAccess::Mutable => !local.is_mutable,
-        // A write-only loan grants no observation of old contents.
-        language_semantics::ReferenceAccess::WriteOnly => false,
-    };
-    if !readable_loan {
-        return None;
-    }
-    let primitive_type = program.primitive_type_reference(*referee)?;
-    if matches!(primitive_type, PrimitiveType::Addr) {
-        return None;
-    }
-    let mut initializer = local.initial_value;
-    let target = loop {
-        match program.expression_table.expression(initializer) {
-            ExpressionNode::Borrow(borrow) if borrow.access == *access => {
-                break borrow.target;
-            }
-            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-                initializer = cast.value;
-            }
-            _ => return None,
-        }
-    };
-    Some((
-        target,
-        primitive_type,
-        program.arithmetic_domain_for_type_reference(*referee),
-    ))
 }

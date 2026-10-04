@@ -722,13 +722,19 @@ pub(super) fn lower(
             // Each runtime element scales its selector's exact dominating
             // source by the array stride; its bound is the path segment's
             // verified obligation.
-            let (leaf, _, runs) = crate::lowering::structural_layout::primitive_read_projection(
+            let projection = crate::lowering::structural_layout::primitive_read_projection(
                 identity, path, types,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if leaf != result.scalar_type {
+            if projection.scalar != result.scalar_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let runs = projection
+                .pointer_slots
+                .into_iter()
+                .flat_map(|slot| slot.indices)
+                .chain(projection.leaf.indices)
+                .collect();
             let indices = super::scalar_sources::runtime_indices(
                 runs,
                 function,

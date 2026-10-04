@@ -293,14 +293,26 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
         } => {
             let scalar_type = terminal_scalar_type(*primitive_type)?;
-            let source = crate::expression_preparation::bindings::primitive_storage_place(
+            if let Some(bindings) = scalar_bindings
+                && let Some(observation) =
+                    crate::expression_preparation::bindings::primitive_reads::captured_observation(
+                        bindings,
+                        *symbol,
+                        scalar_type,
+                    )?
+            {
+                return Ok(observation);
+            }
+            let (source, path) = crate::expression_preparation::bindings::primitive_storage_read(
                 primitive_storage,
+                structural_locals,
+                structural_fields.declarations(),
                 *symbol,
                 scalar_type,
             )?;
             Ok(LoweredDirectExpression::PrimitiveRead {
                 source: source.into(),
-                path: Vec::new(),
+                path,
                 scalar_type,
             })
         }
@@ -1193,14 +1205,28 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::StorageRead { symbol } => {
-            let source = crate::expression_preparation::bindings::primitive_storage_place(
+            if let Some(bindings) = scalar_bindings
+                && let Some(observation) =
+                    crate::expression_preparation::bindings::primitive_reads::captured_observation(
+                        bindings,
+                        *symbol,
+                        ScalarType::Boolean,
+                    )?
+            {
+                return Ok(LoweredBooleanReturnExpression::ScalarObservation {
+                    operand: Box::new(observation),
+                });
+            }
+            let (source, path) = crate::expression_preparation::bindings::primitive_storage_read(
                 primitive_storage,
+                structural_locals,
+                structural_fields.declarations(),
                 *symbol,
                 ScalarType::Boolean,
             )?;
             LoweredBooleanReturnExpression::PrimitiveRead {
                 source: source.into(),
-                path: Vec::new(),
+                path,
             }
         }
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {

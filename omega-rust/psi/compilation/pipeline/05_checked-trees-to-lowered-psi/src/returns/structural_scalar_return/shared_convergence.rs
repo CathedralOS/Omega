@@ -62,6 +62,7 @@ pub(crate) fn shared_boolean_runtime_parameters(
         LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
+        | LoweredBooleanReturnExpression::ScalarObservation { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }

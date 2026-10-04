@@ -552,7 +552,7 @@ impl ByteStoreDestination {
     ) -> Result<(), LoweringError> {
         let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
         let coordinate =
-            crate::expression_preparation::bindings::recast_records::bounded_coordinate(
+            crate::expression_preparation::bindings::place_observations::bounded_coordinate(
                 LoweredDirectExpression::Parameter {
                     position: 0,
                     scalar_type,

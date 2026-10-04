@@ -86,7 +86,7 @@ pub(crate) use scalar::{
     lower_unit_scalar_argument_with_places, nested_structural_call_return_type,
     occupies_scalar_position, operator_is_builtin, parameter_position,
     resolve_structural_parameter_path, retain_nested_structural_call_arguments,
-    scalar_expression_type, shared_loan_place, structural_data, unit_scalar_binding_symbols,
+    scalar_expression_type, structural_data, unit_scalar_binding_symbols,
     zeroed_scalar_local_initializer,
 };
 

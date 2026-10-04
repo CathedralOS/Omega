@@ -74,7 +74,7 @@ impl OperationFrame<'_, '_> {
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
-            .with_byte_record_loans(&self.evaluation.byte_record_loans);
+            .with_place_observations(&self.evaluation.place_observations);
         let structural_type =
             byte_store::existing_descriptor_value_type(self.structural_types.declarations())?;
         if let Source::ByteSequenceSubslice {

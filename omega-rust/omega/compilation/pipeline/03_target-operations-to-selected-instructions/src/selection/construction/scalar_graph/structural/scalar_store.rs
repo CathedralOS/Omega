@@ -124,7 +124,7 @@ pub(super) fn emit(
     if row.result.is_some() || !declared {
         return Err(invalid());
     }
-    let mut pointer = if pointer_slots.is_empty() {
+    let pointer = if pointer_slots.is_empty() {
         super::runtime_address::projection_base(
             source,
             builder,
@@ -136,48 +136,15 @@ pub(super) fn emit(
     } else {
         super::place_pointer(builder, row, destination.place(), 0)?
     };
-    // Every reference crossing ends its own contiguous address region. Preserve
-    // each pointer load before applying the following region's offset or indices.
-    let mut leaf_indices = indices.as_slice();
-    for slot in pointer_slots {
-        let slot_indices = indices.get(slot.indices.clone()).ok_or_else(invalid)?;
-        let address = super::runtime_address::scale(
-            builder,
-            row,
-            destination.place(),
-            slot.byte_offset,
-            pointer,
-            slot_indices,
-        )?;
-        let (address, displacement) = super::memory_pointer(
-            builder,
-            row,
-            destination.place(),
-            address,
-            slot.byte_offset,
-            8,
-        )?;
-        super::runtime_address::footprint(
-            builder,
-            row,
-            destination.place(),
-            slot.byte_offset,
-            8,
-            slot_indices,
-            super::runtime_address::Written::None,
-        )?;
-        let loaded = super::transport_register(builder, destination.place(), slot.byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64.ok_or_else(invalid)?,
-            &[address, loaded],
-            super::provenance(row),
-        )?;
-        pointer = loaded;
-        leaf_indices = indices.get(slot.indices.end..).ok_or_else(invalid)?;
-    }
+    let (pointer, leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        destination.place(),
+        pointer,
+        indices,
+        &pointer_slots,
+    )?;
+    let leaf_indices = &indices[leaf_index..];
     let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;
     if scalar != value.scalar_type {
         return Err(invalid());

@@ -416,15 +416,10 @@ pub(super) fn plan(
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: shared place loan");
-    // The shared `&` loan arms before the structural-value root lookup: a
-    // shared borrow registers a value root upstream (exclusive `&mut`
-    // borrows do not), so a `&`-typed local would enter the block below and
-    // die at its root-identity gate before the loan arm could admit it. A
-    // whole record borrow whose root passes that gate (`let view: &Payload =
-    // &a;`) keeps its established `Reference` value instead: a call can
-    // forward that value as a structural local, while a loan carrier plans
-    // nothing a call operand could name.
-    if !established_record_borrow(
+    // A retained reference root establishes its carrier before later reads.
+    // Borrowed aliases without such a value root retain their existing loan
+    // route; they cannot invent a carrier by replaying an initializer at a use.
+    if !established_reference_borrow(
         program,
         facts,
         machine.symbol,
@@ -949,12 +944,10 @@ fn shared_place_loan_referent(
         .then_some(())
 }
 
-/// A `&record` initializer whose structural-value root names exactly this
-/// local's initializer and declared type: the root block establishes it as
-/// a `Reference` value, as it does for a selection arm's borrow. A primitive
-/// referent stays a loan carrier, whose reads rejoin the loaned place; the
-/// state graph has no custody accounting for its `Reference` value.
-fn established_record_borrow(
+/// A retained borrow root names this initializer and its exact reference type.
+/// Primitive and record referents both have real carriers when a value root is
+/// present; their observations must keep that carrier's captured address.
+fn established_reference_borrow(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -966,7 +959,7 @@ fn established_record_borrow(
         program,
         local.type_reference,
     )
-    .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none())
+    .is_some()
         && facts
             .values
             .structural_values

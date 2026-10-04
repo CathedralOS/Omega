@@ -485,6 +485,9 @@ fn checked_boolean_scalar_term_from_lowered(
             ));
             Ok(ScalarTerm::boolean_field_path(source, path))
         }
+        LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+            lowered_direct_scalar_term(operand, values, erased)
+        }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed crash-predicate lowering")
         }

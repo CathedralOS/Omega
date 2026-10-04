@@ -314,8 +314,8 @@ pub(super) fn emit(
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
-    evaluation.byte_record_loans =
-        crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+    evaluation.place_observations =
+        crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
             checked,
             plan.machine,
             plan.state,
@@ -1103,7 +1103,7 @@ impl MachineEmission<'_> {
         };
         let (operation_index, staged) = match step {
             argument_schedule::Step::CaptureBefore(statement) => {
-                self.evaluation.capture_record_coordinates_before(
+                self.evaluation.capture_observation_coordinates_before(
                     statement,
                     self.structural_types,
                     &self.scalar_result_values,

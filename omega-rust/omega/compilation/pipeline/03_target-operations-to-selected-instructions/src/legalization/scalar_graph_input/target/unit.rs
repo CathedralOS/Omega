@@ -666,7 +666,7 @@ pub(super) fn validate_operation(
                     &unit.structural_types,
                 )
                 .ok_or(LegalizationError::custody())?
-                .2
+                .elements
             };
             if !runtime_indices_rejoin(indices, &elements, sources) {
                 return Err(LegalizationError::custody());

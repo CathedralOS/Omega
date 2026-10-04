@@ -70,8 +70,8 @@ pub(crate) fn emit_call_leaf(
         structural_locals: Vec::new(),
         view_locals: Vec::new(),
         element_views: std::collections::BTreeMap::new(),
-        byte_record_loans:
-            crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+        place_observations:
+            crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
                 checked,
                 machine,
                 state.state,
@@ -248,7 +248,7 @@ pub(super) fn emit_call_operations(
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
-                evaluation.capture_record_coordinates_before(
+                evaluation.capture_observation_coordinates_before(
                     statement,
                     &catalogs.structural_types,
                     values,

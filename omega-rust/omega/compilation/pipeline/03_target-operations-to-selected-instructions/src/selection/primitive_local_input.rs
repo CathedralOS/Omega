@@ -156,7 +156,11 @@ fn block_arrival(
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,
-) -> Option<(PlaceId, u32)> {
+) -> Option<(
+    PlaceId,
+    u32,
+    Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
         Instruction::StructuralByteSequenceFieldLength {
@@ -185,7 +189,7 @@ pub(super) fn read_geometry(
                     indices,
                     &geometry.elements,
                 ))
-            .then_some((argument.place, geometry.length_offset))
+            .then_some((argument.place, geometry.length_offset, Vec::new()))
         }
 
         // A projection through runtime elements returns its static offset;
@@ -200,7 +204,7 @@ pub(super) fn read_geometry(
                 return None;
             }
             if local(source, *place).is_some() {
-                return indices.is_empty().then_some((*place, 0));
+                return indices.is_empty().then_some((*place, 0, Vec::new()));
             }
             let signature = source.structural.as_ref()?;
             let structural_type = super::aggregate_result_input::home(source, *place)
@@ -208,7 +212,7 @@ pub(super) fn read_geometry(
                 .or_else(|| {
                     read_parameter(source, *place).map(|parameter| parameter.structural_type)
                 })?;
-            let (offset, _, elements) =
+            let geometry =
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     structural_type,
                     path,
@@ -216,9 +220,10 @@ pub(super) fn read_geometry(
                     &signature.structural_types,
                 )?;
             crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices, &elements,
+                indices,
+                &geometry.elements,
             )
-            .then_some((*place, offset))
+            .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,
@@ -317,7 +322,7 @@ pub(super) fn read_geometry(
                     &signature.structural_types,
                 )?,
             };
-            Some((argument.place, offset))
+            Some((argument.place, offset, Vec::new()))
         }
         _ => None,
     }

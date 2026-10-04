@@ -566,7 +566,9 @@ pub(super) fn validate_source_projection(
         || source.segments.iter().any(|segment| {
             !matches!(
                 segment,
-                PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+                PlaceSegment::Field { .. }
+                    | PlaceSegment::Case { .. }
+                    | PlaceSegment::FixedIndex { .. }
             )
         })
     {
@@ -640,12 +642,17 @@ pub(super) fn validate_owned_projection(
     {
         reference = *referee;
     }
-    // No collection-footprint wildcard or runtime expression establishes an
-    // exact source. The shared type walk validates nominal Field/Case owners.
+    // Effect footprints deliberately coarsen even literal array selections.
+    // The retained source coordinate still identifies an exact fixed element;
+    // the shared type walk checks its declared extent alongside Field/Case
+    // ownership. A runtime Index or collection wildcard cannot establish that
+    // exact source, even though the type walker can identify its element type.
     if segments.iter().any(|segment| {
         !matches!(
             segment,
-            PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+            PlaceSegment::Field { .. }
+                | PlaceSegment::Case { .. }
+                | PlaceSegment::FixedIndex { .. }
         )
     }) {
         return None;

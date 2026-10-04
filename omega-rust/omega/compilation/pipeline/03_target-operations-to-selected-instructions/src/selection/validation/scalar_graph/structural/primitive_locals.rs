@@ -100,11 +100,16 @@ pub(in crate::selection) fn read(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
-        .ok_or_else(|| replay.invalid())?;
+    let (place, byte_offset, pointer_slots) =
+        crate::selection::primitive_local_input::read_geometry(source, row)
+            .ok_or_else(|| replay.invalid())?;
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let pointer = super::runtime_address::projection_base(source, replay, row, place, byte_offset)?
-        .ok_or_else(|| replay.invalid())?;
+    let pointer = if pointer_slots.is_empty() {
+        super::runtime_address::projection_base(source, replay, row, place, byte_offset)?
+            .ok_or_else(|| replay.invalid())?
+    } else {
+        super::place_pointer(replay, row, place, 0)?
+    };
     let pointer = if matches!(&row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
         if matches!(source.path.first(), Some(terminal_psi::StructuralPathSegment::Referent)))
@@ -120,6 +125,15 @@ pub(in crate::selection) fn read(
         }
         _ => &[],
     };
+    let (pointer, leaf_index) = super::runtime_address::cross_references(
+        replay,
+        row,
+        place,
+        pointer,
+        indices,
+        &pointer_slots,
+    )?;
+    let indices = &indices[leaf_index..];
     let pointer = super::runtime_address::scale(replay, row, place, byte_offset, pointer, indices)?;
     let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
         .ok_or_else(|| replay.invalid())?;

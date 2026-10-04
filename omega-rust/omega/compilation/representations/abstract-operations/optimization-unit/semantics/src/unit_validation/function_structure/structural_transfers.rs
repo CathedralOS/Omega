@@ -10,7 +10,6 @@
 //! replay separately pins every such root while the joined view can observe it.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -481,68 +480,46 @@ fn source_contract(
                 )),
                 _ => None,
             },
-            O::EstablishByteSequenceConcatenation { result, .. }
-            | O::CallStructural {
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            }
-            | O::EstablishCase { result, .. }
-            | O::EstablishRecord { result, .. }
-            | O::EstablishZeroedStructural { result, .. }
-            | O::EstablishScalarArray { result, .. }
-            | O::EstablishStructuralArray { result, .. }
-            | O::StructuralLeafCopy { result, .. }
-                if result.place == place
-                    && matches!(
-                        result.multiplicity,
-                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                    )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty() =>
-            {
-                // Producer identity, dominance and successful-completion ownership
-                // are independently replayed by operation and frontier validation.
-                // Initialized arrays own backing just as zeroed aggregates do;
-                // lending that address does not transfer or copy their payload.
-                // A view-descriptor result (an `&[T]` member copy or a returned
-                // shared view) rides on its loan's shared access instead:
-                // relocating the descriptor never lends owned backing.
-                let access = types
-                    .get(&result.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ElementView { .. }
-                                | StructuralTypeShape::ByteSequence(
-                                    ByteSequenceCarrier::BorrowedView { .. },
-                                )
-                        )
-                    })
-                    .then_some(StructuralAccess::SharedBorrow)
-                    .unwrap_or(StructuralAccess::Owned);
-                Some((result.structural_type, access, result.multiplicity))
-            }
-            operation @ (O::ByteSequenceSubslice { result, .. }
-            | O::EstablishElementView { result, .. }
-            | O::ElementViewSubslice { result, .. })
-                if result.place == place
-                    && matches!(
-                        result.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                    )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty() =>
-            {
-                // The same exact producer/source chain supplies a call's or
-                // edge's view permission; an affine result alone grants none.
+            operation => {
                 let source =
                     super::super::operation_contracts::structural_operation_result_contract(
                         function, operation,
                     )?;
-                Some((source.structural_type, source.access, source.multiplicity))
+                let (_, result) = operation.structural_result()?;
+                if result.place != place
+                    || !matches!(
+                        source.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    )
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return None;
+                }
+                // Every completed producer supplies its declared storage contract.
+                // Activation-local scalar homes lend access without owned escape;
+                // dominance and live backing remain independently replayed.
+                // A returned/copied shared view presents its descriptor's loan,
+                // rather than lending owned payload storage. View establishments
+                // already report their exact source-derived access.
+                let access = if source.access == StructuralAccess::Owned
+                    && types
+                        .get(&source.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ElementView { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        ByteSequenceCarrier::BorrowedView { .. },
+                                    )
+                            )
+                        }) {
+                    StructuralAccess::SharedBorrow
+                } else {
+                    source.access
+                };
+                Some((source.structural_type, access, source.multiplicity))
             }
-            _ => None,
         })
 }

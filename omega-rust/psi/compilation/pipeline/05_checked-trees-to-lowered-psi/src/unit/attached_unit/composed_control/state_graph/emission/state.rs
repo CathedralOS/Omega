@@ -12,9 +12,9 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Operation, OperationKind,
-    OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration,
-    allocate_dense, edge_id, lookup_claim_id, place_id, terminal_scalar_type, unsupported,
+    Block, CheckedScalarExpression, Operation, OperationKind, OperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
+    edge_id, lookup_claim_id, place_id, terminal_scalar_type, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -98,8 +98,8 @@ impl StateGraphEmission<'_, '_> {
             structural_locals: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
-            byte_record_loans:
-                crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+            place_observations:
+                crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
                     checked,
                     plan.machine,
                     state.state,
@@ -209,7 +209,7 @@ impl StateGraphEmission<'_, '_> {
             &evaluation.structural_parameters,
             &evaluation.primitive_storage,
             &self.catalogs.structural_types,
-            &evaluation.byte_record_loans,
+            &evaluation.place_observations,
             &mut values,
             &mut next_value,
             &mut operations,
@@ -293,7 +293,7 @@ impl StateGraphEmission<'_, '_> {
                 .map_err(|_| LoweringError::Unsupported("record capture state extent overflow"))?
             }
         };
-        evaluation.capture_record_coordinates_before(
+        evaluation.capture_observation_coordinates_before(
             capture_boundary,
             &self.catalogs.structural_types,
             &values,

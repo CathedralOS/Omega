@@ -96,7 +96,7 @@ pub(super) fn validate_primitive_scalar_read(
     } else {
         let root_type = scalar_graph_input::primitive_locals::read_root_type(optimized, *expected)
             .ok_or(invalid.clone())?;
-        let (_, _, elements) =
+        let geometry =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                 root_type,
                 expected_path,
@@ -104,7 +104,12 @@ pub(super) fn validate_primitive_scalar_read(
                 &unit.structural_types,
             )
             .ok_or(invalid.clone())?;
-        crate::legalization::runtime_indices::operands(optimized, unit, operation, &elements)?
+        crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            operation,
+            &geometry.elements,
+        )?
     };
     if source != expected || path != expected_path || *indices != expected_indices {
         return Err(invalid);

@@ -1,5 +1,5 @@
-//! Instantiate a returned reference only across an actual input-reference
-//! boundary. A coarse collection footprint cannot supply that boundary.
+//! Instantiate a returned reference across its validated input-reference
+//! boundary. Exact source coordinates survive conservative effect footprints.
 
 use super::super::path_instantiation::aggregate_arguments::{
     AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
@@ -33,9 +33,16 @@ pub(super) fn instantiate_source(
         && super::super::type_reference_is_reference(program, parameter.type_reference)
     {
         // The result query validated this projection against the helper's
-        // frozen binding evidence before leaving its namespace. An owned-only
-        // type walk here would discard a proven borrowed-carrier load.
-        if relative.precision != FramePathPrecision::Exact {
+        // frozen binding evidence before leaving its namespace. Its typed
+        // source retains fixed indexes even when the effect footprint is
+        // collection-coarse. Substitute those coordinates, never recover a
+        // reference boundary from the coarsened display path. An unknown or
+        // non-builtin source cannot supply the validated boundary.
+        if !relative.source.root.is_valid()
+            || !relative.source.builtin_coordinates
+            || !(relative.source.root == parameter.symbol
+                || (parameter.is_self && relative.source.root == callee_machine.symbol))
+        {
             return None;
         }
         let origins = resolve_reference(actual, parameter.type_reference, true, inference)?;

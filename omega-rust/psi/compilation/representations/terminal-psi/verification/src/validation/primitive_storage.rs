@@ -254,10 +254,22 @@ fn projected_type(
     writing: bool,
 ) -> Option<ScalarType> {
     if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-        // Reads need their own live shared-or-mutable leaf judgment. The
-        // geometry walker alone cannot widen their existing owned-root access.
+        // A read traverses the same exact readable descriptors as a
+        // nonescaping shared call. This only supplies endpoint geometry;
+        // references::apply_operation independently checks live permission,
+        // descriptor availability and suspended parent lineage at this use.
         if !writing {
-            return None;
+            let endpoint = super::references::access_source_type(
+                module,
+                machine,
+                &terminal_psi::StructuralArgument {
+                    place,
+                    path: path.to_vec(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+                true,
+            )?;
+            return scalar_type(module, endpoint);
         }
         let destination =
             super::references::mutable_reference_destination(module, machine, place, path)?;

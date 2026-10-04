@@ -296,12 +296,7 @@ fn runtime_index_expression(
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
-                let primitive_type = program
-                    .primitive_type_reference(local.type_reference)
-                    .or_else(|| {
-                        crate::values::shared_loan_place(program, local)
-                            .map(|(_, primitive_type, _)| primitive_type)
-                    });
+                let primitive_type = program.primitive_type_reference(local.type_reference);
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };

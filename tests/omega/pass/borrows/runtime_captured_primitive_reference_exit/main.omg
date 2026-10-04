@@ -1,0 +1,25 @@
+// A loan freezes its selected address before the selector changes.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main
+where position < 2;
+{
+    console: Binding<Console>;
+    position: u64;
+    bytes: [u8;2];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[0] = 7;
+    main.bytes[1] = 11;
+    main.position = 0;
+    let selected: &u8 = &main.bytes[main.position];
+    main.position = 1;
+    transition selected == 7 && main.bytes[main.position] == 11 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

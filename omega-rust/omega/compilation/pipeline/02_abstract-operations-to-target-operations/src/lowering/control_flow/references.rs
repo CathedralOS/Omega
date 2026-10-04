@@ -1054,6 +1054,15 @@ fn check_region_access(
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) -> bool {
+    check_region_access_with(live, place, path, |_, _| false)
+}
+
+fn check_region_access_with(
+    live: &LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    compatible_origin: impl Fn(&PlaceId, &[StructuralPathSegment]) -> bool,
+) -> bool {
     let overlaps = |other: &[StructuralPathSegment]| {
         terminal_semantics::structural_paths_may_overlap(path, other)
     };
@@ -1063,6 +1072,7 @@ fn check_region_access(
             (*carrier == place && overlaps(carrier_path))
                 || (reference.identity.0 == place && overlaps(&reference.identity.1))
                 || (reference.root.place() == place
+                    && !compatible_origin(carrier, carrier_path)
                     && match &reference.root {
                         ReferenceRoot::Place(_) => true,
                         ReferenceRoot::Ingress(_, path) => overlaps(path),
@@ -1110,7 +1120,16 @@ pub(super) fn check_operation_access(
                         *field,
                     )
                 });
-            check_region_access(live, place, &region)
+            check_region_access_with(live, place, &region, |carrier, path| {
+                shared_source_compatible(
+                    function,
+                    live,
+                    types,
+                    carrier,
+                    path,
+                    StructuralAccess::SharedBorrow,
+                )
+            })
         }
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
             if path.contains(&StructuralPathSegment::Referent) =>
@@ -1128,8 +1147,43 @@ pub(super) fn check_operation_access(
             .is_err()
         }
         AbstractOperation::PrimitiveScalarRead { path, .. }
-        | AbstractOperation::StructuralCaseMembership { path, .. }
-        | AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
+            if path.contains(&StructuralPathSegment::Referent) =>
+        {
+            call_paths::call_reference_custody(
+                function,
+                live,
+                types,
+                &StructuralArgument {
+                    place,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            )
+            .is_err()
+        }
+        AbstractOperation::PrimitiveScalarRead { path, .. }
+        | AbstractOperation::StructuralCaseMembership { path, .. } => {
+            let Some((root, _)) = source_contract(function, live, place) else {
+                return true;
+            };
+            let region = terminal_semantics::projected_storage_region(
+                types.values().copied(),
+                root,
+                path,
+                None,
+            );
+            check_region_access_with(live, place, region.direct_path(), |carrier, path| {
+                shared_source_compatible(
+                    function,
+                    live,
+                    types,
+                    carrier,
+                    path,
+                    StructuralAccess::SharedBorrow,
+                )
+            })
+        }
+        AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
             check_projected_access(function, live, types, place, path, None)
         }
         AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {

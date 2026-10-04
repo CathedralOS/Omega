@@ -194,21 +194,12 @@ pub(crate) fn retain_nested_structural_call_arguments(
                             primitive_type,
                             arithmetic_domain: program
                                 .arithmetic_domain_for_type_reference(local.type_reference),
-                            shared_loan_place: None,
+                            is_reference: false,
                         });
-                    } else if let Some((place, primitive_type, arithmetic_domain)) =
-                        crate::values::scalar::expression_plans::local_data::shared_loan_place(
-                            program, local,
-                        )
+                    } else if let Some(binding) =
+                        super::primitive_reference_read::local(program, local)
                     {
-                        locals.push(ScalarLocal {
-                            is_mutable: local.is_mutable,
-                            symbol: local.symbol,
-                            name: local.name.as_str().to_owned(),
-                            primitive_type,
-                            arithmetic_domain,
-                            shared_loan_place: Some(place),
-                        });
+                        locals.push(binding);
                     }
                 }
             }

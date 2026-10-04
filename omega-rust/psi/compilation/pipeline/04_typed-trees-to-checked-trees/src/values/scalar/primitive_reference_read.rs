@@ -5,7 +5,7 @@ use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     signature::StateParameter,
-    types::{PrimitiveType, TypeReferenceNode},
+    types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
 
 pub(super) fn lower(
@@ -57,24 +57,7 @@ pub(super) fn declared(
     if matching.next().is_some() || parameter.is_self || parameter.is_const {
         return None;
     }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    if !matches!(
-        access,
-        language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable
-    ) {
-        return None;
-    }
-    let primitive_type = validation::unrestricted_builtin_primitive(program, *referee)?;
-    if primitive_type == PrimitiveType::Addr {
-        return None;
-    }
+    let (primitive_type, arithmetic_domain) = readable_type(program, parameter.type_reference)?;
     let value = if primitive_type == PrimitiveType::Bool {
         CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
             symbol: parameter.symbol,
@@ -85,8 +68,51 @@ pub(super) fn declared(
             primitive_type,
         }
     };
-    Some((
-        value,
-        program.arithmetic_domain_for_type_reference(*referee),
-    ))
+    Some((value, arithmetic_domain))
+}
+
+/// Observation depends on the declared referee and current carrier, never on
+/// whether its producer was a borrow, recast, call, or transferred reference.
+/// Access and live custody are independently checked when that read is lowered.
+pub(super) fn local(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<super::expression_plans::ScalarLocal> {
+    let (primitive_type, arithmetic_domain) = readable_type(program, local.type_reference)?;
+    Some(super::expression_plans::ScalarLocal {
+        is_mutable: local.is_mutable,
+        symbol: local.symbol,
+        name: local.name.as_str().to_owned(),
+        primitive_type,
+        arithmetic_domain,
+        is_reference: true,
+    })
+}
+
+fn readable_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(PrimitiveType, numerics::arithmetic::ArithmeticDomain)> {
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    if !matches!(
+        access,
+        language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable
+    ) {
+        return None;
+    }
+    // Reading an established value does not assert a new membership fact.
+    // Formation retains its qualifications; the referee still selects the
+    // arithmetic policy used by the observation and its enclosing operators.
+    let primitive_type = program.primitive_type_reference(*referee)?;
+    (primitive_type != PrimitiveType::Addr).then(|| {
+        (
+            primitive_type,
+            program.arithmetic_domain_for_type_reference(*referee),
+        )
+    })
 }

@@ -40,7 +40,7 @@ pub(in crate::validation) fn validate_argument_claims(
         });
         let claim_free_reference =
             crate::validation::references::is_reference_projection(module, caller, argument)
-                && crate::validation::references::call_source_type(
+                && crate::validation::references::access_source_type(
                     module,
                     caller,
                     argument,
@@ -96,20 +96,23 @@ pub(in crate::validation) fn validate_argument_claims(
         // the descriptor keeps its own custody and the projected element
         // rides the same borrow path the access check validated.
         let claim_free_element_view_loan =
-            crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place).is_some_and(
-                |(_, source_access)| {
-                    structural_access_can_supply(source_access, argument.access)
-                        && argument.access == parameter.access
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && (is_static_borrow_path(&argument.path)
-                            || is_runtime_indexed_borrow_path(&argument.path))
-                        && callee_claims.is_empty()
-                        && caller
-                            .entry_claims
-                            .iter()
-                            .all(|claim| claim.input != argument.place)
-                },
-            );
+            crate::validation::element_view::view_loan_result_in_module(
+                module,
+                caller,
+                argument.place,
+            )
+            .is_some_and(|(_, source_access)| {
+                structural_access_can_supply(source_access, argument.access)
+                    && argument.access == parameter.access
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && (is_static_borrow_path(&argument.path)
+                        || is_runtime_indexed_borrow_path(&argument.path))
+                    && callee_claims.is_empty()
+                    && caller
+                        .entry_claims
+                        .iter()
+                        .all(|claim| claim.input != argument.place)
+            });
         if !(is_record_loan(module, caller, parameter, argument) && callee_claims.is_empty())
             && !claim_free_unrestricted_write_only_field
             && !claim_free_reference

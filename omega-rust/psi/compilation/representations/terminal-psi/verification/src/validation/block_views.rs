@@ -714,8 +714,8 @@ pub(super) fn validate_successor(
 
 /// The declared type at a shared successor loan's root. A signature or block
 /// parameter presents its own custody — anything the access lattice allows
-/// to read shared — while a completed record result or an established
-/// borrowed byte view carries its producer's exact type. Linear custody
+/// to read shared — while a completed operation result carries its producer's
+/// exact storage type and access. Linear custody
 /// cannot present a shared read at all. Non-signature roots must still
 /// dominate the edge through `available`; machine parameters are
 /// established at entry and dominate every block.
@@ -741,10 +741,28 @@ fn shared_loan_root(
             && parameter.projected_qualifications.is_empty())
         .then_some(parameter.structural_type);
     }
-    if let Some(result) = super::record::completed_source(module, machine, argument.place)
-        .filter(|_| available.contains(&argument.place))
+    // Result identity and readable storage authority are independent of the
+    // constructor's family. In particular, an immutable scalar's addressable
+    // home lends the same completed storage as an aggregate result. This
+    // query grants no lifetime: edge availability and the shared-loan frontier
+    // still prove that the backing survives transfer and remains frozen.
+    if let Some((signature, _)) =
+        super::structural::result_contracts::operation_result_loan_signature(
+            module,
+            machine,
+            argument.place,
+        )
+        .filter(|(signature, access)| {
+            available.contains(&argument.place)
+                && signature.qualifications.is_empty()
+                && signature.projected_qualifications.is_empty()
+                && super::structural::operations::structural_access_can_supply(
+                    *access,
+                    StructuralAccess::SharedBorrow,
+                )
+        })
     {
-        return Some(result.structural_type);
+        return Some(signature.structural_type);
     }
     // A literal establishes immutable borrowed-view storage with a Unit
     // result. Its declaration and dominating establishment supply the same
@@ -790,46 +808,7 @@ fn shared_loan_root(
             })
             .then_some(structural_type);
     }
-    if argument.path.is_empty() {
-        return super::byte_sequence::subslice::borrowed_result_in_module(
-            module,
-            machine,
-            argument.place,
-        )
-        .or_else(|| {
-            super::element_view::subslice::borrowed_result_in_module(
-                module,
-                machine,
-                argument.place,
-            )
-        })
-        .or_else(|| {
-            super::structural::leaf_copy::copied_return_source(machine, argument.place)
-                .then_some(argument.place)
-                .and_then(|place| {
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.operations)
-                        .find_map(|operation| {
-                            operation.result.structural().filter(|result| {
-                                result.place == place
-                                    && result.multiplicity == StructuralMultiplicity::Unrestricted
-                            })
-                        })
-                })
-        })
-        .filter(|_| available.contains(&argument.place))
-        .map(|result| result.structural_type);
-    }
-    // An element view's elements are structural storage: a projected shared
-    // loan (`&cells[i]`) roots at the view place and resolves its path into
-    // the view's element type, exactly as a record field loan roots at the
-    // record. Byte views keep the whole-view rule above — their elements
-    // carry no structural projection.
-    super::element_view::subslice::borrowed_result_in_module(module, machine, argument.place)
-        .filter(|_| available.contains(&argument.place))
-        .map(|result| result.structural_type)
+    None
 }
 
 /// The declared type at an exclusive successor loan's root. A signature or

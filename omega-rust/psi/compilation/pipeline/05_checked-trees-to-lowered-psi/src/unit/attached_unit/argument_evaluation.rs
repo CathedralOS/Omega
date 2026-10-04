@@ -68,8 +68,9 @@ pub(crate) struct Evaluation {
     pub(crate) copies: Vec<crate::scalar_graph::scalar_computations::copies::Slot>,
     pub(crate) cases: Vec<crate::scalar_graph::scalar_computations::cases::Slot>,
     pub(crate) record_fields: Vec<crate::scalar_graph::scalar_computations::fields::Binding>,
-    pub(crate) byte_record_loans:
-        std::sync::Arc<[crate::expression_preparation::bindings::recast_records::ByteRecordLoan]>,
+    pub(crate) place_observations: std::sync::Arc<
+        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
+    >,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
@@ -139,7 +140,7 @@ impl Evaluation {
             subslices: self.subslices.clone(),
             cases: self.cases.clone(),
             record_fields: self.record_fields.clone(),
-            byte_record_loans: self.byte_record_loans.clone(),
+            place_observations: self.place_observations.clone(),
             primitive_storage: self.primitive_storage.clone(),
             scalar_bindings: self.scalar_bindings.clone(),
             structural_parameters: self.structural_parameters.clone(),
@@ -763,7 +764,7 @@ impl Evaluation {
             subslices: Vec::new(),
             cases: Vec::new(),
             record_fields: Vec::new(),
-            byte_record_loans: std::sync::Arc::from([]),
+            place_observations: std::sync::Arc::from([]),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Default::default(),
@@ -900,7 +901,7 @@ impl Evaluation {
             })
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_byte_record_loans(&self.byte_record_loans);
+            .with_place_observations(&self.place_observations);
         let source_bindings = source_bindings
             .with_primitive_storage(&self.primitive_storage)
             .with_structural_locals(&self.structural_locals)
@@ -1047,7 +1048,7 @@ impl Evaluation {
             .with_structural_parameters(&self.structural_parameters)
             .with_structural_locals(&self.structural_locals)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_byte_record_loans(&self.byte_record_loans);
+            .with_place_observations(&self.place_observations);
         let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()

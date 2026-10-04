@@ -58,7 +58,7 @@ pub(in crate::validation) fn validate_structural_argument(
                 "reference projections at host boundaries are not yet supported",
             ));
         }
-        if crate::validation::references::call_source_type(
+        if crate::validation::references::access_source_type(
             module,
             caller,
             argument,

@@ -183,7 +183,7 @@ pub(super) fn project_primitive_scalar_read(
     } else {
         let root_type = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
             .ok_or(Error::custody())?;
-        let (_, _, elements) =
+        let geometry =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                 root_type,
                 path,
@@ -191,7 +191,12 @@ pub(super) fn project_primitive_scalar_read(
                 &unit.structural_types,
             )
             .ok_or(Error::custody())?;
-        crate::legalization::runtime_indices::operands(optimized, unit, *psi_operation, &elements)?
+        crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            *psi_operation,
+            &geometry.elements,
+        )?
     };
     Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
         source: *source,

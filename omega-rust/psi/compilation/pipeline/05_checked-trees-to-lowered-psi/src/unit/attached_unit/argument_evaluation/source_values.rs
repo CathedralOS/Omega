@@ -65,7 +65,7 @@ impl Evaluation {
             .with_element_views(&self.element_views)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_byte_record_loans(&self.byte_record_loans)
+            .with_place_observations(&self.place_observations)
             // A short-circuit guard may read a case payload after its own
             // case test; the guard's case dispatch binds or refuses each read.
             .with_deferred_case_payloads();
@@ -249,7 +249,7 @@ impl Evaluation {
             .with_element_views(&self.element_views)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_byte_record_loans(&self.byte_record_loans);
+            .with_place_observations(&self.place_observations);
         let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()

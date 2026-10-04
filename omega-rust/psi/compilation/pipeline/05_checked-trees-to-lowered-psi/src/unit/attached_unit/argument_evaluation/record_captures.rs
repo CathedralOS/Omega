@@ -14,7 +14,7 @@ use terminal_psi::{
 
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn capture_record_coordinates_before(
+    pub(crate) fn capture_observation_coordinates_before(
         &mut self,
         statement: u32,
         types: &[StructuralTypeDeclaration],
@@ -24,8 +24,8 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         private_places: &mut Vec<StructuralPlaceDeclaration>,
     ) -> Result<(), LoweringError> {
-        for position in 0..self.byte_record_loans.len() {
-            let loan = &self.byte_record_loans[position];
+        for position in 0..self.place_observations.len() {
+            let loan = &self.place_observations[position];
             if loan.statement_index >= statement {
                 continue;
             }
@@ -118,7 +118,7 @@ impl Evaluation {
                     structural_type,
                 },
             });
-            std::sync::Arc::make_mut(&mut self.byte_record_loans)[position]
+            std::sync::Arc::make_mut(&mut self.place_observations)[position]
                 .capture
                 .as_mut()
                 .map_err(|error| error.clone())?

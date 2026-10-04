@@ -114,7 +114,7 @@ pub(crate) struct PointerSlot {
 /// Reconstruction scratch: offsets belong to separate storage regions around
 /// pointer loads. The retained source path, not this scratch, is the evidence
 /// from which legalization and instruction replay reconstruct the address.
-pub(crate) struct PrimitiveStoreGeometry {
+pub(crate) struct PrimitiveAccessGeometry {
     pub(crate) byte_offset: u32,
     pub(crate) byte_size: u8,
     pub(crate) elements: Vec<RuntimeElement>,
@@ -127,7 +127,7 @@ pub(crate) fn primitive_store(
     path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<PrimitiveStoreGeometry> {
+) -> Option<PrimitiveAccessGeometry> {
     if destination.multiplicity() == terminal_psi::StructuralMultiplicity::Linear
         || (path.is_empty()
             && destination.multiplicity() != terminal_psi::StructuralMultiplicity::Unrestricted)
@@ -162,7 +162,29 @@ pub(crate) fn primitive_store(
             return None;
         }
     }
-    let mut root = destination.structural_type();
+    primitive_access_geometry(
+        destination.structural_type(),
+        path,
+        scalar,
+        declarations,
+        primitive_geometry,
+    )
+}
+
+/// Pointer crossings delimit storage regions for both reads and writes. The
+/// endpoint resolver keeps each operation's field contract separate.
+fn primitive_access_geometry(
+    mut root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+    endpoint: impl Fn(
+        StructuralTypeId,
+        &[StructuralPathSegment],
+        ScalarType,
+        &[StructuralTypeDeclaration],
+    ) -> Option<(u32, u8, Vec<RuntimeElement>)>,
+) -> Option<PrimitiveAccessGeometry> {
     let mut segment_start = 0;
     let mut elements = Vec::new();
     let mut pointer_slots = Vec::new();
@@ -199,9 +221,9 @@ pub(crate) fn primitive_store(
         segment_start = position + 1;
     }
     let (byte_offset, byte_size, leaf_elements) =
-        primitive_geometry(root, &path[segment_start..], scalar, declarations)?;
+        endpoint(root, &path[segment_start..], scalar, declarations)?;
     elements.extend(leaf_elements);
-    Some(PrimitiveStoreGeometry {
+    Some(PrimitiveAccessGeometry {
         byte_offset,
         byte_size,
         elements,
@@ -317,6 +339,21 @@ pub(crate) fn primitive_geometry(
 /// runtime elements, then the field's declared offset in the record. A store
 /// never takes this route; its field write is `store`.
 pub(crate) fn primitive_read_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<PrimitiveAccessGeometry> {
+    primitive_access_geometry(
+        root,
+        path,
+        scalar,
+        declarations,
+        contiguous_primitive_read_geometry,
+    )
+}
+
+fn contiguous_primitive_read_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar: ScalarType,

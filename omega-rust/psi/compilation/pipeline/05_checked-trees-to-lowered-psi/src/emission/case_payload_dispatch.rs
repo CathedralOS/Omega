@@ -337,6 +337,9 @@ fn substitute_boolean(
 ) -> LoweredBooleanReturnExpression {
     use LoweredBooleanReturnExpression as Boolean;
     match expression {
+        Boolean::ScalarObservation { operand } => Boolean::ScalarObservation {
+            operand: Box::new(substitute_direct(*operand, bound)),
+        },
         Boolean::StructuralField {
             source,
             path,
@@ -617,6 +620,7 @@ fn case_reads<'e>(
     match expression {
         // A prepared case-leaf source emits its own checked copy at the read.
         // Only a direct field observation still awaits dispatch substitution.
+        Boolean::ScalarObservation { operand } => collect_direct_case_reads(operand, reads),
         Boolean::PrimitiveRead { .. } => {}
         Boolean::StructuralField { source, path, .. } => {
             if let PrimitiveReadSource::Place(source) = source

@@ -294,12 +294,27 @@ fn check_region_access(
     place: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
+    check_region_access_with(function, block, node, live, place, path, |_| false)
+}
+
+/// Shared observations may coexist with shared origins, never with overlapping
+/// carrier storage. Mutations and custody transfers supply no compatibility.
+fn check_region_access_with(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    live: &[LiveReference],
+    place: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    compatible_origin: impl Fn(&LiveReference) -> bool,
+) -> Result<(), OptimizationUnitValidationError> {
     let overlaps = |other: &[terminal_psi::StructuralPathSegment]| {
         terminal_semantics::structural_paths_may_overlap(path, other)
     };
     if live.iter().any(|reference| {
         (reference.carrier == place && overlaps(&reference.carrier_path))
             || (origin_place(&reference.root) == place
+                && !compatible_origin(reference)
                 && match &reference.root {
                     ReferenceOrigin::Primitive(_) => true,
                     ReferenceOrigin::IngressLeaf(identity) => overlaps(&identity.path),
@@ -367,6 +382,7 @@ fn check_observation_access(
     live: &[LiveReference],
     place: PlaceId,
     region: &[terminal_psi::StructuralPathSegment],
+    compatible_origin: impl Fn(&LiveReference) -> bool,
 ) -> Result<(), OptimizationUnitValidationError> {
     let access = structural_source_contract(function, place)
         .and_then(|contract| types.get(&contract.structural_type))
@@ -375,7 +391,15 @@ fn check_observation_access(
             _ => None,
         });
     let Some(access) = access else {
-        return check_region_access(function, block, node, live, place, region);
+        return check_region_access_with(
+            function,
+            block,
+            node,
+            live,
+            place,
+            region,
+            compatible_origin,
+        );
     };
     let mut carriers = live
         .iter()
@@ -934,6 +958,22 @@ pub(super) fn apply_operation(
             );
         }
         O::PrimitiveScalarRead { source, path, .. }
+            if path.contains(&terminal_psi::StructuralPathSegment::Referent) =>
+        {
+            call_reference_custody(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                &StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            )?;
+        }
+        O::PrimitiveScalarRead { source, path, .. }
         | O::StructuralCaseMembership { source, path, .. } => {
             let region =
                 super::storage_regions::projected(function, structural_types, *source, path, None);
@@ -945,6 +985,14 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 region.direct_path(),
+                |reference| {
+                    shared_source_compatible(
+                        function,
+                        structural_types,
+                        reference,
+                        StructuralAccess::SharedBorrow,
+                    )
+                },
             )?;
         }
         O::StructuralScalarFieldRead {
@@ -968,10 +1016,27 @@ pub(super) fn apply_operation(
                 live,
                 *source,
                 &region,
+                |reference| {
+                    shared_source_compatible(
+                        function,
+                        structural_types,
+                        reference,
+                        StructuralAccess::SharedBorrow,
+                    )
+                },
             )?;
         }
         O::StructuralCase { source, .. } => {
-            check_observation_access(function, structural_types, block, node, live, *source, &[])?;
+            check_observation_access(
+                function,
+                structural_types,
+                block,
+                node,
+                live,
+                *source,
+                &[],
+                |_| false,
+            )?;
         }
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
@@ -988,15 +1053,29 @@ pub(super) fn apply_operation(
             field,
             ..
         } => {
-            check_record_field_access(
+            let region = super::storage_regions::projected(
+                function,
+                structural_types,
+                *source,
+                path,
+                Some(*field),
+            );
+            check_observation_access(
                 function,
                 structural_types,
                 block,
                 node,
                 live,
                 *source,
-                path,
-                Some(*field),
+                region.direct_path(),
+                |reference| {
+                    shared_source_compatible(
+                        function,
+                        structural_types,
+                        reference,
+                        StructuralAccess::SharedBorrow,
+                    )
+                },
             )?;
         }
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
