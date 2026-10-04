@@ -1254,12 +1254,17 @@ crash and native exit behavior.
     requirement, single-state shared and mutable-reference returns, and
     effectful-guard/operand-order forms execute in both engines. Ordinary wrappers,
     mixed call/value arms, and writes through terminal and generic reference
-    results retain the caller's backing storage.
+    results retain the caller's backing storage. Guarded reference, scalar and
+    Unit completions before a crash fallback also execute in both engines.
   - Remaining:
     - finish multi-state callee reference-origin substitution and returned-local
-      custody for alternative subplaces beyond the admitted single-state query,
-      and compose guarded normal reference returns
-      with subsequent crash completion (currently omitted at `transition form`);
+      custody for alternative subplaces beyond the admitted single-state query;
+    - validate the native trap oracle for
+      `calls/runtime_guarded_reference_return_crash` on a host that can reap trap
+      exits. The current macOS host leaves both that program and system-clang
+      `int main(void) { __builtin_trap(); }` in uninterruptible exit. Checking
+      admits the fixture; the interpreter leg declines, so no cross-engine trap
+      agreement has been established;
     - claim-transferring arm calls.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
     `samples/cli/systems/note_vault` depend on `Filesystem::create_dir_all`.
@@ -1268,6 +1273,8 @@ crash and native exit behavior.
   `pass/calls/runtime_guarded_terminal_mutable_reference_result_exit` and
   `pass/calls/runtime_guarded_terminal_reference_write_exit` at 0 in both engines,
   including writes through a generic reference helper. Keep
+  `pass/calls/runtime_guarded_reference_return_before_crash_exit` at 0 in both
+  engines, including scalar and Unit completion variations. Keep
   `pass/calls/runtime_guarded_terminal_reference_result_exit` at 0 in both engines,
   including its ordinary wrapper and mixed call/value arms.
   Keep `fail/calls/terminal_call_result_type_mismatch_rejected`
