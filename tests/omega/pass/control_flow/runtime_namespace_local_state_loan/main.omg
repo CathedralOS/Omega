@@ -1,0 +1,19 @@
+// A namespace-qualified entry lends its local storage into a successor.
+// The successor observes its write and the borrowed array extent.
+data Score { value: u64; }
+
+machine Main::main() crashes Trap {
+    let mut score: Score = Score { value: 0 };
+    let mut bytes: [u8; 8];
+    transition { _ -> fill(&mut score, &mut bytes) }
+
+    state fill(score: &mut Score, bytes: &mut [u8]) {
+        score.value = 70;
+        transition score.value == 70 && bytes.len == 8 {
+            true -> done()
+            _ -> failed()
+        }
+    }
+    state done() {}
+    state failed() { crash Trap; }
+}

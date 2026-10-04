@@ -461,3 +461,69 @@ fn bounded_command_guards_return_selected_structural_values() {
         trace.stage()
     );
 }
+
+#[test]
+fn uninitialized_locals_lend_for_initialization_from_entry_and_later_states() {
+    for later in [false, true] {
+        let body = "let score: Score; transition { _ -> fill(&mut score) }";
+        let opening = if later {
+            format!("transition {{ _ -> prepare() }} state prepare() {{ {body} }}")
+        } else {
+            body.to_owned()
+        };
+        let checked = crate::tests::front_end::checked_program(&format!(
+            "data Score {{ value: u64; }}
+             machine Space::write() {{
+                 {opening}
+                 state fill(score: &mut Score) {{ score.value = 70; }}
+             }}"
+        ));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| checked.symbols.display_path(machine.symbol, "::") == "Space::write")
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .expect("uninitialized local retains its initialization loan");
+        let lender = &plan.states[usize::from(later)];
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+            &lender.terminator
+        else {
+            panic!("lender jumps to initialization");
+        };
+        assert!(matches!(
+            successor.transfers[0].source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. }
+        ));
+    }
+}
+
+#[test]
+fn initialized_immutable_local_does_not_gain_mutable_state_loan() {
+    let checked = crate::tests::front_end::checked_program(
+        "data Score { value: u64; }
+         machine Space::write() {
+             let score: Score = Score { value: 1 };
+             transition { _ -> fill(&mut score) }
+             state fill(score: &mut Score) { score.value = 70; }
+         }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.symbols.display_path(machine.symbol, "::") == "Space::write")
+        .expect("namespace-qualified machine");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .is_none(),
+        "preserve the lowerer's existing refusal for an initialized immutable local"
+    );
+}

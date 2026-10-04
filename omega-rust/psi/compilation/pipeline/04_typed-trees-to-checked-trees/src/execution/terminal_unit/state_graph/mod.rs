@@ -2174,17 +2174,22 @@ fn successor_bindings(
                     validation::slice_view_shell(program, parameter.type_reference, &[])
                         .is_some_and(|view| view.access == language_core::ReferenceAccess::Mutable)
                 });
-            let mutable_local = source_index == 0
-                && matches!(edge, SuccessorEdge::Jump)
-                && target.access == CheckedStructuralAccess::MutableBorrow
-                && target.multiplicity == Multiplicity::Unrestricted
-                && matches!(program.expression_table.expression(expression), ExpressionNode::Borrow(borrow)
-                    if borrow.access == language_core::ReferenceAccess::Mutable);
             // Fresh inline values have no retained source place. Only local
             // result forwarding needs one; its absence leaves construction
             // to the ordinary selected-edge establishment below.
-            if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view || mutable_local)
+            if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view)
                 && let Some(place) = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
+                // Forward an existing descriptor here. Borrowing an owned
+                // local establishes a loan, even when its referent has the
+                // same representation as the target. The ordinary loan path
+                // below owns access, backing and array-to-view presentation;
+                // an entry-only mutable-result shortcut loses that relation.
+                && (target.access == CheckedStructuralAccess::Owned
+                    || matches!(place.root, facts::PlaceRoot::Symbol(symbol)
+                        if program.state_local_declaration(source, symbol)
+                            .is_some_and(|(_, local)| validation::slice_view_shell(
+                                program, local.type_reference, &[],
+                            ).is_some())))
             {
                 mark(SuccessorGuard::ResultTransfer);
                 if place.segments.is_empty() {
@@ -2195,7 +2200,7 @@ fn successor_bindings(
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
                         if result.type_identity != target.type_identity
-                            || (!mutable_local && !mutable_view && result.multiplicity != target.multiplicity) { return None; }
+                            || (!mutable_view && result.multiplicity != target.multiplicity) { return None; }
                         if mutable_view {
                             // The local's own declaration must hold the
                             // exclusive view: its binding is then the affine
@@ -2206,18 +2211,6 @@ fn successor_bindings(
                                 || result.multiplicity != Multiplicity::Affine
                                 || !validation::slice_view_shell(program, local.type_reference, &[])
                                     .is_some_and(|view| view.access == language_core::ReferenceAccess::Mutable)
-                            { return None; }
-                        }
-                        if mutable_local {
-                            let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
-                            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else { return None; };
-                            if (!local.is_mutable && local.initial_value.is_valid())
-                                || !matches!(program.expression_table.expression(borrow.target), ExpressionNode::Name(name)
-                                    if name.symbol == local.symbol && name.head_symbol == local.symbol
-                                        && program.expression_table.name_path_members(name.members).len() == 1)
-                                || !matches!(result.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)
-                                || !validation::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
-                                || super::types::type_graph_requires_nominal_drop(program, local.type_reference)
                             { return None; }
                         }
                         return Some(CheckedStructuralControlTransferPlan {
@@ -2561,7 +2554,7 @@ fn successor_bindings(
                     } else if let Some((local, result)) = local_subject() {
                         let mutable_local_loan = expected_access
                             == CheckedStructuralAccess::SharedBorrow
-                            || (local.is_mutable
+                            || ((local.is_mutable || !local.initial_value.is_valid())
                                 && matches!(
                                     result.multiplicity,
                                     Multiplicity::Affine | Multiplicity::Unrestricted

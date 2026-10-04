@@ -23,9 +23,10 @@ mod tests;
 ///
 /// A carrier qualification names the semantic owner and contributes no
 /// argument or storage, so ordinary Terminal plans retain an attachment only
-/// for an authored receiver during the static-machine migration. Admission
-/// is unchanged: the qualified signature helpers still require the machine
-/// to name its data owner, whatever storage they retain.
+/// for an authored receiver during the static-machine migration. Explicit
+/// scalar/structural signatures require a data owner only when retaining
+/// owner storage; boundary signatures additionally retain the owner for ABI
+/// metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AttachmentStorage {
     /// Retain the owner only when some state declares `self`.
@@ -397,11 +398,16 @@ fn structural_scalar_signature_with_storage(
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
     trace.phase("state graph: state signature: parameter signature: attached data shape");
-    // An owned `self` carries the multiplicity of the machine's exact
-    // attachment, not of the first record sharing its spelling.
-    let attached = program.attached_data_definition(machine)?;
-    let attachment_type_identity = if storage.retains(program, machine) {
-        Some(shapes.add_attached_application(machine, binders)?)
+    // Static qualification supplies no storage. Resolve a data carrier only
+    // when this signature actually retains one; otherwise all storage and
+    // multiplicity come from the ordinary explicit parameters. A boundary
+    // owner still requires its exact nominal declaration for ABI metadata.
+    let attachment = if storage.retains(program, machine) {
+        let attached = program.attached_data_definition(machine)?;
+        Some((
+            shapes.add_attached_application(machine, binders)?,
+            attached.properties.multiplicity,
+        ))
     } else {
         None
     };
@@ -410,14 +416,14 @@ fn structural_scalar_signature_with_storage(
         shapes,
         state,
         binders,
-        attachment_type_identity
-            .as_deref()
-            .map(|identity| (identity, attached.properties.multiplicity)),
+        attachment
+            .as_ref()
+            .map(|(identity, multiplicity)| (identity.as_str(), *multiplicity)),
         retain_reference_self,
         trace,
     )?;
     Some((
-        attachment_type_identity,
+        attachment.map(|(identity, _)| identity),
         structural_parameters,
         scalar_parameters,
     ))
