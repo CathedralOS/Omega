@@ -1563,6 +1563,7 @@ pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt
 pass/calls/guarded_arm_view_range_tail_call_exit checked 2154ms @58e4f6f8667
 pass/calls/guarded_terminal_call_chain_exit checked 704ms @d30440d3c3f
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
+pass/calls/indexed_self_root_call_arg checked 3326ms @b5d8c6882a8
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
@@ -1808,14 +1809,12 @@ pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms @527c7c316c6f+wt
 pass/control_flow/affine_call_result_state_transfer_exit checked 681ms @486f93bb3d39+wt
 pass/control_flow/affine_record_state_cycle_exit checked 704ms @7f2bd2604102
-pass/control_flow/arm_pattern_rest_optout_exit rejected 3917ms @c5d32a00863
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms @b5d8c6882a8
 pass/control_flow/borrowed_state_argument checked 3409ms @527c7c316c6f+wt
 pass/control_flow/case_arm_payload_receiver_call checked 1730ms @30260e7900cb+wt
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1704ms @2d8ed253669f
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 1124ms @bd9a4018c019+wt
-pass/control_flow/case_pattern_rename_waive_exit rejected 2794ms @c5d32a00863
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+pass/control_flow/case_pattern_rename_waive_exit checked 1932ms @b5d8c6882a8
 pass/control_flow/composite_state_parameter checked 1293ms @2d8ed253669f
 pass/control_flow/conditional_unit_completion_exit checked 1498ms @2d8ed253669f
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 303ms @2d8ed253669f
@@ -2268,8 +2267,8 @@ pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
-pass/ownership/linear_transfer_and_consume rejected 3546ms @c5d32a00863
-	terminal-artifact production failed: Lowering(Unsupported("owned value operand substituted its declared carrier"))
+pass/ownership/linear_transfer_and_consume rejected 2366ms @b5d8c6882a8
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 0, place: PlaceId(4) }))
 pass/ownership/linear_transparent_record_frontier rejected 1447ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
@@ -2437,8 +2436,7 @@ pass/slices/runtime_call_endpoint_argument_exit checked 1629ms @637668355701+wt
 pass/slices/runtime_call_endpoint_field_transition_exit checked 1630ms @637668355701+wt
 pass/slices/runtime_call_endpoint_order_exit checked 1647ms @637668355701+wt
 pass/slices/runtime_call_endpoint_view_exit checked 1625ms @637668355701+wt
-pass/slices/runtime_direct_view_requires_index_exit rejected 1393ms @45782ade0cba+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/slices/runtime_direct_view_requires_index_exit checked 4270ms @b5d8c6882a8
 pass/slices/runtime_element_view_requires_index_exit checked 1657ms @0991904fed3b+wt
 pass/slices/runtime_forwarded_view_runtime_index_exit checked 3837ms @cfe60a3a242
 pass/slices/runtime_guarded_view_copy_cycle_exit checked 2015ms @6ba9c43af356+wt
@@ -2681,8 +2679,8 @@ pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+w
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1375ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
-pass/traits/runtime_inherited_trait_default_exit rejected 1710ms @c5d32a00863
-	authored Call declaration selection occurrence 3969 (`set` in tests/omega/pass/traits/runtime_inherited_trait_default_exit/main.omg) remained unresolved after successful checking (CheckedCall)
+pass/traits/runtime_inherited_trait_default_exit rejected 1539ms @b5d8c6882a8
+	authored Call declaration selection occurrence 4879 (`set` in tests/omega/pass/traits/runtime_inherited_trait_default_exit/main.omg) remained unresolved after successful checking (CheckedCall)
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1357ms @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms @58e4f6f8667

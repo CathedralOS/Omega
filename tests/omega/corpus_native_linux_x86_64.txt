@@ -64,10 +64,13 @@ pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 3537ms exit:70 @15c77983aab0
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 2870ms exit:70 @15c77983aab0
+pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 3535ms exit:70 @b5d8c6882a8
+pass/borrows/runtime_nested_carrier_reference_read_exit built 3996ms exit:70 @b5d8c6882a8
 pass/borrows/runtime_record_byte_region_loan_exit built 21745ms exit:50 @c773c4ad3c34
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1431ms exit:70 @34627c25182b
 pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/borrows/static_carrier_bounded_reference_read_exit built 2854ms exit:70 @15c77983aab0
+pass/borrows/static_carrier_reference_read_exit built 3056ms exit:70 @b5d8c6882a8
 pass/borrows/transition_shared_borrow_result built 2879ms exit:181 @15c77983aab0
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
