@@ -27,16 +27,6 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
-pub(crate) fn record_permission_events_with_incoming_guards(
-    program: &typed_trees::TypedTrees,
-    facts: &mut CheckFacts,
-    incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
-) -> Result<(), Vec<Diagnostic>> {
-    prepare_permission_events(program, facts)?;
-    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
-    Ok(())
-}
-
 /// Prepare source custody without inspecting derived callable contracts. Crash
 /// frontier projection belongs after those contracts have been constructed.
 pub(crate) fn prepare_permission_events(
@@ -296,7 +286,7 @@ struct DerivedCrashFrontier {
 /// crash. The result is an underapproximation by design: a conditional sum
 /// payload is omitted until active-case proof can make its liveness definite.
 /// Crash abandons these claims; it does not synthesize cleanup or consumption.
-fn record_crash_frontier_lower_bounds(
+pub(crate) fn record_crash_frontier_lower_bounds(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,

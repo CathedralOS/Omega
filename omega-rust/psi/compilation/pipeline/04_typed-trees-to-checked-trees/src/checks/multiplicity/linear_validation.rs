@@ -2,31 +2,31 @@
 //! frontier, borrow events, permission production and affine cleanup.
 //!
 //! This file validates one machine. `claim_frontier.rs` builds the linear
-//! claim frontier, `recorded_events.rs` replays recorded entry, statement
+//! claim frontier, `applied_events.rs` applies recorded entry, statement
 //! and borrow events, `permission_production.rs` applies statement
 //! permission production, `claim_provenance.rs` names claim identities and
 //! provenance and `affine_cleanup.rs` derives and replays owner-authorized exit cleanup.
 
 mod affine_cleanup;
+mod applied_events;
 mod claim_frontier;
 mod claim_provenance;
 mod permission_production;
-mod recorded_events;
 
 pub(crate) use affine_cleanup::append_owned_cleanup_permission_events;
+pub(crate) use applied_events::{
+    append_borrow_permission_events, apply_recorded_state_entry_events,
+    apply_recorded_statement_events, permission_event_statement_index,
+};
 pub(crate) use claim_frontier::{initial_linear_places, linear_claim_frontier};
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
     permission_kind_for_move, permission_source, select_static_case_alternative,
 };
-pub(crate) use recorded_events::{
-    append_borrow_permission_events, apply_recorded_state_entry_events,
-    apply_recorded_statement_events, permission_event_statement_index,
-};
 
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
-use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowFacts, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -35,12 +35,10 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
-pub(crate) fn validate_linear_permission_events_with_incoming_guards(
+pub(crate) fn validate_linear_permission_events(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
-    incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
-    recorded_events::validate_permission_source_replay(program, facts, incoming_guards)?;
     let mut diagnostics = Vec::new();
     super::claim_outcomes::validate_conditional_claim_joins(
         program,
@@ -48,20 +46,6 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         &facts.flow.ownership,
         &mut diagnostics,
     );
-    // `record_statement` consults the borrow ledger and the statement-entry
-    // constraint sets to decide whether a once-borrowed source may join a
-    // selection. Those are inputs recorded by earlier passes, so the replay
-    // seeds them unchanged while the ownership arenas it fills stay fresh.
-    let mut selected_replay = CheckFacts {
-        borrow: facts.borrow.clone(),
-        flow: FlowFacts {
-            contexts: facts.flow.contexts.clone(),
-            control: facts.flow.control.clone(),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
         else {
@@ -77,7 +61,6 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
-        let statements = program.statement_table.statements(state.statement_nodes);
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         let events = facts
@@ -112,26 +95,31 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                     statement,
                     evaluation,
                 } => {
+                    // The recording pass already decided which statements are
+                    // owned selections and kept one receipt for each. Apply
+                    // that receipt's availability exactly as recording did,
+                    // instead of recording the selection a second time.
                     if !matches!(
                         evaluation,
                         checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
-                    ) {
-                        match owned_selection::record_statement(
+                    ) && let Some((_, receipt)) = facts
+                        .flow
+                        .ownership
+                        .owned_selections
+                        .iter()
+                        .find(|(_, receipt)| {
+                            receipt.machine == machine.symbol
+                                && receipt.state == state.symbol
+                                && receipt.statement_ordinal as usize == statement
+                        })
+                    {
+                        owned_selection::apply_availability(
                             program,
-                            &mut selected_replay,
-                            machine,
-                            state,
-                            statement,
-                            &statements[statement],
+                            &facts.flow.ownership,
+                            receipt,
                             places,
-                        ) {
-                            Ok(true) => return,
-                            Ok(false) => {}
-                            Err(diagnostic) => {
-                                diagnostics.push(diagnostic);
-                                return;
-                            }
-                        }
+                        );
+                        return;
                     }
                     apply_recorded_statement_events(
                         statement,
@@ -202,13 +190,8 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         }
     }
 
-    if !owned_selections_match(&selected_replay.flow.ownership, &facts.flow.ownership) {
-        diagnostics.push(Diagnostic::error(
-            "owned selection receipts differ from source ownership replay",
-        ));
-    }
-    for (_, receipt) in selected_replay.flow.ownership.owned_selections.iter() {
-        let sources = selected_replay
+    for (_, receipt) in facts.flow.ownership.owned_selections.iter() {
+        let sources = facts
             .flow
             .ownership
             .selection_sources
@@ -219,7 +202,7 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         // source root is a second life for the same claim.
         let consumed_places: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> =
             if program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear {
-                selected_replay
+                facts
                     .flow
                     .ownership
                     .selection_transfers
@@ -227,13 +210,13 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                     .iter()
                     .filter(|transfer| transfer.source.is_valid())
                     .flat_map(|transfer| {
-                        let symbol = selected_replay
+                        let symbol = facts
                             .flow
                             .ownership
                             .selection_sources
                             .get(transfer.source)
                             .symbol;
-                        let claims = selected_replay
+                        let claims = facts
                             .flow
                             .ownership
                             .selection_transfer_claims
@@ -241,7 +224,7 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                         if claims.is_empty() {
                             vec![(
                                 symbol,
-                                selected_replay
+                                facts
                                     .flow
                                     .ownership
                                     .segments
@@ -254,7 +237,7 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
                                 .map(|claim| {
                                     (
                                         symbol,
-                                        selected_replay
+                                        facts
                                             .flow
                                             .ownership
                                             .segments
@@ -305,91 +288,6 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
     } else {
         Err(diagnostics)
     }
-}
-
-/// The replay populates a fresh ownership arena, so span offsets into
-/// `segments`, `selection_sources`, and `selection_transfers` are positional
-/// rather than semantic. Compare each recorded receipt field-for-field,
-/// resolving spans through the side that produced them.
-fn owned_selections_match(
-    replay: &checked_trees::FlowOwnershipFacts,
-    recorded: &checked_trees::FlowOwnershipFacts,
-) -> bool {
-    let replay_receipts = replay
-        .owned_selections
-        .iter()
-        .map(|(_, receipt)| receipt)
-        .collect::<Vec<_>>();
-    let recorded_receipts = recorded
-        .owned_selections
-        .iter()
-        .map(|(_, receipt)| receipt)
-        .collect::<Vec<_>>();
-    if replay_receipts.len() != recorded_receipts.len() {
-        return false;
-    }
-    for (replayed_receipt, recorded_receipt) in replay_receipts.into_iter().zip(recorded_receipts) {
-        if replayed_receipt.machine != recorded_receipt.machine
-            || replayed_receipt.state != recorded_receipt.state
-            || replayed_receipt.statement_ordinal != recorded_receipt.statement_ordinal
-            || replayed_receipt.expression != recorded_receipt.expression
-            || replayed_receipt.destination != recorded_receipt.destination
-            || replayed_receipt.type_reference != recorded_receipt.type_reference
-            || replayed_receipt.death != recorded_receipt.death
-            || replay
-                .selection_sources
-                .span_or_empty(replayed_receipt.sources)
-                != recorded
-                    .selection_sources
-                    .span_or_empty(recorded_receipt.sources)
-        {
-            return false;
-        }
-        let replayed_transfers = replay
-            .selection_transfers
-            .span_or_empty(replayed_receipt.transfers);
-        let recorded_transfers = recorded
-            .selection_transfers
-            .span_or_empty(recorded_receipt.transfers);
-        if replayed_transfers.len() != recorded_transfers.len() {
-            return false;
-        }
-        for (replayed_transfer, recorded_transfer) in
-            replayed_transfers.iter().zip(recorded_transfers)
-        {
-            if replayed_transfer.expression != recorded_transfer.expression
-                || replayed_transfer.source_arm != recorded_transfer.source_arm
-                || replayed_transfer.source != recorded_transfer.source
-                || replay.segments.span_or_empty(replayed_transfer.path)
-                    != recorded.segments.span_or_empty(recorded_transfer.path)
-            {
-                return false;
-            }
-            // The consumed claim set is part of the transfer's identity: a
-            // whole carrier's replay must reproduce the same ordered claim
-            // rows, each with the consumed place's own identity and
-            // provenance, or the recorded set was tampered with.
-            let replayed_claims = replay
-                .selection_transfer_claims
-                .span_or_empty(replayed_transfer.claims);
-            let recorded_claims = recorded
-                .selection_transfer_claims
-                .span_or_empty(recorded_transfer.claims);
-            if replayed_claims.len() != recorded_claims.len() {
-                return false;
-            }
-            for (replayed_claim, recorded_claim) in replayed_claims.iter().zip(recorded_claims) {
-                if replay.segments.span_or_empty(replayed_claim.path)
-                    != recorded.segments.span_or_empty(recorded_claim.path)
-                    || replayed_claim.claim_identity != recorded_claim.claim_identity
-                    || replayed_claim.provenance != recorded_claim.provenance
-                {
-                    return false;
-                }
-            }
-        }
-    }
-    true
 }
 
 fn append_unresolved_state_result_mapping_diagnostics(

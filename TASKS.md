@@ -1857,17 +1857,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `build_borrow_facts` call per check, unchanged borrow check corpus and
   native restoration results.
 
-- **PERMISSION-REPLAY-DELETED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs` records permission
-  events (`prepare_permission_events`), and
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation.rs`'s
-  `validate_permission_source_replay` re-runs the recording into a second
-  `CheckFacts` and compares (`owned_selections_match`);
-  `linear_validation/recorded_events.rs` says "Receipt replay alone cannot
-  detect a forged establishment". Delete the replay and
-  `recorded_events.rs`; move the claim-join and unresolved-result
-  diagnostics into the single recording pass. Acceptance: one permission
-  recording per check; corpus `--filter ownership/,drops,linear` unchanged.
-
 - **CHECKER-REPLAYS-DELETED.** (new-scope) Delete the smaller self-checks:
   - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/monomorphization/identities.rs`
     `replay_machine_specialization_identity` and the comparison against

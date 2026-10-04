@@ -5,9 +5,9 @@
 use super::borrowed_windows;
 use super::consumed_owners::ConsumedOwners;
 use crate::checks::multiplicity::linear_validation::{
-    event_statement_index, validate_linear_permission_events_with_incoming_guards,
+    event_statement_index, validate_linear_permission_events,
 };
-use crate::checks::multiplicity::permission_events::record_permission_events_with_incoming_guards;
+use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
 use crate::checks::multiplicity::projected_affine;
 use crate::checks::multiplicity::temporary_results;
 use crate::checks::multiplicity::type_multiplicity::find_data_definition;
@@ -119,8 +119,12 @@ pub(crate) fn check_linear_obligations(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let consumed_owner_uses = validate_partial_moves(program, facts)?;
-    record_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
-    validate_linear_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
+    // `facts.rs` recorded the permission events once, inside the contextual
+    // cleanup fixed point; recording them again here reproduced the same
+    // events. Only the crash-frontier projection needs the incoming guard
+    // index, which exists only now.
+    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
+    validate_linear_permission_events(program, facts)?;
     // A repeated whole transfer is also a use of a consumed owner. Linear
     // validation names that shape first; the occurrence replay reports only
     // the reads, borrows, receivers and projections no permission event sees.
