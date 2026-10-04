@@ -478,12 +478,12 @@ pass/filesystem/windows_raw_breadth_exit rejected 813ms @2d8ed253669f+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 1023ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
-pass/filesystem/windows_wrapper_results_exit rejected 9424ms @ee1da2845a7
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
-pass/filesystem/wrapper_lock_metadata_exit rejected 9566ms @ee1da2845a7
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
-pass/filesystem/wrapper_open_with_exit rejected 9749ms @ee1da2845a7
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+pass/filesystem/windows_wrapper_results_exit rejected 38662ms @226c4c4b57b
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/wrapper_lock_metadata_exit rejected 37145ms @226c4c4b57b
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/wrapper_open_with_exit rejected 32917ms @226c4c4b57b
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(PrimitiveSnapshotReconstructionLimitExceeded(MachineId(14))))
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 3202ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 3041ms @2d8ed253669f+wt

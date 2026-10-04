@@ -1841,8 +1841,7 @@ pass/control_flow/scalar_loop_interior_header_exit checked 1748ms @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms @2d8ed253669f
 pass/control_flow/shared_state_disjoint_receiver_store_exit checked 1312ms @da17a13c769f
 pass/control_flow/state_local_operand_edge_call_exit checked 1919ms @f05a17605282+wt
-pass/control_flow/structural_result_transition_tail rejected 2487ms @c5d32a00863
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: guarded pair without exact false fallback` (state 0)
+pass/control_flow/structural_result_transition_tail checked 3032ms @226c4c4b57b
 pass/control_flow/sum_field_storage_roundtrip checked 1418ms @2d8ed253669f
 pass/control_flow/termination_index_distance_compile checked 978ms @ca8c127c90c5
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
@@ -2039,12 +2038,12 @@ pass/filesystem/windows_raw_breadth_exit rejected 2340ms @c47f8652484
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 2454ms @c47f8652484
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_wrapper_results_exit rejected 7026ms @c5d32a00863
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+pass/filesystem/windows_wrapper_results_exit rejected 40600ms @226c4c4b57b
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/wrapper_lock_metadata_exit rejected 46769ms @6ba9c43af35
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 5781ms @c5d32a00863
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+pass/filesystem/wrapper_open_with_exit rejected 33873ms @226c4c4b57b
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(PrimitiveSnapshotReconstructionLimitExceeded(MachineId(14))))
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 15232ms @c5d32a00863
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, state 0, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 19264ms @c5d32a00863
