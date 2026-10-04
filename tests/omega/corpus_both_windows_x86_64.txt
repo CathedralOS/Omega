@@ -13,6 +13,7 @@ pass/build/runtime_static_service_exclusion_exit built 4290ms exit:0 interpreter
 pass/calls/runtime_static_tail_local_custody_exit built 2771ms exit:0 interpreter-exit:0 interpreter:agrees @c5d32a008630+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit built 3632ms exit:0 interpreter-exit:0 interpreter:agrees @c5d32a008630+wt
 pass/control_flow/element_view_enum_equality_exit built 9147ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
+pass/core/extent_root_provider_adapter built 2986ms exit:0 interpreter-exit:0 interpreter:agrees @b429d3348cac+wt
 pass/data/opaque_copy_selected built 3871ms exit:0 interpreter-exit:0 interpreter:agrees @9daaa9bd9280+wt
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt

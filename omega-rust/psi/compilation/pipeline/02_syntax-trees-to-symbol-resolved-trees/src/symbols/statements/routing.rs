@@ -192,7 +192,10 @@ pub(super) fn assign_statement_symbols(
                     Some(operation) => assign_provider_selection_argument_symbol(
                         symbols,
                         argument,
-                        operation == BuildOperation::ProviderSelection && index == 0,
+                        matches!(
+                            operation,
+                            BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+                        ) && index == 0,
                     ),
                     None => {
                         assign_static_argument_symbols(symbols, machine.symbol, argument, false);

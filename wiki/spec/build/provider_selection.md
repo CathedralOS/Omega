@@ -48,6 +48,14 @@ value grants selection authority. The interpreter verifies the activation's
 identity, not merely the argument's type. Receiver-style
 `builder.select_provider<Slot, Provider>()` is not an alternate call form.
 
+An explicit root trust grant uses
+`Build::accept_boundary<Subject>(builder)`. Subject names an exact selected
+provider or accepted machine under the existing admission policy; accepting it
+does not select a provider or invent a new implementation. The Build argument
+is explicit and must belong to the current activation. An ordinary declaration
+named `accept_boundary` grants no authority. Receiver-style acceptance is
+retired, with no implicit insertion of the Build argument.
+
 Selection configuration is nominal, apart from the optional declared composition
 mode supplied after `builder`:
 

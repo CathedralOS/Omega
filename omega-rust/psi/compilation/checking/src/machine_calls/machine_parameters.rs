@@ -310,6 +310,7 @@ fn validate_call_selection(
             BuildOperation::from_call_target(target_name),
             Some(
                 BuildOperation::ProviderSelection
+                    | BuildOperation::BoundaryAcceptance
                     | BuildOperation::RepresentationSelection
                     | BuildOperation::ServiceExclusion
             )

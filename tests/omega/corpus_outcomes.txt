@@ -264,6 +264,8 @@ fail/borrows/whole_referent_store_type_mismatch rejected 108ms expected @c08960b
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
+fail/build/boundary_acceptance_fabricated_activation rejected 877ms expected @b429d3348cac+wt
+	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/build_effects_undeclared rejected 1118ms unexpected @c5d32a00863
 	cleanup effect dependency in `write_build_log` has no exact structural residual disposition
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
@@ -351,6 +353,8 @@ fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/representation_selection_fabricated_activation rejected 1578ms expected @9daaa9bd9280+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/retired_boundary_acceptance_receiver rejected 2ms expected @b429d3348cac+wt
+	tests/omega/fail/build/retired_boundary_acceptance_receiver/main.omg:2:28: receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)
 fail/build/retired_provider_selection_receiver rejected 5ms expected @944ee0efb38f+wt
 	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
 fail/build/retired_representation_receiver rejected 3ms expected @9daaa9bd9280+wt

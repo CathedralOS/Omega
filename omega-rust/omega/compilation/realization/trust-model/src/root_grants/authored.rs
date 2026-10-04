@@ -4,9 +4,9 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::TypedTrees;
 
-/// The static grant harvest: every `accept_boundary#<path>` marker call in
-/// the build machine's states (the postfix carve's desugar of
-/// `b.accept_boundary<path>();`). Order-preserving, deduplicated.
+/// Harvest namespace-qualified acceptances from the admitted build machine.
+/// Classification checks the compiler's Build namespace and explicit argument;
+/// an ordinary machine with the same spelling cannot grant authority.
 pub fn harvest_root_grants(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -26,45 +26,31 @@ pub fn harvest_root_grants(
     };
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
-            let handles: Vec<typed_trees::expression::ExpressionHandle> = match statement {
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    vec![*expression]
-                }
-                typed_trees::statement::StatementNode::Call(call) => {
-                    // A statement-level call keeps the marker in its target.
-                    if let Some(path) =
-                        BuildOperation::BoundaryAcceptance.marker_operands(call.target.as_str())
-                    {
-                        record(path, authored_root_grant_statement_span(typed, call)?);
-                    }
-                    Vec::new()
-                }
-                _ => Vec::new(),
-            };
-            for handle in handles {
-                if let typed_trees::expression::ExpressionNode::Call(call) =
-                    typed.expression_table.expression(handle)
-                    && let Some(path) =
-                        BuildOperation::BoundaryAcceptance.marker_operands(call.target.as_str())
-                {
-                    record(path, authored_root_grant_expression_span(typed, handle)?);
-                }
+            if let typed_trees::statement::StatementNode::Expression(expression) = statement
+                && typed_trees_to_checked_trees::typed_build_operation(typed, *expression)
+                    == Some(BuildOperation::BoundaryAcceptance)
+                && let typed_trees::expression::ExpressionNode::Call(call) =
+                    typed.expression_table.expression(*expression)
+            {
+                let [argument] = call.machine_arguments.as_ref() else {
+                    return Err(Diagnostic::error(
+                        "boundary acceptance requires one declaration",
+                    ));
+                };
+                let selector = argument
+                    .path
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                record(
+                    &selector,
+                    authored_root_grant_expression_span(typed, *expression)?,
+                );
             }
         }
     }
     Ok(grants)
-}
-
-fn authored_root_grant_statement_span(
-    typed: &TypedTrees,
-    call: &typed_trees::statement::TableCall,
-) -> Result<source::SourceSpan, Diagnostic> {
-    let Some(occurrence) = call.authored_call_selection else {
-        return Err(Diagnostic::error(
-            "build boundary grant has no authored selection occurrence",
-        ));
-    };
-    authored_root_grant_selection_span(typed, occurrence)
 }
 
 fn authored_root_grant_expression_span(

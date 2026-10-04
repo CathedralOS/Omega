@@ -228,6 +228,7 @@ pub(crate) fn lower_statement_node(
                 Some(
                     BuildOperation::ProviderSelection
                         | BuildOperation::ServiceExclusion
+                        | BuildOperation::BoundaryAcceptance
                         | BuildOperation::RepresentationSelection
                 )
             ) && !call.discards_result

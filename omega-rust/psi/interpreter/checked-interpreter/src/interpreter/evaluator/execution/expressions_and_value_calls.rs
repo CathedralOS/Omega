@@ -651,21 +651,24 @@ impl<'program> Evaluator<'program> {
                 });
             return Ok(plan);
         }
-        // Representation declarations are harvested for the product, but their
+        // Product declarations are harvested for the product, but their
         // explicit argument still has ordinary evaluation and Build custody.
         // A resolved same-named user declaration remains an ordinary call.
         if !call.target_symbol.is_valid()
-            && language_semantics::declaration_selection::BuildOperation::from_call_target(target)
-                == Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection)
+            && matches!(
+                language_semantics::declaration_selection::BuildOperation::from_call_target(target),
+                Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection
+                    | language_semantics::declaration_selection::BuildOperation::BoundaryAcceptance)
+            )
         {
             let [builder] = self.program.expression_table.expression_handles(call.arguments) else {
-                return trap("representation selection requires one explicit mutable Build argument");
+                return trap("build declaration requires one explicit mutable Build argument");
             };
             let builder = self.eval_argument(*builder, frame)?;
-            self.require_root_build_argument(self.deref_cell(builder), "select_representation")?;
+            self.require_root_build_argument(self.deref_cell(builder), target)?;
             return Ok(Value::Unit);
         }
-        // CH10 root grant marker (see the statement-call twin): a no-op.
+        // Statically harvested wire request (see the statement-call twin).
         if crate::interpreter::evaluator::execution::statements_and_calls::is_statically_harvested_build_declaration(target) {
             return Ok(Value::Unit);
         }

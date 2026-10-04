@@ -241,7 +241,10 @@ pub(super) fn assign_call_symbol(
                 Some(operation) => assign_provider_selection_argument_symbol(
                     symbols,
                     argument,
-                    operation == BuildOperation::ProviderSelection && index == 0,
+                    matches!(
+                        operation,
+                        BuildOperation::ProviderSelection | BuildOperation::BoundaryAcceptance
+                    ) && index == 0,
                 ),
                 None => {
                     let proof_static = target_symbol.is_valid()

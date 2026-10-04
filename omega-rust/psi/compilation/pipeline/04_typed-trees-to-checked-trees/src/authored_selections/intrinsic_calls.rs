@@ -26,6 +26,7 @@ pub(crate) fn static_argument_role(
     match intrinsic {
         Some(
             Intrinsic::BuildProviderSelection
+            | Intrinsic::BuildBoundaryAcceptance
             | Intrinsic::BuildRepresentationSelection
             | Intrinsic::BuildServiceExclusion
             | Intrinsic::BuildAssumedBindingContract,
@@ -57,7 +58,8 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
     match operation {
         BuildOperation::ProviderSelection
         | BuildOperation::ServiceExclusion
-        | BuildOperation::RepresentationSelection => BuildOperationForm::StaticBuildArgument,
+        | BuildOperation::RepresentationSelection
+        | BuildOperation::BoundaryAcceptance => BuildOperationForm::StaticBuildArgument,
         BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
@@ -66,19 +68,8 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
         BuildOperation::OptimizationSelection | BuildOperation::OptimizationReportRequest => {
             BuildOperationForm::PreludeDataReceiver("Optimizations")
         }
-        BuildOperation::BoundaryAcceptance | BuildOperation::WireCompatibilityRequest => {
-            BuildOperationForm::Marker
-        }
+        BuildOperation::WireCompatibilityRequest => BuildOperationForm::Marker,
     }
-}
-
-/// Whether a call target is the parser-carved boundary-acceptance marker
-/// (`b.accept_boundary<path>()` is retained as `accept_boundary#<path>`): a
-/// statically harvested build declaration, never an operational machine
-/// call, so the borrow, flow and ownership lanes mint no call evidence for
-/// it.
-pub(crate) fn is_boundary_acceptance_marker(call_target: &str) -> bool {
-    BuildOperation::from_call_target(call_target) == Some(BuildOperation::BoundaryAcceptance)
 }
 
 pub(crate) fn checked_statement_call_intrinsic(
@@ -141,7 +132,9 @@ pub(crate) fn checked_expression_call_intrinsic(
         return Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection);
     }
     if let Some(
-        operation @ (BuildOperation::ServiceExclusion | BuildOperation::RepresentationSelection),
+        operation @ (BuildOperation::ServiceExclusion
+        | BuildOperation::RepresentationSelection
+        | BuildOperation::BoundaryAcceptance),
     ) = BuildOperation::from_call_target(call.target.as_str())
         && super::provider_selection::has_explicit_build_argument(program, call)
         && program
@@ -150,7 +143,7 @@ pub(crate) fn checked_expression_call_intrinsic(
             .len()
             == 1
         && call.machine_arguments.len()
-            == if operation == BuildOperation::ServiceExclusion {
+            == if operation != BuildOperation::RepresentationSelection {
                 1
             } else {
                 2

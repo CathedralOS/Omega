@@ -150,56 +150,10 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
 
-            // CH10 ROOT GRANT (GR3): `b.accept_boundary<pkg::symbol>();` --
-            // the final build's grant spelling. General angle-bracket call
-            // arguments name static MACHINES; this declaration names a
-            // trust symbol of any kind, so the carve recognizes the exact form and
-            // desugars to a MARKER-NAMED zero-argument member call
-            // (`accept_boundary#<path>` -- the asm#hlt / __destructure#
-            // marker convention; `#` cannot appear in identifiers, so the
-            // encoding is unambiguous). The build-config evaluation serves
-            // the marker and records the grant; outside a build machine the
-            // marker name fails resolution loudly rather than silently.
             if member.as_str() == "accept_boundary" && rest.at_punctuation(PunctuationKind::Less) {
-                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
-                let mut rendered = String::new();
-                loop {
-                    let (segment, next) = path_input.take_identifier()?;
-                    if !rendered.is_empty() {
-                        rendered.push_str("::");
-                    }
-                    rendered.push_str(segment.as_str());
-                    if next.at_punctuation(PunctuationKind::ColonColon) {
-                        path_input = next.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                        continue;
-                    }
-                    path_input = next.take_punctuation(PunctuationKind::Greater, ">")?;
-                    break;
-                }
-                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                if !after_open.at_punctuation(PunctuationKind::RightParen) {
-                    return Err(after_open.error_here(
-                        "`accept_boundary` takes its symbol in angle brackets and no \
-                         value arguments: `b.accept_boundary<pkg::symbol>();`",
-                    ));
-                }
-                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
-                expression =
-                    syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Call(TableCallExpression {
-                            target_is_static: false,
-                            receiver: expression,
-                            target: syntax_trees::identifier::Identifier::new(
-                                format!("accept_boundary#{rendered}"),
-                                member.source_span(),
-                            ),
-                            machine_arguments: Box::default(),
-                            arguments: HandleSpan::empty(),
-                            evidence_arguments: Box::default(),
-                            operational_acknowledgement: Default::default(),
-                        }));
-                continue;
+                return Err(rest.error_here(
+                    "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
+                ));
             }
 
             if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {

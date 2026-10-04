@@ -1,0 +1,4 @@
+pub boundary trait Boundary {
+    machine operation();
+}
+machine main() {}

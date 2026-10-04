@@ -355,11 +355,11 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
     assert_eq!(
         BuildOperation::ALL.map(BuildOperation::carries_marker_operands),
         [
-            false, false, false, false, false, false, true, true, false, false
+            false, false, false, false, false, false, false, true, false, false
         ]
     );
     assert_eq!(
-        BuildOperation::from_call_target("accept_boundary#pkg::Console"),
+        BuildOperation::from_call_target("accept_boundary"),
         Some(BuildOperation::BoundaryAcceptance)
     );
     assert_eq!(
@@ -370,7 +370,7 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
         // A marker operation is never selected by its bare spelling, nor by
         // the authored method name the parser desugars, nor by a marker with
         // the wrong separator or a foreign spelling before it.
-        "accept_boundary",
+        "accept_boundary#pkg::Console",
         "wire_compatibility",
         "require_wire_compatibility",
         "accept_boundary::Console",
@@ -424,7 +424,7 @@ fn marker_operands_are_read_only_after_the_operation_spelling_and_separator() {
     use super::BuildOperation;
     assert_eq!(
         BuildOperation::BoundaryAcceptance.marker_operands("accept_boundary#pkg::Root"),
-        Some("pkg::Root")
+        None
     );
     assert_eq!(
         BuildOperation::WireCompatibilityRequest.marker_operands("wire_compatibility#a#b"),

@@ -128,6 +128,11 @@ pub(super) fn admitted_build_declaration_call(
                 1,
                 1..=1,
             ),
+            Some(BuildOperation::BoundaryAcceptance) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance,
+                1,
+                1..=1,
+            ),
             Some(BuildOperation::RepresentationSelection) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection,
                 2,

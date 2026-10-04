@@ -1,4 +1,3 @@
-use crate::authored_selections::is_boundary_acceptance_marker;
 use crate::borrow::calls::BorrowCallCollection;
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
@@ -71,9 +70,6 @@ pub(super) fn collect_expression_borrow_calls(
                     receiver_path.as_deref(),
                 );
 
-            // `accept_boundary#...` is a statically harvested build
-            // declaration, not an operational machine call. Keep nested
-            // expression traversal below, but do not mint flow-call evidence.
             // A retained `size_of`/`align_of` request is the compiler's
             // layout query, not an invocation: it names no callee to dispatch
             // to, and a receiverless spelling is dispatch-eligible by shape
@@ -82,10 +78,7 @@ pub(super) fn collect_expression_borrow_calls(
             // plan. Selected-execution settlement folds every query to a
             // `u64` literal before settled checking, but preliminary checking
             // and build-time evaluation still admit the request node here.
-            if is_machine_call
-                && !is_boundary_acceptance_marker(call.target.as_str())
-                && call.layout_query.is_none()
-            {
+            if is_machine_call && call.layout_query.is_none() {
                 let accesses = collection.collect_call_argument_accesses(
                     collection
                         .program

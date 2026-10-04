@@ -226,8 +226,7 @@ pub enum BuildOperation {
     OptimizationSelection,
     /// `Optimizations::emit_report`.
     OptimizationReportRequest,
-    /// `b.accept_boundary<pkg::symbol>()`, retained as the
-    /// `accept_boundary#<path>` marker.
+    /// `Build::accept_boundary<pkg::symbol>(builder)`.
     BoundaryAcceptance,
     /// `b.require_wire_compatibility<Edge, Lineage, Local, Peer, Fact..>()`,
     /// retained as the `wire_compatibility#<operands>` marker.
@@ -286,13 +285,10 @@ impl BuildOperation {
 
     /// Whether the parser retains this operation's angle-bracket operands in
     /// the call target after [`Self::MARKER_OPERAND_SEPARATOR`]
-    /// (`accept_boundary#pkg::symbol`), so a call target selects the
+    /// (`wire_compatibility#...`), so a call target selects the
     /// operation by prefix rather than by exact spelling.
     pub const fn carries_marker_operands(self) -> bool {
-        matches!(
-            self,
-            Self::BoundaryAcceptance | Self::WireCompatibilityRequest
-        )
+        matches!(self, Self::WireCompatibilityRequest)
     }
 
     /// The build operation a retained call target selects, or `None` when

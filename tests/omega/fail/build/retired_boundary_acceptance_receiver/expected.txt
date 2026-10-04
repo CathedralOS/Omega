@@ -1,0 +1,1 @@
+receiver-style boundary acceptance is retired

@@ -23,8 +23,7 @@ lowering, which refuses the call to `establish` because it has no boundary plan;
 that is not a successful ungranted execution. The source checker accepting the
 postcondition alone does not establish package admission or runtime support.
 
-The fixture uses the boundary-grant spelling currently supported by the parser.
-Its static replacement, `Build::accept_boundary<establish>(builder)`, presently
-rejects with an unresolved generic-callee diagnostic. These dependencies belong
-to the existing admissions, static-Build migration and proof-citation work;
-neither deleting a rejection nor dropping the citation establishes acceptance.
+The fixture now uses `Build::accept_boundary<establish>(builder)`. Static
+resolution succeeds; package review still rejects individual accepted-machine
+admission as described above. The remaining admissions and proof-citation work
+must preserve the citation rather than deleting the rejection.

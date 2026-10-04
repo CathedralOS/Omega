@@ -11,10 +11,9 @@ use trust_model::AuthoredComponentAssumptionAcceptance;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildConfig {
     pub settings: EvaluatedBuildSettings,
-    /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
-    /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
-    /// from the build machine's marker calls (grants are declarations,
-    /// not runtime effects; the evaluator serves the marker as a no-op).
+    /// Exact subjects accepted by `Build::accept_boundary<Subject>(builder)`.
+    /// Grant declarations are harvested from classified calls in the root
+    /// build; evaluation checks custody of their explicit Build argument.
     pub grants: Vec<trust_model::AuthoredRootGrant>,
     /// Executed provider-type choices for boundary slots, rejoined to the
     /// authoritative build machine. Provider settlement validates them against
