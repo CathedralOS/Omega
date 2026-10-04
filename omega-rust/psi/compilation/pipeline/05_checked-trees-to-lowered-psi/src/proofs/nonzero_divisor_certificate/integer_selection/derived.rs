@@ -15,14 +15,18 @@
 //! and the total-image bounds `range` already produces.
 //! Prior nonliteral products use four-corner bounds and explicit equality
 //! transport in `multiplication`; no new trusted arithmetic rule is needed.
+//! Cast images cite individual ledger edges, not a globally unique output
+//! definition: retained aliases can supply several valid cast equations for
+//! one value. Source bounds come from strictly earlier ledger prefixes and
+//! use the existing cast witness replay, so an edge cannot justify itself.
 
 mod multiplication;
 
 use std::rc::Rc;
 
 use proof_admission::{
-    IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
-    map_integer_affine_bound,
+    IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    check_integer_affine_witness, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IntegerCarrier, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -981,9 +985,13 @@ fn add_literals(
     integer_type.admits(value).then_some(value)
 }
 
-/// Independently proved source endpoints of each exact-cast output.
+/// Independently proved source endpoints transported through each cited cast edge.
 /// A returned contract may expose its operand expression without an SSA name;
 /// use that exact expression, never manufacture a definition to name it.
+/// Retained equality transport can give an output several cast equations. Each
+/// is usable evidence, not ambiguity: cite its exact row and derive its source
+/// bounds only from the earlier ledger prefix. Recursing through those prefixes
+/// composes casts without requiring a globally unique definition spine.
 fn cast_image_bounds(
     context: &PropositionContext,
     integer_type: IntegerType,
@@ -992,10 +1000,10 @@ fn cast_image_bounds(
     prefixes: &mut PrefixClosures,
 ) -> Vec<ProofNode> {
     let mut bounds = Vec::new();
-    for axiom in semantic_axioms {
+    for (definition_index, axiom) in semantic_axioms.iter().enumerate() {
         let Proposition::Equal(
             output @ ScalarTerm::Value { .. },
-            ScalarTerm::IntegerExactCast { .. } | ScalarTerm::IntegerWiden { .. },
+            ScalarTerm::IntegerExactCast { operand, .. } | ScalarTerm::IntegerWiden { operand, .. },
         ) = axiom
         else {
             continue;
@@ -1003,9 +1011,7 @@ fn cast_image_bounds(
         if output.scalar_type() != ScalarType::Integer(integer_type) {
             continue;
         }
-        let Some((root, first_cast)) = cast_custody::source_root(output, semantic_axioms) else {
-            continue;
-        };
+        let root = operand.as_ref();
         let ScalarType::Integer(root_type) = root.scalar_type() else {
             continue;
         };
@@ -1026,23 +1032,24 @@ fn cast_image_bounds(
                 push_new(&mut source_bounds, proof);
             }
         }
-        // The earlier ledger prefix excludes the cast's own output facts.
-        // Recursive source queries strictly shorten that prefix, so a later
-        // conversion cannot provide its own prerequisite bound.
+        // The earlier ledger prefix excludes this cast equation and all later
+        // facts. Another earlier equation for the same output retains its own
+        // custody. Recursive source queries strictly shorten the prefix, so
+        // this conversion cannot provide its own prerequisite bound.
         source_bounds.extend(cast_source_bounds(
             context,
-            &root,
+            root,
             assumptions,
-            &semantic_axioms[..first_cast],
+            &semantic_axioms[..definition_index],
             prefixes,
         ));
         for root_bound in source_bounds {
             let Proposition::LessOrEqual(left, right) = &root_bound.conclusion else {
                 continue;
             };
-            let (endpoint, lower) = if right == &root {
+            let (endpoint, lower) = if right == root {
                 (left, true)
-            } else if left == &root {
+            } else if left == root {
                 (right, false)
             } else {
                 continue;
@@ -1055,13 +1062,17 @@ fn cast_image_bounds(
             } else {
                 Proposition::LessOrEqual(output.clone(), literal)
             };
-            if let Some(bound) = cast_custody::prove_from_root(
+            if let Some(bound) = cast_custody::prove_with_witness(
                 context,
                 &goal,
                 assumptions,
                 semantic_axioms,
-                &root,
-                root_bound,
+                &root_bound,
+                IntegerCastChainWitness {
+                    root: root.clone(),
+                    target: output.clone(),
+                    definition_axioms: vec![definition_index],
+                },
             ) {
                 push_new(&mut bounds, bound);
             }

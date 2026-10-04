@@ -146,6 +146,28 @@ fn prove_to_target(
         target: target.clone(),
         definition_axioms,
     };
+    prove_with_witness(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        root_bound,
+        witness,
+    )
+}
+
+/// Carry a proved source bound through the explicitly selected cast equations.
+/// Retained aliases can give one output several valid equations; an individual
+/// cited word still has exact custody. The kernel checks its order, operand
+/// identities, carriers and cycles independently of other available equations.
+pub(super) fn prove_with_witness(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    root_bound: &ProofNode,
+    witness: IntegerCastChainWitness,
+) -> Option<ProofNode> {
     let chain = check_integer_cast_chain_witness(context, semantic_axioms, &witness).ok()?;
     let normalized = lower_integer_math_relation(goal).unwrap_or_else(|| goal.clone());
     let proof = || ProofNode {
