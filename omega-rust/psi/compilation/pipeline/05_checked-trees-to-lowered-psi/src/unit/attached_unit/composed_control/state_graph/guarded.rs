@@ -317,6 +317,18 @@ pub(super) fn validate_reference_roster(
             _ => {}
         }
         for operation in operations {
+            // Ordinary call admission independently reconstructs this custody.
+            // The return roster must retain every admitted ingress alternative.
+            if let Some(custody) = operation.call().and_then(|call| call.structural_custody()) {
+                for candidate in &custody.forwarded_reference_sources {
+                    if !candidate.path.is_empty() {
+                        return unsupported("whole reference call return has a nested candidate");
+                    }
+                    if !returned.contains(&candidate.source) {
+                        returned.push(candidate.source.clone());
+                    }
+                }
+            }
             if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
                 && !returned.contains(source)
             {

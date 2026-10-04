@@ -57,7 +57,14 @@ pub(super) fn build(
         trace.statement(Some(coordinate.statement_index));
     };
     phase("call operation: structural result loan");
-    let reference_loan = if crate::execution::terminal_unit::reference_results::parts(
+    let forwarded_reference_sources =
+        validation::reference_result_custody::terminal_call_reference_sources(
+            program, state, call, result,
+        )
+        .unwrap_or_default();
+    let reference_loan = if !forwarded_reference_sources.is_empty() {
+        arena::Handle::invalid()
+    } else if crate::execution::terminal_unit::reference_results::parts(
         program,
         target_state.return_type,
     )
@@ -310,7 +317,7 @@ pub(super) fn build(
     }
     if args_ok
         && transfers.is_empty()
-        && (represented_copy_result || reference_loan.is_valid()
+        && (represented_copy_result || reference_loan.is_valid() || !forwarded_reference_sources.is_empty()
             || crate::execution::terminal_unit::reference_results::is_reference_record(
                 program,
                 target_state.return_type,
@@ -383,6 +390,7 @@ pub(super) fn build(
             transfers: CheckedUnitCallTransfers::StructuralCustody(
                 checked_trees::CheckedStructuralCallCustodyPlan {
                     reference_loan,
+                    forwarded_reference_sources,
                     result_qualifications: if validation::shared_slice_view_result(
                         program,
                         target_state.return_type,

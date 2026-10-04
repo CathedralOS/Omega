@@ -168,13 +168,27 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             {
                 // Only affine results have automatic disposal debt.
                 // Linear results retain the call's checked claim frontier.
-                if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
+                if binding.multiplicity == Multiplicity::Affine
+                    && !*discard_result_on_return
+                    && super::super::super::reference_results::stored_loan_parts(
+                        program,
+                        state.return_type,
+                    )
+                    .is_none()
+                {
                     return None;
                 }
                 *discard_result_on_return = false;
             }
         }
-        Some(binding.into())
+        let mut returned: CheckedUnitStructuralReturnPlan = binding.into();
+        if super::super::super::reference_results::stored_loan_parts(program, state.return_type)
+            .is_some()
+        {
+            returned.reference_sources =
+                super::super::super::reference_results::returned_reference_sources(program, state)?;
+        }
+        Some(returned)
     } else if let Some(result) = returned_parameter(
         program,
         facts,
@@ -288,7 +302,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 .and_then(CheckedUnitCallPlan::structural_result_mut)
                 && result.binding_ordinal == binding.binding_ordinal
             {
-                if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
+                if binding.multiplicity == Multiplicity::Affine
+                    && !*discard_result_on_return
+                    && super::super::super::reference_results::stored_loan_parts(
+                        program,
+                        state.return_type,
+                    )
+                    .is_none()
+                {
                     return None;
                 }
                 *discard_result_on_return = false;
@@ -345,6 +366,10 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     };
     trace.phase("statement sequence: reference result");
     if let Some(result) = &mut structural_result
+        && !matches!(
+            result.source,
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+        )
         && (super::super::super::reference_results::parts(program, state.return_type).is_some()
             || crate::execution::terminal_unit::types::borrowed_named_view(
                 program,

@@ -1126,7 +1126,17 @@ pub fn reconstruct_structural_call_custody(
                 return Err("reference record result has no exact captured leaf loans");
             }
         }
-        let reference_loan = if crate::machine_calls::reference_result_custody::parts(
+        let forwarded_reference_sources =
+            crate::machine_calls::reference_result_custody::terminal_call_reference_sources(
+                program,
+                source_state,
+                call,
+                result,
+            )
+            .unwrap_or_default();
+        let reference_loan = if !forwarded_reference_sources.is_empty() {
+            arena::Handle::invalid()
+        } else if crate::machine_calls::reference_result_custody::parts(
             program,
             destination.return_type,
         )
@@ -1171,6 +1181,7 @@ pub fn reconstruct_structural_call_custody(
         };
         return Ok(CheckedStructuralCallCustodyPlan {
             reference_loan,
+            forwarded_reference_sources,
             result_qualifications,
             claim_transfers,
             returned_claim_transfers: Vec::new(),
@@ -1285,6 +1296,7 @@ pub fn reconstruct_structural_call_custody(
         u32::try_from(argument_position).map_err(|_| "structural argument position exceeds u32")?;
     let mut custody = CheckedStructuralCallCustodyPlan {
         reference_loan: arena::Handle::invalid(),
+        forwarded_reference_sources: Vec::new(),
         result_qualifications,
         claim_transfers: Vec::with_capacity(returned_claims.len()),
         returned_claim_transfers: Vec::with_capacity(returned_claims.len()),

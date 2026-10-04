@@ -82,6 +82,10 @@ pub(super) fn reference_sources(
             _ => Vec::new(),
         };
         for operation in returned {
+            if let Some(custody) = operation.call().and_then(|call| call.structural_custody()) {
+                retain(&custody.forwarded_reference_sources)?;
+                continue;
+            }
             let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
             else {
                 return None;
