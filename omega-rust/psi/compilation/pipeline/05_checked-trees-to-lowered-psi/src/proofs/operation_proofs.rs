@@ -105,12 +105,16 @@ fn finalize_operation_proofs_inner(
         let mut search_declines = super::ProofSearchDeclines::default();
         let owner = owners.get(&site.owner.machine());
         let assumptions = site.requirements.as_slice();
+        // Edge-owned nominal calls owe ordinary predicates too: entry
+        // implications combine with the selected branch exactly as at a call
+        // operation. Reuse the same fact transport and predicate producer.
         let proof = if let Some((machine, preparation)) = owner
             && (site.canonical_certificate
                 || matches!(
                     site.owner,
                     terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures { .. }
                         | terminal_verifier::ReconstructedTerminalObligationOwner::CallRequires { .. }
+                        | terminal_verifier::ReconstructedTerminalObligationOwner::NominalCleanupRequires { .. }
                 )) {
             // This invocation borrows an immutable module. Share only machine
             // facts, not site assumptions or proof-search state. Cache failures

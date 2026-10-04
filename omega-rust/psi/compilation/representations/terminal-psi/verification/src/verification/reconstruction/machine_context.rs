@@ -38,8 +38,13 @@ impl<'a> MachineReconstructionContext<'a> {
                 Some(terminal_psi::TerminalRankedScc::Natural(_))
             )
             || machine.blocks.iter().any(|block| {
-                block.operations.iter().any(|operation| {
-                    matches!(
+                // Cleanup is an executable call at this edge. Its requirements
+                // consume the same selected-path facts as operation-owned calls.
+                crate::validation::nominal_cleanups(&block.terminator)
+                    .next()
+                    .is_some()
+                    || block.operations.iter().any(|operation| {
+                        matches!(
                     &operation.kind,
                     OperationKind::Call { .. }
                         | OperationKind::StructuralCaseLeafCopy { .. }
@@ -87,7 +92,7 @@ impl<'a> MachineReconstructionContext<'a> {
                                 semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)
                             ))
                     )
-                })
+                    })
             });
         let value_types = machine
             .parameters

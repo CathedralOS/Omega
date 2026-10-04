@@ -39,7 +39,7 @@ pub(super) fn nominal_cleanup_contract_receiver(
         })
 }
 
-pub(super) fn nominal_cleanups(
+pub(crate) fn nominal_cleanups(
     terminator: &Terminator,
 ) -> Box<dyn Iterator<Item = &terminal_psi::NominalAffineCleanup> + '_> {
     match terminator {

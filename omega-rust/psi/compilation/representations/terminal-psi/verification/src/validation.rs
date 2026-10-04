@@ -58,6 +58,7 @@ use crate::verification::{
 };
 
 mod affine_cleanup;
+pub(crate) use affine_cleanup::nominal_cleanups;
 pub(crate) mod atomic_access;
 mod block_views;
 mod borrowed_windows;

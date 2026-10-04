@@ -197,3 +197,102 @@ fn conditional_structural_cleanup_rejects_changed_source_edge_custody() {
         );
     }
 }
+
+#[test]
+fn conditional_cleanup_prerequisites_require_the_selected_guard() {
+    use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
+    let checked = crate::front_end::checked_program(&source(true, false));
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("conditional cleanup publishes");
+    let validated = terminal_verifier::validate_module(&lowered.semantic_module).unwrap();
+    let obligations = terminal_verifier::reconstruct_execution_terminal_obligations(validated)
+        .expect("independent edge obligations");
+    let mut examined = 0;
+    for site in obligations.obligations() {
+        let terminal_verifier::ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+            machine,
+            ..
+        } = site.owner
+        else {
+            continue;
+        };
+        let context = validated
+            .value_context(validated.machine(machine).unwrap())
+            .unwrap();
+        let goal = &site.obligation.proposition;
+        let proof = proof_admission::produce_predicate_proof(
+            &context,
+            goal,
+            &site.requirements,
+            &site.semantic_axioms,
+        )
+        .expect("entry implication plus exact selected guard proves this hook prerequisite");
+        proof_admission::check_certificate(
+            &context,
+            goal,
+            &site.requirements,
+            &site.semantic_axioms,
+            &proof,
+        )
+        .expect("the ordinary kernel checks the composed predicate proof");
+        for missing_guard in [true, false] {
+            let mut changed = Vec::new();
+            let mut guard_facts = 0;
+            for axiom in &site.semantic_axioms {
+                let mut axiom = axiom.clone();
+                let polarity = match &mut axiom {
+                    Proposition::Equal(
+                        ScalarTerm::Value {
+                            scalar_type: ScalarType::Boolean,
+                            ..
+                        },
+                        ScalarTerm::Boolean(polarity),
+                    )
+                    | Proposition::Equal(
+                        ScalarTerm::Boolean(polarity),
+                        ScalarTerm::Value {
+                            scalar_type: ScalarType::Boolean,
+                            ..
+                        },
+                    ) => Some(polarity),
+                    _ => None,
+                };
+                if let Some(polarity) = polarity {
+                    guard_facts += 1;
+                    if missing_guard {
+                        continue;
+                    }
+                    *polarity = !*polarity;
+                }
+                changed.push(axiom);
+            }
+            assert!(
+                guard_facts > 0,
+                "the selected edge retains its Boolean polarity"
+            );
+            assert!(
+                proof_admission::produce_predicate_proof(
+                    &context,
+                    goal,
+                    &site.requirements,
+                    &changed
+                )
+                .is_none(),
+                "missing or opposite guard cannot discharge the unreturned owner's prerequisite"
+            );
+            assert!(
+                proof_admission::check_certificate(
+                    &context,
+                    goal,
+                    &site.requirements,
+                    &changed,
+                    &proof
+                )
+                .is_err(),
+                "the original certificate cannot be replayed under a different edge premise"
+            );
+        }
+        examined += 1;
+    }
+    assert_eq!(examined, 2, "both selected cleanup polarities are checked");
+}
