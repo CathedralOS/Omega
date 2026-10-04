@@ -788,6 +788,8 @@ fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
 	module scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/modules/use_unresolved_path rejected 0ms expected @2d8ed253669f
 	failed to resolve tests/omega/fail/modules/use_unresolved_path/nonexistent/missing.omg: No such file or directory (os error 2)
+fail/multiplicity/computed_subject_separate_affine_call rejected 239ms expected @92bbd31b7820
+	affine value `choice` was already transferred or consumed; it cannot be moved here
 fail/operators/domain_operator_return_only_overload rejected 244ms expected @2d8ed253669f
 	domain `Quantity::Additive` has duplicate operator `combine`
 fail/operators/named_operator_result_overload_duplicate_dispatch rejected 224ms expected @2d8ed253669f
@@ -1426,6 +1428,7 @@ pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms @bea382
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms @63377f7122bb+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms @2d8ed253669f
 pass/calls/runtime_case_terminal_payload_result_exit checked 1129ms @9d538dd9a056
+pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms @95bd0eaccc6e
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f

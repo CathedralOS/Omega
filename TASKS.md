@@ -2052,11 +2052,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   engines: each computed subject runs once, and the selected terminal call
   returns its saved payload. Expression and local storage share field reads;
   source-call accounting retains the exact evaluated subject occurrence.
+  `calls/runtime_computed_case_subject_affine_argument_exit` exits **0** in both
+  engines with an affine subject operand. Ownership checking counts the original
+  subject evaluation once, and case cleanup retains the preceding call's whole
+  parameter transfer. Independent repeated moves still reject. Nested calls
+  inside a computed subject now check but still need ordinary operand preparation
+  and saved-call accounting in the native plan.
   Whole-reference result origins still need transport from terminal calls into
-  the composed return roster. A computed subject that consumes an affine
-  argument still repeats that argument's ownership transfer during checking;
-  range-constrained result compatibility and claim-transferring arm calls
-  remain unfinished.
+  the composed return roster; range-constrained result compatibility and
+  claim-transferring arm calls remain unfinished.
   Nested receiver terminal calls still need the exact receiver leaf identity
   retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
