@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: stamp runtime_namespace_local_state_loan on both goldens — wave added the fixture unstamped; verified checked 834ms + native built exit:0 stdout:match on tip
+ticket: fd3dfe290c6156351ee9db4ae255ad88
+published_utc: 2026-10-04T02:42:24.107900+00:00
