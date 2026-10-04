@@ -1532,11 +1532,11 @@ pass/capabilities/boundary_trait_multiple_effects checked 315ms @2d8ed253669f
 pass/capabilities/callback_direct_install_compile checked 2541ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper checked 383ms @2d8ed253669f
 pass/capabilities/external_leaf_binding_forms checked 488ms @2d8ed253669f
-pass/capabilities/sysv_small_aggregate_import_compile checked 1162ms @ebb500a4621
+pass/capabilities/sysv_small_aggregate_import_compile checked 1643ms @7bd18c2d68d
 pass/capabilities/transitive_effect_inference checked 291ms @2d8ed253669f
 pass/capabilities/uses_caller_folder checked 281ms @2d8ed253669f
 pass/capabilities/win64_large_aggregate_result_import_compile checked 1189ms @3284f31163c
-pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 1630ms @ebb500a4621
+pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 2265ms @7bd18c2d68d
 pass/capabilities/windows_provides_import_exit checked 2179ms @8778c440081
 pass/collections/array_local_control checked 316ms @2d8ed253669f
 pass/collections/case_array_computed_index_match_exit checked 2057ms @2d8ed253669f
