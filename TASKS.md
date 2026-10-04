@@ -1007,6 +1007,15 @@ defines the complete product bar.
     migrations; reproduce before attributing failures to proposition checking.
     `pass/float/float_to_int_exact_proofs_exit` (data `where`, exit 78 on macOS
     ARM64, rejected natively on Linux/Windows) keeps its invalid-write control.
+    Constructor bounds now use the shared occurrence environment in
+    `checking/src/value_custody/struct_literals/construction_bounds.rs`, not
+    the retired immutable-operand filter or obsolete local initializers.
+    `python3 tools/corpus_gate.py --native --filter data/runtime_constructor_observation_exit`
+    executes with exit 70 on macOS ARM64; stale-local and earlier-operand
+    mutation controls reject. Ordinary CLI package preparation still requires
+    this new fixture's local package review; no acceptance policy is committed.
+    Continue with the nonliteral/indexed writes and consumer transports above;
+    this does not close the complete field/case migration.
   - Guarded immutable-local, guarded-field, nested-call-result and
     destructured-payload facts into `requires`; entry premises into `ensures`
     formation; state results into enclosing postconditions. Customers:

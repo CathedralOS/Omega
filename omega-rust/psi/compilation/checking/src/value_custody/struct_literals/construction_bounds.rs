@@ -1,4 +1,3 @@
-use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeSet;
@@ -7,7 +6,6 @@ use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 /// A conservative value interval (both ends optional).
 #[derive(Clone, Copy)]
@@ -53,109 +51,73 @@ pub(super) enum Truth {
     Unknown,
 }
 
-/// Slice 9: a literal field VALUE's sound interval -- an integer literal is
-/// a point; a Name/Member place contributes its standing bounds (declared
-/// range, immutable parameter `requires`, field `where` facts) or a local's
-/// initializer; anything else is unknown.
-pub(super) fn value_bounds(
+/// Bounds belong to the field's evaluated value. The shared observation walk
+/// retains prefix assignments and guards only across non-overlapping writes.
+/// A sibling operand's later effects cannot change an already copied scalar.
+fn value_bounds(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    environment: &ValueEnvironment,
 ) -> Bounds {
     match program.expression_table.expression(expression) {
-        ExpressionNode::String(literal) => Bounds::sequence(literal.len()),
-        ExpressionNode::Integer(value) => value
-            .text()
-            .parse::<i64>()
-            .map(Bounds::point)
-            .unwrap_or(Bounds::UNKNOWN),
+        ExpressionNode::String(literal) => return Bounds::sequence(literal.len()),
+        ExpressionNode::Integer(value) => {
+            return value
+                .text()
+                .parse::<i64>()
+                .map(Bounds::point)
+                .unwrap_or(Bounds::UNKNOWN);
+        }
         ExpressionNode::Borrow(inner) => {
-            value_bounds(program, machine, state, inner.target, environment)
+            return value_bounds(program, machine, state, inner.target);
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            let mut bounds = Bounds::UNKNOWN;
-            if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
-                bounds.symbol = path.symbol;
-            }
-            // Standing bounds first: a declared range, an immutable
-            // parameter's own arrival `requires`, and a field's `where`
-            // facts. A mutable place keeps only what every store enforces:
-            // its declared range and its data's `where` facts.
-            let interval = crate::proof_contracts::arithmetic_domains::standing_integer_interval(
-                program, machine, state, expression,
-            );
-            if let Some(interval) = interval {
-                bounds.low = interval.low;
-                bounds.high = interval.high;
-            }
-            if let Some(local) = local_initializer_bounds(program, state, expression) {
-                bounds.low = local.low;
-                bounds.high = local.high;
-                bounds.length = local.length;
-                bounds.capacity = local.capacity;
-            }
-            bounds
-        }
-        // An arithmetic value takes the analyzer's interval under the
-        // construction's guard facts. Its own overflow obligation is reported
-        // by the ordinary statement walk, so those diagnostics are dropped.
-        ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Cast(_) => {
-            let mut throwaway = Vec::new();
-            let interval = crate::proof_contracts::arithmetic_domains::validate_arithmetic_domains(
-                program,
-                machine,
-                Some(state),
-                expression,
-                environment,
-                None,
-                numerics::arithmetic::ArithmeticDomain::Exact,
-                "construction value",
-                &mut throwaway,
-            );
-            Bounds {
-                low: interval.low,
-                high: interval.high,
-                ..Bounds::UNKNOWN
-            }
-        }
-        _ => Bounds::UNKNOWN,
+        _ => {}
     }
-}
-
-fn local_initializer_bounds(
-    program: &TypedTrees,
-    state: &State,
-    expression: ExpressionHandle,
-) -> Option<Bounds> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
+    let environment = crate::proof_contracts::arithmetic_domains::occurrence_value_environment(
+        program,
+        machine.symbol,
+        state.symbol,
+        expression,
+    )
+    .unwrap_or_default();
+    let mut diagnostics = Vec::new();
+    let interval = crate::proof_contracts::arithmetic_domains::validate_arithmetic_domains(
+        program,
+        machine,
+        Some(state),
+        expression,
+        &environment,
+        None,
+        numerics::arithmetic::ArithmeticDomain::Exact,
+        "construction value",
+        &mut diagnostics,
+    );
+    let mut bounds = if diagnostics.is_empty() {
+        Bounds {
+            low: interval.low,
+            high: interval.high,
+            ..Bounds::UNKNOWN
+        }
+    } else {
+        Bounds::UNKNOWN
     };
-    let name = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()?
-        .as_str();
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local)
-                if (path.symbol.is_valid() && local.symbol == path.symbol)
-                    || local.name.as_str() == name =>
-            {
-                match program.expression_table.expression(local.initial_value) {
-                    ExpressionNode::Integer(value) => {
-                        value.text().parse::<i64>().ok().map(Bounds::point)
-                    }
-                    ExpressionNode::String(literal) => Some(Bounds::sequence(literal.len())),
-                    _ => None,
-                }
-            }
-            _ => None,
-        })
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+        bounds.symbol = path.symbol;
+        // Sequence measures are not integer-value intervals. Preserve the
+        // literal size only for an exact immutable declaration, never by name
+        // matching or by replaying a mutable local's obsolete initializer.
+        if let Some((_, local)) = program.state_local_declaration(state, path.symbol)
+            && !local.is_mutable
+            && let ExpressionNode::String(literal) =
+                program.expression_table.expression(local.initial_value)
+        {
+            let sequence = Bounds::sequence(literal.len());
+            bounds.length = sequence.length;
+            bounds.capacity = sequence.capacity;
+        }
+    }
+    bounds
 }
 
 /// Fold a `where` fact over the field-value intervals. Comparisons yield a
@@ -365,7 +327,6 @@ pub(super) fn validate_literal_default_domain(
     state: &State,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if data_definition.where_facts.is_empty() {
@@ -384,7 +345,6 @@ pub(super) fn validate_literal_default_domain(
         &format!("data `{}`", literal.type_name.as_str()),
         "the default domain",
         "default-domain",
-        environment,
         diagnostics,
     );
 }
@@ -401,7 +361,6 @@ pub(super) fn validate_literal_case_constraints(
     data_definition: &DataDefinition,
     case_name: &str,
     variant: &typed_trees::data::DataVariant,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if variant.where_facts.is_empty() {
@@ -444,7 +403,6 @@ pub(super) fn validate_literal_case_constraints(
         &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
         "the case constraint",
         "case",
-        environment,
         diagnostics,
     );
 }
@@ -515,16 +473,12 @@ fn fold_literal_facts(
     subject: &str,
     fact_label: &str,
     fact_adjective: &str,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // Slice 9: each field's value resolves to an INTERVAL -- an integer
-    // literal is a point; a place with a declared `[a..=b]` range (a ranged
-    // parameter, a range-refined field) contributes its DECLARED interval
-    // (declared ranges always hold); anything else is unknown.
+    // Snapshot each field at its own source observation, including operand effects.
     let mut valuation: Vec<(&str, Bounds)> = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
-        let value = value_bounds(program, machine, state, field.value, environment);
+        let value = value_bounds(program, machine, state, field.value);
         valuation.push((field.name.as_str(), value));
     }
     for fact in program.proof_facts.span_or_empty(facts) {
@@ -539,9 +493,8 @@ fn fold_literal_facts(
                     ))),
                     Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_label}: a \
-                         `where`-mentioned field's value is neither a literal nor a \
-                         declared-range place whose interval decides the fact -- spell a \
-                         literal, or constrain the value's declared range"
+                         `where` fact is not established by the values observed at this \
+                         construction -- establish the required bounds before constructing the value"
                     ))),
                 }
             }

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.72, "load1_start": 2.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.08, "load1_start": 4.0, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -558,6 +558,10 @@ fail/data/boundary_data_relaxed_carry_unadmitted rejected 267ms expected @2d8ed2
 	opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt
 fail/data/case_payload_equality_interim rejected 41ms expected @2d8ed253669f
 	cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `CommandEquatable: Command satisfies Equatable;` to synthesize structural equality
+fail/data/constructor_prior_operand_write rejected 182ms expected @c4e45d3dda38+wt
+	data `Bounded` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/data/constructor_stale_local_bounds rejected 182ms expected @c4e45d3dda38+wt
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/field_default_retired rejected 3ms expected @2d8ed253669f
 	tests/omega/fail/data/field_default_retired/main.omg:10:18: data field `xs` declares a default initializer -- field defaults are retired: every field is zero-initialized (ZII), and a constructed default belongs in an ordinary constructor machine that writes the field
 fail/data/match_nonexhaustive_cases rejected 32ms expected @2d8ed253669f
@@ -1916,6 +1920,7 @@ pass/data/payload_less_case_equality checked 276ms @474542aa7f86
 pass/data/property_carry_declared checked 283ms @2d8ed253669f
 pass/data/record_pattern_let_exit checked 1268ms @2d8ed253669f
 pass/data/runtime_case_reassignment_exit checked 1285ms @2d8ed253669f
+pass/data/runtime_constructor_observation_exit checked 1704ms @c4e45d3dda38+wt
 pass/data/runtime_data_properties_exit checked 1213ms @2d8ed253669f
 pass/data/runtime_mixed_case_common_fields_exit checked 1291ms @2d8ed253669f
 pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms @ca8c127c90c5
@@ -2587,8 +2592,7 @@ pass/termination/inherited_requirement_guarantee_compile checked 286ms @2d8ed253
 pass/termination/joint_lexicographic_machine_call_cycle_compile checked 288ms @2d8ed253669f
 pass/termination/joint_machine_call_cycle_forwarding_compile checked 286ms @2d8ed253669f
 pass/termination/measure_borrowed_projection_range checked 302ms @2d8ed253669f
-pass/termination/measure_field_call_component rejected 187ms @c47f8652484
-	data `Countdown` literal cannot prove the default domain: a `where`-mentioned field's value is neither a literal nor a declared-range place whose interval decides the fact -- spell a literal, or constrain the value's declared range
+pass/termination/measure_field_call_component checked 373ms @c4e45d3dda38+wt
 pass/termination/measure_field_computed_arrival checked 307ms @2d8ed253669f
 pass/termination/measure_field_computed_limit checked 298ms @2d8ed253669f
 pass/termination/measure_field_fresh_arrival checked 296ms @2d8ed253669f

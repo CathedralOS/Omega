@@ -11,13 +11,15 @@
 //! stores. The existing scan retains their exact field/value decisions and
 //! statement coordinates for CheckFacts; occurrence-bound analysis supplies
 //! prefix and operand effects without replaying local initializers here.
+//! Default-domain and case predicates use those same observation environments.
+//! An unrelated mutable operand does not erase an earlier guard; an overlapping
+//! write does. The syntax scan locates obligations, not a second fact-flow model.
 //!
 //! Bare case values obey construction obligations too. A case on the right of
 //! membership instead denotes a tag predicate: only exact subject/owner/case
 //! evidence permits skipping its construction checks. Invalid membership must
 //! reject, not be reinterpreted as equality between independently valid values.
 
-use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -29,7 +31,6 @@ use typed_trees::types::PrimitiveType;
 
 mod construction_bounds;
 mod field_obligations;
-mod guard_bounds;
 mod window_elements;
 
 pub(crate) use window_elements::validate_array_window_elements;
@@ -46,7 +47,6 @@ pub(crate) fn validate_struct_literal_fields(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
     let mut stored_integer_writes = Vec::new();
-    let empty = ValueEnvironment::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -64,7 +64,6 @@ pub(crate) fn validate_struct_literal_fields(
                                     machine,
                                     state,
                                     expression,
-                                    &empty,
                                     diagnostics,
                                     &mut stored_integer_writes,
                                     statement_index,
@@ -78,7 +77,6 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             fact.expression,
-                            &empty,
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
@@ -90,7 +88,6 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             assignment.target,
-                            &empty,
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
@@ -100,7 +97,6 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             assignment.value,
-                            &empty,
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
@@ -113,7 +109,6 @@ pub(crate) fn validate_struct_literal_fields(
                                 machine,
                                 state,
                                 *argument,
-                                &empty,
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
@@ -126,7 +121,6 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             *expression,
-                            &empty,
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
@@ -138,7 +132,6 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             local_data.initial_value,
-                            &empty,
                             diagnostics,
                             &mut stored_integer_writes,
                             statement_index,
@@ -151,31 +144,20 @@ pub(crate) fn validate_struct_literal_fields(
                                 machine,
                                 state,
                                 *guard,
-                                &empty,
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
                             );
                         }
-                        for (target, positive) in
-                            [(transition.target, true), (transition.continuation, false)]
-                        {
+                        for target in [transition.target, transition.continuation] {
                             if !target.is_valid() {
                                 continue;
                             }
-                            let environment = guard_bounds::construction_guard_environment(
-                                program,
-                                machine,
-                                state,
-                                &transition.guard,
-                                positive,
-                            );
                             scan_transition_target(
                                 program,
                                 machine,
                                 state,
                                 program.statement_table.transition_target(target),
-                                &environment,
                                 diagnostics,
                                 &mut stored_integer_writes,
                                 statement_index,
@@ -194,35 +176,18 @@ fn scan_transition_target(
     machine: &Machine,
     state: &State,
     target: &TransitionTargetNode,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
 ) {
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
-            // Later argument evaluation can write through an earlier alias.
-            // Until this adapter consumes write frames, any unsupported operand
-            // removes guard facts from the entire target's constructor checks.
-            let empty = ValueEnvironment::new();
-            let environment = if program
-                .statement_table
-                .expression_handles(*arguments)
-                .iter()
-                .all(|argument| {
-                    guard_bounds::has_immutable_inputs(program, machine, state, *argument)
-                }) {
-                environment
-            } else {
-                &empty
-            };
             for argument in program.statement_table.expression_handles(*arguments) {
                 scan_expression(
                     program,
                     machine,
                     state,
                     *argument,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -230,19 +195,11 @@ fn scan_transition_target(
             }
         }
         TransitionTargetNode::Value(expression) => {
-            let empty = ValueEnvironment::new();
-            let environment =
-                if guard_bounds::has_immutable_inputs(program, machine, state, *expression) {
-                    environment
-                } else {
-                    &empty
-                };
             scan_expression(
                 program,
                 machine,
                 state,
                 *expression,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -257,7 +214,6 @@ fn scan_expression(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
@@ -274,7 +230,6 @@ fn scan_expression(
                     machine,
                     state,
                     child,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -286,27 +241,18 @@ fn scan_expression(
             machine,
             state,
             atomic.value,
-            environment,
             diagnostics,
             stored_integer_writes,
             statement_index,
         ),
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(
-                program,
-                machine,
-                state,
-                literal,
-                environment,
-                diagnostics,
-            );
+            validate_literal_field_names(program, machine, state, literal, diagnostics);
             enforce_construction_field_obligations(
                 program,
                 machine,
                 state,
                 expression,
                 literal,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -317,7 +263,6 @@ fn scan_expression(
                     machine,
                     state,
                     field.value,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -331,7 +276,6 @@ fn scan_expression(
                     machine,
                     state,
                     *element,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -344,7 +288,6 @@ fn scan_expression(
                 machine,
                 state,
                 binary.left,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -383,7 +326,6 @@ fn scan_expression(
                     machine,
                     state,
                     binary.right,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -395,7 +337,6 @@ fn scan_expression(
             machine,
             state,
             cast.value,
-            environment,
             diagnostics,
             stored_integer_writes,
             statement_index,
@@ -406,7 +347,6 @@ fn scan_expression(
                 machine,
                 state,
                 call.receiver,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -417,7 +357,6 @@ fn scan_expression(
                     machine,
                     state,
                     *argument,
-                    environment,
                     diagnostics,
                     stored_integer_writes,
                     statement_index,
@@ -430,7 +369,6 @@ fn scan_expression(
                 machine,
                 state,
                 indexed.collection,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -440,7 +378,6 @@ fn scan_expression(
                 machine,
                 state,
                 indexed.index,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -451,7 +388,6 @@ fn scan_expression(
             machine,
             state,
             member.receiver,
-            environment,
             diagnostics,
             stored_integer_writes,
             statement_index,
@@ -461,7 +397,6 @@ fn scan_expression(
             machine,
             state,
             inner.target,
-            environment,
             diagnostics,
             stored_integer_writes,
             statement_index,
@@ -472,7 +407,6 @@ fn scan_expression(
                 machine,
                 state,
                 range.start,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -482,7 +416,6 @@ fn scan_expression(
                 machine,
                 state,
                 range.end,
-                environment,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
@@ -493,7 +426,6 @@ fn scan_expression(
             machine,
             state,
             unary.operand,
-            environment,
             diagnostics,
             stored_integer_writes,
             statement_index,
@@ -535,14 +467,7 @@ fn scan_expression(
                 case_symbol: Some(variant.symbol),
                 fields: Default::default(),
             };
-            validate_literal_field_names(
-                program,
-                machine,
-                state,
-                &literal,
-                environment,
-                diagnostics,
-            );
+            validate_literal_field_names(program, machine, state, &literal, diagnostics);
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
@@ -561,7 +486,6 @@ fn validate_literal_field_names(
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
@@ -633,19 +557,15 @@ fn validate_literal_field_names(
         return;
     }
 
-    // R2 rung 2b + slice 9 (ch12 "Construction is the gate"): a literal of
-    // a domain-carrying type must PROVE the default domain -- every `where`
-    // fact folds over the field-value INTERVALS (integer literals as
-    // points; ranged places by their DECLARED intervals; omitted fields
-    // read 0). Definitely-false refuses as a violation; unprovable refuses
-    // with direction.
+    // Construction establishes the default domain from the values observed
+    // at each field's evaluation point; omitted fields contribute ZII zero.
+    // False predicates and insufficient facts remain distinct refusals.
     validate_literal_default_domain(
         program,
         machine,
         state,
         literal,
         data_definition,
-        environment,
         diagnostics,
     );
     validate_omitted_gated_fields(program, literal, data_definition, diagnostics);
@@ -698,7 +618,6 @@ fn validate_literal_field_names(
                 data_definition,
                 case_name.as_str(),
                 variant,
-                environment,
                 diagnostics,
             );
             // A case literal names the case's PAYLOAD fields, and -- for mixed

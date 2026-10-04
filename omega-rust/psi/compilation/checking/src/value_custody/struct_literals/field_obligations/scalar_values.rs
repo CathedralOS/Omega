@@ -27,7 +27,6 @@ pub(super) fn validate(
     state: &State,
     expression: ExpressionHandle,
     field_type: TypeReferenceHandle,
-    fallback: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<ConstructionScalarValue> {
@@ -43,7 +42,6 @@ pub(super) fn validate(
                 state,
                 arm.value,
                 field_type,
-                fallback,
                 owner,
                 diagnostics,
             ) else {
@@ -66,7 +64,7 @@ pub(super) fn validate(
 
     let environment =
         occurrence_value_environment(program, machine.symbol, state.symbol, expression)
-            .unwrap_or_else(|| fallback.clone());
+            .unwrap_or_default();
     let before = diagnostics.len();
     let (interval, primitive, _) = validate_value_range(
         program,

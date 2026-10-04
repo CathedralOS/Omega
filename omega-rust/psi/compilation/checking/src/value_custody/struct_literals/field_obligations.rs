@@ -46,7 +46,6 @@ pub(super) fn enforce_construction_field_obligations(
     state: &State,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     statement_index: usize,
@@ -158,7 +157,6 @@ pub(super) fn enforce_construction_field_obligations(
             state,
             field.value,
             field_type,
-            environment,
             &slot_context,
             diagnostics,
         );
@@ -368,7 +366,6 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     state,
                     *element,
                     element_type,
-                    &ValueEnvironment::new(),
                     &owner,
                     diagnostics,
                 );
