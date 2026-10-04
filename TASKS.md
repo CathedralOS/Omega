@@ -2177,25 +2177,6 @@ of a check the same flow already performed, not the check itself.
   fields hold no `String`, plan digests (and so package-review records) are
   unchanged, and the provider and native corpus slices are unchanged.
 
-- **TERMINAL-DECODE-ONCE.** The canonical module decode now lives on
-  `CanonicalTerminalArtifact` (`semantic_module()`): stage-00's artifact
-  admission, callback settlement, entry settlement, service establishment,
-  retained-terminal admission, the backend plan, object custody, component
-  description and the native artifact all read it, and
-  `fragment_object_publication`'s `from_bytes(&terminal.to_bytes())` round
-  trip became a `clone` (81fa35b64e, 33259721ec). Stage-00's
-  `src/terminal_decode_once.rs` is the source-scanning guard: it pins
-  `decode_module` across `omega-rust/omega/` non-test sources to the two
-  stage-00 loose-bytes entrances (`lower_artifact`,
-  `admit_provider_installation`) plus one describe-path byte entrance —
-  `component_subject_from_semantic_bytes` in `component-description`, a
-  public helper with no callers — pins `CanonicalTerminalArtifact::from_bytes`
-  to the describe path's embedded-artifact admissions, and holds
-  `from_bytes`-fed-by-`to_bytes()` lines at zero. Remaining step: delete the
-  dead `component_subject_from_semantic_bytes` (or rule it a legitimate
-  describe-path entrance) so the permit list shrinks to stage-00 admission
-  alone. Native corpus `--filter entry/,providers/` unchanged.
-
 - **PRE-ALLOCATION-BATCH-COMMIT.** (new-scope) Stage 04's
   `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs`
   commits the first admissible candidate and restarts the whole sweep. Commit

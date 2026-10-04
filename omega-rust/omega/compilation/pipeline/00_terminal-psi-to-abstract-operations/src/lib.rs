@@ -10,9 +10,13 @@
 //! each machine (`lowering`) into source-independent abstract operations.
 //! Two other entrances serve the same verified input:
 //! `build_verified_psi_optimization_unit` (`optimization`) builds the Psi
-//! optimization unit the optimizer rewrites, and `admit_provider_installation`
-//! (`provider_installation`) joins provider installation custody to the
-//! admitted artifact.
+//! optimization unit the optimizer rewrites, and
+//! `provider_admission::admit_checked_provider_installation` joins provider
+//! installation custody to the admitted artifact's retained module.
+//!
+//! Artifact admission is the one place in Omega that decodes a Terminal
+//! module from bytes; every later consumer receives the decoded module
+//! (`terminal_decode_once.rs` holds that by scanning the sources).
 //!
 //! `entry_settlement` and `callback_settlement` admit native entry sidecars
 //! against already-produced Terminal artifacts. These checks do not create
@@ -83,5 +87,6 @@ pub use optimization::{
 };
 pub use provider_installation::{
     AdmittedInstalledProviderCall, AdmittedProviderInstallation, ProviderInstallationError,
-    SelectedProviderAdapter, admit_provider_installation,
+    SelectedProviderAdapter,
 };
+

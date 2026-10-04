@@ -1705,15 +1705,6 @@ pub fn description_subject(
     terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)
 }
 
-/// Subject reconstruction helper for callers that only hold the raw parts.
-pub fn component_subject_from_semantic_bytes(
-    semantic_bytes: &[u8],
-) -> Result<TerminalPsiIdentity, DescribeError> {
-    let module =
-        terminal_codec::decode_module(semantic_bytes).map_err(DescribeError::ArtifactDecode)?;
-    terminal_codec::terminal_psi_identity(&module).map_err(DescribeError::ArtifactIdentity)
-}
-
 /// Convenience: vocabulary marker + fingerprint of the embedded artifact.
 pub fn description_vocabulary_marker(
     description: &ComponentDescription,

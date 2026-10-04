@@ -7,13 +7,10 @@
 //! re-encode that rejects non-canonical bytes. `CanonicalTerminalArtifact`
 //! retains the module its own construction decode produced, so every
 //! consumer holding the artifact reads `semantic_module()` and pays nothing.
-//! The only callers that may decode are the byte entrances — functions whose
-//! input is loose section bytes rather than an artifact — and on the
-//! Terminal-to-native realization path those are stage-00's `lower_artifact`
-//! and `admit_provider_installation`. `component-description`'s
-//! `component_subject_from_semantic_bytes` is the one other byte entrance:
-//! the describe path's raw-parts subject reconstruction, which Terminal-to-
-//! native realization never reaches.
+//! The only caller that may decode is the byte entrance — a function whose
+//! input is loose section bytes rather than an artifact — and in Omega that is
+//! stage-00's `lower_artifact`. Provider installation reads the admitted
+//! artifact's retained module through `admit_checked_provider_installation`.
 //!
 //! A decode added anywhere else re-runs the whole admission against a module
 //! the artifact already decoded; a decode removed from an entrance leaves an
@@ -51,23 +48,11 @@ const TO_BYTES_OUTPUT: &str = concat!("to_bytes", "()");
 /// source: each entry's repository-relative path, its exact occurrence count,
 /// and why the site is a byte entrance rather than an artifact-holding
 /// consumer.
-const PERMITTED_MODULE_DECODES: &[(&str, usize, &str)] = &[
-    (
-        "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs",
-        1,
-        "stage-00 admission: `lower_artifact` decodes loose canonical sections",
-    ),
-    (
-        "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_installation/mod.rs",
-        1,
-        "stage-00 admission: `admit_provider_installation` decodes loose canonical sections",
-    ),
-    (
-        "omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs",
-        1,
-        "describe path: `component_subject_from_semantic_bytes` reconstructs a subject from loose semantic bytes; no realization path reaches it",
-    ),
-];
+const PERMITTED_MODULE_DECODES: &[(&str, usize, &str)] = &[(
+    "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs",
+    1,
+    "stage-00 admission: `lower_artifact` decodes loose canonical sections",
+)];
 
 /// The complete permitted set of `CanonicalTerminalArtifact::from_bytes`
 /// envelope replays in Omega non-test source: admitting a description's

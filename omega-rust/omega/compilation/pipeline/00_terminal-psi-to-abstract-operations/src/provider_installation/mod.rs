@@ -2,7 +2,6 @@
 //! Provider installation admits only an exactly replayed abstract plan.
 //! Optimization selection does not change the Terminal-to-abstract projection.
 
-use abstract_operations::AbstractOperationPlan;
 mod admission;
 mod error;
 mod replay;
@@ -13,30 +12,6 @@ use abstract_operations::CompletionClaimSource;
 pub(crate) use admission::admit_provider_installation_with_projection;
 use semantic_vocabulary::{MachineId, OperationId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
-
-/// Admit a provider installation from loose canonical sections. A consumer
-/// that holds the whole `CanonicalTerminalArtifact` reaches the same body
-/// through `provider_admission::admit_checked_provider_installation`, which
-/// reads the artifact's retained module instead of decoding these bytes again.
-pub fn admit_provider_installation(
-    plan: &AbstractOperationPlan,
-    semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
-    selected: &[SelectedProviderAdapter],
-) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    let module = terminal_codec::decode_module(semantic_bytes)
-        .map_err(crate::ArtifactLoweringError::SemanticDecode)
-        .map_err(ProviderInstallationError::ArtifactReplay)?;
-    admit_provider_installation_with_projection(
-        plan,
-        &module,
-        semantic_bytes,
-        proof_bytes,
-        profile,
-        selected,
-    )
-}
 
 /// Bind Omega's provider policy only to exact rows preserved from the verified
 /// terminal catalog. Psi independently replays artifact verification before it
