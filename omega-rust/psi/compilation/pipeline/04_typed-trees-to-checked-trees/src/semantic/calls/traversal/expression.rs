@@ -16,11 +16,14 @@ pub(super) fn find_call_site_in_expression<'program>(
             }
             for arm in traversal.program.expression_table.match_arms(dispatch.arms) {
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
-                    && let Some(site) = find_call_site_in_expression(traversal, pattern)
+                    && let Some(site) = traversal
+                        .selected(|traversal| find_call_site_in_expression(traversal, pattern))
                 {
                     return Some(site);
                 }
-                if let Some(site) = find_call_site_in_expression(traversal, arm.value) {
+                if let Some(site) = traversal
+                    .selected(|traversal| find_call_site_in_expression(traversal, arm.value))
+                {
                     return Some(site);
                 }
             }
@@ -40,7 +43,18 @@ pub(super) fn find_call_site_in_expression<'program>(
             None
         }
         ExpressionNode::Binary(binary) => find_call_site_in_expression(traversal, binary.left)
-            .or_else(|| find_call_site_in_expression(traversal, binary.right)),
+            .or_else(|| {
+                if matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::And
+                        | typed_trees::expression::BinaryOperator::Or
+                ) {
+                    traversal
+                        .selected(|traversal| find_call_site_in_expression(traversal, binary.right))
+                } else {
+                    find_call_site_in_expression(traversal, binary.right)
+                }
+            }),
         ExpressionNode::Range(range) => {
             if range.start.is_valid()
                 && let Some(call_site) = find_call_site_in_expression(traversal, range.start)

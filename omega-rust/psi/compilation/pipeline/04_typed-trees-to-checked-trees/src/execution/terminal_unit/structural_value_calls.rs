@@ -33,6 +33,9 @@ pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
             .iter()
             .filter(|(owner, source, _, _)| owner == machine && source == state);
         if consume_caller_results(
+            program,
+            *machine,
+            *state,
             &mut updated,
             state_schedules.map(|(_, _, _, calls)| calls.as_slice()),
         )
@@ -92,6 +95,9 @@ pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
 /// producer's disposal debt belongs to its enclosing checked operation body.
 /// Rejoin that shared namespace at publication using ordinary transfer rules.
 fn consume_caller_results<'a>(
+    program: &TypedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     operations: &mut [CheckedUnitEffectOperationPlan],
     schedules: impl Iterator<Item = &'a [checked_trees::CheckedStructuralValueCall]>,
 ) -> Option<()> {
@@ -156,6 +162,27 @@ fn consume_caller_results<'a>(
                         return None;
                     }
                     continue;
+                }
+                let retires_caller = arguments.iter().any(|argument| {
+                    argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        && argument.path.is_empty()
+                        && earlier.iter().any(|operation| {
+                            operation.structural_result_binding().is_some_and(|result| {
+                                Some(result.binding_ordinal)
+                                    == argument.source_structural_result_binding_ordinal()
+                                    && result.multiplicity
+                                        == language_semantics::Multiplicity::Affine
+                            })
+                        })
+                });
+                if retires_caller {
+                    crate::semantic::calls::call_is_unconditional(
+                        program,
+                        machine,
+                        state,
+                        call.coordinate.statement_index as usize,
+                        call.coordinate.call_ordinal as usize,
+                    )?;
                 }
                 super::control::statement_sequence::consume_retained_results(
                     &mut earlier,

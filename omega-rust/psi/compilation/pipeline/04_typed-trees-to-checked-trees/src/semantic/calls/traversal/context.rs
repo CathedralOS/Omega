@@ -9,6 +9,9 @@ pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
     /// When set, every reached call site is pushed in ordinal order instead
     /// of stopping at `target_call_ordinal` — one statement walk binds all of
     /// a statement's call sites at once.
+    /// Selection ancestry does not change call ordinals or lookup membership.
+    conditional: bool,
+    pub(in crate::semantic::calls) matched_conditionally: bool,
     pub(super) collected: Option<&'ordinal mut Vec<super::super::CallSite<'program>>>,
 }
 
@@ -31,6 +34,8 @@ impl<'program> CallSiteTraversal<'program, '_> {
             target_call_ordinal,
             current_ordinal,
             collected: None,
+            conditional: false,
+            matched_conditionally: false,
         }
     }
 
@@ -53,6 +58,8 @@ impl<'program> CallSiteTraversal<'program, '_> {
             target_call_ordinal: usize::MAX,
             current_ordinal,
             collected: Some(collected),
+            conditional: false,
+            matched_conditionally: false,
         }
     }
 
@@ -68,10 +75,24 @@ impl<'program> CallSiteTraversal<'program, '_> {
             return None;
         }
         if self.is_target_call_site() {
+            self.matched_conditionally = self.conditional;
             return Some(site);
         }
         self.advance_call_ordinal();
         None
+    }
+
+    /// Visit an alternative with the same occurrence numbering. The selected
+    /// scope belongs to custody; it never prunes discovery of an authored call.
+    pub(super) fn selected(
+        &mut self,
+        visit: impl FnOnce(&mut Self) -> Option<super::super::CallSite<'program>>,
+    ) -> Option<super::super::CallSite<'program>> {
+        let enclosing = self.conditional;
+        self.conditional = true;
+        let result = visit(self);
+        self.conditional = enclosing;
+        result
     }
 
     pub(super) fn is_target_call_site(&self) -> bool {

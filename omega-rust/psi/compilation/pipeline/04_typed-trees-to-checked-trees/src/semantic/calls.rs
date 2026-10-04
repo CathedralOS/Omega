@@ -193,6 +193,43 @@ pub(crate) fn find_call_site<'program>(
     find_call_site_in_state(program, machine, state, statement_index, call_ordinal)
 }
 
+/// Exact ordinary call occurrence that executes without a selection fork.
+/// A call inventory includes alternatives; it is not evidence that their
+/// transfers discharge unconditional state-local disposal. This query shares
+/// lookup's traversal and ordinals, retaining its selection ancestry instead.
+/// Calls after an earlier state transition require edge-specific custody.
+pub(crate) fn call_is_unconditional(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<()> {
+    let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
+    let machine = machine_by_symbol(program, machine_symbol)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if statements
+        .get(..statement_index)?
+        .iter()
+        .any(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        return None;
+    }
+    let statement = statements.get(statement_index)?;
+    let mut ordinal = 0;
+    let mut traversal = CallSiteTraversal::new(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement_index,
+        call_ordinal,
+        &mut ordinal,
+    );
+    find_call_site_in_statement(&mut traversal, statement)?;
+    (!traversal.matched_conditionally).then_some(())
+}
+
 /// Call-site resolution against an already-located machine/state pair, for
 /// callers that own the symbols' storage (e.g. every checked body call of one
 /// state) and must not rescan the program per call.
