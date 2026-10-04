@@ -122,7 +122,6 @@ pub(crate) fn produce_retained_terminal_artifact(
             }
             .produce(TerminalProductionCustody {
                 entry_identity: Some(source_signature_identity),
-                callback_custody: (),
                 // The authored behavior exclusions are judged against the
                 // unoptimized composition the artifact was published from.
                 retain_unoptimized: !checked
@@ -136,7 +135,7 @@ pub(crate) fn produce_retained_terminal_artifact(
         })
         // A capacity refusal keeps its exceeded provision on the diagnostic so
         // the target's outcome publishes `Incomplete`, not a rejection.
-        .map_err(|error| vec![error.error().diagnostic()])?;
+        .map_err(|error| vec![error.diagnostic()])?;
     merge_terminal_production_timings(&mut stage_timings, &production_timings);
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -157,7 +156,6 @@ pub(crate) fn produce_retained_terminal_artifact(
         _,
         _,
         checked_boundary_operator_scope,
-        _,
         source_call_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,

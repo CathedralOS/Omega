@@ -12,10 +12,7 @@ mod custody;
 mod stage_timings;
 mod terminal_production;
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
-pub use custody::{
-    CallbackCustodyTerminalArtifactProductionError, ProducedTerminalArtifact,
-    TerminalProductionCustody,
-};
+pub use custody::{ProducedTerminalArtifact, TerminalProductionCustody};
 pub use stage_timings::{TerminalProductionStage, TerminalProductionTimings};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,

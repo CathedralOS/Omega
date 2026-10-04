@@ -13,10 +13,7 @@ use lowered_psi_to_lowered_psi::{
 };
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 
-use crate::custody::{
-    CallbackCustodyTerminalArtifactProductionError, ProducedTerminalArtifact,
-    TerminalProductionCustody,
-};
+use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
 use crate::stage_timings::{TerminalProductionStage, TerminalProductionTimings};
 
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
@@ -47,15 +44,13 @@ impl<'a> TerminalProductionRequest<'a> {
     /// identity is supplied, publication, and the checked boundary-operator
     /// scope. The source-signature digest remains opaque; later Omega
     /// settlement must independently compare it with the retained source
-    /// signature. Rejection returns the callback sidecar unchanged.
-    pub fn produce<C>(
+    /// signature.
+    pub fn produce(
         self,
-        custody: TerminalProductionCustody<'_, C>,
-    ) -> Result<ProducedTerminalArtifact<C>, CallbackCustodyTerminalArtifactProductionError<C>>
-    {
+        custody: TerminalProductionCustody<'_>,
+    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody {
             entry_identity,
-            callback_custody,
             retain_unoptimized,
             timings,
         } = custody;
@@ -65,7 +60,6 @@ impl<'a> TerminalProductionRequest<'a> {
                 receipt: produced.receipt,
                 unoptimized: produced.unoptimized,
                 boundary_operator_scope: produced.boundary_operator_scope,
-                callback_custody,
                 source_call_occurrences: produced.source_call_occurrences,
                 selected_ieee_float_comparison_occurrences: produced
                     .selected_ieee_float_comparison_occurrences,
@@ -73,10 +67,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     .selected_integer_comparison_occurrences,
                 withheld_rewrites: produced.withheld_rewrites,
             }),
-            Err(error) => Err(CallbackCustodyTerminalArtifactProductionError {
-                error,
-                callback_custody,
-            }),
+            Err(error) => Err(error),
         }
     }
 
@@ -85,7 +76,7 @@ impl<'a> TerminalProductionRequest<'a> {
         entry_identity: Option<[u8; 32]>,
         retain_unoptimized: bool,
         timings: &mut TerminalProductionTimings,
-    ) -> Result<ProducedTerminalArtifact<()>, TerminalArtifactProductionError> {
+    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let checked = self.checked;
         // The receipt names the selected checked machine, so the selection is
         // rejoined before lowering only when an entry receipt is requested.
@@ -141,7 +132,6 @@ impl<'a> TerminalProductionRequest<'a> {
             receipt,
             unoptimized,
             boundary_operator_scope,
-            callback_custody: (),
             source_call_occurrences: lowered.source_call_occurrences,
             selected_ieee_float_comparison_occurrences: lowered
                 .selected_ieee_float_comparison_occurrences,

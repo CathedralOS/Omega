@@ -57,7 +57,6 @@ fn produce_callback_thunk_artifact(
     }
     .produce(TerminalProductionCustody {
         entry_identity: None,
-        callback_custody: (),
         // The authored exclusions and the lowering receipt are judged on the
         // unoptimized composition the thunk was published from.
         retain_unoptimized: true,
