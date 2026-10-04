@@ -531,6 +531,22 @@ fn construction_sources_with_calls(
             holder_path: Vec::new(),
         }]);
     }
+    if stored_loan_parts(program, reference).is_some()
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_)
+        )
+    {
+        let (_, source) = expression_source_leaf(program, state, expression, reference)?;
+        return Some(vec![ConstructionSource {
+            value: checked_trees::CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source,
+            },
+            holder: SymbolHandle::default(),
+            holder_path: Vec::new(),
+        }]);
+    }
     if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
         return Some(Vec::new());
     }
@@ -1942,8 +1958,21 @@ pub fn source_leaf(
     else {
         return None;
     };
+    expression_source_leaf(program, state, *expression, state.return_type)
+}
+
+/// Reconstruct a stored permission selected from an exact formal declaration.
+/// Completion admission and ordinary result-origin substitution share the same
+/// projection and whole-carrier transfer checks.
+fn expression_source_leaf(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
+    stored_loan_parts(program, reference)?;
     let mut members = Vec::new();
-    let mut current = *expression;
+    let mut current = expression;
     while let ExpressionNode::Member(member) = program.expression_table.expression(current) {
         if member.case_variant.is_some() {
             return None;
@@ -2009,9 +2038,7 @@ pub fn source_leaf(
         ));
         selected = field.type_reference;
     }
-    if program.normalized_type_identity(selected)
-        != program.normalized_type_identity(state.return_type)
-    {
+    if program.normalized_type_identity(selected) != program.normalized_type_identity(reference) {
         return None;
     }
     let (ordinal, _) = program
