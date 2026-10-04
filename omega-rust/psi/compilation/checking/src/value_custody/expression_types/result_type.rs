@@ -24,6 +24,109 @@ use typed_trees::types::{
 mod tests;
 
 #[cfg(test)]
+mod scalar_computation_results {
+    use super::{ExpressionNode, PrimitiveType, expression_result_type_reference};
+
+    #[test]
+    fn numeric_scalar_calls_reject_boolean_guards() {
+        for subject in [
+            "min(value, 0)",
+            "max(value, 0)",
+            "clamp(value, 0, 10)",
+            "min(max(value, 0), 10)",
+            "max(min(value, 10), 0)",
+            "min(1, 0)",
+        ] {
+            let source = format!(
+                "machine evaluate(value: i32) -> i32 {{
+                    transition {subject} {{ true -> (7) _ -> (90) }}
+                }}"
+            );
+            let program = crate::front_end::typed_program(&source);
+            let diagnostics = crate::validate_program(&program)
+                .expect_err("a numeric result cannot select a Boolean guard");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("numeric value and a boolean")),
+                "{source}: {diagnostics:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_call_results_retain_numeric_carriers_without_input_bounds() {
+        for (primitive, subject) in [
+            (PrimitiveType::I32, "min(max(value, 0), 10)"),
+            (PrimitiveType::I32, "clamp(value, 0, 10)"),
+            (PrimitiveType::I32, "min(0, value)"),
+            (PrimitiveType::I32, "max(0, value)"),
+            (PrimitiveType::U64, "max(value, 20u64)"),
+            (PrimitiveType::F64, "sqrt(value)"),
+            (PrimitiveType::F64, "clamp(value, 0.0, 10.0)"),
+            (PrimitiveType::F64, "abs(value)"),
+        ] {
+            let parameter = if primitive == PrimitiveType::U64 {
+                "value: u64 [0..=10]"
+            } else if primitive == PrimitiveType::F64 {
+                "value: f64"
+            } else {
+                "value: i32"
+            };
+            let result = if primitive == PrimitiveType::U64 {
+                "u64"
+            } else if primitive == PrimitiveType::F64 {
+                "f64"
+            } else {
+                "i32"
+            };
+            let source = format!("machine evaluate({parameter}) -> {result} {{ ({subject}) }}");
+            let program = crate::front_end::typed_program(&source);
+            crate::validate_program(&program)
+                .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"));
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let calls: Vec<_> = program
+                .expression_table
+                .iter_expressions()
+                .filter_map(|(handle, expression)| {
+                    matches!(expression, ExpressionNode::Call(_)).then_some(handle)
+                })
+                .collect();
+            assert!(!calls.is_empty());
+            for value in calls {
+                let reference = expression_result_type_reference(&program, machine, state, value)
+                    .expect("the selected numeric call has an operand-derived carrier");
+                assert_eq!(program.primitive_type_reference(reference), Some(primitive));
+                assert_eq!(
+                    program.normalized_type_identity(reference),
+                    program.normalized_type_identity(state.return_type)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn static_arithmetic_named_callbacks_keep_their_boolean_contracts() {
+        for name in ["Work", "abs", "clamp", "min", "max", "sqrt"] {
+            let (parameters, arguments) = if name == "clamp" {
+                ("input: i32, lower: i32, upper: i32", "value, 0, 10")
+            } else {
+                ("input: i32", "value")
+            };
+            let source = format!(
+                "machine evaluate<machine {name}>(value: i32) -> i32
+                 where machine {name}({parameters}) -> bool;
+                 {{ transition {name}({arguments}) {{ true -> (7) _ -> (90) }} }}"
+            );
+            let program = crate::front_end::typed_program(&source);
+            crate::validate_program(&program)
+                .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"));
+        }
+    }
+}
+
+#[cfg(test)]
 mod domain_carrier_subjects {}
 
 #[cfg(test)]
@@ -262,26 +365,59 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call).or_else(|| {
-                typed_trees::operator::resolve_named_expression_call(program, call).and_then(
-                    |operator| {
-                        let operands: Vec<_> = program
-                            .expression_table
-                            .expression_handles(call.arguments)
-                            .iter()
-                            .map(|argument| result_type(program, owner, *argument, active))
-                            .collect();
-                        bound_result_type_parameter(program, operator, &operands).or_else(|| {
-                            (!result_mentions_type_parameters(
-                                program,
-                                operator,
-                                operator.return_type,
-                            ))
-                            .then_some(operator.return_type)
+            crate::machine_calls::calls::resolved_call_result_type(program, call)
+                .or_else(|| {
+                    typed_trees::operator::resolve_named_expression_call(program, call).and_then(
+                        |operator| {
+                            let operands: Vec<_> = program
+                                .expression_table
+                                .expression_handles(call.arguments)
+                                .iter()
+                                .map(|argument| result_type(program, owner, *argument, active))
+                                .collect();
+                            bound_result_type_parameter(program, operator, &operands).or_else(
+                                || {
+                                    (!result_mentions_type_parameters(
+                                        program,
+                                        operator,
+                                        operator.return_type,
+                                    ))
+                                    .then_some(operator.return_type)
+                                },
+                            )
+                        },
+                    )
+                })
+                .or_else(|| {
+                    if typed_trees::operator::resolve_named_expression_call(program, call).is_some()
+                    {
+                        return None;
+                    }
+                    program
+                        .symbols
+                        .builtin_function_for_symbol(call.target_symbol)
+                        .filter(|function| function.is_scalar_computation())?;
+                    let arguments = program.expression_table.expression_handles(call.arguments);
+                    let references: Vec<_> = arguments
+                        .iter()
+                        .map(|argument| {
+                            result_type(program, owner, *argument, active).and_then(|reference| {
+                                arithmetic_result_type_reference(program, reference)
+                            })
                         })
-                    },
-                )
-            })
+                        .collect();
+                    let anonymous: Vec<_> = arguments
+                        .iter()
+                        .map(|argument| {
+                            crate::value_custody::literals::has_anonymous_numeric_results(
+                                program, *argument,
+                            )
+                        })
+                        .collect();
+                    // Computation preserves the carrier and arithmetic policy,
+                    // not the operand's range or refinement predicates.
+                    join_result_type_references(program, &references, &anonymous)
+                })
         }
         ExpressionNode::StructLiteral(literal) => program
             .type_reference_table

@@ -31,6 +31,7 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.extend(
         BuiltinFunction::ALL
             .into_iter()
+            .filter(|function| !function.is_source_normalization())
             .map(CompilerIntrinsicExecutionIdentity::BuiltinFunction),
     );
     for operation in CompilerPrimitiveFloatBinaryOperation::ALL {

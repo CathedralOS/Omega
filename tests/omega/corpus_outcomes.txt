@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.69, "load1_start": 3.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -316,6 +316,8 @@ fail/calls/mutual_cycle_decrease_unproven rejected 131ms expected @c08960bee2b1+
 fail/calls/nontail_value_self_call_rejected rejected 70ms expected @5181ccde6df7+wt
 	`Main::triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> triple(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Main::triple` state `triple` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/numeric_scalar_call_boolean_guard rejected 140ms expected @313d9f292579+wt
+	machine `evaluate` state `entry` applies an operator to a numeric value and a boolean -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/calls/ordered_bound_requires_argument_rejected rejected 325ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false
 fail/calls/plain_let_reassign_rejected rejected 276ms expected @2d8ed253669f
@@ -1482,6 +1484,7 @@ pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
+pass/calls/static_arithmetic_name_callback_exit checked 2237ms @313d9f292579+wt
 pass/calls/static_context_forwarded_through_state_arms_exit checked 1634ms @a9f373809a48+wt
 pass/calls/static_context_forwarded_twice_exit checked 1319ms @ca8c127c90c5
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt

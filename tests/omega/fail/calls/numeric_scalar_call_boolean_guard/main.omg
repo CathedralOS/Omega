@@ -1,0 +1,6 @@
+machine evaluate(value: i32) -> i32 {
+    transition min(max(value, 0), 10) {
+        true -> (7)
+        _ -> (90)
+    }
+}

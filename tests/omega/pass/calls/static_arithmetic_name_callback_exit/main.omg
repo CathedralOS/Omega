@@ -1,0 +1,35 @@
+module static_arithmetic_name_callback_exit;
+
+use omega_language_std::console;
+
+machine choose_true(input: i32) -> bool { (true) }
+machine choose_true_three(input: i32, lower: i32, upper: i32) -> bool { (true) }
+
+machine absolute_callback<machine abs>(value: i32) -> i32
+where machine abs(input: i32) -> bool;
+{
+    transition abs(value) {
+        true -> (7)
+        false -> (90)
+    }
+}
+
+machine clamp_callback<machine clamp>(value: i32) -> i32
+where machine clamp(input: i32, lower: i32, upper: i32) -> bool;
+{
+    transition clamp(value, 0, 10) {
+        true -> (7)
+        false -> (90)
+    }
+}
+
+machine main() reaches Console {
+    let absolute: i32 = absolute_callback<choose_true>(3);
+    let clamped: i32 = clamp_callback<choose_true_three>(3);
+    transition absolute == 7 && clamped == 7 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() { Console::exit_process(7); }
+    state failed() { Console::exit_process(90); }
+}

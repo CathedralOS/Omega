@@ -4,11 +4,13 @@
 //! `statement` and `expression` translate bodies; `type_reference` and `name`
 //! serve every other module. Each translator borrows the `Lowerer`, appends
 //! to its trees, and records the selections a later phase settles. Nothing
-//! here assigns a symbol.
+//! here assigns a symbol. `intrinsic_calls` runs after assignment to normalize
+//! only the exact compiler-owned arithmetic declarations.
 
 pub(crate) mod data;
 pub(crate) mod domain;
 pub(crate) mod expression;
+pub(crate) mod intrinsic_calls;
 pub(crate) mod item;
 pub(crate) mod machine;
 pub(crate) mod mathematical;
