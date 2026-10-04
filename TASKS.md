@@ -1265,11 +1265,12 @@ crash and native exit behavior.
     requirement, single-state shared and mutable-reference returns, and
     effectful-guard/operand-order forms execute in both engines. Ordinary wrappers,
     mixed call/value arms, and writes through terminal and generic reference
-    results retain the caller's backing storage. Guarded reference, scalar and
+    results retain the caller's backing storage. Returned call carriers preserve
+    alternative record fields and nested argument projections. Guarded reference, scalar and
     Unit completions before a crash fallback also execute in both engines.
   - Remaining:
-    - finish multi-state callee reference-origin substitution and returned-local
-      custody for alternative subplaces beyond the admitted single-state query;
+    - finish multi-state callee reference-origin substitution beyond the
+      admitted single-state query;
     - validate the native trap oracle for
       `calls/runtime_guarded_reference_return_crash` on a host that can reap trap
       exits. The current macOS host leaves both that program and system-clang
@@ -1284,6 +1285,8 @@ crash and native exit behavior.
   `pass/calls/runtime_guarded_terminal_mutable_reference_result_exit` and
   `pass/calls/runtime_guarded_terminal_reference_write_exit` at 0 in both engines,
   including writes through a generic reference helper. Keep
+  `pass/calls/runtime_selected_reference_field_result_exit` at 0 in both engines,
+  including writes through either field and nested nonzero backing offsets. Keep
   `pass/calls/runtime_guarded_reference_return_before_crash_exit` at 0 in both
   engines, including scalar and Unit completion variations. Keep
   `pass/calls/runtime_guarded_terminal_reference_result_exit` at 0 in both engines,
