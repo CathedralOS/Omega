@@ -3286,9 +3286,10 @@ unchanged, except for intended deletions, which its commit lists.
 
 - **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) This lands first:
   today PCC machinery is the compile-time soundness gate.
-  - The checker rejects only a provably zero divisor
-    (`checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs`,
-    "a divisor that MIGHT be zero stays a runtime concern").
+  - Checking discharges executable Exact division/remainder definedness from
+    current intervals, retained unequal relations, declared scalar predicates
+    and shared integer constraints; these accepted operation judgments still
+    need to be retained in `CheckFacts` and consumed by lowering.
   - Stage 05 then reconstructs each Exact operation's obligation through the
     verifier (`proofs/operation_proofs.rs`, `validate_module` +
     `reconstruct_execution_terminal_obligations`) and searches for a
@@ -3305,20 +3306,18 @@ unchanged, except for intended deletions, which its commit lists.
   rejects from `omega --check` with a checking diagnostic, and the check
   corpus is otherwise unchanged.
 
-  Current frontier: ordinary assignment checking now discharges plan-laid
-  `IntegerAt` storage fit using the destination field identity and pre-store
-  value interval, retaining accepted writes in `CheckFacts::values`.
-  On macOS ARM64, `omega --check
-  tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
-  rejects the signed-byte write of 128; ordinary-field and unbounded-source
-  variations also reject, while -128 and 127 check. The proved-write positive
-  `pass/layouts/runtime_plan_laid_integer_at_proved_write_exit` still runs
-  natively and interpreted with exit 72. The 17-fixture layout corpus changes
-  only that negative's diagnostic. Remaining: discharge the other operation
-  conditions and other bounded-store forms, consume checker judgments in
-  lowering, and remove Stage 05 proof search. This prerequisite is not closed
-  merely because the only currently recorded `OperationProofUnavailable`
-  negative now rejects earlier.
+  Current frontier: plan-laid `IntegerAt` storage-fit judgments are retained
+  in `CheckFacts::values`. Exact division/remainder now reject an unproven
+  nonzero divisor or signed `MIN / -1` pair during checking, including ordinary
+  call results, state-edge stores and declared scalar domains. Correlated
+  operands use the shared integer constraint engine rather than an affine
+  source-shape recognizer. Remaining: retain those operation judgments in
+  `CheckFacts`, audit and retain the existing shift-count/Boolean/index
+  judgments and other bounded-store forms, consume them in lowering, and
+  remove Stage 05 proof search. Runtime checks do not establish complete
+  traversal of every aggregate/proposition position; include those positions
+  in the remaining formation audit. This prerequisite is not closed merely
+  because a negative rejects earlier.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate

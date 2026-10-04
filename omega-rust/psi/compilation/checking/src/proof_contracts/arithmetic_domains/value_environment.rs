@@ -99,7 +99,7 @@ impl ValueEnvironment {
             (left_fields.is_empty() && right_fields.is_empty()).then_some((
                 *left,
                 *right,
-                relation.floor,
+                relation.minimum_difference()?,
             ))
         })
     }

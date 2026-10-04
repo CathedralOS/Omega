@@ -222,8 +222,26 @@ pub(super) fn validate<'a, 'p>(
             ))
         })
         .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
-    // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
-    // already erred (its own overflow, a type error) is not re-flagged.
+    // Carrier compatibility is independent of arithmetic definedness: an
+    // overflowing expression does not authorize an implicit conversion.
+    let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+        program,
+        machine,
+        current_state,
+        assignment.value,
+        source_primitive,
+        source_domain,
+    );
+    arithmetic_domains::check_narrowing_assignment(
+        assignment_target_primitive,
+        declared_target_domain,
+        interval,
+        source_primitive,
+        source_domain,
+        &owner,
+        diagnostics,
+    );
+    // Only a clean value supplies a successful storage-fit judgment.
     if diagnostics.len() == before {
         if let Some(write) = crate::value_custody::plan_laid::validate_stored_integer_write(
             program,
@@ -236,23 +254,6 @@ pub(super) fn validate<'a, 'p>(
         ) {
             outputs.stored_integer_writes.insert(write);
         }
-        let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
-            program,
-            machine,
-            current_state,
-            assignment.value,
-            source_primitive,
-            source_domain,
-        );
-        arithmetic_domains::check_narrowing_assignment(
-            assignment_target_primitive,
-            declared_target_domain,
-            interval,
-            source_primitive,
-            source_domain,
-            &owner,
-            diagnostics,
-        );
         // Containment for non-literal stores into ranged places (see
         // the local arm's twin note; literal stores refuse through
         // the proof plan).

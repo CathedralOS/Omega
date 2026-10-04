@@ -140,7 +140,6 @@ pub(super) fn validate(
         );
     }
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
-    let before = diagnostics.len();
     let (return_interval, source_primitive, source_domain) =
         arithmetic_domains::validate_anonymous_integer_range(
             program,
@@ -162,27 +161,24 @@ pub(super) fn validate(
                 diagnostics,
             )
         });
-    // A cleanly-analyzed return value that cannot fit the declared return
-    // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
-    if diagnostics.len() == before {
-        let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
-            program,
-            machine,
-            Some(state),
-            *expression,
-            source_primitive,
-            source_domain,
-        );
-        arithmetic_domains::check_narrowing_assignment(
-            return_primitive,
-            return_domain,
-            return_interval,
-            source_primitive,
-            source_domain,
-            &owner,
-            diagnostics,
-        );
-    }
+    // A result retains its carrier even when its arithmetic is invalid.
+    let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+        program,
+        machine,
+        Some(state),
+        *expression,
+        source_primitive,
+        source_domain,
+    );
+    arithmetic_domains::check_narrowing_assignment(
+        return_primitive,
+        return_domain,
+        return_interval,
+        source_primitive,
+        source_domain,
+        &owner,
+        diagnostics,
+    );
     // S4: enforce a declared return `[a..=b]` so call-site narrowing
     // that trusts it stays sound (the interval is already computed above).
     arithmetic_domains::enforce_symbolic_range(

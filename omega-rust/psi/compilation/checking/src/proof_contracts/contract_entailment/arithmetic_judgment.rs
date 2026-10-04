@@ -53,6 +53,27 @@ impl Polynomial {
         }
     }
 
+    /// Every nonconstant monomial is integral in an integer-only scope. Its
+    /// coefficient gcd divides their sum, so an incompatible constant residue
+    /// excludes zero without choosing a sign or enumerating atom values.
+    fn excludes_integer_zero(&self) -> bool {
+        let mut divisor = BigInt::zero();
+        let mut constant = BigInt::zero();
+        for (monomial, coefficient) in &self.terms {
+            if monomial.is_empty() {
+                constant = coefficient.clone();
+            } else {
+                divisor = divisor.gcd(coefficient);
+            }
+        }
+        if divisor.is_zero() {
+            return !constant.is_zero();
+        }
+        constant
+            .div_rem(&divisor)
+            .is_some_and(|(_, remainder)| !remainder.is_zero())
+    }
+
     pub(super) fn add(&self, other: &Self) -> Self {
         let mut terms = self.terms.clone();
         for (monomial, coefficient) in &other.terms {
@@ -582,6 +603,26 @@ impl<'program> Engine<'program> {
                 Polynomial::atom(identity.clone())
             }
             ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
+            ScopedArithmeticValue::IntegerOperation {
+                operator,
+                left,
+                right,
+            } => {
+                if !matches!(
+                    operator,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                ) {
+                    return None;
+                }
+                let left = self.normalize_scoped_value(left)?;
+                let right = self.normalize_scoped_value(right)?;
+                match operator {
+                    BinaryOperator::Add => left.add(&right),
+                    BinaryOperator::Subtract => left.sub(&right),
+                    BinaryOperator::Multiply => left.checked_mul(&right)?,
+                    _ => return None,
+                }
+            }
             ScopedArithmeticValue::Term(term) => {
                 if !self.install_scoped_bindings(&term.bindings) {
                     return None;
@@ -1791,6 +1832,40 @@ impl<'program> Engine<'program> {
             self.close_matrix();
         }
         fully_visible
+    }
+
+    /// A strict integer-only query may also use coefficient residues and the
+    /// existing polynomial lower-bound judgment. Legacy adapters can admit
+    /// noninteger expressions, so these consequences are not installed by the
+    /// shared hypothesis ingestion path.
+    pub(super) fn integer_comparisons_unsatisfiable(
+        &mut self,
+        comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) -> bool {
+        if self.strict_symbol_bindings.is_none() || !self.strict_symbol_bindings_valid {
+            return false;
+        }
+        let equalities = comparisons
+            .iter()
+            .filter(|(operator, _, _)| *operator == BinaryOperator::Equal)
+            .map(|(_, left, right)| left.sub(right))
+            .collect::<Vec<_>>();
+        if !self.install_hypotheses(comparisons) {
+            return false;
+        }
+        if self.requires_unsatisfiable
+            || equalities
+                .iter()
+                .any(|difference| self.substituted(difference).excludes_integer_zero())
+        {
+            return true;
+        }
+        // P >= b is inconsistent with -P >= 1-b over integers. Reuse the
+        // existing nonrecursive residual/scaled-bound proof, rather than
+        // adding a separate search over combinations of hypotheses.
+        self.bounds.iter().any(|(polynomial, bound)| {
+            self.prove_at_least(&polynomial.neg(), &BigInt::from_i64(1).sub(bound))
+        })
     }
 
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct

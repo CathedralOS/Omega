@@ -26,7 +26,11 @@ machine nan64() -> i64 {
     choose64(value, value, value)
 }
 
-machine divide(value: i64) -> i64 { 7 / value }
+// An unselected arm must not evaluate this explicitly partial operation.
+machine divide(value: i64) -> i64 {
+    let numerator: i64 in Trapping = 7;
+    (numerator / (value as i64 in Trapping)) as i64
+}
 machine observe32(calls: &mut i32 in Wrapping, value: f32) -> f32 {
     calls = calls + 1;
     value

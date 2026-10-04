@@ -168,7 +168,9 @@ fn contribute_fact_expression(
             let relation = ordered_values::Relation {
                 left: high.operand.clone(),
                 right: low.operand.clone(),
-                floor: i64::from(strict),
+                constraint: ordered_values::RelationConstraint::MinimumDifference(i64::from(
+                    strict,
+                )),
             };
             if !environment.ordered_values.contains(&relation) {
                 environment.ordered_values.push(relation);
@@ -282,11 +284,17 @@ fn fact_side(
     expression: ExpressionHandle,
 ) -> Option<FactOperand> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => Some(FactOperand {
-            operand: ordered_values::Operand::Integer(literal.clone(), literal.landing()),
-            spelled: None,
-            field_type: None,
-        }),
+        ExpressionNode::Integer(literal)
+            if literal.landing().is_none_or(|landing| {
+                landing.landed_type != numerics::literals::LandedIntegerType::Addr
+            }) =>
+        {
+            Some(FactOperand {
+                operand: ordered_values::Operand::Integer(literal.clone(), literal.landing()),
+                spelled: None,
+                field_type: None,
+            })
+        }
         ExpressionNode::Name(path) => {
             let name = program
                 .expression_table
@@ -307,6 +315,28 @@ fn fact_side(
                 }
                 field
             };
+            // This environment records integer differences (a strict order
+            // contributes a distance of at least one). A case's IEEE or
+            // nominal facts cannot supply those relations or integer intervals.
+            let reference = crate::value_custody::places::unwrapped_type_reference(
+                program,
+                field.type_reference,
+            )?;
+            let primitive =
+                crate::value_custody::recasts::exact_primitive_type(program, reference)?;
+            if !matches!(
+                primitive,
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            ) {
+                return None;
+            }
             let mut fields = subject_fields.to_vec();
             fields.push(field.symbol);
             let path = format!("{subject_path}.{}", field.name.as_str());
@@ -368,4 +398,57 @@ fn field_name_unique(program: &TypedTrees, owner: &DataDefinition, name: &str) -
         }
     }
     count == 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn case_facts_publish_integer_relations_only_for_integer_fields() {
+        for carrier in ["i32", "f32", "f64"] {
+            let program = crate::front_end::typed_program(&format!(
+                "data Observation {{ case Between(value: {carrier}) where 0 < value && value < 1; }}"
+            ));
+            let owner = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == "Observation")
+                .unwrap();
+            let variant = program
+                .data_members(owner)
+                .iter()
+                .find_map(|member| {
+                    if let DataMember::Variant(variant) = member {
+                        Some(variant)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let mut environment = ValueEnvironment::new();
+            for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                let ProofFact::Expression(expression) = fact else {
+                    panic!("case expression");
+                };
+                contribute_fact_expression(
+                    &program,
+                    owner,
+                    variant,
+                    &owner.symbol,
+                    &[],
+                    "observation",
+                    &mut environment,
+                    *expression,
+                );
+            }
+            if carrier == "i32" {
+                assert!(!environment.ordered_values.is_empty());
+                assert!(environment.get("observation.value").is_some());
+            } else {
+                assert!(environment.ordered_values.is_empty(), "{carrier}");
+                assert!(environment.get("observation.value").is_none(), "{carrier}");
+            }
+        }
+    }
 }

@@ -50,6 +50,14 @@ pub enum ScopedArithmeticValue {
     /// a checked closed domain index. This does not establish executable
     /// carrier landing or the constant's source custody.
     Integer(numerics::bignum::BigInt),
+    /// Mathematical addition, subtraction or multiplication of already
+    /// admitted integer values. The caller establishes exact builtin meaning;
+    /// this node cannot reinterpret wrapping or trapping source arithmetic.
+    IntegerOperation {
+        operator: BinaryOperator,
+        left: Box<Self>,
+        right: Box<Self>,
+    },
     /// A term read under its own roster before it stands for the binder.
     Term(ScopedArithmeticExpression),
     /// One exact integer remainder whose caller independently established
@@ -81,6 +89,50 @@ pub struct ScopedArithmeticExpression {
 pub struct ScopedArithmeticHypothesis {
     pub proposition: ScopedArithmeticExpression,
     pub holds: bool,
+}
+
+/// An integer comparison supplied by the owner of live value facts, without
+/// manufacturing an authored expression for an implicit bound or condition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedArithmeticComparison {
+    pub operator: BinaryOperator,
+    pub left: ScopedArithmeticValue,
+    pub right: ScopedArithmeticValue,
+}
+
+/// Decide whether these simultaneous integer comparisons are contradictory.
+/// The caller establishes integer denotation, operand formation and current
+/// observation custody. Shared atom identities mean the same mathematical
+/// value; no source spelling or previously invalidated fact supplies identity.
+/// Unknown terms/operators decline even when another comparison is impossible.
+pub fn scoped_arithmetic_comparisons_unsatisfiable(
+    program: &TypedTrees,
+    context_machine: &Machine,
+    comparisons: &[ScopedArithmeticComparison],
+) -> bool {
+    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
+    let mut normalized = Vec::with_capacity(comparisons.len());
+    for comparison in comparisons {
+        if !matches!(
+            comparison.operator,
+            BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+                | BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+        ) {
+            return false;
+        }
+        let Some(left) = engine.normalize_scoped_value(&comparison.left) else {
+            return false;
+        };
+        let Some(right) = engine.normalize_scoped_value(&comparison.right) else {
+            return false;
+        };
+        normalized.push((comparison.operator, left, right));
+    }
+    engine.integer_comparisons_unsatisfiable(normalized)
 }
 
 /// Judge `goal` from `hypotheses`, each read under its own roster. An

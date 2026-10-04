@@ -19,6 +19,111 @@ mod domain_self;
 mod embeddings;
 mod projections;
 
+mod live_comparisons {
+    use super::super::{ScopedArithmeticComparison, scoped_arithmetic_comparisons_unsatisfiable};
+    use super::*;
+    use numerics::bignum::BigInt;
+
+    fn integer(value: i64) -> ScopedArithmeticValue {
+        ScopedArithmeticValue::Integer(BigInt::from_i64(value))
+    }
+
+    fn atom(identity: &str) -> ScopedArithmeticValue {
+        ScopedArithmeticValue::Atom {
+            identity: identity.to_owned(),
+            unsigned: false,
+        }
+    }
+
+    fn operation(
+        operator: BinaryOperator,
+        left: ScopedArithmeticValue,
+        right: ScopedArithmeticValue,
+    ) -> ScopedArithmeticValue {
+        ScopedArithmeticValue::IntegerOperation {
+            operator,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn equal(
+        left: ScopedArithmeticValue,
+        right: ScopedArithmeticValue,
+    ) -> ScopedArithmeticComparison {
+        ScopedArithmeticComparison {
+            operator: BinaryOperator::Equal,
+            left,
+            right,
+        }
+    }
+
+    fn impossible(comparisons: &[ScopedArithmeticComparison]) -> bool {
+        scoped_arithmetic_comparisons_unsatisfiable(
+            &TypedTrees::default(),
+            &Machine::default(),
+            comparisons,
+        )
+    }
+
+    #[test]
+    fn integer_coefficient_residue_excludes_zero_without_a_sign_bound() {
+        let twice = operation(BinaryOperator::Multiply, integer(2), atom("value"));
+        let odd = operation(BinaryOperator::Add, twice.clone(), integer(1));
+        assert!(impossible(&[equal(odd.clone(), integer(0))]));
+        assert!(!impossible(&[equal(odd, integer(-1))]));
+        assert!(!impossible(&[equal(twice, integer(0))]));
+        // The rule concerns integer monomials, not an affine source shape.
+        let product = operation(BinaryOperator::Multiply, atom("left"), atom("right"));
+        let even_product = operation(BinaryOperator::Multiply, integer(-6), product);
+        let incompatible = operation(BinaryOperator::Add, even_product, integer(3));
+        assert!(impossible(&[equal(incompatible, integer(0))]));
+    }
+
+    #[test]
+    fn correlated_equations_reuse_polynomial_bound_contradiction() {
+        let numerator = operation(
+            BinaryOperator::Multiply,
+            operation(BinaryOperator::Add, atom("value"), integer(16384)),
+            integer(-2),
+        );
+        let denominator = |identity| {
+            operation(
+                BinaryOperator::Add,
+                operation(BinaryOperator::Multiply, atom(identity), integer(2)),
+                integer(1),
+            )
+        };
+        assert!(impossible(&[
+            equal(numerator.clone(), integer(-32768)),
+            equal(denominator("value"), integer(-1)),
+        ]));
+        assert!(!impossible(&[
+            equal(numerator.clone(), integer(-32768)),
+            equal(denominator("different"), integer(-1)),
+        ]));
+        assert!(!impossible(&[
+            equal(numerator, integer(-32768)),
+            equal(denominator("value"), integer(1)),
+        ]));
+    }
+
+    #[test]
+    fn unknown_operations_decline_even_beside_impossible_equalities() {
+        let unsupported = operation(BinaryOperator::Divide, integer(1), integer(0));
+        assert!(!impossible(&[
+            equal(integer(0), integer(1)),
+            equal(unsupported, integer(0)),
+        ]));
+        assert!(!impossible(&[ScopedArithmeticComparison {
+            operator: BinaryOperator::Add,
+            left: integer(0),
+            right: integer(1),
+        }]));
+        assert!(!impossible(&[]));
+    }
+}
+
 /// `descend(n, previous)`: `requires n <= previous`, the backedge
 /// `descend(n - 1, n)` under `n > 0`, and the exit returning `previous`.
 struct Countdown {

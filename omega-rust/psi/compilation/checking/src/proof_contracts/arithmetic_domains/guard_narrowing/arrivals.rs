@@ -2,7 +2,7 @@
 //! argument telescope. Each round starts from an overapproximation, including
 //! every backedge; stopping before convergence only loses precision.
 use super::super::{
-    TypeReferenceHandle, TypeReferenceNode, enforced_declared_range,
+    TypeReferenceHandle, TypeReferenceNode, enforced_declared_range, record_assignment,
     record_unsigned_literal_assignment,
 };
 use super::{
@@ -761,6 +761,7 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Assignment(assignment) => {
                     self.expression(source, assignment.target, environment);
                     self.expression(source, assignment.value, environment);
+                    let interval = self.interval(source, assignment.value, environment);
                     let written = self.frames.and_then(|frames| {
                         frames
                             .assignment_write_frame(self.machine, statement)
@@ -778,15 +779,16 @@ impl ArrivalWalk<'_, '_> {
                     } else {
                         environment.invalidate_unknown_writes(self.program, Some(source));
                     }
-                    // Preserve an exact direct unsigned literal only after
-                    // target/value effects and the complete store frame have
-                    // retired old facts. Other stores remain invalidation-only.
+                    // A completed store establishes the evaluated value, not
+                    // merely the special case of a direct u64 literal. Retire
+                    // aliases first, then let ordinary edge rebinding carry
+                    // this snapshot to every successor that retains the place.
                     if complete {
                         let path = self.bound_place(source, assignment.target).or_else(|| {
                             crate::exact_self_field(self.program, self.machine, assignment.target)
                                 .and_then(|_| place_path(self.program, assignment.target))
                         });
-                        let primitive = declared_place_type_raw(
+                        let reference = declared_place_type_raw(
                             self.program,
                             self.machine,
                             Some(source),
@@ -797,8 +799,17 @@ impl ArrivalWalk<'_, '_> {
                                 self.program,
                                 reference,
                             )
-                        })
-                        .and_then(|reference| self.program.primitive_type_reference(reference));
+                        });
+                        record_assignment(
+                            environment,
+                            path.clone(),
+                            interval,
+                            reference.and_then(|reference| {
+                                enforced_declared_range(self.program, reference)
+                            }),
+                        );
+                        let primitive = reference
+                            .and_then(|reference| self.program.primitive_type_reference(reference));
                         record_unsigned_literal_assignment(
                             self.program,
                             environment,

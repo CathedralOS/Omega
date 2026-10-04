@@ -538,12 +538,18 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
     if depth >= 64 {
         return None;
     }
-    if let ScopedArithmeticValue::Term(term)
-    | ScopedArithmeticValue::AdmittedIntegerRemainder(term) = value
-    {
-        for binding in &term.bindings {
-            charge(&binding.value, budget, depth + 1)?;
+    match value {
+        ScopedArithmeticValue::Term(term)
+        | ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
+            for binding in &term.bindings {
+                charge(&binding.value, budget, depth + 1)?;
+            }
         }
+        ScopedArithmeticValue::IntegerOperation { left, right, .. } => {
+            charge(left, budget, depth + 1)?;
+            charge(right, budget, depth + 1)?;
+        }
+        ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => {}
     }
     Some(())
 }

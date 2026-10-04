@@ -199,7 +199,9 @@ crashes Trap
     (value as u32 in Trapping) as u32
 }
 
-pub machine widen_u32_to_u64(value: u32) -> u64 [0..=4294967295] {
+pub machine widen_u32_to_u64(value: u32) -> u64 [0..=4294967295]
+ensures result == (value as u64)
+{
     value as u64
 }
 

@@ -1,4 +1,4 @@
-//! Exact division/remainder formation in specification positions.
+//! Exact division/remainder formation for runtime and specification expressions.
 //!
 //! Both operations require a nonzero divisor. Signed carriers additionally
 //! exclude the one unrepresentable primitive pair, `MIN / -1` (and the same
@@ -20,8 +20,9 @@ use super::total_specification::{
     AbstractSpecificationBindings, abstract_specification_interval,
     abstract_specification_place_type,
 };
-use super::{Interval, ValueEnvironment};
+use super::{Interval, ValueEnvironment, ordered_values};
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use typed_trees::expression::TableBinaryExpression;
 
 fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
     match primitive {
@@ -75,23 +76,40 @@ fn exact_definedness_conditions(operator: BinaryOperator) -> ExactDefinednessCon
     }
 }
 
+struct ProvenDefinedness {
+    nonzero_divisor: bool,
+    provably_zero_divisor: bool,
+    signed_pair_excluded: bool,
+}
+
+impl ProvenDefinedness {
+    fn from_intervals(
+        primitive: PrimitiveType,
+        left: Option<Interval>,
+        right: Option<Interval>,
+    ) -> Self {
+        Self {
+            nonzero_divisor: right.is_some_and(Interval::excludes_zero),
+            provably_zero_divisor: right.is_some_and(Interval::is_exactly_zero),
+            signed_pair_excluded: !signed_minimum(primitive)
+                .is_some_and(|minimum| may_contain(left, minimum) && may_contain(right, -1)),
+        }
+    }
+}
+
 fn report_partial(
     operator: BinaryOperator,
-    primitive: PrimitiveType,
-    left: Option<Interval>,
-    right: Option<Interval>,
+    proven: ProvenDefinedness,
     owner: &str,
     provably_zero_is_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let conditions = exact_definedness_conditions(operator);
-    let proven_nonzero = right.is_some_and(Interval::excludes_zero);
-    let provably_zero = right.is_some_and(Interval::is_exactly_zero);
     let missing_nonzero = conditions.nonzero_divisor
-        && !(proven_nonzero || provably_zero_is_prevalidated && provably_zero);
-    let signed_overflow_pair = conditions.signed_result_representable
-        && signed_minimum(primitive)
-            .is_some_and(|minimum| may_contain(left, minimum) && may_contain(right, -1));
+        && !(proven.nonzero_divisor
+            || provably_zero_is_prevalidated && proven.provably_zero_divisor);
+    let signed_overflow_pair =
+        conditions.signed_result_representable && !proven.signed_pair_excluded;
     if !missing_nonzero && !signed_overflow_pair {
         return;
     }
@@ -112,6 +130,68 @@ fn report_partial(
         "partial exact {operation} in {owner}: {}; discharge every definedness condition with independently accepted prior facts",
         missing.join(" and "),
     )));
+}
+
+/// Operands have already been checked under their selected primitive meaning.
+/// Intervals and live unequal/order relations discharge the same conditions in
+/// executable bodies and specification facts. A remembered source guard is not
+/// evidence after its operand has been written or lost at a control-flow join.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_operands(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    binary: &TableBinaryExpression,
+    primitive: PrimitiveType,
+    left: Interval,
+    right: Interval,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !fixed_integer(primitive)
+        || !matches!(
+            binary.operator,
+            BinaryOperator::Divide | BinaryOperator::Modulo
+        )
+    {
+        return;
+    }
+    let excludes = |expression, value| {
+        ordered_values::excludes_integer_value(
+            program,
+            machine,
+            state,
+            environment,
+            expression,
+            value,
+        ) || super::declared_place_type_raw(program, machine, state, expression).is_some_and(
+            |reference| super::domain_exclusions::type_excludes_integer(program, reference, value),
+        )
+    };
+    let mut proven = ProvenDefinedness::from_intervals(primitive, Some(left), Some(right));
+    proven.nonzero_divisor = proven.nonzero_divisor
+        || excludes(binary.right, 0)
+        || super::live_integer_constraints::excludes_values(
+            program,
+            machine,
+            state,
+            environment,
+            &[(binary.right, 0)],
+        );
+    proven.signed_pair_excluded = proven.signed_pair_excluded
+        || signed_minimum(primitive).is_some_and(|minimum| {
+            excludes(binary.left, minimum)
+                || excludes(binary.right, -1)
+                || super::live_integer_constraints::excludes_values(
+                    program,
+                    machine,
+                    state,
+                    environment,
+                    &[(binary.left, minimum), (binary.right, -1)],
+                )
+        });
+    report_partial(binary.operator, proven, owner, true, diagnostics);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -162,6 +242,8 @@ pub(super) fn validate_concrete(
                 if !matches!(
                     binary.operator,
                     BinaryOperator::Divide | BinaryOperator::Modulo
+                ) || !crate::has_builtin_bound_expression_meaning(
+                    program, machine, state, expression,
                 ) {
                     return;
                 }
@@ -212,13 +294,16 @@ pub(super) fn validate_concrete(
                     &mut ignored,
                 )
                 .interval;
-                report_partial(
-                    binary.operator,
+                validate_operands(
+                    program,
+                    machine,
+                    state,
+                    environment,
+                    binary,
                     primitive,
-                    Some(left),
-                    Some(right),
+                    left,
+                    right,
                     owner,
-                    true,
                     diagnostics,
                 );
             }
@@ -364,9 +449,21 @@ pub(super) fn validate_abstract(
                 };
                 report_partial(
                     binary.operator,
-                    primitive,
-                    abstract_specification_interval(program, bindings, environment, binary.left),
-                    abstract_specification_interval(program, bindings, environment, binary.right),
+                    ProvenDefinedness::from_intervals(
+                        primitive,
+                        abstract_specification_interval(
+                            program,
+                            bindings,
+                            environment,
+                            binary.left,
+                        ),
+                        abstract_specification_interval(
+                            program,
+                            bindings,
+                            environment,
+                            binary.right,
+                        ),
+                    ),
                     owner,
                     false,
                     diagnostics,
@@ -426,17 +523,4 @@ pub(super) fn validate_abstract(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{BinaryOperator, ExactDefinednessConditions, exact_definedness_conditions};
-
-    #[test]
-    fn exact_division_definedness_follows_the_shared_policy_catalog() {
-        assert_eq!(
-            exact_definedness_conditions(BinaryOperator::Divide),
-            ExactDefinednessConditions {
-                nonzero_divisor: true,
-                signed_result_representable: true,
-            }
-        );
-    }
-}
+mod tests;

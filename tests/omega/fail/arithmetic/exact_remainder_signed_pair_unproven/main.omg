@@ -1,0 +1,6 @@
+// Nonzero alone does not exclude the signed MIN/-1 primitive pair.
+machine remainder(numerator: i32, divisor: i32) -> i32
+requires divisor != 0
+{
+    numerator % divisor
+}

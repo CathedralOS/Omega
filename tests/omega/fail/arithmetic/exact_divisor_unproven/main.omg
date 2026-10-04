@@ -1,0 +1,4 @@
+// Exact division is a formation obligation even without an executable root.
+machine quotient(numerator: i32, divisor: i32) -> i32 {
+    numerator / divisor
+}
