@@ -451,6 +451,16 @@ an addressable 16-byte descriptor. Repeated calls forward that descriptor,
 never a copy of its bytes. Producer/result identity, bounds, source-place availability
 and selected address lifetime remain required, including across guarded blocks.
 
+Collection establishment distinguishes the carrier address from its backing. An
+empty structural path selects the carrier; collection geometry loads its backing
+pointer once when that storage is borrowed. A child projection starts in the
+root's element storage before applying its offsets. Unconditionally resolving a
+view projection first would load the pointer twice and interpret payload bytes
+as an address. Construction and independent replay retain this distinction.
+`omega run --both tests/omega/pass/slices/runtime_shared_subslice_return_exit/main.omg`
+exercises a bounded-array parameter narrowed and returned through two helpers;
+both engines must exit 70.
+
 On the current 64-bit targets, `ByteViewAddress` forms the private descriptor's
 address bits without asserting exact source integer arithmetic. Valid root
 geometry `B + R <= Bound` and view geometry `O + L <= R` imply

@@ -153,8 +153,28 @@ pub(super) fn establish(
     {
         constant(builder, row, 0, 0)?
     } else if parameter.is_some() {
-        super::runtime_address::projection_base(function, builder, row, source.place, field_offset)?
+        // An empty path selects the collection carrier itself. Its geometry
+        // below resolves borrowed backing once; projection_base would already
+        // dereference a view and make that load interpret payload as a pointer.
+        // A child projection instead starts in the root's element storage.
+        if source.path.is_empty() {
+            builder
+                .transport
+                .pointers
+                .iter()
+                .find(|(place, _)| *place == source.place)
+                .map(|(_, pointer)| *pointer)
+                .ok_or_else(|| invalid())?
+        } else {
+            super::runtime_address::projection_base(
+                function,
+                builder,
+                row,
+                source.place,
+                field_offset,
+            )?
             .ok_or_else(|| invalid())?
+        }
     } else {
         let mut homes = builder.transport.local_slots.iter().filter(|slot| {
             Some(slot.id)

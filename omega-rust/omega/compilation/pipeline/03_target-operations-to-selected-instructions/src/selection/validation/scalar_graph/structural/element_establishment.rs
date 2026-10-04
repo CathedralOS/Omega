@@ -155,8 +155,28 @@ pub(super) fn establish(
     {
         constant(replay, row, *destination, 0, 0)?
     } else if parameter.is_some() {
-        super::runtime_address::projection_base(function, replay, row, source.place, field_offset)?
+        // An empty path selects the collection carrier itself. Its geometry
+        // below resolves borrowed backing once; projection_base would already
+        // dereference a view and make that load interpret payload as a pointer.
+        // A child projection instead starts in the root's element storage.
+        if source.path.is_empty() {
+            replay
+                .transport
+                .pointers
+                .iter()
+                .find(|(place, _)| *place == source.place)
+                .map(|(_, pointer)| *pointer)
+                .ok_or_else(|| replay.invalid())?
+        } else {
+            super::runtime_address::projection_base(
+                function,
+                replay,
+                row,
+                source.place,
+                field_offset,
+            )?
             .ok_or_else(|| replay.invalid())?
+        }
     } else {
         let mut homes = replay.transport.local_slots.iter().filter(|slot| {
             Some(slot.id)
