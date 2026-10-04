@@ -1,0 +1,28 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine read(values: &[u32], position: u64) -> u32
+requires position < values.len;
+{
+    values[position]
+}
+
+data Main {
+    console: Binding<Console>;
+    values: [u32; 4];
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.values[2] = 105;
+    let view: &[u32] = &context.values[..];
+    transition 2 < view.len {
+        true -> observe(view, &context.console)
+        false -> bad(context)
+    }
+    state observe(values: &[u32], console: &Binding<Console>) {
+        let observed: u32 = read(values, 2);
+        let code: i32 = match observed == 105 { true -> 70, false -> 71 };
+        console.exit_process(code);
+    }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
+}

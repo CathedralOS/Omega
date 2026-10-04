@@ -1091,6 +1091,8 @@ fail/relevance/erased_parameter_runtime_read rejected 250ms expected @2d8ed25366
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 fail/slices/call_endpoint_view_backing_write rejected 303ms expected @637668355701+wt
 	statement 2 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/slices/call_requires_different_view_extent rejected 265ms expected @0991904fed3b+wt
+	cannot prove requires contract for call read from wrong: position < values.len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/inclusive_endpoint_equals_length rejected 344ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
 fail/slices/inclusive_endpoint_maximum rejected 336ms expected @dd31f301c60c+wt
@@ -2278,10 +2280,12 @@ pass/slices/runtime_call_endpoint_argument_exit checked 1629ms @637668355701+wt
 pass/slices/runtime_call_endpoint_field_transition_exit checked 1630ms @637668355701+wt
 pass/slices/runtime_call_endpoint_order_exit checked 1647ms @637668355701+wt
 pass/slices/runtime_call_endpoint_view_exit checked 1625ms @637668355701+wt
+pass/slices/runtime_element_view_requires_index_exit checked 1657ms @0991904fed3b+wt
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 1689ms @dd31f301c60c+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 1707ms @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 7001ms @d10c66094158
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
+pass/slices/runtime_machine_entry_view_requires_index_exit checked 1659ms @0991904fed3b+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit checked 1286ms @2d8ed253669f
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 1425ms @2d8ed253669f
