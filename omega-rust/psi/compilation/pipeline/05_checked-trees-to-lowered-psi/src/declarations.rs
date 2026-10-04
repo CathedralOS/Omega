@@ -9,6 +9,9 @@
 
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
+use checked_trees::signature::StateParameter;
+use checked_trees::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
 
 /// The one declared machine and state that own `state`.
 pub(crate) fn state_declaration(
@@ -37,4 +40,135 @@ pub(crate) fn state_declaration(
         return unsupported("state symbol names more than one declared machine state");
     }
     Ok((machine, state))
+}
+
+/// The parameters, result and owner of one callee, by the symbol a call
+/// spells: a machine head or entry state, a boundary operator, a callable
+/// machine parameter, or a boundary requirement.
+pub(crate) struct TargetSignature<'source> {
+    pub parameters: &'source [StateParameter],
+    pub return_type: TypeReferenceHandle,
+    pub boundary: bool,
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    parameter_coordinates: ParameterCoordinates,
+}
+
+enum ParameterCoordinates {
+    Authored,
+    ServiceOperands,
+}
+
+impl TargetSignature<'_> {
+    /// Service selection consumes its receiver before the boundary operand
+    /// parameter list is numbered. Other retained rosters keep authored positions,
+    /// including gaps left by erased or ambient parameters.
+    pub(crate) fn authored_parameter_position(&self, retained_position: u32) -> Option<u32> {
+        let retained_position = usize::try_from(retained_position).ok()?;
+        let position = match self.parameter_coordinates {
+            ParameterCoordinates::Authored => {
+                self.parameters.get(retained_position)?;
+                retained_position
+            }
+            ParameterCoordinates::ServiceOperands => {
+                self.parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| !parameter.is_self)
+                    .nth(retained_position)?
+                    .0
+            }
+        };
+        u32::try_from(position).ok()
+    }
+}
+
+pub(crate) fn target_signature(
+    checked: &CheckedTrees,
+    caller_machine: SymbolHandle,
+    source_target: SymbolHandle,
+) -> Result<TargetSignature<'_>, LoweringError> {
+    let program = &checked.typed;
+    if !source_target.is_valid() {
+        return unsupported("call names no live callee");
+    }
+    // A bodyless external leaf's call source is its exact boundary
+    // requirement; the leaf declares no body to supply one.
+    let external_leaf =
+        validation::exact_external_leaf_boundary_requirement(program, source_target);
+    // Captured calls retain the authored machine head, while execution names
+    // its entry state. Resolve only the signature here: replacing the source
+    // identity would break exact flow and borrow occurrence custody.
+    let target_state = program
+        .machine_by_symbol(source_target)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(source_target, |state| state.symbol);
+    let mut states = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter_map(move |state| (state.symbol == target_state).then_some((machine, state)))
+    });
+    if external_leaf.is_none()
+        && let Some((machine, state)) = states.next()
+    {
+        if states.next().is_some() || !machine.symbol.is_valid() {
+            return unsupported("call source custody disagrees with its authored callee owner");
+        }
+        return Ok(TargetSignature {
+            parameters: program.state_parameters(state),
+            return_type: state.return_type,
+            // A bodied `boundary machine` is a checked adapter: callers reach
+            // its authored body as an ordinary callee; only the bodyless
+            // declaration is a boundary edge.
+            boundary: machine.supply_mode.is_boundary_declaration() && !machine.body_is_present,
+            machine: machine.symbol,
+            state: state.symbol,
+            parameter_coordinates: ParameterCoordinates::Authored,
+        });
+    }
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == source_target)
+    {
+        return Ok(TargetSignature {
+            parameters: program.operator_parameters(operator),
+            return_type: operator.return_type,
+            boundary: true,
+            machine: operator.symbol,
+            state: operator.symbol,
+            parameter_coordinates: ParameterCoordinates::Authored,
+        });
+    }
+    let requirement = if let Some((requirement, _)) = external_leaf {
+        requirement
+    } else if let Some((owner, signature)) = program.machine_parameter_signature(source_target) {
+        if owner.symbol != caller_machine {
+            return unsupported("call source custody uses another machine's callable parameter");
+        }
+        signature.symbol
+    } else {
+        source_target
+    };
+    let mut signatures = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| program.trait_machine_signatures(definition).iter())
+        .filter(|signature| signature.symbol == requirement);
+    let signature = signatures.next().ok_or(LoweringError::Unsupported(
+        "call source custody has no authored boundary requirement",
+    ))?;
+    if signatures.next().is_some() || !signature.symbol.is_valid() {
+        return unsupported("call source custody disagrees with its authored boundary requirement");
+    }
+    Ok(TargetSignature {
+        parameters: program.state_signature_parameters(signature),
+        return_type: signature.return_type,
+        boundary: true,
+        machine: signature.symbol,
+        state: signature.symbol,
+        parameter_coordinates: ParameterCoordinates::ServiceOperands,
+    })
 }

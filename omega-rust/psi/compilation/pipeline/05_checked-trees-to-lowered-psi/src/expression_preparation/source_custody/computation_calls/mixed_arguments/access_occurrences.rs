@@ -201,11 +201,7 @@ pub(crate) fn replay(
     };
     let mut observation_ends: Vec<Option<usize>> = Vec::new();
     let mut position = 0;
-    let signature = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        machine,
-        call.target_symbol,
-    )?;
+    let signature = crate::declarations::target_signature(checked, machine, call.target_symbol)?;
     let parameters = explicit_parameters(signature.parameters, arguments.len())?;
     for (argument, parameter) in arguments.iter().zip(parameters) {
         let mut operand = None;
@@ -437,12 +433,11 @@ pub(crate) fn replay(
                                     "computed shared borrow has stale nested argument observations",
                                 );
                             }
-                            let signature =
-                                crate::emission::call_source_custody::authored::target_signature(
-                                    checked,
-                                    machine,
-                                    call.target_symbol,
-                                )?;
+                            let signature = crate::declarations::target_signature(
+                                checked,
+                                machine,
+                                call.target_symbol,
+                            )?;
                             let parameters =
                                 explicit_parameters(signature.parameters, arguments.len())?;
                             for (argument, parameter) in arguments.iter().zip(parameters) {

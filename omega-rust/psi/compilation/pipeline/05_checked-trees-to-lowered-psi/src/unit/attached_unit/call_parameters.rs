@@ -37,7 +37,7 @@ pub(crate) fn structural_parameters<'checked>(
 pub(crate) fn structural_positions(
     checked: &CheckedTrees,
     call: &CheckedUnitCallPlan,
-    signature: &crate::emission::call_source_custody::authored::TargetSignature<'_>,
+    signature: &crate::declarations::TargetSignature<'_>,
 ) -> Result<Vec<u32>, LoweringError> {
     let parameters = structural_parameters(checked, call)?;
     if parameters.len() != call.structural_arguments.len() {

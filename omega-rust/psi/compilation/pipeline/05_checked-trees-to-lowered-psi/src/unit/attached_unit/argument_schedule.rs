@@ -286,11 +286,7 @@ fn append(
     );
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
-    let target = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        machine,
-        authored.source_target,
-    )?;
+    let target = crate::declarations::target_signature(checked, machine, authored.source_target)?;
     let parameters = target.parameters;
     // Authored positions and retained argument slots are different namespaces.
     // The callee's checked signature decides which structural formals survive;

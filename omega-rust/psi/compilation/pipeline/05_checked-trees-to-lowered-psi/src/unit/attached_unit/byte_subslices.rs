@@ -57,11 +57,8 @@ fn locate<'a>(
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
     let (machine, _) = crate::declarations::state_declaration(checked, state)?;
-    let signature = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        machine.symbol,
-        authored.source_target,
-    )?;
+    let signature =
+        crate::declarations::target_signature(checked, machine.symbol, authored.source_target)?;
     let positions = super::call_parameters::structural_positions(checked, call, &signature)?;
     let authored_ordinal = positions
         .get(ordinal)

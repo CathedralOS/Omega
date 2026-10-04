@@ -11,6 +11,7 @@ use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
 };
 use crate::semantic::calls::{CallSite, collect_call_sites_in_statement};
+use checked_trees::FlowCallSite;
 
 pub(crate) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,
@@ -58,7 +59,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
         };
         let mut call_sites_by_statement =
             std::collections::HashMap::<usize, Vec<crate::semantic::calls::CallSite<'_>>>::new();
-        for checked_call in flow.control.calls.span_mut_or_empty(checked_state.calls) {
+        let control = &mut flow.control;
+        for checked_call in control.calls.span_mut_or_empty(checked_state.calls) {
             let call_sites = call_sites_by_statement
                 .entry(checked_call.statement_index)
                 .or_insert_with(|| {
@@ -83,6 +85,41 @@ pub(crate) fn bind_checked_body_call_source_spans(
                 CallSite::Expression { expression, .. } => *expression,
                 CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),
             };
+            // Lowering emits the invocation from this row: it names the
+            // spelling, the callee as spelled, and the explicit arguments, so
+            // no later stage walks the statement to find the occurrence again.
+            let (site, target, arguments) = match &call_site {
+                CallSite::Statement(call) => (
+                    FlowCallSite::Statement,
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                ),
+                CallSite::Expression { call, .. } => (
+                    FlowCallSite::Expression,
+                    // A named `Namespace::requirement(...)` call keeps an
+                    // invalid authored leaf; its live identity is the
+                    // selected boundary declaration.
+                    typed_trees::operator::selected_boundary_operator(program, call)
+                        .map_or(call.target_symbol, |operator| operator.symbol),
+                    program.expression_table.expression_handles(call.arguments),
+                ),
+                CallSite::TransitionNamed {
+                    path, arguments, ..
+                } => (
+                    FlowCallSite::NamedTransition,
+                    path.symbol,
+                    program.statement_table.expression_handles(*arguments),
+                ),
+            };
+            checked_call.authored_receiver = match &call_site {
+                CallSite::Expression { call, .. } => call.receiver,
+                CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),
+            };
+            checked_call.authored_site = site;
+            checked_call.authored_target = target;
+            checked_call.authored_arguments = control
+                .call_arguments
+                .insert_many(arguments.iter().copied());
             match authored_call_span(program, &call_site) {
                 Ok(source_span) => {
                     checked_call.authored_source_span = source_span;

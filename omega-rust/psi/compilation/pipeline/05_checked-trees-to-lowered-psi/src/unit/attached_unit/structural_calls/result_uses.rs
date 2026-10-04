@@ -1277,11 +1277,8 @@ pub(crate) fn validate_consumer(
     )?;
     let (source_machine, state) = crate::declarations::state_declaration(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
-    let signature = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        caller.machine,
-        authored.source_target,
-    )?;
+    let signature =
+        crate::declarations::target_signature(checked, caller.machine, authored.source_target)?;
     let retained = super::super::call_parameters::structural_parameters(checked, call)?;
     if retained != target_parameters {
         return unsupported("structural result consumer changed its retained target parameters");
@@ -1879,14 +1876,13 @@ fn validate_operand_producers(
     expression: Option<checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
-    let shared_byte_formal = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        caller.machine,
-        authored.source_target,
-    )?
-    .parameters
-    .get(source_position as usize)
-    .is_some_and(|formal| shared_byte_view_referent(checked, formal.type_reference).is_some());
+    let shared_byte_formal =
+        crate::declarations::target_signature(checked, caller.machine, authored.source_target)?
+            .parameters
+            .get(source_position as usize)
+            .is_some_and(|formal| {
+                shared_byte_view_referent(checked, formal.type_reference).is_some()
+            });
     // A computed descriptor or operand construction (including a copy) owns
     // its produced value. The local it reads supplies storage, not that
     // value's result binding. Argument staging replays a range's exact source
@@ -2267,7 +2263,7 @@ fn validate_operand_producers(
                 && expression.and_then(|expression| expression_producer(checked, expression))
                     == Some(source_expression);
             if matches {
-                let signature = crate::emission::call_source_custody::authored::target_signature(
+                let signature = crate::declarations::target_signature(
                     checked,
                     source_machine.symbol,
                     source.source_target,

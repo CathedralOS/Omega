@@ -166,11 +166,8 @@ fn result_source<'a>(
             let Some(result) = call.structural_result() else {
                 return unsupported("Unit case subject call lost its result");
             };
-            let signature = crate::emission::call_source_custody::authored::target_signature(
-                checked,
-                machine,
-                call.target.state,
-            )?;
+            let signature =
+                crate::declarations::target_signature(checked, machine, call.target.state)?;
             if result.type_identity != subject.type_identity
                 || result.multiplicity != checked.type_multiplicity(signature.return_type)
                 || !matches!(

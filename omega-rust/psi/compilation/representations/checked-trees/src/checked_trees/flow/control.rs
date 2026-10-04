@@ -32,6 +32,21 @@ pub struct FlowCallFact {
     /// Exact expression occurrence captured by the semantic call traversal.
     /// Statement calls and named transition roots use the zero handle.
     pub authored_expression: typed_trees::expression::ExpressionHandle,
+    /// Which authored syntax spells this invocation, bound with
+    /// `authored_target` and `authored_arguments` by the source-custody
+    /// binding pass. Lowering emits the call from these rows instead of
+    /// walking the statement again to find its occurrence.
+    pub authored_site: FlowCallSite,
+    /// Callee identity as spelled: the call's target symbol, a named
+    /// `Namespace::requirement(...)` call's selected boundary declaration, or
+    /// a named transition's path. `target_symbol` is the resolved state.
+    pub authored_target: SymbolHandle,
+    /// Explicit arguments in source order, without a receiver spelled before
+    /// the call. Rows live in [`super::FlowControlFacts::call_arguments`].
+    pub authored_arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
+    /// The receiver a call expression spells before its name
+    /// (`self.samples.element(2)`); the zero handle for every other site.
+    pub authored_receiver: typed_trees::expression::ExpressionHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
@@ -57,6 +72,20 @@ pub struct FlowCallFact {
     /// compilation need not require package-review provenance, but package
     /// projection rejects a false value.
     pub authored_source_custody_valid: bool,
+}
+
+/// The authored syntax that spells one [`FlowCallFact`]. `Unbound` is the
+/// absence state before the source-custody binding pass joins the row.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowCallSite {
+    #[default]
+    Unbound,
+    /// A call statement; the statement coordinate names the occurrence.
+    Statement,
+    /// A call expression at `authored_expression`.
+    Expression,
+    /// A named transition target invoking another machine.
+    NamedTransition,
 }
 
 /// Coordinate of a [`FlowCallFact`] whose authored call selected execution

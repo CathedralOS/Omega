@@ -166,7 +166,7 @@ pub use flow::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     FlowBorrowActivationFact, FlowBorrowLifetimeFacts, FlowBorrowWeakeningFact,
-    FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts, FlowCallFact,
+    FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts, FlowCallFact, FlowCallSite,
     FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
     FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowConstraintKind, FlowConstraintRef,

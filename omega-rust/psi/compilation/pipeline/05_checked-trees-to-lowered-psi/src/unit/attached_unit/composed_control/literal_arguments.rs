@@ -67,11 +67,8 @@ pub(super) fn evaluate(
         .collect::<Vec<_>>();
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
-    let signature = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        machine,
-        authored.source_target,
-    )?;
+    let signature =
+        crate::declarations::target_signature(checked, machine, authored.source_target)?;
     let positions = super::super::call_parameters::structural_positions(checked, call, &signature)?
         .into_iter()
         .map(|position| position as usize)

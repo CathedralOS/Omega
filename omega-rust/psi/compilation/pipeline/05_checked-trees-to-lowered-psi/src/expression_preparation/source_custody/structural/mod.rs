@@ -64,11 +64,8 @@ fn authored_destination(
                     call_ordinal: *call_ordinal,
                 },
             )?;
-            let signature = crate::emission::call_source_custody::authored::target_signature(
-                checked,
-                machine,
-                call.source_target,
-            )?;
+            let signature =
+                crate::declarations::target_signature(checked, machine, call.source_target)?;
             let parameter = signature
                 .parameters
                 .get(*parameter_position as usize)
@@ -76,7 +73,7 @@ fn authored_destination(
                     "structural construction lost its authored formal",
                 ))?;
             let argument = call
-                .structural_argument(checked, *parameter_position, parameter.is_self)
+                .structural_argument(*parameter_position, parameter.is_self)
                 .filter(|argument| *argument == retained_expression)
                 .ok_or(LoweringError::Unsupported(
                     "structural construction lost its authored destination",
@@ -182,8 +179,7 @@ fn append_argument_scopes(
     receiver: ExpressionHandle,
     pending: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
 ) -> Result<(), LoweringError> {
-    let signature =
-        crate::emission::call_source_custody::authored::target_signature(checked, machine, target)?;
+    let signature = crate::declarations::target_signature(checked, machine, target)?;
     let nonself_count = signature
         .parameters
         .iter()

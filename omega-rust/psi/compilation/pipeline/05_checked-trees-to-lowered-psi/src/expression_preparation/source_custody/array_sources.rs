@@ -63,12 +63,8 @@ pub(crate) fn construction_expression(
                 },
             )
             .ok()?;
-            let target = crate::emission::call_source_custody::authored::target_signature(
-                checked,
-                machine,
-                call.source_target,
-            )
-            .ok()?;
+            let target =
+                crate::declarations::target_signature(checked, machine, call.source_target).ok()?;
             // Replay caller-owned construction against the authored formal for
             // ordinary and boundary calls alike. Boundary selection and custody
             // are separate obligations of the consuming call, not its operand.

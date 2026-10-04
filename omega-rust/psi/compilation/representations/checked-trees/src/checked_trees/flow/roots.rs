@@ -120,6 +120,8 @@ pub struct FlowControlFacts {
     pub operand_referent_segments: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
+    /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
+    pub call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
     pub exits: Arena<FlowExitFact>,
     pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
@@ -146,12 +148,29 @@ impl FlowControlFacts {
             operand_referents: Arena::default(),
             operand_referent_segments: Arena::default(),
             calls,
+            call_arguments: Arena::default(),
             exits,
             outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
             states,
             retired_calls: Vec::new(),
         }
+    }
+
+    /// The call row of `state` at an authored statement and call ordinal.
+    pub fn call_at(
+        &self,
+        state: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&FlowCallFact> {
+        let (_, state) = self
+            .states
+            .iter()
+            .find(|(_, candidate)| candidate.state_symbol == state)?;
+        self.calls.span_or_empty(state.calls).iter().find(|call| {
+            call.statement_index == statement_index && call.call_ordinal == call_ordinal
+        })
     }
 
     /// Whether `call`, a row of `state`, was retired by selected execution.

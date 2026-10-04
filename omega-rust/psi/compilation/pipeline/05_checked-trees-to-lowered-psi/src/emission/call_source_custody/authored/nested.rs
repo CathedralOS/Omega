@@ -2,13 +2,14 @@
 
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
-    target_signature, unsupported,
+    unsupported,
 };
+use crate::declarations::target_signature;
 use crate::expression_preparation::source_custody::dispatch_subjects;
 use checked_trees::statement::{TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) enum AuthoredOccurrence {
-    Expression(ExpressionHandle),
+    Expression,
     StatementRoot,
     TransitionTarget(TransitionTargetHandle),
 }
@@ -304,7 +305,7 @@ fn authored_execution(
                 continue;
             }
             Walk::Enter(expression, direct_argument) => (expression, direct_argument),
-            Walk::Exit(expression, ordinal) => {
+            Walk::Exit(ordinal) => {
                 if saved_subject_depth == Some(active.len()) {
                     saved_subject_depth = None;
                 }
@@ -312,7 +313,7 @@ fn authored_execution(
                 if let Some(ordinal) = ordinal {
                     order.push((
                         ordinal,
-                        AuthoredOccurrence::Expression(expression),
+                        AuthoredOccurrence::Expression,
                         selection_depth == 0,
                     ));
                 }
@@ -621,7 +622,7 @@ fn authored_execution(
             | ExpressionNode::Float(_) => None,
             _ => return unsupported("nested structural arguments contain unsupported syntax"),
         };
-        pending.push(Walk::Exit(expression, ordinal));
+        pending.push(Walk::Exit(ordinal));
         for (index, (child, direct)) in children.into_iter().enumerate().rev() {
             let selected = selected_children.contains(&index);
             if selected {
@@ -696,7 +697,7 @@ enum Walk {
     /// Visit an operand; the flag marks a direct argument position.
     Enter(ExpressionHandle, bool),
     /// Leave an operand, recording its preorder ordinal when it is a call.
-    Exit(ExpressionHandle, Option<u32>),
+    Exit(Option<u32>),
     NamedTarget(TransitionTargetHandle),
     ExitNamedTarget(TransitionTargetHandle, u32),
     /// A jump to one of this machine's internal states. It invokes nothing,
