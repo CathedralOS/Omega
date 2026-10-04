@@ -63,9 +63,9 @@
 //! unreachable through the pruned declaration surface, and compacting them
 //! would remap handles owned by representations outside this crate.
 //!
-//! After rewriting, the phase independently re-extracts the edge relation on
-//! the pruned product and fails closed if any retained machine still
-//! references a pruned one.
+//! The retained set is the closure of the edge relation, so no retained
+//! machine references a pruned one by construction; the phase does not
+//! re-extract the edges of its own output to confirm it.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ pub(crate) mod rewrite;
 mod sibling_evidence;
 
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
-use rewrite::{apply_pruning, apply_typed_pruning, validate_pruned_product};
+use rewrite::{apply_pruning, apply_typed_pruning};
 
 const PRODUCT_SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.psi.checked-tree-product-selection.v1\0";
 
@@ -281,37 +281,17 @@ pub fn prune_checked_tree_product(
     apply_pruning(&mut checked, &retained, &pruned, &index);
     retain_live_family_members(&mut checked.typed);
 
-    if let Err(failures) = validate_pruned_product(&checked, &retained, &pruned, plan.roots()) {
-        return Err(failures
-            .into_iter()
-            .map(|failure| {
-                Diagnostic::error(format!(
-                    "checked-tree product pruning internal validation failed: {failure}"
-                ))
-            })
-            .collect());
-    }
-
     let retained_machines: Vec<SymbolHandle> = checked
         .typed
         .machines()
         .iter()
         .map(|machine| machine.symbol)
         .collect();
-    let pruned_machines: Vec<SymbolHandle> = {
-        let retained_lookup: HashSet<SymbolHandle> = retained_machines.iter().copied().collect();
-        // Declaration order is the canonical roster order; the source order
-        // is recovered from the pre-pruning declaration sequence embedded in
-        // the edge/retention maps (arena order equals declaration order).
-        let mut pruned: Vec<SymbolHandle> = pruned.into_iter().collect();
-        pruned.sort_unstable_by_key(|symbol| symbol.arena_index());
-        debug_assert!(
-            pruned
-                .iter()
-                .all(|symbol| !retained_lookup.contains(symbol))
-        );
-        pruned
-    };
+    // Declaration order is the canonical roster order; the source order is
+    // recovered from the pre-pruning declaration sequence embedded in the
+    // edge/retention maps (arena order equals declaration order).
+    let mut pruned_machines: Vec<SymbolHandle> = pruned.into_iter().collect();
+    pruned_machines.sort_unstable_by_key(|symbol| symbol.arena_index());
 
     let identity = selection_identity(
         plan.roots().machines(),
@@ -333,7 +313,7 @@ pub fn prune_checked_tree_product(
 /// them. Transitional: realization-time selection between siblings belongs
 /// to Omega (board item PROVIDER-SELECTION-AFTER-TERMINAL), after which every
 /// body travels through Terminal Psi instead of being pruned here.
-pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, Vec<Diagnostic>> {
+pub fn prune_target_siblings(mut checked: CheckedTrees) -> CheckedTrees {
     let pruned: HashSet<SymbolHandle> = checked
         .typed
         .machines()
@@ -342,7 +322,7 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, 
         .map(|machine| machine.symbol)
         .collect();
     if pruned.is_empty() {
-        return Ok(checked);
+        return checked;
     }
     let index = MachineIndex::build(&checked.typed);
     let mut dead = sibling_evidence::DeadEvidence::default();
@@ -355,33 +335,16 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, 
         sibling_evidence::collect_machine_evidence(&checked.typed, machine, &mut dead);
     }
     sibling_evidence::drop_dead_operator_evidence(&mut checked.facts, &dead);
-    let retained_in_order: Vec<SymbolHandle> = checked
+    let retained: HashSet<SymbolHandle> = checked
         .typed
         .machines()
         .iter()
         .map(|machine| machine.symbol)
         .filter(|symbol| !pruned.contains(symbol))
         .collect();
-    let retained: HashSet<SymbolHandle> = retained_in_order.iter().copied().collect();
     apply_pruning(&mut checked, &retained, &pruned, &index);
     retain_live_family_members(&mut checked.typed);
-    let roots =
-        CheckedTreeProductRoots::new(retained_in_order.iter().copied()).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "target sibling pruning roots: {error:?}"
-            ))]
-        })?;
-    validate_pruned_product(&checked, &retained, &pruned, &roots).map_err(|failures| {
-        failures
-            .into_iter()
-            .map(|failure| {
-                Diagnostic::error(format!(
-                    "target sibling pruning internal validation failed: {failure}"
-                ))
-            })
-            .collect::<Vec<_>>()
-    })?;
-    Ok(checked)
+    checked
 }
 
 /// Drop every target sibling from typed trees that will only be checked

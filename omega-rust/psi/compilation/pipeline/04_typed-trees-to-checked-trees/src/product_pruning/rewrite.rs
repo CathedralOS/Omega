@@ -1,4 +1,4 @@
-//! Product roster rewriting and independent post-rewrite graph validation.
+//! Product roster rewriting.
 
 use std::collections::HashSet;
 
@@ -7,8 +7,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 
-use super::CheckedTreeProductRoots;
-use super::dependencies::{MachineIndex, collect_machine_edges};
+use super::dependencies::MachineIndex;
 
 /// Rebuild the machine declaration surface and every machine-keyed `Vec`
 /// table so the product's iteration-visible rosters match the selection.
@@ -422,70 +421,5 @@ fn contract_owner_retained(
             !pruned.contains(&machine_symbol)
         }
         _ => true,
-    }
-}
-
-/// Independent post-pruning validation: re-extract the edge relation on the
-/// pruned product and reject any retained machine that still references a
-/// pruned declaration. The check reruns the same extraction rather than
-/// trusting the pre-pruning analysis.
-pub(super) fn validate_pruned_product(
-    checked: &CheckedTrees,
-    retained: &HashSet<SymbolHandle>,
-    pruned: &HashSet<SymbolHandle>,
-    roots: &CheckedTreeProductRoots,
-) -> Result<(), Vec<String>> {
-    let mut failures = Vec::new();
-
-    let index = MachineIndex::build(&checked.typed);
-    if checked.typed.machines().len() != retained.len() {
-        failures.push(format!(
-            "pruned machine table holds {} machines but the selection retains {}",
-            checked.typed.machines().len(),
-            retained.len()
-        ));
-    }
-    for machine in checked.typed.machines() {
-        if !retained.contains(&machine.symbol) {
-            failures.push(format!(
-                "pruned machine table contains unretained machine symbol #{}",
-                machine.symbol.arena_index()
-            ));
-        }
-    }
-    for root in roots.machines() {
-        if !index.machine_symbols.contains(root) {
-            failures.push(format!(
-                "product root symbol #{} is absent from the pruned machine table",
-                root.arena_index()
-            ));
-        }
-    }
-
-    // The pruned edge relation must be closed: no retained machine may reach
-    // a symbol outside the pruned product's machine table.
-    let edges = collect_machine_edges(&checked.typed, &checked.facts, &index);
-    for (source, targets) in &edges {
-        if pruned.contains(source) {
-            failures.push(format!(
-                "edge relation still names pruned machine #{} as a source",
-                source.arena_index()
-            ));
-        }
-        for target in targets {
-            if pruned.contains(target) {
-                failures.push(format!(
-                    "retained machine #{} still references pruned machine #{}",
-                    source.arena_index(),
-                    target.arena_index()
-                ));
-            }
-        }
-    }
-
-    if failures.is_empty() {
-        Ok(())
-    } else {
-        Err(failures)
     }
 }

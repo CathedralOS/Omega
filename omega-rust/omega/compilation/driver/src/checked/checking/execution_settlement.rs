@@ -139,7 +139,7 @@ pub(crate) fn check_selected_execution(
     // selected bodies remain in its executable product.
     checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
         std::sync::Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
-    )?);
+    ));
     const_evaluation.validate(
         &checked.program,
         &checked.selected_provider_plan_facts,
