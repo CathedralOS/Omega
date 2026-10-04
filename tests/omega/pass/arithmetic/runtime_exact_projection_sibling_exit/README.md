@@ -6,11 +6,10 @@ failure to fold the whole record for a lost field binding. Selecting `first`
 does not make the other initializer unevaluated.
 
 Both native execution and the checked interpreter must exit 70, observing 7.
-Current frontier: formation checking succeeds and the interpreter exits 70,
-but native production still rejects with `scalar computation needs one checked
-expression and one source binding`. `STATE-LOCAL-VALUE-FRONTIER` owns connecting
-the computed record receiver to ordinary structural materialization and field
-observation. The native oracle is deliberately not recorded as a rejection.
+The complete receiver is retained as a structural value dependency, constructed
+through the same schedule as a named record, observed, and then retired. Native
+execution and the interpreter both exit 70 on macOS ARM64. No synthetic source
+local or selected-initializer substitution is needed.
 The invalid control is `fail/arithmetic/exact_aggregate_divisor_unproven`;
 unit coverage also checks the same projection without the nonzero requirement,
 with both anonymous and explicitly typed selected initializers.

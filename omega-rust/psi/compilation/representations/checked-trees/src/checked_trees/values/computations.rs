@@ -158,6 +158,10 @@ pub enum CheckedScalarComputationKind {
     StructuralField {
         source_expression: typed_trees::expression::ExpressionHandle,
         subject: CheckedUnitStructuralArgumentPlan,
+        /// Evaluated structural dependency. Zero observes existing storage;
+        /// otherwise the complete value is established once before the read
+        /// and its temporary is retired only after the observation completes.
+        receiver_value: super::structural_values::CheckedStructuralValueHandle,
         field: SymbolHandle,
     },
     /// Observe an established structural operand without consuming its owner.

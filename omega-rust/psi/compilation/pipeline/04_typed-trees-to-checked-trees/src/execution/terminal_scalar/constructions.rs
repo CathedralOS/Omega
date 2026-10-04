@@ -158,20 +158,10 @@ pub(super) fn retain_record_locals(
             u32::try_from(ordinal).ok()?,
             local,
         )?;
-        for shape in
-            super::super::terminal_unit::scalar_graph_record_shapes(program, local.type_reference)?
-        {
-            if let Some(existing) = shapes
-                .iter()
-                .find(|existing| existing.identity == shape.identity)
-            {
-                if existing != &shape {
-                    return None;
-                }
-            } else {
-                shapes.push(shape);
-            }
-        }
+        retain_declarations(
+            shapes,
+            super::super::terminal_unit::scalar_graph_record_shapes(program, local.type_reference)?,
+        )?;
     }
     Some(())
 }
@@ -179,6 +169,7 @@ pub(super) fn retain_record_locals(
 pub(super) fn retain_shapes(
     program: &TypedTrees,
     plans: &CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
     state: SymbolHandle,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
@@ -207,21 +198,13 @@ pub(super) fn retain_shapes(
                 subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                 ..
             } => {
-                for shape in super::super::terminal_unit::scalar_case_value_shapes(
-                    program,
-                    subject.type_reference,
-                )? {
-                    if let Some(existing) = shapes
-                        .iter()
-                        .find(|existing| existing.identity == shape.identity)
-                    {
-                        if existing != &shape {
-                            return None;
-                        }
-                    } else {
-                        shapes.push(shape);
-                    }
-                }
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_case_value_shapes(
+                        program,
+                        subject.type_reference,
+                    )?,
+                )?;
                 pending.extend(
                     plans
                         .case_fields
@@ -242,23 +225,39 @@ pub(super) fn retain_shapes(
                 operand_type, ..
             }
             | CheckedScalarComputationKind::ByteSequencePredicate { operand_type, .. } => {
-                for shape in
-                    super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?
-                {
-                    if let Some(existing) = shapes
-                        .iter()
-                        .find(|existing| existing.identity == shape.identity)
-                    {
-                        if existing != &shape {
-                            return None;
-                        }
-                    } else {
-                        shapes.push(shape);
-                    }
-                }
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_operand_shapes(program, *operand_type)?,
+                )?;
             }
-            CheckedScalarComputationKind::Value(_)
-            | CheckedScalarComputationKind::StructuralField { .. } => {}
+            CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
+                if !receiver_value.is_valid() {
+                    continue;
+                }
+                if !structural_values.nodes.is_valid(*receiver_value) {
+                    return None;
+                }
+                let mut roots = structural_values.roots.iter().filter_map(|(_, root)| {
+                    (root.state == state && root.root == *receiver_value).then_some(root)
+                });
+                let root = roots.next()?;
+                if roots.next().is_some()
+                    || structural_values.nodes.get(*receiver_value).expression != root.expression
+                {
+                    return None;
+                }
+                // The evaluated dependency owns the whole receiver type. The
+                // ordinary shape collector retains its transitive fields;
+                // neither the observed leaf nor a source local supplies it.
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_operand_shapes(
+                        program,
+                        root.type_reference,
+                    )?,
+                )?;
+            }
+            CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span(*arms)? {
@@ -279,21 +278,13 @@ pub(super) fn retain_shapes(
                         subject,
                     ) = argument
                     {
-                        for shape in super::super::terminal_unit::scalar_case_value_shapes(
-                            program,
-                            subject.type_reference,
-                        )? {
-                            if let Some(existing) = shapes
-                                .iter()
-                                .find(|existing| existing.identity == shape.identity)
-                            {
-                                if existing != &shape {
-                                    return None;
-                                }
-                            } else {
-                                shapes.push(shape);
-                            }
-                        }
+                        retain_declarations(
+                            shapes,
+                            super::super::terminal_unit::scalar_case_value_shapes(
+                                program,
+                                subject.type_reference,
+                            )?,
+                        )?;
                         pending.extend(
                             plans
                                 .case_fields
@@ -322,6 +313,25 @@ pub(super) fn retain_shapes(
                 arguments: operands,
                 ..
             } => pending.extend(plans.operands.span(*operands)?),
+        }
+    }
+    Some(())
+}
+
+fn retain_declarations(
+    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
+    declarations: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
+) -> Option<()> {
+    for declaration in declarations {
+        if let Some(existing) = shapes
+            .iter()
+            .find(|existing| existing.identity == declaration.identity)
+        {
+            if existing != &declaration {
+                return None;
+            }
+        } else {
+            shapes.push(declaration);
         }
     }
     Some(())

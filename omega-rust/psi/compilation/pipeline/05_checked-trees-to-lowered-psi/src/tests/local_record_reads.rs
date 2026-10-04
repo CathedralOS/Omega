@@ -623,6 +623,7 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
             source_expression,
             subject,
             field,
+            ..
         } = &mut node.kind
         else {
             panic!("field read")
@@ -649,6 +650,76 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
             ))
             .is_err(),
             "corruption {corruption} must reject"
+        );
+    }
+}
+
+#[test]
+fn computed_record_observations_reject_exchanged_and_missing_receiver_dependencies() {
+    let checked = crate::front_end::checked_program(
+        "data Pair { first: u32; second: u32; }
+         machine observe(left: u32, right: u32) -> u32 {
+             Pair { first: left, second: right }.first ^
+             Pair { first: right, second: left }.second
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("observe"))
+        .expect("two receivers compose without authored local destinations");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay checks complete construction, observation and disposal");
+    let roots = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .filter(|(_, root)| root.role == checked_trees::CheckedScalarExpressionRole::Return)
+        .map(|(_, root)| root.root)
+        .collect::<Vec<_>>();
+    let nodes = crate::expression_preparation::computation_graph::reachable_nodes(&checked, &roots)
+        .expect("retained expression graph");
+    let receivers = nodes
+        .iter()
+        .filter_map(|handle| {
+            match checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(*handle)
+                .kind
+            {
+                CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
+                    Some((*handle, receiver_value))
+                }
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(receivers.len(), 2);
+    for replacement in [
+        checked_trees::CheckedStructuralValueHandle::invalid(),
+        receivers[1].1,
+    ] {
+        let mut changed = checked.clone();
+        let CheckedScalarComputationKind::StructuralField { receiver_value, .. } = &mut changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(receivers[0].0)
+            .kind
+        else {
+            panic!("retained field observation");
+        };
+        *receiver_value = replacement;
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("observe")).is_err(),
+            "equal carrier types cannot replace the authored receiver dependency"
         );
     }
 }

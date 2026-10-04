@@ -1,4 +1,6 @@
-//! Established structural observations are leaves in the ordinary evaluation sequence.
+//! Field observation consumes either established storage or a complete evaluated
+//! receiver. Both keep the same declared projection; a fresh receiver is an
+//! ordinary structural value dependency, never just its selected initializer.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode,
@@ -33,6 +35,22 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         field: validation::StructuralScalarField,
     ) -> Option<CheckedScalarComputationHandle> {
+        let receiver_value = if field.receiver_value.is_valid() {
+            let value = self.structural_value(field.receiver_value, field.type_reference)?;
+            self.structural_values
+                .roots
+                .append(checked_trees::CheckedStructuralValueRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    expression: field.receiver_value,
+                    type_reference: field.type_reference,
+                    root: value,
+                });
+            value
+        } else {
+            checked_trees::CheckedStructuralValueHandle::invalid()
+        };
         let source = match field.root {
             facts::PlaceRoot::Symbol(symbol) => {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
@@ -47,6 +65,7 @@ impl Builder<'_, '_> {
                 field.primitive_type,
                 CheckedScalarComputationKind::StructuralField {
                     source_expression: expression,
+                    receiver_value,
                     subject: CheckedUnitStructuralArgumentPlan {
                         source,
                         path: field.path,

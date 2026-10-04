@@ -390,6 +390,7 @@ impl Context<'_> {
             }
             Computation::StructuralField {
                 source_expression,
+                receiver_value,
                 subject,
                 field,
             } => crate::expression_preparation::source_custody::authored_state(
@@ -403,6 +404,7 @@ impl Context<'_> {
                     self.state,
                     self.statement,
                     *source_expression,
+                    *receiver_value,
                     subject,
                     *field,
                     node.primitive_type,

@@ -5,6 +5,8 @@
 //! graph, including calls whose result becomes known only at a later selection.
 //! Keep exact source occurrences on retained applications and selections so
 //! folding an enclosing guard does not change their operand custody.
+//! One builder owns both plan arenas: structural members may compute scalar
+//! operands, and scalar observations may first establish a structural value.
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -134,6 +136,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     parameter_types: &parameter_types,
                     locals: &locals,
                     plans: &mut plans,
+                    structural_values: &mut structural_values,
                 };
                 let construction_destination = match statement {
                     StatementNode::LocalData(local) => {
@@ -211,19 +214,18 @@ pub(crate) fn build_checked_value_computation_plans(
                                 expression,
                                 expected,
                             )))
-                    && let Some(root) =
-                        builder.structural_value(expression, expected, &mut structural_values, pure)
+                    && let Some(root) = builder.structural_value(expression, expected)
                 {
-                    structural_values
-                        .roots
-                        .append(checked_trees::CheckedStructuralValueRoot {
+                    builder.structural_values.roots.append(
+                        checked_trees::CheckedStructuralValueRoot {
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_ordinal,
                             expression,
                             type_reference: expected,
                             root,
-                        });
+                        },
+                    );
                 }
                 // An uninitialized local of a zero-constructible
                 // type mints its establishment here: the whole declared
@@ -240,22 +242,22 @@ pub(crate) fn build_checked_value_computation_plans(
                         .expression_is_valid(local.initial_value)
                     && validation::zeroed_structural_parts(program, local.type_reference)
                 {
-                    let root = structural_values.nodes.append(
+                    let root = builder.structural_values.nodes.append(
                         checked_trees::CheckedStructuralValue {
                             expression: local.initial_value,
                             kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {},
                         },
                     );
-                    structural_values
-                        .roots
-                        .append(checked_trees::CheckedStructuralValueRoot {
+                    builder.structural_values.roots.append(
+                        checked_trees::CheckedStructuralValueRoot {
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_ordinal,
                             expression: local.initial_value,
                             type_reference: local.type_reference,
                             root,
-                        });
+                        },
+                    );
                 }
                 if let Some((expression, expected)) = construction_destination
                     && let Some(elements) = validation::scalar_array_elements(
@@ -342,8 +344,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         continue;
                     };
                     builder.record_call_arguments(
-                        pure,
-                        &mut structural_values,
                         statement_ordinal,
                         call_ordinal,
                         crate::flow::call_target_symbol(program, call),
@@ -374,8 +374,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         // Keep scalar whole-call ownership in argument_roots below;
                         // retaining operands does not establish a result operation.
                         builder.record_call_arguments(
-                            pure,
-                            &mut structural_values,
                             statement_ordinal,
                             0,
                             crate::flow::call_target_symbol(program, call),
@@ -447,8 +445,6 @@ pub(crate) fn build_checked_value_computation_plans(
                 }
                 if let StatementNode::Call(call) = statement {
                     builder.record_call_arguments(
-                        pure,
-                        &mut structural_values,
                         statement_ordinal,
                         0,
                         call.target_symbol,
@@ -461,8 +457,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         program.expression_table.expression(*expression)
                 {
                     builder.record_call_arguments(
-                        pure,
-                        &mut structural_values,
                         statement_ordinal,
                         0,
                         crate::flow::call_target_symbol(program, call),
@@ -529,23 +523,18 @@ pub(crate) fn build_checked_value_computation_plans(
                                 assignment.value,
                                 expected,
                             ))
-                        && let Some(root) = builder.structural_value(
-                            assignment.value,
-                            expected,
-                            &mut structural_values,
-                            pure,
-                        )
+                        && let Some(root) = builder.structural_value(assignment.value, expected)
                     {
-                        structural_values
-                            .roots
-                            .append(checked_trees::CheckedStructuralValueRoot {
+                        builder.structural_values.roots.append(
+                            checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 statement_ordinal,
                                 expression: assignment.value,
                                 type_reference: expected,
                                 root,
-                            });
+                            },
+                        );
                     }
                     if matches!(
                         program.expression_table.expression(assignment.target),
@@ -667,8 +656,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         // needs the same argument roots as an initializer, including
                         // copied records that cannot live in scalar computations.
                         builder.record_call_arguments(
-                            pure,
-                            &mut structural_values,
                             statement_ordinal,
                             0,
                             crate::flow::call_target_symbol(program, call),
@@ -733,8 +720,6 @@ pub(crate) fn build_checked_value_computation_plans(
                             continue;
                         };
                         builder.record_call_arguments(
-                            pure,
-                            &mut structural_values,
                             statement_ordinal,
                             call_ordinal,
                             call.target_symbol,
@@ -765,23 +750,18 @@ pub(crate) fn build_checked_value_computation_plans(
                         && program
                             .primitive_type_reference(state.return_type)
                             .is_none()
-                        && let Some(root) = builder.structural_value(
-                            *expression,
-                            state.return_type,
-                            &mut structural_values,
-                            pure,
-                        )
+                        && let Some(root) = builder.structural_value(*expression, state.return_type)
                     {
-                        structural_values
-                            .roots
-                            .append(checked_trees::CheckedStructuralValueRoot {
+                        builder.structural_values.roots.append(
+                            checked_trees::CheckedStructuralValueRoot {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 statement_ordinal,
                                 expression: *expression,
                                 type_reference: state.return_type,
                                 root,
-                            });
+                            },
+                        );
                     }
                     if transition.exit == typed_trees::statement::TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =
@@ -904,17 +884,14 @@ pub(crate) fn build_checked_value_computation_plans(
                                         program.expression_table.expression(*argument),
                                         ExpressionNode::ArrayLiteral(_) | ExpressionNode::Call(_)
                                     ))
-                                && structural_values
+                                && builder
+                                    .structural_values
                                     .root_for_expression(state.symbol, statement_ordinal, *argument)
                                     .is_none()
-                                && let Some(root) = builder.structural_value(
-                                    *argument,
-                                    parameter.type_reference,
-                                    &mut structural_values,
-                                    pure,
-                                )
+                                && let Some(root) =
+                                    builder.structural_value(*argument, parameter.type_reference)
                             {
-                                structural_values.roots.append(
+                                builder.structural_values.roots.append(
                                     checked_trees::CheckedStructuralValueRoot {
                                         machine: machine.symbol,
                                         state: state.symbol,
@@ -957,6 +934,7 @@ struct Builder<'program, 'plans> {
     parameter_types: &'program [PrimitiveType],
     locals: &'program [ScalarLocal],
     plans: &'plans mut CheckedScalarComputationPlans,
+    structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
 }
 
 impl Builder<'_, '_> {

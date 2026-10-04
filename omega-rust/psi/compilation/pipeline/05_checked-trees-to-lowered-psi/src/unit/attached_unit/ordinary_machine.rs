@@ -326,6 +326,7 @@ pub(super) fn emit(
         checked,
         &[plan.machine],
         structural_types,
+        &mut next_place,
     )?;
     evaluation.literals = crate::scalar_graph::scalar_computations::literals::prepare(
         checked,

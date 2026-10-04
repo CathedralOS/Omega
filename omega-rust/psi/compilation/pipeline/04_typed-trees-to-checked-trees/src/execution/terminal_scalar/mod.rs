@@ -674,9 +674,13 @@ fn checked_state_graph(
                 .iter()
                 .map(|parameter| parameter.primitive_type)
                 .collect();
-            let Some(()) =
-                constructions::retain_shapes(program, computations, state.symbol, &mut shapes)
-            else {
+            let Some(()) = constructions::retain_shapes(
+                program,
+                computations,
+                structural_values,
+                state.symbol,
+                &mut shapes,
+            ) else {
                 *reason = "machine has no source-independent checked scalar control plan (construction shapes)";
                 return None;
             };

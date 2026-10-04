@@ -81,6 +81,7 @@ pub(crate) fn emit_call_leaf(
             checked,
             &[machine],
             &catalogs.structural_types,
+            &mut catalogs.next_place,
         )?,
         literals: crate::scalar_graph::scalar_computations::literals::prepare(
             checked,

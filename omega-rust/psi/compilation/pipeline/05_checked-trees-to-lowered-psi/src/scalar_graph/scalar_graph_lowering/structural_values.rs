@@ -1,7 +1,9 @@
-//! Record locals participate in the scalar graph's ordered statement prefix.
+//! Structural construction participates in the scalar graph's evaluation order.
 //! Scalar fields use ordinary computation continuations in authored order;
 //! completed fields commit through the same record emitter as Unit bodies.
-//! Only the completed root enters the local namespace. Nested owned records
+//! Construction is independent of its destination: a local publishes the
+//! completed root, while an expression consumer observes and retires it.
+//! Nested owned records
 //! transfer into their parent, while a root survives through selected arguments.
 //! Whole local initializers bind fresh block homes: unrestricted values copy,
 //! affine values move. Retire a moved source name only once construction finishes.
@@ -32,6 +34,52 @@ pub(super) struct Prepared {
     pub(super) place: PlaceId,
     pub(super) structural_type: StructuralTypeId,
     pub(super) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
+    value: PreparedValue,
+}
+
+/// Reserved homes are independent of evaluation. The expression expansion and
+/// statement prefix share one construction schedule, without inventing locals
+/// for temporary values or allocating places in a separate namespace.
+#[derive(Clone)]
+pub(crate) struct Storage {
+    places: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
+}
+
+impl Storage {
+    pub(crate) fn reserve(
+        checked: &CheckedTrees,
+        root: checked_trees::CheckedStructuralValueHandle,
+        next_place: &mut u64,
+    ) -> Result<Self, LoweringError> {
+        let mut places = Vec::new();
+        for value in crate::expression_preparation::computation_graph::structural_dependencies(
+            checked, root,
+        )?
+        .values
+        {
+            places.push((value, place_id(allocate_dense(next_place)?)));
+        }
+        Ok(Self { places })
+    }
+
+    fn place(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> Result<PlaceId, LoweringError> {
+        self.places
+            .iter()
+            .find(|(candidate, _)| *candidate == value)
+            .map(|(_, place)| *place)
+            .ok_or(LoweringError::Unsupported(
+                "structural value has no reserved home",
+            ))
+    }
+}
+
+pub(crate) struct PreparedValue {
+    pub(crate) place: PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
     statement: u32,
     steps: Vec<Step>,
 }
@@ -123,19 +171,55 @@ pub(super) fn prepare(
     .ok_or(LoweringError::Unsupported(
         "scalar record lost its exact final disposition",
     ))?;
+    let reserved = Storage::reserve(checked, *value, next_place)?;
+    let prepared = prepare_value(
+        checked,
+        qualifications,
+        result.statement_index,
+        *value,
+        local.type_reference,
+        bindings,
+        value_types,
+        types,
+        &reserved,
+    )?;
+    Ok(Prepared {
+        symbol: local.symbol,
+        place: prepared.place,
+        structural_type: prepared.structural_type,
+        consumed: prepared.consumed.clone(),
+        value: prepared,
+    })
+}
+
+/// The caller validates source custody and owns publication or disposal of the
+/// completed value. This schedule does not grant a name or extend its lifetime.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_value(
+    checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
+    statement: u32,
+    value: checked_trees::CheckedStructuralValueHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    bindings: &storage::ScalarBindings,
+    value_types: &[QualifiedScalarType],
+    types: &[StructuralTypeDeclaration],
+    reserved: &Storage,
+) -> Result<PreparedValue, LoweringError> {
     let mut preparation = Preparation {
         checked,
         qualifications,
         bindings,
         types,
-        next_place,
+        reserved,
         prefix: value_types.to_vec(),
         steps: Vec::new(),
         consumed: Vec::new(),
     };
+    let identity = checked.normalized_type_identity(reference);
     let mut declarations = types
         .iter()
-        .filter(|declaration| declaration.identity == result.type_identity);
+        .filter(|declaration| declaration.identity == identity.as_str());
     let structural_type = declarations
         .next()
         .ok_or(LoweringError::Unsupported(
@@ -145,20 +229,15 @@ pub(super) fn prepare(
     if declarations.next().is_some() {
         return unsupported("record carrier is ambiguous");
     }
-    let mut place = preparation.record(*value, local.type_reference)?;
-    if result.multiplicity == Multiplicity::Affine
+    let mut place = preparation.record(value, reference)?;
+    if checked.type_multiplicity(reference) == Multiplicity::Affine
         && matches!(
-            checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .kind,
+            checked.facts.values.structural_values.nodes.get(value).kind,
             CheckedStructuralValueKind::Place(_)
         )
     {
         place = preparation.bind_place(
+            value,
             StructuralArgument {
                 place,
                 path: Vec::new(),
@@ -168,11 +247,10 @@ pub(super) fn prepare(
             StructuralMultiplicity::Affine,
         )?;
     }
-    Ok(Prepared {
-        symbol: local.symbol,
+    Ok(PreparedValue {
         place,
         structural_type,
-        statement: result.statement_index,
+        statement,
         steps: preparation.steps,
         consumed: preparation.consumed,
     })
@@ -183,7 +261,7 @@ struct Preparation<'a> {
     qualifications: &'a PreparedScalarQualifications,
     bindings: &'a storage::ScalarBindings,
     types: &'a [StructuralTypeDeclaration],
-    next_place: &'a mut u64,
+    reserved: &'a Storage,
     prefix: Vec<QualifiedScalarType>,
     steps: Vec<Step>,
     consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
@@ -217,9 +295,12 @@ impl Preparation<'_> {
             }
             let source = self.bindings.owned_argument(argument)?;
             return match self.checked.type_multiplicity(reference) {
-                Multiplicity::Unrestricted => {
-                    self.bind_place(source, declaration.id, StructuralMultiplicity::Unrestricted)
-                }
+                Multiplicity::Unrestricted => self.bind_place(
+                    value,
+                    source,
+                    declaration.id,
+                    StructuralMultiplicity::Unrestricted,
+                ),
                 Multiplicity::Affine => {
                     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
@@ -256,7 +337,12 @@ impl Preparation<'_> {
                 return unsupported("scalar record copy changed its carrier");
             }
             let source = self.bindings.copied_local_home(source)?;
-            return self.bind_place(source, declaration.id, StructuralMultiplicity::Unrestricted);
+            return self.bind_place(
+                value,
+                source,
+                declaration.id,
+                StructuralMultiplicity::Unrestricted,
+            );
         }
         if let CheckedStructuralValueKind::ZeroedStructural {} = &node.kind {
             // A declared-only local establishes a zeroed whole shape: mint the
@@ -271,7 +357,7 @@ impl Preparation<'_> {
                     );
                 }
             };
-            let place = place_id(allocate_dense(self.next_place)?);
+            let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
                 place,
                 structural_type: declaration.id,
@@ -406,7 +492,7 @@ impl Preparation<'_> {
                 return unsupported("scalar record construction cannot establish linear authority");
             }
         };
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = self.reserved.place(value)?;
         self.steps.push(Step::Record {
             construction: Construction {
                 place,
@@ -421,11 +507,12 @@ impl Preparation<'_> {
 
     fn bind_place(
         &mut self,
+        value: checked_trees::CheckedStructuralValueHandle,
         source: StructuralArgument,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = self.reserved.place(value)?;
         self.steps.push(Step::Bind {
             source,
             destination: StructuralParameterDeclaration {
@@ -446,6 +533,20 @@ impl Preparation<'_> {
 
 impl Prepared {
     pub(super) fn finish(
+        self,
+        state: symbols::SymbolHandle,
+        bindings: &storage::ScalarBindings,
+        source_types: &[QualifiedScalarType],
+        target: usize,
+        computations: &mut computations::Expansion<'_>,
+    ) -> Result<usize, LoweringError> {
+        self.value
+            .finish(state, bindings, source_types, target, computations)
+    }
+}
+
+impl PreparedValue {
+    pub(crate) fn finish(
         self,
         state: symbols::SymbolHandle,
         bindings: &storage::ScalarBindings,

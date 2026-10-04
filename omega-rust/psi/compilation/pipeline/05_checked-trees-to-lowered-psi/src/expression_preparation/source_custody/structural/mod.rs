@@ -3,7 +3,8 @@
 //! whole affine moves preserve the original provenance. Replay traces the authored
 //! initializer chain separately from checking each place's establishment and transfer.
 //!
-//! `validate` walks the retained value nodes as a worklist. Records, case
+//! `validate` rejoins an establishment to its destination, then `validate_value`
+//! walks the retained value nodes as a worklist. Records, case
 //! payloads and structural selections replay in `record`, `structural_case`
 //! and `dispatch`, which queue their structural children back onto the same
 //! worklist through `Replay`.
@@ -77,6 +78,20 @@ struct Replay<'r> {
     statement_index: u32,
     pending: &'r mut Vec<PendingValue>,
     operand_roles: &'r mut Vec<CheckedScalarExpressionRole>,
+}
+
+/// The exact authored value supplied by a source consumer, independently of
+/// whether that consumer publishes a local destination. The caller rejoins
+/// the registered root and declared type to its authored source before replay.
+/// Operand calls belong to this value, and a selection receipt belongs to its
+/// own destination, never merely to another value in the same statement.
+pub(crate) struct StructuralValueSource<'a> {
+    pub statement_index: u32,
+    pub expression: ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
+    pub value: CheckedStructuralValueHandle,
+    pub operand_calls: &'a [checked_trees::CheckedStructuralValueCall],
+    pub selection: Option<&'a checked_trees::FlowOwnedSelectionReceipt>,
 }
 
 /// A whole call value is already established by its ordinary call operation.
@@ -303,15 +318,6 @@ pub(crate) fn validate(
     {
         return unsupported("structural construction substituted its owner or result type");
     }
-    if let Some(receipt) = selection {
-        owned_selection::validate_receipt(
-            checked,
-            machine,
-            state,
-            result.statement_index,
-            receipt,
-        )?;
-    }
     // Only the initializer establishes the declared local's loans and owned
     // provenance. A call argument in that initializer owns a separate value;
     // its consumer validates the transfer into the exact call formal.
@@ -347,8 +353,52 @@ pub(crate) fn validate(
             *discard_result_on_return,
         )?;
     }
+    validate_value(
+        checked,
+        machine,
+        state,
+        StructuralValueSource {
+            statement_index: result.statement_index,
+            expression,
+            type_reference: reference,
+            value: *value,
+            operand_calls: calls,
+            selection,
+        },
+    )
+    .map(|_| ())
+}
+
+/// Reconstruct the complete supplied value, including every structural child,
+/// scalar operand and scheduled call. Destination ownership is the consuming
+/// operation's responsibility; this walk grants no local storage or cleanup.
+/// Return this value's validated scalar roots and exact authored scopes so a
+/// containing computation can retain its complete call occurrence accounting.
+pub(crate) fn validate_value(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    value_source: StructuralValueSource<'_>,
+) -> Result<Vec<(CheckedScalarComputationHandle, ExpressionHandle)>, LoweringError> {
+    let StructuralValueSource {
+        statement_index,
+        expression,
+        type_reference: reference,
+        value,
+        operand_calls: calls,
+        selection,
+    } = value_source;
+    let (owner, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    if owner.symbol != machine {
+        return unsupported("structural construction substituted its owner or result type");
+    }
+    let plans = &checked.facts.values.structural_values;
+    if let Some(receipt) = selection {
+        owned_selection::validate_receipt(checked, machine, state, statement_index, receipt)?;
+    }
     let mut pending = vec![(
-        *value,
+        value,
         if expression.is_valid() {
             ValueOccurrence::Authored(expression)
         } else {
@@ -411,7 +461,7 @@ pub(crate) fn validate(
                     checked,
                     owner,
                     source,
-                    result.statement_index,
+                    statement_index,
                     expression,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Shared,
@@ -433,7 +483,7 @@ pub(crate) fn validate(
                     checked,
                     owner,
                     source,
-                    result.statement_index,
+                    statement_index,
                     expression,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Mutable,
@@ -472,7 +522,7 @@ pub(crate) fn validate(
                         checked,
                         machine,
                         state,
-                        result.statement_index,
+                        statement_index,
                         expression,
                         reference,
                         &argument,
@@ -536,8 +586,8 @@ pub(crate) fn validate(
                 if captured.authored_expression != expression
                     || captured.target_symbol != authored.target_symbol
                     || *target_state != authored.target_symbol
-                    || coordinate.statement_index != result.statement_index
-                    || captured.statement_index != result.statement_index as usize
+                    || coordinate.statement_index != statement_index
+                    || captured.statement_index != statement_index as usize
                     || coordinate.call_ordinal as usize != captured.call_ordinal
                     || returned.type_identity
                         != checked.normalized_type_identity(reference).as_str()
@@ -575,7 +625,7 @@ pub(crate) fn validate(
                     checked,
                     owner,
                     source,
-                    result.statement_index,
+                    statement_index,
                     expression,
                     reference,
                     &argument,
@@ -591,7 +641,7 @@ pub(crate) fn validate(
                     checked,
                     owner,
                     source,
-                    result.statement_index,
+                    statement_index,
                     expression,
                     reference,
                     &argument,
@@ -671,7 +721,7 @@ pub(crate) fn validate(
                         checked,
                         machine,
                         state,
-                        result.statement_index,
+                        statement_index,
                         role,
                         *handle,
                         *leaf,
@@ -717,7 +767,7 @@ pub(crate) fn validate(
                         checked,
                         owner,
                         source,
-                        result.statement_index,
+                        statement_index,
                         expression,
                         reference,
                         &argument,
@@ -746,7 +796,7 @@ pub(crate) fn validate(
                     &mut Replay {
                         machine,
                         state,
-                        statement_index: result.statement_index,
+                        statement_index,
                         pending: &mut pending,
                         operand_roles: &mut operand_roles,
                     },
@@ -810,7 +860,7 @@ pub(crate) fn validate(
                         checked,
                         machine,
                         state,
-                        result.statement_index,
+                        statement_index,
                         role,
                         *handle,
                         *expression,
@@ -827,7 +877,7 @@ pub(crate) fn validate(
                     &mut Replay {
                         machine,
                         state,
-                        statement_index: result.statement_index,
+                        statement_index,
                         pending: &mut pending,
                         operand_roles: &mut operand_roles,
                     },
@@ -845,7 +895,7 @@ pub(crate) fn validate(
                     &mut Replay {
                         machine,
                         state,
-                        statement_index: result.statement_index,
+                        statement_index,
                         pending: &mut pending,
                         operand_roles: &mut operand_roles,
                     },
@@ -910,7 +960,7 @@ pub(crate) fn validate(
                         source_arm,
                     },
                     None => owned_selection::ProjectionTransfer::Statement {
-                        statement: result.statement_index,
+                        statement: statement_index,
                     },
                 };
                 let root = owned_selection::validate_projection(
@@ -965,10 +1015,11 @@ pub(crate) fn validate(
         checked
             .statement_table
             .statements(source.statement_nodes)
-            .get(result.statement_index as usize),
+            .get(statement_index as usize),
         Some(StatementNode::Transition(_))
     );
     let mut seen_roles = Vec::new();
+    let mut validated_operands = Vec::new();
     for (_, scalar_root) in checked
         .facts
         .values
@@ -977,7 +1028,7 @@ pub(crate) fn validate(
         .iter()
         .filter(|(_, root)| {
             root.state == state
-                && root.statement_ordinal == result.statement_index
+                && root.statement_ordinal == statement_index
                 && matches!(
                     root.role,
                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
@@ -993,7 +1044,23 @@ pub(crate) fn validate(
             return unsupported("structural construction has duplicated or foreign scalar roots");
         }
         seen_roles.push(scalar_root.role);
-        if operand_roles.contains(&scalar_root.role) || transition {
+        if operand_roles.contains(&scalar_root.role) {
+            // Each recorded role passed validate_operand under its authored
+            // leaf, including exact root-handle and node.authored_root equality.
+            // Preserve that established association, not a new syntax search.
+            validated_operands.push((
+                scalar_root.root,
+                checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(scalar_root.root)
+                    .authored_root,
+            ));
+            continue;
+        }
+        if transition {
             continue;
         }
         if role_belongs_to_value(checked, expression, scalar_root.role)?
@@ -1001,7 +1068,7 @@ pub(crate) fn validate(
                 checked,
                 machine,
                 state,
-                result.statement_index,
+                statement_index,
                 expression,
                 scalar_root.role,
             )?
@@ -1016,7 +1083,7 @@ pub(crate) fn validate(
         checked
             .statement_table
             .statements(source.statement_nodes)
-            .get(result.statement_index as usize),
+            .get(statement_index as usize),
         Some(StatementNode::Transition(_))
     ) {
         for (_, root) in checked
@@ -1027,7 +1094,7 @@ pub(crate) fn validate(
             .iter()
             .filter(|(_, root)| {
                 root.state == state
-                    && root.statement_ordinal == result.statement_index
+                    && root.statement_ordinal == statement_index
                     && matches!(
                         root.role,
                         CheckedScalarExpressionRole::StructuralValueSubject { .. }
@@ -1039,20 +1106,19 @@ pub(crate) fn validate(
                     )
             })
         {
-            let (expression, _) =
-                operand_source(checked, state, result.statement_index, root.role)?;
+            let (expression, _) = operand_source(checked, state, statement_index, root.role)?;
             validate_operand(
                 checked,
                 machine,
                 state,
-                result.statement_index,
+                statement_index,
                 root.role,
                 root.root,
                 expression,
             )?;
         }
     }
-    Ok(())
+    Ok(validated_operands)
 }
 
 /// The authored occurrence and declared element type of `value` when it is one
@@ -1221,7 +1287,8 @@ fn authored_destination(
 }
 
 /// Candidate roots grant no authority: each other scope must rejoin an authored
-/// destination or call formal before its own independent construction replay owns it.
+/// destination, call formal or scalar field consumer before its construction
+/// replay owns it.
 fn sibling_owns_role(
     checked: &CheckedTrees,
     machine: SymbolHandle,
@@ -1238,6 +1305,8 @@ fn sibling_owns_role(
         .statements(source.statement_nodes)
         .get(statement as usize);
     let control = &checked.facts.flow.control;
+    let receivers =
+        super::record_fields::field_receiver_sources(checked, machine, state, statement)?;
     let mut owners = 0;
     for (_, root) in plans.roots.iter().filter(|(_, root)| {
         root.state == state && root.statement_ordinal == statement && root.expression != current
@@ -1254,8 +1323,11 @@ fn sibling_owns_role(
         {
             return unsupported("structural sibling changed its exact retained root");
         }
-        let mut destination = None;
-        if !matches!(authored_statement, Some(StatementNode::Call(_))) {
+        let mut destination = receivers
+            .iter()
+            .find(|receiver| receiver.value == root.root && receiver.expression == root.expression)
+            .map(|receiver| receiver.type_reference);
+        if destination.is_none() && !matches!(authored_statement, Some(StatementNode::Call(_))) {
             let outer =
                 authored_destination(checked, machine, state, statement, root.expression, &None)?;
             if outer.0 == root.expression {
@@ -1580,6 +1652,14 @@ pub(crate) fn operand_source(
         }
         _ => return unsupported("structural operand has no authored value scope"),
     };
+    // A computed receiver is an ordinary value consumer too. Rejoin its exact
+    // registered operation edge before adding its declared value scope; this
+    // also covers receivers nested beneath scalar arithmetic or other fields.
+    for receiver in
+        super::record_fields::field_receiver_sources(checked, machine.symbol, state, statement)?
+    {
+        pending.push((receiver.expression, receiver.type_reference));
+    }
     let mut visited = Vec::new();
     while let Some((expression, declared)) = pending.pop() {
         if visited.contains(&expression) {

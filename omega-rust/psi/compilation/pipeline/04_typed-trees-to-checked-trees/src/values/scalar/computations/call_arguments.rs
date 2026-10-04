@@ -1,14 +1,9 @@
-use super::{
-    Builder, CheckedScalarExpressionPlans, CheckedScalarExpressionRole, ExpressionHandle,
-    SymbolHandle,
-};
+use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
 use crate::values::scalar::call_lowering::call_is_boundary;
 
 impl Builder<'_, '_> {
     pub(super) fn record_call_arguments(
         &mut self,
-        pure: &CheckedScalarExpressionPlans,
-        values: &mut checked_trees::CheckedStructuralValuePlans,
         statement: u32,
         call_ordinal: u32,
         target: SymbolHandle,
@@ -82,22 +77,22 @@ impl Builder<'_, '_> {
                         *argument,
                         parameter.type_reference,
                     )))
-                    && values
+                    && self
+                        .structural_values
                         .root_for_expression(self.state, statement, *argument)
                         .is_none()
-                    && let Some(root) =
-                        self.structural_value(*argument, parameter.type_reference, values, pure)
+                    && let Some(root) = self.structural_value(*argument, parameter.type_reference)
                 {
-                    values
-                        .roots
-                        .append(checked_trees::CheckedStructuralValueRoot {
+                    self.structural_values.roots.append(
+                        checked_trees::CheckedStructuralValueRoot {
                             machine: self.machine,
                             state: self.state,
                             statement_ordinal: statement,
                             expression: *argument,
                             type_reference: parameter.type_reference,
                             root,
-                        });
+                        },
+                    );
                 }
                 continue;
             };
@@ -120,7 +115,7 @@ impl Builder<'_, '_> {
                     argument_ordinal: scalar_ordinal,
                 }
             };
-            self.record_root(pure, statement, role, *argument, primitive_type);
+            self.record_root(self.pure, statement, role, *argument, primitive_type);
             let Some(next) = scalar_ordinal.checked_add(1) else {
                 return;
             };

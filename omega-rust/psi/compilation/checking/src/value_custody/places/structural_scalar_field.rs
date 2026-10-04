@@ -1,9 +1,11 @@
-//! Exact declaration custody for scalar observations of established structural storage.
+//! Exact declaration custody for scalar observations of structural values.
 //!
 //! Named locals and saved expression results share the same declaration walk.
 //! A saved dispatch subject retains its authored occurrence until execution
 //! planning assigns storage; looking up a field neither executes that subject
-//! nor grants its case membership or ownership. Those remain use-site checks.
+//! nor grants its case membership or ownership. A fresh receiver retains its
+//! unevaluated value occurrence so planning must establish it before observation.
+//! These remain use-site checks, not permissions inferred from field geometry.
 
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
@@ -24,6 +26,9 @@ mod tests;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructuralScalarField {
     pub root: facts::PlaceRoot,
+    /// A fresh receiver that must be evaluated before the read. Zero means the
+    /// receiver names already established storage, including a saved subject.
+    pub receiver_value: ExpressionHandle,
     pub statement_ordinal: u32,
     /// Whole storage declaration, before any field projection.
     pub type_reference: TypeReferenceHandle,
@@ -38,8 +43,8 @@ pub struct StructuralScalarField {
     pub domain: ArithmeticDomain,
 }
 
-/// Resolve a field path below a prior local or an evaluated dispatch subject. Storage is
-/// observed at this statement, never equated with its initializer: member
+/// Resolve a field path below established storage or a fresh receiver value.
+/// Established storage is observed here, never equated with its initializer: member
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Open generic/qualified owners, erased fields and scalar qualifications
@@ -159,6 +164,7 @@ pub fn structural_scalar_field(
     }
     Some(StructuralScalarField {
         root: local.root,
+        receiver_value: local.receiver_value,
         statement_ordinal: local.statement_ordinal,
         type_reference: local.type_reference,
         carrier_type_reference: carrier,
@@ -265,6 +271,7 @@ fn builtin_place_coordinates(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct StructuralSource {
     pub root: facts::PlaceRoot,
+    pub receiver_value: ExpressionHandle,
     pub statement_ordinal: u32,
     pub type_reference: TypeReferenceHandle,
 }
@@ -532,7 +539,7 @@ fn structural_source(
     ) {
         return None;
     }
-    let (root, ordinal, source_type) =
+    let (root, receiver_value, ordinal, source_type) =
         match program.expression_table.expression(receiver_expression) {
             ExpressionNode::Name(receiver) => {
                 if !receiver.symbol.is_valid()
@@ -569,26 +576,41 @@ fn structural_source(
                 }
                 (
                     facts::PlaceRoot::Symbol(local.symbol),
+                    ExpressionHandle::invalid(),
                     ordinal,
                     local.type_reference,
                 )
             }
-            ExpressionNode::Call(_) => {
-                let (ordinal, subject) = saved_dispatch_subject(
+            _ => {
+                if let Some((ordinal, subject)) = saved_dispatch_subject(
                     program,
                     state,
                     statement_ordinal as usize,
                     receiver_expression,
-                )?;
-                let ExpressionNode::Call(call) = program.expression_table.expression(subject)
-                else {
-                    return None;
-                };
-                let result_type =
-                    crate::machine_calls::calls::resolved_call_result_type(program, call)?;
-                (facts::PlaceRoot::Expression(subject), ordinal, result_type)
+                ) {
+                    let result_type =
+                        crate::expression_result_type_reference(program, machine, state, subject)?;
+                    (
+                        facts::PlaceRoot::Expression(subject),
+                        ExpressionHandle::invalid(),
+                        ordinal,
+                        result_type,
+                    )
+                } else {
+                    let result_type = crate::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        receiver_expression,
+                    )?;
+                    (
+                        facts::PlaceRoot::Expression(receiver_expression),
+                        receiver_expression,
+                        statement_ordinal as usize,
+                        result_type,
+                    )
+                }
             }
-            _ => return None,
         };
     if !matches!(
         program.type_multiplicity(source_type),
@@ -633,6 +655,7 @@ fn structural_source(
     }
     Some(StructuralSource {
         root,
+        receiver_value,
         statement_ordinal: u32::try_from(ordinal).ok()?,
         type_reference: carrier,
     })

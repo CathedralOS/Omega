@@ -515,14 +515,10 @@ the complete product bar; focused successes below do not establish that baseline
     self.get_name(), .. }`) still decline at `outer calls: ordered statement
     call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
-    `pass/arithmetic/runtime_exact_projection_sibling_exit` now clears formation
-    checking and interprets to 70, but native production lacks a checked scalar
-    binding for the computed record receiver. Connect the existing structural
-    value producer to field observation, evaluating every initializer once and
-    retiring the temporary through ordinary cleanup. Do not replace the record
-    with its selected initializer or synthesize an authored local. Acceptance:
-    `python3 tools/corpus_gate.py --both --filter runtime_exact_projection_sibling_exit`
-    produces native/interpreter exit 70; its authored native oracle remains red.
+    Expression-owned structural receivers with nominal cleanup hooks or reference
+    debt still need the ordinary disposal schedule after observation; the scalar
+    construction path currently supports plain-owned contents only. Do not
+    describe nontrivial cleanup as a trivial affine discard.
 
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
@@ -3410,6 +3406,15 @@ unchanged, except for intended deletions, which its commit lists.
   `fail/arithmetic/exact_aggregate_divisor_unproven` now rejects during checking.
   Audit assignment targets and abstract proposition carrier resolution before
   treating operation traversal as complete.
+
+  `pass/arithmetic/runtime_nested_record_observation_exit` is a retained execution
+  witness: its complete nested and sibling receivers now lower, and the interpreter
+  exits 70, but the second division still hits `OperationProofUnavailable` despite
+  a retained nonzero requirement and divisor alias. Acceptance is native/interpreter
+  exit 70 from `python3 tools/corpus_gate.py --both --filter
+  arithmetic/runtime_nested_record_observation_exit`. Its success oracle stays red
+  until checked operation judgments replace this Terminal search; do not extend
+  certificate search for this source arrangement.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate

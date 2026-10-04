@@ -15,6 +15,97 @@ fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
 }
 
 #[test]
+fn local_field_has_no_fresh_receiver_dependency() {
+    let (program, machine, state, expression) = fixture();
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
+        .expect("established local field");
+    assert!(!field.receiver_value.is_valid());
+    assert!(matches!(field.root, facts::PlaceRoot::Symbol(_)));
+    assert_eq!(field.statement_ordinal, 0);
+}
+
+#[test]
+fn fresh_field_retains_the_complete_receiver_occurrence() {
+    let (program, machine, state, expression) = typed_source(
+        "data Pair { first: u32; second: u32; }
+         machine observe(divisor: u32) -> u32 requires divisor != 0 {
+             let first: u32 = 7u32;
+             Pair { first: first, second: 42u32 / divisor }.first
+         }",
+    );
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        panic!("authored field observation");
+    };
+    let receiver = member.receiver;
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(receiver)
+    else {
+        panic!("complete record receiver");
+    };
+    assert_eq!(
+        program.expression_table.struct_fields(literal.fields).len(),
+        2
+    );
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
+        .expect("fresh record field");
+    assert_eq!(field.root, facts::PlaceRoot::Expression(receiver));
+    assert_eq!(field.receiver_value, receiver);
+    assert_eq!(field.statement_ordinal, 1);
+    assert!(field.path.is_empty());
+    assert_eq!(field.primitive_type, super::PrimitiveType::U32);
+}
+
+#[test]
+fn fresh_nested_field_keeps_the_outer_receiver_and_inner_carrier() {
+    let (program, machine, state, expression) = typed_source(
+        "data Child { value: u64; }
+         data Record { child: Child; sibling: u64; }
+         machine observe(value: u64) -> u64 {
+             let sibling: u64 = 9;
+             Record { child: Child { value: value }, sibling: sibling }.child.value
+         }",
+    );
+    let ExpressionNode::Member(leaf) = program.expression_table.expression(expression) else {
+        panic!("leaf observation");
+    };
+    let ExpressionNode::Member(child) = program.expression_table.expression(leaf.receiver) else {
+        panic!("nested receiver path");
+    };
+    let receiver = child.receiver;
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
+        .expect("nested fresh field");
+    assert_eq!(field.root, facts::PlaceRoot::Expression(receiver));
+    assert_eq!(field.receiver_value, receiver);
+    assert_eq!(
+        field.path,
+        [CheckedUnitStructuralPathSegment::Field("child".into())]
+    );
+    for (name, reference) in [
+        ("Record", field.type_reference),
+        ("Child", field.carrier_type_reference),
+    ] {
+        let declaration = program
+            .data_definitions()
+            .iter()
+            .find(|declaration| declaration.name.as_str() == name)
+            .expect("exact record declaration");
+        assert_eq!(program.type_reference_symbol(reference), declaration.symbol);
+    }
+}
+
+#[test]
+fn fresh_field_does_not_discard_a_linear_receiver_obligation() {
+    let (program, machine, state, expression) = typed_source(
+        "data Claim [linear] { value: u64; }
+         data Record { claim: Claim; accepted: bool; }
+         machine observe(claim: Claim) -> bool {
+             let accepted: bool = true;
+             Record { claim: claim, accepted: accepted }.accepted
+         }",
+    );
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
+}
+
+#[test]
 fn local_scalar_observation_keeps_neighboring_exclusive_reference_custody() {
     let (program, machine, state, expression) = typed_source(
         "data Record { destination: &mut u64; count: u64; }
@@ -474,6 +565,8 @@ fn saved_subject_fields_share_the_producer_without_copying_the_owner() {
             panic!("an unnamed subject keeps expression identity");
         };
         assert_eq!(left_field.root, right_field.root);
+        assert!(!left_field.receiver_value.is_valid());
+        assert!(!right_field.receiver_value.is_valid());
         assert_eq!(left_field.statement_ordinal, left_statement);
         assert_eq!(right_field.statement_ordinal, left_statement);
         assert_eq!(
@@ -499,7 +592,7 @@ fn saved_subject_fields_share_the_producer_without_copying_the_owner() {
 }
 
 #[test]
-fn saved_subject_field_rejects_an_identically_spelled_independent_call() {
+fn independent_call_field_requires_fresh_evaluation_not_saved_subject_storage() {
     let mut program = crate::front_end::typed_program(
         "data Choice [copy] { case Left(value: u64); case Right(value: u64); }
          machine forward(incoming: Choice) -> Choice { incoming }
@@ -538,7 +631,22 @@ fn saved_subject_field_rejects_an_identically_spelled_independent_call() {
         panic!("selected payload member");
     };
     member.receiver = independent;
-    assert!(structural_scalar_field(&program, machine, state, statement, expression).is_none());
+    let fresh = structural_scalar_field(&program, machine, state, statement, expression)
+        .expect("an independent call retains its own evaluation dependency");
+    assert_eq!(fresh.root, facts::PlaceRoot::Expression(independent));
+    assert_ne!(fresh.root, field.root);
+    assert_eq!(fresh.receiver_value, independent);
+    assert!(!field.receiver_value.is_valid());
+    assert_eq!(fresh.statement_ordinal, statement);
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let authored_state = &program.machine_states(owner)[0];
+    assert_eq!(
+        super::saved_dispatch_subject(&program, authored_state, statement as usize, independent),
+        None,
+        "fresh admission must not relax saved subject occurrence identity"
+    );
 }
 
 fn nested_dispatch_fixture() -> TypedTrees {

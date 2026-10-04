@@ -11,13 +11,12 @@
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
-    Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
-    SymbolHandle, TypeReferenceNode, TypedTrees,
+    Builder, CheckedScalarComputationRoot, CheckedScalarExpressionRole, ExpressionHandle,
+    ExpressionNode, PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
 use checked_trees::{
     CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedStructuralValuePlans,
+    CheckedStructuralValueKind,
 };
 use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
@@ -756,8 +755,6 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-        values: &mut CheckedStructuralValuePlans,
-        pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueHandle> {
         let kind = if matches!(
             self.program.expression_table.expression(expression),
@@ -837,8 +834,6 @@ impl Builder<'_, '_> {
             }
             let (source_call, call_ordinal) = self.call_ordinal(expression, call_target)?;
             self.record_call_arguments(
-                pure,
-                values,
                 u32::try_from(self.statement_index).ok()?,
                 call_ordinal,
                 call_target,
@@ -864,9 +859,7 @@ impl Builder<'_, '_> {
             // custody: a mutable copyable local also has an owned shape, but
             // its original producer is not the value of a later read.
             CheckedStructuralValueKind::Place(argument)
-        } else if let Some(projection) =
-            self.projected_selection_place(expression, expected, values, pure)
-        {
+        } else if let Some(projection) = self.projected_selection_place(expression, expected) {
             projection
         } else if let Some(constructor) = self.case_construction(expression) {
             if self
@@ -899,19 +892,19 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression)
             && literal.case_symbol.is_some()
         {
-            self.structural_case_value(expression, expected, values, pure)?
+            self.structural_case_value(expression, expected)?
         } else if let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression)
             && literal.case_symbol.is_none()
         {
-            self.record_value(expression, expected, values, pure)?
+            self.record_value(expression, expected)?
         } else if let ExpressionNode::ArrayLiteral(literal) =
             self.program.expression_table.expression(expression)
         {
             if validation::is_closed_primitive_array_type(self.program, expected) {
                 self.scalar_array_value(expression, expected)?
             } else {
-                self.fixed_array_value(expected, *literal, values, pure)?
+                self.fixed_array_value(expected, *literal)?
             }
         } else if let Some(symbol) =
             validation::scalar_case_value_source(self.program, expression, expected)
@@ -1023,7 +1016,7 @@ impl Builder<'_, '_> {
                         checked_trees::CheckedScalarDispatchPattern::Value(computation)
                     }
                 };
-                let value = self.structural_value(arm.value, expected, values, pure)?;
+                let value = self.structural_value(arm.value, expected)?;
                 arms.push(CheckedStructuralDispatchArm {
                     source_arm,
                     equality_use,
@@ -1039,11 +1032,11 @@ impl Builder<'_, '_> {
             }
             CheckedStructuralValueKind::Dispatch {
                 subject,
-                arms: values.dispatch_arms.insert_many(arms),
+                arms: self.structural_values.dispatch_arms.insert_many(arms),
             }
         };
         Some(
-            values
+            self.structural_values
                 .nodes
                 .append(CheckedStructuralValue { expression, kind }),
         )
@@ -1264,8 +1257,6 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-        values: &mut CheckedStructuralValuePlans,
-        pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
         if !matches!(
             self.program.expression_table.expression(expression),
@@ -1314,7 +1305,7 @@ impl Builder<'_, '_> {
                 segments: Vec::new(),
             },
         )?;
-        let source = self.structural_value(root_expression, root_reference, values, pure)?;
+        let source = self.structural_value(root_expression, root_reference)?;
         Some(CheckedStructuralValueKind::Projection {
             source,
             path,
@@ -1510,8 +1501,6 @@ impl Builder<'_, '_> {
         &mut self,
         expected: TypeReferenceHandle,
         literal: arena::HandleSpan<ExpressionHandle>,
-        values: &mut CheckedStructuralValuePlans,
-        pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
         if validation::is_closed_primitive_array_type(self.program, expected) {
             return None;
@@ -1524,7 +1513,7 @@ impl Builder<'_, '_> {
         };
         let mut elements = Vec::new();
         for element in self.program.expression_table.expression_handles(literal) {
-            elements.push(self.structural_value(*element, *element_type, values, pure)?);
+            elements.push(self.structural_value(*element, *element_type)?);
         }
         Some(CheckedStructuralValueKind::FixedArray { elements })
     }
@@ -1576,8 +1565,6 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-        values: &mut CheckedStructuralValuePlans,
-        pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
         let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression).clone()
@@ -1700,7 +1687,7 @@ impl Builder<'_, '_> {
                 // checked value keeps its exact initializer for interpretation
                 // while emission skips it below the lowered representations.
                 let value = checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                    self.structural_value(initializer.value, member_type(field), values, pure)?,
+                    self.structural_value(initializer.value, member_type(field))?,
                 );
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
@@ -1742,7 +1729,7 @@ impl Builder<'_, '_> {
                 ) {
                     return None;
                 }
-                let node = values.nodes.append(CheckedStructuralValue {
+                let node = self.structural_values.nodes.append(CheckedStructuralValue {
                     expression: initializer.value,
                     kind: CheckedStructuralValueKind::ByteLiteralView {
                         bytes: bytes.to_vec(),
@@ -1761,7 +1748,7 @@ impl Builder<'_, '_> {
             let value =
                 if validation::reference_result_custody::parts(self.program, declared).is_some() {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(initializer.value, declared, values, pure)?,
+                        self.structural_value(initializer.value, declared)?,
                     )
                 } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
                     let root = self.expression(initializer.value, primitive)?;
@@ -1779,7 +1766,7 @@ impl Builder<'_, '_> {
                     checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
                 } else {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(initializer.value, declared, values, pure)?,
+                        self.structural_value(initializer.value, declared)?,
                     )
                 };
             fields.push(checked_trees::CheckedStructuralRecordField {
@@ -1794,7 +1781,7 @@ impl Builder<'_, '_> {
             if zeroed_scalar_array_parts(self.program, declared).is_none() {
                 // Structural members carry no element roster: the emitted
                 // EstablishZeroedStructural owns the whole shape's zeros.
-                let node = values.nodes.append(CheckedStructuralValue {
+                let node = self.structural_values.nodes.append(CheckedStructuralValue {
                     expression,
                     kind: CheckedStructuralValueKind::ZeroedStructural {},
                 });
@@ -1821,7 +1808,7 @@ impl Builder<'_, '_> {
             // This literal has no authored scalar occurrence. The zeroed array
             // owns its node; structural replay checks the declared carrier,
             // element count and literal zero before emission.
-            let node = values.nodes.append(CheckedStructuralValue {
+            let node = self.structural_values.nodes.append(CheckedStructuralValue {
                 expression,
                 kind: CheckedStructuralValueKind::ZeroedScalarArray {
                     element,
@@ -1837,7 +1824,7 @@ impl Builder<'_, '_> {
         }
         Some(CheckedStructuralValueKind::Record {
             data_symbol: literal.type_symbol,
-            fields: values.record_fields.insert_many(fields),
+            fields: self.structural_values.record_fields.insert_many(fields),
         })
     }
 
@@ -1850,8 +1837,6 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-        values: &mut CheckedStructuralValuePlans,
-        pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
         let constructor =
             validation::structural_case_constructor(self.program, expression, expected)?;
@@ -1870,7 +1855,7 @@ impl Builder<'_, '_> {
             let value =
                 if validation::reference_result_custody::parts(self.program, declared).is_some() {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(value_expression, declared, values, pure)?,
+                        self.structural_value(value_expression, declared)?,
                     )
                 } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
                     let root = self.expression(value_expression, primitive)?;
@@ -1888,7 +1873,7 @@ impl Builder<'_, '_> {
                     checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
                 } else {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(value_expression, declared, values, pure)?,
+                        self.structural_value(value_expression, declared)?,
                     )
                 };
             fields.push(checked_trees::CheckedStructuralRecordField {
@@ -1906,7 +1891,7 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::StructuralCase {
             data_symbol: literal.type_symbol,
             case: constructor.case,
-            fields: values.record_fields.insert_many(fields),
+            fields: self.structural_values.record_fields.insert_many(fields),
         })
     }
 }

@@ -133,6 +133,7 @@ pub(crate) fn validate_computation_calls(
             }
             CheckedScalarComputationKind::StructuralField {
                 source_expression,
+                receiver_value,
                 subject,
                 field,
             } => {
@@ -144,18 +145,27 @@ pub(crate) fn validate_computation_calls(
                     *source_expression,
                     node.primitive_type,
                 )?;
-                crate::expression_preparation::source_custody::record_fields::validate_source(
-                    checked,
-                    machine,
-                    state,
-                    statement,
-                    *source_expression,
-                    subject,
-                    *field,
-                    node.primitive_type,
-                )?;
-                if let Some(facts::PlaceRoot::Expression(canonical_subject)) =
-                    subject.structural_storage_root()
+                let receiver_operands =
+                    crate::expression_preparation::source_custody::record_fields::validate_source(
+                        checked,
+                        machine,
+                        state,
+                        statement,
+                        *source_expression,
+                        *receiver_value,
+                        subject,
+                        *field,
+                        node.primitive_type,
+                    )?;
+                pending.extend(
+                    receiver_operands
+                        .into_iter()
+                        .rev()
+                        .map(|(root, expression)| (root, false, expression)),
+                );
+                if !receiver_value.is_valid()
+                    && let Some(facts::PlaceRoot::Expression(canonical_subject)) =
+                        subject.structural_storage_root()
                 {
                     let (_, authored_state) = authored_state(checked, state)?;
                     let mut receivers = expression_membership(checked, *source_expression, true)?

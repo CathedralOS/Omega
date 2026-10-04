@@ -106,8 +106,12 @@ pub(crate) fn reachable_nodes(
             }
             CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { .. }
-            | CheckedScalarComputationKind::Value(_)
-            | CheckedScalarComputationKind::StructuralField { .. } => {}
+            | CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::StructuralField { receiver_value, .. } => {
+                if receiver_value.is_valid() {
+                    pending.extend(structural_dependencies(checked, *receiver_value)?.scalars);
+                }
+            }
             CheckedScalarComputationKind::Select {
                 condition,
                 when_true,
@@ -150,6 +154,92 @@ pub(crate) fn reachable_nodes(
         }
     }
     Ok(visited)
+}
+
+/// Follow retained value dependencies, not source syntax. Reservation and
+/// scalar discovery consume the same structural graph; neither may replace a
+/// complete receiver with the field eventually observed from it.
+pub(crate) struct StructuralDependencies {
+    pub(crate) values: Vec<checked_trees::CheckedStructuralValueHandle>,
+    pub(crate) scalars: Vec<Computation>,
+}
+
+pub(crate) fn structural_dependencies(
+    checked: &CheckedTrees,
+    root: checked_trees::CheckedStructuralValueHandle,
+) -> Result<StructuralDependencies, LoweringError> {
+    use checked_trees::{
+        CheckedStructuralRecordFieldValue as Field, CheckedStructuralValueKind as Value,
+    };
+    let plans = &checked.facts.values.structural_values;
+    let mut pending = vec![root];
+    let mut values = Vec::new();
+    let mut scalars = Vec::new();
+    while let Some(value) = pending.pop() {
+        if !plans.nodes.is_valid(value) {
+            return unsupported("structural computation has a stale value dependency");
+        }
+        if values.contains(&value) {
+            continue;
+        }
+        values.push(value);
+        match &plans.nodes.get(value).kind {
+            Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
+                for field in plans
+                    .record_fields
+                    .span(*fields)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural computation has stale fields",
+                    ))?
+                {
+                    match field.value {
+                        Field::Scalar(root) => scalars.push(root),
+                        Field::Structural(root) => pending.push(root),
+                    }
+                }
+            }
+            Value::Dispatch { subject, arms } => {
+                scalars.push(*subject);
+                for arm in plans
+                    .dispatch_arms
+                    .span(*arms)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural computation has stale arms",
+                    ))?
+                {
+                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
+                    {
+                        scalars.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
+            Value::Case(subject) => {
+                scalars.extend(fields(checked, subject)?.iter().map(|field| field.value))
+            }
+            Value::Projection { source, .. } => pending.push(*source),
+            Value::FixedArray { elements } => pending.extend(elements),
+            Value::ScalarArray { elements } => scalars.extend(elements),
+            Value::ZeroedScalarArray { element, .. } => scalars.push(*element),
+            Value::BorrowedSliceView { region, .. } | Value::MutableSliceView { region, .. } => {
+                if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
+                    start, ..
+                } = region
+                {
+                    scalars.push(*start);
+                }
+            }
+            Value::Reference { .. }
+            | Value::Call { .. }
+            | Value::Place(_)
+            | Value::ByteLiteralView { .. }
+            | Value::ScalarCasePlace { .. }
+            | Value::CopiedStructuralPlace { .. }
+            | Value::ViewElementCopy { .. }
+            | Value::ZeroedStructural {} => {}
+        }
+    }
+    Ok(StructuralDependencies { values, scalars })
 }
 pub(crate) fn extend_elements(
     plans: &checked_trees::CheckedScalarComputationPlans,

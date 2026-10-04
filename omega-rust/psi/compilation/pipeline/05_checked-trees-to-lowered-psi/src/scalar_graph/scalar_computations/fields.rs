@@ -39,16 +39,122 @@ pub(crate) use crate::expression_preparation::bindings::recast_records::LoanedSo
 use crate::expression_preparation::bindings::recast_records::{
     ByteOverlayField, ByteOverlaySource, ByteRecordCapture, ByteRecordLoan, byte_overlay_read,
 };
+use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
+impl super::Expansion<'_> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn structural_field(
+        &mut self,
+        receiver: checked_trees::CheckedStructuralValueHandle,
+        subject: &CheckedUnitStructuralArgumentPlan,
+        field: symbols::SymbolHandle,
+        primitive: PrimitiveType,
+        input_types: &[super::QualifiedScalarType],
+        target: usize,
+        site: &super::Site<'_>,
+    ) -> Result<usize, LoweringError> {
+        let (machine, state) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            site.state,
+        )?;
+        let mut completed = None;
+        let mut discards = Vec::new();
+        let expression = if receiver.is_valid() {
+            let values = &self.checked.facts.values.structural_values;
+            let root = values
+                .root_for_expression(
+                    site.state,
+                    site.statement,
+                    values.nodes.get(receiver).expression,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "computed receiver lost its complete value root",
+                ))?;
+            // Disposal is a property of the produced type, not of the field
+            // selected from it. Never erase a nominal hook or a reference debt
+            // by describing an arbitrary affine record as a trivial discard.
+            if !validation::has_plain_owned_contents_with_numeric_constraints(
+                &self.checked.typed,
+                root.type_reference,
+            ) {
+                return unsupported(
+                    "unimplemented: computed receiver disposal requires its nontrivial cleanup plan",
+                );
+            }
+            let prepared = structural_values::prepare_value(
+                self.checked,
+                self.qualifications,
+                site.statement,
+                receiver,
+                root.type_reference,
+                site.bindings,
+                input_types,
+                self.structural_types,
+                receiver_storage(self.fields, subject, field)?,
+            )?;
+            if self.checked.type_multiplicity(root.type_reference)
+                == language_semantics::Multiplicity::Affine
+            {
+                discards.push(prepared.place);
+            }
+            let expression = completed_observation(
+                self.fields,
+                site.bindings,
+                subject,
+                field,
+                primitive,
+                prepared.place,
+            )?;
+            completed = Some(prepared);
+            expression
+        } else {
+            observation(
+                self.fields,
+                site.bindings,
+                machine,
+                self.checked.state_parameters(state),
+                subject,
+                field,
+                primitive,
+            )?
+        };
+        let mut arguments = super::parameters(input_types);
+        arguments.push(super::parameter(
+            input_types.len(),
+            terminal_scalar_type(primitive)?.into(),
+        ));
+        let observation = self.push(crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            structural_effects: Vec::new(),
+            parameter_types: input_types.to_vec(),
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
+            terminator: crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator::Jump {
+                target, arguments,
+                trivial_affine_discards: discards,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+            },
+        });
+        match completed {
+            Some(value) => value.finish(site.state, site.bindings, input_types, observation, self),
+            None => Ok(observation),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Binding {
     symbol: symbols::SymbolHandle,
     subject: CheckedUnitStructuralArgumentPlan,
+    receiver: Option<structural_values::Storage>,
     /// The established place this read resolves through when the subject is a
     /// shared `&`-record loan local rather than an established place of its
     /// own. The captured place supplies the source and the canonical prefix
@@ -804,6 +910,7 @@ pub(crate) fn prepare(
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<Vec<Binding>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut bindings: Vec<Binding> = Vec::new();
@@ -816,6 +923,7 @@ pub(crate) fn prepare(
             let node = plans.nodes.get(handle);
             let CheckedScalarComputationKind::StructuralField {
                 source_expression,
+                receiver_value,
                 subject,
                 field,
             } = &node.kind
@@ -1112,6 +1220,15 @@ pub(crate) fn prepare(
             bindings.push(Binding {
                 symbol: *field,
                 subject: subject.clone(),
+                receiver: if receiver_value.is_valid() {
+                    Some(structural_values::Storage::reserve(
+                        checked,
+                        *receiver_value,
+                        next_place,
+                    )?)
+                } else {
+                    None
+                },
                 loan_source,
                 byte_overlay,
                 carrier_path,
@@ -1131,6 +1248,20 @@ pub(crate) fn prepare(
         }
     }
     Ok(bindings)
+}
+
+pub(super) fn receiver_storage<'a>(
+    fields: &'a [Binding],
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+) -> Result<&'a structural_values::Storage, LoweringError> {
+    fields
+        .iter()
+        .find(|binding| binding.symbol == field && binding.subject == *subject)
+        .and_then(|binding| binding.receiver.as_ref())
+        .ok_or(LoweringError::Unsupported(
+            "computed field receiver has no reserved storage",
+        ))
 }
 
 /// The source-side walk for a read through a typed record view: the canonical
@@ -1295,6 +1426,29 @@ pub(super) fn observation(
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    let binding = field_binding(fields, subject, field, primitive)?;
+    let source = observation_source(binding, bindings, machine, parameters, subject)?;
+    observe(binding, bindings, source)
+}
+
+pub(super) fn completed_observation(
+    fields: &[Binding],
+    bindings: &storage::ScalarBindings,
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+    source: semantic_vocabulary::PlaceId,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let binding = field_binding(fields, subject, field, primitive)?;
+    observe(binding, bindings, source)
+}
+
+fn field_binding<'a>(
+    fields: &'a [Binding],
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+) -> Result<&'a Binding, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive)?;
     let mut matching = fields.iter().filter(|binding| {
         binding.symbol == field && binding.subject == *subject && binding.scalar_type == scalar_type
@@ -1305,13 +1459,23 @@ pub(super) fn observation(
     if matching.next().is_some() {
         return unsupported("record read has ambiguous field bindings");
     }
+    Ok(binding)
+}
+
+fn observation_source(
+    binding: &Binding,
+    bindings: &storage::ScalarBindings,
+    machine: &checked_trees::machine::Machine,
+    parameters: &[checked_trees::signature::StateParameter],
+    subject: &CheckedUnitStructuralArgumentPlan,
+) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
     // The ordinary shared-argument join already resolves an exact live local
     // without transferring it. Field replay admits only StructuralLocal sources;
     // use that same current storage mapping instead of a parallel read map. A
     // shared `&`-record loan local never enters that roster — it mints no place
     // — so the read resolves the captured parameter's place directly and lets
     // the emitted canonical path name the referee below it.
-    let source = match binding.loan_source {
+    Ok(match binding.loan_source {
         Some(LoanedSource::Parameter(parameter_index)) => {
             bindings
                 .borrowed_structural_argument(
@@ -1344,7 +1508,15 @@ pub(super) fn observation(
             )?
             .place,
         None => bindings.shared_structural_place(subject, machine, parameters)?,
-    };
+    })
+}
+
+fn observe(
+    binding: &Binding,
+    bindings: &storage::ScalarBindings,
+    source: semantic_vocabulary::PlaceId,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let scalar_type = binding.scalar_type;
     if let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
         binding.path.as_slice()
         && let Some(payload) =

@@ -689,28 +689,20 @@ impl<'a> Expansion<'a> {
                 target,
                 site,
             )?,
-            CheckedScalarComputationKind::StructuralField { subject, field, .. } => {
-                let (site_machine, site_authored) =
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        site.state,
-                    )?;
-                let expression = fields::observation(
-                    self.fields,
-                    site.bindings,
-                    site_machine,
-                    self.checked.state_parameters(site_authored),
-                    &subject,
-                    field,
-                    node.primitive_type,
-                )?;
-                self.binding(
-                    input_types,
-                    input_types.len(),
-                    target,
-                    LoweredScalarBinding::Expression(expression),
-                )
-            }
+            CheckedScalarComputationKind::StructuralField {
+                receiver_value,
+                subject,
+                field,
+                ..
+            } => self.structural_field(
+                receiver_value,
+                &subject,
+                field,
+                node.primitive_type,
+                input_types,
+                target,
+                site,
+            )?,
             CheckedScalarComputationKind::CaseMembership { subject, case, .. } => {
                 self.case_membership(&subject, case, input_types, target, site, active)?
             }
