@@ -469,36 +469,26 @@ pub(super) fn collect_reads<'a, 'b>(
         // of `value`. A writing axis is admitted only with its complete
         // footprint: the carrier at this statement supplying the resident
         // place, every stored-operand read, and — for the axes that observe a
-        // prior — a `result` destination naming current local storage whose
-        // symbol the update model reuses as its prior placeholder. The
-        // ordering plan, custody agreement, and result shape are rechecked
-        // per axis so a writing operation cannot borrow the load's
-        // place-shaped footprint, a store of unproven operand reads stays
-        // incomplete, and a compare-exchange whose failure path does not
-        // reduce to the scalar prior model (the single-attempt observing
-        // form, an illegal failure ordering, or a substituted update) never
-        // claims a footprint either.
+        // prior — a `result` destination naming current local storage. The
+        // parser validates orderings and builds the desugar shape, and typing
+        // rejects custody that disagrees with the ordering axis; this walk
+        // reads them as given.
         ExpressionNode::Atomic(atomic) => {
             let footprint_start = reads.len();
             match atomic.ordering {
-                language_core::atomic::AtomicOrderingPlan::Load(ordering) => {
-                    ordering.valid_for_load()
-                        && atomic.result_custody.is_valid_for(atomic.ordering)
-                        && !atomic.result_custody.requires_result_destination()
-                        && !atomic.result.is_valid()
-                        && collect_reads(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            atomic.value,
-                            calls,
-                            operators,
-                            reads,
-                            depth + 1,
-                            bound_lookup,
-                        )
-                        && reads.len() > footprint_start
+                language_core::atomic::AtomicOrderingPlan::Load(_) => {
+                    collect_reads(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        atomic.value,
+                        calls,
+                        operators,
+                        reads,
+                        depth + 1,
+                        bound_lookup,
+                    ) && reads.len() > footprint_start
                 }
                 _ => collect_atomic_write_reads(
                     program,
@@ -564,11 +554,10 @@ fn static_application_carries_no_caller_storage(
 /// and the `result` destination the carrier materializes into — a slot the
 /// carrier owns, so a write reaching it can never slip past the recorded
 /// label. The model's prior positions are placeholders for the
-/// instruction-observed pre-write value; they are pinned to name the same
-/// symbol `result` receives and are never scanned as local reads. Any
-/// missing carrier, illegal ordering plan, non-scalar custody,
-/// missing/substituted result destination, or unrecognized update shape
-/// leaves the footprint incomplete.
+/// instruction-observed pre-write value naming the same local `result`
+/// receives; they are never scanned as local reads. A missing carrier or a
+/// result destination that is not current local storage leaves the
+/// footprint incomplete.
 fn collect_atomic_write_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
@@ -583,31 +572,22 @@ fn collect_atomic_write_reads<'a, 'b>(
     bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::atomic::AtomicOrderingPlan;
-    // Canonical scalar custody is the only result form a scalar read set can
-    // describe; the observing single-attempt custody names an outcome carrier
-    // whose failure path may be an uncommitted attempt, never the resident
-    // place's prior value.
-    if !atomic.result_custody.is_valid_for(atomic.ordering)
-        || atomic.result_custody.requires_result_destination()
-    {
-        return false;
-    }
     let Some(resident) = atomic_carrier_target(program, state, statement_index, expression) else {
         return false;
     };
     let (operands, result_symbol): (Vec<ExpressionHandle>, Option<SymbolHandle>) = match atomic
         .ordering
     {
-        AtomicOrderingPlan::Load(_) => return false,
-        // `place.store(v, ordering)` reads the resident place and the
-        // stored operand `v`; a store that also names a result is not the
-        // desugar's shape.
-        AtomicOrderingPlan::Store(ordering) => {
-            if !ordering.valid_for_store() || atomic.result.is_valid() {
-                return false;
-            }
-            (vec![atomic.value], None)
+        // A load is the place-shaped observation `collect_reads` admits; the
+        // single-attempt observing compare-exchange names an outcome carrier
+        // whose failure path may be an uncommitted attempt, never the
+        // resident place's prior value, so it has no scalar footprint.
+        AtomicOrderingPlan::Load(_) | AtomicOrderingPlan::CompareExchangeOnce { .. } => {
+            return false;
         }
+        // `place.store(v, ordering)` reads the resident place and the
+        // stored operand `v`.
+        AtomicOrderingPlan::Store(_) => (vec![atomic.value], None),
         // `let r = place.swap(v, ordering)` reads the displaced prior into
         // `r` and writes `v`; `value` is the replacement operand.
         AtomicOrderingPlan::Swap(_) => {
@@ -618,56 +598,32 @@ fn collect_atomic_write_reads<'a, 'b>(
             };
             (vec![atomic.value], Some(result_symbol))
         }
-        // `let r = place.fetch_op(d, ordering)` models `prior OP d`. The
-        // model's left operand must be the observed-prior placeholder
-        // naming `r`; `d` is the instruction's only other operand read.
+        // `let r = place.fetch_op(d, ordering)` models `prior OP d`; `d` is
+        // the instruction's only other operand read.
         AtomicOrderingPlan::ReadModifyWrite(_) => {
             let Some(result_symbol) =
                 atomic_local_name_symbol(program, machine, state, statement_index, atomic.result)
             else {
                 return false;
             };
-            let Some(operand) = atomic_fetch_operand(
-                program,
-                machine,
-                state,
-                statement_index,
-                atomic,
-                result_symbol,
-            ) else {
+            let Some(operand) = atomic_fetch_operand(program, atomic) else {
                 return false;
             };
             (vec![operand], Some(result_symbol))
         }
         // A decisive compare-exchange reads the resident prior plus the
-        // expected and replacement operands. Its `value` must be the
-        // desugar's exact `prior + (prior == expected) * (replacement -
-        // prior)` update model — anything else, including the
-        // single-attempt observing form (whose uncommitted-attempt
-        // failure path has no scalar prior), has no complete scalar
-        // footprint.
-        AtomicOrderingPlan::CompareExchange { success, failure } => {
-            if !failure.valid_compare_exchange_failure(success) {
-                return false;
-            }
+        // expected and replacement operands of its update model.
+        AtomicOrderingPlan::CompareExchange { .. } => {
             let Some(result_symbol) =
                 atomic_local_name_symbol(program, machine, state, statement_index, atomic.result)
             else {
                 return false;
             };
-            let Some(operands) = atomic_compare_exchange_operands(
-                program,
-                machine,
-                state,
-                statement_index,
-                atomic,
-                result_symbol,
-            ) else {
+            let Some(operands) = atomic_compare_exchange_operands(program, atomic) else {
                 return false;
             };
             (operands.to_vec(), Some(result_symbol))
         }
-        AtomicOrderingPlan::CompareExchangeOnce { .. } => return false,
     };
     collect_place_read(
         program,
@@ -779,121 +735,40 @@ fn atomic_local_name_symbol(
     .then_some(symbol)
 }
 
-/// `expression` is the observed-prior placeholder: a single-member name
-/// bound to the result destination's symbol, not an independent local read.
-fn atomic_prior_placeholder(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    result_symbol: SymbolHandle,
-) -> Option<()> {
-    (atomic_local_name_symbol(program, machine, state, statement_index, expression)
-        == Some(result_symbol))
-    .then_some(())
-}
-
-/// The fetch model is `prior OP operand`; its left operand is the
-/// observed-prior placeholder (naming the result destination, never scanned
-/// as a read) and its right operand is the authored operand `d`. Operators
-/// outside the sealed fetch family are not a stable instruction shape.
+/// The fetch update model the parser's desugar builds is `prior OP operand`:
+/// its left operand is the observed-prior placeholder naming the result
+/// destination, and its right operand is the authored operand `d`.
 fn atomic_fetch_operand(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
     atomic: &typed_trees::expression::TableAtomicExpression,
-    result_symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    use typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(binary) = program.expression_table.expression(atomic.value) else {
         return None;
     };
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Add
-            | BinaryOperator::Subtract
-            | BinaryOperator::BitwiseXor
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseAnd
-    ) {
-        return None;
-    }
-    atomic_prior_placeholder(
-        program,
-        machine,
-        state,
-        statement_index,
-        binary.left,
-        result_symbol,
-    )?;
     Some(binary.right)
 }
 
-/// The decisive compare-exchange model is
+/// The decisive compare-exchange update model the parser's desugar builds is
 /// `prior + (prior == expected) * (replacement - prior)`: the resident prior
-/// is read through three placeholder positions (all pinned to the result
-/// symbol) and the remaining reads are exactly the expected and replacement
-/// operands. Any other update shape has no complete scalar footprint.
+/// is read through placeholder positions naming the result destination, and
+/// the remaining reads are exactly the expected and replacement operands.
 fn atomic_compare_exchange_operands(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
     atomic: &typed_trees::expression::TableAtomicExpression,
-    result_symbol: SymbolHandle,
 ) -> Option<[ExpressionHandle; 2]> {
-    use typed_trees::expression::BinaryOperator;
     let ExpressionNode::Binary(sum) = program.expression_table.expression(atomic.value) else {
         return None;
     };
-    if sum.operator != BinaryOperator::Add {
-        return None;
-    }
-    atomic_prior_placeholder(
-        program,
-        machine,
-        state,
-        statement_index,
-        sum.left,
-        result_symbol,
-    )?;
     let ExpressionNode::Binary(product) = program.expression_table.expression(sum.right) else {
         return None;
     };
-    if product.operator != BinaryOperator::Multiply {
-        return None;
-    }
     let ExpressionNode::Binary(equal) = program.expression_table.expression(product.left) else {
         return None;
     };
-    if equal.operator != BinaryOperator::Equal {
-        return None;
-    }
-    atomic_prior_placeholder(
-        program,
-        machine,
-        state,
-        statement_index,
-        equal.left,
-        result_symbol,
-    )?;
     let ExpressionNode::Binary(difference) = program.expression_table.expression(product.right)
     else {
         return None;
     };
-    if difference.operator != BinaryOperator::Subtract {
-        return None;
-    }
-    atomic_prior_placeholder(
-        program,
-        machine,
-        state,
-        statement_index,
-        difference.right,
-        result_symbol,
-    )?;
     Some([equal.right, difference.left])
 }
 
