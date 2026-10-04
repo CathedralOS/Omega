@@ -387,7 +387,7 @@ pub(in crate::execution) fn admit_replayed(
 }
 
 /// Range admission without endpoints: the target is an exact readable
-/// borrowed view, the authored range is exclusive and builtin, and the
+/// borrowed view, the authored range is builtin, and the
 /// collection either holds an established view of the same kind and identity
 /// or names readable array storage with exactly the view's element type.
 pub(in crate::execution) fn shape(
@@ -449,12 +449,6 @@ fn shape_of_kind(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
-    if range.end_inclusive {
-        return None;
-    }
     let type_identity = match kind {
         ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
         ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),

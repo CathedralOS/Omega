@@ -290,17 +290,29 @@ pub(super) fn actual(
         } else {
             Polynomial::default()
         };
-        let end = if range.end.is_valid() {
+        let mut end = if range.end.is_valid() {
             engine.normalize(range.end)?
         } else {
             source.clone()
         };
+        let authored_end = end.clone();
+        if range.end_inclusive {
+            if !range.end.is_valid() {
+                return None;
+            }
+            end = end.add(&Polynomial::constant(BigInt::from_u64(1)));
+        }
         let prove = |difference: Polynomial| {
             engine.requires_unsatisfiable
                 || engine.prove_at_least(&engine.substituted(&difference), &BigInt::zero())
         };
-        return (prove(start.clone()) && prove(end.sub(&start)) && prove(source.sub(&end)))
-            .then(|| end.sub(&start));
+        // Normalizing -1 to zero must not make an invalid inclusive index a
+        // valid empty window. Check the authored index before its successor.
+        return (prove(start.clone())
+            && (!range.end_inclusive || prove(authored_end))
+            && prove(end.sub(&start))
+            && prove(source.sub(&end)))
+        .then(|| end.sub(&start));
     }
     // The actual names no formal coordinate, but its produced length can still
     // be exact caller evidence: a state-local slice binding's own extent, or a

@@ -962,6 +962,8 @@ pass/slices/runtime_call_endpoint_argument_exit built 1940ms exit:70 @6376683557
 pass/slices/runtime_call_endpoint_field_transition_exit built 1853ms exit:70 @637668355701+wt
 pass/slices/runtime_call_endpoint_order_exit built 2021ms exit:70 @637668355701+wt
 pass/slices/runtime_call_endpoint_view_exit built 1766ms exit:70 @637668355701+wt
+pass/slices/runtime_inclusive_call_endpoint_order_exit built 1788ms exit:70 @dd31f301c60c+wt
+pass/slices/runtime_inclusive_call_endpoint_view_exit built 1859ms exit:70 @dd31f301c60c+wt
 pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9580a54d+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922

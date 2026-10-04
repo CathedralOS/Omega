@@ -85,12 +85,14 @@ pub fn subslice_expression(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
         return None;
     };
-    matches!(program.expression_table.expression(indexed.index),
-        ExpressionNode::Range(range) if !range.end_inclusive)
+    matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    )
     .then_some(operation)
 }
 
-/// Recognize exclusive builtin subslicing without granting bounds, source
+/// Recognize builtin subslicing without granting bounds, source
 /// custody, or permission to use the resulting view.
 pub fn has_builtin_subslice_meaning(
     program: &TypedTrees,
@@ -104,9 +106,6 @@ pub fn has_builtin_subslice_meaning(
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return false;
     };
-    if range.end_inclusive {
-        return false;
-    }
     let operands = [
         declared_place_type_raw(program, machine, state, indexed.collection),
         declared_place_type_raw(program, machine, state, range.start),

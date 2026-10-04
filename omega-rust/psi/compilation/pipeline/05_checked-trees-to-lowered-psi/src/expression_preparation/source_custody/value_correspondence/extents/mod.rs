@@ -200,8 +200,10 @@ impl Context<'_> {
         else {
             return false;
         };
-        !range.end_inclusive
-            && start <= end
+        let Some(end) = end.checked_add(u64::from(range.end_inclusive)) else {
+            return false;
+        };
+        start <= end
             && end <= length
             && self.indexed_builtin(source, language_core::OperatorSpelling::Range)
             && validation::has_builtin_subslice_meaning(
@@ -275,7 +277,10 @@ impl Context<'_> {
                     ) else {
                         return None;
                     };
-                    return end.value_u64()?.checked_sub(start.value_u64()?);
+                    return end
+                        .value_u64()?
+                        .checked_add(u64::from(range.end_inclusive))?
+                        .checked_sub(start.value_u64()?);
                 }
                 let ExpressionNode::Integer(index) =
                     self.checked.expression_table.expression(indexed.index)
@@ -340,12 +345,7 @@ impl Context<'_> {
     /// evidence. Without the plan the slice is never materialized and its
     /// bounds go unchecked.
     fn slice_backed_subslice(&self, source: ExpressionHandle) -> bool {
-        let ExpressionNode::Indexed(indexed) = self.checked.expression_table.expression(source)
-        else {
-            return false;
-        };
-        let ExpressionNode::Range(range) = self.checked.expression_table.expression(indexed.index)
-        else {
+        let ExpressionNode::Indexed(_) = self.checked.expression_table.expression(source) else {
             return false;
         };
         let Ok((machine, state)) =
@@ -353,8 +353,7 @@ impl Context<'_> {
         else {
             return false;
         };
-        if range.end_inclusive
-            || !self.indexed_builtin(source, language_core::OperatorSpelling::Range)
+        if !self.indexed_builtin(source, language_core::OperatorSpelling::Range)
             || !validation::has_builtin_subslice_meaning(
                 &self.checked.typed,
                 machine,

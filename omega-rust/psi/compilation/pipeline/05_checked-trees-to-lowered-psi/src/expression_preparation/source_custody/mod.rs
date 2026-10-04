@@ -351,9 +351,6 @@ pub(crate) fn locate(
                 else {
                     return None;
                 };
-                if range.end_inclusive {
-                    return None;
-                }
                 let endpoint = if matches!(role, CheckedScalarExpressionRole::SubsliceStart { .. })
                 {
                     range.start

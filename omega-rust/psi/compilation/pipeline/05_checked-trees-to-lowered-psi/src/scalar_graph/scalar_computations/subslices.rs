@@ -313,6 +313,7 @@ impl super::Expansion<'_> {
             endpoint_types.push(value_type);
         }
         let [start, end] = completed;
+        let end = view_ranges::exclusive_end(self.checked, range.expression, end)?;
         let start = start.unwrap_or(
             crate::emission::operation_emission::expressions::LoweredDirectExpression::IntegerLiteral {
                 value: semantic_vocabulary::IntegerValue::Unsigned(0),

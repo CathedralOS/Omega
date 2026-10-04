@@ -88,6 +88,8 @@ pass/slices/runtime_call_endpoint_argument_exit built 2035ms exit:70 interpreter
 pass/slices/runtime_call_endpoint_field_transition_exit built 1950ms exit:70 interpreter-exit:70 interpreter:agrees @637668355701+wt
 pass/slices/runtime_call_endpoint_order_exit built 2115ms exit:70 interpreter-exit:70 interpreter:agrees @637668355701+wt
 pass/slices/runtime_call_endpoint_view_exit built 1868ms exit:70 interpreter-exit:70 interpreter:agrees @637668355701+wt
+pass/slices/runtime_inclusive_call_endpoint_order_exit built 1970ms exit:70 interpreter-exit:70 interpreter:agrees @dd31f301c60c+wt
+pass/slices/runtime_inclusive_call_endpoint_view_exit built 2053ms exit:70 interpreter-exit:70 interpreter:agrees @dd31f301c60c+wt
 pass/slices/runtime_indexed_record_field_range_exit built 7278ms exit:0 interpreter-exit:0 interpreter:agrees @d10c66094158
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4

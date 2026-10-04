@@ -1034,7 +1034,7 @@ fn exact_inline_literal_subslice_length(
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return None;
     };
-    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+    if !range.start.is_valid() || !range.end.is_valid() {
         return None;
     }
     let ExpressionNode::Integer(start) = program.expression_table.expression(range.start) else {
@@ -1043,7 +1043,10 @@ fn exact_inline_literal_subslice_length(
     let ExpressionNode::Integer(end) = program.expression_table.expression(range.end) else {
         return None;
     };
-    let length = end.value_u64()?.checked_sub(start.value_u64()?)?;
+    let length = end
+        .value_u64()?
+        .checked_add(u64::from(range.end_inclusive))?
+        .checked_sub(start.value_u64()?)?;
     let length = i64::try_from(length).ok()?;
     Some(CheckedScalarExpression::IntegerLiteral {
         literal: numerics::literals::IntegerLiteral::from_value(length).with_landing(

@@ -50,8 +50,11 @@ pub(crate) fn captured_range(
         if !range.end.is_valid() {
             return None;
         }
-        let end =
+        let mut end =
             usize::try_from(checked.expression_table.constant_integer_value(range.end)?).ok()?;
+        if range.end_inclusive {
+            end = end.checked_add(1)?;
+        }
         Some((start, end))
     })();
     let segment = match fixed_bounds {

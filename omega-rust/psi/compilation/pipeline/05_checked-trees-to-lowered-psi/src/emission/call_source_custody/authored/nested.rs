@@ -521,12 +521,8 @@ pub(super) fn authored_occurrences(
                 None
             }
             ExpressionNode::Indexed(indexed)
-                if !matches!(table.expression(indexed.index), ExpressionNode::Range(range) if range.end_inclusive)
-                    && (direct_argument
-                        || !matches!(
-                            table.expression(indexed.index),
-                            ExpressionNode::Range(_)
-                        )) =>
+                if direct_argument
+                    || !matches!(table.expression(indexed.index), ExpressionNode::Range(_)) =>
             {
                 // A runtime index is walked the way the checker numbers it:
                 // the collection keeps the operand's directness while the
@@ -535,7 +531,7 @@ pub(super) fn authored_occurrences(
                 children.push((indexed.index, false));
                 None
             }
-            ExpressionNode::Range(range) if !range.end_inclusive => {
+            ExpressionNode::Range(range) => {
                 // This walk retains occurrence order only. The subslice
                 // emitter separately rejoins the exact source and endpoints.
                 children.extend(

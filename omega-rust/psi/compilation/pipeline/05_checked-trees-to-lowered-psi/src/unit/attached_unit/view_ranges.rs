@@ -6,6 +6,11 @@
 //! evaluates an operand: each consumer emits the preparation at the range's
 //! authored position. Source replay and Terminal loan/bounds verification remain
 //! independent of this choice.
+//!
+//! Inclusive and exclusive ranges retain the same authored endpoint identities.
+//! Normalize an inclusive end only after capturing its value: a rewritten source
+//! expression would lose that identity and could repeat a call's effects. Both
+//! schedules then narrow the same half-open descriptor with exact arithmetic.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::{
@@ -567,6 +572,7 @@ pub(crate) fn emit(
             scalar_type: count_type,
         })
     });
+    let end = exclusive_end(checked, site.expression, end)?;
     let declaration = view_subslice::emit(
         source.family,
         evaluation.current_structural_place(source.place),
@@ -650,11 +656,7 @@ pub(crate) fn replay(
         site.statement as usize,
         indexed.collection,
     )?;
-    if range.end_inclusive
-        || !source_symbol.is_valid()
-        || source.root != source_symbol
-        || source.path != collection
-    {
+    if !source_symbol.is_valid() || source.root != source_symbol || source.path != collection {
         return unsupported("view subslice changed its exact collection root or projection");
     }
     if let Some((start, end)) = site.retained
@@ -773,6 +775,44 @@ pub(crate) fn replay(
             site.retained.map(|(_, end)| end),
         )?,
     ))
+}
+
+/// Normalize only the completed endpoint, never its authored computation.
+/// Inclusive bounds are checked as `end < length` in Psi; the exact successor
+/// here preserves that boundary without wrapping or evaluating an effect twice.
+/// Both scalar and Unit schedules use this same half-open descriptor operation.
+pub(crate) fn exclusive_end(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+    end: Option<LoweredDirectExpression>,
+) -> Result<Option<LoweredDirectExpression>, LoweringError> {
+    let Some(operation) = validation::subslice_expression(&checked.typed, expression) else {
+        return Ok(end);
+    };
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
+        return unsupported("view range lost its indexed expression");
+    };
+    let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
+        return unsupported("view range lost its endpoints");
+    };
+    if !range.end_inclusive {
+        return Ok(end);
+    }
+    let end = end.ok_or(LoweringError::Unsupported(
+        "inclusive range has no final endpoint",
+    ))?;
+    let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
+        checked_trees::types::PrimitiveType::U64,
+    )?;
+    Ok(Some(LoweredDirectExpression::IntegerBinary {
+        kind: crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactAdd,
+        scalar_type,
+        left: Box::new(end),
+        right: Box::new(LoweredDirectExpression::IntegerLiteral {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1),
+            scalar_type,
+        }),
+    }))
 }
 
 /// Rejoin a descriptor producer with the occurrence that evaluates its range.

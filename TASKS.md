@@ -343,13 +343,16 @@ defines the complete product bar.
     finish snapshots across writes and exclusive exposure, retaining
     case/index/generic/reference/float identity. Share capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
-    ranges now use ordinary view formation and call/state-edge evaluation:
+    ranges use ordinary view formation and call/state-edge evaluation:
     the four `pass/slices/runtime_call_endpoint_*` fixtures return 70 in both
     engines on macOS ARM64 (stored view, direct argument, ordered endpoint
     effects and projected state transfer). Keep
     `python3 tools/corpus_gate.py --both --filter runtime_call_endpoint`.
-    Finish inclusive endpoint/window transport through the shared range route,
-    preserving checked loans and exact captured endpoints. Explicit reborrows
+    Keep the same route's inclusive controls with
+    `--filter runtime_inclusive_call_endpoint` (both return 70), plus
+    `fail/slices/inclusive_*` for bounds and overlapping loans. Public acceptance is
+    `omega run tests/omega/pass/slices/runtime_inclusive_call_endpoint_view_exit/main.omg`
+    after the project's package review. Explicit reborrows
     now preserve address origins across shared-value and write-prefix queries;
     `layouts/runtime_reborrow_preserves_store_origin_exit` returns 70 in both
     engines. The public stored-view command checks the standard library, then

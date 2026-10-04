@@ -1831,7 +1831,7 @@ impl Context<'_> {
         else {
             return None;
         };
-        if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+        if !range.start.is_valid() || !range.end.is_valid() {
             return None;
         }
         let ExpressionNode::Integer(start) = self.checked.expression_table.expression(range.start)
@@ -1842,7 +1842,10 @@ impl Context<'_> {
         else {
             return None;
         };
-        let length = end.value_u64()?.checked_sub(start.value_u64()?)?;
+        let length = end
+            .value_u64()?
+            .checked_add(u64::from(range.end_inclusive))?
+            .checked_sub(start.value_u64()?)?;
         i64::try_from(length).ok()?;
         Some(length)
     }
