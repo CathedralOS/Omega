@@ -1273,17 +1273,14 @@ crash and native exit behavior.
   caller; an internal state target remains a jump.
   - Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/terminal_calls.rs`.
   - State: Unit, scalar, record, qualified-scalar, case-payload, boundary
-    requirement, shared and mutable-reference returns through acyclic internal
-    states, and effectful-guard/operand-order forms execute in both engines.
+    requirement, shared and mutable-reference returns through finite internal
+    state cycles, and effectful-guard/operand-order forms execute in both engines.
     Ordinary wrappers, mixed call/value arms, and writes through terminal and generic reference
     results retain the caller's backing storage. Returned call carriers preserve
     alternative record fields and nested argument projections, including ordinary
     reference calls from projected state parameters. Guarded reference, scalar
     and Unit completions before a crash fallback also execute in both engines.
   - Remaining:
-    - finish cyclic internal-state reference-result origins through the shared
-      state-summary fixed point. A finite Boolean-controlled backedge forwarding
-      one borrowed parameter still loses the selected field's returned origin;
     - validate the native trap oracle for
       `calls/runtime_guarded_reference_return_crash` on a host that can reap trap
       exits. The current macOS host leaves both that program and system-clang
@@ -1303,6 +1300,9 @@ crash and native exit behavior.
   `pass/calls/runtime_state_reference_field_result_exit` at 0 in both engines,
   including reordered state parameters, shared and mutable selected fields,
   ordinary reference calls from projected state parameters, and nested backing.
+  Keep `pass/calls/runtime_cyclic_state_reference_result_exit` at 0 in both
+  engines, including self-loops, multi-state cycles, and projected same-typed
+  reference parameters swapped across a backedge.
   Keep `pass/calls/runtime_guarded_reference_return_before_crash_exit` at 0 in both
   engines, including scalar and Unit completion variations. Keep
   `pass/calls/runtime_guarded_terminal_reference_result_exit` at 0 in both engines,

@@ -33,6 +33,7 @@ pass/calls/runtime_case_payload_indexed_calls_exit built 11916ms exit:70 interpr
 pass/calls/runtime_case_terminal_payload_result_exit built 1414ms exit:0 interpreter-exit:0 interpreter:agrees @9d538dd9a056
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 814ms exit:0 interpreter-exit:0 interpreter:agrees @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit built 1318ms exit:0 interpreter-exit:0 interpreter:agrees @95bd0eaccc6e
+pass/calls/runtime_cyclic_state_reference_result_exit built 8642ms exit:0 interpreter-exit:0 interpreter:agrees @8ed3ee405530
 pass/calls/runtime_explicit_reference_alias_argument_exit built 800ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpreter-exit:70 interpreter:agrees @107e79a608d59bd9eb5a38b5570d124edf1e1114+wt
 pass/calls/runtime_guarded_reference_return_before_crash_exit built 1303ms exit:0 interpreter-exit:0 interpreter:agrees @73ef9378f1a6
