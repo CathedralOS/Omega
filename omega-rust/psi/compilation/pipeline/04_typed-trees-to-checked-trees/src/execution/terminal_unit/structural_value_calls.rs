@@ -12,18 +12,46 @@ pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
     let mut shapes = ShapeCollector::new(program);
     let mut schedules = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {
-        if schedules.iter().any(|(value, _)| *value == root.root) {
+        if schedules.iter().any(|(_, _, value, _)| *value == root.root) {
             continue;
         }
         if let Some(calls) = schedule(program, facts, &mut shapes, root) {
-            schedules.push((root.root, calls));
+            schedules.push((root.machine, root.state, root.root, calls));
         }
     }
-    for (value, calls) in schedules {
-        facts
-            .values
-            .structural_values
-            .retain_calls_for_root(value, calls);
+    let mut completed = Vec::new();
+    for (machine, state, _, _) in &schedules {
+        if completed.contains(&(*machine, *state)) {
+            continue;
+        }
+        completed.push((*machine, *state));
+        let Some(operations) = caller_operations(facts, *machine, *state) else {
+            continue;
+        };
+        let mut updated = operations.clone();
+        let state_schedules = schedules
+            .iter()
+            .filter(|(owner, source, _, _)| owner == machine && source == state);
+        if consume_caller_results(
+            &mut updated,
+            state_schedules.map(|(_, _, _, calls)| calls.as_slice()),
+        )
+        .is_none()
+        {
+            // A schedule without coherent source custody is not executable.
+            // Do not publish partial transfers or the calls that would use them.
+            continue;
+        }
+        *operations = updated;
+        for (_, _, value, calls) in schedules
+            .iter()
+            .filter(|(owner, source, _, _)| owner == machine && source == state)
+        {
+            facts
+                .values
+                .structural_values
+                .retain_calls_for_root(*value, calls.clone());
+        }
     }
     // A temporary's result type need not occur in its caller's signature.
     // Retain the ordinary call builder's type declarations under the same
@@ -58,6 +86,138 @@ pub(crate) fn retain(program: &TypedTrees, facts: &mut CheckFacts) {
                 .push(domain);
         }
     }
+}
+
+/// Catalog calls execute in scalar/value continuations, while the preceding
+/// producer's disposal debt belongs to its enclosing checked operation body.
+/// Rejoin that shared namespace at publication using ordinary transfer rules.
+fn consume_caller_results<'a>(
+    operations: &mut [CheckedUnitEffectOperationPlan],
+    schedules: impl Iterator<Item = &'a [checked_trees::CheckedStructuralValueCall]>,
+) -> Option<()> {
+    let mut consumed = Vec::new();
+    for calls in schedules {
+        for producer in calls {
+            for operation in producer
+                .operands()
+                .iter()
+                .chain(std::iter::once(producer.operation()))
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            {
+                let Some(call) = operation.call() else {
+                    continue;
+                };
+                if operations
+                    .iter()
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .any(|existing| {
+                        existing
+                            .call()
+                            .is_some_and(|existing| existing.coordinate == call.coordinate)
+                    })
+                {
+                    // Statement-owned invocations already discharged these
+                    // sources when their operation sequence was constructed.
+                    continue;
+                }
+                let mut earlier = operations
+                    .iter()
+                    .filter(|operation| {
+                        operation.structural_result_binding().is_some_and(|result| {
+                            result.statement_index < call.coordinate.statement_index
+                        })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let arguments = call
+                    .structural_arguments
+                    .iter()
+                    .filter(|argument| {
+                        argument
+                            .source_structural_result_binding_ordinal()
+                            .is_some_and(|ordinal| {
+                                earlier.iter().any(|operation| {
+                                    operation
+                                        .structural_result_binding()
+                                        .is_some_and(|result| result.binding_ordinal == ordinal)
+                                })
+                            })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if arguments.is_empty() {
+                    continue;
+                }
+                if let Some((_, target, previous)) = consumed
+                    .iter()
+                    .find(|(coordinate, _, _)| *coordinate == call.coordinate)
+                {
+                    if *target != call.target.state || *previous != arguments {
+                        return None;
+                    }
+                    continue;
+                }
+                super::control::statement_sequence::consume_retained_results(
+                    &mut earlier,
+                    operation,
+                )?;
+                for producer in earlier {
+                    let binding = producer.structural_result_binding()?;
+                    let mut targets = operations.iter_mut().filter(|operation| {
+                        operation
+                            .structural_result_binding()
+                            .is_some_and(|result| result.binding_ordinal == binding.binding_ordinal)
+                    });
+                    let target = targets.next()?;
+                    if targets.next().is_some() {
+                        return None;
+                    }
+                    *target = producer;
+                }
+                consumed.push((call.coordinate, call.target.state, arguments));
+            }
+        }
+    }
+    Some(())
+}
+
+fn caller_operations(
+    facts: &mut CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+) -> Option<&mut Vec<CheckedUnitEffectOperationPlan>> {
+    let plans = &mut facts.flow.terminal_unit_effects;
+    if let Some(index) = plans
+        .machines
+        .iter()
+        .position(|plan| plan.machine == machine && plan.state == state)
+    {
+        return Some(&mut plans.machines[index].operations);
+    }
+    if let Some((owner, index)) = plans
+        .composed_machines
+        .iter()
+        .enumerate()
+        .filter(|(_, plan)| plan.machine == machine)
+        .find_map(|(owner, plan)| {
+            plan.states
+                .iter()
+                .position(|plan| plan.state == state)
+                .map(|index| (owner, index))
+        })
+    {
+        return Some(&mut plans.composed_machines[owner].states[index].operations);
+    }
+    facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == machine)?
+        .states
+        .iter_mut()
+        .find(|plan| plan.state == state)
+        .map(|plan| &mut plan.unit_operations)
 }
 
 fn schedule(

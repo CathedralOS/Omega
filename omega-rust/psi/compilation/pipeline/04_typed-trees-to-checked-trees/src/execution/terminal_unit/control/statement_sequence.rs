@@ -1578,7 +1578,7 @@ fn retain_selected_sources(
 /// preparation has its own result namespace segment; its enclosing sequence
 /// owns earlier locals. Each owner updates its own disposal debt, while source
 /// custody independently rejoins every operand across that boundary.
-pub(super) fn consume_retained_results(
+pub(in crate::execution::terminal_unit) fn consume_retained_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Option<()> {
