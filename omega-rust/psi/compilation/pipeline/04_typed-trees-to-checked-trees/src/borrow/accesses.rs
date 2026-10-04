@@ -11,7 +11,7 @@
 //! calls it into scratch arenas for the operand that follows an exclusive
 //! operation's receiver. A transition arm's target roster comes from
 //! `collect_transition_target_argument_accesses`, which also ends the reads of
-//! payloads its dispatch already copied (`dispatch_extraction`).
+//! payloads its dispatch already copied (`validation::DispatchExtraction`).
 //!
 //! `borrow_access_place` (`place`) resolves an expression to the place it
 //! accesses, with `contextual` resolving names and members in the state and
@@ -23,7 +23,6 @@ use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;
 mod collection;
 mod contextual;
-mod dispatch_extraction;
 mod place;
 mod read;
 mod records;

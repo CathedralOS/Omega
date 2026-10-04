@@ -547,11 +547,9 @@ pub(super) fn validate(
                             return unsupported("Unit case return arm changed the result type");
                         }
                     }
-                    // A case arm's terminal call would also owe the selected
-                    // subject's disposal, which no case edge retains yet.
-                    checked_trees::CheckedConditionalReturnArm::Call { .. } => {
-                        return unsupported("Unit case completion lacks subject disposal custody");
-                    }
+                    // The selected case edge disposes its subject before
+                    // entering the ordinary call-and-completion block.
+                    checked_trees::CheckedConditionalReturnArm::Call { .. } => {}
                 }
                 None
             }
@@ -657,6 +655,26 @@ pub(super) fn validate(
                 .any(|previous| previous.case_identity == case.case_identity)
         {
             return unsupported("Unit case source or declaration roster drifted");
+        }
+        if let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+            checked_trees::CheckedConditionalReturnArm::Call {
+                operands,
+                operation,
+            },
+        ) = &case.outcome
+        {
+            super::admission::validate_arm_call(
+                checked,
+                plan,
+                source,
+                state,
+                transition,
+                case.statement_ordinal() as usize,
+                operands,
+                operation,
+            )?;
+            super::result_custody::local_discards(checked, owner, source, state, None)?;
+            continue;
         }
         let (
             Some(successor),

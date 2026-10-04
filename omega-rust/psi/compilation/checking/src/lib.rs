@@ -57,6 +57,7 @@ pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bou
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
 };
+pub use value_custody::dispatch_extraction::DispatchExtraction;
 pub use value_custody::owned_value_source::{
     affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
 };

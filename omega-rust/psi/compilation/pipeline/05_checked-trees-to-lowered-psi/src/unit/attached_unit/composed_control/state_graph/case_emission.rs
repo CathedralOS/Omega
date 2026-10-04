@@ -1,4 +1,4 @@
-//! Selected payload bindings feed the ordinary successor argument path.
+//! Selected payload bindings feed ordinary successor arguments and completions.
 use super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralAccess, StructuralCaseId,
     StructuralFieldId, StructuralParameterDeclaration,
@@ -142,11 +142,32 @@ pub(super) fn prepare<'a>(
             // forward; a successor argument expression that reads this case's
             // payload (a `[Case, Field]` scalar leaf below the subject) binds
             // the field as an extra staged-block formal the expression reads
-            // back through the edge's namespace tail. A returning arm has no
-            // successor argument list to scan.
+            // back through the edge's namespace tail. A returning arm uses
+            // the same selected payload namespace for its value and operands.
             let successor = match &case.outcome {
                 checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor,
                 checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => {
+                    // As with a guard dispatch, bind relevant scalar payloads
+                    // on the selected edge before any completion operand runs.
+                    // The whole subject may be disposed on that edge; these
+                    // copied values remain available in its dominated block.
+                    for field in &declared.fields {
+                        if field.relevance.is_erased() || fields.contains(&field.id) {
+                            continue;
+                        }
+                        let Some(scalar_type) = field.field_type.scalar_type() else {
+                            continue;
+                        };
+                        fields.push(field.id);
+                        values.push((
+                            u32::MAX,
+                            ValueDeclaration {
+                                qualifications: Default::default(),
+                                id: value_id(allocate_dense(next_value)?),
+                                scalar_type,
+                            },
+                        ));
+                    }
                     return Ok(PreparedCase {
                         outcome: &case.outcome,
                         identity: declared.id,

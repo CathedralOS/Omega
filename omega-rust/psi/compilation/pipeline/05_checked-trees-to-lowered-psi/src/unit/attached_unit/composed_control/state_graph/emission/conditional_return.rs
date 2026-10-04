@@ -19,6 +19,8 @@ impl StateGraphEmission<'_, '_> {
         position: usize,
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
+        established: &[crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload],
+        payload_parameters: &[ValueDeclaration],
         predecessor_discards: &[semantic_vocabulary::PlaceId],
         return_arm: &checked_trees::CheckedConditionalReturnArm,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
@@ -33,6 +35,11 @@ impl StateGraphEmission<'_, '_> {
         let target = block_id(allocate_dense(next_block)?);
         let retained_bindings = operations.structural_values.len();
         let mut arm_evaluation = evaluation.branch(target, operations.len());
+        crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
+            &mut arm_evaluation.structural_fields,
+            established,
+        );
+        arm_evaluation.parameters = payload_parameters.to_vec();
         let mut arm_values = arm_namespace;
         // The arm's block is dominated by the state's current decision block,
         // not by the private blocks a planned short-circuit guard observes

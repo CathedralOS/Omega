@@ -1,0 +1,28 @@
+data Output { value: u64; }
+data Choice { case Left(value: u64); case Right(value: u64); }
+machine make(value: u64) -> Output { Output { value: value } }
+machine choose(choice: Choice) -> Output {
+    transition choice {
+        Choice::Left { value } -> make(value)
+        Choice::Right { value } -> make(value)
+    }
+}
+machine identity(value: u64) -> u64 { value }
+machine choose_nested(choice: Choice) -> Output {
+    transition choice {
+        Choice::Left { value } -> make(identity(value))
+        Choice::Right { value } -> make(identity(value))
+    }
+}
+machine main() crashes Trap {
+    let first: Output = choose(Choice::Left { value: 70 });
+    let second: Output = choose(Choice::Right { value: 71 });
+    let third: Output = choose_nested(Choice::Left { value: 72 });
+    let fourth: Output = choose_nested(Choice::Right { value: 73 });
+    transition first.value == 70 && second.value == 71 && third.value == 72 && fourth.value == 73 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
