@@ -1,1 +1,1 @@
-The true guard returns the caller's mutable reference before the subsequent crash. Reading the returned reference must observe the original value, and both engines must exit zero.
+A true guard completes before the following crash, through a mutable reference value, a terminal reference call, a scalar value, and a terminal Unit call. Reference reads retain the caller's value, and both engines must exit zero. The sibling crash fixture exercises the false guard.
