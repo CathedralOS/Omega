@@ -304,6 +304,14 @@ pub(in crate::validation) fn validate_integer_structural_field(
         // referent through the call's result, and reads through it observe
         // the referent's declared record the same way a borrow-carrier
         // establishment does.
+        //
+        // A result whose declaration is NOT a reference shell is transferred
+        // storage the caller now owns, as in `let read: ByteRead =
+        // console.read_byte()`, so its fields are read at `Owned`. That is
+        // the same place `observed_root` below already falls back to for a
+        // non-reference result; leaving the access `None` here refused every
+        // field read of an owned returned value while the observation side
+        // was prepared to serve it.
         OperationKind::Call { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
@@ -311,9 +319,9 @@ pub(in crate::validation) fn validate_integer_structural_field(
             .structural_types
             .iter()
             .find(|declaration| declaration.id == borrowed_result.structural_type)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Reference { access, .. } => Some(*access),
-                _ => None,
+            .map(|declaration| match &declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => *access,
+                _ => StructuralAccess::Owned,
             }),
         _ => None,
     };
