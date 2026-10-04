@@ -1,5 +1,8 @@
 //! Exact source bindings and final custody of structural call results.
 
+mod inventory;
+pub(crate) use inventory::with_expression_consumers as result_use_operations;
+
 use super::super::admission::CallerView;
 use super::super::parameters::expression_producer;
 use super::{
@@ -694,9 +697,10 @@ fn shared_view_binding(
 pub(crate) fn validate_usage(
     checked: &CheckedTrees,
     caller: &CheckedUnitEffectMachinePlan,
+    operations: &[CheckedUnitEffectOperationPlan],
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
-    let producer = producer(&caller.operations, result.binding_ordinal)?;
+    let producer = producer(operations, result.binding_ordinal)?;
     if producer.result != result {
         return unsupported("Unit structural result binding disagrees with its producer");
     }
@@ -708,8 +712,7 @@ pub(crate) fn validate_usage(
     // ordinary residual-continuation requirement.
     let mut projected_residual_loaned = true;
     for (operation_index, operation) in
-        caller
-            .operations
+        operations
             .iter()
             .enumerate()
             .flat_map(|(index, operation)| {
@@ -904,7 +907,7 @@ pub(crate) fn validate_usage(
                 // A returning consumer can retire its argument temporaries
                 // without retiring the distinct value it just returned.
                 && affine_discards.iter().any(|discard| discard.source == source)
-                && caller.operations[producer.operation_index]
+                && operations[producer.operation_index]
                     .call()
                     .is_some_and(|call| {
                         call.structural_result().is_some()
@@ -931,7 +934,7 @@ pub(crate) fn validate_usage(
             // consumer identifies that owner even when no residual row exists.
             let owns_continuation = operation_index
                 .checked_sub(1)
-                .and_then(|previous| caller.operations.get(previous))
+                .and_then(|previous| operations.get(previous))
                 .and_then(CheckedUnitEffectOperationPlan::call)
                 .filter(|call| !call.is_boundary() && call.coordinate == *coordinate)
                 .is_some_and(|call| {
@@ -1105,7 +1108,7 @@ pub(crate) fn validate_usage(
                 && producer.coordinate.call_ordinal != 0
                 && (producer.discard
                     || call.is_boundary()
-                    || !matches!(caller.operations.get(operation_index + 1),
+                    || !matches!(operations.get(operation_index + 1),
                         Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, affine_discards })
                             if *cleanup == coordinate
                                 && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1))
@@ -1147,7 +1150,7 @@ pub(crate) fn validate_usage(
     // final statement. Edge retirement still owns the carrier place, so its
     // return discard is required; an explicit release already retired both
     // and must not carry one.
-    if let Some(custody) = caller.operations[producer.operation_index]
+    if let Some(custody) = operations[producer.operation_index]
         .call()
         .and_then(|call| call.structural_custody())
         && custody.reference_loan.is_valid()
@@ -1213,7 +1216,7 @@ pub(crate) fn validate_usage(
                     &projected_paths,
                 ))
             && !matches!(
-                caller.operations.as_slice(),
+                operations,
                 [_, _, CheckedUnitEffectOperationPlan::Complete { .. }]
             ))
     {

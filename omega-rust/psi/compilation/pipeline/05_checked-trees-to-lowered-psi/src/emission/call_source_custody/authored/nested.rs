@@ -23,6 +23,73 @@ pub(super) fn authored_occurrences(
     caller_state: SymbolHandle,
     statement_index: u32,
 ) -> Result<Vec<(u32, AuthoredOccurrence)>, LoweringError> {
+    Ok(authored_execution(checked, caller_state, statement_index)?
+        .into_iter()
+        .map(|(ordinal, occurrence, _)| (ordinal, occurrence))
+        .collect())
+}
+
+/// Postorder execution position while retaining the original preorder identity.
+pub(crate) fn authored_call_position(
+    checked: &CheckedTrees,
+    state: SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+) -> Result<usize, LoweringError> {
+    let occurrences = authored_execution(checked, state, coordinate.statement_index)?;
+    let mut matches = occurrences
+        .iter()
+        .enumerate()
+        .filter(|(_, (ordinal, _, _))| *ordinal == coordinate.call_ordinal);
+    let (position, _) = matches.next().ok_or(LoweringError::Unsupported(
+        "result consumer has no authored occurrence",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("result consumer has duplicate authored occurrences");
+    }
+    Ok(position)
+}
+
+/// Exact execution position for a call that every path reaching this state
+/// performs. Selection ancestry is retained by the occurrence walk itself;
+/// catalog membership alone never retires an enclosing result's disposal debt.
+pub(crate) fn unconditional_call_position(
+    checked: &CheckedTrees,
+    state: SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+) -> Result<usize, LoweringError> {
+    let (_, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    let prefix = statements
+        .get(..coordinate.statement_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "result consumer has a stale statement",
+        ))?;
+    if prefix
+        .iter()
+        .any(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        return unsupported("result consumer follows a conditional state exit");
+    }
+    let occurrences = authored_execution(checked, state, coordinate.statement_index)?;
+    let mut matches = occurrences
+        .iter()
+        .enumerate()
+        .filter(|(_, (ordinal, _, _))| *ordinal == coordinate.call_ordinal);
+    let (position, (_, _, unconditional)) = matches.next().ok_or(LoweringError::Unsupported(
+        "result consumer has no authored occurrence",
+    ))?;
+    if matches.next().is_some() || !unconditional {
+        return unsupported("conditional call cannot retire an enclosing result");
+    }
+    Ok(position)
+}
+
+fn authored_execution(
+    checked: &CheckedTrees,
+    caller_state: SymbolHandle,
+    statement_index: u32,
+) -> Result<Vec<(u32, AuthoredOccurrence, bool)>, LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -185,6 +252,7 @@ pub(super) fn authored_occurrences(
                 if !checked.statement_table.transition_target_is_valid(target) {
                     continue;
                 }
+                seeds.push(Walk::BeginSelection);
                 match checked.statement_table.transition_target(target) {
                     TransitionTargetNode::Value(expression) => {
                         seeds.push(Walk::Enter(*expression, true));
@@ -204,9 +272,12 @@ pub(super) fn authored_occurrences(
                     TransitionTargetNode::Named { .. } => seeds.push(Walk::NamedTarget(target)),
                     TransitionTargetNode::Terminal => {}
                 }
+                seeds.push(Walk::EndSelection);
             }
             if transition.guard == TransitionGuardNode::Always
-                && let Some(Walk::Enter(expression, _)) = seeds.first()
+                && let Some(Walk::Enter(expression, _)) = seeds
+                    .iter()
+                    .find(|step| !matches!(step, Walk::BeginSelection | Walk::EndSelection))
             {
                 outer = *expression;
             }
@@ -223,8 +294,17 @@ pub(super) fn authored_occurrences(
     let mut saved_subject_depth = None;
     let mut calls = Vec::new();
     let mut order = Vec::new();
+    let mut selection_depth = 0_usize;
     while let Some(step) = pending.pop() {
         let (expression, direct_argument) = match step {
+            Walk::BeginSelection => {
+                selection_depth += 1;
+                continue;
+            }
+            Walk::EndSelection => {
+                selection_depth -= 1;
+                continue;
+            }
             Walk::Enter(expression, direct_argument) => (expression, direct_argument),
             Walk::Exit(expression, ordinal) => {
                 if saved_subject_depth == Some(active.len()) {
@@ -232,7 +312,11 @@ pub(super) fn authored_occurrences(
                 }
                 active.pop();
                 if let Some(ordinal) = ordinal {
-                    order.push((ordinal, AuthoredOccurrence::Expression(expression)));
+                    order.push((
+                        ordinal,
+                        AuthoredOccurrence::Expression(expression),
+                        selection_depth == 0,
+                    ));
                 }
                 continue;
             }
@@ -255,7 +339,11 @@ pub(super) fn authored_occurrences(
                 continue;
             }
             Walk::ExitNamedTarget(target, ordinal) => {
-                order.push((ordinal, AuthoredOccurrence::TransitionTarget(target)));
+                order.push((
+                    ordinal,
+                    AuthoredOccurrence::TransitionTarget(target),
+                    selection_depth == 0,
+                ));
                 continue;
             }
             Walk::InternalJump => {
@@ -272,6 +360,7 @@ pub(super) fn authored_occurrences(
         }
         active.push(expression);
         let mut children = Vec::new();
+        let mut selected_children = Vec::new();
         let ordinal = match table.expression(expression) {
             ExpressionNode::Call(call)
                 if saved_subject_depth.is_some()
@@ -480,6 +569,13 @@ pub(super) fn authored_occurrences(
             }
             ExpressionNode::Binary(binary) => {
                 children.extend([binary.left, binary.right].map(|child| (child, false)));
+                if matches!(
+                    binary.operator,
+                    checked_trees::expression::BinaryOperator::And
+                        | checked_trees::expression::BinaryOperator::Or
+                ) {
+                    selected_children.push(1);
+                }
                 None
             }
             ExpressionNode::Match(dispatch) => {
@@ -490,6 +586,7 @@ pub(super) fn authored_occurrences(
                 }
                 for arm in arms {
                     if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        selected_children.push(children.len());
                         children.push((pattern, false));
                     }
                     // The selected arm produces the match result directly: a
@@ -497,6 +594,7 @@ pub(super) fn authored_occurrences(
                     // through a member/indexed path. Scalar matches still reach
                     // their calls as scalar helpers because a record-producing
                     // call cannot compose in an indirect operand position.
+                    selected_children.push(children.len());
                     children.push((arm.value, direct_argument));
                 }
                 None
@@ -549,15 +647,19 @@ pub(super) fn authored_occurrences(
             _ => return unsupported("nested structural arguments contain unsupported syntax"),
         };
         pending.push(Walk::Exit(expression, ordinal));
-        pending.extend(
-            children
-                .into_iter()
-                .rev()
-                .map(|(child, direct)| Walk::Enter(child, direct)),
-        );
+        for (index, (child, direct)) in children.into_iter().enumerate().rev() {
+            let selected = selected_children.contains(&index);
+            if selected {
+                pending.push(Walk::EndSelection);
+            }
+            pending.push(Walk::Enter(child, direct));
+            if selected {
+                pending.push(Walk::BeginSelection);
+            }
+        }
     }
     if statement_root {
-        order.push((0, AuthoredOccurrence::StatementRoot));
+        order.push((0, AuthoredOccurrence::StatementRoot, true));
     }
     Ok(order)
 }
@@ -614,6 +716,8 @@ pub(in crate::emission::call_source_custody) fn validate_static_receiver(
 
 /// One step of the authored occurrence walk.
 enum Walk {
+    BeginSelection,
+    EndSelection,
     /// Visit an operand; the flag marks a direct argument position.
     Enter(ExpressionHandle, bool),
     /// Leave an operand, recording its preorder ordinal when it is a call.

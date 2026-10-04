@@ -77,35 +77,59 @@ pub(crate) fn value_call_operations(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<&checked_trees::CheckedUnitEffectOperationPlan>, LoweringError> {
+    let mut operations = Vec::new();
+    for call in value_calls(checked, machine, None)? {
+        for operation in call
+            .operands()
+            .iter()
+            .chain(std::iter::once(call.operation()))
+        {
+            operations.extend(operation.with_value_calls());
+        }
+    }
+    Ok(operations)
+}
+
+/// Retain preparation ownership while restricting the dependency inventory to
+/// one caller namespace. Consumers borrow the ordinary operand sequence.
+pub(crate) fn state_value_calls(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+) -> Result<Vec<&checked_trees::CheckedStructuralValueCall>, LoweringError> {
+    value_calls(checked, machine, Some(state))
+}
+
+fn value_calls(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: Option<symbols::SymbolHandle>,
+) -> Result<Vec<&checked_trees::CheckedStructuralValueCall>, LoweringError> {
     let roots = checked
         .facts
         .values
         .scalar_computations
         .roots
         .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .filter_map(|(_, root)| {
+            (root.machine == machine && state.is_none_or(|state| root.state == state))
+                .then_some(root.root)
+        })
         .collect::<Vec<_>>();
     let mut values = Vec::new();
     collect_reachable_nodes(checked, &roots, &mut values)?;
-    let mut operations = Vec::new();
+    let mut calls = Vec::new();
     for value in values {
-        for call in checked
-            .facts
-            .values
-            .structural_values
-            .calls_for_root(value)
-            .unwrap_or(&[])
-        {
-            for operation in call
-                .operands()
-                .iter()
-                .chain(std::iter::once(call.operation()))
-            {
-                operations.extend(operation.with_value_calls());
-            }
-        }
+        calls.extend(
+            checked
+                .facts
+                .values
+                .structural_values
+                .calls_for_root(value)
+                .unwrap_or(&[]),
+        );
     }
-    Ok(operations)
+    Ok(calls)
 }
 
 /// Discovery walks only retained roots, never abandoned speculative arena nodes.

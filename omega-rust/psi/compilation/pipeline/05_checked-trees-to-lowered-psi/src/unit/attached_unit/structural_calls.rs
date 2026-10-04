@@ -23,7 +23,7 @@ mod continuation;
 mod result_uses;
 mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
-pub(super) use result_uses::{validate_consumer, validate_usage};
+pub(super) use result_uses::{result_use_operations, validate_consumer, validate_usage};
 
 /// An ordinary structural call: its plan, result binding and custody.
 fn ordinary_structural_call(

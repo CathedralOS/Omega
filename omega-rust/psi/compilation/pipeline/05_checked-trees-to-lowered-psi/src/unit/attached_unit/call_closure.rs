@@ -239,6 +239,7 @@ pub(super) fn validate_unit_operation_sequence(
     else {
         return unsupported("Unit machine does not end in exactly one checked Unit return");
     };
+    let result_uses = structural_calls::result_use_operations(checked, machine)?;
     let mut previous = None;
     let mut previous_nested = false;
     let mut coordinates = Vec::new();
@@ -271,7 +272,7 @@ pub(super) fn validate_unit_operation_sequence(
                         LoweringError::Unsupported("structural operand binding space is exhausted"),
                     )?;
                 }
-                structural_calls::validate_usage(checked, machine, result)?;
+                structural_calls::validate_usage(checked, machine, &result_uses, result)?;
                 // A later element of a whole array-literal replacement binds
                 // the next dense ordinal and continues the statement its
                 // first element began.
@@ -388,7 +389,7 @@ pub(super) fn validate_unit_operation_sequence(
                                 "Unit structural result local or call coordinate is not canonical",
                             );
                         }
-                        structural_calls::validate_usage(checked, machine, result)?;
+                        structural_calls::validate_usage(checked, machine, &result_uses, result)?;
                     }
                     (
                         CheckedUnitCallRoute::Boundary,
@@ -409,7 +410,12 @@ pub(super) fn validate_unit_operation_sequence(
                             );
                         }
                         if result.multiplicity == Multiplicity::Affine {
-                            structural_calls::validate_usage(checked, machine, result)?;
+                            structural_calls::validate_usage(
+                                checked,
+                                machine,
+                                &result_uses,
+                                result,
+                            )?;
                         }
                     }
                 }
