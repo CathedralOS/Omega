@@ -1,0 +1,4 @@
+owner: Codex / case return cleanup
+provenance: agent=codex; scope=conditional-return-cleanup; native/interpreted=12; inherited-reference-regressions=4-attributed
+ticket: 3186580fa3ca474b851a13293a548c17
+published_utc: 2026-10-04T09:39:08.842949+00:00
