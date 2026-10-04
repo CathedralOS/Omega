@@ -279,8 +279,7 @@ pass/control_flow/guarded_jump_field_view_forward rejected 423ms @2d8ed253669f+w
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 371ms @2d8ed253669f+wt
 pass/control_flow/guarded_mid_arm_return built 1070ms @2d8ed253669f+wt
-pass/control_flow/guarded_value_transition_roster rejected 2478ms @6a3968be50c
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/control_flow/guarded_value_transition_roster built 3624ms exit:11 @89e3d147a38
 pass/control_flow/nested_parameter_receiver_call checked 318ms @2d8ed253669f+wt
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 1277ms exit:70 @2d8ed253669f+wt
 pass/control_flow/ordered_unconditional_arm_exit built 916ms exit:70 @2d8ed253669f+wt
