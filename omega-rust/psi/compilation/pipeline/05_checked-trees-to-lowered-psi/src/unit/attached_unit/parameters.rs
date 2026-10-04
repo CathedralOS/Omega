@@ -811,11 +811,27 @@ pub(crate) fn validate_transfer_shape(
                 }
                 continue;
             }
-            let StructuralPlaceKind::OperationResult {
-                structural_type, ..
-            } = source.kind
-            else {
-                return unsupported("Unit structural result source has no producer operation");
+            let structural_type = match source.kind {
+                StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } => structural_type,
+                StructuralPlaceKind::BlockParameter { .. } => {
+                    let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
+                        "completed arrival argument has no retained custody",
+                    ))?;
+                    let mut bindings = custody
+                        .results
+                        .iter()
+                        .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                    let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                        "completed arrival argument lost its binding",
+                    ))?;
+                    if bindings.next().is_some() || binding.place() != source.id {
+                        return unsupported("completed arrival argument changed its exact binding");
+                    }
+                    binding.structural_type()
+                }
+                _ => return unsupported("Unit structural result source has no completed storage"),
             };
             if target.multiplicity == Multiplicity::Linear {
                 let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
@@ -1561,6 +1577,15 @@ pub(crate) fn lower_structural_arguments(
                 let structural_type = match source.kind {
                     StructuralPlaceKind::OperationResult { structural_type, .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. } => structural_type,
+                    StructuralPlaceKind::BlockParameter { .. } => {
+                        // Transfer-shape replay already joined the exact completed
+                        // arrival. A whole move needs no projected type lookup.
+                        return Ok(StructuralArgument {
+                            place: source.id,
+                            path: Vec::new(),
+                            access: terminal_access(argument.access),
+                        });
+                    }
                     _ => return unsupported("structural result argument has no declared type"),
                 };
                 return Ok(StructuralArgument {
@@ -1621,7 +1646,11 @@ fn structural_result_source<'results>(
             source.kind,
             StructuralPlaceKind::OperationResult { .. }
                 | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::BlockParameter { .. }
         )
+        || (matches!(source.kind, StructuralPlaceKind::BlockParameter { .. })
+            && (!argument.path.is_empty()
+                || argument.access != checked_trees::CheckedStructuralAccess::Owned))
     {
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }

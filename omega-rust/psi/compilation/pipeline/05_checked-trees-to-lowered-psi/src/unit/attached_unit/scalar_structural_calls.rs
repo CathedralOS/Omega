@@ -58,19 +58,18 @@ pub(super) fn validate_call_source(
         authored.source_target,
     )?;
     let source_positions = super::call_parameters::structural_positions(checked, call, &signature)?;
-    let mut expected_transfers = Vec::new();
-    for (argument_index, ((argument, parameter), source_position)) in structural_arguments
+    for ((argument, parameter), source_position) in structural_arguments
         .iter()
         .zip(target.structural_parameters())
         .zip(source_positions)
-        .enumerate()
     {
         if argument
             .source_structural_result_binding_ordinal()
             .is_some()
         {
             // The existing result owner checks exact local identity, source
-            // order, whole-affine custody and absence of transferred claims.
+            // order and owned custody. Shared transfer-shape replay rejoins
+            // any carried claims to that completed result's current home.
             continue;
         }
         let Some(expression) =
@@ -129,32 +128,9 @@ pub(super) fn validate_call_source(
             continue;
         }
         // The common call validator rejoins parameter identity, projection and
-        // explicit access for every result kind. Derived operands are verified
-        // at their producer in ordered argument staging, not reinterpreted as
-        // a direct loan of the parameter that backs their computation.
-        let Some(source_index) = argument.source_parameter_index() else {
-            continue;
-        };
-        if argument.access != checked_trees::CheckedStructuralAccess::Owned {
-            continue;
-        }
-        for claim in caller.entry_claims.iter().filter(|claim| {
-            claim.parameter_index == source_index
-                && (argument.path.is_empty() || claim.path == argument.path)
-        }) {
-            if claim.claim_identity == PermissionClaimIdentity::Unknown {
-                return unsupported("scalar wrapper transfer has no exact source claim");
-            }
-            expected_transfers.push(checked_trees::CheckedUnitClaimTransferPlan {
-                claim_identity: claim.claim_identity,
-                argument_index: u32::try_from(argument_index).map_err(|_| {
-                    LoweringError::Unsupported("scalar wrapper argument count exceeds u32")
-                })?,
-            });
-        }
-    }
-    if *claim_transfers != expected_transfers {
-        return unsupported("scalar wrapper transfers disagree with their source entry claims");
+        // explicit access for every result kind. Claim coverage below is tied
+        // to this authored occurrence; ordinary transfer-shape replay joins
+        // each identity/path to its current parameter or completed-result home.
     }
     let events = checked
         .facts
@@ -178,8 +154,19 @@ pub(super) fn validate_call_source(
                 .then_some(event)
         })
         .collect::<Vec<_>>();
-    if events.len() != expected_transfers.len()
-        || expected_transfers.iter().any(|transfer| {
+    // Each owned crossing has exactly one retained transfer, independently of
+    // whether its current home was an entry parameter or a later result. Both
+    // directions are required: repeating one identity cannot hide another.
+    if events.len() != claim_transfers.len()
+        || events.iter().any(|event| {
+            event.claim_identity == PermissionClaimIdentity::Unknown
+                || claim_transfers
+                    .iter()
+                    .filter(|transfer| transfer.claim_identity == event.claim_identity)
+                    .count()
+                    != 1
+        })
+        || claim_transfers.iter().any(|transfer| {
             events
                 .iter()
                 .filter(|event| event.claim_identity == transfer.claim_identity)

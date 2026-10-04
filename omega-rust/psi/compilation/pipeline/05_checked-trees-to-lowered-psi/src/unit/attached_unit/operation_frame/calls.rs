@@ -365,9 +365,9 @@ impl OperationFrame<'_, '_> {
         let target_machine = &call.target.machine;
         let target_state = &call.target.state;
         let structural_arguments = &call.structural_arguments;
-        let earlier = self
-            .results
-            .earlier(structural_arguments, self.operations)?;
+        let earlier =
+            self.results
+                .earlier(structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
             checked,
             self.callees.plans,
@@ -446,9 +446,9 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("claim-free structural call custody drifted before emission");
         };
-        let earlier = self
-            .results
-            .earlier(&call.structural_arguments, self.operations)?;
+        let earlier =
+            self.results
+                .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
         let (declaration, discard_on_return) = structural_calls::emit(
             self.checked,
             self.state,
@@ -857,9 +857,9 @@ impl OperationFrame<'_, '_> {
                 self.operations,
             )?
             .into_iter();
-            let earlier = self
-                .results
-                .earlier(structural_arguments, self.operations)?;
+            let earlier =
+                self.results
+                    .earlier(structural_arguments, self.operations, self.evaluation)?;
             parameters::mint_element_view_length_observations(
                 structural_arguments,
                 self.parameters,

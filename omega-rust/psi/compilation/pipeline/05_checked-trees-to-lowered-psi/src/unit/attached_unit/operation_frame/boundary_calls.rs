@@ -255,9 +255,9 @@ impl OperationFrame<'_, '_> {
         let completion_receipts = call.claim_transfers();
         let target = unique_unit_boundary(self.callees.plans, target_machine)?;
         let expected_claim_arguments = self.expected_claim_arguments(structural_arguments)?;
-        let earlier = self
-            .results
-            .earlier(structural_arguments, self.operations)?;
+        let earlier =
+            self.results
+                .earlier(structural_arguments, self.operations, self.evaluation)?;
         parameters::mint_element_view_length_observations(
             structural_arguments,
             self.parameters,

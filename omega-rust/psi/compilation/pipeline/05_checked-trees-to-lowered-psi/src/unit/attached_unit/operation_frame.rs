@@ -308,6 +308,72 @@ pub(super) enum StructuralResults<'f> {
     },
 }
 
+fn validate_completed_arrival(
+    declaration: &StructuralPlaceDeclaration,
+    result: &terminal_psi::StructuralOperationResult,
+    operations: &OperationBuffer,
+    evaluation: &Evaluation,
+) -> Result<(), LoweringError> {
+    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+        return unsupported("completed arrival lost its block declaration");
+    };
+    // A completed binding can outlive later private blocks. Its declaration
+    // rejoins the actual owning block's parameter roster, not just the current
+    // roster. Receiving replay still proves use dominance and live ownership.
+    let mut emitted = evaluation
+        .blocks
+        .iter()
+        .filter(|candidate| candidate.id == block);
+    let parameters = if block == evaluation.current {
+        if emitted.next().is_some() {
+            return unsupported("completed arrival repeats its current block");
+        }
+        evaluation.block_structural_parameters.as_slice()
+    } else {
+        let owner = emitted.next().ok_or(LoweringError::Unsupported(
+            "completed arrival has no established block",
+        ))?;
+        if emitted.next().is_some() {
+            return unsupported("completed arrival repeats its established block");
+        }
+        owner.structural_parameters.as_slice()
+    };
+    let mut matches = parameters
+        .iter()
+        .filter(|parameter| parameter.place == declaration.id);
+    let parameter = matches.next().ok_or(LoweringError::Unsupported(
+        "completed arrival has no declared parameter",
+    ))?;
+    if matches.next().is_some()
+        || parameter.position != position
+        || parameters
+            .iter()
+            .filter(|candidate| candidate.position == position)
+            .count()
+            != 1
+        || parameter.is_self
+        || parameter.access != terminal_psi::StructuralAccess::Owned
+        || result.place != declaration.id
+        || result.structural_type != parameter.structural_type
+        || result.multiplicity != parameter.multiplicity
+        || result.qualifications != parameter.qualifications
+        || result.projected_qualifications != parameter.projected_qualifications
+        || !result.qualification_establishments.is_empty()
+        || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
+        || (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            && result.claims.is_empty())
+        || operations.iter().any(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|produced| produced.place == result.place)
+        })
+    {
+        return unsupported("completed arrival changed its exact storage or claim contract");
+    }
+    Ok(())
+}
+
 impl StructuralResults<'_> {
     /// The place a call continuation discards for `binding_ordinal`.
     fn continuation_place(
@@ -438,9 +504,38 @@ impl StructuralResults<'_> {
         &self,
         arguments: &[CheckedUnitStructuralArgumentPlan],
         operations: &OperationBuffer,
+        evaluation: &Evaluation,
     ) -> Result<Cow<'_, [(StructuralPlaceDeclaration, bool)]>, LoweringError> {
         let places = match self {
-            Self::Dense(roster) => return Ok(Cow::Borrowed(roster.as_slice())),
+            Self::Dense(roster) => {
+                for (ordinal, (declaration, _)) in roster.iter().enumerate() {
+                    if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. })
+                        && arguments.iter().any(|argument| {
+                            argument
+                                .source_structural_result_binding_ordinal()
+                                .is_some_and(|binding| binding as usize == ordinal)
+                        })
+                    {
+                        let mut bindings = operations
+                            .structural_values
+                            .iter()
+                            .filter(|(binding, _)| *binding as usize == ordinal);
+                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                            "completed arrival has no exact binding",
+                        ))?;
+                        if bindings.next().is_some() {
+                            return unsupported("completed arrival repeats its binding");
+                        }
+                        validate_completed_arrival(
+                            declaration,
+                            binding.operation_result()?,
+                            operations,
+                            evaluation,
+                        )?;
+                    }
+                }
+                return Ok(Cow::Borrowed(roster.as_slice()));
+            }
             Self::StateGraph { places, .. } => places,
         };
         if !arguments.iter().any(|argument| {
@@ -476,16 +571,22 @@ impl StructuralResults<'_> {
                         let declaration = declarations.next().ok_or(LoweringError::Unsupported(
                             "composed call completed result has no place declaration",
                         ))?;
-                        if declarations.next().is_some()
-                            || !matches!(declaration.kind,
+                        if declarations.next().is_some() {
+                            return unsupported("composed call result repeats its declaration");
+                        }
+                        match declaration.kind {
                             StructuralPlaceKind::OperationResult { structural_type, producer }
                                 if structural_type == result.structural_type
                                     && operations.operations.iter().any(|candidate| {
                                         candidate.id == producer
                                             && candidate.result.structural() == Some(result)
-                                    }))
-                        {
-                            return unsupported("composed call result declaration differs from its operation");
+                                    }) => {},
+                            StructuralPlaceKind::BlockParameter { .. } => {
+                                if arguments.iter().any(|argument| argument.source_structural_result_binding_ordinal() == Some(*ordinal)) {
+                                    validate_completed_arrival(declaration, result, operations, evaluation)?;
+                                }
+                            }
+                            _ => return unsupported("composed call result declaration differs from its establishment"),
                         }
                         Ok((*declaration, false))
                     }
@@ -659,9 +760,11 @@ impl OperationFrame<'_, '_> {
             {
                 self.primitive_parameter_source(parameter_index, source)?
             } else {
-                let earlier = self
-                    .results
-                    .earlier(std::slice::from_ref(source), self.operations)?;
+                let earlier = self.results.earlier(
+                    std::slice::from_ref(source),
+                    self.operations,
+                    self.evaluation,
+                )?;
                 parameters::lower_reference_source(
                     source,
                     self.structural_types.declarations(),
