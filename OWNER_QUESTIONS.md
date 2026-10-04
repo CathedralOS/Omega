@@ -336,3 +336,66 @@ custody-preserving behavior (it healed real programs), but name a
 recomputation and amortize repeated field-capture substitutions, with the
 fixture row as the regression witness. If profiling shows the cost is intrinsic
 to exact custody joins, the decision is to accept and document the envelope.
+
+### Q5 - Does Terminal Psi gain a descriptor store whose destination is a whole borrowed-view slot?
+
+Named decision: `borrowed-view-whole-slot-store`.
+
+**Customers:** `tests/omega/pass/text/runtime_string_stored_suffix_exit` and
+`tests/omega/pass/text/runtime_local_struct_string_field_concat_exit`, both
+rejected at `e68154c271` with "selected ProgramEntry establishment rejoins 0
+Terminal context identities; expected one; the machine's unit plan was omitted
+at local construction at `structural field store: destination parameter`
+(state 1, statement 3)".
+
+**Measured, not inferred.** Stage 04 declines in
+`04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/destination.rs::owned_local_root`,
+at the guard `!(initial_value valid || declared_home || primitive_local)`. For
+`let mut out_line: &[u8] in Utf8;` the initial value is invalid (no
+initializer) and `declared_home` is false because it is
+`matches!(type_reference, Named | Generic | FixedArray)` and the declared type
+is a reference shell. The sibling candidate `borrowed_view_local_root` cannot
+take it either: it requires a non-mutable, initialized local with exactly one
+`Mutable` loan row to rejoin.
+
+Reduced with throwaway fixtures: `out_line = "Gate"` is refused **identically**
+with no concatenation and no local record, while a local-record field store
+alone (`let room: Room; room.label = main.source.label;`) is green. So the gap
+is assignment to a declared, uninitialized borrowed-view local -- not the
+concatenation, which is what **REFERENCE-BEARING-RECORD-LOCAL-FILL** currently
+implies.
+
+**The next wall is the product contract, not an oversight.** Bypassing that
+guard advances all customers to a new omission at `structural field store:
+carrier path` (`structural_scalar_store/mod.rs:442`), where
+`destination.place.segments.split_last()` is `None`.
+`wiki/spec/terminal-psi/structural_access.md#store-vocabulary` enumerates every
+byte store and every destination is parameter-rooted or field-keyed:
+`ByteSequenceStore` is a whole bounded-owned *parameter*,
+`StructuralByteViewFieldStore` is a borrowed-view *field*, and
+`ByteSequenceWrite` is an indexed byte write into a bounded-owned *local*.
+`CheckedByteSequenceStoreDestination` mirrors it as `Whole | Field | ViewField`,
+with the descriptor case existing only for `Field`. No operation has a whole
+local borrowed-view destination.
+
+**Decision needed:** (a) generalize the descriptor store's destination to
+root+path, admitting an empty path under a local root, so the carrier kind at
+the resolved place decides bytes-versus-descriptor and the `Field`/`ViewField`
+split is deleted rather than extended; or (b) leave borrowed-view locals
+establishment-only -- initializer required, no reassignment -- and reject
+`let mut x: &T;` reassignment at its span. Route (a) is a Terminal Psi
+product-contract change spanning the spec, `checked-trees`, stage 04 planning,
+stage 05 emission, the terminal-psi codec and its foundation validation, the
+trusted-surface digests, independent replay, and Omega lowering, which is why
+it is recorded here rather than taken as engineering.
+
+This is the nearer blocker of **REFERENCE-BEARING-RECORD-LOCAL-FILL**, whose
+recorded "Missing" storage-backing question (what backs a byte concatenation
+whose operands carry no static capacity bound, so
+`EstablishByteSequenceConcatenation`'s capacity obligation has no declaration
+to discharge against) is only reachable after this one is answered.
+
+**Separately open:** the initialized form
+`let out_line: &[u8] in Utf8 = main.source.label;` clears stage 04 and instead
+fails Omega lowering with `UnsupportedControlFlow` at
+`omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/observations.rs:48`.
