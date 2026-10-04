@@ -310,10 +310,30 @@ fn authored_storage_path(
         let (_, local) = checked
             .state_local_declaration(state, target.root)
             .ok_or_else(invalid)?;
-        (local.type_reference, None)
+        // A reference-typed local stores into its referent: the authored
+        // root folds its own shell into the access, so the walk starts from
+        // the referee exactly as the borrowed parameter's does.
+        (
+            validation::reference_shell(&checked.typed, local.type_reference)
+                .map(|shell| shell.referee)
+                .unwrap_or(local.type_reference),
+            None,
+        )
     };
     let mut path = Vec::with_capacity(target.path.len());
-    for segment in &target.path {
+    for (position, segment) in target.path.iter().enumerate() {
+        if let Some((_, declared)) = target
+            .alias_bridges()
+            .iter()
+            .find(|(at, _)| *at == position)
+        {
+            // The captured prefix ends at the view's own address: `view.value`
+            // reads the fields of the alias's declared record, not of the
+            // element the folded place selected. Swap the declared referee
+            // in and drop the root's owner scope for the rest of the walk.
+            selected = *declared;
+            owner = None;
+        }
         selected = match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 let declaration = owner
