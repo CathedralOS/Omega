@@ -1113,66 +1113,39 @@ fn validate_claim_indices(
     arguments: &[StructuralArgument],
     claims: impl Iterator<Item = (ClaimId, u32)>,
 ) -> Result<(), CodecError> {
+    let mut transferred = BTreeSet::new();
     for (claim, argument_index) in claims {
         let Some(argument) = arguments.get(argument_index as usize) else {
             return malformed("claim action has an unknown structural argument index");
         };
-        let entry_claim = machine
-            .entry_claims
-            .iter()
-            .find(|entry_claim| entry_claim.claim == claim);
-        // A returned claim keeps its identity but moves to the successful
-        // operation's result place; a boundary route may also mint the claim
-        // on that result outright. The codec checks that exact occurrence in
-        // either home; the verifier, not this structural check, establishes
-        // its liveness.
-        let path = match entry_claim {
-            Some(entry_claim) if entry_claim.input == argument.place => {
-                Some(entry_claim.path.as_slice())
-            }
-            _ => machine.structural_places.iter().find_map(|declaration| {
-                let StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                } = declaration.kind
-                else {
-                    return None;
-                };
-                if declaration.id != argument.place {
-                    return None;
-                }
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .find_map(|operation| {
-                        if operation.id != producer
-                            || !matches!(
-                                operation.kind,
-                                OperationKind::CallStructural { .. }
-                                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                                    | OperationKind::BoundaryCall { .. }
-                            )
-                        {
-                            return None;
-                        }
-                        let result = operation.result.structural()?;
-                        if result.place != argument.place
-                            || result.structural_type != structural_type
-                            || result.multiplicity != StructuralMultiplicity::Linear
-                        {
-                            return None;
-                        }
-                        result
-                            .claims
-                            .iter()
-                            .find(|binding| binding.claim == claim)
-                            .map(|binding| binding.path.as_slice())
-                    })
-            }),
-        };
-        if !path.is_some_and(|path| argument.path.is_empty() || path == argument.path) {
-            return malformed("claim action does not match its structural argument path");
+        if !transferred.insert(claim) {
+            return malformed("claim action repeats a claim identity");
+        }
+        // A declaration authenticates identity and relative path, not the
+        // claim's current home after an owned state transfer. Exact argument
+        // types/paths are checked above; full frontier replay, required after
+        // this foundation check, authenticates the live home at this call.
+        let matches_path =
+            |path: &[StructuralPathSegment]| argument.path.is_empty() || path == argument.path;
+        let declared = machine.entry_claims.iter().any(|entry| {
+            entry.claim == claim && matches_path(&entry.path)
+        }) || machine.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
+            let Some(result) = operation.result.structural() else {
+                return false;
+            };
+            result.multiplicity == StructuralMultiplicity::Linear
+                && machine.structural_places.iter().any(|declaration| {
+                    declaration.id == result.place
+                        && matches!(declaration.kind,
+                            StructuralPlaceKind::OperationResult { producer, structural_type }
+                            if producer == operation.id && structural_type == result.structural_type)
+                })
+                && result.claims.iter().any(|binding| {
+                    binding.claim == claim && matches_path(&binding.path)
+                })
+        });
+        if !declared {
+            return malformed("claim action does not match a declared structural claim path");
         }
     }
     Ok(())

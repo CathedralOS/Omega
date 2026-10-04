@@ -179,9 +179,9 @@ fn validate_operation_result_places(machine: &TerminalMachine) -> Result<(), Cod
     Ok(())
 }
 
-/// A nominal affine cleanup terminator covers every structural parameter
-/// in reverse order with claim-free, qualification-free affine roots of
-/// matching type, on a Unit-result machine.
+/// A nominal cleanup terminator covers every structural parameter in reverse
+/// order, retaining each exact whole owner and its consumed claim roster.
+/// The verifier separately authenticates owner designation and live custody.
 fn validate_nominal_affine_cleanup(
     machine: &TerminalMachine,
     block: &Block,
@@ -214,16 +214,31 @@ fn validate_nominal_affine_cleanup(
             if cleanup.place != parameter.place {
                 return malformed("nominal affine cleanup list is not in reverse parameter order");
             }
+            let claims = machine
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.input == cleanup.place)
+                .collect::<Vec<_>>();
+            let complete_custody = match parameter.multiplicity {
+                StructuralMultiplicity::Affine => {
+                    claims.is_empty() && cleanup.consumed_claims.is_empty()
+                }
+                StructuralMultiplicity::Linear => matches!(claims.as_slice(), [claim]
+                    if claim.path.is_empty() && cleanup.consumed_claims.as_slice() == [claim.claim]),
+                StructuralMultiplicity::Unrestricted => false,
+            };
             if !places.insert(cleanup.place)
-                || parameter.multiplicity != StructuralMultiplicity::Affine
+                || !complete_custody
+                || parameter.access != terminal_psi::StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
                 || machine
-                    .entry_claims
+                    .content_entry_claims
                     .iter()
-                    .any(|claim| claim.input == cleanup.place)
+                    .any(|claim| claim.input.root == cleanup.place)
             {
                 return malformed(
-                    "nominal affine cleanup is duplicated or not a claim-free qualified-free affine root",
+                    "nominal cleanup is duplicated or differs from its complete owned custody",
                 );
             }
             if parameter.structural_type != cleanup.structural_type {

@@ -1283,6 +1283,26 @@ fn window_field_type(
     Ok(projection.structural_type)
 }
 
+/// Observing owned aggregate storage retains its full declared custody;
+/// reference/view carriers keep their separate loan-access contract.
+fn owns_observed_storage(
+    module: &TerminalModule,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+) -> bool {
+    access == terminal_psi::StructuralAccess::Owned
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::Mixed { .. }
+                        | StructuralTypeShape::Sum { .. }
+                        | StructuralTypeShape::FixedArray { .. }
+                )
+        })
+}
+
 pub(super) fn validate_integer_structural_field(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1391,10 +1411,11 @@ pub(super) fn validate_integer_structural_field(
                 )
         });
         if !matching
-            || local.multiplicity == StructuralMultiplicity::Linear
+            || (!owns_observed_storage(module, local.structural_type, access)
+                && (local.multiplicity == StructuralMultiplicity::Linear
+                    || !local.claims.is_empty()))
             || !local.qualifications.is_empty()
             || !local.projected_qualifications.is_empty()
-            || !local.claims.is_empty()
         {
             return malformed("scalar record field has invalid local result custody");
         }
@@ -1453,20 +1474,22 @@ pub(super) fn validate_integer_structural_field(
         }
         _ => false,
     });
-    if !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !matches!(
-        parameter.access,
-        terminal_psi::StructuralAccess::Owned
-            | terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-    ) || !parameter.qualifications.is_empty()
+    let owned_observation =
+        owns_observed_storage(module, parameter.structural_type, parameter.access);
+    if (!owned_observation && parameter.multiplicity == StructuralMultiplicity::Linear)
+        || !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        )
+        || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == *source)
+        || (!owned_observation
+            && machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == *source))
         || machine
             .content_entry_claims
             .iter()
