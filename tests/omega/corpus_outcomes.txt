@@ -159,6 +159,8 @@ fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/affine_record_copy_handoff rejected 149ms expected @14f449e5e62b+wt
 	affine value `settings` was already transferred or consumed; it cannot be moved here
+fail/borrows/array_carried_reference_live_source_write rejected 1043ms expected @056c1343fac1+wt
+	statement 8 mutates `main.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/bare_self_mut_operand_beside_self_view rejected 1429ms expected @c5d32a00863
 	state `take` receives `main` as both mutable and read-only
 	state `take` receives `main.arr[0..2]` as read-only while its mutable receiver writes `main.arr[0]`
@@ -1413,12 +1415,15 @@ pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 2144ms @f935383e1d47+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms @3fa817733300+wt
+pass/borrows/runtime_carrier_reference_reselection_exit checked 2946ms @056c1343fac1+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d47+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
+pass/borrows/runtime_indexed_carrier_reference_read_exit checked 3082ms @056c1343fac1+wt
+pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms @056c1343fac1+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
@@ -1430,6 +1435,7 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1532ms @a3bac00e54bb+wt
+pass/borrows/static_carrier_reference_read_exit checked 5159ms @056c1343fac1+wt
 pass/borrows/static_projected_local_reference_exit checked 4618ms @cfe60a3a242
 pass/borrows/static_record_reference_return_exit checked 1105ms @2816825e8941
 pass/borrows/stored_reference_projection_exit checked 836ms @efc0f5f0f7a9+wt

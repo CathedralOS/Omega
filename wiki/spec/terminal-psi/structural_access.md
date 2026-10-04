@@ -373,8 +373,14 @@ The checker requires the selected reference leaf to be live and unsuspended,
 its descriptor storage available, and its access mutable; borrowing a carrier
 does not duplicate or strengthen the permissions held inside it. The current
 reference-custody contract admits primitive or plain-owned record referents,
-not opaque nested reference authority. Primitive reads still reject reference
-crossings. A crossing has no canonical owned leaf and supplies no field fact.
+not opaque nested reference authority. A primitive read may cross readable
+stored references without consuming them. Each crossed descriptor must have
+live, unsuspended custody and available storage. A runtime selection before a
+crossing requires custody for every candidate slot in the declared fixed array;
+an absent slot cannot shrink that set. The retained selector chooses the runtime
+pointer, while the candidate roster supplies permission only. Further crossings
+require concrete stored lineage at every possible origin. A crossing has no
+canonical owned leaf and supplies no field fact.
 Native realization loads the pointer at the retained slot before applying the
 referent-relative offsets and indices; independent replay checks that sequence.
 
@@ -383,7 +389,8 @@ selects at run time: `context.cells[context.i].hp` is one `PrimitiveScalarRead` 
 path is `cells`, `RuntimeIndex`, `hp`. The final field must be a relevant,
 non-address integer or Boolean `Scalar` field of the record the carrier
 resolves to; erased, bounded, IEEE, byte and structural fields reject, and so
-does a carrier with no runtime element, which keeps the canonical
+does a carrier with neither a runtime element nor a reference crossing, which
+keeps the canonical
 `IntegerStructuralField` or `BooleanStructuralField` read. Each runtime element
 owns the obligation every runtime segment owns, `index < extent` plus
 `0 <= index` for a signed selector, reconstructed against the array its prefix

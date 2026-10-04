@@ -259,7 +259,7 @@ fn projected_type(
         // references::apply_operation independently checks live permission,
         // descriptor availability and suspended parent lineage at this use.
         if !writing {
-            let endpoint = super::references::access_source_type(
+            return super::references::access_read_type(
                 module,
                 machine,
                 &terminal_psi::StructuralArgument {
@@ -267,9 +267,7 @@ fn projected_type(
                     path: path.to_vec(),
                     access: StructuralAccess::SharedBorrow,
                 },
-                true,
-            )?;
-            return scalar_type(module, endpoint);
+            );
         }
         let destination =
             super::references::mutable_reference_destination(module, machine, place, path)?;

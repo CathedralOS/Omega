@@ -331,19 +331,22 @@ pub(crate) fn primitive_geometry(
     .then_some((offset, bytes, elements))
 }
 
-/// Reconstruct the leaf a primitive *read* observes: every leaf
-/// `primitive_geometry` admits, plus a scalar field that ends a projection
-/// selecting a record element at run time (`cells[i].hp`). The field is the
-/// one `terminal_semantics::runtime_element_field` names from declarations,
-/// and its geometry is the field store's: the carrier's static offset and
-/// runtime elements, then the field's declared offset in the record. A store
-/// never takes this route; its field write is `store`.
+/// Independently admit the complete primitive read before splitting its
+/// pointer regions. Runtime selection before a reference crossing still
+/// governs the read endpoint, even when the final region has no selector.
+/// Region geometry retains separate pointer and scalar bounds; a store never
+/// takes this route and keeps its own endpoint and proof requirements.
 pub(crate) fn primitive_read_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<PrimitiveAccessGeometry> {
+    if terminal_semantics::primitive_read_projection_type(declarations.iter(), root, path)
+        != Some(scalar)
+    {
+        return None;
+    }
     primitive_access_geometry(
         root,
         path,
@@ -362,16 +365,23 @@ fn contiguous_primitive_read_geometry(
     if let Some(geometry) = primitive_geometry(root, path, scalar, declarations) {
         return Some(geometry);
     }
-    let (leaf, record) =
-        terminal_semantics::runtime_element_field(declarations.iter(), root, path)?;
     let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
         return None;
     };
-    let StructuralTypeShape::Record { fields } = &record.shape else {
+    let (carrier_type, _, _) = runtime_projection(root, carrier, declarations)?;
+    let StructuralTypeShape::Record { fields } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier_type)?
+        .shape
+    else {
         return None;
     };
-    let field = fields.iter().find(|field| field.identity == *identity)?;
-    if leaf != scalar {
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    // The complete read established eligibility; this suffix independently
+    // reconstructs the declared scalar width, field offset and region bounds.
+    if field.field_type.scalar_type() != Some(scalar) {
         return None;
     }
     scalar_field_geometry(root, carrier, field.id, scalar, declarations, false)

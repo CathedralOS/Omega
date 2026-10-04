@@ -19,6 +19,8 @@ use super::{
 };
 use semantic_vocabulary::StructuralCaseId;
 
+mod observation_paths;
+
 #[derive(Clone)]
 pub(crate) struct StructuralScalarFieldBinding {
     source_position: u32,
@@ -813,24 +815,23 @@ pub(crate) fn resolve_indexed_element_field(
     LoweringError,
 > {
     let (source, structural_type) = fields.observation_source(root)?;
-    let static_segments = |path: &[checked_trees::CheckedStructuralPredicatePathSegment]| {
-        path.iter()
-            .map(|segment| match segment {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                    Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-                }
-                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                    Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-                }
-                _ => unsupported("indexed element field read has an unsupported case path"),
-            })
-            .collect::<Result<Vec<_>, _>>()
+    let (path, selected) =
+        observation_paths::explicit_path(structural_type, path, fields.declarations())?;
+    let StructuralTypeShape::FixedArray { element, .. } = &selected
+        .ok_or(LoweringError::Unsupported(
+            "indexed observation lost its array carrier",
+        ))?
+        .shape
+    else {
+        return unsupported("indexed observation requires a fixed array");
     };
+    let (element_path, _) =
+        observation_paths::explicit_path(*element, element_path, fields.declarations())?;
     let (path, leaf, scalar_type) =
         crate::emission::primitive_store::lower_indexed_element_field_path(
             structural_type,
-            &static_segments(path)?,
-            &static_segments(element_path)?,
+            &path,
+            &element_path,
             fields.declarations(),
         )?;
     Ok((source, path, leaf, scalar_type))
@@ -864,38 +865,22 @@ pub(crate) fn resolve_indexed_element_runtime_path(
     if matching.next().is_some() {
         return unsupported("indexed element runtime path read has ambiguous bindings");
     }
-    let static_segments = |path: &[checked_trees::CheckedStructuralPredicatePathSegment]| {
-        path.iter()
-            .map(|segment| match segment {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                    Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-                }
-                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                    Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-                }
-                _ => unsupported("indexed element runtime read has an unsupported case path"),
-            })
-            .collect::<Result<Vec<_>, _>>()
+    let (path, selected) =
+        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
+    let StructuralTypeShape::FixedArray { element, .. } = &selected
+        .ok_or(LoweringError::Unsupported(
+            "indexed observation lost its array carrier",
+        ))?
+        .shape
+    else {
+        return unsupported("indexed observation requires a fixed array");
     };
-    let element_path = element_path
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
-                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
-            ),
-            _ => unsupported("indexed element runtime path has an unsupported case path"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let (element_path, _) =
+        observation_paths::explicit_path(*element, element_path, &binding.declarations)?;
     let (path, leaf, scalar_type) =
         crate::emission::primitive_store::lower_indexed_element_runtime_path(
             binding.structural_type,
-            &static_segments(path)?,
+            &path,
             &element_path,
             &binding.declarations,
         )?;

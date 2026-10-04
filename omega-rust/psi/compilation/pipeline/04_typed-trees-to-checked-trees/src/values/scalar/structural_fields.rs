@@ -1467,6 +1467,9 @@ pub(super) fn structural_parameter_place(
 /// The static field path inside one element of type `element`, spelled by
 /// each field's declared identity exactly as a parameter field path is: every
 /// segment is a non-erased field of the record the previous step reached.
+/// Source member access implicitly observes readable references. Keep the source
+/// field identities here; lowering reconstructs each explicit pointer crossing
+/// from the declarations, and Terminal checks the stored permission separately.
 /// Returns the path and the leaf's declared type.
 pub(super) fn element_field_path(
     program: &TypedTrees,
@@ -1485,6 +1488,12 @@ pub(super) fn element_field_path(
         let owner = loop {
             match program.type_reference_table.type_reference(current) {
                 TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+                TypeReferenceNode::Reference {
+                    referee,
+                    access:
+                        language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
+                    ..
+                } => current = *referee,
                 TypeReferenceNode::Named { symbol, .. } => {
                     break program
                         .data_definitions()

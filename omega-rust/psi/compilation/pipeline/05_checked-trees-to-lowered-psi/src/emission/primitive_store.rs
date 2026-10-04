@@ -1041,50 +1041,14 @@ pub(crate) fn lower_indexed_element_runtime_path(
     else {
         return unsupported("indexed element runtime projection does not end at a fixed array");
     };
-    let mut structural_type = element;
-    let mut runtime_segments = 0_usize;
-    for segment in element_path {
-        let declaration = unique_type(types, structural_type)?;
-        match (segment, &declaration.shape) {
-            (
-                CheckedUnitStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let field = matching.next().ok_or(LoweringError::Unsupported(
-                    "indexed element runtime carrier field is absent",
-                ))?;
-                if matching.next().is_some() || field.relevance.is_erased() {
-                    return unsupported(
-                        "indexed element runtime carrier field is erased or ambiguous",
-                    );
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return unsupported(
-                        "indexed element runtime carrier descends through a scalar field",
-                    );
-                };
-                structural_type = child;
-            }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                structural_type = *element;
-            }
-            (
-                CheckedUnitStructuralPathSegment::RuntimeIndex(_),
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => {
-                runtime_segments += 1;
-                structural_type = *element;
-            }
-            _ => {
-                return unsupported("indexed element runtime path is not structural");
-            }
-        }
-    }
-    if runtime_segments == 0 {
+    let (_, walked) = walk_path(element, element_path, types)?;
+    let Walked::Declared(structural_type) = walked else {
+        return unsupported("indexed element runtime path does not end at a scalar carrier");
+    };
+    if !element_path
+        .iter()
+        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
+    {
         return unsupported("indexed element runtime path has no runtime selector");
     }
     let StructuralTypeShape::PrimitiveScalar(scalar_type) =
@@ -1197,13 +1161,7 @@ fn walk_path(
                 // same way: assignment indexes, parameter and local
                 // positions, and stored-field snapshots each name a distinct
                 // runtime element of the projection.
-                let step = super::runtime_elements::selector_step(runtime);
-                if result.contains(&step) {
-                    return unsupported(
-                        "primitive projection has an incompatible or out-of-bounds path",
-                    );
-                }
-                result.push(step);
+                result.push(super::runtime_elements::selector_step(runtime));
                 Walked::Declared(*element)
             }
             (
@@ -1224,14 +1182,9 @@ fn walk_path(
                         result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
                     }
                     CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
-                        // Indexed stores through a borrowed byte view select
-                        // with the same selector vocabulary a fixed array
-                        // uses; a repeated step is already this projection's
-                        // selector and is simply not pushed again.
-                        let step = super::runtime_elements::selector_step(runtime);
-                        if !result.contains(&step) {
-                            result.push(step);
-                        }
+                        // A repeated operand still selects a new element of
+                        // this carrier and owns its own positional bound.
+                        result.push(super::runtime_elements::selector_step(runtime));
                     }
                     _ => {}
                 }
@@ -1262,4 +1215,3 @@ fn unique_type(
     }
     Ok(declaration)
 }
-

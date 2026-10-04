@@ -481,8 +481,12 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
                     push_fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, length } => {
+                if *length != 0 {
+                    pending.push(*element);
+                }
+            }
+            StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {}
@@ -1033,7 +1037,7 @@ enum CallRegion {
     Referent,
 }
 
-mod call_paths;
+mod access_paths;
 
 /// Whether `place` is currently suspended as a live loan's referent root.
 /// Cleanup cannot discard storage that an outstanding carrier still names.
@@ -1134,7 +1138,7 @@ pub(super) fn check_operation_access(
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
             if path.contains(&StructuralPathSegment::Referent) =>
         {
-            call_paths::call_reference_custody(
+            access_paths::access_reference_custody(
                 function,
                 live,
                 types,
@@ -1149,7 +1153,7 @@ pub(super) fn check_operation_access(
         AbstractOperation::PrimitiveScalarRead { path, .. }
             if path.contains(&StructuralPathSegment::Referent) =>
         {
-            call_paths::call_reference_custody(
+            access_paths::access_reference_custody(
                 function,
                 live,
                 types,
@@ -1210,7 +1214,7 @@ pub(super) fn call_arguments(
     let mut moved = BTreeMap::new();
     for (argument_position, argument) in arguments.iter().enumerate() {
         if argument.path.contains(&StructuralPathSegment::Referent) {
-            let resolved = call_paths::call_reference_custody(function, live, types, argument)?;
+            let resolved = access_paths::call_reference_custody(function, live, types, argument)?;
             dependencies.push((argument_position, resolved.dependencies));
             normalized.push((
                 argument_position,

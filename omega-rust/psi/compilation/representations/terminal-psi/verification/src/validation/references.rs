@@ -16,7 +16,7 @@ use super::{
     Terminator,
 };
 mod access_paths;
-pub(super) use access_paths::access_source_type;
+pub(super) use access_paths::{access_read_type, access_source_type};
 use access_paths::{
     access_reference_custody, call_dependency_conflict, descriptor_storage_available,
 };

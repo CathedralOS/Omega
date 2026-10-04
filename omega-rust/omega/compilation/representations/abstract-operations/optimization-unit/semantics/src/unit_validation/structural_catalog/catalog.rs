@@ -157,52 +157,13 @@ pub(super) fn index_structural_types(
         }
     }
     validate_structural_type_graph(&types)?;
-    // Only record and case-payload carriers currently transfer stored
-    // reference custody. Reject other containers recursively, including a
-    // carrier hidden in them.
+    // Owned constructors relocate complete declaration-derived leaf rosters,
+    // including every element of a fixed array. A view instead carries a
+    // runtime pointer and extent: its type cannot supply the concrete element
+    // permission roster required by the receiving custody contract.
     for declaration in &unit.structural_types {
-        if matches!(
-            declaration.shape,
-            terminal_psi::StructuralTypeShape::Record { .. }
-                | terminal_psi::StructuralTypeShape::Sum { .. }
-                | terminal_psi::StructuralTypeShape::Mixed { .. }
-        ) {
-            continue;
-        }
-        let children: Vec<StructuralTypeId> = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Sum { cases } => cases
-                .iter()
-                .flat_map(|case| &case.fields)
-                .filter_map(|field| {
-                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-                        Some(child)
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .filter_map(|field| {
-                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-                        Some(child)
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-            | terminal_psi::StructuralTypeShape::ElementView { element } => vec![*element],
-            terminal_psi::StructuralTypeShape::FusedServiceBinding
-            | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-            | terminal_psi::StructuralTypeShape::ByteSequence(_)
-            | terminal_psi::StructuralTypeShape::Reference { .. }
-            | terminal_psi::StructuralTypeShape::Record { .. } => Vec::new(),
-        };
-        if children
-            .iter()
-            .any(|child| crate::unit_validation::references::contains_reference(&types, *child))
+        if let terminal_psi::StructuralTypeShape::ElementView { element } = declaration.shape
+            && crate::unit_validation::references::contains_reference(&types, element)
         {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),

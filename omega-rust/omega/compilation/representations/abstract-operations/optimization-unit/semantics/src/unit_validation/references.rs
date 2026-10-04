@@ -9,8 +9,8 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-mod call_paths;
-pub(crate) use call_paths::call_source_type;
+mod access_paths;
+pub(crate) use access_paths::{access_path_type, access_referent_tail, call_source_type};
 
 /// Stable loan identity: the place and path where the carrier was formed.
 /// Owned moves relocate the carrier, never this identity.
@@ -84,8 +84,12 @@ pub(crate) fn contains_reference(
                     push_fields(&case.fields);
                 }
             }
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-            | terminal_psi::StructuralTypeShape::ElementView { element } => pending.push(*element),
+            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                if *length != 0 {
+                    pending.push(*element);
+                }
+            }
+            terminal_psi::StructuralTypeShape::ElementView { element } => pending.push(*element),
             terminal_psi::StructuralTypeShape::FusedServiceBinding
             | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
@@ -107,80 +111,69 @@ pub(crate) fn leaf_paths(
         if !contains_reference(types, current) {
             continue;
         }
-        let Some(declaration) = types.get(&current) else {
-            continue;
-        };
-        match &declaration.shape {
+        let declaration = types.get(&current)?;
+        let fields: Vec<_> = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { .. } => {
                 if output.len() == maximum_leaves {
                     return None;
                 }
                 output.push(path);
+                continue;
             }
-            terminal_psi::StructuralTypeShape::Record { fields } => {
-                for field in fields.iter().rev() {
-                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        // Every pending owned subtree owes at least one leaf.
-                        // Bound the worklist before a wide DAG can amplify it.
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(terminal_psi::StructuralPathSegment::Field(
-                            field.identity.clone(),
-                        ));
-                        pending.push((child, child_path));
-                    }
-                }
-            }
-            // Case payloads hold leaves under field-identity paths as well.
-            // Identical segments across cases collapse into the single leaf
-            // the authored path names.
+            terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            // Case payloads retain their established field identities;
+            // identical paths across cases are deduplicated below.
             terminal_psi::StructuralTypeShape::Sum { cases } => {
-                for field in cases.iter().flat_map(|case| &case.fields).rev() {
-                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(terminal_psi::StructuralPathSegment::Field(
-                            field.identity.clone(),
-                        ));
-                        pending.push((child, child_path));
-                    }
-                }
+                cases.iter().flat_map(|case| &case.fields).collect()
             }
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                for field in cases
-                    .iter()
-                    .flat_map(|case| &case.fields)
-                    .chain(fields)
-                    .rev()
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => cases
+                .iter()
+                .flat_map(|case| &case.fields)
+                .chain(fields)
+                .collect(),
+            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                // Each pending subtree owes at least one live leaf. Empty
+                // arrays owe none; contains_reference already excludes them.
+                // Bound the worklist before expanding nested array products.
+                let count = usize::try_from(*length).ok()?;
+                if pending
+                    .len()
+                    .checked_add(output.len())?
+                    .checked_add(count)?
+                    > maximum_leaves
                 {
-                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(terminal_psi::StructuralPathSegment::Field(
-                            field.identity.clone(),
-                        ));
-                        pending.push((child, child_path));
-                    }
+                    return None;
                 }
+                for element_index in (0..*length).rev() {
+                    let mut child_path = path.clone();
+                    child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
+                        element_index,
+                    ));
+                    pending.push((*element, child_path));
+                }
+                continue;
             }
-            _ => {}
+            // A runtime view has no declaration-owned leaf roster. Unknown
+            // containment must not silently discard permissions.
+            _ => return None,
+        };
+        for field in fields.into_iter().rev() {
+            if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+                if !contains_reference(types, child) {
+                    continue;
+                }
+                if pending.len().checked_add(output.len())? >= maximum_leaves {
+                    return None;
+                }
+                let mut child_path = path.clone();
+                child_path.push(terminal_psi::StructuralPathSegment::Field(
+                    field.identity.clone(),
+                ));
+                pending.push((child, child_path));
+            }
         }
     }
+
     output.sort();
     output.dedup();
     Some(output)

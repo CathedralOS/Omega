@@ -1,4 +1,4 @@
-//! Nonescaping call paths join exact typed crossings to existing loan custody.
+//! Nonescaping observations and calls join typed crossings to existing custody.
 //! No path walk mints a permission or broadens escaping reference formation.
 
 use super::{
@@ -20,6 +20,27 @@ pub(crate) fn call_source_type(
     {
         return reference_source_type(function, types, source);
     }
+    // A dynamic observation does not broaden static structural call actuals
+    // or permit a new escaping reference formation.
+    if source
+        .path
+        .iter()
+        .any(|segment| segment.runtime_index().is_some())
+    {
+        return None;
+    }
+    let (current, prefix_start) = access_referent_tail(function, types, source)?;
+    leaf_type(types, current, &source.path[prefix_start..])
+}
+
+/// Authenticate each pointer word and attenuate access at its declared ceiling.
+/// Consumers own their endpoint grammar and bounds; the live ownership walk
+/// separately requires every possible stored descriptor selected at run time.
+pub(crate) fn access_referent_tail(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    source: &terminal_psi::StructuralArgument,
+) -> Option<(StructuralTypeId, usize)> {
     if source.access == terminal_psi::StructuralAccess::Owned {
         return None;
     }
@@ -36,9 +57,10 @@ pub(crate) fn call_source_type(
     for (position, segment) in source.path.iter().enumerate() {
         match segment {
             terminal_psi::StructuralPathSegment::Field(_)
-            | terminal_psi::StructuralPathSegment::FixedIndex(_) => {}
+            | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {}
             terminal_psi::StructuralPathSegment::Referent => {
-                current = leaf_type(types, current, &source.path[prefix_start..position])?;
+                current = access_path_type(types, current, &source.path[prefix_start..position])?;
                 let (referent, access) =
                     types
                         .get(&current)
@@ -69,5 +91,28 @@ pub(crate) fn call_source_type(
     if !access_covers(authority, source.access) {
         return None;
     }
-    leaf_type(types, current, &source.path[prefix_start..])
+    Some((current, prefix_start))
+}
+
+/// A descriptor region has one declared type even when its exact element is
+/// selected at run time. Static field resolution retains its existing identity
+/// checks; this query supplies no live custody or selector-bound evidence.
+pub(crate) fn access_path_type(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    mut current: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    for segment in path {
+        current = match segment {
+            terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
+                match types.get(&current)?.shape {
+                    terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+                    | terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                    _ => return None,
+                }
+            }
+            _ => leaf_type(types, current, std::slice::from_ref(segment))?,
+        };
+    }
+    Some(current)
 }

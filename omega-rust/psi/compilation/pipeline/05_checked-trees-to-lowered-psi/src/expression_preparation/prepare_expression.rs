@@ -905,6 +905,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                     ) => LoweredElementPathSegment::Static(
                                         terminal_psi::StructuralPathSegment::FixedIndex(index),
                                     ),
+                                    checked_trees::CheckedUnitStructuralPathSegment::Referent =>
+                                        LoweredElementPathSegment::Static(
+                                            terminal_psi::StructuralPathSegment::Referent,
+                                        ),
                                     _ => {
                                         return unsupported(
                                             "indexed element runtime path has an unsupported segment",

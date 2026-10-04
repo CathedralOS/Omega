@@ -1256,22 +1256,23 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: returned primitive shared references, Boolean observations and
-    captured runtime-index loans execute through the common storage-read path.
-    On macOS ARM64 (`3fa8177333` plus this change), the native/interpreter corpus
-    agrees at authored exits for 32 reference, re-view and slice-transfer controls.
-    `pass/borrows/runtime_{state_fixed_element_reference,state_boolean_reference,captured_primitive_reference}_exit`
-    exit 70 in both engines; `run/borrows/{transition_shared_borrow,shared_local_borrow}`
-    exit 0. Captured selectors retain their declaration-time address, and
-    immutable scalar loans materialize the completed value without replaying its
-    initializer. Discarded returned carriers receive ordinary continuation cleanup.
-    Exact source coordinates remain separate from conservative effect footprints;
-    access, bounds, live backing and disposal remain independently checked.
-    Remaining: scalar observations from reference-bearing array elements, such as
-    `messages[index].body.value` (also with a literal index), stop at stage 04's
-    `scalar local: pure initializer`. Compose the selected carrier's ordinary
-    source path and stored-reference custody through scalar observation; do not
-    add an array/reference producer exception or substitute a guessed backing.
+  - State: primitive shared references, Boolean observations and captured
+    runtime-index loans execute through the common storage-read path. Scalar
+    observations from reference-bearing array elements now compose literal and
+    runtime selection with stored-pointer crossings, including nested references
+    and changing selectors. The four
+    `pass/borrows/{runtime_indexed,static,runtime_nested}_carrier_reference_read_exit`
+    and `runtime_carrier_reference_reselection_exit` controls return 70 in both
+    engines on macOS ARM64. Each crossing retains declaration-derived descriptor
+    coverage, live backing, access and independent bounds obligations.
+    Remaining: give those observations the declared scalar field's evidence.
+    Changing `Cell.value` and its observed local to `i32 [0..=100]` in
+    `runtime_indexed_carrier_reference_read_exit` passes source checking but
+    rejects stage 05 with `indexed element carrier field is absent`. The bounded
+    field route still tries canonical carrier resolution and whole-element
+    hoisting across the stored reference. Preserve the field's range evidence
+    and loan custody without copying the reference-bearing element or admitting
+    constrained fields as unqualified primitive reads.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

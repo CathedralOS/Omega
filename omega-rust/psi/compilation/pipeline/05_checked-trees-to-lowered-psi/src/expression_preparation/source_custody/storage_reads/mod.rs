@@ -691,9 +691,19 @@ fn authored_read_path(
         }) {
             return Ok(None);
         }
+        // The authored place replayer derives each Referent crossing from
+        // the receiver's declared reference shells, independently of the
+        // retained read. Predicate paths name only authored fields/selectors;
+        // omit those reconstructed implicit crossings when comparing them.
         let path = source
             .path
             .iter()
+            .filter(|segment| {
+                !matches!(
+                    segment,
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent
+                )
+            })
             .map(|segment| match segment {
                 checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                     Ok(Segment::Field(identity.clone()))

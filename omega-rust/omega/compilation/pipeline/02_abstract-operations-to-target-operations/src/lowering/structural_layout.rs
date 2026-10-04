@@ -163,25 +163,29 @@ fn contiguous_primitive_projection(
     }
 }
 
-/// Resolve a primitive read through ordered pointer crossings and the final
-/// scalar endpoint, including a scalar field ending a
-/// projection that selects a record element at run time (`cells[i].hp`). The
-/// field's leaf type comes from `terminal_semantics::runtime_element_field`,
-/// the carrier resolves like any projection, and the field lands at its
-/// declared offset inside the record the carrier reaches, so the load is
-/// `carrier offset + field offset + each selector times its stride`.
+/// Admit the complete primitive read before resolving its ordered pointer
+/// regions. A runtime selector may precede a reference crossing; checking only
+/// the final region would lose that selector and reject its scalar field.
+/// Each region reconstructs geometry from its own declarations, while the
+/// complete path retains the operation's distinct read endpoint rules.
 #[allow(clippy::type_complexity)]
 pub(super) fn primitive_read_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<PrimitiveProjection> {
-    primitive_access_projection(
+    let scalar = terminal_semantics::primitive_read_projection_type(
+        declarations.values().copied(),
+        root,
+        path,
+    )?;
+    let projection = primitive_access_projection(
         root,
         path,
         declarations,
         contiguous_primitive_read_projection,
-    )
+    )?;
+    (projection.scalar == scalar).then_some(projection)
 }
 
 #[allow(clippy::type_complexity)]
@@ -193,8 +197,6 @@ fn contiguous_primitive_read_projection(
     if let Some(leaf) = contiguous_primitive_projection(root, path, declarations) {
         return Some(leaf);
     }
-    let (scalar, record) =
-        terminal_semantics::runtime_element_field(declarations.values().copied(), root, path)?;
     let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
         return None;
     };
@@ -206,13 +208,15 @@ fn contiguous_primitive_read_projection(
         &mut BTreeSet::new(),
     )
     .ok()?;
-    let StructuralTypeShape::Record { fields } = &record.shape else {
+    let StructuralTypeShape::Record { fields } = &declarations.get(&carrier_type)?.shape else {
         return None;
     };
-    let field = fields.iter().find(|field| field.identity == *identity)?;
-    if carrier_type != record.id {
-        return None;
-    }
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    // Eligibility was checked on the complete read. This suffix supplies only
+    // the scalar's storage layout, never store authority or a canonical fact.
+    let scalar = field.field_type.scalar_type()?;
     let field_offset =
         direct_scalar_field_offset(carrier_type, field.id, scalar, declarations).ok()?;
     Some((scalar, carrier_offset.checked_add(field_offset)?, runs))

@@ -9,9 +9,10 @@ use super::address_joins::borrowed_regions::BorrowedReferenceSources;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
-    LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, call_source_type,
-    contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
-    leaf_referent, leaf_type, reference_access, reference_source_type, storage_projection_type,
+    LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, access_path_type,
+    access_referent_tail, contains_reference, formal_origin, is_reference_projection,
+    leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
+    reference_source_type, storage_projection_type,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -33,8 +34,8 @@ enum CallRegion {
     Referent,
 }
 
-mod call_paths;
-use call_paths::{call_dependency_conflict, call_reference_custody};
+mod access_paths;
+use access_paths::{access_reference_custody, call_dependency_conflict};
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
@@ -960,7 +961,7 @@ pub(super) fn apply_operation(
         O::PrimitiveScalarRead { source, path, .. }
             if path.contains(&terminal_psi::StructuralPathSegment::Referent) =>
         {
-            call_reference_custody(
+            access_reference_custody(
                 function,
                 structural_types,
                 block,
@@ -1107,7 +1108,7 @@ pub(super) fn apply_operation(
             destination, path, ..
         } => {
             if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-                call_reference_custody(
+                access_reference_custody(
                     function,
                     structural_types,
                     block,
@@ -1266,7 +1267,7 @@ pub(super) fn apply_operation(
             .contains(&terminal_psi::StructuralPathSegment::Referent)
         {
             let custody =
-                call_reference_custody(function, structural_types, block, node, live, argument)?;
+                access_reference_custody(function, structural_types, block, node, live, argument)?;
             if arguments.iter().enumerate().any(|(position, other)| {
                 position != argument_position
                     && call_dependency_conflict(&custody.dependencies, other)
