@@ -1251,17 +1251,25 @@ crash and native exit behavior.
   caller; an internal state target remains a jump.
   - Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/terminal_calls.rs`.
   - State: Unit, scalar, record, qualified-scalar, case-payload, boundary
-    requirement and effectful-guard/operand-order forms execute in both engines.
+    requirement, single-state shared-reference returns, and effectful-guard/operand-order
+    forms execute in both engines.
   - Remaining:
-    - transport whole-reference result origins from terminal calls into the
-      composed return roster;
+    - finish whole-reference origin transport beyond the admitted single-state
+      shared-reference forms. Nonprimitive `&mut` results still use the private
+      `view_result_loan` walk in `.../terminal_unit/calls/structural_result_call.rs`:
+      ordinary and guarded `&mut Node` identity returns are rejected at
+      `call operation: structural result loan`. Join the shared exact origin
+      substitution with real loan activation/release; multi-state callee origin
+      substitution also remains outside the current single-state query;
     - claim-transferring arm calls.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
     `samples/cli/systems/note_vault` depend on `Filesystem::create_dir_all`.
 
-  Acceptance: add corpus fixtures for a reference-result terminal call and a
-  claim-transferring arm call, each executing
-  in both engines. Keep `fail/calls/terminal_call_result_type_mismatch_rejected`
+  Acceptance: add corpus fixtures for mutable-reference terminal forwarding and
+  a claim-transferring arm call, each executing in both engines. Keep
+  `pass/calls/runtime_guarded_terminal_reference_result_exit` at 0 in both engines,
+  including its ordinary wrapper and mixed call/value arms.
+  Keep `fail/calls/terminal_call_result_type_mismatch_rejected`
   rejecting and these controls at their oracles: `pass/calls/transition_tail_call_to_machine`,
   `calls/{conditional_arm_tail_call_to_machine,guarded_arm_tail_call_to_state_machine,value_tail_call_to_machine,guarded_arm_value_tail_call,runtime_guarded_boundary_tail_call}_exit` (70),
   `calls/{guarded_terminal_call_chain,runtime_guarded_terminal_operand_order,runtime_guarded_terminal_guard_order,runtime_guarded_terminal_array_operands,runtime_guarded_terminal_structural_result,runtime_case_terminal_payload_result,runtime_local_case_terminal_payload_result,runtime_computed_case_terminal_payload_result,runtime_computed_case_subject_affine_argument,runtime_nested_case_subject_operand_order,runtime_qualified_terminal_result,runtime_terminal_requirement_projected_context}_exit` (0),
