@@ -54,32 +54,27 @@ pub(super) fn binary_is_builtin(
         expression,
         spelling,
         &[
-            operand_type(program, machine, binary.left),
-            operand_type(program, machine, binary.right),
+            operand_type(program, binary.left),
+            operand_type(program, binary.right),
         ],
     )
 }
 
-fn operand_type(
-    program: &TypedTrees,
-    machine: SymbolHandle,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
+fn operand_type(program: &TypedTrees, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
     match program
         .expression_table
         .expression(super::projection::unwrapped(program, expression))
     {
-        ExpressionNode::Name(path) => program
-            .machines()
-            .iter()
-            .find(|value| value.symbol == machine)
-            .into_iter()
-            .flat_map(|value| program.machine_states(value))
-            .flat_map(|state| program.state_parameters(state))
-            .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == path.symbol)
-            .map(|parameter| parameter.type_reference),
+        ExpressionNode::Name(path) => {
+            // Locals and parameters carry their declared type through the same
+            // binder identity. Omitting locals turns known integer operands
+            // into wildcards and lets unrelated nominal operators hide their
+            // builtin meaning. This supplies a carrier, never a saved value:
+            // prefix preservation and rank comparison still prove that value.
+            crate::value_custody::expression_types::named_value_type_reference(program, path)
+        }
         ExpressionNode::Member(member) => {
-            let receiver = operand_type(program, machine, member.receiver)?;
+            let receiver = operand_type(program, member.receiver)?;
             let receiver =
                 crate::value_custody::places::unwrapped_type_reference(program, receiver)?;
             let TypeReferenceNode::Named { symbol, .. } =

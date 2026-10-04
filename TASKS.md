@@ -907,13 +907,15 @@ defines the complete product bar.
   Linux; Windows rejected), `pass/termination/runtime_named_state_remainder_endpoint_exit`
   and `pass/termination/rank_endpoint_borrows_recovery` (exit 0).
 
-  Saved scalar observations and named-state arrival requirements now compose:
+  Current native witness:
   `omega run tests/omega/pass/termination/runtime_saved_rank_cycle_exit/main.omg`
-  exits 0 on macOS ARM64 (base `68fba6a896c` rejected the recursive call).
-  The call-component judgment consumes the current state's requirements,
-  protects their carriers from prefix writes, and leaves unrelated writes
-  executable. Unproved arrivals and stale requirements reject; machine-entry
-  requirements are not imported at internal arrivals.
+  exits 0 natively and interpreted on macOS ARM64 with saved scalar values,
+  named-state requirements, unrelated nominal operators and disjoint writes.
+  Base `abaa2a1889d` rejected the saved operand when an unrelated subtraction
+  declaration was visible; early operator selection now reads its declared
+  type through the shared binder lookup. This supplies no saved-value proof.
+  Unproved arrivals, overwritten requirement inputs and actual `u32` overrides
+  still reject; machine-entry requirements are not imported at internal arrivals.
 
   Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,
