@@ -69,9 +69,18 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             continue;
         }
         let parameter = structural_parameters.get(*parameter_index as usize)?;
-        if parameter.access != CheckedStructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-        {
+        // Residual rows are owed only for a root whose disposal dies on
+        // this edge — an owned parameter. A borrowed root's untouched
+        // complement returns to its caller: the projected move already
+        // published the member's hole through the call's argument
+        // custody, and no part of that storage dies here.
+        if parameter.access != CheckedStructuralAccess::Owned {
+            continue;
+        }
+        // A qualified owned root's residual complement still dies on
+        // this edge, but the partial-affine carrier has no qualified
+        // residual vocabulary to publish it with.
+        if !parameter.qualifications.is_empty() {
             return None;
         }
         let rows = crate::execution::terminal_unit::cleanup::partial_affine_residuals(
@@ -111,7 +120,11 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         !transferred_parameters.contains(index)
             && structural_parameters
                 .get(*index as usize)
-                .is_some_and(|parameter| parameter.multiplicity == Multiplicity::Affine)
+                .is_some_and(|parameter| {
+                    parameter.access == CheckedStructuralAccess::Owned
+                        && parameter.qualifications.is_empty()
+                        && parameter.multiplicity == Multiplicity::Affine
+                })
     });
     let events = facts
         .flow

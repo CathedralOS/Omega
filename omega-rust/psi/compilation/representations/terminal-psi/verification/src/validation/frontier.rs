@@ -57,6 +57,11 @@ pub struct VerifiedRestorationDebt {
     pub place: PlaceId,
     pub path: Vec<CanonicalStructuralPathSegment>,
     pub structural_type: StructuralTypeId,
+    /// Whether the hole is owed a repair before any non-crash exit. Open
+    /// `MoveStructuralField` windows are; a member transferred out of a
+    /// borrowed root by a projected owned argument is not — the referent's
+    /// owner receives it with the hole.
+    pub reseat_owed: bool,
 }
 
 /// Exact verifier-owned ownership state at one deterministic control site.
@@ -154,6 +159,18 @@ pub(super) struct LiveClaim {
     pub(super) multiplicity: Option<StructuralMultiplicity>,
 }
 
+/// One open hole beneath a borrowed root: `structural_type` is the absent
+/// subtree's declared type a `StoreStructuralField` repair must reseat, and
+/// `reseat_owed` marks whether any non-crash exit must find the hole closed.
+/// `MoveStructuralField` windows owe their repair; a member a projected owned
+/// argument transferred out of a borrowed root does not — the referent's
+/// owner receives the hole, while every absent-subtree check still applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RestorationDebt {
+    pub(super) structural_type: StructuralTypeId,
+    pub(super) reseat_owed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct StructuralOwnershipFrontier {
     pub(super) references: Vec<super::references::LiveReference>,
@@ -171,11 +188,14 @@ pub(super) struct StructuralOwnershipFrontier {
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
     /// Open borrowed-storage windows: `MoveStructuralField` keys the exact
     /// canonical hole under its borrowed root and records the declared type
-    /// the matching `StoreStructuralField` must reseat. Unlike
+    /// the matching `StoreStructuralField` must reseat. A projected owned
+    /// argument carries a member of a borrowed root out of this machine
+    /// entirely — the same absent-storage fact with no repair owed: the
+    /// referent's owner receives the hole at return. Unlike
     /// `partial_custody_paths` the root is borrowed, not owned — disjoint
     /// siblings stay usable and only the exact hole closes the debt.
     pub(super) restoration_debt:
-        BTreeMap<PlaceId, BTreeMap<Vec<CanonicalStructuralPathSegment>, StructuralTypeId>>,
+        BTreeMap<PlaceId, BTreeMap<Vec<CanonicalStructuralPathSegment>, RestorationDebt>>,
 }
 
 impl StructuralOwnershipFrontier {
@@ -214,10 +234,11 @@ impl StructuralOwnershipFrontier {
                 .flat_map(|(place, holes)| {
                     holes
                         .iter()
-                        .map(move |(path, structural_type)| VerifiedRestorationDebt {
+                        .map(move |(path, debt)| VerifiedRestorationDebt {
                             place: *place,
                             path: path.clone(),
-                            structural_type: *structural_type,
+                            structural_type: debt.structural_type,
+                            reseat_owed: debt.reseat_owed,
                         })
                 })
                 .collect(),

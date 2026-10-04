@@ -274,8 +274,20 @@ pub(crate) fn validate(
         .ok_or_else(invalid)?;
         let (storage_shape, abi_shape) = match argument.access {
             terminal_psi::StructuralAccess::Owned => {
-                if root_access != terminal_psi::StructuralAccess::Owned || !argument.path.is_empty()
-                {
+                // Whole-place owned transport still requires an owned root;
+                // a projected member moves its subtree by value out of any
+                // root that can surrender it — an owned root's partial
+                // custody or an exclusive borrow's referent hole.
+                let admitted_root = if argument.path.is_empty() {
+                    root_access == terminal_psi::StructuralAccess::Owned
+                } else {
+                    matches!(
+                        root_access,
+                        terminal_psi::StructuralAccess::Owned
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    )
+                };
+                if !admitted_root {
                     return Err(invalid());
                 }
                 let classified =

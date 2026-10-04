@@ -610,7 +610,15 @@ pub(in crate::validation) fn validate_structural_argument(
             actual: argument.access,
         });
     }
-    if !structural_access_can_supply(actual_access, argument.access) {
+    // An exclusive borrow supplies an owned presentation only for a
+    // projected member: the move surrenders the referent's subtree and
+    // leaves the hole the ownership frontier tracks. The whole borrow
+    // itself is still a loan — it cannot be moved out owned.
+    if !structural_access_can_supply(actual_access, argument.access)
+        && !(actual_access == StructuralAccess::MutableBorrow
+            && argument.access == StructuralAccess::Owned
+            && !argument.path.is_empty())
+    {
         return Err(ModuleError::StructuralArgumentAccessExceedsSource {
             operation,
             argument_index: index as u32,
@@ -654,6 +662,17 @@ pub(in crate::validation) fn validate_structural_argument(
         && is_partial_affine_path(module, root_type, &argument.path)
         && actual_multiplicity == StructuralMultiplicity::Affine
     {
+        StructuralMultiplicity::Affine
+    } else if argument.access == StructuralAccess::Owned
+        && actual_access == StructuralAccess::MutableBorrow
+        && expected.multiplicity == StructuralMultiplicity::Affine
+    {
+        // An owned projected move out of an exclusive borrow surrenders the
+        // leaf as affine custody: the moved occurrence is used at most
+        // once and the ownership frontier separately tracks the hole it
+        // leaves. Leaf-type agreement above already bound the moved
+        // subtree to the parameter's declared type. An owned or local
+        // root's partial move still presents linear.
         StructuralMultiplicity::Affine
     } else {
         StructuralMultiplicity::Linear

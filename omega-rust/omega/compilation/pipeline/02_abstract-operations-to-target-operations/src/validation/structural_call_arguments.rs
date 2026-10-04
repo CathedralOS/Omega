@@ -1433,10 +1433,17 @@ impl Replay<'_> {
                 structural_shapes::reconstruct(root.structural_type, self.declarations)
                     .map_err(|_| psi_operation)?
                     .byte_size;
-            let expected_multiplicity = if semantic.access == StructuralAccess::Owned {
+            let expected_multiplicity = if semantic.access != StructuralAccess::Owned {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if semantic.path.is_empty() {
                 root.multiplicity
             } else {
-                terminal_psi::StructuralMultiplicity::Unrestricted
+                // A projected owned member move surrenders the leaf as
+                // affine custody: the moved occurrence is used at most
+                // once while the ownership frontier tracks the hole it
+                // leaves. The leaf binds the parameter's type below and
+                // stores no multiplicity of its own.
+                terminal_psi::StructuralMultiplicity::Affine
             };
             if declaration_parameter.multiplicity != expected_multiplicity {
                 return Err(psi_operation);
@@ -1453,16 +1460,54 @@ impl Replay<'_> {
             let (projected_type, projected_shape, byte_offset) = match declaration_parameter.access
             {
                 StructuralAccess::Owned => {
-                    // Whole-place owned transport names the root itself.
-                    if !semantic.path.is_empty() {
-                        return Err(psi_operation);
+                    // Whole-place owned transport names the root itself; a
+                    // projected member moves its subtree by value, resolving
+                    // leaf type, shape, and byte offset exactly like a
+                    // borrowed projection.
+                    if semantic.path.is_empty() {
+                        (
+                            root.structural_type,
+                            structural_shapes::reconstruct(root.structural_type, self.declarations)
+                                .map_err(|_| psi_operation)?,
+                            0,
+                        )
+                    } else {
+                        if semantic.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        }) {
+                            return Err(psi_operation);
+                        }
+                        if semantic
+                            .path
+                            .iter()
+                            .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                        {
+                            let (element_type, element_offset) =
+                                structural_shapes::project_static_path(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                )
+                                .map_err(|_| psi_operation)?;
+                            (
+                                element_type,
+                                structural_shapes::reconstruct(element_type, self.declarations)
+                                    .map_err(|_| psi_operation)?,
+                                element_offset,
+                            )
+                        } else {
+                            structural_shapes::projected_field(
+                                root.structural_type,
+                                &semantic.path,
+                                self.declarations,
+                            )
+                            .map_err(|_| psi_operation)?
+                        }
                     }
-                    (
-                        root.structural_type,
-                        structural_shapes::reconstruct(root.structural_type, self.declarations)
-                            .map_err(|_| psi_operation)?,
-                        0,
-                    )
                 }
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow

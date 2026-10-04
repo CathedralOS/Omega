@@ -1196,6 +1196,12 @@ fn scalar_result_normalization_kind(
 fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
     use calling_conventions::ValueShape;
     match scalar_type {
+        // The retained hosted address model uses a 64-bit integer-class
+        // slot, while its semantic carrier remains an address throughout
+        // replay.
+        ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
+            Some(ValueShape::integer(8, 8))
+        }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
             Some(ValueShape::float(4))

@@ -214,7 +214,7 @@ pub(super) fn resolve_origin(
 
 /// Expand one spelled region through the block-parameter alias map. A place
 /// bound from caller storage touches the caller root at the bound prefix.
-fn expand_region(
+pub(super) fn expand_region(
     aliases: &WindowAliases,
     place: PlaceId,
     region: Vec<CanonicalStructuralPathSegment>,
@@ -367,11 +367,13 @@ pub(super) fn apply_operation(
                     operation: operation.id,
                     place: root,
                 })?;
-            frontier
-                .restoration_debt
-                .entry(root)
-                .or_default()
-                .insert(hole, field_type);
+            frontier.restoration_debt.entry(root).or_default().insert(
+                hole,
+                super::frontier::RestorationDebt {
+                    structural_type: field_type,
+                    reseat_owed: true,
+                },
+            );
             Ok(())
         }
         OperationKind::StoreStructuralField {
@@ -424,7 +426,9 @@ pub(super) fn apply_operation(
                     place: root,
                 });
             };
-            if holes.get(&hole) != Some(&field_type) || source.structural_type != field_type {
+            if holes.get(&hole).map(|debt| debt.structural_type) != Some(field_type)
+                || source.structural_type != field_type
+            {
                 return Err(ModuleError::BorrowedStorageRepairMismatch {
                     operation: operation.id,
                     place: root,

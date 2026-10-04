@@ -15,8 +15,9 @@
 
 use super::super::references::validate_normal_return;
 use super::super::{
-    BTreeMap, BlockId, ModuleError, OperationKind, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, Terminator, partial_affine_residuals, partial_affine_root_type,
+    BTreeMap, BlockId, ModuleError, OperationKind, PlaceId, StructuralAccess,
+    StructuralMultiplicity, StructuralPlaceKind, Terminator, partial_affine_residuals,
+    partial_affine_root_type,
 };
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
@@ -314,6 +315,17 @@ fn close_structural_case(
     Ok(())
 }
 
+/// The first borrowed root still owed a repair at an exit. Transferred holes
+/// — members a projected owned argument carried out of a borrowed root — are
+/// delivered to the referent's owner and suspend no return.
+fn pending_reseat(frontier: &StructuralOwnershipFrontier) -> Option<PlaceId> {
+    frontier
+        .restoration_debt
+        .iter()
+        .find(|(_, holes)| holes.values().any(|debt| debt.reseat_owed))
+        .map(|(place, _)| *place)
+}
+
 /// Closes a block whose terminator is `ReturnUnit`.
 fn close_return_unit(
     walk: &FrontierWalk<'_>,
@@ -340,11 +352,11 @@ fn close_return_unit(
             place: *place,
         });
     }
-    if let Some(place) = frontier.restoration_debt.keys().next() {
+    if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
-            place: *place,
+            place,
         });
     }
     let expected_affine_discards =
@@ -467,11 +479,11 @@ fn close_return_unit_partial_affine(
             block: block.id,
         });
     }
-    if let Some(place) = frontier.restoration_debt.keys().next() {
+    if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
-            place: *place,
+            place,
         });
     }
     if let Some((claim, _)) = frontier
@@ -511,11 +523,11 @@ fn close_return_unit_nominal_affine(
             });
         }
     }
-    if let Some(place) = frontier.restoration_debt.keys().next() {
+    if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
-            place: *place,
+            place,
         });
     }
     if !frontier.partial_custody_paths.is_empty()
@@ -560,11 +572,11 @@ fn close_return(
             claim: *claim,
         });
     }
-    if let Some(place) = frontier.restoration_debt.keys().next() {
+    if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
-            place: *place,
+            place,
         });
     }
     validate_return_cleanup_actions(
@@ -610,11 +622,11 @@ fn close_return_structural(
         &mut frontier.references,
         returned_reference_sources,
     )?;
-    if let Some(place) = frontier.restoration_debt.keys().next() {
+    if let Some(place) = pending_reseat(&frontier) {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block: block.id,
-            place: *place,
+            place,
         });
     }
     if frontier.partial_custody_paths.contains_key(source) {

@@ -150,23 +150,41 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             let (projected_type, projected_shape, source_byte_offset) = if parameter.access
                 == StructuralAccess::Owned
             {
-                // An owned argument hands the callee the caller's whole
-                // place by value; a field projection remains the
-                // borrowed-projection form.
-                if !argument.path.is_empty() {
-                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                }
-                (
-                    source_structural_type,
-                    structural_shape(
+                // An owned argument hands the callee its subtree by value:
+                // the whole caller's place at an empty path, or one member
+                // carried out of a borrowed or owned root — the leaf
+                // resolves through the same static projection a borrowed
+                // field does, but the destination transports its bytes.
+                if argument.path.is_empty() {
+                    (
                         source_structural_type,
+                        structural_shape(
+                            source_structural_type,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )
+                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                        0,
+                    )
+                } else {
+                    if argument.path.iter().any(|segment| {
+                        !matches!(
+                            segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        )
+                    }) {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    resolve_structural_projection_path(
+                        source_structural_type,
+                        &argument.path,
                         structural_types,
                         shape_cache,
                         active,
                     )
-                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
-                    0,
-                )
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                }
             } else {
                 // A dynamic descriptor's referent is the caller's stored
                 // view itself: borrowing the whole `ByteSequence`
@@ -275,11 +293,18 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 }
             };
             // Borrowing does not transfer the owner's multiplicity. Owned
-            // transport, in contrast, retains the exact source contract.
-            let expected_multiplicity = if argument.access == StructuralAccess::Owned {
+            // whole-place transport retains the exact source contract; a
+            // projected member move surrenders the leaf as affine custody —
+            // the moved occurrence is used at most once while the ownership
+            // frontier tracks the hole it leaves. Leaf-type agreement below
+            // binds the subtree to the parameter's type, which stores no
+            // multiplicity of its own.
+            let expected_multiplicity = if argument.access != StructuralAccess::Owned {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if argument.path.is_empty() {
                 source_multiplicity
             } else {
-                terminal_psi::StructuralMultiplicity::Unrestricted
+                terminal_psi::StructuralMultiplicity::Affine
             };
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access

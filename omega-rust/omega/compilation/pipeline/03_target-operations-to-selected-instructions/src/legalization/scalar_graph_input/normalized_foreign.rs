@@ -393,7 +393,21 @@ pub(in crate::legalization) fn structural_argument_at(
     let destination = plan_row.ok_or(LegalizationError::custody())?;
     let (shape, destination_shape, multiplicity) = match semantic.access {
         StructuralAccess::Owned => {
-            if root_access != StructuralAccess::Owned || !semantic.path.is_empty() {
+            // Whole-place owned transport still names the root itself under
+            // an owned source; a projected member moves its subtree by value
+            // out of any root that can surrender it — an owned root's
+            // partial custody or an exclusive borrow's referent hole — and
+            // presents the moved occurrence's affine custody: used at most
+            // once while the ownership frontier tracks the hole it leaves.
+            let admitted_root = if semantic.path.is_empty() {
+                root_access == StructuralAccess::Owned
+            } else {
+                matches!(
+                    root_access,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                )
+            };
+            if !admitted_root {
                 return Err(LegalizationError::custody());
             }
             let classified = abstract_operations_to_target_operations::classified_boundary_shape(
@@ -402,7 +416,12 @@ pub(in crate::legalization) fn structural_argument_at(
                 policy,
             )
             .map_err(|_| LegalizationError::custody())?;
-            (projected_shape, classified, root_multiplicity)
+            let multiplicity = if semantic.path.is_empty() {
+                root_multiplicity
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            };
+            (projected_shape, classified, multiplicity)
         }
         StructuralAccess::SharedBorrow
         | StructuralAccess::MutableBorrow

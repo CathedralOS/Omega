@@ -5,8 +5,8 @@ use super::super::{
     StructuralMultiplicity,
 };
 use super::{
-    FrontierWalk, LiveClaim, StructuralOwnershipFrontier, projected_root_is_fully_consumed,
-    validate_owned_reads,
+    FrontierWalk, LiveClaim, RestorationDebt, StructuralOwnershipFrontier,
+    projected_root_is_fully_consumed, validate_owned_reads,
 };
 
 /// What one operation does to the frontier: it applies the operation's
@@ -161,10 +161,67 @@ pub(super) fn apply_operation(
         .filter(|argument| !argument.path.is_empty() && argument.access == StructuralAccess::Owned)
     {
         if !frontier.owned_places.contains_key(&argument.place) {
-            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                operation: operation.id,
-                place: argument.place,
-            });
+            // A projected owned argument out of a borrowed exclusive root
+            // transfers the member out of this machine entirely — the
+            // referent's owner receives the hole at return. Record it as a
+            // transferred restoration hole: the same absent-storage fact an
+            // open window carries, so member access still rejects, double
+            // moves still fail, and a matching store may reseat the member.
+            let exclusively_borrowed = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+                .or_else(|| super::super::block_views::parameter(machine, argument.place))
+                .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow);
+            if !exclusively_borrowed {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: argument.place,
+                });
+            }
+            let (place, region) = super::super::structural::access_regions::argument_region(
+                module, machine, argument,
+            );
+            let Some(leaf_type) =
+                super::super::structural::operations::caller_structural_root_type(
+                    machine,
+                    argument.place,
+                )
+                .and_then(|root_type| {
+                    super::super::foundation::resolve_runtime_projection(
+                        module,
+                        root_type,
+                        &argument.path,
+                    )
+                })
+            else {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: argument.place,
+                });
+            };
+            for (root, hole) in
+                super::super::borrowed_windows::expand_region(walk.window_aliases, place, region)
+            {
+                let holes = frontier.restoration_debt.entry(root).or_default();
+                if holes
+                    .keys()
+                    .any(|existing| hole.starts_with(existing) || existing.starts_with(&hole))
+                {
+                    return Err(ModuleError::OverlappingProjectedStructuralMove {
+                        operation: operation.id,
+                        place: argument.place,
+                    });
+                }
+                holes.insert(
+                    hole,
+                    RestorationDebt {
+                        structural_type: leaf_type,
+                        reseat_owed: false,
+                    },
+                );
+            }
+            continue;
         }
         let moved = frontier
             .partial_custody_paths

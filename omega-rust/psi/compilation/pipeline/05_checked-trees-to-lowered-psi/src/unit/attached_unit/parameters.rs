@@ -1032,8 +1032,15 @@ pub(crate) fn validate_transfer_shape(
                 checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             }
         };
+        // An exclusive borrow supplies an owned presentation only for a
+        // projected member: the move surrenders the referent's subtree and
+        // leaves the hole the ownership frontier tracks. The whole borrow
+        // itself is still a loan — it cannot be moved out owned.
         if argument.access != target.access
-            || !checked_access_can_supply(source_access, argument.access)
+            || (!checked_access_can_supply(source_access, argument.access)
+                && !(source_access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                    && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                    && !argument.path.is_empty()))
         {
             return unsupported("Unit structural argument access is inconsistent");
         }

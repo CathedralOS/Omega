@@ -17,9 +17,6 @@ pub(super) fn argument(
     builder: &mut Builder<'_>,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
     let place = semantic.place;
-    let root_shape =
-        crate::selection::scalar_call_abi::owned_value_shape(source, target.root_structural_type)
-            .ok_or_else(|| SelectedInstructionError::custody())?;
     let slot = match target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             Some(LocalStorageSlotId::Structural {
@@ -58,6 +55,15 @@ pub(super) fn argument(
         .ok_or_else(|| SelectedInstructionError::custody())?
         .id;
     let pointer = if let Some(slot) = slot {
+        // Only an owned whole-home slot needs the root's aggregate
+        // geometry: a placement source reaches the subtree through its
+        // own referent pointer, and a borrowed root's referent shape is
+        // not an owned aggregate at all.
+        let root_shape = crate::selection::scalar_call_abi::owned_value_shape(
+            source,
+            target.root_structural_type,
+        )
+        .ok_or_else(|| SelectedInstructionError::custody())?;
         if builder
             .transport
             .local_slots

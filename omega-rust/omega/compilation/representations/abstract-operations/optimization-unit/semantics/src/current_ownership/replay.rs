@@ -18,6 +18,22 @@ use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
 };
 
+/// A member moved under an owned contract out of an exclusively borrowed
+/// root: the leaf's disposal transfers to the callee, while the referent's
+/// hole returns to its owner — absent-subtree rules replay upstream, and this
+/// ledger has no custody row for the borrowed root.
+fn is_borrowed_member_move(
+    function: &PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+) -> bool {
+    !argument.path.is_empty()
+        && crate::unit_validation::operation_contracts::structural_source_contract(
+            function,
+            argument.place,
+        )
+        .is_some_and(|source| source.access == StructuralAccess::MutableBorrow)
+}
+
 /// Byte observations borrow storage without consuming it. Dominating producer
 /// evidence does not make a consumed or partially moved owner readable again.
 fn validate_byte_observations(
@@ -488,7 +504,9 @@ pub(super) fn validate_current_ownership_cfg(
                                 && source.multiplicity == StructuralMultiplicity::Affine))
                 })
             {
-                if !frontier.owned_places.contains_key(&argument.place) {
+                if !frontier.owned_places.contains_key(&argument.place)
+                    && !is_borrowed_member_move(function, argument)
+                {
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                         machine: function.machine,
                         block: block_id,
@@ -544,6 +562,12 @@ pub(super) fn validate_current_ownership_cfg(
                 !argument.path.is_empty() && argument.access == StructuralAccess::Owned
             }) {
                 if !frontier.owned_places.contains_key(&argument.place) {
+                    // A member carried out of an exclusively borrowed root
+                    // leaves the referent's hole with its owner — no disposal
+                    // row exists for the borrowed root to track here.
+                    if is_borrowed_member_move(function, argument) {
+                        continue;
+                    }
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                         machine: function.machine,
                         block: block_id,

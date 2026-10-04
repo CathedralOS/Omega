@@ -464,7 +464,15 @@ pub(crate) fn structural_arguments_match(
                 && !byte_field_presentation
                 && !bounded_owner_presentation)
             || argument.access != parameter.access
-            || !structural_access_can_supply(source.access, argument.access)
+            // An exclusive borrow supplies an owned presentation only for
+            // a projected member: the move surrenders the referent's
+            // subtree and leaves the hole the ownership frontier tracks.
+            // The whole borrow itself is still a loan — it cannot be
+            // moved out owned.
+            || (!structural_access_can_supply(source.access, argument.access)
+                && !(source.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && argument.access == terminal_psi::StructuralAccess::Owned
+                    && !argument.path.is_empty()))
         {
             return false;
         }
@@ -557,6 +565,17 @@ pub(crate) fn structural_arguments_match(
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
             && is_partial_affine_path(types, source.structural_type, &argument.path)
         {
+            terminal_psi::StructuralMultiplicity::Affine
+        } else if argument.access == terminal_psi::StructuralAccess::Owned
+            && source.access == terminal_psi::StructuralAccess::MutableBorrow
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        {
+            // An owned projected move out of an exclusive borrow surrenders
+            // the leaf as affine custody: the moved occurrence is used at
+            // most once and the ownership frontier separately tracks the
+            // hole it leaves. Leaf-type agreement above already bound the
+            // moved subtree to the parameter's declared type. An owned or
+            // local root's partial move still presents linear.
             terminal_psi::StructuralMultiplicity::Affine
         } else {
             terminal_psi::StructuralMultiplicity::Linear
