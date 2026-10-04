@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: fresh-runner restamps on 226c4c4b57b — transition_tail checked heal; wrapper_results->create_dir 0-rows both legs; lock_metadata native->Fused fs::host; open_with->PrimitiveSnapshotReconstructionLimitExceeded both legs (guarded_jump + lock_metadata-checked superseded by upstream ee641d14949)
+ticket: 4de3951b6c41cbadd1bed3283a70f616
+published_utc: 2026-10-04T16:28:49.151347+00:00
