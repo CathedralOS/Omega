@@ -1,5 +1,5 @@
-data Row { values: [i32; 4]; }
-data Window { rows: [Row; 2]; }
+data Row { marker: u64; values: [i32; 4]; }
+data Window { marker: u64; rows: [Row; 2]; }
 machine write_pair(values: &mut [i32]) {
     transition values.len >= 2 {
         true -> write(values)
@@ -20,11 +20,14 @@ requires row < 2;
     { write_pair(&mut window.rows[row].values[0..2]); }
 }
 machine main() crashes Trap {
-    let mut first: Window = Window { rows: [Row { values: [0, 0, 0, 0] }, Row { values: [0, 0, 0, 0] }] };
-    let mut second: Window = Window { rows: [Row { values: [0, 0, 0, 0] }, Row { values: [0, 0, 0, 0] }] };
+    let mut first: Window = Window { marker: 43, rows: [Row { marker: 101, values: [0, 0, 0, 0] }, Row { marker: 202, values: [0, 0, 0, 0] }] };
+    let mut second: Window = Window { marker: 43, rows: [Row { marker: 101, values: [0, 0, 0, 0] }, Row { marker: 202, values: [0, 0, 0, 0] }] };
     ordinary(&mut first, 1);
     staged(&mut second, 0);
-    transition first.rows[1].values[0] == 0 && first.rows[1].values[1] == 7 && first.rows[1].values[2] == 9
+    transition first.marker == 43 && second.marker == 43
+        && first.rows[0].marker == 101 && first.rows[1].marker == 202
+        && second.rows[0].marker == 101 && second.rows[1].marker == 202
+        && first.rows[1].values[0] == 0 && first.rows[1].values[1] == 7 && first.rows[1].values[2] == 9
         && first.rows[1].values[3] == 0 && second.rows[0].values[0] == 7 && second.rows[0].values[1] == 9
         && second.rows[0].values[2] == 0 && second.rows[0].values[3] == 0
         && first.rows[0].values[0] == 0 && first.rows[0].values[1] == 0
