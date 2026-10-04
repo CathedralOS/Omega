@@ -80,6 +80,25 @@ The [ownership contract](../../../../../wiki/spec/terminal-psi/ownership.md) def
 what must survive into Terminal Psi; successful helper tests do not establish
 every source ownership shape's end-to-end coverage.
 
+Whole owned Linear values retain their existing claim identities and typed paths
+through local binding moves, structural state arguments including swaps, and
+ordinary unconditional terminal calls. An explicit consuming call may finish
+through the exact owner-designated `T::drop` plan for the admitted scalar-record
+carrier. The cleanup edge consumes
+that live claim while the hook receives only a temporary exclusive loan; an
+ordinary borrowed method does not gain disposition authority. Source checking
+and Terminal/Omega replay retain the hook's exact nominal designation and require
+a normal, infallible, nonblocking, non-suspending contract without process exit
+or additional runtime authority.
+
+This coverage does not include joins that choose or rename claim lineages,
+claim-bearing result joins, or disposition of erased or nested Linear children.
+An owner hook cannot erase a child's independent obligation. Missing owner
+permission, duplicate transfer, and live-owner overwrite remain rejected.
+The maintained [local-move and terminal-call fixture](../../../../../tests/omega/pass/calls/runtime_linear_terminal_owner_disposition_exit/main.omg)
+and [state-swap fixture](../../../../../tests/omega/pass/calls/runtime_linear_state_owner_disposition_exit/main.omg)
+execute the complete disposition path in both engines.
+
 ### Structural predicate production
 
 [Contract predicates](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs)

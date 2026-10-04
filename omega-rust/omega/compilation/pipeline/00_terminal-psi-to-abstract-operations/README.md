@@ -168,13 +168,20 @@ support for these cycles.
 
 Whole plain owned structural block arrivals retain exact source/destination
 types, access, multiplicity, and ordered bindings. Independent current ownership
-replay consumes all old affine roots before establishing destinations, including
-swaps and self-loops; cleanup follows reverse establishment order derived from
-dominance, not serialized block IDs. Retained frontier snapshots independently
-rejoin cleanup and rebinding. Claims, qualifications, projected transfers, and
-linear arrivals remain outside this bounded admission. Plain owned payloads use
-the ordinary native graph. Integer and Boolean record-field observations retain
-their actual parameter, construction-result, or block-arrival place; current
+replay consumes all old owned roots before establishing destinations, including
+swaps and self-loops. Whole Linear arrivals rehome each live claim to its exact
+destination while preserving the claim identity and typed path; they neither
+create replacement claims nor copy a source obligation. Ordinary call transfer
+rejoins that current home. Affine cleanup follows reverse establishment order
+derived from dominance, not serialized block IDs. Retained frontier snapshots
+independently rejoin cleanup and rebinding. Conditional claim-lineage changes,
+claim-bearing result joins, and broader qualified or projected Linear transfers
+remain outside this bounded admission. Exact owner-designated scalar-record
+cleanup retains its consumed claim roster through an ordinary hook invocation;
+no-code discard remains Affine-only. Erased or nested Linear child disposition
+is not covered by the parent hook. Plain owned payloads use the ordinary native
+graph. Integer and Boolean record-field observations retain their actual
+parameter, construction-result, or block-arrival place; current
 ownership and dominance checks reject unavailable sources. Field-only carrier
 paths retain canonical declaration-local IDs through the abstract graph.
 Independent native and image replay reconstruct each child declaration and
