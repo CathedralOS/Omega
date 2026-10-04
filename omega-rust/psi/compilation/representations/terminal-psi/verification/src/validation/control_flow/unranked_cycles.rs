@@ -7,8 +7,8 @@
 //! parameters for the machine's whole cyclic lifetime.
 
 use super::{
-    OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator,
+    OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine, TerminalModule,
+    Terminator,
 };
 use crate::validation::{
     BTreeSet, BlockId, ClaimId, ControlCycleIneligibility, OperationResult, PlaceId,
@@ -18,7 +18,8 @@ use crate::validation::{
 use crate::validation::{block_views, primitive_storage};
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
-/// ordinary operand, view, successor, and frontier checks after this fence.
+/// ordinary operand, view, successor, result, and frontier checks after this
+/// fence for every block. Invocation result shape does not classify cyclic work.
 /// Returns the first clause the machine fails so the decline names the wall it
 /// hit rather than a bare cycle rejection.
 pub(super) fn ineligibility(
@@ -36,29 +37,6 @@ pub(super) fn ineligibility(
                 .map(|claim| claim.input.root),
         )
         .collect::<BTreeSet<PlaceId>>();
-    let scalar_case_result = machine.result.structural().is_some_and(|result| {
-        matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        ) && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
-            && crate::validation::scalar::case::plain_type(module, result.structural_type)
-    });
-    let plain_record_result = machine.result.structural().is_some_and(|result| {
-        matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        ) && result.qualifications.is_empty()
-            && result.projected_qualifications.is_empty()
-            && module.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-            })
-            && crate::validation::record::plain_type(module, result.structural_type)
-    });
-    if machine.result.structural().is_some() && !scalar_case_result && !plain_record_result {
-        return Some(ControlCycleIneligibility::ResultShape);
-    }
     if !claims_pinned_at_entry(machine, &claim_roots) {
         return Some(ControlCycleIneligibility::UnpinnedClaims);
     }
@@ -100,14 +78,8 @@ pub(super) fn ineligibility(
                             module,
                             parameter.structural_type,
                         )))
-                    || ((parameter.access == StructuralAccess::SharedBorrow
-                        || (parameter.access == StructuralAccess::MutableBorrow
-                            && (machine.result == TerminalMachineResult::Unit
-                                || scalar_case_result
-                                // A scalar result moves no custody — the
-                                // borrowed carrier's cycle reads and writes
-                                // carry the identical proof as `Unit`.
-                                || machine.result.scalar().is_some())))
+                    || (matches!(parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
                         && module.structural_types.iter().any(|declaration| {
                             declaration.id == parameter.structural_type
                                 && (matches!(
@@ -134,8 +106,8 @@ pub(super) fn ineligibility(
                 | StructuralPlaceKind::ByteSequenceLiteral { .. }
                 | StructuralPlaceKind::ProviderAttachment { .. }
                 | StructuralPlaceKind::TrivialAffineLocal { .. }
-        ) || (scalar_case_result || plain_record_result)
-            && place.kind == StructuralPlaceKind::Result)
+                | StructuralPlaceKind::Result
+        ))
     }) {
         return Some(ControlCycleIneligibility::StructuralPlace { place: place.id });
     }
@@ -143,43 +115,42 @@ pub(super) fn ineligibility(
         .into_iter()
         .flatten()
         .collect::<BTreeSet<_>>();
-    machine.blocks.iter().find_map(|block| {
-        let case_source = confined_case_source(module, block);
-        let terminator_eligible =
-            matches!(
-                block.terminator,
-                Terminator::Jump { .. }
-                    | Terminator::Conditional { .. }
-                    | Terminator::Return { .. }
-                    | Terminator::ReturnUnit { .. }
-                    | Terminator::Crash { .. }
-            ) || matches!(block.terminator, Terminator::StructuralCase { .. })
-                && case_source.is_some()
-                || (scalar_case_result || plain_record_result) && matches!(&block.terminator,
-                    Terminator::ReturnStructural { source, returned_claims, .. }
-                    if returned_claims.is_empty()
-                        && (crate::validation::scalar::case::plain_return_source(module, machine, *source)
-                            || (plain_record_result && crate::validation::record::plain_return_source(module, machine, *source))));
-        if !terminator_eligible {
-            return Some(ControlCycleIneligibility::BlockTerminator { block: block.id });
-        }
-        block
-            .operations
-            .iter()
-            .find(|operation| {
-                // A prefix/exit constructor executes outside every cycle and
-                // may establish an affine plain home. The frontier still owns
-                // it through all arrivals and requires exact final disposal.
-                (cyclic_blocks.contains(&block.id)
-                    || operation.result.structural().is_none_or(|result|
-                        block_views::mutable_records::owned_home(module, machine, result.place).is_none()))
-                    && !cycle_operation_eligible(module, machine, block, case_source, &cyclic_blocks, operation)
-            })
-            .map(|operation| ControlCycleIneligibility::BlockOperation {
-                block: block.id,
-                operation: operation.id,
-            })
-    })
+    machine
+        .blocks
+        .iter()
+        .filter(|block| cyclic_blocks.contains(&block.id))
+        .find_map(|block| {
+            // Only repeated operations need cycle-specific stability eligibility.
+            // Prefixes and exits retain ordinary declaration, operation, result and
+            // frontier checks; their custody still crosses every actual arrival.
+            let case_source = confined_case_source(module, block);
+            let terminator_eligible =
+                matches!(
+                    block.terminator,
+                    Terminator::Jump { .. } | Terminator::Conditional { .. }
+                ) || matches!(block.terminator, Terminator::StructuralCase { .. })
+                    && case_source.is_some();
+            if !terminator_eligible {
+                return Some(ControlCycleIneligibility::BlockTerminator { block: block.id });
+            }
+            block
+                .operations
+                .iter()
+                .find(|operation| {
+                    !cycle_operation_eligible(
+                        module,
+                        machine,
+                        block,
+                        case_source,
+                        &cyclic_blocks,
+                        operation,
+                    )
+                })
+                .map(|operation| ControlCycleIneligibility::BlockOperation {
+                    block: block.id,
+                    operation: operation.id,
+                })
+        })
 }
 
 /// Claim custody around a cycle is pinned when every claim root is an owned
@@ -505,12 +476,10 @@ fn moved_to_successor_in_cycle(
 /// here, but a consumer on only one branch cannot make an invalid join pass.
 fn result_disposed_before_reentry(
     machine: &TerminalMachine,
-    block: &terminal_psi::Block,
     cyclic_blocks: &BTreeSet<BlockId>,
     place: PlaceId,
 ) -> bool {
-    !cyclic_blocks.contains(&block.id)
-        || result_discarded_in_cycle(machine, cyclic_blocks, place)
+    result_discarded_in_cycle(machine, cyclic_blocks, place)
         || moved_to_successor_in_cycle(machine, cyclic_blocks, place)
         || reseated_in_cycle(machine, cyclic_blocks, place)
 }
@@ -627,7 +596,6 @@ fn cycle_operation_eligible(
                                 && result.qualification_establishments.is_empty()
                                 && result_disposed_before_reentry(
                                     machine,
-                                    block,
                                     cyclic_blocks,
                                     result.place,
                                 ))
@@ -716,10 +684,9 @@ fn cycle_operation_eligible(
                         && result.qualification_establishments.is_empty()
                         && result_discarded_in_cycle(machine, cyclic_blocks, result.place))
                     // A reference-free result whose arguments are all
-                    // call-scoped loans or copies may also run outside every
-                    // cycle, or move into an owned successor parameter or a
-                    // window hole before re-entry.
-                    || owned_call_result(module, machine, block, cyclic_blocks, operation, result)
+                    // call-scoped loans or copies may move into an owned
+                    // successor parameter or a window hole before re-entry.
+                    || owned_call_result(module, machine, cyclic_blocks, operation, result)
             })
         }
         // Ordinary scalar calls retain their complete signature,
@@ -835,7 +802,6 @@ fn cycle_operation_eligible(
                                     || (result.multiplicity == StructuralMultiplicity::Affine
                                         && result_disposed_before_reentry(
                                             machine,
-                                            block,
                                             cyclic_blocks,
                                             result.place,
                                         ))
@@ -1121,10 +1087,8 @@ fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
 /// on every arrival. The result insert refuses a place that is still owned,
 /// every arrival at a block must present that block's established entry
 /// frontier, and every exit must dispose the exact owned roster. What the
-/// replay cannot see is whether the operation is re-entered, so the disposal
-/// clause depends on where the call runs. Outside every cycle it runs once per
-/// activation and the exit rosters or a consumer dispose of it. Inside a cycle
-/// some in-cycle edge must dispose of it before the back edge: a discard
+/// replay cannot see at this eligibility boundary is the later consumer, so
+/// some in-cycle edge must dispose of the result before the back edge: a discard
 /// roster, a whole move into an owned successor block parameter (the
 /// parameter then carries the obligation, as any loop-carried parameter
 /// does), or a window store that reseats a hole with it.
@@ -1141,7 +1105,6 @@ fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
 fn owned_call_result(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    block: &terminal_psi::Block,
     cyclic_blocks: &BTreeSet<BlockId>,
     operation: &terminal_psi::Operation,
     result: &terminal_psi::StructuralOperationResult,
@@ -1187,7 +1150,7 @@ fn owned_call_result(
                     || owned_argument(module, machine, argument)
                     || copied_payload_argument(module, machine, argument, parameter)
             })
-        && result_disposed_before_reentry(machine, block, cyclic_blocks, result.place)
+        && result_disposed_before_reentry(machine, cyclic_blocks, result.place)
 }
 
 /// Borrowing a place an earlier operation in the same machine produced lends

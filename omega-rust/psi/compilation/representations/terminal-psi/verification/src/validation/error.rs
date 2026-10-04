@@ -50,9 +50,6 @@ pub enum SuspensionCallPlanError {
 /// instead of only the block that closed the graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlCycleIneligibility {
-    /// The machine's structural result is neither a plain scalar case nor a
-    /// plain record.
-    ResultShape,
     /// A claim root is not pinned on an owned machine entry parameter, or a
     /// block names a pinned root or moves a pinned claim identity.
     UnpinnedClaims,
@@ -68,7 +65,7 @@ pub enum ControlCycleIneligibility {
     Parameter { index: usize },
     /// A structural place outside the admitted kinds exists.
     StructuralPlace { place: PlaceId },
-    /// A block terminator outside the admitted set for this result shape.
+    /// A cyclic block terminator outside the admitted control set.
     BlockTerminator { block: BlockId },
     /// A block operation ineligible inside the cyclic region.
     BlockOperation {
