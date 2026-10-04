@@ -4,8 +4,8 @@
 //! Ordinary value arms are one state's own result routes; ordinary named edges
 //! compose the selected state or called machine's relation through the authored
 //! arguments exactly like call-frame instantiation. The reachable named subgraph
-//! must be finite: a cycle keeps the result relation explicitly opaque instead of solving
-//! leaves against a truncated depth-first walk.
+//! is solved as finite storage-root equations. Only actual normal returns seed
+//! origins; an internal backedge neither fabricates a result nor hides an unknown.
 
 use super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver,
@@ -20,9 +20,7 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, walk_state_write_prefix_collected,
 };
-use crate::machine_calls::calls::write_frames::transition_topology::{
-    named_state_transition_subgraph_is_acyclic, named_transition_target_state,
-};
+use crate::machine_calls::calls::write_frames::transition_topology::named_transition_target_state;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -30,6 +28,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetHandle, TransitionT
 
 mod input_moves;
 mod input_sources;
+mod state_equations;
 
 pub(super) fn call_result_origins(
     program: &TypedTrees,
@@ -95,12 +94,6 @@ pub(super) fn call_result_origins(
     {
         return None;
     }
-    // Named return routes compose only while the reachable named subgraph is
-    // finite. A cycle may re-enter an active ancestor mid-proof, where the
-    // result relation would depend on the recursion stack that produced it.
-    if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
-        return None;
-    }
     let mut relative = state_result_origins(
         program,
         machine,
@@ -109,7 +102,6 @@ pub(super) fn call_result_origins(
         symbols,
         inference,
         include_shared,
-        &mut Vec::new(),
     )?;
     instantiate_result_origins(
         program,
@@ -127,14 +119,9 @@ pub(super) fn call_result_origins(
     )
 }
 
-/// One state's contribution to the callee's result relation, expressed in that
-/// state's own parameter namespace. Every ordinary route out of the state
-/// contributes: a trailing expression, each value arm, and each named edge
-/// through its target state's relation. `expected_result` is the called
-/// machine's declared result type: named states may omit their own `-> T`
-/// annotation, so every reachable route resolves its leaves against that one
-/// boundary type. `complete` memoizes computed states so a shared acyclic
-/// target is not re-derived for every incoming edge.
+/// Complete result relation in the requested state's own parameter namespace.
+/// Internal transitions share one finite solve; actual machine invocations keep
+/// their active-body guard and cannot borrow provisional state summaries.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn state_result_origins<'program>(
     program: &'program TypedTrees,
@@ -144,17 +131,36 @@ pub(super) fn state_result_origins<'program>(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    complete: &mut Vec<(SymbolHandle, AggregateOrigins)>,
 ) -> Option<AggregateOrigins> {
-    if let Some((_, origins)) = complete.iter().find(|(symbol, _)| *symbol == state.symbol) {
-        return Some(origins.clone());
-    }
-    // A still-active ancestor is a named cycle this query must not reuse; the
-    // acyclicity gate normally rejects it first, but the guard also covers a
-    // `self`-spelled named edge that returns to this same state.
     if inference.active_states.contains(&state.symbol) {
         return None;
     }
+    inference.active_states.push(state.symbol);
+    let result = state_equations::solve(
+        program,
+        machine,
+        state,
+        expected_result,
+        symbols,
+        inference,
+        include_shared,
+    );
+    inference.active_states.pop();
+    result
+}
+
+/// Collect one state's real return seeds and named-edge substitutions using the
+/// same chronological prefix evidence for both acyclic and cyclic graphs.
+#[allow(clippy::too_many_arguments)]
+fn state_equation<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    state: &'program State,
+    expected_result: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+) -> Option<state_equations::Equation<'program>> {
     input_moves::validate_frozen_inputs(
         program,
         machine,
@@ -212,7 +218,10 @@ pub(super) fn state_result_origins<'program>(
             super::reference_origins::declared_origin_root(program, machine, source)?;
         }
     }
-    inference.active_states.push(state.symbol);
+    let already_active = inference.active_states.contains(&state.symbol);
+    if !already_active {
+        inference.active_states.push(state.symbol);
+    }
     let result = inference.with_local_scope(|inference| {
         // The whole body still has to satisfy the shared-transfer fences a
         // direct helper result enforced: producer writes, rebinding checks,
@@ -252,11 +261,14 @@ pub(super) fn state_result_origins<'program>(
             inference.record_local(local);
         }
         let mut relative = AggregateOrigins::default();
+        let mut edges = Vec::new();
+        let mut returns = false;
         for (index, statement) in statements.iter().enumerate() {
             match statement {
                 // A non-final expression is a discarded statement and never a
                 // result route.
                 StatementNode::Expression(result) if index + 1 == statements.len() => {
+                    returns = true;
                     merge_result_arm(
                         program,
                         machine,
@@ -281,20 +293,23 @@ pub(super) fn state_result_origins<'program>(
                             continue;
                         }
                         match program.statement_table.transition_target(edge) {
-                            TransitionTargetNode::Value(result) => merge_result_arm(
-                                program,
-                                machine,
-                                state,
-                                statement,
-                                index,
-                                *result,
-                                expected_result,
-                                &mut relative,
-                                symbols,
-                                inference,
-                                include_shared,
-                                prefixes.get(index).and_then(Option::as_ref),
-                            )?,
+                            TransitionTargetNode::Value(result) => {
+                                returns = true;
+                                merge_result_arm(
+                                    program,
+                                    machine,
+                                    state,
+                                    statement,
+                                    index,
+                                    *result,
+                                    expected_result,
+                                    &mut relative,
+                                    symbols,
+                                    inference,
+                                    include_shared,
+                                    prefixes.get(index).and_then(Option::as_ref),
+                                )?;
+                            }
                             TransitionTargetNode::Named { arguments, .. } => merge_named_edge(
                                 program,
                                 machine,
@@ -308,7 +323,8 @@ pub(super) fn state_result_origins<'program>(
                                 symbols,
                                 inference,
                                 include_shared,
-                                complete,
+                                &mut edges,
+                                &mut returns,
                                 prefixes.get(index).and_then(Option::as_ref),
                             )?,
                             // Terminal arms return nothing.
@@ -319,12 +335,16 @@ pub(super) fn state_result_origins<'program>(
                 _ => {}
             }
         }
-        Some(relative)
+        Some(state_equations::Equation {
+            state,
+            direct: returns.then_some(relative),
+            edges,
+        })
     });
-    inference.active_states.pop();
-    let relative = result?;
-    complete.push((state.symbol, relative.clone()));
-    Some(relative)
+    if !already_active {
+        inference.active_states.pop();
+    }
+    result
 }
 
 /// Evaluate one result expression against the prefix context immediately before
@@ -617,10 +637,10 @@ fn canonical_result_reference_origins(
 /// in the source state's namespace and are canonicalized against the prefix
 /// immediately before the transition.
 #[allow(clippy::too_many_arguments)]
-fn merge_named_edge(
-    program: &TypedTrees,
-    machine: &Machine,
-    source_state: &State,
+fn merge_named_edge<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    source_state: &'program State,
     boundary: &StatementNode,
     boundary_index: usize,
     edge: TransitionTargetHandle,
@@ -630,7 +650,8 @@ fn merge_named_edge(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    complete: &mut Vec<(SymbolHandle, AggregateOrigins)>,
+    edges: &mut Vec<state_equations::Edge<'program>>,
+    returns: &mut bool,
     boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
     let TransitionTargetNode::Named {
@@ -657,7 +678,6 @@ fn merge_named_edge(
                 state.return_type,
                 expected_result,
             )
-            || !named_state_transition_subgraph_is_acyclic(program, callee, state)
         {
             return None;
         }
@@ -690,6 +710,16 @@ fn merge_named_edge(
     {
         return None;
     }
+    let context = boundary_prefix?;
+    if !call_target.is_valid() {
+        edges.push(state_equations::Edge {
+            target: target_state,
+            statement_index: boundary_index,
+            arguments: edge_arguments,
+            prefix: context.clone(),
+        });
+        return Some(());
+    }
     let mut target_relative = state_result_origins(
         program,
         target_machine,
@@ -698,10 +728,47 @@ fn merge_named_edge(
         symbols,
         inference,
         include_shared,
-        complete,
     )?;
+    *returns = true;
+    instantiate_edge_origins(
+        program,
+        machine,
+        source_state,
+        target_machine,
+        target_state,
+        boundary,
+        boundary_index,
+        arguments,
+        &mut target_relative,
+        context,
+        relative,
+        symbols,
+        inference,
+        include_shared,
+    )
+}
+
+/// Substitute a retained target relation at its exact captured source boundary.
+/// Equation solving and ordinary terminal calls use the identical operation.
+#[allow(clippy::too_many_arguments)]
+fn instantiate_edge_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    source_state: &State,
+    target_machine: &Machine,
+    target_state: &State,
+    boundary: &StatementNode,
+    boundary_index: usize,
+    arguments: &[ExpressionHandle],
+    target_relative: &mut AggregateOrigins,
+    context: &CollectedStatementPrefix,
+    relative: &mut AggregateOrigins,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+) -> Option<()> {
+    let parameters = program.state_parameters(target_state);
     inference.with_local_scope(|inference| {
-        let context = boundary_prefix?;
         for local in &context.stored {
             inference.record_local(local);
         }
@@ -712,7 +779,7 @@ fn merge_named_edge(
             parameters,
             None,
             arguments,
-            &mut target_relative,
+            target_relative,
             symbols,
             inference,
             include_shared,

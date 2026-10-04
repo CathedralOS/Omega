@@ -202,11 +202,6 @@ pub(crate) fn transparent_callee_result_origins(
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     if inference.active_states.contains(&callee_state.symbol)
         || !type_reference_is_reference(program, callee_state.return_type)
-        || !super::transition_topology::named_state_transition_subgraph_is_acyclic(
-            program,
-            callee_machine,
-            callee_state,
-        )
     {
         return None;
     }
@@ -221,7 +216,6 @@ pub(crate) fn transparent_callee_result_origins(
         symbols,
         inference,
         include_shared,
-        &mut Vec::new(),
     )?;
     // This boundary exports one reference value, never an aggregate subtree or
     // unresolved moved carrier. Its source still must name a declared input
