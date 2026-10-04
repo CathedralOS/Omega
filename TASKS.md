@@ -2061,13 +2061,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   computed subject and selected payload runs once. Subject operands share the
   ordinary argument records and result-transfer cleanup; parser copies retain
   call coordinates without invoking their nested calls again.
+  `calls/runtime_qualified_terminal_result_exit` exits **0** in both engines:
+  guarded calls forward qualified scalar results through another terminal
+  wrapper, with each retained callee state's computations using its authored
+  owner. Interval `ensures` forwarding also runs; false bounds still reject.
   Whole-reference result origins still need transport from terminal calls into
-  the composed return roster; range-constrained result compatibility and
-  claim-transferring arm calls remain unfinished.
-  Nested receiver terminal calls still need the exact receiver leaf identity
-  retained in the typed
-  transition and joined to an occurrence-specific selected dispatch row;
-  the receiver root cannot substitute for that identity.
+  the composed return roster; claim-transferring arm calls remain unfinished.
+  Terminal calls to selected requirements with explicit projected context
+  arguments still lack an admitted body: guarded
+  `Items::get_count(&request.items)` fails while the same selected call in an
+  ordinary initializer runs. Direct declaration terminal calls with that
+  projected context also run. Preserve the selected requirement occurrence and
+  exact argument path; implicit receiver syntax is no longer a language feature.
 
   Qualified runtime-end byte slices now execute: after package preparation,
   `omega run --both tests/omega/pass/slices/domained_runtime_end_subslice_exit/main.omg`
