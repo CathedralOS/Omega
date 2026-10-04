@@ -5,7 +5,11 @@
 //! compiles checks the same typed program at the pre-build gate and again at
 //! settlement; the inputs are usually identical. The language judgment is a
 //! pure function of the typed program and the retained request fields, so an
-//! equal input returns that judgment's result. Invocation-owned package authority
+//! equal input returns that judgment's result. Equal means the whole typed
+//! program: this memo masks no field out of the comparison and rewrites no
+//! field of a judgment it serves, so a served judgment is the judgment that
+//! was checked rather than a copy of it carrying some other checkpoint's
+//! derived identities. Invocation-owned package authority
 //! is never cached here: `lower_typed_trees` admits it after every lookup.
 //! A program is retained once its
 //! size fingerprint repeats, so a compile that checks each program once pays
@@ -123,6 +127,16 @@ pub fn retain_repeated_checks() -> RepeatedCheckRetention {
     RepeatedCheckRetention(())
 }
 
+/// Hand back a share of the judgment the entry at `position` holds and make
+/// that entry the most recently used. Every serve path goes through here, so
+/// no path can produce a judgment that differs from the one retained.
+fn serve(memo: &mut Memo, position: usize) -> Arc<Result<CheckedTrees, Vec<Diagnostic>>> {
+    let entry = memo.entries.remove(position);
+    let result = Arc::clone(&entry.result);
+    memo.entries.push(entry);
+    result
+}
+
 /// `check(program)`, or the retained result of an earlier check of an equal
 /// program under an equal request.
 ///
@@ -148,21 +162,26 @@ pub(super) fn checked(
     let fingerprint = fingerprint(&program, &request);
     {
         let mut memo = MEMO.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(position) = memo.entries.iter().position(|entry| {
-            entry.fingerprint == fingerprint
-                && entry.request == request
-                && *entry.program == *program
-        }) {
-            let entry = memo.entries.remove(position);
-            let result = Arc::clone(&entry.result);
-            memo.entries.push(entry);
+        // One notion of program equality for both serve paths: the whole
+        // typed program, every field, by its own `PartialEq`. The carrier tag
+        // is the only exemption and it is declared with the tag itself, since
+        // `ProgramIdentity`'s equality is vacuous by construction. A field
+        // added to `TypedTrees` later joins this comparison with no decision
+        // to make, so no field can leave it silently.
+        let serves_program =
+            |entry: &Entry| entry.fingerprint == fingerprint && *entry.program == *program;
+        if let Some(position) = memo
+            .entries
+            .iter()
+            .position(|entry| serves_program(entry) && entry.request == request)
+        {
             if probe {
                 eprintln!(
                     "[lower-memo] HIT mode={:?} fp={fingerprint:016x}",
                     request.mode,
                 );
             }
-            return result;
+            return serve(&mut memo, position);
         }
         // A package compile checks the same frozen program at the preliminary
         // checkpoint and again at settlement. The checkpoint only changes how
@@ -173,34 +192,16 @@ pub(super) fn checked(
         if request.mode == CheckingMode::Settled
             && preliminary_mode_is_vacuous(&program)
             && let Some(position) = memo.entries.iter().position(|entry| {
-                entry.fingerprint == fingerprint
-                    && entry.request.is_preliminary_form_of(&request)
-                    && programs_equal_for_check(&entry.program, &program)
+                serves_program(entry) && entry.request.is_preliminary_form_of(&request)
             })
         {
-            let entry = memo.entries.remove(position);
-            // The masked field is return cargo: the result embeds the
-            // preliminary program, so the identities settlement stamped on
-            // this program must come back along for post-lower pruning. That
-            // makes the served judgment differ from the retained one in this
-            // one field, so this is the single path that cannot hand back the
-            // retained share itself. It takes the copy its caller would
-            // otherwise take, stamps that copy, and leaves the preliminary
-            // judgment retained as it was checked: a preliminary request
-            // arriving later must still read the identities its own
-            // checkpoint stamped.
-            let mut result = Result::clone(&entry.result);
-            if let Ok(checked) = &mut result {
-                checked.typed.boundary_calling_plans = program.boundary_calling_plans.clone();
-            }
-            memo.entries.push(entry);
             if probe {
                 eprintln!(
                     "[lower-memo] HIT-PRELIMINARY mode={:?} fp={fingerprint:016x}",
                     request.mode,
                 );
             }
-            return Arc::new(result);
+            return serve(&mut memo, position);
         }
         if !memo.fingerprints.contains(&fingerprint) {
             if memo.fingerprints.len() == REMEMBERED_FINGERPRINTS {
@@ -255,80 +256,6 @@ fn preliminary_mode_is_vacuous(program: &TypedTrees) -> bool {
         definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
             && definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
     })
-}
-
-/// Equality over the state the check consumes. Settlement stamps derived
-/// boundary calling-policy identities on the program between the two
-/// checkpoints; `lower_typed_trees` never reads them (their consumer is
-/// post-lower product pruning), so they are masked out of the comparison
-/// while every other field still compares exactly.
-///
-/// The pattern is exhaustive and the comparison names one field at a time, so
-/// a field added to `TypedTrees` later fails to compile here. That is how a
-/// new field is kept from leaving the comparison without a decision. The
-/// previous spelling cleared the masked field on two whole-program copies and
-/// compared those: it read every other field, and it copied both programs
-/// again for every candidate entry of every settled lookup.
-fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> bool {
-    let TypedTrees {
-        // The tag names one carrier instance rather than program content, and
-        // its own equality is vacuous by construction, so it decides nothing
-        // here either way.
-        identity: _,
-        product_declaration_frontier,
-        excluded_authored_selection_occurrences,
-        roots,
-        tables,
-        symbols,
-        service_reaches,
-        service_reach_rows,
-        authored_service_reach_rows,
-        semantic_domains,
-        external_bindings,
-        plan_laid_layouts,
-        placed_view_plans,
-        wire_placements,
-        wire_encode_obligations,
-        wire_schema_plans,
-        machine_specializations,
-        target_machine_families,
-        // The masked field; see above.
-        boundary_calling_plans: _,
-        boundary_completion_declarations,
-        fused_service_erasures,
-        open_index_normalizations,
-        evidence_forwardings,
-        proof_output_calls,
-        declaration_indexes,
-        ranking_expression_custody,
-        pending_const_range_endpoints,
-    } = retained;
-    *product_declaration_frontier == incoming.product_declaration_frontier
-        && *excluded_authored_selection_occurrences
-            == incoming.excluded_authored_selection_occurrences
-        && *roots == incoming.roots
-        && *tables == incoming.tables
-        && *symbols == incoming.symbols
-        && *service_reaches == incoming.service_reaches
-        && *service_reach_rows == incoming.service_reach_rows
-        && *authored_service_reach_rows == incoming.authored_service_reach_rows
-        && *semantic_domains == incoming.semantic_domains
-        && *external_bindings == incoming.external_bindings
-        && *plan_laid_layouts == incoming.plan_laid_layouts
-        && *placed_view_plans == incoming.placed_view_plans
-        && *wire_placements == incoming.wire_placements
-        && *wire_encode_obligations == incoming.wire_encode_obligations
-        && *wire_schema_plans == incoming.wire_schema_plans
-        && *machine_specializations == incoming.machine_specializations
-        && *target_machine_families == incoming.target_machine_families
-        && *boundary_completion_declarations == incoming.boundary_completion_declarations
-        && *fused_service_erasures == incoming.fused_service_erasures
-        && *open_index_normalizations == incoming.open_index_normalizations
-        && *evidence_forwardings == incoming.evidence_forwardings
-        && *proof_output_calls == incoming.proof_output_calls
-        && *declaration_indexes == incoming.declaration_indexes
-        && *ranking_expression_custody == incoming.ranking_expression_custody
-        && *pending_const_range_endpoints == incoming.pending_const_range_endpoints
 }
 
 /// Table sizes and boundary symbols: equal programs always agree on it, and
