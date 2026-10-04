@@ -377,7 +377,7 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
-        if let Some((root, _, collection, expression, _)) =
+        if let Some((root, _, collection, expression, storage_type_identity)) =
             subslices::transfer_range(&transfer.source)
         {
             // A view subslice narrows a whole view parameter or a view local
@@ -422,17 +422,63 @@ pub(super) fn validate_bindings(
                                 "Unit graph borrowed transfer type or order drifted",
                             );
                         }
-                        Some(source.type_identity.clone())
+                        // A parameter already describing the target view
+                        // narrows it directly. A parameter whose referent is
+                        // the whole collection instead lends its array the
+                        // way a field owner does — the minted storage names
+                        // the source's own carrier, and the edge establishes
+                        // the whole view before narrowing.
+                        if source.type_identity != target.type_identity
+                            && source.type_identity == storage_type_identity
+                        {
+                            if !source.qualifications.is_empty()
+                                || !source.projected_qualifications.is_empty()
+                            {
+                                return unsupported(
+                                    "Unit graph borrowed transfer type or order drifted",
+                                );
+                            }
+                            let mut peeled =
+                                target_formals[target.position as usize].type_reference;
+                            loop {
+                                match checked.type_reference_table.type_reference(peeled) {
+                                    checked_trees::types::TypeReferenceNode::Constrained {
+                                        base_type,
+                                        ..
+                                    }
+                                    | checked_trees::types::TypeReferenceNode::Reference {
+                                        referee: base_type,
+                                        ..
+                                    } => peeled = *base_type,
+                                    _ => break,
+                                }
+                            }
+                            Some(checked.normalized_type_identity(peeled).into_string())
+                        } else {
+                            Some(source.type_identity.clone())
+                        }
                     } else {
                         // The field owner's root only lends the array: it
                         // must be readable and unqualified, and the target's
                         // view identity is its own peeled carrier identity —
                         // the authored path's agreement with the projection
-                        // is replayed when the edge emits.
+                        // is replayed when the edge emits. The projection
+                        // stays inside the rooted subject's own storage:
+                        // members of records and selected case payloads, and
+                        // array elements those members name. A reference
+                        // crossing would lend storage another place owns, so
+                        // it stays refused here.
                         if !collection.iter().all(|segment| {
                             matches!(
                                 segment,
                                 checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                                    | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                                    | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                                        _
+                                    )
+                                    | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                                        _
+                                    )
                             )
                         }) || !matches!(
                             source.access,

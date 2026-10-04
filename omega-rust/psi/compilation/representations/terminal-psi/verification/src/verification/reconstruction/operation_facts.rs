@@ -792,6 +792,11 @@ pub(super) fn append_operation(
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
         }
+        if let Some(equation) =
+            element_extent::establishment_extent_equation(module, machine, operation)
+        {
+            crate::verification::substitution::push_unique_fact(axioms, equation);
+        }
         if let Some(bounds) =
             crate::validation::byte_sequence::read::class_bounds(module, machine, operation)
         {

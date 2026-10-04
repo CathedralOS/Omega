@@ -147,7 +147,13 @@ pub(super) fn emit(
         .requires_establishment()
         .then(|| allocate_dense(next_place).map(place_id))
         .transpose()?;
-    let (source, establishment) = storage.bind(checked, context.state, context.bindings, whole)?;
+    let (source, establishment) = storage.bind(
+        checked,
+        context.state,
+        context.bindings,
+        whole,
+        context.structural_types,
+    )?;
     if let Some(establishment) = establishment {
         temporaries.push(view_ranges::establish(
             &establishment,

@@ -84,9 +84,11 @@ pub(super) fn establish(
             element: view_element,
         } if *view_element == *element => {}
         // A `&[u8]` result declares its view over the `u8` element instead of
-        // an `ElementView` shell; the descriptor shape is identical.
+        // an `ElementView` shell; the descriptor shape is identical. A bounded
+        // carrier's extent rides its declared bound rather than a stored
+        // length, the same access-bearing descriptor a `&[u8]` spells.
         StructuralTypeShape::ByteSequence(_)
-            if declaration.shape.is_borrowed_byte_view()
+            if declaration.shape.is_borrowed_byte_carrier()
                 && signature
                     .structural_types
                     .iter()
@@ -120,9 +122,39 @@ pub(super) fn establish(
     let home = crate::selection::aggregate_result_input::home(function, source.place);
     let local_root = home.map(|(_, home)| local_home_root(home));
     let block_home = crate::selection::aggregate_result_input::block_home(function, source.place);
+    // A block-carried borrowed descriptor arrives as the collection's own
+    // backing: the edge transported the pointer whose referent carries the
+    // view's storage, the same root an address join lends a plain referent.
+    let descriptor_root = function
+        .blocks
+        .iter()
+        .find_map(|block| {
+            (block.id != function.entry_block)
+                .then_some(block)
+                .and_then(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == source.place)
+                })
+        })
+        .filter(|parameter| {
+            matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && signature
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == parameter.structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
+        });
     let Some(root) = parameter
         .or(local_root.as_ref())
         .or(block_home.map(|(_, declaration)| declaration))
+        .or(descriptor_root)
     else {
         return Err(invalid());
     };
@@ -152,7 +184,7 @@ pub(super) fn establish(
         && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
     {
         constant(builder, row, 0, 0)?
-    } else if parameter.is_some() {
+    } else if parameter.is_some() || descriptor_root.is_some() {
         // An empty path selects the collection carrier itself. Its geometry
         // below resolves borrowed backing once; projection_base would already
         // dereference a view and make that load interpret payload as a pointer.

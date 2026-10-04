@@ -466,7 +466,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     }) {
         if !structural_types
             .get(&result.structural_type)
-            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         {
             return Err(invalid());
         }

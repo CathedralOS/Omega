@@ -25,21 +25,39 @@ fn path_end_type(
     mut current: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    for segment in path {
+    let mut step = 0;
+    while let Some(segment) = path.get(step) {
         let declaration = module
             .structural_types
             .iter()
             .find(|item| item.id == current)?;
+        // A case selection only types together with the payload field it
+        // unlocks — the canonical projection consumes both segments as one
+        // step. Every other segment advances the type on its own.
+        let consumed = match segment {
+            terminal_psi::StructuralPathSegment::Case(_) => {
+                if matches!(
+                    path.get(step + 1),
+                    Some(terminal_psi::StructuralPathSegment::Field(_))
+                ) {
+                    2
+                } else {
+                    return None;
+                }
+            }
+            _ => 1,
+        };
         current = match (segment, &declaration.shape) {
             (
                 terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_),
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                | terminal_psi::StructuralPathSegment::Case(_),
                 _,
             ) => {
                 terminal_semantics::canonical_static_projection(
                     module.structural_types.iter(),
                     current,
-                    std::slice::from_ref(segment),
+                    &path[step..step + consumed],
                 )?
                 .1
                 .id
@@ -55,8 +73,34 @@ fn path_end_type(
             ) => *referent,
             _ => return None,
         };
+        step += consumed;
     }
     Some(current)
+}
+
+/// A whole-collection establishment fixes its descriptor's extent word at the
+/// collection's declared element count. Publish that fixed count as a
+/// term-level fact so bounds spelled against the descriptor's extent — a
+/// subslice's end bound, a transferred view's requires — discharge statically.
+/// Live-length backing names no static count and stays silent.
+pub(super) fn establishment_extent_equation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Option<Proposition> {
+    let length = establishment_collection_length(module, machine, operation)?;
+    let destination = operation.result.structural()?.place;
+    let integer_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64 is valid");
+    let extent =
+        semantic_vocabulary::ScalarTerm::view_extent(destination, Vec::new(), integer_type);
+    let count = semantic_vocabulary::ScalarTerm::integer(
+        integer_type,
+        semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+    )
+    .ok()?;
+    Some(Proposition::Equal(extent, count))
 }
 
 /// The root structural type a place carries for an element-view source.

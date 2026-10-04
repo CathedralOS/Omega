@@ -79,6 +79,49 @@ impl<'a> ElementViewBackings<'a> {
             },
         ))
     }
+
+    /// A block-carried borrowed descriptor is the collection's own backing:
+    /// the incoming pointer names the referent's storage directly. The
+    /// descriptor family covers bounded and unbounded byte views alike; the
+    /// geometry walk below decides which descriptor the establish can form.
+    fn descriptor(
+        self,
+        function: &AbstractFunction,
+        structural_types: &StructuralTypeLookup<'_>,
+        source: &StructuralArgument,
+    ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
+        let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
+            entry
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == source.place)
+                .map(|parameter| (entry, parameter))
+        })?;
+        let descriptor_carrier = structural_types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier());
+        if entry.block == function.entry
+            || !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || (source.access == StructuralAccess::MutableBorrow
+                && parameter.access != StructuralAccess::MutableBorrow)
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !descriptor_carrier
+        {
+            return None;
+        }
+        Some((
+            parameter.structural_type,
+            TargetStructuralArgumentSource::BlockParameter {
+                block: entry.block,
+                place: parameter.place,
+            },
+        ))
+    }
 }
 
 pub(in crate::lowering) fn is_element_view_parameter(
@@ -404,7 +447,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 .is_some_and(|declaration| match &declaration.shape {
                     StructuralTypeShape::ElementView { element: declared } => declared == element,
                     StructuralTypeShape::ByteSequence(_) => {
-                        declaration.shape.is_borrowed_byte_view()
+                        declaration.shape.is_borrowed_byte_carrier()
                             && structural_types
                                 .get(element)
                                 .is_some_and(|element_declaration| {
@@ -724,7 +767,8 @@ fn established_source(
         backing
     } else {
         backings
-            .address(function, structural_types, source)
+            .descriptor(function, structural_types, source)
+            .or_else(|| backings.address(function, structural_types, source))
             .ok_or_else(invalid)?
     };
     let mut shape_cache = BTreeMap::new();

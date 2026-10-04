@@ -130,7 +130,13 @@ pub(super) fn emit(
         .requires_establishment()
         .then(|| allocate_dense(&mut catalogs.next_place).map(place_id))
         .transpose()?;
-    let (source, establishment) = storage.bind(checked, state.state, bindings, whole)?;
+    let (source, establishment) = storage.bind(
+        checked,
+        state.state,
+        bindings,
+        whole,
+        catalogs.structural_types.as_ref(),
+    )?;
     if let Some(establishment) = establishment {
         places.push(view_ranges::establish(
             &establishment,

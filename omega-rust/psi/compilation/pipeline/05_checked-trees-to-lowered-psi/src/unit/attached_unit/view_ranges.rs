@@ -102,6 +102,7 @@ impl RangeStorage {
         state: symbols::SymbolHandle,
         bindings: &ScalarBindings,
         destination: Option<PlaceId>,
+        declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (machine, authored) =
             crate::expression_preparation::source_custody::authored_state(checked, state)?;
@@ -122,6 +123,11 @@ impl RangeStorage {
                 machine,
                 checked.state_parameters(authored),
             )?;
+            let root = bindings
+                .structural_place_type(source)
+                .ok_or(LoweringError::Unsupported(
+                    "collection view lost its storage type",
+                ))?;
             (
                 destination,
                 Some(CollectionView {
@@ -130,7 +136,7 @@ impl RangeStorage {
                         crate::expression_preparation::bindings::structural_paths::terminal_access(
                             self.access,
                         ),
-                    path: collection_path(&self.collection, bindings)?,
+                    path: collection_path(&self.collection, bindings, root, declarations)?,
                     element,
                     place: destination,
                     structural_type: self.structural_type,
@@ -168,16 +174,21 @@ impl RangeStorage {
 }
 
 /// Bind selectors without observing them. Establishment evaluates the complete
-/// projection before range endpoints, under the occurrence's current frame.
+/// projection before range endpoints, under the occurrence's current frame. The
+/// same typed argument-path walk other operand lanes take resolves the
+/// projection against the root's declared storage, so record members and
+/// selected case payloads lower alike.
 fn collection_path(
     path: &[CheckedUnitStructuralPathSegment],
     bindings: &ScalarBindings,
+    root: semantic_vocabulary::StructuralTypeId,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<LoweredElementPathSegment>, LoweringError> {
     use crate::expression_preparation::bindings::structural_paths::{
-        PreparedStructuralPathSegment, prepare_unscoped_path,
+        PreparedStructuralPathSegment, prepare_argument_path,
     };
     let mut runtime_indices = 0;
-    prepare_unscoped_path(path)?
+    prepare_argument_path(path, root, declarations)?
         .into_iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::Static(segment) => {

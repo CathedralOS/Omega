@@ -20,17 +20,39 @@ pub(in crate::validation) fn source_collection_type(
     if !can_supply(access, source.access) {
         return None;
     }
-    for segment in &source.path {
+    let mut step = 0;
+    while let Some(segment) = source.path.get(step) {
         let declaration = module
             .structural_types
             .iter()
             .find(|item| item.id == current)?;
+        // A case selection only types together with the payload field it
+        // unlocks — the canonical projection consumes both segments as one
+        // step. Every other segment advances the type on its own.
+        let consumed = match segment {
+            StructuralPathSegment::Case(_) => {
+                if matches!(
+                    source.path.get(step + 1),
+                    Some(StructuralPathSegment::Field(_))
+                ) {
+                    2
+                } else {
+                    return None;
+                }
+            }
+            _ => 1,
+        };
         current = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_), _) => {
+            (
+                StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Case(_),
+                _,
+            ) => {
                 terminal_semantics::canonical_static_projection(
                     module.structural_types.iter(),
                     current,
-                    std::slice::from_ref(segment),
+                    &source.path[step..step + consumed],
                 )?
                 .1
                 .id
@@ -55,6 +77,7 @@ pub(in crate::validation) fn source_collection_type(
             ) if start <= end && end <= length => current,
             _ => return None,
         };
+        step += consumed;
     }
     Some(current)
 }

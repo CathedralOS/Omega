@@ -300,11 +300,19 @@ impl Checker<'_> {
         else {
             return false;
         };
+        // A block-carried borrowed descriptor backs the collection it names:
+        // the edge already transported the pointer whose referent carries the
+        // view's storage, the same admission an address join receives for a
+        // plain referent.
+        let descriptor_carrier = self.types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && declaration.shape.is_borrowed_byte_carrier()
+        });
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
             || (block != self.optimized.entry
-                && abstract_operations::control_flow::address_joins::is_address_join_in(
+                && (abstract_operations::control_flow::address_joins::is_address_join_in(
                     parameter, self.types,
-                )
+                ) || descriptor_carrier)
                 && matches!(
                     (parameter.access, requested),
                     (

@@ -1778,8 +1778,13 @@ impl Emission<'_, '_, '_> {
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
                 .transpose()?;
-            let (bound, establishment) =
-                storage.bind(self.checked, self.state, &bindings, whole)?;
+            let (bound, establishment) = storage.bind(
+                self.checked,
+                self.state,
+                &bindings,
+                whole,
+                self.structural_types,
+            )?;
             if let Some(establishment) = establishment {
                 self.temporary_places.push(view_ranges::establish(
                     &establishment,

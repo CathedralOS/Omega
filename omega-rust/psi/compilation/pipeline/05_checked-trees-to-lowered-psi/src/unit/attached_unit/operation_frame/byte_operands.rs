@@ -98,8 +98,13 @@ impl OperationFrame<'_, '_> {
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
                 .transpose()?;
-            let (range_source, establishment) =
-                storage.bind(self.checked, self.state, &bindings, whole)?;
+            let (range_source, establishment) = storage.bind(
+                self.checked,
+                self.state,
+                &bindings,
+                whole,
+                self.structural_types.declarations(),
+            )?;
             if let Some(establishment) = establishment {
                 let declaration = super::super::view_ranges::establish(
                     &establishment,

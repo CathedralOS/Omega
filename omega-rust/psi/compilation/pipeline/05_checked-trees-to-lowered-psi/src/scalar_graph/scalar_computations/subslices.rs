@@ -211,7 +211,7 @@ pub(crate) fn transfer(
     let slot = reserve(checked, state, statement, &argument, types, next_place)?;
     let (source, _) = slot
         .storage
-        .bind(checked, state, bindings, slot.whole_view)?;
+        .bind(checked, state, bindings, slot.whole_view, types)?;
     let site = checked_trees::CheckedSubsliceSite::TransitionArgument {
         argument_ordinal: target.position,
     };
@@ -272,9 +272,13 @@ impl super::Expansion<'_> {
         if slot.expression != range.expression || slot.bytes != bytes {
             return unsupported("computed range disagrees with its descriptor reservation");
         }
-        let (source, establishment) =
-            slot.storage
-                .bind(self.checked, site.state, site.bindings, slot.whole_view)?;
+        let (source, establishment) = slot.storage.bind(
+            self.checked,
+            site.state,
+            site.bindings,
+            slot.whole_view,
+            self.structural_types,
+        )?;
         let (start, end) = view_ranges::replay(
             self.checked,
             &view_ranges::ViewRangeSite {
