@@ -100,9 +100,8 @@ impl<'facts> StateAcceptance<'facts> {
             .span_or_empty(self.state.statements)
     }
 
-    /// Already-validated qualification correspondences formed in this exact
-    /// state. Checked progress remains their sole validator; this acceptance
-    /// view only publishes the retained proof rows.
+    /// Qualification correspondences flow transfer formed in this exact
+    /// state; this acceptance view only publishes the retained proof rows.
     pub fn qualification_correspondences(
         &self,
     ) -> impl Iterator<Item = &'facts facts::QualificationCorrespondence> + '_ {

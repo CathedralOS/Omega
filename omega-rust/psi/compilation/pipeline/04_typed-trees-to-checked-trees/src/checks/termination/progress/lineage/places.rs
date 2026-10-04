@@ -81,23 +81,17 @@ pub(super) fn matching_prefix<'places>(
         .max_by_key(|place| place.projections.len())
 }
 
-/// The data definition a partition may still replay: the same resolved
-/// concrete types as correspondence validation, plus a generic application's
-/// own declaration. The application arguments stay unresolved, so the
-/// declared members verify only this projection's identity; the instantiated
-/// field type is itself an opaque leaf for the next projection.
+/// The data definition a partition may still replay: a resolved concrete
+/// type's declaration, plus a generic application's own declaration. The
+/// application arguments stay unresolved, so the declared members verify only
+/// this projection's identity; the instantiated field type is itself an opaque
+/// leaf for the next projection.
 fn replay_partition_data(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    if let Some(data) =
-        crate::checks::termination::progress::qualification_correspondences::replay_data_type(
-            program,
-            type_reference,
-            machine_symbol,
-        )
-    {
+    if let Some(data) = declared_data_type(program, type_reference, machine_symbol) {
         return Some(data);
     }
     match program.type_reference_table.type_reference(type_reference) {
@@ -133,4 +127,39 @@ fn exact_declared_field(
             DataMember::Variant(variant) => program.data_payload_fields(variant),
         })
         .find(|field| field.symbol == symbol)
+}
+
+/// The data declaration a resolved concrete type names, through reference
+/// and constraint shells; `Self` resolves through the machine's attached data.
+fn declared_data_type(
+    program: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    machine_symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | typed_trees::types::TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => declared_data_type(program, *referee, machine_symbol),
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if symbol.is_valid()
+                && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data =>
+        {
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol && definition.name == *name)
+        }
+        typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == machine_symbol && name.as_str() == "Self" =>
+        {
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+            machine.attached_data_symbol.is_valid().then_some(())?;
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == machine.attached_data_symbol)
+        }
+        _ => None,
+    }
 }

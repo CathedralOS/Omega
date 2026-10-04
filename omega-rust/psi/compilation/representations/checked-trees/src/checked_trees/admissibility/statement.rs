@@ -43,8 +43,8 @@ impl<'facts> StatementAcceptance<'facts> {
         constraints(&self.facts.flow, self.statement.entry_constraints)
     }
 
-    /// Already-validated qualification correspondences formed by this exact
-    /// state-owned statement. Checked progress remains their sole validator.
+    /// Qualification correspondences flow transfer formed by this exact
+    /// state-owned statement.
     pub fn qualification_correspondences(
         &self,
     ) -> impl Iterator<Item = &'facts facts::QualificationCorrespondence> + '_ {

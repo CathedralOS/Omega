@@ -1,17 +1,14 @@
 //!
-//! This file analyzes checked progress. `qualification_correspondences.rs`
-//! validates qualification correspondences and replays their types,
-//! `machine_summaries.rs` derives machine and selected call summaries,
-//! `fact_subjects.rs` names fact domains and subjects and `tests.rs`
-//! holds the progress tests; the remaining files carry the lineage and
-//! receipt vocabulary.
+//! This file analyzes checked progress. `machine_summaries.rs` derives
+//! machine and selected call summaries and `fact_subjects.rs` names fact
+//! domains and subjects; the remaining files carry the lineage and receipt
+//! vocabulary.
 
 mod components;
 mod fact_subjects;
 mod lineage;
 mod machine_summaries;
 mod origins;
-mod qualification_correspondences;
 
 use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -19,7 +16,6 @@ use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee}
 use symbols::SymbolHandle;
 
 use crate::checks::termination::progress::fact_subjects::{profile_label, subject_label};
-use crate::checks::termination::progress::qualification_correspondences::validate_qualification_correspondences;
 
 /// Check a derived demand against the entry's existing requirement telescope.
 /// This does not add a caller premise or treat an exit guarantee, another
@@ -116,10 +112,6 @@ pub(crate) fn analyze_checked_progress_with_call_frames(
     semantic: &facts::FactPlan,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
-    let correspondence_diagnostics = validate_qualification_correspondences(program, semantic);
-    if !correspondence_diagnostics.is_empty() {
-        return Err(correspondence_diagnostics);
-    }
     let summaries = components::derive_summaries(program, flow, semantic, call_frames);
 
     let mut diagnostics = Vec::new();

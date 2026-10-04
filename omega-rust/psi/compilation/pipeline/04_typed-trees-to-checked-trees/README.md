@@ -441,10 +441,10 @@ These are private ranking premises, not ordinary store-range facts. Explicit
 `self` targets remain current-state edges in both topology and occurrence readers;
 the absence of authored arguments supplies no decrease evidence.
 
-`checks/termination/progress/` replays structural qualification correspondence
-before transporting entry subjects. Exact formation-state declarations and
-Field/Case/literal FixedIndex paths must agree. Owned captures use source values
-at the copy point; reference-bearing copies are not snapshots of referents.
+`checks/termination/progress/` transports entry subjects along the structural
+qualification correspondences recorded by fact construction, without
+re-validating them. Owned captures use source values at the copy point;
+reference-bearing copies are not snapshots of referents.
 Demanded owned-field partitions retain separate alternatives across named
 states; growing cyclic projection paths become unknown rather than being cut
 off at an arbitrary depth. Reference/array/recursive or unresolved generic
