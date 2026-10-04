@@ -83,7 +83,7 @@ pub(super) struct Destination<'a> {
     selectors: Option<super::selectors::TargetSelectors>,
     /// Declared type of the root's referent (the borrowed record, or the
     /// local's own type) and its record owner when the root is a record.
-    root_type: typed_trees::types::TypeReferenceHandle,
+    pub(super) root_type: typed_trees::types::TypeReferenceHandle,
     root_owner: Option<&'a typed_trees::data::DataDefinition>,
     /// Operator selections, which decide whether a carrier's `where` facts
     /// are spelled in the Terminal requirement vocabulary.
@@ -94,6 +94,15 @@ pub(super) struct Destination<'a> {
 pub(super) struct Carrier<'a> {
     pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
     pub(super) owner: &'a typed_trees::data::DataDefinition,
+}
+
+pub(super) struct StorageProjection<'a> {
+    pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
+    /// A declared scalar field keeps its field-store range obligation. An
+    /// array element or dereferenced primitive instead names primitive storage.
+    pub(super) ends_at_field: bool,
+    owner: Option<&'a typed_trees::data::DataDefinition>,
 }
 
 /// Resolve the authored target, its root and the root's write authority.
@@ -126,15 +135,37 @@ pub(super) fn resolve<'a>(
         }
         _ => (assignment.target, None),
     };
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
         target,
-    ) else {
-        return None;
-    };
-    let (place, recast_view) = rejoin_loan_local(program, machine, state, ordinal, place)?;
+    )?;
+    let authored_place = place.clone();
+    let (mut place, recast_view) = rejoin_loan_local(program, machine, state, ordinal, place)?;
+    if recast_view.is_none()
+        && let facts::PlaceRoot::Symbol(authored) = authored_place.root
+        && let Some(alias) = super::super::receiver_aliases::aliases(program, facts, machine, state)
+            .unwrap_or_default()
+            .into_iter()
+            .find(|alias| alias.owner == authored)
+    {
+        // Erased aliases carry no pointer home. Their validated capture roster
+        // supplies the storage path, including nested aliases and selectors.
+        // Materialized reference fields never enter this substitution.
+        let root = if alias.root == machine.symbol {
+            program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.is_self)?
+                .symbol
+        } else {
+            alias.root
+        };
+        place.root = facts::PlaceRoot::Symbol(root);
+        place.segments = alias.segments;
+        place.segments.extend(authored_place.segments);
+    }
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -161,8 +192,8 @@ pub(super) fn resolve<'a>(
                 // An established owned structural local roots a field store
                 // without any parameter loan: emission resolves its live home
                 // place through the structural-local roster, so admission here
-                // only pins a unique earlier declaration of plain owned
-                // contents or an exactly established mutable byte owner.
+                // pins the earlier declaration, not permission to transfer
+                // all its contents. A reference leaf retains its own custody.
                 return borrowed_view_local_root(
                     program,
                     facts,
@@ -261,8 +292,7 @@ pub(super) fn resolve<'a>(
 }
 
 /// An owned local store root under the parameter lane: a unique `LocalData`
-/// declaration earlier in the state whose type is non-primitive plain owned
-/// storage. Unlike the scalar-graph lane's record local this root needs no
+/// declaration earlier in the state that establishes its own storage. Unlike the scalar-graph lane's record local this root needs no
 /// disposition row — the attached lane's emission writes through the live
 /// home place directly rather than rebuilding the local's scalar ledger.
 fn owned_local_root<'a>(
@@ -305,39 +335,21 @@ fn owned_local_root<'a>(
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. }
     );
+    let primitive_local =
+        super::primitive::primitive_local_before(program, state, ordinal, root_symbol).is_some();
+    // Root establishment and projected-leaf validity are independent. A stored
+    // reference does not make its carrier's own home unavailable for borrowing
+    // or mutation; crossing it must retain explicit permission and geometry.
     if local_ordinal >= ordinal
-        || (dynamic_index.is_some() && !bounded_byte_local)
+        || (dynamic_index.is_some() && selectors.is_none() && !bounded_byte_local)
         || !(program
             .expression_table
             .expression_is_valid(local.initial_value)
-            || declared_home)
-        || program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
-        || (!bounded_byte_local
-            && !validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                local.type_reference,
-            )
-            // A completed copy record owns its byte members as well as its
-            // scalar members, and a memberwise fill owns each leaf it writes
-            // the same way — shared-view members included, whose descriptor
-            // stores are their own leaf operations and whose declared domains
-            // each write proves separately. This admits its storage root, not
-            // a new value: establishment and each field's write obligations
-            // still apply. The record's own multiplicity is the establishment
-            // plan's business — the field-wise predicate already excludes
-            // linear declarations and drop carriers.
-            && !((program.type_multiplicity(local.type_reference)
-                == Multiplicity::Unrestricted
-                && validation::has_plain_owned_contents_with_represented_constraints(
-                    program,
-                    local.type_reference,
-                ))
-                || validation::has_owned_or_shared_view_fields(
-                    program,
-                    local.type_reference,
-                )))
+            || declared_home
+            || primitive_local)
+        || !(bounded_byte_local || primitive_local || declared_home)
+        || program.type_multiplicity(local.type_reference) == Multiplicity::Linear
+        || !validation::linear_claim_frontier(program, local.type_reference).is_empty()
     {
         return None;
     }
@@ -360,6 +372,23 @@ fn owned_local_root<'a>(
 }
 
 impl<'a> Destination<'a> {
+    /// The full projection includes the outer selector split off for byte-view
+    /// operations. All other stores consume this same root and selector roster.
+    pub(super) fn full_segments(&self, program: &TypedTrees) -> Option<Vec<facts::PlaceSegment>> {
+        let mut segments = self.place.segments.clone();
+        if let Some(index) = self.dynamic_index {
+            segments.push(
+                match program.expression_table.constant_integer_value(index) {
+                    Some(value) => facts::PlaceSegment::FixedIndex {
+                        index: usize::try_from(value).ok()?,
+                    },
+                    None => facts::PlaceSegment::Index { expression: index },
+                },
+            );
+        }
+        Some(segments)
+    }
+
     /// The root's exclusive write authority for a projected store: an
     /// unqualified, non-linear mutable or write-only borrow whose declared
     /// reference agrees with the checked access, inside a signature whose
@@ -437,9 +466,9 @@ impl<'a> Destination<'a> {
         (plan.access == expected_access).then_some(())
     }
 
-    /// Walk relevant record fields and fixed-array selectors to the carrier
-    /// of one scalar leaf store. The walk may end at a mixed shape whose
-    /// common field the leaf writes. That field sits at the same offset in every case, so the
+    /// The carrier of one scalar leaf store: [`Self::carrier`], except that
+    /// the walk may also end at a mixed shape whose common field the leaf
+    /// writes. A common field sits at the same offset in every case, so the
     /// write needs no case knowledge and leaves the tag and payload intact.
     /// Common fields are scalar primitives (checking's `validate_data_shape`),
     /// so a mixed shape is only ever the last owner, never an intermediate hop.
@@ -448,19 +477,42 @@ impl<'a> Destination<'a> {
         program: &'a TypedTrees,
         segments: &[facts::PlaceSegment],
     ) -> Option<Carrier<'a>> {
+        let projection = self.walk(program, segments)?;
+        let owner = projection.owner?;
+        ((plain_record(owner, program, self.operators)
+            || plain_mixed(owner, program, self.operators))
+            && !projection
+                .path
+                .contains(&CheckedUnitStructuralPathSegment::Referent))
+        .then_some(Carrier {
+            path: projection.path,
+            owner,
+        })
+    }
+
+    pub(super) fn storage_projection(
+        &self,
+        program: &'a TypedTrees,
+    ) -> Option<StorageProjection<'a>> {
+        self.walk(program, &self.full_segments(program)?)
+    }
+
+    fn walk(
+        &self,
+        program: &'a TypedTrees,
+        segments: &[facts::PlaceSegment],
+    ) -> Option<StorageProjection<'a>> {
         let operators = self.operators;
-        let final_owner = |owner: &typed_trees::data::DataDefinition| {
-            plain_record(owner, program, operators) || plain_mixed(owner, program, operators)
-        };
         if let Some(owner) = self.root_owner
-            && !(plain_record(owner, program, operators)
-                || (segments.is_empty() && final_owner(owner)))
+            && !segments.is_empty()
+            && !plain_record(owner, program, operators)
         {
             return None;
         }
         let mut path = Vec::with_capacity(segments.len());
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
+        let mut ends_at_field = false;
         for segment in segments {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
@@ -474,7 +526,6 @@ impl<'a> Destination<'a> {
                         carrier.type_reference,
                     )
                     .is_empty()
-                        || crosses_reference(program, carrier.type_reference)
                     {
                         return None;
                     }
@@ -482,6 +533,7 @@ impl<'a> Destination<'a> {
                         terminal_field_identity(program, carrier.symbol)?,
                     ));
                     carrier_type = carrier.type_reference;
+                    ends_at_field = true;
                 }
                 facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
@@ -496,9 +548,6 @@ impl<'a> Destination<'a> {
                             TypeReferenceNode::Slice { element_type } => (*element_type, None),
                             _ => return None,
                         };
-                    if crosses_reference(program, element_type) {
-                        return None;
-                    }
                     path.push(match segment {
                         facts::PlaceSegment::FixedIndex { index }
                             if length.is_none_or(|length| *index < length) =>
@@ -513,14 +562,45 @@ impl<'a> Destination<'a> {
                         _ => return None,
                     });
                     carrier_type = element_type;
+                    ends_at_field = false;
                 }
                 _ => return None,
+            }
+            // A stored reference has a pointer slot. A slice reference is a
+            // descriptor instead and retains its existing view operation.
+            // Explicit crossings keep pointer geometry separate from inline
+            // record offsets; later custody checks own the live permission.
+            let mut reference_types = Vec::new();
+            while let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = program.type_reference_table.type_reference(carrier_type)
+            {
+                if reference_types.contains(&carrier_type) {
+                    return None;
+                }
+                reference_types.push(carrier_type);
+                if matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Slice { .. }
+                ) {
+                    break;
+                }
+                if *access != language_semantics::ReferenceAccess::Mutable {
+                    return None;
+                }
+                path.push(CheckedUnitStructuralPathSegment::Referent);
+                carrier_type = *referee;
+                ends_at_field = false;
             }
             owner =
                 crate::facts::field_domain::data_definition_for_field_type(program, carrier_type);
         }
-        let owner = owner?;
-        final_owner(owner).then_some(Carrier { path, owner })
+        Some(StorageProjection {
+            path,
+            type_reference: carrier_type,
+            ends_at_field,
+            owner,
+        })
     }
 }
 
@@ -532,10 +612,10 @@ impl<'a> Destination<'a> {
 /// applications), and store admission retains "the complete home declaration,
 /// path, field, access, qualifications/claims, scalar type, and dominating
 /// definition" (wiki/spec/terminal-psi/structural_access.md, Store
-/// vocabulary) -- a binder changes none of them. The borrow leaves a binder
-/// names are excluded on their own terms instead: `exact_relevant_field` skips
-/// erased fields, `crosses_reference` stops every carrier hop at a reference,
-/// and a reference leaf has no primitive type. Runtime generic arity is still
+/// vocabulary) -- a binder changes none of them. `exact_relevant_field` skips
+/// erased fields. Pointer crossings remain explicit `Referent` steps, with
+/// separate leaf-custody checks; canonical field facts cannot cross them.
+/// Runtime generic arity is still
 /// excluded by the type-parameter and owner-application tests below.
 pub(super) fn plain_record(
     data: &typed_trees::data::DataDefinition,
@@ -623,14 +703,10 @@ fn retained_record_owner_application(
 
 /// Whether a declared field type names storage behind a reference.
 ///
-/// A carrier path is direct storage access: its segments select record fields
-/// and fixed-array indices of one referent. Stepping through a reference-typed
-/// field would turn a pointer hop into an inline field offset, which the store
-/// vocabulary rejects -- "Cases, reference crossings and nonprimitive leaves
-/// reject. This is direct storage access, not a synthetic record field or an
-/// introduced reference lifetime" (wiki/spec/terminal-psi/structural_access.md,
-/// Store vocabulary). `data_definition_for_field_type` deliberately peels
-/// `&`/`&mut` for the entry-invariant seed, so carrier hops test this first.
+/// Field facts describe inline storage of one referent. A pointer hop is not
+/// an inline offset: primitive-store projection retains an explicit `Referent`
+/// step and checks the reference leaf's authority separately. Consumers that
+/// build canonical field facts use this query to exclude that crossing.
 pub(super) fn crosses_reference(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,

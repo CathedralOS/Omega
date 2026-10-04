@@ -5,6 +5,217 @@ use super::{
     ScalarType, SelectedFunction, SelectedInstructionKind, SelectedSelectionConstraints, ValueId,
     ValueShape, build, evaluate_call_plan, fixture,
 };
+
+#[test]
+fn established_reference_primitive_store_replays_the_pointer_load() {
+    use abstract_operations::{AbstractResult, StructuralScalarStoreDestination};
+    use selected_instructions::{SelectedMemoryAccessOrigin, SelectedMemoryAccessRole};
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+        StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    let target = target::NativeTarget::macos_arm64();
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let mut source = fixture(target, 0);
+    source.attachment = None;
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let primitive_type = StructuralTypeId::new(1).unwrap();
+    let reference_type = StructuralTypeId::new(2).unwrap();
+    let backing = PlaceId::new(1).unwrap();
+    let carrier = PlaceId::new(2).unwrap();
+    let producer = OperationId::new(2).unwrap();
+    let store = OperationId::new(3).unwrap();
+    source.call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![ValueShape::borrowed_reference(8, 8)],
+            result: None,
+        },
+    )
+    .unwrap();
+    let parameter = StructuralParameterDeclaration {
+        place: backing,
+        position: 0,
+        is_self: false,
+        structural_type: primitive_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+    };
+    let reference = StructuralOperationResult {
+        place: carrier,
+        structural_type: reference_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+        qualification_establishments: vec![],
+        claims: vec![],
+    };
+    source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        result: None,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: primitive_type,
+                identity: "primitive".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+            },
+            StructuralTypeDeclaration {
+                id: reference_type,
+                identity: "reference".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: primitive_type,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            },
+        ]
+        .into(),
+        parameters: vec![legalized_operations::LegalizedCallUnitParameter {
+            semantic: parameter.clone(),
+            target: target_operations::TargetStructuralParameter {
+                place: backing,
+                structural_type: primitive_type,
+                multiplicity: parameter.multiplicity,
+                access: parameter.access,
+                projected_qualifications: vec![],
+                shape: source.call_plan.parameters[0].shape,
+                placement: source.call_plan.parameters[0].clone(),
+            },
+        }],
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: backing,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: carrier,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type: reference_type,
+                },
+            },
+        ],
+        entry_claims: vec![],
+        published_service_ceiling: vec![],
+    });
+    for instruction in &mut source.blocks[0].instructions[1..] {
+        instruction.result = None;
+    }
+    source.blocks[0].instructions[1].kind = LegalizedScalarInstructionKind::EstablishReference {
+        result: reference.clone(),
+        source: StructuralArgument {
+            place: backing,
+            path: vec![],
+            access: StructuralAccess::MutableBorrow,
+        },
+        shape: ValueShape::integer(8, 8),
+    };
+    source.blocks[0].instructions[2].kind =
+        LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+            destination: StructuralScalarStoreDestination::OwnedResult {
+                producer,
+                result: reference,
+            },
+            path: vec![StructuralPathSegment::Referent],
+            value: AbstractResult {
+                value: ValueId::new(1).unwrap(),
+                scalar_type: scalar,
+            },
+            byte_offset: 0,
+            byte_size: 8,
+            indices: vec![],
+        };
+    source.blocks[0].instructions[3].kind =
+        LegalizedScalarInstructionKind::ReleaseReference { source: carrier };
+
+    let constraints = SelectedSelectionConstraints {
+        keys: environment.selected_keys(),
+        fixed_inputs: vec![],
+    };
+    let selected = build(
+        0,
+        &source,
+        target,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect("a directly established reference retains its original address");
+    let validate = |candidate: &SelectedFunction| {
+        crate::selection::validation::scalar_graph::validate(
+            0,
+            &source,
+            candidate,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+    };
+    validate(&selected).expect("independent replay checks the dereferencing store");
+    let loads = selected.blocks[0]
+        .instructions
+        .iter()
+        .enumerate()
+        .filter(|(_, instruction)| {
+            matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                && instruction.provenance.operations == [store]
+        })
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    let [load] = loads.as_slice() else {
+        panic!("the primitive store loads exactly one captured pointer");
+    };
+    let read = selected
+        .memory_accesses
+        .iter()
+        .position(|access| {
+            access.origin == SelectedMemoryAccessOrigin::Operation(store)
+                && access.role == SelectedMemoryAccessRole::ReadPlace
+        })
+        .expect("the pointer load retains its read footprint");
+    assert_eq!(selected.memory_accesses[read].place, carrier);
+    assert_eq!(selected.memory_accesses[read].byte_offset, 0);
+    assert_eq!(selected.memory_accesses[read].byte_count, 8);
+    for mutation in 0..5 {
+        let mut candidate = selected.clone();
+        match mutation {
+            0 => {
+                candidate.blocks[0].instructions.remove(*load);
+            }
+            1 => candidate.blocks[0].instructions[*load].kind = SelectedInstructionKind::CopyI64,
+            2 => {
+                candidate.blocks[0].instructions[*load].kind =
+                    SelectedInstructionKind::Load64 { byte_offset: 8 };
+            }
+            3 => {
+                let value = candidate.blocks[0]
+                    .instructions
+                    .iter()
+                    .find(|instruction| {
+                        matches!(instruction.kind, SelectedInstructionKind::Store { .. })
+                            && instruction.provenance.operations == [store]
+                    })
+                    .unwrap()
+                    .operands[1]
+                    .virtual_register;
+                candidate.blocks[0].instructions[*load].operands[0].virtual_register = value;
+            }
+            _ => candidate.memory_accesses[read].place = backing,
+        }
+        assert!(
+            validate(&candidate).is_err(),
+            "pointer-load mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
     use selected_instructions::SelectedMemoryAccessRole;

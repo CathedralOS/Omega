@@ -104,13 +104,30 @@ fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
     })
 }
 
+/// One pointer word selected within its own contiguous carrier region.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct PointerSlot {
+    pub(crate) byte_offset: u32,
+    pub(crate) indices: std::ops::Range<usize>,
+}
+
+/// Reconstruction scratch: offsets belong to separate storage regions around
+/// pointer loads. The retained source path, not this scratch, is the evidence
+/// from which legalization and instruction replay reconstruct the address.
+pub(crate) struct PrimitiveStoreGeometry {
+    pub(crate) byte_offset: u32,
+    pub(crate) byte_size: u8,
+    pub(crate) elements: Vec<RuntimeElement>,
+    pub(crate) pointer_slots: Vec<PointerSlot>,
+}
+
 /// Reconstruct a primitive write without inventing a carrier record or field.
 pub(crate) fn primitive_store(
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+) -> Option<PrimitiveStoreGeometry> {
     if destination.multiplicity() == terminal_psi::StructuralMultiplicity::Linear
         || (path.is_empty()
             && destination.multiplicity() != terminal_psi::StructuralMultiplicity::Unrestricted)
@@ -145,7 +162,51 @@ pub(crate) fn primitive_store(
             return None;
         }
     }
-    primitive_geometry(destination.structural_type(), path, scalar, declarations)
+    let mut root = destination.structural_type();
+    let mut segment_start = 0;
+    let mut elements = Vec::new();
+    let mut pointer_slots = Vec::new();
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != StructuralPathSegment::Referent {
+            continue;
+        }
+        let (reference, byte_offset, region_elements) =
+            runtime_projection(root, &path[segment_start..position], declarations)?;
+        let StructuralTypeShape::Reference { referent, .. } = declarations
+            .iter()
+            .find(|declaration| declaration.id == reference)?
+            .shape
+        else {
+            return None;
+        };
+        // Bound the pointer word in its carrier region, not in its referent.
+        // After the load, all following offsets and bounds start afresh.
+        if shape(reference, declarations)? != ValueShape::integer(8, 8)
+            || u64::from(byte_offset)
+                .checked_add(runtime_reach(&region_elements)?)?
+                .checked_add(8)?
+                > u64::from(shape(root, declarations)?.byte_size)
+        {
+            return None;
+        }
+        let first_index = elements.len();
+        elements.extend(region_elements);
+        pointer_slots.push(PointerSlot {
+            byte_offset,
+            indices: first_index..elements.len(),
+        });
+        root = referent;
+        segment_start = position + 1;
+    }
+    let (byte_offset, byte_size, leaf_elements) =
+        primitive_geometry(root, &path[segment_start..], scalar, declarations)?;
+    elements.extend(leaf_elements);
+    Some(PrimitiveStoreGeometry {
+        byte_offset,
+        byte_size,
+        elements,
+        pointer_slots,
+    })
 }
 
 /// Reconstruct the selected primitive leaf and its footprint within the
@@ -2274,6 +2335,9 @@ pub(crate) fn byte_view_field_descriptor(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod primitive_projection_tests;
 
 #[test]
 fn affine_array_view_geometry_requires_a_borrow_not_an_owned_transfer() {

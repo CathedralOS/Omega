@@ -8,6 +8,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::structural_inputs::structural_reference_input::PointerSlot;
 use crate::structural_inputs::structural_reference_input::runtime_indices_match;
 
 pub(super) fn emit(
@@ -15,7 +16,7 @@ pub(super) fn emit(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (destination, value, byte_offset, byte_size, indices, reference_destination) =
+    let (destination, value, byte_offset, byte_size, indices, reference_destination, pointer_slots) =
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                 destination,
@@ -52,6 +53,13 @@ pub(super) fn emit(
                     *byte_size,
                     indices,
                     reference.is_some(),
+                    reference
+                        .map(|_| PointerSlot {
+                            byte_offset: 0,
+                            indices: 0..0,
+                        })
+                        .into_iter()
+                        .collect::<Vec<_>>(),
                 )
             }
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
@@ -63,7 +71,7 @@ pub(super) fn emit(
                 indices,
             } => {
                 let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-                let (offset, size, elements) =
+                let geometry =
                     crate::structural_inputs::structural_reference_input::primitive_store(
                         destination,
                         path,
@@ -72,8 +80,8 @@ pub(super) fn emit(
                     )
                     .ok_or_else(|| invalid())?;
                 if !signature.entry_claims.is_empty()
-                    || (offset, size) != (*byte_offset, *byte_size)
-                    || !runtime_indices_match(indices, &elements)
+                    || (geometry.byte_offset, geometry.byte_size) != (*byte_offset, *byte_size)
+                    || !runtime_indices_match(indices, &geometry.elements)
                 {
                     return Err(invalid());
                 }
@@ -84,6 +92,7 @@ pub(super) fn emit(
                     *byte_size,
                     indices,
                     false,
+                    geometry.pointer_slots,
                 )
             }
             _ => return Err(invalid()),
@@ -115,10 +124,7 @@ pub(super) fn emit(
     if row.result.is_some() || !declared {
         return Err(invalid());
     }
-    let pointer = if reference_destination {
-        let home = super::place_pointer(builder, row, destination.place(), 0)?;
-        super::reference::load(builder, row, destination.place(), home)?
-    } else {
+    let mut pointer = if pointer_slots.is_empty() {
         super::runtime_address::projection_base(
             source,
             builder,
@@ -127,7 +133,51 @@ pub(super) fn emit(
             byte_offset,
         )?
         .ok_or_else(|| invalid())?
+    } else {
+        super::place_pointer(builder, row, destination.place(), 0)?
     };
+    // Every reference crossing ends its own contiguous address region. Preserve
+    // each pointer load before applying the following region's offset or indices.
+    let mut leaf_indices = indices.as_slice();
+    for slot in pointer_slots {
+        let slot_indices = indices.get(slot.indices.clone()).ok_or_else(invalid)?;
+        let address = super::runtime_address::scale(
+            builder,
+            row,
+            destination.place(),
+            slot.byte_offset,
+            pointer,
+            slot_indices,
+        )?;
+        let (address, displacement) = super::memory_pointer(
+            builder,
+            row,
+            destination.place(),
+            address,
+            slot.byte_offset,
+            8,
+        )?;
+        super::runtime_address::footprint(
+            builder,
+            row,
+            destination.place(),
+            slot.byte_offset,
+            8,
+            slot_indices,
+            super::runtime_address::Written::None,
+        )?;
+        let loaded = super::transport_register(builder, destination.place(), slot.byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::Load64 {
+                byte_offset: displacement,
+            },
+            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            &[address, loaded],
+            super::provenance(row),
+        )?;
+        pointer = loaded;
+        leaf_indices = indices.get(slot.indices.end..).ok_or_else(invalid)?;
+    }
     let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;
     if scalar != value.scalar_type {
         return Err(invalid());
@@ -138,7 +188,7 @@ pub(super) fn emit(
         destination.place(),
         byte_offset,
         pointer,
-        indices,
+        leaf_indices,
     )?;
     let (address, displacement) = super::memory_pointer(
         builder,
@@ -154,7 +204,7 @@ pub(super) fn emit(
         destination.place(),
         byte_offset,
         u32::from(byte_size),
-        indices,
+        leaf_indices,
         super::runtime_address::Written::Scalar(value.value),
     )?;
     builder.emit(

@@ -28,6 +28,9 @@ pub(crate) fn validate_service_reach(
     Ok(())
 }
 
+/// A non-consuming call loan presents one exact completed subtree. This checks
+/// its static signature only; live custody and overlapping loans replay at the
+/// call, and qualifications remain the argument checker's responsibility.
 pub(crate) fn is_record_loan(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -37,35 +40,38 @@ pub(crate) fn is_record_loan(
     argument.access != StructuralAccess::Owned
         && parameter.access == argument.access
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && crate::validation::record::loan_source(module, caller, argument.place)
-            .map(|result| result.structural_type)
+        && caller
+            .structural_parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+            .filter(|source| {
+                // Incoming unrestricted storage can lend a readable subtree.
+                // Restricted ingress and write-only projection retain their
+                // separate custody/material contracts, not this presentation.
+                source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && source.access == StructuralAccess::Owned
+                    && matches!(
+                        argument.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+            })
+            .map(|source| source.structural_type)
             .or_else(|| {
-                // Views and initialized scalar-array payloads also retain
-                // backing. Their loans use the same exact-subtree signature
-                // as records, regardless of the callee's result kind. Array
-                // producer validation is independent of path geometry, and
-                // availability replay still checks the source at this call.
-                crate::validation::structural::result_contracts::source_signature(
+                crate::validation::structural::result_contracts::operation_result_loan_signature(
+                    module,
                     caller,
                     argument.place,
                 )
-                .map(|signature| signature.structural_type)
-                .filter(|root_type| {
-                    crate::validation::scalar::array::plain_return_source(
-                        module,
-                        caller,
-                        argument.place,
-                    ) || module.structural_types.iter().any(|declaration| {
-                        declaration.id == *root_type
-                            && matches!(
-                                declaration.shape,
-                                crate::validation::StructuralTypeShape::ElementView { .. }
-                            )
-                    })
+                .filter(|(_, access)| {
+                    super::structural_arguments::structural_access_can_supply(
+                        *access,
+                        argument.access,
+                    )
                 })
+                .map(|(signature, _)| signature.structural_type)
             })
             .or_else(|| {
-                // A joined plain record still owns its fields. Shared field
+                // A joined owned carrier still owns its fields. Shared field
                 // access borrows that selected storage rather than transferring
                 // it. Block declaration, dominance and live-frontier checks
                 // remain mandatory; this is only the exact loan signature.
@@ -81,7 +87,6 @@ pub(crate) fn is_record_loan(
                             )
                             && source.qualifications.is_empty()
                             && source.projected_qualifications.is_empty()
-                            && crate::validation::record::plain_type(module, source.structural_type)
                     })
                     .map(|source| source.structural_type)
             })

@@ -8,6 +8,90 @@ use checked_trees::{
 use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
 
 #[test]
+fn reference_carrier_loans_preserve_the_completed_local_and_exact_access() {
+    let checked = checked_program(
+        r#"
+        data Carrier { count: u64; destination: &mut u64; }
+        machine observe(carrier: &Carrier) { let count: u64 = carrier.count; }
+        machine change(carrier: &mut Carrier) { carrier.count = 7; }
+        machine run(destination: &mut u64) {
+            let mut carrier: Carrier = Carrier { count: 0, destination: destination };
+            observe(&carrier);
+            change(&mut carrier);
+            carrier.destination = 11;
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "{:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let arguments = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::Call(call) => Some(&call.structural_arguments[0]),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [shared, mutable] = arguments.as_slice() else {
+        panic!("two loans of the same established carrier: {arguments:?}");
+    };
+    assert_eq!(shared.access, CheckedStructuralAccess::SharedBorrow);
+    assert_eq!(mutable.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(shared.path.is_empty() && mutable.path.is_empty());
+    assert_eq!(shared.source_structural_result_binding_ordinal(), Some(0));
+    assert_eq!(mutable.source_structural_result_binding_ordinal(), Some(0));
+
+    let state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .expect("caller borrow state");
+    let call = checked
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .find(|call| call.statement_index == 2)
+        .expect("mutable loan call");
+    let mut forged = checked.facts.clone();
+    forged
+        .borrow
+        .argument_accesses
+        .get_mut(call.accesses.start())
+        .root_symbol = symbols::SymbolHandle::invalid();
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &forged,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &forged.flow.terminal_boundary_scalar_returns,
+            structural_returns: &forged.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        rebuilt.for_machine(machine).is_none(),
+        "carrier shape cannot replace captured access"
+    );
+}
+
+#[test]
 fn shared_descriptor_arguments_rejoin_call_access_without_literal_recognition() {
     for initializer in ["(\"hello\")", "label()"] {
         let checked = checked_program(&format!(

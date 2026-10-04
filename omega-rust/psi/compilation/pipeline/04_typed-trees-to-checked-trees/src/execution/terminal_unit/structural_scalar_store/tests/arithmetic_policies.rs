@@ -218,14 +218,19 @@ fn whole_borrowed_primitive_stores_share_arithmetic_policy_leaf_normalization() 
             panic!("authored increment")
         };
         assert!(
-            super::super::primitive::store_at(
+            super::super::plan_assignment(
                 program,
                 &checked.facts,
                 machine,
                 state,
-                &parameters,
+                super::super::destination::StoreRoots::Parameters {
+                    structural: &parameters,
+                    scalar: &plan.scalar_parameters,
+                },
                 0,
                 assignment,
+                super::super::AssignmentSource::Authored,
+                &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
             )
             .is_none(),
             "{policy} must not amplify a shared destination",

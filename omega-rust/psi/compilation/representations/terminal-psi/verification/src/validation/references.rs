@@ -5,6 +5,9 @@
 //! Field observations through a reference use its live permission, not owned
 //! root access. Geometry checks validate the selected field separately; this
 //! frontier check keeps released carriers and suspended parents unreadable.
+//! Borrowing a carrier preserves its incoming permissions: normal exits restore
+//! their exact roster while disposing of owned and locally formed loans. The
+//! same rule applies to every body, independently of which fields it touches.
 
 use super::{
     BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, PlaceId, StructuralAccess,
@@ -14,7 +17,7 @@ use super::{
 };
 mod call_paths;
 pub(super) use call_paths::call_source_type;
-use call_paths::{call_dependency_conflict, call_reference_custody};
+use call_paths::{call_dependency_conflict, call_reference_custody, descriptor_storage_available};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ReferenceIdentity {
@@ -29,11 +32,18 @@ enum ReferenceParent {
     Reference(ReferenceIdentity),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallRegion {
+    OrdinaryStorage,
+    CarrierStorage,
+    Referent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ReferenceOrigin {
     Primitive(PlaceId),
-    /// An internal owned ingress assumes one existing permission per leaf.
-    /// Its callers must supply the actual lineage; this is not local backing.
+    /// An internal ingress assumes one existing permission per leaf. Its
+    /// callers supply the actual lineage; this is not local owned backing.
     IngressLeaf(ReferenceIdentity),
     /// One runtime-selected referent, conservatively pinning every candidate
     /// beneath one ingress. These are alternatives, not simultaneous loans.
@@ -106,6 +116,34 @@ pub(super) fn entry_references(
     }
     live.sort_by(|left, right| left.identity.cmp(&right.identity));
     Ok(live)
+}
+
+/// Normal completion returns borrowed storage with exactly its ingress
+/// permissions. Identity, location, origin and parent must all be preserved;
+/// retaining just the leaf count would accept a moved or substituted loan.
+/// Owned ingress and locally formed permissions still require disposition.
+pub(super) fn validate_normal_return(
+    machine: &TerminalMachine,
+    borrowed: &[LiveReference],
+    live: &[LiveReference],
+) -> Result<(), ModuleError> {
+    // The entry roster is already identity-ordered. Local child creation may
+    // change replay order, so compare a sorted view without cloning paths or
+    // rebuilding the type-derived ingress roster at every exit.
+    let mut remaining = live.iter().collect::<Vec<_>>();
+    remaining.sort_unstable_by(|left, right| left.identity.cmp(&right.identity));
+    if remaining.len() != borrowed.len()
+        || remaining
+            .iter()
+            .zip(borrowed)
+            .any(|(actual, expected)| *actual != expected)
+    {
+        return Err(invalid(
+            machine,
+            "normal completion must restore borrowed reference custody and close owned loans",
+        ));
+    }
+    Ok(())
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.
@@ -480,35 +518,110 @@ fn mutable_referent(module: &TerminalModule, referent: StructuralTypeId) -> bool
         }) && super::structural::result_contracts::has_plain_owned_shape(module, referent))
 }
 
-/// Geometry is available only through an exact, unqualified mutable permission
-/// carrier. The frontier separately requires that carrier and its lineage live.
+/// The pointer slot and the projection below its referent have different homes.
+/// Keep both paths: the live permission belongs to the carrier leaf, not to a
+/// substituted origin or to every reference stored beside it.
+pub(super) struct MutableReferenceDestination<'path> {
+    carrier_path: &'path [StructuralPathSegment],
+    pub(super) referent_type: StructuralTypeId,
+    pub(super) referent_path: &'path [StructuralPathSegment],
+}
+
+/// Typed geometry grants no lifetime authority. The frontier separately
+/// requires the exact leaf and its lineage to remain live and unsuspended.
+pub(super) fn mutable_reference_destination<'path>(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: PlaceId,
+    path: &'path [StructuralPathSegment],
+) -> Option<MutableReferenceDestination<'path>> {
+    let crossing = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier_path = &path[..crossing];
+    let signature = super::structural::result_contracts::source_signature(machine, destination)?;
+    if !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == destination)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == destination)
+    {
+        return None;
+    }
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == destination)
+        .or_else(|| super::block_views::parameter(machine, destination))
+    {
+        // A shared view of a mutable-reference carrier cannot strengthen the
+        // permission stored inside it. Loading its pointer also needs a read.
+        if !matches!(
+            parameter.access,
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        ) || signature.multiplicity
+            != if parameter.access == StructuralAccess::Owned {
+                StructuralMultiplicity::Affine
+            } else {
+                StructuralMultiplicity::Unrestricted
+            }
+        {
+            return None;
+        }
+    } else if signature.multiplicity != StructuralMultiplicity::Affine
+        || !machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == destination)?
+            .claims
+            .is_empty()
+    {
+        return None;
+    }
+    let reference_type = leaf_reference_type(module, signature.structural_type, carrier_path)?;
+    if reference_access(module, reference_type) != Some(StructuralAccess::MutableBorrow) {
+        return None;
+    }
+    // `referent` admits mutable permission only for a primitive or a plain
+    // owned record, recursively excluding further reference descriptors.
+    // This single-leaf custody check therefore grants no multihop authority,
+    // even though the independent type-geometry walker can describe it.
+    Some(MutableReferenceDestination {
+        carrier_path,
+        referent_type: referent(module, reference_type)?,
+        referent_path: &path[crossing + 1..],
+    })
+}
+
+/// Canonical record observations and restoration windows key their referent
+/// paths by one carrier place. Until those keys retain a carrier-leaf path,
+/// they must not collapse two reference fields into the same record identity.
+/// Their root-reference contract still uses the shared permission geometry.
 pub(super) fn mutable_record_field_destination<'path>(
     module: &TerminalModule,
     machine: &TerminalMachine,
     destination: PlaceId,
     path: &'path [StructuralPathSegment],
 ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
-    let (StructuralPathSegment::Referent, path) = path.split_first()? else {
-        return None;
-    };
-    let signature = super::structural::result_contracts::source_signature(machine, destination)?;
-    if signature.multiplicity != StructuralMultiplicity::Affine
-        || !signature.qualifications.is_empty()
-        || !signature.projected_qualifications.is_empty()
-        || reference_access(module, signature.structural_type)
-            != Some(StructuralAccess::MutableBorrow)
-    {
+    if path.first() != Some(&StructuralPathSegment::Referent) {
         return None;
     }
-    let referent = referent(module, signature.structural_type)?;
+    let destination = mutable_reference_destination(module, machine, destination, path)?;
     module
         .structural_types
         .iter()
         .any(|declaration| {
-            declaration.id == referent
+            declaration.id == destination.referent_type
                 && matches!(declaration.shape, StructuralTypeShape::Record { .. })
         })
-        .then_some((referent, path))
+        .then_some((destination.referent_type, destination.referent_path))
 }
 
 /// Reconstruct the live permission behind a mutable record destination.
@@ -528,9 +641,41 @@ pub(super) fn live_mutable_record_field_destination<'path>(
     else {
         return Ok(None);
     };
+    live_mutable_reference_destination(module, machine, live, destination, path)?;
+    Ok(Some(destination_type))
+}
+
+fn live_mutable_reference_destination(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    destination: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<bool, ModuleError> {
+    let Some(geometry) = mutable_reference_destination(module, machine, destination, path) else {
+        return Ok(false);
+    };
+    // A stored permission cannot bypass a loan over the descriptor containing
+    // it. Calls and direct writes use the same storage-availability judgment.
+    if !descriptor_storage_available(
+        module,
+        machine,
+        live,
+        destination,
+        geometry.carrier_path,
+        &[],
+        StructuralAccess::MutableBorrow,
+    ) {
+        return Err(invalid(
+            machine,
+            "field destination descriptor storage remains borrowed",
+        ));
+    }
     let reference = live
         .iter()
-        .find(|reference| reference.carrier == destination && reference.carrier_path.is_empty())
+        .find(|reference| {
+            reference.carrier == destination && reference.carrier_path == geometry.carrier_path
+        })
         .ok_or_else(|| invalid(machine, "field destination reference is no longer live"))?;
     if live.iter().any(|child| {
         matches!(&child.parent,
@@ -541,7 +686,7 @@ pub(super) fn live_mutable_record_field_destination<'path>(
             "field destination reference remains suspended by a live child",
         ));
     }
-    Ok(Some(destination_type))
+    Ok(true)
 }
 
 pub(super) fn carrier_type(
@@ -571,8 +716,9 @@ fn shared_borrow_reference(module: &TerminalModule, structural_type: StructuralT
 
 /// Result mappings describe the complete canonical-path-ordered leaf roster, never
 /// assert live custody. Return replay checks the actual relocated carriers;
-/// Borrowed ingress forms new child loans; owned ingress transfers existing
-/// leaf identities. Partial transfers still require their own replay.
+/// Borrowed carrier ingress retains its leaf identities, and projections may
+/// form child loans. Owned ingress transfers existing identities. Partial
+/// transfers still require their own replay.
 pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -637,8 +783,17 @@ pub(super) fn validate_machine(
         .iter()
         .filter(|parameter| contains_reference(module, parameter.structural_type))
     {
-        if parameter.access != StructuralAccess::Owned
-            || parameter.multiplicity != StructuralMultiplicity::Affine
+        let required_multiplicity = if parameter.access == StructuralAccess::Owned {
+            StructuralMultiplicity::Affine
+        } else {
+            StructuralMultiplicity::Unrestricted
+        };
+        if !matches!(
+            parameter.access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+        ) || parameter.multiplicity != required_multiplicity
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || !super::record::constructible_type(module, parameter.structural_type)
@@ -653,7 +808,7 @@ pub(super) fn validate_machine(
         {
             return Err(invalid(
                 machine,
-                "incoming reference records require whole unqualified affine ownership",
+                "incoming reference records require unqualified owned or borrowed custody",
             ));
         }
     }
@@ -1087,8 +1242,11 @@ pub(super) fn validate_uses(
     }
     | OperationKind::StructuralByteViewFieldStore {
         destination, path, ..
+    }
+    | OperationKind::WriteOnlyPrimitiveStore {
+        destination, path, ..
     } = &operation.kind
-        && path.first() == Some(&StructuralPathSegment::Referent)
+        && path.contains(&StructuralPathSegment::Referent)
         && !machine
             .structural_parameters
             .iter()
@@ -1774,8 +1932,14 @@ pub(super) fn apply_operation(
                 check_operation_root_access(module, machine, live, operation, *destination)?;
             }
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::AtomicAccess {
+        OperationKind::WriteOnlyPrimitiveStore {
+            destination, path, ..
+        } => {
+            if !live_mutable_reference_destination(module, machine, live, *destination, path)? {
+                check_operation_root_access(module, machine, live, operation, *destination)?;
+            }
+        }
+        OperationKind::AtomicAccess {
             place: destination, ..
         } => check_operation_root_access(module, machine, live, operation, *destination)?,
         OperationKind::StructuralLeafCopy { source, .. }
@@ -1843,21 +2007,16 @@ pub(super) fn apply_operation(
             normalized_arguments.push((
                 custody.origins,
                 argument.access,
-                true,
+                CallRegion::Referent,
                 custody.dependencies,
+                argument_position,
             ));
             continue;
         }
-        if argument_owns_references(module, machine, argument) {
-            if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
-                return Err(invalid(
-                    machine,
-                    "reference-bearing owned calls require a whole internal argument",
-                ));
-            }
-            let signature =
-                super::structural::result_contracts::source_signature(machine, argument.place)
-                    .ok_or_else(|| invalid(machine, "owned reference argument has no source"))?;
+        if let Some(signature) =
+            super::structural::result_contracts::source_signature(machine, argument.place)
+                .filter(|signature| contains_reference(module, signature.structural_type))
+        {
             // A projected owned argument moves the complete leaf roster of
             // the declared record subtree it names: every edge must resolve
             // as a plain field, so an index or referent hop keeps the
@@ -1869,14 +2028,12 @@ pub(super) fn apply_operation(
                 argument
                     .path
                     .iter()
-                    .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-                    .then(|| {
-                        super::resolve_structural_path(
-                            module,
-                            signature.structural_type,
-                            &argument.path,
-                        )
+                    .all(|segment| {
+                        matches!(segment, StructuralPathSegment::Field(_))
+                            || (argument.access != StructuralAccess::Owned
+                                && matches!(segment, StructuralPathSegment::FixedIndex(_)))
                     })
+                    .then(|| leaf_reference_type(module, signature.structural_type, &argument.path))
                     .flatten()
             }
             .ok_or_else(|| {
@@ -1885,11 +2042,16 @@ pub(super) fn apply_operation(
                     "projected reference argument path is not a declared record edge",
                 )
             })?;
-            let paths = leaf_paths(module, projected_type, live.len()).ok_or_else(|| {
-                invalid(
+            if matches!(operation.kind, OperationKind::BoundaryCall { .. })
+                && contains_reference(module, projected_type)
+            {
+                return Err(invalid(
                     machine,
-                    "owned argument reference roster exceeds live custody",
-                )
+                    "reference-bearing arguments require an internal call",
+                ));
+            }
+            let paths = leaf_paths(module, projected_type, live.len()).ok_or_else(|| {
+                invalid(machine, "argument reference roster exceeds live custody")
             })?;
             if paths.len()
                 != live
@@ -1902,10 +2064,40 @@ pub(super) fn apply_operation(
             {
                 return Err(invalid(
                     machine,
-                    "owned argument reference roster differs from its type",
+                    "argument reference roster differs from its type",
                 ));
             }
+            let storage = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+                place: argument.place,
+                path: argument.path.clone(),
+            });
+            // Independent loans can cover the carrier's pointer slots. Its
+            // contained permissions are not themselves loans of those slots.
+            if !descriptor_storage_available(
+                module,
+                machine,
+                live,
+                argument.place,
+                &argument.path,
+                &[],
+                argument.access,
+            ) {
+                return Err(invalid(
+                    machine,
+                    "argument carrier storage has an outstanding loan",
+                ));
+            }
+            normalized_arguments.push((
+                vec![storage],
+                argument.access,
+                CallRegion::CarrierStorage,
+                Vec::new(),
+                argument_position,
+            ));
             for path in paths {
+                let leaf_access = leaf_reference_type(module, projected_type, &path)
+                    .and_then(|leaf| reference_access(module, leaf))
+                    .ok_or_else(|| invalid(machine, "argument leaf has no declared permission"))?;
                 let mut carrier_path = argument.path.clone();
                 carrier_path.extend(path);
                 let reference = live
@@ -1914,20 +2106,29 @@ pub(super) fn apply_operation(
                         reference.carrier == argument.place
                             && reference.carrier_path == carrier_path
                     })
-                    .ok_or_else(|| invalid(machine, "owned argument reference leaf is not live"))?;
+                    .ok_or_else(|| invalid(machine, "argument reference leaf is not live"))?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
                 // or a parent/child pair packed into the same incoming record.
                 if live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
-                    || !moved.insert(reference.identity.clone())
+                    || (argument.access == StructuralAccess::Owned
+                        && !moved.insert(reference.identity.clone()))
                 {
-                    return Err(invalid(machine, "owned reference argument duplicates or suspends a leaf"));
+                    return Err(invalid(machine, "reference argument duplicates or suspends a leaf"));
                 }
+                let access = if argument.access != StructuralAccess::Owned
+                    && access_covers(argument.access, leaf_access)
+                {
+                    leaf_access
+                } else {
+                    argument.access
+                };
                 normalized_arguments.push((
                     vec![reference.root.clone()],
-                    argument.access,
-                    true,
+                    access,
+                    CallRegion::Referent,
                     Vec::new(),
+                    argument_position,
                 ));
             }
             continue;
@@ -1945,22 +2146,33 @@ pub(super) fn apply_operation(
                 ));
             }
             let root = normalized_source(module, machine, live, argument)?.0;
-            normalized_arguments.push((vec![root], argument.access, true, Vec::new()));
+            normalized_arguments.push((
+                vec![root],
+                argument.access,
+                CallRegion::Referent,
+                Vec::new(),
+                argument_position,
+            ));
         } else {
             normalized_arguments.push((
                 vec![ReferenceOrigin::Primitive(argument.place)],
                 argument.access,
-                false,
+                CallRegion::OrdinaryStorage,
                 Vec::new(),
+                argument_position,
             ));
         }
     }
-    for (position, (roots, access, reference_access, dependencies)) in
+    for (position, (roots, access, region, dependencies, argument_position)) in
         normalized_arguments.iter().enumerate()
     {
         if normalized_arguments[position + 1..].iter().any(
-            |(others, other_access, other_reference_access, other_dependencies)| {
-                ((*reference_access || *other_reference_access)
+            |(others, other_access, other_region, other_dependencies, other_position)| {
+                ((*region != CallRegion::OrdinaryStorage
+                    || *other_region != CallRegion::OrdinaryStorage)
+                    && (argument_position != other_position
+                        || (*region == CallRegion::Referent
+                            && *other_region == CallRegion::Referent))
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
                     && roots

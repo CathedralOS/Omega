@@ -1231,12 +1231,16 @@ the complete product bar; focused successes below do not establish that baseline
   --project samples/apps/squalr/squalr-tests --target linux_x86_64 --resume`;
   do not manufacture approval. Native emission and execution remain unverified.
 
-  Reconcile the unpublished carrier-custody and pointer-load repairs against
-  current main before publishing them. Preserve the actual carrier home and
-  explicit `Field(destination), Referent` geometry through source replay,
-  custody checking and native address loading. Keep newer main's exact storage
-  receipts, mutable-view backing and state-arrival joins. Do not remove the
-  store from the customer or substitute inferred origin for its address.
+  The reconciled carrier-store dependency now executes native and interpreted
+  exit 70 on macOS ARM64 with `python3 tools/corpus_gate.py --both --filter
+  runtime_carrier_reference_store_exit`. A metadata helper borrows the local
+  carrier before its stored reference writes the original backing. Source
+  replay, custody checking and native pointer loading retain the actual carrier
+  and explicit `Field(destination), Referent` geometry; shared carrier access
+  still rejects mutation. Borrowed calls restore exact incoming permissions.
+  This closes the isolated compiler dependency, not application acceptance:
+  rerun the real application after ordinary package review, without deleting
+  its store or substituting inferred origin for the runtime address.
   Escaped candidate windows remain live after their temporary formals disappear;
   a later arena write must still reject. The same package-review command and
   documented native application oracle are the acceptance route.

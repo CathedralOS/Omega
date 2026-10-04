@@ -138,6 +138,119 @@ fn record_reference_preserves_original_storage_across_calls_and_cleanup() {
     execute_record_reference(record_reference_module(), &[94, 96, 97, 92, 93, 98]);
 }
 
+fn direct_reference_store_module(mut module: TerminalModule) -> TerminalModule {
+    let writer = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == machine_id(92))
+        .expect("primitive writer");
+    let constant = writer.blocks[0].operations[0].clone();
+    let OperationResult::Scalar(value) = &constant.result else {
+        panic!("writer constant");
+    };
+    let value = value.id;
+    let operations = &mut module.machines[0].blocks[0].operations;
+    let position = operations
+        .iter()
+        .position(|operation| operation.id == operation_id(97))
+        .expect("reference writer call");
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &operations[position].kind
+    else {
+        panic!("writer call");
+    };
+    operations[position].kind = OperationKind::WriteOnlyPrimitiveStore {
+        destination: structural_arguments[0].place,
+        path: structural_arguments[0].path.clone(),
+        value,
+    };
+    operations.insert(position, constant);
+    module
+        .machines
+        .retain(|machine| machine.id != machine_id(92));
+    module
+}
+
+#[test]
+fn direct_record_reference_store_preserves_backing_across_fuel_boundaries() {
+    execute_record_reference(
+        direct_reference_store_module(record_reference_module()),
+        &[94, 96, 92, 97, 98],
+    );
+}
+
+#[test]
+fn direct_returned_record_reference_store_preserves_backing_across_fuel_boundaries() {
+    execute_record_reference(
+        direct_reference_store_module(returned_record_reference_module()),
+        &[96, 204, 206, 92, 97, 98],
+    );
+}
+
+fn borrowed_carrier_store_module() -> TerminalModule {
+    let mut module = record_reference_module();
+    let writer = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == machine_id(92))
+        .expect("primitive writer");
+    let parameter = &mut writer.structural_parameters[0];
+    parameter.structural_type = structural_type_id(95);
+    parameter.access = StructuralAccess::MutableBorrow;
+    parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } =
+        &mut writer.blocks[0].operations[1].kind
+    else {
+        panic!("primitive store");
+    };
+    // The callee borrows descriptor storage, then follows its captured pointer.
+    // It never owns the affine carrier or a copy of the primitive referent.
+    *path = vec!["body".into(), StructuralPathSegment::Referent];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0].path.clear();
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+    module
+}
+
+#[test]
+fn borrowed_carrier_store_preserves_backing_across_calls_and_fuel_boundaries() {
+    let mut module = borrowed_carrier_store_module();
+    let operations = &mut module.machines[0].blocks[0].operations;
+    let mut repeated = operations[2].clone();
+    repeated.id = operation_id(100);
+    operations.push(repeated);
+    // A second call needs the same retained permission after the first normal
+    // return. Caller disposal then ends that permission before the root read.
+    execute_record_reference(module, &[94, 96, 97, 92, 93, 100, 92, 93, 98]);
+}
+
+#[test]
+fn borrowed_carrier_store_rejects_shared_ingress_before_artifact_execution() {
+    let mut module = borrowed_carrier_store_module();
+    encode_module(&module).expect("the exact mutable carrier store verifies before tampering");
+    module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("writer call");
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert!(
+        encode_module(&module).is_err(),
+        "a shared carrier cannot authorize a write through its mutable reference field"
+    );
+}
+
 fn returned_record_reference_module() -> TerminalModule {
     let mut module = record_reference_module();
     let caller = &mut module.machines[0];

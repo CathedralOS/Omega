@@ -828,7 +828,7 @@ fn record_construction_sources(
     Some(output)
 }
 
-/// Whether an immutable local of type `reference` must join its stored
+/// Whether a local of type `reference` must join its stored
 /// carrier leaves to captured loans (`local_record_loans`). Record loans
 /// belong to a locally constructed record holding reference carriers. A bare
 /// `&'a V` shared view is no construction: a selected borrow binds it through
@@ -860,7 +860,7 @@ pub fn local_record_loans(
     else {
         return None;
     };
-    if local.is_mutable || !is_reference_record(program, local.type_reference) {
+    if !is_reference_record(program, local.type_reference) {
         return None;
     }
     let sources = construction_sources_with_calls(
@@ -888,7 +888,12 @@ pub fn local_record_loans(
         .loans
         .iter()
         .filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrowing, *handle) && loan.owner_symbol == local.symbol
+            // This query reconstructs one establishment occurrence. A mutable
+            // binding may acquire different loans later; neither those later
+            // occurrences nor binding mutability change this capture's identity.
+            facts.borrow.state_owns_loan(borrowing, *handle)
+                && loan.owner_symbol == local.symbol
+                && loan.statement_index == statement_index as usize
         })
         .collect::<Vec<_>>();
     if sources.len() != loans.len() {
@@ -1367,8 +1372,7 @@ pub fn nested_call_record_argument(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program.state_by_symbol(call.target_symbol)
-    else {
+    let Some(destination) = program.state_by_symbol(call.target_symbol) else {
         return false;
     };
     if !is_reference_record(program, destination.return_type) {
@@ -1422,8 +1426,7 @@ pub fn nested_call_result_loans(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program.state_by_symbol(call.target_symbol)
-    else {
+    let Some(destination) = program.state_by_symbol(call.target_symbol) else {
         return false;
     };
     if !is_reference_record(program, destination.return_type) {
@@ -3089,8 +3092,7 @@ fn mutable_member_from_type_symbol(
     {
         return Some(symbol);
     }
-    if let Some(owner) = program.machine_by_symbol(type_symbol)
-    {
+    if let Some(owner) = program.machine_by_symbol(type_symbol) {
         if let Some(definition) = program.attached_data_definition(owner)
             && let Some(symbol) = resolved(definition)
         {
@@ -3294,8 +3296,7 @@ fn mutable_return_path(
                 // `correspondence_data_type` spells — rather than the
                 // attached data definition's symbol.
                 let owner = if *owner == machine && name.as_str() == "Self" {
-                    program.machine_by_symbol(machine)?
-                        .attached_data_symbol
+                    program.machine_by_symbol(machine)?.attached_data_symbol
                 } else {
                     *owner
                 };
@@ -3494,8 +3495,7 @@ pub fn release_boundary(
     if let Some(boundary) = release_statement(facts, machine, state, handle) {
         return Some(boundary);
     }
-    let state = program
-        .state_by_symbol(state)?;
+    let state = program.state_by_symbol(state)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     (facts
         .borrow

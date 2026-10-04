@@ -104,6 +104,34 @@ impl TerminalExecution {
         writing: bool,
         path: &[StructuralPathSegment],
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        if let Some(crossing) = path
+            .iter()
+            .rposition(|segment| *segment == StructuralPathSegment::Referent)
+        {
+            let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+            let access = if writing {
+                StructuralAccess::MutableBorrow
+            } else {
+                StructuralAccess::SharedBorrow
+            };
+            // Resolve the captured pointer before applying the primitive
+            // suffix. Its descriptor home is never the referent's storage.
+            let referent = self.resolve_live_projection(place, &path[..=crossing], access)?;
+            let suffix = &path[crossing + 1..];
+            let scalar_type = terminal_semantics::primitive_projection_type(
+                self.program.structural_types.values(),
+                referent.structural_type,
+                suffix,
+            )
+            .ok_or_else(invalid)?;
+            let canonical = terminal_semantics::canonical_primitive_path(
+                self.program.structural_types.values(),
+                referent.structural_type,
+                suffix,
+            )
+            .ok_or_else(invalid)?;
+            return self.primitive_view_access(&referent, canonical.as_slice(), scalar_type, false);
+        }
         self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
     }
 
@@ -336,8 +364,22 @@ impl TerminalExecution {
         if view.structural_type != structural_type {
             return Err(invalid());
         }
+        self.primitive_view_access(view, path, scalar_type, shared_view)
+    }
+
+    /// Resolve a typed primitive suffix against its original runtime backing.
+    /// Borrowed formals and stored references share this storage selection;
+    /// neither creates an independent copy of the observed or written leaf.
+    fn primitive_view_access(
+        &self,
+        view: &TerminalStructuralValue,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+        shared_view: bool,
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let mut projected = view.clone();
-        let mut carrier = structural_type;
+        let mut carrier = view.structural_type;
         for (position, segment) in path.iter().enumerate() {
             let declaration = self
                 .program

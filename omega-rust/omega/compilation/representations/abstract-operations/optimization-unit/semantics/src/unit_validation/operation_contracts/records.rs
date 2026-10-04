@@ -5,9 +5,7 @@
 //! Source admission alone cannot authorize substituted fields or child homes in
 //! a rewritten optimization unit; dominance and current ownership are checked
 //! separately against the same operands.
-use crate::unit_validation::operation_contracts::structural_access::{
-    is_nonempty_field_path, structural_source_contract,
-};
+use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -515,84 +513,6 @@ pub(crate) fn constructible(
         complete.insert(current);
     }
     true
-}
-
-/// Reconstruct the owned carrier lent to an ordinary call. Memberwise locals
-/// establish the same storage as whole constructors; current initialization,
-/// dominance and ownership replay still check the particular call occurrence.
-/// Stored shared views keep their backing loans independently: lending their
-/// carrier does not lend exclusive access to the referenced bytes.
-fn record_loan_source<'a>(
-    function: &'a PsiOptimizationFunction,
-    place: PlaceId,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    let mut matches = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| match &node.operation {
-            O::EstablishRecord { result, .. }
-            | O::EstablishZeroedStructural { result, .. }
-            | O::EstablishStructuralLocal { result, .. }
-            | O::CallStructural {
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } if result.place == place => Some(result),
-            _ => None,
-        });
-    let result = matches.next()?;
-    (matches.next().is_none()
-        && matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-        )
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && record_type(types, result.structural_type, false, true))
-    .then_some(result)
-}
-
-pub(crate) fn record_loan(
-    function: &PsiOptimizationFunction,
-    argument: &terminal_psi::StructuralArgument,
-    parameter: &terminal_psi::StructuralParameterDeclaration,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-) -> bool {
-    argument.access != StructuralAccess::Owned
-        && argument.access == parameter.access
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && record_loan_source(function, argument.place, types)
-            .map(|result| result.structural_type)
-            .or_else(|| {
-                // Whole and projected loans borrow the selected block value. This
-                // checks the current signature; declaration, dominance, and
-                // frontier replay still own that value's availability.
-                function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters)
-                    .find(|source| {
-                        source.place == argument.place
-                            && argument.access == StructuralAccess::SharedBorrow
-                            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
-                            && source.access == StructuralAccess::Owned
-                            && matches!(
-                                source.multiplicity,
-                                StructuralMultiplicity::Affine
-                                    | StructuralMultiplicity::Unrestricted
-                            )
-                            && source.qualifications.is_empty()
-                            && source.projected_qualifications.is_empty()
-                            && record_type(types, source.structural_type, false, true)
-                    })
-                    .map(|source| source.structural_type)
-            })
-            .is_some_and(|root_type| {
-                resolve_structural_path(types, root_type, &argument.path)
-                    == Some(parameter.structural_type)
-            })
 }
 
 /// The completed-value join shared by named fields and fixed-array elements.

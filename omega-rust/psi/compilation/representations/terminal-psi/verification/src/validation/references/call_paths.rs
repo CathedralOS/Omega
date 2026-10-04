@@ -232,7 +232,7 @@ pub(super) fn call_reference_custody(
 /// permission. Traversing that very loan supplies authority; observing the
 /// descriptor directly cannot bypass it. Opaque ingress identities are not
 /// concrete storage coordinates merely because their spelling is similar.
-fn descriptor_storage_available(
+pub(super) fn descriptor_storage_available(
     module: &TerminalModule,
     machine: &TerminalMachine,
     live: &[LiveReference],

@@ -107,9 +107,12 @@ pub(super) fn validate_unit_cleanup_actions(
                 *place,
             )?;
         }
-        if !remaining.live_references.is_empty() {
-            return Err(mismatch());
-        }
+        super::references::validate_normal_return(
+            function,
+            structural_types,
+            block,
+            &remaining.live_references,
+        )?;
         // Result-root cleanup currently has one remaining owner. Do not let
         // the parameter/local discard roster hide a second live call result.
         if !function
@@ -147,10 +150,15 @@ pub(super) fn validate_unit_cleanup_actions(
         if !remaining.partial_custody_paths.is_empty()
             || !remaining.claims.is_empty()
             || !remaining.owned_places.is_empty()
-            || !remaining.live_references.is_empty()
         {
             return Err(mismatch());
         }
+        super::references::validate_normal_return(
+            function,
+            structural_types,
+            block,
+            &remaining.live_references,
+        )?;
         return Ok(());
     }
 
@@ -179,7 +187,7 @@ pub(super) fn validate_unit_cleanup_actions(
             *place,
         )?;
     }
-    super::references::require_no_references(function, block, &live_references)
+    super::references::validate_normal_return(function, structural_types, block, &live_references)
 }
 
 pub(super) fn validate_scalar_cleanup_actions(
@@ -316,10 +324,15 @@ pub(super) fn validate_scalar_cleanup_actions(
     if actions.next().is_some()
         || !remaining.owned_places.is_empty()
         || !remaining.partial_custody_paths.is_empty()
-        || !remaining.live_references.is_empty()
     {
         return Err(mismatch());
     }
+    super::references::validate_normal_return(
+        function,
+        structural_types,
+        block,
+        &remaining.live_references,
+    )?;
     Ok(())
 }
 

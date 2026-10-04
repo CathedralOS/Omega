@@ -13,6 +13,115 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn carrier_metadata_call_preserves_its_reference_store_origin() {
+    let program = crate::front_end::typed_program(
+        "data Carrier { count: u64; destination: &mut u64; }
+         machine set_count(carrier: &mut Carrier) { carrier.count = 7; }
+         machine write(destination: &mut u64) {
+             let mut carrier: Carrier = Carrier { count: 0, destination: destination };
+             set_count(&mut carrier);
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let resolver = crate::CallFrameResolver::new(&program).expect("resolver");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(machine, state)
+            .complete_paths(),
+        Some(["$P0".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn carrier_metadata_expression_calls_preserve_reference_store_origins() {
+    for invocation in [
+        "let count: u64 = set_count(&mut carrier);",
+        "let count: u64 = identity(set_count(&mut carrier));",
+        "let count: u64 = 1 + set_count(&mut carrier);",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Carrier {{ count: u64; destination: &mut u64; }}
+             machine set_count(carrier: &mut Carrier) -> u64 {{
+                 carrier.count = 7;
+                 7
+             }}
+             machine identity(value: u64) -> u64 {{ value }}
+             machine write(destination: &mut u64) {{
+                 let mut carrier: Carrier = Carrier {{ count: 0, destination: destination }};
+                 {invocation}
+                 carrier.destination = 11;
+             }}",
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "write")
+            .expect("caller");
+        let state = &program.machine_states(machine)[0];
+        let resolver = crate::CallFrameResolver::new(&program).expect("resolver");
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .complete_paths(),
+            Some(["$P0".to_owned()].as_slice()),
+            "{invocation}"
+        );
+    }
+}
+
+#[test]
+fn carrier_replacement_ceiling_survives_opaque_and_mutating_calls() {
+    for (declaration, invocation) in [
+        (
+            "boundary machine touch(carrier: &mut Carrier);",
+            "touch(&mut carrier);",
+        ),
+        (
+            "machine touch(carrier: &mut Carrier) { touch(carrier); }",
+            "touch(&mut carrier);",
+        ),
+        (
+            "machine touch(carrier: &mut Carrier) { carrier = Carrier { count: 9, destination: carrier.destination }; }",
+            "touch(&mut carrier);",
+        ),
+        (
+            "boundary machine opaque(carrier: &mut Carrier); machine identity(carrier: &mut Carrier) -> &mut Carrier { carrier }",
+            "opaque(identity(&mut carrier));",
+        ),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Carrier {{ count: u64; destination: &mut u64; }}
+             {declaration}
+             machine write(destination: &mut u64) {{
+                 let mut carrier: Carrier = Carrier {{ count: 0, destination: destination }};
+                 {invocation}
+                 carrier.destination = 11;
+             }}",
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "write")
+            .expect("caller");
+        let state = &program.machine_states(machine)[0];
+        let resolver = crate::CallFrameResolver::new(&program).expect("resolver");
+        assert!(
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .complete_paths()
+                .is_none(),
+            "{declaration}: {invocation}"
+        );
+    }
+}
+
+#[test]
 fn collection_length_referent_store_retains_its_write_frame_across_calls() {
     let program = crate::front_end::typed_program(
         "data Main {}

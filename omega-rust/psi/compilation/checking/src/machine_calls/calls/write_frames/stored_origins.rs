@@ -320,91 +320,88 @@ pub(super) fn declaration_origins_for_query(
     })
 }
 
-/// A call must not acquire replacement access to an established reference
-/// slot or a whole carrier. Borrowing owned storage beneath a leaf is safe for
-/// origin identity. Reuse the common expression traversal, including helpers.
-pub(super) fn expression_borrows_carrier_binding(
+/// Classify one exclusive borrow's replacement ceiling. Its enclosing call
+/// separately narrows that ceiling using its complete may-write frame.
+pub(super) fn borrow_target_exposes_carrier_binding(
     program: &TypedTrees,
     machine: &Machine,
     state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
+    target: typed_trees::expression::ExpressionHandle,
     stored: &[StoredLocalOrigins],
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
-    super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
-        // An exclusive borrow of an exclusively-referenced place is a
-        // reborrow: it reaches the referent the binding already names and
-        // cannot write the slot itself. When the borrowed place is exactly a
-        // stored-local reference leaf (a field-only member chain), the leaf's
-        // declared origin is the load evidence and the borrow does not expose
-        // the binding for replacement. Shared leaves, parameter roots,
-        // indexed members, and non-reference places keep their exposure
-        // fence: `&mut` on a shared leaf can only borrow the slot.
-        let reborrows_proven_leaf = crate::value_custody::places::declared_place_type_raw(
+    // An exclusive borrow of an exclusively-referenced place is a
+    // reborrow: it reaches the referent the binding already names and
+    // cannot write the slot itself. When the borrowed place is exactly a
+    // stored-local reference leaf (a field-only member chain), the leaf's
+    // declared origin is the load evidence and the borrow does not expose
+    // the binding for replacement. Shared leaves, parameter roots,
+    // indexed members, and non-reference places keep their exposure
+    // fence: `&mut` on a shared leaf can only borrow the slot.
+    let reborrows_proven_leaf = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        target,
+    )
+    .is_some_and(
+        |reference| match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { access, .. } => access.is_exclusive(),
+            _ => false,
+        },
+    ) && frozen_bindings::binding_source(program, target, aliases)
+        .is_some_and(|source| {
+            source
+                .segments
+                .iter()
+                .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
+                && stored.iter().any(|local| {
+                    local.local_symbol == source.root
+                        && program.symbols.get(local.local_symbol).kind
+                            == symbols::SymbolKind::Local
+                        && local
+                            .references
+                            .iter()
+                            .any(|leaf| leaf.local_segments == source.segments)
+                })
+        });
+    if reborrows_proven_leaf {
+        return false;
+    }
+    if frozen_bindings::target_replaces_case_binding(program, target, stored, aliases)
+        || frozen_bindings::target_replaces_reference_binding(
+            program, target, stored, aliases, true,
+        )
+    {
+        return true;
+    }
+    let Some(path) = super::frame_place_path(program, target) else {
+        return false;
+    };
+    let (root, _) = split_place_root(&path.path);
+    let established_local = stored
+        .iter()
+        .any(|local| program.symbols.name(local.local_symbol) == root);
+    // An incoming by-value carrier also anchors frozen leaf origins.
+    // Replacing its reference slots would change what its symbolic
+    // parameter-relative paths denote at the caller boundary.
+    let incoming_carrier = program.state_parameters(state).iter().any(|parameter| {
+        parameter.name.as_str() == root
+            && !super::type_reference_is_reference(program, parameter.type_reference)
+            && super::type_may_carry_write(program, parameter.type_reference)
+            && !super::type_is_caller_isolated_local(program, parameter.type_reference)
+    });
+    (established_local || incoming_carrier)
+        && crate::value_custody::places::declared_place_type_raw(
             program,
             machine,
             Some(state),
             target,
         )
-        .is_some_and(|reference| {
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference { access, .. } => access.is_exclusive(),
-                _ => false,
-            }
-        }) && frozen_bindings::binding_source(program, target, aliases)
-            .is_some_and(|source| {
-                source
-                    .segments
-                    .iter()
-                    .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
-                    && stored.iter().any(|local| {
-                        local.local_symbol == source.root
-                            && program.symbols.get(local.local_symbol).kind
-                                == symbols::SymbolKind::Local
-                            && local
-                                .references
-                                .iter()
-                                .any(|leaf| leaf.local_segments == source.segments)
-                    })
-            });
-        if reborrows_proven_leaf {
-            return false;
-        }
-        if frozen_bindings::target_replaces_case_binding(program, target, stored, aliases)
-            || frozen_bindings::target_replaces_reference_binding(
-                program, target, stored, aliases, true,
-            )
-        {
-            return true;
-        }
-        let Some(path) = super::frame_place_path(program, target) else {
-            return false;
-        };
-        let (root, _) = split_place_root(&path.path);
-        let established_local = stored
-            .iter()
-            .any(|local| program.symbols.name(local.local_symbol) == root);
-        // An incoming by-value carrier also anchors frozen leaf origins.
-        // Replacing its reference slots would change what its symbolic
-        // parameter-relative paths denote at the caller boundary.
-        let incoming_carrier = program.state_parameters(state).iter().any(|parameter| {
-            parameter.name.as_str() == root
-                && !super::type_reference_is_reference(program, parameter.type_reference)
-                && super::type_may_carry_write(program, parameter.type_reference)
-                && !super::type_is_caller_isolated_local(program, parameter.type_reference)
-        });
-        (established_local || incoming_carrier)
-            && crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                target,
-            )
-            .is_none_or(|reference| {
-                super::type_may_carry_write(program, reference)
-                    && !super::type_is_caller_isolated_local(program, reference)
-            })
-    })
+        .is_none_or(|reference| {
+            super::type_may_carry_write(program, reference)
+                && !super::type_is_caller_isolated_local(program, reference)
+        })
 }
 
 pub(super) fn canonical_origins(

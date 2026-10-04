@@ -881,6 +881,24 @@ fn argument_owns_references(
             .is_some_and(|(contract, _)| contains_reference(types, contract))
 }
 
+fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
+    authority == requested
+        || authority == StructuralAccess::Owned
+        || authority == StructuralAccess::MutableBorrow
+            && matches!(
+                requested,
+                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+}
+
+/// Carrier storage and its pointees are distinct aliasing regions.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallRegion {
+    OrdinaryStorage,
+    CarrierStorage,
+    Referent,
+}
+
 mod call_paths;
 
 /// Whether `place` is currently suspended as a live loan's referent root.
@@ -960,6 +978,21 @@ pub(super) fn check_operation_access(
                 });
             check_region_access(live, place, &region)
         }
+        AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
+            if path.contains(&StructuralPathSegment::Referent) =>
+        {
+            call_paths::call_reference_custody(
+                function,
+                live,
+                types,
+                &StructuralArgument {
+                    place,
+                    path: path.clone(),
+                    access: StructuralAccess::WriteOnlyBorrow,
+                },
+            )
+            .is_err()
+        }
         AbstractOperation::PrimitiveScalarRead { path, .. }
         | AbstractOperation::StructuralCaseMembership { path, .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
@@ -991,10 +1024,29 @@ pub(super) fn call_arguments(
         if argument.path.contains(&StructuralPathSegment::Referent) {
             let resolved = call_paths::call_reference_custody(function, live, types, argument)?;
             dependencies.push((argument_position, resolved.dependencies));
-            normalized.push((argument_position, resolved.origins, argument.access, true));
+            normalized.push((
+                argument_position,
+                resolved.origins,
+                argument.access,
+                CallRegion::Referent,
+            ));
             continue;
         }
-        if argument_owns_references(function, live, types, argument) {
+        if source_contract(function, live, argument.place)
+            .is_some_and(|(contract, _)| contains_reference(types, contract))
+        {
+            let authority = function
+                .arrival_parameter(argument.place)
+                .map(|parameter| parameter.access)
+                .or_else(|| {
+                    live.structural_homes
+                        .get(&argument.place)
+                        .map(|home| home.access())
+                })
+                .unwrap_or(StructuralAccess::Owned);
+            if !access_covers(authority, argument.access) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
             if !argument
                 .path
                 .iter()
@@ -1019,7 +1071,27 @@ pub(super) fn call_arguments(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let storage = ReferenceRoot::Ingress(argument.place, argument.path.clone());
+            if live.references.iter().any(|((carrier, path), leaf)| {
+                !(*carrier == argument.place && path.starts_with(&argument.path))
+                    && roots_overlap(&storage, &leaf.root)
+            }) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            normalized.push((
+                argument_position,
+                vec![storage],
+                argument.access,
+                CallRegion::CarrierStorage,
+            ));
             for path in paths {
+                let permission = leaf_type(types, selected, &path)
+                    .and_then(|leaf| types.get(&leaf).map(|declaration| &declaration.shape))
+                    .and_then(|shape| match shape {
+                        StructuralTypeShape::Reference { access, .. } => Some(*access),
+                        _ => None,
+                    })
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 let mut carrier_path = argument.path.clone();
                 carrier_path.extend(path);
                 let leaf = live
@@ -1033,17 +1105,22 @@ pub(super) fn call_arguments(
                     .references
                     .values()
                     .any(|child| child.parent.as_ref() == Some(&leaf.identity))
-                    || moved
-                        .insert((argument.place, carrier_path), leaf.clone())
-                        .is_some()
+                    || (argument.access == StructuralAccess::Owned
+                        && moved
+                            .insert((argument.place, carrier_path), leaf.clone())
+                            .is_some())
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 normalized.push((
                     argument_position,
                     vec![leaf.root.clone()],
-                    argument.access,
-                    true,
+                    if access_covers(argument.access, permission) {
+                        permission
+                    } else {
+                        argument.access
+                    },
+                    CallRegion::Referent,
                 ));
             }
             continue;
@@ -1061,14 +1138,20 @@ pub(super) fn call_arguments(
                 argument_position,
                 vec![ReferenceRoot::Place(argument.place)],
                 argument.access,
-                false,
+                CallRegion::OrdinaryStorage,
             ));
         }
     }
-    for (position, (_, roots, access, reference_access)) in normalized.iter().enumerate() {
+    for (position, (argument_position, roots, access, reference_access)) in
+        normalized.iter().enumerate()
+    {
         if normalized[position + 1..].iter().any(
-            |(_, others, other_access, other_reference_access)| {
-                (*reference_access || *other_reference_access)
+            |(other_position, others, other_access, other_reference_access)| {
+                (*reference_access != CallRegion::OrdinaryStorage
+                    || *other_reference_access != CallRegion::OrdinaryStorage)
+                    && (argument_position != other_position
+                        || (*reference_access == CallRegion::Referent
+                            && *other_reference_access == CallRegion::Referent))
                     && roots
                         .iter()
                         .any(|root| others.iter().any(|other| roots_overlap(root, other)))
@@ -1725,10 +1808,13 @@ pub(super) fn entry(
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Only owned affine record carriers may enter with loans; the verified
-        // contract rejects every other reference-bearing entry parameter.
-        if parameter.access != StructuralAccess::Owned
-            || parameter.multiplicity != StructuralMultiplicity::Affine
+        // Borrowing lends the carrier roster without transferring its permissions.
+        if parameter.multiplicity
+            != if parameter.access == StructuralAccess::Owned {
+                StructuralMultiplicity::Affine
+            } else {
+                StructuralMultiplicity::Unrestricted
+            }
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || !constructible_record(types, parameter.structural_type)

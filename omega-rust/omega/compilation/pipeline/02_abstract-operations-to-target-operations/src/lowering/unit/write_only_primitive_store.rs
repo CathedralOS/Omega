@@ -5,6 +5,8 @@
 //! at any depth (`grid[i][j]`, `ents[i].hp`). A runtime element lowers to an
 //! `(index, stride)` run over its selector's dominating source, the way leaf
 //! copies scale theirs; the bound stays the segment's verified obligation.
+//! Explicit reference crossings retain the carrier path and restart address
+//! arithmetic after a pointer load; they never select an inferred loan origin.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::known_integers::KnownUnitInteger;
@@ -131,15 +133,24 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         .ok_or_else(invalid)?;
     // Each runtime element scales its selector's exact dominating source by
     // the array stride; its bound is the path segment's verified obligation.
-    let (leaf, _, runs) = super::super::structural_layout::primitive_leaf_projection(
+    let projection = super::super::structural_layout::primitive_leaf_projection(
         destination.structural_type(),
         path,
         structural_types,
     )
     .ok_or_else(invalid)?;
-    if leaf != value.scalar_type {
+    if projection.scalar != value.scalar_type {
         return Err(invalid());
     }
+    // These are operand identities in path order, not one flattened address.
+    // The target keeps the complete path, including each pointer crossing;
+    // selection must reconstruct and apply each region around its pointer load.
+    let runs = projection
+        .pointer_slots
+        .into_iter()
+        .chain([projection.leaf])
+        .flat_map(|region| region.indices)
+        .collect();
     let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
         runs,
         function,

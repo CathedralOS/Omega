@@ -11,8 +11,7 @@ use crate::execution::terminal_unit::PermissionClaimIdentity;
 use crate::execution::terminal_unit::PermissionEventKind;
 use crate::execution::terminal_unit::PermissionEventSource;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, shared_plain_affine_referent, state_flow,
-    structural_access_for_type_reference,
+    ShapeCollector, base_type_identity, state_flow, structural_access_for_type_reference,
 };
 
 use crate::execution::terminal_unit::StateParameter;
@@ -375,7 +374,7 @@ pub(super) fn argument(
     if linear && (projected || access != CheckedStructuralAccess::Owned) {
         return None;
     }
-    if unrestricted && !projected_borrow {
+    if unrestricted && access == CheckedStructuralAccess::Owned {
         // A completed nested byte call owns its qualified result. Scheduling
         // it does not establish predicates: retain the exact declared roster
         // required by this formal, then rejoin its source/ordinal below.
@@ -403,45 +402,13 @@ pub(super) fn argument(
                     && validation::structural_result_qualifications(program, formal_type)
                         .is_ok_and(|required| completed.qualifications == required)
             });
-        // A shared borrow views the binding's own storage: the formal's
-        // referent — not its `&` shell — carries the closed/plain-content
-        // obligation, and the borrow arm below proves the loan itself.
-        let storage = if array_view {
-            local_type
-        } else {
-            match access {
-                CheckedStructuralAccess::Owned => Some(parameter.type_reference),
-                CheckedStructuralAccess::SharedBorrow => {
-                    shared_closed_referent(program, parameter.type_reference)
-                }
-                CheckedStructuralAccess::MutableBorrow
-                | CheckedStructuralAccess::WriteOnlyBorrow => {
-                    match program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                    {
-                        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                            Some(*referee)
-                        }
-                        _ => None,
-                    }
-                }
-            }
-        };
+        let storage = parameter.type_reference;
         if projected
-            || !storage.is_some_and(|storage| {
-                validation::is_closed_primitive_array_type(program, storage)
+            || !(validation::is_closed_primitive_array_type(program, storage)
                     || completed_byte_operand
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                         program, storage,
                     )
-                    // A loan presents the existing local's declared carrier;
-                    // byte predicates remain attached to that same storage.
-                    || (access != CheckedStructuralAccess::Owned
-                        && local_type.is_some()
-                        && validation::has_plain_owned_contents_with_represented_constraints(
-                            program, storage,
-                        ))
                     // Owned snapshots retain the exact field declarations,
                     // including bounded live-byte predicates. The producer and
                     // source occurrence are rejoined below; this is not a loan
@@ -463,7 +430,7 @@ pub(super) fn argument(
                         && validation::has_plain_owned_contents_with_represented_constraints(
                             program, storage,
                         ))
-            })
+            )
         {
             return None;
         }
@@ -479,23 +446,17 @@ pub(super) fn argument(
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
-            let referee = shared_plain_affine_referent(program, parameter.type_reference)
-                .or_else(|| shared_closed_referent(program, parameter.type_reference))
-                .or(if array_view { local_type } else { None })
-                .or_else(|| {
-                    // A named local lends its own storage, exactly as the
-                    // exclusive arm below does: the declared record's field
-                    // domains ride the loan, and the local's contents and
-                    // identity are rejoined against the binding below.
-                    matches!(place.root, facts::PlaceRoot::Symbol(_))
-                        .then(|| {
-                            shared_numeric_affine_referent(program, parameter.type_reference)
-                                .or_else(|| {
-                                    shared_view_affine_referent(program, parameter.type_reference)
-                                })
-                        })
-                        .flatten()
-                })?;
+            let typed_trees::types::TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                referee,
+                ..
+            } = program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                return None;
+            };
+            let referee = if array_view { local_type? } else { *referee };
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
             else {
                 return None;
@@ -664,21 +625,18 @@ pub(super) fn argument(
                 // is checked against the same field constraints. An owned
                 // move still needs the plain-contents fence, because moving
                 // a constrained value owes its own value correspondence.
-                let owned_contents = if access == CheckedStructuralAccess::Owned {
-                    validation::has_plain_owned_contents(program, local.type_reference)
-                } else {
-                    // A loan presents the declared record: a member that is
-                    // itself a shared view rides the same carrier the
-                    // disposal, result-custody and scalar-read gates already
-                    // admit — the view's own loan stays with the caller.
-                    validation::has_plain_owned_contents_with_represented_constraints(
-                        program,
-                        local.type_reference,
-                    ) || validation::has_owned_or_shared_view_contents(
-                        program,
-                        local.type_reference,
-                    )
-                };
+                let owned_contents =
+                    validation::has_plain_owned_contents(program, local.type_reference);
+                // Lending established storage does not transfer its contents.
+                // The exact captured access above and declaration identity
+                // below authorize the carrier, while retained reference leaves
+                // keep their own live custody. This route has no linear-claim
+                // handoff; a stored linear owner still needs that contract.
+                if access != CheckedStructuralAccess::Owned
+                    && !validation::linear_claim_frontier(program, local.type_reference).is_empty()
+                {
+                    return None;
+                }
                 // A borrowed-view binding lends elements through its
                 // descriptor, not through owned contents on its reference
                 // shell: the projected borrow's evidence is the exact
@@ -699,9 +657,14 @@ pub(super) fn argument(
                 if !view_binding
                     && ((access == CheckedStructuralAccess::Owned && local.is_mutable)
                         || local.symbol != symbol
-                        || (!unrestricted && !linear && !owned_reference_record && !owned_contents)
+                        || (access == CheckedStructuralAccess::Owned
+                            && !unrestricted
+                            && !linear
+                            && !owned_reference_record
+                            && !owned_contents)
                         || program.type_multiplicity(local.type_reference) != result.multiplicity
-                        || (unrestricted
+                        || (access == CheckedStructuralAccess::Owned
+                            && unrestricted
                             && !(validation::is_closed_primitive_array_type(
                                 program,
                                 local.type_reference,
@@ -709,8 +672,7 @@ pub(super) fn argument(
                                 || validation::has_plain_owned_contents_with_numeric_constraints(
                                     program,
                                     local.type_reference,
-                                )
-                                || (access != CheckedStructuralAccess::Owned && owned_contents)))
+                                )))
                         || base_type_identity(program, local.type_reference, &[])?
                             != result.type_identity)
                 {
@@ -976,75 +938,6 @@ pub(super) fn argument(
         type_identity: target_identity.to_owned(),
         access: CheckedStructuralAccess::Owned,
     })
-}
-
-/// Shared references to a whole unrestricted closed carrier — a fixed
-/// primitive array or a record of represented plain-owned fields — view storage
-/// the binding itself retains. Nested references and unsupported constraints
-/// stay out; the loan does not copy or establish the retained field predicates.
-fn shared_closed_referent(
-    program: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
-        && (validation::is_closed_primitive_array_type(program, *referee)
-            || validation::has_plain_owned_contents_with_represented_constraints(
-                program, *referee,
-            )))
-    .then_some(*referee)
-}
-
-/// Shared references to an affine record whose leaves are plain owned values,
-/// numeric domains and ranges included. Only a named local's own storage uses
-/// this: the loan presents the declared type unchanged, so its field
-/// constraints need no separate transport. Nested references, cleanup-owned
-/// contents and linear referents stay out.
-fn shared_numeric_affine_referent(
-    program: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (program.type_multiplicity(*referee) == Multiplicity::Affine
-        && validation::has_plain_owned_contents_with_numeric_constraints(program, *referee))
-    .then_some(*referee)
-}
-
-/// Shared references to an affine record whose members mix plain owned
-/// scalars and shared views (`&[T]` / `&'a V`) ride the same lane as the
-/// plain-affine companion: the loan presents the declared record unchanged,
-/// and a shared borrow moves no view custody — each view field's captured
-/// loan stays with the caller for the call's duration. Mutable access,
-/// linear referents and mutating loans stay out.
-fn shared_view_affine_referent(
-    program: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (program.type_multiplicity(*referee) == Multiplicity::Affine
-        && validation::has_owned_or_shared_view_contents(program, *referee))
-    .then_some(*referee)
 }
 
 /// Whether the argument spelling names exactly the whole local `symbol`: an

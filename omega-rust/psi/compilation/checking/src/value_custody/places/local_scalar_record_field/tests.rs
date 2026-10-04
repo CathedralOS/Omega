@@ -16,6 +16,21 @@ fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
 }
 
 #[test]
+fn local_scalar_observation_keeps_neighboring_exclusive_reference_custody() {
+    let (program, machine, state, expression) = typed_source(
+        "data Record { destination: &mut u64; count: u64; }
+         machine observe(destination: &mut u64) -> u64 {
+             let record: Record = Record { destination: destination, count: 7 };
+             record.count
+         }",
+    );
+    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+        .expect("observing metadata does not transfer the neighboring reference");
+    assert!(field.path.is_empty());
+    assert_eq!(field.primitive_type, super::PrimitiveType::U64);
+}
+
+#[test]
 fn local_field_observes_nested_boolean_beside_array_and_sum_storage() {
     let (program, machine, state, expression) = typed_source(
         "data Token [copy] { position: u64; case Empty; case Full(value: u64); }

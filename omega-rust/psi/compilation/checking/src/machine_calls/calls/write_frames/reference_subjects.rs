@@ -90,6 +90,39 @@ pub(super) fn replaces_binding(
     )
 }
 
+/// Reference-valued assignment replaces the selected carrier; value-shaped
+/// assignment writes through it. This query classifies the actual typed place,
+/// including a projected slot, without changing bare-local alias transfer.
+pub(super) fn replaces_reference_binding(
+    program: &TypedTrees,
+    machine: &Machine,
+    statement: &StatementNode,
+) -> Option<bool> {
+    let StatementNode::Assignment(assignment) = statement else {
+        return Some(false);
+    };
+    let (state, _, _) = caller_aliases::caller_statement_owner(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Statement(statement),
+    )?;
+    let reference = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        assignment.target,
+    )?;
+    Some(
+        type_reference_is_reference(program, reference)
+            && local_aliases::expression_may_rebind_mutable_alias(
+                program,
+                machine,
+                state,
+                assignment.value,
+            ),
+    )
+}
+
 pub(super) fn local_origin(
     program: &TypedTrees,
     machine: &Machine,

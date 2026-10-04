@@ -67,6 +67,7 @@ pub(crate) struct CallFrameCaches {
     /// nodes key by address plus owning machine, handles and symbols by their
     /// own durable identities.
     binding_replacements: Mutex<HashMap<(SymbolHandle, usize), Option<bool>>>,
+    reference_slot_replacements: Mutex<HashMap<(SymbolHandle, usize), Option<bool>>>,
     local_reference_origins: Mutex<
         HashMap<
             (SymbolHandle, usize, SymbolHandle),
@@ -284,6 +285,26 @@ impl<'program> CallFrameResolver<'program> {
             &self.caches.binding_replacements,
             (machine.symbol, std::ptr::from_ref(statement).addr()),
             || super::reference_subjects::replaces_binding(self.program, machine, statement),
+        )
+    }
+
+    /// Classify the selected reference slot, including projections, separately
+    /// from the bare-local rebinding query used by alias and value transport.
+    pub fn assignment_replaces_reference_binding(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<bool> {
+        memoized(
+            &self.caches.reference_slot_replacements,
+            (machine.symbol, std::ptr::from_ref(statement).addr()),
+            || {
+                super::reference_subjects::replaces_reference_binding(
+                    self.program,
+                    machine,
+                    statement,
+                )
+            },
         )
     }
 

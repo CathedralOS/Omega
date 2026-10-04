@@ -6,8 +6,10 @@
 //! element. Primitive stores and reads name it by a
 //! `StructuralPathSegment` projection whose elements may be runtime-selected
 //! (`primitive_projection_type`); a static projection also has one canonical
-//! spelling (`canonical_primitive_path`) that facts are keyed by. The backend's
-//! abstract operations keep the canonical form (`primitive_place_type`).
+//! spelling (`canonical_primitive_path`) that facts are keyed by. A reference
+//! crossing retains its carrier path and explicit `Referent` segment; it has no
+//! owned canonical path. Geometry never grants the live permission needed to
+//! follow that pointer. Consumers check custody separately from the leaf type.
 //!
 //! # Scalar fields of runtime-selected elements
 //!
@@ -106,8 +108,9 @@ pub fn fixed_array_place_shape<'a>(
 /// Fields step into structural children or end at a plain IEEE scalar. A literal
 /// index stays inside its extent; a runtime index selects an array element: its
 /// bound is the obligation of the operation carrying the path. `Referent`
-/// and `Case` name no direct primitive leaf; a byte carrier's element is the
-/// u8 scalar. Borrowed structural projection geometry has a separate contract.
+/// steps through a declared reference; a byte carrier's element is the u8 scalar.
+/// `Case` names no direct primitive leaf; borrowed payload projection geometry
+/// has a separate contract.
 /// This grants no access authority.
 pub fn primitive_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
@@ -200,7 +203,7 @@ pub fn runtime_element_field<'a>(
 
 /// The canonical spelling of a static primitive projection, the key facts
 /// about the leaf are recorded under. `None` for a projection with a
-/// runtime-selected element: it names no single place.
+/// runtime-selected element or a reference crossing: neither names an owned leaf.
 pub fn canonical_primitive_path<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -229,7 +232,8 @@ pub fn canonical_primitive_path<'a>(
 
 /// The canonical spelling of any static projection of fields holding
 /// structural children and literal elements, with the declaration it
-/// selects. `None` when a segment is runtime-selected or names no place.
+/// selects. `None` when a segment is runtime-selected, crosses a reference,
+/// or names no place.
 pub fn canonical_static_projection<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -338,7 +342,7 @@ impl ProjectionTip<'_> {
 }
 
 /// One walk for both entry points. `step` receives each segment's canonical
-/// spelling, or `None` for a runtime-selected element.
+/// spelling, or `None` for a runtime-selected element or reference crossing.
 fn walk_primitive_projection<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -386,6 +390,12 @@ fn walk_primitive_projection<'a>(
             return None;
         }
         position = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+                // Dereferencing observes the stored pointer, not an owned child
+                // of its carrier. Never mint a canonical storage fact for it.
+                step(None);
+                Position::Declared(*referent)
+            }
             (StructuralPathSegment::Field(identity), shape) => {
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
@@ -471,6 +481,53 @@ mod tests {
     };
     use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+
+    #[test]
+    fn reference_projection_retains_typed_crossing_without_an_owned_canonical_leaf() {
+        let primitive = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let record = StructuralTypeId::new(3).unwrap();
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declarations = [
+            StructuralTypeDeclaration {
+                id: primitive,
+                identity: "Octet".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+            },
+            StructuralTypeDeclaration {
+                id: reference,
+                identity: "OctetReference".into(),
+                shape: StructuralTypeShape::Reference {
+                    referent: primitive,
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: record,
+                identity: "Carrier".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "destination".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(reference),
+                    }],
+                },
+            },
+        ];
+        let path = ["destination".into(), StructuralPathSegment::Referent];
+        assert_eq!(
+            primitive_projection_type(declarations.iter(), record, &path),
+            Some(scalar)
+        );
+        assert!(super::canonical_primitive_path(declarations.iter(), record, &path).is_none());
+        assert!(super::canonical_static_projection(declarations.iter(), record, &path).is_none());
+        assert!(primitive_projection_type(declarations.iter(), record, &path[..1]).is_none());
+        assert!(primitive_projection_type(declarations.iter(), record, &path[1..]).is_none());
+        let mut doubled = path.to_vec();
+        doubled.push(StructuralPathSegment::Referent);
+        assert!(primitive_projection_type(declarations.iter(), record, &doubled).is_none());
+    }
 
     #[test]
     fn plain_float_field_paths_preserve_format_and_reject_other_endpoints() {

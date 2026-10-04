@@ -139,21 +139,23 @@ pub(super) fn validate_write_only_primitive_store(
         unreachable!("dispatched validate_write_only_primitive_store")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    let (expected_offset, expected_size, elements) =
-        crate::structural_inputs::structural_reference_input::primitive_store(
-            expected,
-            expected_path,
-            expected_value.scalar_type,
-            &unit.structural_types,
-        )
-        .ok_or(invalid.clone())?;
+    let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
+        expected,
+        expected_path,
+        expected_value.scalar_type,
+        &unit.structural_types,
+    )
+    .ok_or(invalid.clone())?;
     if destination != expected
         || path != expected_path
         || value != expected_value
-        || (*byte_offset, *byte_size) != (expected_offset, expected_size)
+        || (*byte_offset, *byte_size) != (geometry.byte_offset, geometry.byte_size)
         || *indices
             != crate::legalization::runtime_indices::operands(
-                optimized, unit, operation, &elements,
+                optimized,
+                unit,
+                operation,
+                &geometry.elements,
             )?
     {
         return Err(invalid);

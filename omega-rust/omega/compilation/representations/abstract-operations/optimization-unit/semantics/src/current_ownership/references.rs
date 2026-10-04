@@ -8,10 +8,9 @@
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
-    LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, argument_owns_references,
-    call_source_type, contains_reference, formal_origin, is_reference_projection,
-    leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
-    reference_source_type,
+    LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, call_source_type,
+    contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
+    leaf_referent, leaf_type, reference_access, reference_source_type,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -25,11 +24,21 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclarati
 // local/result rosters remain bounded by their existing captured rows.
 const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
 
+/// Carrier storage and its pointees are distinct aliasing regions.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallRegion {
+    OrdinaryStorage,
+    CarrierStorage,
+    Referent,
+}
+
 mod call_paths;
 use call_paths::{call_dependency_conflict, call_reference_custody};
 
 #[cfg(test)]
 mod alternative_result_tests;
+#[cfg(test)]
+mod borrowed_ingress_tests;
 #[cfg(test)]
 mod ingress_transfer_tests;
 #[cfg(test)]
@@ -985,6 +994,21 @@ pub(super) fn apply_operation(
         O::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => {
+            if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+                call_reference_custody(
+                    function,
+                    structural_types,
+                    block,
+                    node,
+                    live,
+                    &StructuralArgument {
+                        place: destination.place(),
+                        path: path.clone(),
+                        access: StructuralAccess::WriteOnlyBorrow,
+                    },
+                )?;
+                return Ok(());
+            }
             let region = super::storage_regions::projected(
                 function,
                 structural_types,
@@ -1145,12 +1169,15 @@ pub(super) fn apply_operation(
             normalized_arguments.push((
                 custody.origins,
                 argument.access,
-                true,
+                CallRegion::Referent,
                 custody.dependencies,
+                argument_position,
             ));
             continue;
         }
-        if argument_owns_references(function, structural_types, argument) {
+        if structural_source_contract(function, argument.place)
+            .is_some_and(|source| contains_reference(structural_types, source.structural_type))
+        {
             if matches!(operation, O::BoundaryCall { .. }) {
                 return Err(invalid(
                     function,
@@ -1168,6 +1195,15 @@ pub(super) fn apply_operation(
                         "owned reference argument has no source",
                     )
                 })?;
+            if !crate::unit_validation::references::access_covers(signature.access, argument.access)
+            {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "carrier borrow exceeds source authority",
+                ));
+            }
             // Ownership moves the selected subtree's entire leaf roster, not
             // the containing root. Resolve the declared path, then rebase each
             // leaf onto its actual carrier; untouched siblings stay live.
@@ -1216,7 +1252,40 @@ pub(super) fn apply_operation(
                     "owned argument reference roster differs from its type",
                 ));
             }
+            let storage = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+                place: argument.place,
+                path: argument.path.clone(),
+            });
+            if live.iter().any(|reference| {
+                !(reference.carrier == argument.place
+                    && reference.carrier_path.starts_with(&argument.path))
+                    && origins_overlap(&storage, &reference.root)
+            }) {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "carrier storage has an outstanding loan",
+                ));
+            }
+            normalized_arguments.push((
+                vec![storage],
+                argument.access,
+                CallRegion::CarrierStorage,
+                Vec::new(),
+                argument_position,
+            ));
             for path in paths {
+                let permission = leaf_type(structural_types, projected_type.id, &path)
+                    .and_then(|leaf| reference_access(structural_types, leaf))
+                    .ok_or_else(|| {
+                        invalid(
+                            function,
+                            block,
+                            Some(node),
+                            "carrier leaf lacks declared permission",
+                        )
+                    })?;
                 let mut carrier_path = argument.path.clone();
                 carrier_path.extend(path);
                 let reference = live
@@ -1237,7 +1306,7 @@ pub(super) fn apply_operation(
                 // leaves. A type cannot describe an unknown suspended parent
                 // or a parent/child pair packed into the same incoming record.
                 if live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity))
-                    || !moved.insert(reference.identity.clone())
+                    || (argument.access == StructuralAccess::Owned && !moved.insert(reference.identity.clone()))
                 {
                     return Err(invalid(
                         function,
@@ -1248,9 +1317,17 @@ pub(super) fn apply_operation(
                 }
                 normalized_arguments.push((
                     vec![reference.root.clone()],
-                    argument.access,
-                    true,
+                    if crate::unit_validation::references::access_covers(
+                        argument.access,
+                        permission,
+                    ) {
+                        permission
+                    } else {
+                        argument.access
+                    },
+                    CallRegion::Referent,
                     Vec::new(),
+                    argument_position,
                 ));
             }
             continue;
@@ -1271,22 +1348,33 @@ pub(super) fn apply_operation(
             }
             let (root, _) =
                 normalized_source(function, structural_types, block, node, live, argument)?;
-            normalized_arguments.push((vec![root], argument.access, true, Vec::new()));
+            normalized_arguments.push((
+                vec![root],
+                argument.access,
+                CallRegion::Referent,
+                Vec::new(),
+                argument_position,
+            ));
         } else {
             normalized_arguments.push((
                 vec![ReferenceOrigin::Primitive(argument.place)],
                 argument.access,
-                false,
+                CallRegion::OrdinaryStorage,
                 Vec::new(),
+                argument_position,
             ));
         }
     }
-    for (position, (roots, access, reference_access, dependencies)) in
+    for (position, (roots, access, reference_access, dependencies, argument_position)) in
         normalized_arguments.iter().enumerate()
     {
         if normalized_arguments[position + 1..].iter().any(
-            |(others, other_access, other_reference_access, other_dependencies)| {
-                ((*reference_access || *other_reference_access)
+            |(others, other_access, other_reference_access, other_dependencies, other_position)| {
+                ((*reference_access != CallRegion::OrdinaryStorage
+                    || *other_reference_access != CallRegion::OrdinaryStorage)
+                    && (argument_position != other_position
+                        || (*reference_access == CallRegion::Referent
+                            && *other_reference_access == CallRegion::Referent))
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
                     && roots
@@ -1743,22 +1831,36 @@ pub(super) fn validate_return_coverage(
     Ok(())
 }
 
-/// Normal completion must leave no outstanding loans: every carrier was either
-/// released, consumed by an owner discard, or transferred through a checked
-/// result roster.
-pub(super) fn require_no_references(
+/// Normal completion restores the exact borrowed ingress roster while closing
+/// every local or owned permission. Reconstruct entry custody independently.
+pub(super) fn validate_normal_return(
     function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     live: &[LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
-    if live.is_empty() {
+    let mut expected = entry_references(function, types)?;
+    expected.retain(|reference| {
+        function.structural_parameters.iter().any(|parameter| {
+            parameter.place == reference.carrier && parameter.access != StructuralAccess::Owned
+        })
+    });
+    expected.sort_by(|left, right| left.identity.cmp(&right.identity));
+    let mut ordered = live.iter().collect::<Vec<_>>();
+    ordered.sort_by(|left, right| left.identity.cmp(&right.identity));
+    if expected.len() == ordered.len()
+        && expected
+            .iter()
+            .zip(ordered)
+            .all(|(expected, actual)| expected == actual)
+    {
         Ok(())
     } else {
         Err(invalid(
             function,
             block,
             None,
-            "normal completion leaves reference custody unaccounted for",
+            "normal completion does not restore borrowed reference custody",
         ))
     }
 }
