@@ -427,12 +427,14 @@ fn a_returned_value_does_not_drain_the_receiver_claim() {
         cleanup_actions: Vec::new(),
     };
 
+    // Returning the unrelated copy value leaves the receiver's claimed owner
+    // live. Shared return-cleanup replay now rejects that undisposed remainder
+    // before the later returned-claim roster check.
     assert_eq!(
         validate_module(&module).unwrap_err(),
-        ModuleError::LiveClaimAtStructuralReturn {
+        ModuleError::StructuralReturnAffineDiscardsMismatch {
             machine: machine_id(1),
             block: block_id(1),
-            claim: claim_id(1),
         }
     );
 }
