@@ -13,15 +13,12 @@ use post_allocation_machine_to_selected_form_encoding::{
     stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
-use register_homes_to_post_allocation_machine::{
-    StagedOptimizedPostAllocationMachinePlan,
-    validate_optimized_post_allocation_machine_plan_custody,
-};
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::{
     execute_resolved_layout_optimization, validate_resolved_layout_optimization,
 };
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
+use selected_instructions_to_register_homes::RetainedAllocation;
 
 pub fn stage_fixed_frame_function_relative_realization(
     allocation: RetainedAllocation,
@@ -29,12 +26,10 @@ pub fn stage_fixed_frame_function_relative_realization(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
-    let current = allocation
-        .replay_allocation()
-        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    // The allocation and the machine plan were built from the same current
+    // facts in this compile; neither is replayed here.
+    let current = allocation.current();
     let source = current.evidence().clone();
-    validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
-        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
@@ -117,14 +112,8 @@ pub fn validate_fixed_frame_function_relative_realization(
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let current = staged
-        .allocation
-        .replay_allocation()
-        .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
+    let current = staged.allocation.current();
     let source = current.evidence().clone();
-    let machine =
-        validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
-            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
@@ -188,7 +177,6 @@ pub fn validate_fixed_frame_function_relative_realization(
         &manifest,
     );
     if &source != staged.custody.source()
-        || machine != staged.machine.custody().clone()
         || manifest.record != staged.manifest.record
         || custody != staged.custody
     {

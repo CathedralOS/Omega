@@ -1,27 +1,9 @@
-use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
-    ProjectAllocation, sealed,
-};
+use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
 use crate::{
     StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
-    validate_optimized_register_home_after_literal_fold_custody,
-    validate_optimized_register_home_after_selected_lowering_custody,
 };
 use selected_instructions_to_selected_instructions::SelectedProgramRef;
-
-impl sealed::Sealed for StagedOptimizedRegisterHomesAfterLiteralFolds {}
-
-impl AllocationSource for StagedOptimizedRegisterHomesAfterLiteralFolds {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let evidence = validate_optimized_register_home_after_literal_fold_custody(self)
-            .map_err(AllocationReplayError::LiteralFolds)?;
-        if &evidence != self.custody() {
-            return Err(AllocationReplayError::ReceiptMismatch);
-        }
-        Ok(self.project_allocation())
-    }
-}
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
     fn project_allocation(&self) -> AllocationOutput<'_> {
@@ -42,19 +24,6 @@ impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
             budget: self.budget_per_pass(),
             evidence: AllocationEvidence::LiteralFolds(self.custody().to_owned()),
         }
-    }
-}
-
-impl sealed::Sealed for StagedOptimizedRegisterHomesAfterSelectedLowering {}
-
-impl AllocationSource for StagedOptimizedRegisterHomesAfterSelectedLowering {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let evidence = validate_optimized_register_home_after_selected_lowering_custody(self)
-            .map_err(AllocationReplayError::SelectedLowering)?;
-        if &evidence != self.custody() {
-            return Err(AllocationReplayError::ReceiptMismatch);
-        }
-        Ok(self.project_allocation())
     }
 }
 

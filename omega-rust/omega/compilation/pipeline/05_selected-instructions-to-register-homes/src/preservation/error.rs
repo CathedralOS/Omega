@@ -5,7 +5,6 @@ use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocatedCalleeSavedRequirementError {
-    Upstream(crate::AllocationReplayError),
     RootMismatch,
     UnsupportedPolicy,
     UnsupportedTargetConvention,

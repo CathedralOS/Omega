@@ -10,7 +10,7 @@
 //! replay accepts the result:
 //!
 //! 1. [`stage_fixed_frame_function_relative_realization`]
-//!    ([`function_realization`]) replays the allocation, stages the frame,
+//!    ([`function_realization`]) reads the current allocation, stages the frame,
 //!    encodes and lays out the selected forms, and stages the whole-function
 //!    exit contract.
 //! 2. [`stage_optimized_function_fragment_emission`] ([`fragment_emission`])

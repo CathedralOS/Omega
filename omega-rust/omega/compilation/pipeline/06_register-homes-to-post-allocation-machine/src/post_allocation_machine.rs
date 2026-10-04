@@ -1,34 +1,25 @@
 //! Optimizer module role: executable entrance. Current register homes to machine facts.
 //!
-//! Allocation replay supplies the same postcondition after every rewrite.
+//! Allocation supplies the same current-program view after every rewrite.
 //! Machine analysis consumes only current facts and retains allocation evidence separately.
-//! Analysis does not execute selected post-allocation rewrites. Both production
-//! and custody replay refuse those selections until this stage implements them.
-//! This file owns the sealed plan and its custody receipt; `validation` replays
-//! the custody join against the same allocation evidence.
-
-mod validation;
-
-pub use validation::validate_optimized_post_allocation_machine_plan_custody;
+//! Analysis does not execute selected post-allocation rewrites and refuses
+//! those selections until this stage implements them. This file owns the
+//! sealed plan and its custody receipt.
 
 use crate::PostAllocationMachineError;
 use crate::ValidatedPostAllocationMachinePlan;
 use crate::plan::analyze_post_allocation_machine_plan;
 use optimization_core::OptimizationExecutionPhase;
 use physical_instructions::PostAllocationMachineIdentity;
-use selected_instructions_to_register_homes::AllocationReplayError;
 use selected_instructions_to_register_homes::MachineEffectStageError;
 use selected_instructions_to_register_homes::{
-    AllocationEvidence, AllocationSource, ValidatedPreAllocationMachineEffects,
+    AllocationEvidence, AllocationOutput, ValidatedPreAllocationMachineEffects,
     analyze_machine_effects,
 };
 
 pub fn stage_optimized_post_allocation_machine_plan(
-    source: &impl AllocationSource,
+    allocation: &AllocationOutput<'_>,
 ) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
-    let allocation = source
-        .replay_allocation()
-        .map_err(OptimizedPostAllocationMachinePipelineError::Allocation)?;
     let phase = OptimizationExecutionPhase::PostAllocationMachine;
     if !allocation.selections().for_phase(phase).is_empty() {
         return Err(
@@ -87,8 +78,9 @@ fn post_allocation_machine_custody(
     }
 }
 
-/// Home-aware machine facts joined only through independently replayed source
-/// custody. This remains non-emission and non-publication authority.
+/// Home-aware machine facts over the current allocation, with the allocation
+/// evidence they were built from. This remains non-emission and
+/// non-publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachinePlan {
     effects: ValidatedPreAllocationMachineEffects,
@@ -148,10 +140,8 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostAllocationMachinePipelineError {
     UnconsumedOptimizationPhase(OptimizationExecutionPhase),
-    Allocation(AllocationReplayError),
     MachineEffects(MachineEffectStageError),
     PostAllocation(PostAllocationMachineError),
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for OptimizedPostAllocationMachinePipelineError {

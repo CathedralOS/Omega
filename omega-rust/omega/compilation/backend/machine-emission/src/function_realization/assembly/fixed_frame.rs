@@ -96,9 +96,8 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
             .map(|iteration| iteration.transformation().into())
             .collect(),
         AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
-            // AllocationSource replay independently reconstructs every retained
-            // spill rewrite and its cumulative manifest before granting this
-            // identity. Consume that checked history, not an unbound roster.
+            // Runtime-spill recovery produced this manifest over its recorded
+            // spill rewrites; its identity binds that cumulative history.
             post.selected_transformations.clone()
         }
         _ => return Err(FunctionRelativeOptimizationRealizationError::RootMismatch),

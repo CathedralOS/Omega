@@ -1,7 +1,8 @@
-//! Optimizer module role: stage group. Current allocation facts and separate replay evidence.
+//! Optimizer module role: stage group. Current allocation facts.
 //!
-//! Current program data is owned independently of retained replay inputs.
-//! Every route publishes the same program and view; only replay inspects history.
+//! Every route publishes the same program and view. The staged producer is
+//! projected once into owned current facts and then dropped; no later stage
+//! inspects or replays allocation history.
 
 mod baseline;
 mod current;
@@ -13,9 +14,6 @@ mod retained;
 mod runtime_spill;
 
 use crate::{
-    OptimizedActiveResidentRematerializationError, OptimizedPostCopyRegisterHomeCustodyError,
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostPreAllocationHomeCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
@@ -31,44 +29,16 @@ use selected_instructions_to_selected_instructions::{
     SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
 
-mod sealed {
-    pub trait Sealed {}
-}
-
-/// Sealed allocation boundary. Fresh inputs independently reconstruct all source
-/// and rewrite evidence. Privately owned immutable retained inputs may reuse that
-/// admission while still checking the complete current-program join.
-pub trait AllocationSource: sealed::Sealed {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError>;
-}
-
-impl sealed::Sealed for AllocationOutput<'_> {}
-
-impl AllocationSource for AllocationOutput<'_> {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        // Construction has replayed the source. Immutable borrows keep every
-        // joined input fixed while subsequent stages use this validated view.
-        Ok(self.clone())
-    }
-}
-
-impl<Source: AllocationSource + ?Sized> sealed::Sealed for Box<Source> {}
-
-impl<Source: AllocationSource + ?Sized> AllocationSource for Box<Source> {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        self.as_ref().replay_allocation()
-    }
-}
-
-// Projection alone grants no admission. Only replay or the immutable retained
-// carrier's checked construction may expose these facts outside this owner.
+// Each staged allocation result projects its current facts into the one
+// view every route publishes. Only `RetainedAllocation`'s constructors, which
+// also check the exercised recovery against the declared selection, use it.
 trait ProjectAllocation {
     fn project_allocation(&self) -> AllocationOutput<'_>;
 }
 
 /// A temporary borrow of the current allocated program, not another program
-/// representation or a container of preceding stages. All fields were joined
-/// by independent replay in the allocation phase.
+/// representation or a container of preceding stages. Each field is a fact
+/// the allocation stage produced and checked when it produced it.
 #[derive(Clone)]
 pub struct AllocationOutput<'program> {
     program: register_homes::AllocatedProgramRef<'program>,
@@ -114,7 +84,7 @@ impl<'program> AllocationOutput<'program> {
         self.target_input
     }
 
-    /// Exact retained build policy, independently joined during allocation replay.
+    /// Exact retained build policy admitted with the allocation.
     pub const fn selections(&self) -> &'program OptimizationSelections {
         self.selections
     }
@@ -162,30 +132,20 @@ pub enum AllocationEvidence {
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
 }
 
+/// Why a staged allocation result could not become the retained allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AllocationReplayError {
-    RuntimeSpill(crate::RuntimeSpillAllocationError),
-    CurrentProgramMismatch,
+pub enum AllocationAdmissionError {
+    /// The exercised recovery does not match the declared allocation-recovery
+    /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,
-    RegisterHomes(OptimizedRegisterHomeCustodyError),
-    FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
-    LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),
-    SelectedLowering(OptimizedPostSelectedLoweringHomeCustodyError),
-    PreAllocation(OptimizedPostPreAllocationHomeCustodyError),
-    ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
-    ReceiptMismatch,
+    /// A runtime-spill recovery recorded no rewrite step to publish.
+    EmptyRuntimeSpillRecovery,
 }
 
-impl std::fmt::Display for AllocationReplayError {
+impl std::fmt::Display for AllocationAdmissionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "allocation replay failed: {self:?}")
+        write!(formatter, "allocation admission failed: {self:?}")
     }
 }
 
-impl std::error::Error for AllocationReplayError {}
-
-impl From<std::convert::Infallible> for AllocationReplayError {
-    fn from(error: std::convert::Infallible) -> Self {
-        match error {}
-    }
-}
+impl std::error::Error for AllocationAdmissionError {}

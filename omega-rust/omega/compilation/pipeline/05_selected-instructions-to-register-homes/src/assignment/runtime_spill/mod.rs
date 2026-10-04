@@ -1,7 +1,6 @@
-//! Optimizer module role: stage group. Executable spill recovery and its independent replay.
+//! Optimizer module role: stage group. Executable spill recovery.
 
 mod recovery;
-pub(crate) mod replay;
 
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 use optimization_core::{
@@ -16,26 +15,21 @@ pub(crate) use recovery::{
 use register_homes::{
     PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
 };
-use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
+use selected_instructions::SelectedInstructionPlan;
 use selected_instructions_to_selected_instructions::{
-    AllocationLegalityError, FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy,
-    LiveRangeError, LivenessError, OptimizedLiteralFoldCustodyError,
-    OptimizedPreAllocationCustodyError, OptimizedSelectedReanalysisError,
+    AllocationLegalityError, FixedViewCopyPolicy, LiveRangeError, LivenessError,
     RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError, SelectedProgramRef,
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedRuntimeSplit, probe_optimized_fixed_precolored_segment_homes,
-    validate_optimized_selected_reanalysis_custody, validate_pre_allocation_optimization_custody,
-    validate_selected_lowering_optimization_custody,
+    ValidatedRuntimeSplit,
 };
 
-/// An unadmitted allocation candidate retaining its source and rewrite evidence.
-/// Every recovery caller transfers it directly to `RetainedAllocation::try_from`,
-/// which independently replays the complete recovery before publishing current
-/// allocation facts. Validated pieces do not admit their composition; replaying
-/// that composition here as well would duplicate the same whole-history check.
+/// A completed recovery: its source custody, the recorded steps and the final
+/// facts, homes and manifest. Every recovery caller transfers it directly to
+/// `RetainedAllocation::try_from`, which publishes the final step's program
+/// and facts.
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillAllocation {
     pub(crate) source: RuntimeSpillSource,
@@ -57,26 +51,22 @@ impl RuntimeSpillAllocation {
 /// The staged custody a spill recovery began from. The direct route enters
 /// with raw legality; a fixed-view sequence that still faces pressure enters
 /// with its complete post-copy reanalysis, and the copy transformation stays
-/// recorded in the manifest prefix both producer and replay reconstruct. A
-/// declared sequence whose segment-home probe reported a capacity decline
-/// before custody was consumed enters with the same legality plus the
-/// declined policy and verdict — the probe outcome is re-derived on every
-/// replay so the recorded selection binding is custody evidence, not a
-/// producer assertion. An active-resident rematerialization sweep whose
-/// rebuilt facts still report `NoCompatibleHome` enters with that proven
-/// prefix: the rematerialization stays recorded ahead of every spill step
-/// and the whole prefix is replayed before any step is trusted. Completed
-/// rewrite suites enter the same way: a selected-lowering or pre-allocation
-/// run whose final facts still report pressure keeps its committed ledger
-/// and suite completion identity as the recorded prefix, so composed
-/// custody replays the whole run before trusting any spill step.
+/// recorded in the manifest prefix. A declared sequence whose segment-home
+/// probe reported a capacity decline before custody was consumed enters with
+/// the same legality plus the declined policy, so the produced allocation
+/// still binds the declared selection. An active-resident
+/// rematerialization sweep whose rebuilt facts still report
+/// `NoCompatibleHome` enters with that proven prefix: the rematerialization
+/// stays recorded ahead of every spill step. Completed rewrite suites enter
+/// the same way: a selected-lowering or pre-allocation run whose final facts
+/// still report pressure keeps its committed ledger and suite completion
+/// identity as the recorded prefix.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
     DeclinedFixedView {
         legality: StagedOptimizedAllocationLegality,
         policy: FixedViewCopyPolicy,
-        decline: FixedPrecoloredSegmentHomeDecline,
     },
     FixedViewCopies(StagedOptimizedSelectedReanalysis),
     ActiveResidentRematerialization(crate::StagedOptimizedActiveResidentRematerializationPressure),
@@ -84,9 +74,9 @@ pub(crate) enum RuntimeSpillSource {
     PreAllocation(StagedPreAllocationOptimizationRun),
 }
 
-/// The declared manifest base during production, independently reconstructed
-/// at allocation admission: the pre-physical root, completion identities of
-/// executed rewrite suites, and prefix transformations ahead of every spill.
+/// The declared manifest base: the pre-physical root, completion identities
+/// of executed rewrite suites, and prefix transformations ahead of every
+/// spill.
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillManifestBase {
     pub(crate) pre_physical: PrePhysicalOptimizationManifestIdentity,
@@ -136,8 +126,8 @@ impl RuntimeSpillSource {
         self.legality_stage().budget_per_pass()
     }
 
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// custody checks downstream compare the owner handle by identity.
+    /// The optimized-target product the emission stages read, shared by
+    /// handle.
     pub(crate) fn optimized_target_owner(
         &self,
     ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
@@ -153,10 +143,9 @@ impl RuntimeSpillSource {
         self.legality_stage().allocator_availability()
     }
 
-    /// The fixed-view policy this recovery's recorded prefix ran under:
-    /// replayed custody evidence, not a producer assertion. The post-copy
-    /// arm reads it from the validated reanalysis custody; the declined arm
-    /// carries it from the probe the route re-proves on every replay.
+    /// The fixed-view policy this recovery's recorded prefix ran under. The
+    /// post-copy arm reads it from the reanalysis custody; the declined arm
+    /// carries the policy whose probe declined.
     /// `None` on the direct legality, active-resident, and completed-suite
     /// paths.
     pub(crate) fn fixed_view_copy_policy(&self) -> Option<FixedViewCopyPolicy> {
@@ -174,7 +163,7 @@ impl RuntimeSpillSource {
     /// prefix ran under: a shared-entry prefix binds the shared-entry
     /// selection and an active-resident sweep binds the rematerialization
     /// selection. Every other prefix is default-path recovery and binds
-    /// none. Derived from replayed custody evidence, never asserted.
+    /// none. Derived from the source custody, never asserted.
     pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
         match self {
             Self::ActiveResidentRematerialization(_) => {
@@ -263,10 +252,9 @@ impl RuntimeSpillSource {
         }
     }
 
-    /// Project the declared prefix from the retained source's immutable custody.
-    /// This does not admit the composition: completed suites retain produced
-    /// receipts, and a declined probe retains its recorded verdict. Independent
-    /// allocation replay must reconstruct both before publishing any facts.
+    /// Project the declared prefix from the source's custody: completed suites
+    /// contribute their receipts' ledgers and completion identities, and a
+    /// declined probe its recorded policy.
     fn declared_manifest(&self) -> RuntimeSpillManifestBase {
         match self {
             Self::Legality(source)
@@ -332,77 +320,10 @@ impl RuntimeSpillSource {
             }
         }
     }
-
-    /// Independently revalidate the source custody chain, returning the
-    /// manifest base every manifest this recovery produces must carry: the
-    /// pre-physical root, the completion identities of any executed rewrite
-    /// suites in the prefix, and the transformation prefix itself. The
-    /// fixed-view arm keeps its copy transformation first so the recorded
-    /// ledger replays the actual rewrite order; the declined arm re-runs
-    /// the segment-home probe and requires the same capacity verdict, so a
-    /// recorded policy was earned by the front-end's own rejection. The
-    /// active-resident arm replays the proven rematerialization prefix and
-    /// keeps its sweep transformation first for the same reason. The
-    /// completed-suite arms replay the run's own custody — its committed
-    /// ledger becomes the prefix and its completion identity stays bound,
-    /// so a composed manifest records that the suite ran.
-    pub(crate) fn upstream_manifest(
-        &self,
-    ) -> Result<RuntimeSpillManifestBase, RuntimeSpillAllocationError> {
-        let matches = match self {
-            // Staged legality carries the receipt its own stage recorded; the
-            // legality chain is not replayed again here.
-            Self::Legality(_) => true,
-            Self::DeclinedFixedView {
-                legality, decline, ..
-            } => {
-                let budget = legality.budget_per_pass();
-                match probe_optimized_fixed_precolored_segment_homes(legality, budget) {
-                    Err(error) if error.capacity_decline() == Some(*decline) => {}
-                    _ => return Err(RuntimeSpillAllocationError::ProbeMismatch),
-                }
-                true
-            }
-            Self::FixedViewCopies(reanalysis) => {
-                let upstream = validate_optimized_selected_reanalysis_custody(
-                    reanalysis.transformation_stage(),
-                    reanalysis.liveness(),
-                    reanalysis.ranges(),
-                    reanalysis.legality(),
-                )
-                .map_err(RuntimeSpillAllocationError::UpstreamReanalysis)?;
-                upstream == reanalysis.custody()
-            }
-            Self::ActiveResidentRematerialization(pressure) => {
-                let upstream =
-                    crate::validate_optimized_active_resident_rematerialization_pressure(pressure)
-                        .map_err(RuntimeSpillAllocationError::UpstreamRematerialization)?;
-                upstream == pressure.custody()
-            }
-            Self::SelectedLowering(run) => {
-                let upstream = validate_selected_lowering_optimization_custody(run)
-                    .map_err(RuntimeSpillAllocationError::UpstreamSelectedLowering)?;
-                &upstream == run.custody()
-            }
-            Self::PreAllocation(run) => {
-                let upstream = validate_pre_allocation_optimization_custody(run)
-                    .map_err(RuntimeSpillAllocationError::UpstreamPreAllocation)?;
-                &upstream == run.custody()
-            }
-        };
-        if !matches {
-            return Err(RuntimeSpillAllocationError::ReceiptMismatch);
-        }
-        // Sharing the projection is safe only after comparing the complete
-        // independently reconstructed receipts, including ordered iterations.
-        Ok(self.declared_manifest())
-    }
 }
 
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillStep {
-    pub(crate) function: usize,
-    pub(crate) register: VirtualRegisterId,
     pub(crate) rewrite: RuntimeSpillStepRewrite,
 }
 
@@ -445,18 +366,6 @@ pub(crate) struct RuntimeSpillFacts {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeSpillAllocationError {
-    UpstreamReanalysis(OptimizedSelectedReanalysisError),
-    /// The recorded active-resident prefix could not be independently
-    /// replayed — the rematerialization custody the recovery claims was
-    /// never proven.
-    UpstreamRematerialization(crate::OptimizedActiveResidentRematerializationError),
-    /// The recorded selected-lowering run could not be independently
-    /// replayed — the suite custody the recovery claims as its prefix was
-    /// never proven.
-    UpstreamSelectedLowering(OptimizedLiteralFoldCustodyError),
-    /// The recorded pre-allocation run could not be independently replayed —
-    /// the suite custody the recovery claims as its prefix was never proven.
-    UpstreamPreAllocation(OptimizedPreAllocationCustodyError),
     Rewrite(RuntimeSpillError),
     Rematerialization(RuntimeRematerializationError),
     Split(RuntimeSplitError),
@@ -466,13 +375,6 @@ pub enum RuntimeSpillAllocationError {
     Homes(crate::RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
     RecoveryNotRequired,
-    /// A declined fixed-view source could not re-prove the capacity verdict
-    /// its recorded policy claims — the probe succeeded, declined on a
-    /// different verdict, or reported a non-decline failure, so the
-    /// selection binding was never earned.
-    ProbeMismatch,
-    CandidateMismatch,
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for RuntimeSpillAllocationError {

@@ -1,4 +1,4 @@
-use crate::AllocationSource;
+use crate::AllocationOutput;
 use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 use super::{
@@ -7,12 +7,9 @@ use super::{
 };
 
 pub fn validate_allocated_callee_saved_requirements(
-    source: &impl AllocationSource,
+    current: &AllocationOutput<'_>,
     candidate: AllocatedCalleeSavedRequirementPlan,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
-    let current = source
-        .replay_allocation()
-        .map_err(AllocatedCalleeSavedRequirementError::Upstream)?;
     let environment = current.register_environment();
     let manifest = current.post_allocation_manifest().record();
     if candidate.selected != current.selected().selected_identity()
@@ -24,7 +21,7 @@ pub fn validate_allocated_callee_saved_requirements(
     {
         return Err(AllocatedCalleeSavedRequirementError::RootMismatch);
     }
-    let replayed = replay::reconstruct(&current, candidate.policy, candidate.budget)?;
+    let replayed = replay::reconstruct(current, candidate.policy, candidate.budget)?;
     if candidate.usage != replayed.usage {
         return Err(AllocatedCalleeSavedRequirementError::UsageMismatch);
     }

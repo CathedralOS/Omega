@@ -1,7 +1,7 @@
 //! Function-relative realization: the first machine-emission stage.
 //!
 //! [`stage_fixed_frame_function_relative_realization`] (`fixed_frame`)
-//! replays the retained allocation against the post-allocation machine plan,
+//! reads the current allocation and the post-allocation machine plan,
 //! stages the function frame (`frame`: callee-save requirements, their
 //! storage, the frame layout and its byte protocol), encodes and lays out the
 //! selected forms, runs the phase-local layout optimization, stages the

@@ -35,13 +35,11 @@ impl SelectedInstructionOptimizationOutput {
         &self.current
     }
 
-    pub fn into_replayed_evidence(
-        self,
-    ) -> Result<SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationError> {
-        if self.evidence.replay()? != self.current {
-            return Err(SelectedInstructionOptimizationError::CurrentProgramMismatch);
-        }
-        Ok(self.evidence)
+    /// Hand the stage's evidence to register allocation as produced. The
+    /// evidence was checked once when this output was built; allocation
+    /// consumes it without replaying it again.
+    pub fn into_evidence(self) -> SelectedInstructionOptimizationEvidence {
+        self.evidence
     }
 }
 
@@ -89,7 +87,6 @@ pub enum SelectedInstructionOptimizationError {
     PreAllocation(OptimizedPreAllocationCustodyError),
     RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     UnsupportedComposition,
-    CurrentProgramMismatch,
     MissingExecution,
 }
 

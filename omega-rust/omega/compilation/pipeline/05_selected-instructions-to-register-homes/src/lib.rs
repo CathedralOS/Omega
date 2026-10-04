@@ -16,7 +16,7 @@
 //!   completed run hands over — `baseline` homes over `home_assignment`, and
 //!   the `post_allocation_manifest` every route publishes.
 //! - `rewrites` stages active-resident rematerialization for a recovery rule.
-//! - `output` owns current allocation facts and their separate replay evidence.
+//! - `output` owns the current allocation facts every route publishes.
 //! - `preservation` derives allocation-visible callee-saved requirements.
 //! - `unsequenced_spill_stages` holds validated spill boundaries that
 //!   `stage_register_allocation` does not yet call; they are reachable only
@@ -98,10 +98,9 @@ pub use rewrites::{
     validate_optimized_active_resident_rematerialization_pressure,
 };
 
-// Current allocation facts and replay evidence.
+// Current allocation facts.
 pub use output::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
-    RetainedAllocation,
+    AllocationAdmissionError, AllocationEvidence, AllocationOutput, RetainedAllocation,
 };
 
 // Allocation-visible callee-saved requirements.

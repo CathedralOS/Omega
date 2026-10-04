@@ -1,4 +1,4 @@
-//! Immutable current allocation plus admitted facts, separate from replay inputs.
+//! Immutable current allocation plus admitted facts.
 
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ use selected_instructions_to_selected_instructions::{
     ValidatedLiveness, ValidatedSelectedAnalysis,
 };
 
-use super::{AllocationEvidence, AllocationOutput, AllocationReplayError};
+use super::{AllocationEvidence, AllocationOutput};
 
 /// This private admission capsule does not own allocation-stage ancestry.
 /// Program data is representation-owned; facts, policy, and the retained
@@ -35,7 +35,7 @@ pub(super) struct CurrentAllocation {
 }
 
 impl CurrentAllocation {
-    pub(super) fn from_replayed(source: &AllocationOutput<'_>) -> Self {
+    pub(super) fn capture(source: &AllocationOutput<'_>) -> Self {
         let selected = OwnedSelectedProgram::retain(source.selected());
         Self {
             program: AllocatedProgram {
@@ -71,32 +71,5 @@ impl CurrentAllocation {
             selections: &self.selections,
             budget: self.budget,
         }
-    }
-
-    /// Rejoin every current fact to the independently replayed source. A retained
-    /// owner may reuse that source's admission only while it stays immutable.
-    /// Pointer equality checks the internal upstream-owner join, not a persisted
-    /// identity or a substitute for initial replay of that upstream subject.
-    pub(super) fn validate_against(
-        &self,
-        replayed: &AllocationOutput<'_>,
-    ) -> Result<(), AllocationReplayError> {
-        if *self.program.selected != *replayed.selected_plan()
-            || *self.program.homes != *replayed.program().homes
-            || self.selected != OwnedSelectedProgram::retain(replayed.selected())
-            || self.liveness != *replayed.liveness()
-            || self.ranges != *replayed.ranges()
-            || self.legality != *replayed.legality()
-            || self.homes != *replayed.homes()
-            || self.manifest != *replayed.post_allocation_manifest()
-            || self.environment != *replayed.register_environment()
-            || self.evidence != *replayed.evidence()
-            || !Arc::ptr_eq(&self.target_input, replayed.target_input)
-            || self.selections != *replayed.selections()
-            || self.budget != replayed.budget_per_pass()
-        {
-            return Err(AllocationReplayError::CurrentProgramMismatch);
-        }
-        Ok(())
     }
 }

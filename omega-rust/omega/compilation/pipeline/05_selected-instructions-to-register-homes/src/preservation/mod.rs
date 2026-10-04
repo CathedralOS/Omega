@@ -17,7 +17,7 @@ pub use validation::validate_allocated_callee_saved_requirements;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{AllocationSource, RegisterHomeIdentity};
+use crate::{AllocationOutput, RegisterHomeIdentity};
 use optimization_core::{OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity};
 pub use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
@@ -33,15 +33,12 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 
 pub fn stage_allocated_callee_saved_requirements(
-    source: &impl AllocationSource,
+    current: &AllocationOutput<'_>,
     policy: AllocatedCalleeSavedRequirementPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
-    let current = source
-        .replay_allocation()
-        .map_err(AllocatedCalleeSavedRequirementError::Upstream)?;
-    let plan = compute::derive(&current, policy, budget)?;
-    validate_allocated_callee_saved_requirements(&current, plan)
+    let plan = compute::derive(current, policy, budget)?;
+    validate_allocated_callee_saved_requirements(current, plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

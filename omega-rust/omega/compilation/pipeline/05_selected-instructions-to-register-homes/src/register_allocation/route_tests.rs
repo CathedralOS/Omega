@@ -177,72 +177,25 @@ fn pre_allocation_route_composes_residual_pressure_into_runtime_spill() {
 }
 
 #[test]
-fn completed_run_recovery_replays_the_run_custody_as_its_prefix() {
+fn completed_run_recovery_records_the_run_custody_as_its_prefix() {
     let source = include_str!("../assignment/runtime_spill/mod.rs");
     let projection = source
         .split("fn declared_manifest")
         .nth(1)
-        .expect("the declared prefix projection")
-        .split("fn upstream_manifest")
-        .next()
-        .unwrap();
-    let manifest = source
-        .split("fn upstream_manifest")
-        .nth(1)
-        .expect("the source-manifest revalidation");
-    let lowering_arm = manifest
-        .find("Self::SelectedLowering")
-        .expect("the selected-lowering source arm");
-    let lowering_replay = manifest
-        .find("validate_selected_lowering_optimization_custody")
-        .expect("the replayed lowering custody");
+        .expect("the declared prefix projection");
     let lowering_completion = projection
         .find("selected_lowering_completion: Some(upstream.identity())")
         .expect("the bound suite completion");
-    let pre_allocation_arm = manifest
-        .find("Self::PreAllocation")
-        .expect("the pre-allocation source arm");
-    let pre_allocation_replay = manifest
-        .find("validate_pre_allocation_optimization_custody")
-        .expect("the replayed pre-allocation custody");
     let pre_allocation_completion = projection
         .find("pre_allocation_completion: Some(upstream.identity())")
         .expect("the bound suite completion");
-    // Each completed-suite arm re-proves the entire receipt before the
-    // common projection may bind its completion identity and ordered ledger.
-    assert!(lowering_arm < lowering_replay && lowering_replay < pre_allocation_arm);
-    assert!(pre_allocation_arm < pre_allocation_replay);
-    assert_eq!(manifest.matches("&upstream == run.custody()").count(), 2);
+    // Each completed-suite arm binds its completion identity and ordered
+    // ledger from the run's own custody receipt.
     assert!(lowering_completion < pre_allocation_completion);
     assert!(
         projection.contains("PostAllocationSelectedTransformation::LiteralFold(iteration.fold())")
     );
     assert!(projection.contains("iteration.transformation().into()"));
-}
-
-#[test]
-fn declined_fixed_view_recovery_reproves_the_segment_home_probe() {
-    let source = include_str!("../assignment/runtime_spill/mod.rs");
-    let manifest = source
-        .split("fn upstream_manifest")
-        .nth(1)
-        .expect("the source-manifest revalidation");
-    let arm = manifest
-        .find("Self::DeclinedFixedView")
-        .expect("the declined-source arm");
-    let probe = manifest
-        .find("probe_optimized_fixed_precolored_segment_homes")
-        .expect("the replayed probe");
-    let verdict = manifest
-        .find("capacity_decline()")
-        .expect("the required capacity-verdict reproduction");
-    let mismatch = manifest
-        .find("RuntimeSpillAllocationError::ProbeMismatch")
-        .expect("the unearned-policy rejection");
-    // Retained replay re-runs the front-end probe and admits only the same
-    // recorded capacity verdict; any other outcome rejects the recorded
-    // policy.
-    assert!(arm < probe && probe < verdict && verdict < mismatch);
 }
 
 #[test]

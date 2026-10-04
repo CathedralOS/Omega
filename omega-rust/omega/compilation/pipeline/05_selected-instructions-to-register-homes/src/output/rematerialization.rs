@@ -1,25 +1,6 @@
-use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
-    ProjectAllocation, sealed,
-};
-use crate::{
-    StagedOptimizedActiveResidentRematerialization,
-    validate_optimized_active_resident_rematerialization,
-};
+use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
+use crate::StagedOptimizedActiveResidentRematerialization;
 use selected_instructions_to_selected_instructions::SelectedProgramRef;
-
-impl sealed::Sealed for StagedOptimizedActiveResidentRematerialization {}
-
-impl AllocationSource for StagedOptimizedActiveResidentRematerialization {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let evidence = validate_optimized_active_resident_rematerialization(self)
-            .map_err(AllocationReplayError::ActiveResidentRematerialization)?;
-        if evidence != self.custody() {
-            return Err(AllocationReplayError::ReceiptMismatch);
-        }
-        Ok(self.project_allocation())
-    }
-}
 
 impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
     fn project_allocation(&self) -> AllocationOutput<'_> {

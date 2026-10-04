@@ -1,27 +1,17 @@
-use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource, sealed,
-};
-use crate::assignment::runtime_spill::{RuntimeSpillAllocation, replay};
-
-impl sealed::Sealed for RuntimeSpillAllocation {}
-
-impl AllocationSource for RuntimeSpillAllocation {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        replay::validate(self).map_err(AllocationReplayError::RuntimeSpill)?;
-        self.project_replayed_allocation()
-    }
-}
+use super::{AllocationAdmissionError, AllocationEvidence, AllocationOutput};
+use crate::assignment::runtime_spill::RuntimeSpillAllocation;
 
 impl RuntimeSpillAllocation {
-    /// Only fresh independent replay or the retained owner's immutable admission
-    /// may use this projection. Absence of a final rewrite remains a typed error.
-    pub(super) fn project_replayed_allocation(
+    /// Project the recovery's final rewrite and its facts into the current
+    /// view. A recovery always records at least one step; one that recorded
+    /// none has nothing to publish.
+    pub(super) fn project_allocation(
         &self,
-    ) -> Result<AllocationOutput<'_>, AllocationReplayError> {
+    ) -> Result<AllocationOutput<'_>, AllocationAdmissionError> {
         let rewrite = &self
             .steps
             .last()
-            .ok_or(AllocationReplayError::ReceiptMismatch)?
+            .ok_or(AllocationAdmissionError::EmptyRuntimeSpillRecovery)?
             .rewrite;
         Ok(AllocationOutput {
             program: register_homes::AllocatedProgramRef {

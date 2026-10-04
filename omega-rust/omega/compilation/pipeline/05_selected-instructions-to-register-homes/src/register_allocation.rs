@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Selected instructions to register homes.
 //!
-//! The route, in order: replay the selected X-to-X evidence; a completed
+//! The route, in order: take the selected X-to-X evidence as produced; a completed
 //! selected-lowering or pre-allocation run probes assignment over its final
 //! facts — success takes `assignment::transformed` homes while residual
 //! `NoCompatibleHome` pressure hands the proven run, ledger and completion
@@ -35,15 +35,15 @@ use crate::assignment::recovery::{
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use crate::{
-    AllocationReplayError, OptimizedPostSelectedLoweringHomeCustodyError,
+    AllocationAdmissionError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError, RetainedAllocation,
 };
 use selected_instructions_to_selected_instructions::{
     AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
     OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
-    OptimizedSelectedReanalysisError, SelectedInstructionOptimizationError,
-    SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    selected_allocation_recovery_rule, stage_optimized_allocation_legality,
+    OptimizedSelectedReanalysisError, SelectedInstructionOptimizationEvidence,
+    SelectedInstructionOptimizationOutput, selected_allocation_recovery_rule,
+    stage_optimized_allocation_legality,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
@@ -52,10 +52,7 @@ use selected_instructions_to_selected_instructions::{
 pub fn stage_register_allocation(
     selected: SelectedInstructionOptimizationOutput,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    let ranges = match selected
-        .into_replayed_evidence()
-        .map_err(RegisterAllocationError::SelectedOptimization)?
-    {
+    let ranges = match selected.into_evidence() {
         SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
         // A completed rewrite run composes with pressure recovery like every
         // other prefix: assignment probes the run's final facts, success keeps
@@ -104,7 +101,7 @@ pub fn stage_register_allocation(
             let recovered = crate::assignment::runtime_spill::recover(legality)
                 .map_err(RegisterAllocationError::RuntimeSpill)?;
             return RetainedAllocation::try_from(recovered)
-                .map_err(RegisterAllocationError::Replay);
+                .map_err(RegisterAllocationError::Admission);
         }
         Err(error) => {
             return Err(RegisterAllocationError::Homes(
@@ -115,12 +112,11 @@ pub fn stage_register_allocation(
     let homes =
         crate::assignment::baseline::stage_register_homes_with_assignment(legality, assignment)
             .map_err(RegisterAllocationError::Homes)?;
-    RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
+    RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Admission)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegisterAllocationError {
-    SelectedOptimization(SelectedInstructionOptimizationError),
     UnsupportedComposition,
     RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     FixedSegments(OptimizedFixedPrecoloredSegmentHomeCustodyError),
@@ -133,7 +129,7 @@ pub enum RegisterAllocationError {
     Homes(OptimizedRegisterHomeCustodyError),
     TransformedHomes(OptimizedPostSelectedLoweringHomeCustodyError),
     PreAllocationHomes(crate::OptimizedPostPreAllocationHomeCustodyError),
-    Replay(AllocationReplayError),
+    Admission(AllocationAdmissionError),
 }
 
 impl std::fmt::Display for RegisterAllocationError {

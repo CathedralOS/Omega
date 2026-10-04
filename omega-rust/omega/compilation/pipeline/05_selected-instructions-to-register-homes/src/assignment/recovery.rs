@@ -53,8 +53,7 @@ fn fixed_view_homes(
 /// front-end is probed on the borrowed legality before the sequence commits,
 /// and a capacity decline — placement pressure or front-end work-budget
 /// exhaustion — hands the still-owned legality to runtime spill with the
-/// declined policy and verdict recorded for replay-bound selection
-/// evidence. Probing is confined to that declared policy: the
+/// declined policy recorded as selection evidence. Probing is confined to that declared policy: the
 /// shared-source-exit default path is entered only because unresolved entry
 /// transitions still need the copies this sequence materializes, so a
 /// decline there could never reach spill recovery and keeps the staged
@@ -67,17 +66,18 @@ fn fixed_view_allocation(
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
         let budget = legality.budget_per_pass();
-        if let Some(decline) = probe_optimized_fixed_precolored_segment_homes(&legality, budget)
+        if probe_optimized_fixed_precolored_segment_homes(&legality, budget)
             .err()
             .and_then(|error| error.capacity_decline())
+            .is_some()
         {
             return RetainedAllocation::try_from(
                 crate::assignment::runtime_spill::recover_after_declined_fixed_view_probe(
-                    legality, policy, decline,
+                    legality, policy,
                 )
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
             )
-            .map_err(RegisterAllocationError::Replay);
+            .map_err(RegisterAllocationError::Admission);
         }
     }
     let reanalysis = fixed_view_reanalysis(legality, policy)?;
@@ -91,12 +91,12 @@ fn fixed_view_allocation(
             )
             .map_err(RegisterAllocationError::FixedViewHomes)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_fixed_view_copies(reanalysis)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(error) => Err(RegisterAllocationError::FixedViewHomes(
             crate::OptimizedPostCopyRegisterHomeCustodyError::Assignment(error),
         )),
@@ -185,14 +185,14 @@ pub fn stage_active_resident_register_allocation(
             crate::rewrites::complete_optimized_active_resident_rematerialization(pressure, homes)
                 .map_err(RegisterAllocationError::Rematerialization)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_active_resident_rematerialization(
                 pressure,
             )
             .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         // Any other assignment failure keeps the surface the one-shot sweep
         // produced: the homes error wrapped under the rematerialization arm.
         Err(error) => Err(RegisterAllocationError::Rematerialization(
@@ -217,12 +217,12 @@ pub fn stage_selected_lowering_register_allocation(
             crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering_with_assignment(run, homes)
                 .map_err(RegisterAllocationError::TransformedHomes)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_selected_lowering(run)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(error) => Err(RegisterAllocationError::TransformedHomes(
             crate::OptimizedPostSelectedLoweringHomeCustodyError::Assignment(error),
         )),
@@ -244,12 +244,12 @@ pub fn stage_pre_allocation_register_allocation(
             crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation_with_assignment(run, homes)
                 .map_err(RegisterAllocationError::PreAllocationHomes)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
             crate::assignment::runtime_spill::recover_after_pre_allocation(run)
                 .map_err(RegisterAllocationError::RuntimeSpill)?,
         )
-        .map_err(RegisterAllocationError::Replay),
+        .map_err(RegisterAllocationError::Admission),
         Err(error) => Err(RegisterAllocationError::PreAllocationHomes(
             crate::OptimizedPostPreAllocationHomeCustodyError::Assignment(error),
         )),

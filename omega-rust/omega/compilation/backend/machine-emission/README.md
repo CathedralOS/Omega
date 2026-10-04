@@ -13,7 +13,7 @@ and [stack provisioning](../../../../../wiki/spec/resources/storage.md).
 
 [Fixed-frame realization](src/function_realization/fixed_frame.rs) is the
 common entrance for admitted allocation histories, including identity execution.
-It replays allocation, rejoins the current machine, derives frame evidence,
+It reads the current allocation as produced, derives frame evidence,
 performs selected-form encoding and baseline layout, executes the phase-local
 layout selection, and validates the whole-function exit contract. The retained
 result owns all replay inputs. Its validator reconstructs their complete join;

@@ -1,24 +1,5 @@
-use super::{
-    AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
-    ProjectAllocation, sealed,
-};
-use crate::{
-    StagedOptimizedRegisterHomesAfterPreAllocation,
-    validate_optimized_register_home_after_pre_allocation_custody,
-};
-
-impl sealed::Sealed for StagedOptimizedRegisterHomesAfterPreAllocation {}
-
-impl AllocationSource for StagedOptimizedRegisterHomesAfterPreAllocation {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        let evidence = validate_optimized_register_home_after_pre_allocation_custody(self)
-            .map_err(AllocationReplayError::PreAllocation)?;
-        if &evidence != self.custody() {
-            return Err(AllocationReplayError::ReceiptMismatch);
-        }
-        Ok(self.project_allocation())
-    }
-}
+use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
+use crate::StagedOptimizedRegisterHomesAfterPreAllocation;
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterPreAllocation {
     fn project_allocation(&self) -> AllocationOutput<'_> {

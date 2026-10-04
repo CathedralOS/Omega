@@ -1,4 +1,4 @@
-use super::{AllocationOutput, AllocationReplayError, AllocationSource, ProjectAllocation, sealed};
+use super::{AllocationAdmissionError, AllocationOutput, ProjectAllocation};
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
@@ -10,40 +10,16 @@ use selected_instructions_to_selected_instructions::FixedViewCopyPolicy;
 #[cfg(test)]
 mod tests;
 
-/// Current allocated program and a separate replay-only evidence graph.
-/// Ordinary reads never traverse the evidence or select a program by history.
-/// Every constructor independently replays its source before taking ownership.
-/// The retained source has no mutable access or interior-mutable proof data;
-/// shared Arc inputs can only be changed by copying them into a different owner.
+/// The current allocated program and its admitted facts, as the allocation
+/// route produced them. Each constructor projects one staged result, checks
+/// the exercised recovery against the declared allocation-recovery selection,
+/// and keeps owned copies of the current facts; the staged producer is then
+/// dropped. Later stages read these facts and never replay allocation: each
+/// fact was checked by the stage that produced it in this compile
+/// (verification placement in `omega-rust/pipeline.md`).
 #[derive(Debug)]
 pub struct RetainedAllocation {
     current: super::current::CurrentAllocation,
-    replay: ReplayInputs,
-    rejoined: ReplayRejoined,
-}
-
-/// Set once a replay has rejoined `current`. Both are immutable, so a later
-/// replay would reach the same verdict; consumers replay once per realized
-/// function, and each rejoin compared the whole program's allocation. Only a
-/// successful rejoin is recorded, so a mismatch fails on every replay.
-#[derive(Default)]
-struct ReplayRejoined(std::sync::OnceLock<()>);
-
-impl std::fmt::Debug for ReplayRejoined {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ReplayRejoined")
-    }
-}
-
-#[derive(Debug)]
-enum ReplayInputs {
-    RuntimeSpill(Box<crate::assignment::runtime_spill::RuntimeSpillAllocation>),
-    Baseline(Box<StagedOptimizedRegisterHomes>),
-    FixedView(Box<StagedOptimizedRegisterHomesAfterFixedViewCopies>),
-    LiteralFolds(Box<StagedOptimizedRegisterHomesAfterLiteralFolds>),
-    SelectedLowering(Box<StagedOptimizedRegisterHomesAfterSelectedLowering>),
-    PreAllocation(Box<StagedOptimizedRegisterHomesAfterPreAllocation>),
-    Rematerialization(Box<StagedOptimizedActiveResidentRematerialization>),
 }
 
 impl RetainedAllocation {
@@ -54,146 +30,96 @@ impl RetainedAllocation {
     pub fn current(&self) -> AllocationOutput<'_> {
         self.current.view()
     }
-}
 
-impl sealed::Sealed for RetainedAllocation {}
-
-impl AllocationSource for RetainedAllocation {
-    fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
-        if self.rejoined.0.get().is_some() {
-            return Ok(self.current());
-        }
-        // Reuse admission of this exact privately owned, immutable source, not
-        // a detached identity or a result from another allocation. Fresh source
-        // inputs still take the full replay path in every TryFrom below. Rejoin
-        // all current facts so even test-only current-program substitution rejects.
-        let prefix_selection = match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.recovery_prefix_selection(),
-            _ => None,
-        };
-        let current = match &self.replay {
-            ReplayInputs::RuntimeSpill(source) => source.project_replayed_allocation()?,
-            ReplayInputs::Baseline(source) => source.project_allocation(),
-            ReplayInputs::FixedView(source) => source.project_allocation(),
-            ReplayInputs::LiteralFolds(source) => source.project_allocation(),
-            ReplayInputs::SelectedLowering(source) => source.project_allocation(),
-            ReplayInputs::PreAllocation(source) => source.project_allocation(),
-            ReplayInputs::Rematerialization(source) => source.project_allocation(),
-        };
-        validate_recovery_selection(&current, prefix_selection)?;
-        self.current.validate_against(&current)?;
-        let _ = self.rejoined.0.set(());
-        Ok(self.current())
+    fn capture(
+        current: &AllocationOutput<'_>,
+        runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
+    ) -> Result<Self, AllocationAdmissionError> {
+        validate_recovery_selection(current, runtime_spill_prefix_selection)?;
+        Ok(Self {
+            current: super::current::CurrentAllocation::capture(current),
+        })
     }
 }
 
 impl TryFrom<StagedOptimizedRegisterHomes> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(source: StagedOptimizedRegisterHomes) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::Baseline(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
 impl TryFrom<StagedOptimizedRegisterHomesAfterFixedViewCopies> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterFixedViewCopies,
     ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::FixedView(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
 impl TryFrom<StagedOptimizedRegisterHomesAfterLiteralFolds> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterLiteralFolds,
     ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::LiteralFolds(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
 impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterSelectedLowering,
     ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::SelectedLowering(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
 impl TryFrom<StagedOptimizedRegisterHomesAfterPreAllocation> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(
         source: StagedOptimizedRegisterHomesAfterPreAllocation,
     ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::PreAllocation(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
 impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocation {
-    type Error = AllocationReplayError;
+    type Error = AllocationAdmissionError;
 
     fn try_from(
         source: StagedOptimizedActiveResidentRematerialization,
     ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, None)?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::Rematerialization(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
+        Self::capture(&source.project_allocation(), None)
     }
 }
 
-// Completion belongs to allocation, not to a layout adapter. Reconstruct the
-// exercised recovery selection from the replayed evidence, then compare it
+impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for RetainedAllocation {
+    type Error = AllocationAdmissionError;
+
+    fn try_from(
+        source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
+    ) -> Result<Self, Self::Error> {
+        Self::capture(
+            &source.project_allocation()?,
+            source.recovery_prefix_selection(),
+        )
+    }
+}
+
+// Completion belongs to allocation, not to a layout adapter. Derive the
+// exercised recovery selection from the produced evidence, then compare it
 // with the retained build policy; copying policy into a manifest is not proof.
 fn validate_recovery_selection(
     current: &AllocationOutput<'_>,
     runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
-) -> Result<(), AllocationReplayError> {
+) -> Result<(), AllocationAdmissionError> {
     use super::AllocationEvidence;
     use optimization_core::{Optimization, OptimizationExecutionPhase};
     let expected: &[Optimization] = match current.evidence() {
@@ -216,9 +142,9 @@ fn validate_recovery_selection(
             // declined it before custody was consumed or copies materialized
             // first, or an active-resident rematerialization sweep whose
             // rebuilt facts still reported `NoCompatibleHome`. The recorded
-            // prefix comes from replayed custody evidence, so each declared
-            // prefix binds its declared selection while the default paths —
-            // direct legality or leaf-local copies — bind none.
+            // prefix comes from the recovery's source custody, so each
+            // declared prefix binds its declared selection while the default
+            // paths — direct legality or leaf-local copies — bind none.
             Some(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1) => {
                 &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
             }
@@ -245,24 +171,7 @@ fn validate_recovery_selection(
         .as_slice()
         != expected
     {
-        return Err(AllocationReplayError::SelectionMismatch);
+        return Err(AllocationAdmissionError::SelectionMismatch);
     }
     Ok(())
-}
-
-impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for RetainedAllocation {
-    type Error = AllocationReplayError;
-
-    fn try_from(
-        source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
-    ) -> Result<Self, Self::Error> {
-        let replayed = source.replay_allocation()?;
-        validate_recovery_selection(&replayed, source.recovery_prefix_selection())?;
-        let current = super::current::CurrentAllocation::from_replayed(&replayed);
-        Ok(Self {
-            current,
-            replay: ReplayInputs::RuntimeSpill(Box::new(source)),
-            rejoined: ReplayRejoined::default(),
-        })
-    }
 }

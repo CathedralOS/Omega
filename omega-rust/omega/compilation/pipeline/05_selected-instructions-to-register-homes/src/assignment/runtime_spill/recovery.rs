@@ -11,15 +11,13 @@
 //! needs — the named register itself is typically the one with the fixed
 //! use and cannot give that home up.
 //!
-//! Success returns an unadmitted candidate. Full-result replay belongs to the
-//! retained allocation boundary, which every caller enters before publication.
-//! Keep the per-step semantic checks here, but do not replay the completed
-//! history once here and then again at that boundary.
+//! Each step's rewrite and analyses are checked by their own owners as they
+//! are produced; the completed recovery is not replayed afterwards
+//! (verification placement in `omega-rust/pipeline.md`).
 
 use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts,
     RuntimeSpillManifestBase, RuntimeSpillSource, RuntimeSpillStep, RuntimeSpillStepRewrite,
-    replay,
 };
 use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
@@ -28,8 +26,8 @@ use selected_instructions::{
     VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
-    FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy, RuntimeSpillSpanPolicy,
-    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    FixedViewCopyPolicy, RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
@@ -378,13 +376,11 @@ fn member_relief(
         .count()
 }
 
-/// The split decision both the producer and retained replay take at one
-/// step: among the still-available roster candidates overlapping the failed
-/// domain, in the same most-relief-then-roster order the spill choice uses,
-/// the first whose fixed-view definition the split rewrite admits. `None`
-/// means no split is admissible and the step falls through to
-/// rematerialization or storage. Sharing this one policy is what lets replay
-/// reject a recorded storage step that a cheaper split would have replaced.
+/// The split decision at one step: among the still-available roster
+/// candidates overlapping the failed domain, in the same most-relief-then-
+/// roster order the spill choice uses, the first whose fixed-view definition
+/// the split rewrite admits. `None` means no split is admissible and the step
+/// falls through to rematerialization or storage.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn admissible_split<'roster>(
     failure: &crate::RegisterHomeError,
@@ -434,26 +430,19 @@ pub(crate) fn recover_after_fixed_view_copies(
 
 /// A declared fixed-view sequence whose segment-home probe reported a
 /// capacity decline hands custody here before the sequence consumes it:
-/// recovery runs over the original legality, and the declined policy and
-/// verdict stay recorded so retained replay re-proves the probe outcome and
-/// still binds the declared selection.
+/// recovery runs over the original legality, and the declined policy stays
+/// recorded so the produced allocation still binds the declared selection.
 pub(crate) fn recover_after_declined_fixed_view_probe(
     legality: StagedOptimizedAllocationLegality,
     policy: FixedViewCopyPolicy,
-    decline: FixedPrecoloredSegmentHomeDecline,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    recover_over(RuntimeSpillSource::DeclinedFixedView {
-        legality,
-        policy,
-        decline,
-    })
+    recover_over(RuntimeSpillSource::DeclinedFixedView { legality, policy })
 }
 
 /// An active-resident rematerialization sweep whose rebuilt facts still
 /// report `NoCompatibleHome` hands custody here: recovery runs over the
 /// rematerialized program and its rebuilt analyses, the recorded sweep stays
-/// the first transformation in the produced manifest, and retained replay
-/// re-proves the whole prefix before trusting any spill step.
+/// the first transformation in the produced manifest.
 pub(crate) fn recover_after_active_resident_rematerialization(
     pressure: crate::StagedOptimizedActiveResidentRematerializationPressure,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
@@ -465,8 +454,7 @@ pub(crate) fn recover_after_active_resident_rematerialization(
 /// A completed selected-lowering run whose final facts still report
 /// `NoCompatibleHome` hands custody here: recovery runs over the run's
 /// current program and rebuilt analyses, the committed fold ledger and the
-/// suite completion stay recorded ahead of every spill step, and retained
-/// replay re-proves the whole run before trusting any step.
+/// suite completion stay recorded ahead of every spill step.
 pub(crate) fn recover_after_selected_lowering(
     run: StagedSelectedLoweringOptimizationRun,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
@@ -477,8 +465,7 @@ pub(crate) fn recover_after_selected_lowering(
 /// `NoCompatibleHome` hands custody here the same way: recovery runs over
 /// the run's current program and rebuilt analyses, the committed
 /// transformation ledger and the suite completion stay recorded ahead of
-/// every spill step, and retained replay re-proves the whole run before
-/// trusting any step.
+/// every spill step.
 pub(crate) fn recover_after_pre_allocation(
     run: StagedPreAllocationOptimizationRun,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
@@ -486,8 +473,6 @@ pub(crate) fn recover_after_pre_allocation(
 }
 
 /// Both exit points declare the manifest over the same retained prefix.
-/// Allocation admission independently reconstructs that prefix and the complete
-/// recovery before publishing any current facts.
 fn project_recovery_manifest(
     base: &RuntimeSpillManifestBase,
     steps: &[RuntimeSpillStep],
@@ -554,13 +539,9 @@ fn recover_over(
             budget,
         )?;
         let mut failed_crossing = None;
-        let (function, register, rewrite) = if let Some((candidate, split)) = split {
+        let rewrite = if let Some((candidate, split)) = split {
             tried.insert(candidate);
-            (
-                candidate.0,
-                candidate.1,
-                RuntimeSpillStepRewrite::Split(split),
-            )
+            RuntimeSpillStepRewrite::Split(split)
         } else {
             let Some(position) = candidate_position(
                 &failure,
@@ -620,8 +601,6 @@ fn recover_over(
                         match assign(environment, &probe.ranges, &probe.legality) {
                             Ok(homes) => {
                                 steps.push(RuntimeSpillStep {
-                                    function,
-                                    register,
                                     rewrite: RuntimeSpillStepRewrite::Spill(crossing),
                                 });
                                 let manifest = project_recovery_manifest(
@@ -660,12 +639,12 @@ fn recover_over(
                         budget,
                     ) {
                         Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
-                        Err(error) if replay::inadmissible(&error) => continue,
+                        Err(error) if inadmissible(&error) => continue,
                         Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
                     }
                 }
             };
-            (function, register, rewrite)
+            rewrite
         };
         let reused_pressure = match &rewrite {
             RuntimeSpillStepRewrite::Spill(bounded) => {
@@ -691,11 +670,7 @@ fn recover_over(
         if !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
             retire_minted(&mut tried, selected.plan(), rewrite.selected().plan());
         }
-        steps.push(RuntimeSpillStep {
-            function,
-            register,
-            rewrite,
-        });
+        steps.push(RuntimeSpillStep { rewrite });
         match homes {
             Ok(homes) => {
                 let manifest = project_recovery_manifest(
@@ -731,3 +706,14 @@ mod candidate_tests;
 
 #[cfg(test)]
 mod probe_tests;
+
+/// A spill the rewrite owner declines for this value's shape, use or control
+/// flow: recovery moves on to the next candidate instead of failing.
+fn inadmissible(error: &RuntimeSpillError) -> bool {
+    matches!(
+        error,
+        RuntimeSpillError::UnsupportedValue
+            | RuntimeSpillError::UnsupportedUse
+            | RuntimeSpillError::UnsupportedControlFlow
+    )
+}

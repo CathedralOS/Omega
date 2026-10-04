@@ -1,40 +1,34 @@
-//! Source-reader controls complement native retained/fresh and corruption tests.
-//! No fixture-only input may acquire the immutable owner's admission shortcut.
+//! Source-reader controls for the retained allocation's constructors.
 
 #[test]
-fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
+fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
     let source = include_str!("../retained.rs");
     let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
     assert_eq!(constructors.len(), 7);
     for constructor in &constructors {
-        let replay = constructor
-            .find("let replayed = source.replay_allocation()?;")
-            .unwrap();
-        let policy = constructor
-            .find("validate_recovery_selection(&replayed")
-            .unwrap();
-        let capture = constructor
-            .find("CurrentAllocation::from_replayed(&replayed)")
-            .unwrap();
-        assert!(replay < policy && policy < capture);
+        assert!(constructor.contains("Self::capture("));
     }
+    let capture = source
+        .split("fn capture(")
+        .nth(1)
+        .expect("the shared capture");
+    let policy = capture
+        .find("validate_recovery_selection(current")
+        .expect("the recovery-selection check");
+    let owned = capture
+        .find("CurrentAllocation::capture(current)")
+        .expect("the owned current facts");
+    assert!(policy < owned);
     // Only the runtime-spill constructor may bind a recorded prefix's
     // declared selection; every other recovery family has no prefix to
     // report.
     assert_eq!(
         source
-            .matches("validate_recovery_selection(&replayed, None)?;")
+            .matches("Self::capture(&source.project_allocation(), None)")
             .count(),
         6
     );
-    assert!(
-        source.contains(
-            "validate_recovery_selection(&replayed, source.recovery_prefix_selection())?;"
-        )
-    );
-    // Recovery produces an unadmitted candidate. This boundary owns its full
-    // replay; repeating it at the producer makes spill-heavy programs replay
-    // every recovery decision twice without adding an admission guarantee.
-    let recovery = include_str!("../../assignment/runtime_spill/recovery.rs");
-    assert!(!recovery.contains("replay::validate("));
+    assert!(source.contains("source.recovery_prefix_selection(),"));
+    // Allocation is consumed as produced: no constructor replays a source.
+    assert!(!source.contains("replay_allocation"));
 }

@@ -11,14 +11,15 @@ identifies the compiler sequence.
 
 ## Current facts and evidence
 
-[RetainedAllocation](src/output/mod.rs) owns the current program separately from
-its source and transformation evidence. Construction independently reconstructs
-that evidence before taking private ownership of immutable replay inputs.
-`AllocationSource::replay_allocation` on this retained owner reuses their admission
-and compares every current fact against the same source; fresh inputs still need
-full replay. No detached digest or mutable source can reuse that admission.
+[RetainedAllocation](src/output/retained.rs) owns the current program and the
+facts the route produced for it. Construction projects one staged result,
+checks the exercised recovery against the declared allocation-recovery
+selection, and drops the staged producer; later stages read the current facts
+and do not replay allocation history, because each fact was checked by the
+stage that produced it in the same compile
+([verification placement](../../../../pipeline.md#verification-placement)).
 Baseline, literal fold, fixed-view-copy, rematerialization, and executable-spill histories share
-one downstream allocation view. Projection or hashing a raw plan is not admission.
+one downstream allocation view.
 
 Selected liveness/range schemas belong to `selected-instructions`; allocation
 legality, home, and pressure schemas belong to `register-homes`. Algorithms,
@@ -106,8 +107,8 @@ declared fixed-view selection reaches the same recovery through two more
 arms: the segment-home front-end is probed on the borrowed legality before
 the sequence commits, so a capacity decline — `SegmentPressure` from
 placement or `BudgetExceeded` from a front-end derivation — hands the
-still-owned legality to spill recovery with the declined policy and verdict
-recorded and re-proved on every replay; and residual `NoCompatibleHome`
+still-owned legality to spill recovery with the declined policy recorded;
+and residual `NoCompatibleHome`
 after materialized copies enters through the complete post-copy reanalysis,
 keeping the copy transformation ahead of every spill step in one manifest. It
 visits a finite roster of original instruction-result and block-parameter values,
@@ -138,8 +139,8 @@ uses reachable without initialization, terminal/edge uses, and
 block parameters in cyclic functions still reject. Only changed blocks' settlement indices
 move; edges and other blocks remain identical. Rewritten values and spill
 addresses never expand the candidate roster. Each cumulative rewrite gets fresh
-liveness, ranges, legality, and homes; independent replay reconstructs each
-pressure failure, rewrite, and final fact/manifest join. The current allocation
+liveness, ranges, legality, and homes, each checked by its owner as it is
+produced; the completed recovery is not replayed. The current allocation
 view remains the same downstream representation. The manifest records exact transformed
 identities and realized selected storage, not final frame authority.
 These private eight-byte slots preserve full GPR payloads. They do not widen

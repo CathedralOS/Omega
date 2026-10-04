@@ -1,13 +1,10 @@
 use crate::exit_contract::WholeFunctionExitContractError;
 use post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError;
-use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use resolved_layout_to_resolved_layout::ResolvedLayoutOptimizationError;
 use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationError {
-    Allocation(selected_instructions_to_register_homes::AllocationReplayError),
-    PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
     LayoutOptimization(ResolvedLayoutOptimizationError),
