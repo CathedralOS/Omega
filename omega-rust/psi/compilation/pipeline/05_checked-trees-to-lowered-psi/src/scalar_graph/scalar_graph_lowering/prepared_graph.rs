@@ -194,11 +194,12 @@ pub(crate) enum LoweredScalarEffect {
         place: PlaceId,
         structural_type: StructuralTypeId,
     },
-    CallUnit(LoweredUnitCall),
+    Call(LoweredEffectCall),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredUnitCall {
+pub(crate) struct LoweredEffectCall {
+    pub(crate) result: Option<terminal_psi::StructuralOperationResult>,
     pub(crate) source_coordinate: SourceCallCoordinate,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) target_state: symbols::SymbolHandle,

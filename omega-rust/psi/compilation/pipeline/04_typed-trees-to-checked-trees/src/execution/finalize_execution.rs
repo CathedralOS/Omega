@@ -95,6 +95,7 @@ pub(crate) fn finalize_execution(
     facts.flow.terminal_boundary_scalar_returns = boundary_returns;
     facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
     facts.flow.terminal_unit_effects = terminal_unit_effects;
+    crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts);
 
     Ok(facts)
 }

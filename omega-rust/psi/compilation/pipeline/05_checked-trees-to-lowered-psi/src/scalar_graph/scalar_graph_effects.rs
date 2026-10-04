@@ -187,7 +187,7 @@ pub(crate) fn emit(
                     operations,
                 )?;
             }
-            LoweredScalarEffect::CallUnit(call) => {
+            LoweredScalarEffect::Call(call) => {
                 let types = values
                     .iter()
                     .map(|value| value.scalar_type)
@@ -198,7 +198,7 @@ pub(crate) fn emit(
                     .map(|argument| {
                         validate_direct_parameter_types(argument, &types)?;
                         if !matches!(argument, LoweredDirectExpression::Parameter { .. }) {
-                            return unsupported("Unit call requires completed scalar operands");
+                            return unsupported("effect call requires completed scalar operands");
                         }
                         let id = emit_direct_expression(argument, values, next_value, operations);
                         Ok(ValueDeclaration {
@@ -229,7 +229,11 @@ pub(crate) fn emit(
                     static_reach_binding: None,
                     suspension_crossing: None,
                     id,
-                    result: OperationResult::Unit,
+                    result: call
+                        .result
+                        .clone()
+                        .map(OperationResult::Structural)
+                        .unwrap_or(OperationResult::Unit),
                     kind: DirectCall {
                         callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
                         arguments: arguments.iter().map(|argument| argument.id).collect(),
@@ -242,7 +246,15 @@ pub(crate) fn emit(
                             &call.crash_routes,
                             &arguments,
                         )?,
-                        result: DirectCallResult::Unit,
+                        result: call
+                            .result
+                            .as_ref()
+                            .map_or(DirectCallResult::Unit, |result| {
+                                DirectCallResult::Structural {
+                                    multiplicity: result.multiplicity,
+                                    returned_claim_transfers: Vec::new(),
+                                }
+                            }),
                     }
                     .into_operation_kind(),
                 });

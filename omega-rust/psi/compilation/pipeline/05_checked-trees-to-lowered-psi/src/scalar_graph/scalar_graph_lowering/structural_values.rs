@@ -10,9 +10,9 @@
 //! Final live locals rebind in declaration order at the selected cleanup edge;
 //! this preserves disposal order without remapping survivors after every move.
 use super::super::{
-    OperationKind, OperationResult, StructuralFieldId, StructuralFieldType,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, allocate_dense, place_id,
+    OperationResult, StructuralFieldId, StructuralFieldType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
+    place_id,
 };
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
@@ -85,6 +85,10 @@ pub(crate) struct PreparedValue {
 }
 
 enum Step {
+    Call {
+        prepared: super::unit_operations::Prepared,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Bind {
         source: StructuralArgument,
         destination: StructuralParameterDeclaration,
@@ -148,9 +152,6 @@ pub(super) fn prepare(
     else {
         return unsupported("scalar structural statement has no value producer");
     };
-    if !calls.is_empty() {
-        return unsupported("scalar record construction requires structural call result custody");
-    }
     let (_, source) = source_custody::authored_state(checked, state)?;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
         .statement_table
@@ -175,8 +176,10 @@ pub(super) fn prepare(
     let prepared = prepare_value(
         checked,
         qualifications,
+        state,
         result.statement_index,
         *value,
+        calls,
         local.type_reference,
         bindings,
         value_types,
@@ -198,8 +201,10 @@ pub(super) fn prepare(
 pub(crate) fn prepare_value(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
+    state: symbols::SymbolHandle,
     statement: u32,
     value: checked_trees::CheckedStructuralValueHandle,
+    calls: &[checked_trees::CheckedStructuralValueCall],
     reference: checked_trees::types::TypeReferenceHandle,
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
@@ -209,6 +214,9 @@ pub(crate) fn prepare_value(
     let mut preparation = Preparation {
         checked,
         qualifications,
+        state,
+        calls,
+        consumed_calls: Vec::new(),
         bindings,
         types,
         reserved,
@@ -230,6 +238,9 @@ pub(crate) fn prepare_value(
         return unsupported("record carrier is ambiguous");
     }
     let mut place = preparation.record(value, reference)?;
+    if preparation.consumed_calls.len() != calls.len() {
+        return unsupported("structural value contains unconsumed call producers");
+    }
     if checked.type_multiplicity(reference) == Multiplicity::Affine
         && matches!(
             checked.facts.values.structural_values.nodes.get(value).kind,
@@ -259,6 +270,9 @@ pub(crate) fn prepare_value(
 struct Preparation<'a> {
     checked: &'a CheckedTrees,
     qualifications: &'a PreparedScalarQualifications,
+    state: symbols::SymbolHandle,
+    calls: &'a [checked_trees::CheckedStructuralValueCall],
+    consumed_calls: Vec<checked_trees::CheckedStructuralValueHandle>,
     bindings: &'a storage::ScalarBindings,
     types: &'a [StructuralTypeDeclaration],
     reserved: &'a Storage,
@@ -289,6 +303,65 @@ impl Preparation<'_> {
         else {
             return unsupported("scalar record has a nonrecord structural declaration");
         };
+        if let CheckedStructuralValueKind::Call { .. } = &node.kind {
+            let mut producers = self.calls.iter().filter(|call| call.value == value);
+            let producer = producers.next().ok_or(LoweringError::Unsupported(
+                "structural value call has no retained producer",
+            ))?;
+            if producers.next().is_some() || self.consumed_calls.contains(&value) {
+                return unsupported("structural value call has duplicate producer custody");
+            }
+            if producer.operands().iter().next().is_some() {
+                return unsupported(
+                    "scalar effect call operands require their structural preparation bindings",
+                );
+            }
+            let (machine, _) = source_custody::authored_state(self.checked, self.state)?;
+            let state = self
+                .checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .machines
+                .iter()
+                .find(|graph| graph.machine == machine.symbol)
+                .and_then(|graph| graph.states.iter().find(|state| state.state == self.state))
+                .ok_or(LoweringError::Unsupported(
+                    "structural call lost its scalar source state",
+                ))?;
+            let multiplicity = match self.checked.type_multiplicity(reference) {
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Linear => {
+                    return unsupported("scalar structural value cannot acquire linear claims");
+                }
+            };
+            let place = self.reserved.place(value)?;
+            let prepared = super::unit_operations::prepare(
+                self.checked,
+                machine.symbol,
+                state,
+                producer.operation(),
+                self.bindings,
+                &self.prefix,
+                self.types,
+                Some(super::super::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place,
+                    structural_type: declaration.id,
+                    multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+            )?;
+            self.consumed_calls.push(value);
+            self.steps.push(Step::Call {
+                prepared,
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
             if argument.type_identity != identity.as_str() {
                 return unsupported("scalar record transfer changed its carrier");
@@ -558,7 +631,8 @@ impl PreparedValue {
             .steps
             .last()
             .map(|step| match step {
-                Step::Scalar { prefix, .. }
+                Step::Call { prefix, .. }
+                | Step::Scalar { prefix, .. }
                 | Step::Record { prefix, .. }
                 | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
@@ -584,6 +658,9 @@ impl PreparedValue {
         });
         for step in self.steps.into_iter().rev() {
             target = match step {
+                Step::Call { prepared, prefix } => {
+                    prepared.finish(state, bindings, &prefix, target, computations)?
+                }
                 Step::Bind {
                     source,
                     destination,
@@ -743,12 +820,8 @@ pub(crate) fn declarations(
 ) -> impl Iterator<Item = StructuralPlaceDeclaration> + '_ {
     operations
         .iter()
-        .filter_map(|operation| match (&operation.kind, &operation.result) {
-            (
-                OperationKind::EstablishRecord { .. }
-                | OperationKind::EstablishZeroedStructural { .. },
-                OperationResult::Structural(result),
-            ) => Some(StructuralPlaceDeclaration {
+        .filter_map(|operation| match &operation.result {
+            OperationResult::Structural(result) => Some(StructuralPlaceDeclaration {
                 id: result.place,
                 kind: StructuralPlaceKind::OperationResult {
                     producer: operation.id,

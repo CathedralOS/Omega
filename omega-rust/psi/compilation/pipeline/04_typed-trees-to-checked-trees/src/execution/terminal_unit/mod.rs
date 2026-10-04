@@ -194,6 +194,8 @@ mod scalar_targets;
 pub(crate) mod shared_convergence;
 mod state_graph;
 mod structural_scalar_store;
+mod structural_value_calls;
+pub(crate) use structural_value_calls::retain as retain_structural_value_calls;
 pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;

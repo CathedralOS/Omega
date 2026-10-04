@@ -349,6 +349,22 @@ pub struct CheckedStructuralValueCall {
     operation: CheckedUnitEffectOperationPlan,
 }
 
+// Only the arena's absent slot uses this value. Published rows still enter
+// through `with_operands`, which requires a structural invocation result.
+impl Default for CheckedStructuralValueCall {
+    fn default() -> Self {
+        Self {
+            value: crate::CheckedStructuralValueHandle::invalid(),
+            operands: CheckedOperandSequence::default(),
+            operation: CheckedUnitEffectOperationPlan::Complete {
+                statement_index: 0,
+                trivial_affine_local_discard_ordinals: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }
+    }
+}
+
 impl CheckedStructuralValueCall {
     pub fn new(
         value: crate::CheckedStructuralValueHandle,

@@ -59,6 +59,7 @@ pub(crate) fn validate_computation_calls(
     let mut pending = vec![(root, false, authored_root)];
     let mut active = Vec::new();
     let mut calls = Vec::new();
+    let mut structural_calls = Vec::new();
     let mut retained_subject_calls = Vec::new();
     // Discriminant-dispatch selection chains pair each link with the authored
     // match's next classifier arm; the DFS walk visits the head link first.
@@ -157,6 +158,38 @@ pub(crate) fn validate_computation_calls(
                         *field,
                         node.primitive_type,
                     )?;
+                if receiver_value.is_valid() {
+                    // Structural replay has checked every retained call against
+                    // this receiver's exact value DAG. Those invocations run in
+                    // the value schedule, not as separate scalar Call nodes.
+                    for retained in checked
+                        .facts
+                        .values
+                        .structural_values
+                        .calls_for_root(*receiver_value)
+                        .unwrap_or(&[])
+                    {
+                        let value = checked
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(retained.value);
+                        let checked_trees::CheckedStructuralValueKind::Call { source_call } =
+                            value.kind
+                        else {
+                            return unsupported("structural receiver call lost its value node");
+                        };
+                        let expression = control.calls.get(source_call).authored_expression;
+                        if structural_calls.contains(&expression) {
+                            return unsupported(
+                                "computed invocation evaluates a structural call twice",
+                            );
+                        }
+                        structural_calls.push(expression);
+                        calls.push(expression);
+                    }
+                }
                 pending.extend(
                     receiver_operands
                         .into_iter()
@@ -676,6 +709,12 @@ pub(crate) fn validate_computation_calls(
         .any(|call| retained_subject_calls.contains(call))
     {
         return unsupported("computed invocation reevaluates a retained dispatch subject");
+    }
+    if structural_calls
+        .iter()
+        .any(|expression| calls.iter().filter(|call| *call == expression).count() != 1)
+    {
+        return unsupported("computed invocation evaluates a structural call twice");
     }
     if source_calls.iter().any(|source| {
         source.statement_index == statement as usize

@@ -13,6 +13,14 @@ pub struct CheckedStructuralValuePlans {
     pub nodes: Arena<CheckedStructuralValue>,
     pub dispatch_arms: Arena<CheckedStructuralDispatchArm>,
     pub record_fields: Arena<CheckedStructuralRecordField>,
+    call_schedules: Arena<StructuralCallSchedule>,
+    calls: Arena<crate::CheckedStructuralValueCall>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct StructuralCallSchedule {
+    value: CheckedStructuralValueHandle,
+    calls: HandleSpan<crate::CheckedStructuralValueCall>,
 }
 
 pub type CheckedStructuralValueHandle = Handle<CheckedStructuralValue>;
@@ -221,6 +229,41 @@ pub struct CheckedStructuralDispatchArm {
 }
 
 impl CheckedStructuralValuePlans {
+    /// Executable calls belong to the exact value DAG, not its eventual local,
+    /// argument or observation consumer. Catalog order is not evaluation order.
+    pub fn calls_for_root(
+        &self,
+        value: CheckedStructuralValueHandle,
+    ) -> Option<&[crate::CheckedStructuralValueCall]> {
+        let mut schedules = self
+            .call_schedules
+            .iter()
+            .map(|(_, row)| row)
+            .filter(|row| row.value == value);
+        let schedule = schedules.next()?;
+        if schedules.next().is_some() || !self.nodes.is_valid(value) {
+            return None;
+        }
+        Some(self.calls.span_or_empty(schedule.calls))
+    }
+
+    pub fn retain_calls_for_root(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+        calls: Vec<crate::CheckedStructuralValueCall>,
+    ) {
+        assert!(self.nodes.is_valid(value));
+        assert!(
+            !self
+                .call_schedules
+                .iter()
+                .any(|(_, row)| row.value == value)
+        );
+        let calls = self.calls.insert_many(calls);
+        self.call_schedules
+            .insert(StructuralCallSchedule { value, calls });
+    }
+
     /// Continuation and primary returns may share a statement, but never an
     /// authored value occurrence. Rejoin both coordinates without ambiguity.
     pub fn root_for_expression(

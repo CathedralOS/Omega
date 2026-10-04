@@ -89,8 +89,14 @@ impl super::Expansion<'_> {
             let prepared = structural_values::prepare_value(
                 self.checked,
                 self.qualifications,
+                site.state,
                 site.statement,
                 receiver,
+                values
+                    .calls_for_root(receiver)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed receiver lost its checked call schedule",
+                    ))?,
                 root.type_reference,
                 site.bindings,
                 input_types,

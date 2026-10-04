@@ -644,7 +644,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         if !call.crash_continuations.is_empty())
             })
             || state.structural_effects.iter().any(|effect| {
-                matches!(effect, LoweredScalarEffect::CallUnit(call)
+                matches!(effect, LoweredScalarEffect::Call(call)
                         if !call.crash_routes.is_empty())
             })
     });

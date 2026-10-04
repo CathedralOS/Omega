@@ -13,7 +13,7 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_checked_direct_call_binding;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
@@ -638,6 +638,7 @@ fn prepare_operation(
             bindings,
             value_types,
             types,
+            None,
         )?))
     }
 }
@@ -681,38 +682,13 @@ impl Prepared {
                             target,
                             computations,
                         )?,
-                        PreparedOperation::Unit(prepared) => {
-                            let mut argument_types = prefix.value_types.clone();
-                            argument_types.extend_from_slice(&prepared.argument_types);
-                            let call_block = computations.push(LoweredScalarBranchState {
-                                structural_parameters: Vec::new(),
-                                parameter_types: argument_types,
-                                erased_formal_types: Vec::new(),
-                                erased_proof_formals: Vec::new(),
-                                bindings: Vec::new(),
-                                structural_effects: vec![LoweredScalarEffect::CallUnit(
-                                    prepared.call,
-                                )],
-                                terminator: LoweredScalarBranchTerminator::Jump {
-                                    trivial_affine_discards: Vec::new(),
-                                    target,
-                                    arguments: computations::parameters(&prefix.value_types),
-                                    erased_arguments: Vec::new(),
-                                    erased_proof_arguments: Vec::new(),
-                                    structural_arguments: Vec::new(),
-                                },
-                            });
-                            computations.call_arguments(
-                                state,
-                                prepared.coordinate,
-                                false,
-                                &prepared.arguments,
-                                0,
-                                &prefix.scalar_bindings,
-                                &prefix.value_types,
-                                call_block,
-                            )?
-                        }
+                        PreparedOperation::Unit(prepared) => prepared.finish(
+                            state,
+                            &prefix.scalar_bindings,
+                            &prefix.value_types,
+                            target,
+                            computations,
+                        )?,
                     };
                     continuation = LoweredScalarBranchState {
                         structural_parameters: Vec::new(),

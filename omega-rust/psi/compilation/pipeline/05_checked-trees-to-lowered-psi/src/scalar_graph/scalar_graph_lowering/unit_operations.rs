@@ -1,11 +1,12 @@
-//! Rejoin ordered Unit statements and lower their existing checked call rows.
+//! Lower ordinary calls retained by scalar evaluation using their checked custody.
+//! Unit effects and structural values share argument admission and call emission.
 use super::{
     CheckedTrees, LoweringError, Multiplicity, QualifiedScalarType, source_custody, storage,
     terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredUnitCall;
+use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredEffectCall;
 
 /// The target machine's published erased-proof arity: the entry plan's
 /// roster length.
@@ -28,7 +29,7 @@ pub(super) struct Prepared {
     pub(super) coordinate: CheckedUnitCallCoordinate,
     pub(super) arguments: Vec<checked_trees::CheckedCallScalarArgument>,
     pub(super) argument_types: Vec<QualifiedScalarType>,
-    pub(super) call: LoweredUnitCall,
+    pub(super) call: LoweredEffectCall,
 }
 
 pub(super) fn statement_index(
@@ -68,11 +69,16 @@ pub(super) fn prepare(
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    result: Option<terminal_psi::StructuralOperationResult>,
 ) -> Result<Prepared, LoweringError> {
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
         .filter(|call| {
-            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            !call.is_boundary()
+                && !matches!(
+                    call.result(),
+                    checked_trees::CheckedUnitCallResult::Scalar(_)
+                )
         })
         .and_then(|call| {
             Some((
@@ -82,7 +88,7 @@ pub(super) fn prepare(
             ))
         })
     else {
-        return unsupported("scalar graph requires an ordinary Unit operation");
+        return unsupported("scalar graph requires an ordinary effect call");
     };
     let coordinate = &call.coordinate;
     let target_machine = &call.target.machine;
@@ -92,6 +98,13 @@ pub(super) fn prepare(
     let scalar_arguments = &call.scalar_arguments;
     let structural_arguments = &call.structural_arguments;
     let claim_transfers = call.claim_transfers();
+    if call.structural_custody().is_some_and(|custody| {
+        custody.reference_loan.is_valid()
+            || !custody.result_qualifications.is_empty()
+            || !custody.returned_claim_transfers.is_empty()
+    }) {
+        return unsupported("scalar effect call requires its returned loan or claim transport");
+    }
     if !erased_scalar_arguments.is_empty() {
         return unsupported("scalar graph Unit call has no erased argument lane");
     }
@@ -113,8 +126,44 @@ pub(super) fn prepare(
         *target_machine,
     )?;
     let target = body.entry()?;
-    if body.result()? != checked_trees::CheckedControlResultPlan::Unit
-        || target.state != *target_state
+    match (body.result()?, call.result(), &result) {
+        (
+            checked_trees::CheckedControlResultPlan::Unit,
+            checked_trees::CheckedUnitCallResult::Unit,
+            None,
+        ) => {}
+        (
+            checked_trees::CheckedControlResultPlan::Structural(expected),
+            checked_trees::CheckedUnitCallResult::Structural { binding, .. },
+            Some(result),
+        ) => {
+            let declaration = structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "effect call result has no declared carrier",
+                ))?;
+            if expected.type_identity != binding.type_identity
+                || expected.multiplicity != binding.multiplicity
+                || declaration.identity != binding.type_identity
+                || result.multiplicity
+                    != match binding.multiplicity {
+                        Multiplicity::Unrestricted => {
+                            terminal_psi::StructuralMultiplicity::Unrestricted
+                        }
+                        Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+                        Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
+                    }
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return unsupported("effect call substituted its structural result carrier");
+            }
+        }
+        _ => return unsupported("effect call disagrees with its target result"),
+    }
+    if target.state != *target_state
         || target.contract_report_fingerprint != *target_contract_report_fingerprint
         || !crate::unit::attached_unit::catalog::checked_unit_target_reach_matches(
             *service_reach,
@@ -149,19 +198,8 @@ pub(super) fn prepare(
     )?;
     let (_, caller_state) = source_custody::authored_state(checked, state.state)?;
     let (_, callee_state) = source_custody::authored_state(checked, *target_state)?;
-    let Some(checked_trees::statement::StatementNode::Call(source_call)) = checked
-        .statement_table
-        .statements(caller_state.statement_nodes)
-        .get(coordinate.statement_index as usize)
-    else {
-        return unsupported("scalar Unit operation lost its authored statement call");
-    };
-    if flow_call.has_receiver
-        || flow_call.receiver_symbol != source_call.receiver_symbol
-        || flow_call.authored_expression.is_valid()
-        || flow_call.service_reach != *service_reach
-    {
-        return unsupported("scalar Unit operation substituted its captured source call metadata");
+    if flow_call.has_receiver || flow_call.service_reach != *service_reach {
+        return unsupported("effect call substituted its captured source call metadata");
     }
     if !checked
         .facts
@@ -191,9 +229,7 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit operation substituted its captured borrow call rows");
     }
-    let authored_arguments = checked
-        .statement_table
-        .expression_handles(source_call.arguments);
+    let authored_arguments = &authored.explicit_arguments;
     let access_positions =
         crate::expression_preparation::source_custody::computation_calls::rejoin_call_accesses(
             checked,
@@ -322,7 +358,8 @@ pub(super) fn prepare(
     Ok(Prepared {
         coordinate: *coordinate,
         arguments: scalar_arguments.clone(),
-        call: LoweredUnitCall {
+        call: LoweredEffectCall {
+            result,
             source_coordinate: SourceCallCoordinate {
                 state: state.state,
                 statement_index: coordinate.statement_index as usize,
@@ -350,4 +387,47 @@ pub(super) fn prepare(
         },
         argument_types: argument_types.into_iter().map(Into::into).collect(),
     })
+}
+
+impl Prepared {
+    pub(super) fn finish(
+        self,
+        state: symbols::SymbolHandle,
+        bindings: &storage::ScalarBindings,
+        value_types: &[QualifiedScalarType],
+        target: usize,
+        computations: &mut super::computations::Expansion<'_>,
+    ) -> Result<usize, LoweringError> {
+        use super::prepared_graph::{
+            LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+        };
+        let mut argument_types = value_types.to_vec();
+        argument_types.extend_from_slice(&self.argument_types);
+        let call_block = computations.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            parameter_types: argument_types,
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects: vec![LoweredScalarEffect::Call(self.call)],
+            terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
+                target,
+                arguments: super::computations::parameters(value_types),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+            },
+        });
+        computations.call_arguments(
+            state,
+            self.coordinate,
+            false,
+            &self.arguments,
+            0,
+            bindings,
+            value_types,
+            call_block,
+        )
+    }
 }

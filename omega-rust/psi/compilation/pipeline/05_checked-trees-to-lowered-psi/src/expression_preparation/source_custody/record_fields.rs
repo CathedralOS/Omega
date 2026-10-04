@@ -125,7 +125,7 @@ fn field_receiver_source<'a>(
         expression: source.receiver_value,
         type_reference: source.type_reference,
         value: receiver_value,
-        operand_calls: &[],
+        operand_calls: plans.calls_for_root(receiver_value).unwrap_or(&[]),
         selection: None,
     }))
 }
