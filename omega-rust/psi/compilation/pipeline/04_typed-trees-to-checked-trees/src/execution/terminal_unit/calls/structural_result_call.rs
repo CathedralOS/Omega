@@ -193,7 +193,13 @@ pub(super) fn build(
                             ) || validation::reference_result_custody::is_reference_record(
                                 program,
                                 carrier,
-                            ))
+                            )
+                            // An owned actual moved into a by-value linear
+                            // formal transfers its claims into the callee;
+                            // the call's claim transfers carry them, so the
+                            // carrier needs no claim-free contents proof.
+                            || crate::checks::type_multiplicity(program, carrier)
+                                == Multiplicity::Linear)
                             && base_type_identity(program, carrier, &[])
                                 .is_some_and(|identity| identity == argument.type_identity)
                             // A projected owned operand names the exact
@@ -261,6 +267,49 @@ pub(super) fn build(
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
                 )
         });
+    // An ordinary call that consumes linear claim-carrying inputs keeps the
+    // same route and result binding: the consumed set is re-derived as the
+    // custody's input transfer roster, and a claim-free result carries no
+    // returned frontier. The reconstruction fences the result side itself,
+    // so only the empty-transfer rosters keep the inline emit below.
+    if args_ok
+        && !transfers.is_empty()
+        && program
+            .machine_states(target_machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == target_state.symbol)
+        && machine_binders(program, target_machine).is_empty()
+    {
+        let mut operation =
+            CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(CheckedUnitCallParts {
+                coordinate,
+                source_site,
+                target: call_target,
+                route: CheckedUnitCallRoute::Module {
+                    contract_commitment: Some(target_contract.commitment),
+                    erased_scalar_arguments,
+                    erased_proof_arguments,
+                },
+                scalar_arguments,
+                structural_arguments,
+                result: CheckedUnitCallResult::Structural {
+                    binding: result.clone(),
+                    discard_result_on_return: result.multiplicity == Multiplicity::Affine
+                        && !reference_loan.is_valid(),
+                },
+                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+            })?);
+        let custody = validation::reconstruct_structural_call_custody(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            &operation,
+        )
+        .ok()?;
+        *operation.call_mut()?.structural_custody_mut()? = custody;
+        return Some(operation);
+    }
     if args_ok
         && transfers.is_empty()
         && (represented_copy_result || reference_loan.is_valid()

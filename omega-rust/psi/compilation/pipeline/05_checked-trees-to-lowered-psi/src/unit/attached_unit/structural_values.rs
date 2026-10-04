@@ -14,4 +14,5 @@ pub(crate) mod record;
 mod structural_case;
 
 pub(crate) use emission::emit;
+pub(in crate::unit::attached_unit) use emission::establishment_claims;
 pub(super) use locals::bind_local;

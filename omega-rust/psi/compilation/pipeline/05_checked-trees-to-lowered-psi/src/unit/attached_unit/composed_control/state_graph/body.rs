@@ -504,8 +504,9 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
-            // A kept structural result, ordinary or boundary; a boundary
-            // call completes no receipts inside a composed state.
+            // A kept structural result, ordinary or boundary. A boundary
+            // call's claim receipts rejoin checked consumption the same way
+            // its Unit and scalar siblings' do.
             (
                 CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
@@ -517,6 +518,7 @@ pub(super) fn validate(
                     operation,
                     &state.structural_parameters,
                 )?;
+                validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             // `place = call(..)` over a structural field of exclusive borrowed
             // storage: the call, the displaced value's move-out, the store of
@@ -980,9 +982,7 @@ pub(super) fn validate(
                     *statement_index,
                 )?;
             }
-            _ => {
-                return unsupported("Unit graph reordered a source effect");
-            }
+            _ => return unsupported("Unit graph reordered a source effect"),
         }
     }
     Ok(end)
@@ -1158,13 +1158,11 @@ fn reordered_store(
     })
 }
 
-/// Whether a call keeps a structural result bound at this statement: an
-/// ordinary call, or a boundary call that completes no receipts here.
+/// Whether a call keeps a structural result bound at this statement.
 /// Nested operands keep their own call ordinal; source custody checks that
 /// occurrence instead of requiring the statement's outermost call.
 fn kept_structural_call_at(call: &CheckedUnitCallPlan, ordinal: usize) -> bool {
     call.discard_result_on_return() == Some(false)
-        && (!call.is_boundary() || call.claim_transfers().is_empty())
         && call.coordinate.statement_index as usize == ordinal
         && call
             .structural_result()

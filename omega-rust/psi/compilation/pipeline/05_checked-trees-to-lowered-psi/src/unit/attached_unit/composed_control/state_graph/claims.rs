@@ -70,7 +70,14 @@ pub(super) fn validate_boundary_consumption(
             event.machine_symbol == machine
                 && event.state_symbol == state.state
                 && event.source == call_source
-                && event.kind == PermissionEventKind::Consume
+                // Checking spells a claim leaving through a call as Consume
+                // for a by-value `self` receiver and as Transfer for a
+                // positional argument; either is the caller's ownership
+                // judgment the receipt records.
+                && matches!(
+                    event.kind,
+                    PermissionEventKind::Transfer | PermissionEventKind::Consume
+                )
                 && event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Linear
                 && event.obligation_live

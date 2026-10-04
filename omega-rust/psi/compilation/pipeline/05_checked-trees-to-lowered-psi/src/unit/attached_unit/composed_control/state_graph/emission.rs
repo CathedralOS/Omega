@@ -6,15 +6,17 @@ use super::super::super::super::{
     MachineId, StructuralArgument, StructuralParameterDeclaration, block_id,
 };
 use super::super::super::{
-    Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
-    Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id, lookup_claim_id,
-    lookup_type_id, lower_checked_crash_route_buckets, lower_installation_machine_service_ceiling,
-    lower_unit_parameters, obligation_id, terminal_scalar_type, unsupported, value_id,
+    Block, MachineContract, Multiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    TerminalMachine, Terminator, ValueDeclaration, allocate_dense, contract_id, edge_id,
+    lookup_claim_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_installation_machine_service_ceiling, lower_unit_parameters, obligation_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
+use crate::unit::{PermissionClaimIdentity, claim_id};
 use checked_trees::CheckedErasedProofParameterPlan;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
@@ -114,6 +116,50 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     for (successor, entry) in &admitted.claim_transport.aliases {
         let claim = lookup_claim_id(&claims.source_claims, *entry)?;
         claims.source_claims.push((*successor, claim));
+    }
+    // Fresh linear establishments mint their caller bindings while the graph
+    // publishes its claim roster: a composed state reads the machine-wide
+    // table and cannot mint while it emits, so every claim a local
+    // construction establishes joins here before any state runs.
+    let mut next_claim = u64::try_from(claims.entry_claims.len())
+        .map_err(|_| LoweringError::Unsupported("Unit entry claim count exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "Unit claim identities exhaust their namespace",
+        ))?;
+    for event in checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+    {
+        if event.machine_symbol != plan.machine
+            || event.kind != language_semantics::PermissionEventKind::Establish
+            || event.access != language_semantics::PermissionAccess::Owned
+            || event.multiplicity != Multiplicity::Linear
+            || !event.obligation_live
+            || !matches!(
+                event.source,
+                language_semantics::PermissionEventSource::Statement { .. }
+            )
+            || !matches!(
+                event.claim_identity,
+                PermissionClaimIdentity::Established {
+                    source: language_semantics::PermissionEventSource::Statement { .. },
+                    ..
+                }
+            )
+            || claims
+                .source_claims
+                .iter()
+                .any(|(identity, _)| *identity == event.claim_identity)
+        {
+            continue;
+        }
+        let claim = claim_id(allocate_dense(&mut next_claim)?);
+        claims.source_claims.push((event.claim_identity, claim));
     }
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(

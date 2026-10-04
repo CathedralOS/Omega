@@ -461,51 +461,22 @@ impl OperationFrame<'_, '_> {
         Ok(claims)
     }
 
-    /// Rebase one completed-result claim occurrence onto this body's claim
-    /// namespace. An identity the caller already holds — an entry claim, or a
-    /// binding an earlier boundary result minted — resolves through the grown
-    /// table. A claim the checker established at this result's own binding
-    /// statement mints its caller binding here instead: the identity's
-    /// establishment coordinate is exactly this statement, so the minted
-    /// `ClaimId` is that claim's only caller binding, and every later
-    /// receipt, transfer and custody join resolves it the same way. Any
-    /// other identity is custody this caller never held — the boundary
-    /// cannot mint a binding for a claim some other point owns.
+    /// One claim occurrence on this call's completed boundary result: resolve
+    /// it through the caller's claim namespace with the shared establishment
+    /// join (`operation_frame::resolve_established_claim`).
     fn boundary_result_claim(
         &mut self,
         state: symbols::SymbolHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         event: &checked_trees::FlowPermissionEventFact,
     ) -> Result<ClaimId, LoweringError> {
-        let machine = self.machine;
-        let bound = lookup_claim_id(self.caller.claims.bindings(), event.claim_identity);
-        if bound.is_ok() {
-            return bound;
-        }
-        let established_here = matches!(
-            event.claim_identity,
-            language_semantics::PermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source: language_semantics::PermissionEventSource::Statement {
-                    statement_index,
-                },
-                ..
-            } if machine_symbol == machine
-                && state_symbol == state
-                && statement_index == result.statement_index as usize
-        ) && event.provenance
-            == (language_semantics::PermissionProvenance::Established {
-                machine_symbol: machine,
-                state_symbol: state,
-                source: language_semantics::PermissionEventSource::Statement {
-                    statement_index: result.statement_index as usize,
-                },
-            });
-        if !established_here {
-            return bound;
-        }
-        self.caller.claims.mint(event.claim_identity)
+        super::resolve_established_claim(
+            &mut self.caller.claims,
+            self.machine,
+            state,
+            result.statement_index as usize,
+            event,
+        )
     }
 }
 

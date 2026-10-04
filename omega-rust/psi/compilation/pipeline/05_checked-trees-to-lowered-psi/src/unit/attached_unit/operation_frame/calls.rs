@@ -23,8 +23,8 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoo
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, Operation, OperationResult,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
 };
@@ -512,6 +512,21 @@ impl OperationFrame<'_, '_> {
             ..
         } = self;
         let structural_types = structural_types.declarations();
+        // Fresh linear construction carries the claims the checker
+        // established at the binding statement. Resolve them before the
+        // operand emitter borrows the caller's claim namespace; the
+        // producing operation's result publishes them below.
+        let result_claims = if result.multiplicity == Multiplicity::Linear {
+            structural_values::establishment_claims(
+                checked,
+                machine,
+                state,
+                result,
+                &mut caller.claims,
+            )?
+        } else {
+            Vec::new()
+        };
         // The evaluator supplies its current namespaces at the exact operand
         // occurrence. Recursive construction and calls share normal frame
         // publication; no stale snapshot or second result home is introduced.
@@ -630,6 +645,7 @@ impl OperationFrame<'_, '_> {
             next_block,
             next_edge,
             operations,
+            result_claims,
         )?;
         results.require_next(result, "structural value result binding is not dense")?;
         // A call-rooted value's place was catalogued by the call emitter

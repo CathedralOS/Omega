@@ -986,8 +986,97 @@ pub fn reconstruct_structural_call_custody(
                     })
                     .is_some()
             });
-        if (!result_qualifications.is_empty() && !byte_predicated) || !transfers.is_empty() {
+        if !result_qualifications.is_empty() && !byte_predicated {
             return Err("claim-bearing structural call has no returned claim frontier");
+        }
+        // Input claims consumed at this occurrence terminate inside the
+        // callee: its checked body already accounted for every claim it was
+        // admitted with, so a claim-free result owes no returned frontier.
+        // Re-derive the roster as the ordinary call does: each caller
+        // transfer event names the owned whole-name argument whose place it
+        // consumed, and every event must land on exactly one argument.
+        let mut claim_transfers = Vec::with_capacity(transfers.len());
+        if !transfers.is_empty() {
+            let parameters = program.state_parameters(destination);
+            let authored_arguments = if call.authored_expression.is_valid() {
+                let ExpressionNode::Call(authored) = program
+                    .expression_table
+                    .expression(call.authored_expression)
+                else {
+                    return Err("structural call occurrence has no authored expression");
+                };
+                if authored.target_symbol != *target_state {
+                    return Err("structural call expression target changed");
+                }
+                program
+                    .expression_table
+                    .expression_handles(authored.arguments)
+            } else {
+                let Some(StatementNode::Call(authored)) = program
+                    .statement_table
+                    .statements(source_state.statement_nodes)
+                    .get(coordinate.statement_index as usize)
+                else {
+                    return Err("structural call occurrence has no authored statement");
+                };
+                if authored.target_symbol != *target_state {
+                    return Err("structural call statement target changed");
+                }
+                program
+                    .statement_table
+                    .expression_handles(authored.arguments)
+            };
+            if authored_arguments.len() != parameters.len() {
+                return Err("structural call has no exact explicit argument roster");
+            }
+            let mut accounted = vec![false; transfers.len()];
+            for (parameter_position, authored_argument) in authored_arguments.iter().enumerate() {
+                let ExpressionNode::Name(path) =
+                    program.expression_table.expression(*authored_argument)
+                else {
+                    continue;
+                };
+                if path.head_symbol != path.symbol
+                    || program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        != 1
+                {
+                    continue;
+                }
+                let argument_position = parameters[..parameter_position]
+                    .iter()
+                    .filter(|parameter| {
+                        program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_none()
+                    })
+                    .count();
+                let Some(argument) = structural_arguments.get(argument_position) else {
+                    return Err("structural claim transfer names an absent argument");
+                };
+                if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
+                    continue;
+                }
+                for (event_index, event) in transfers.iter().enumerate() {
+                    if event.root != facts::PlaceRoot::Symbol(path.symbol)
+                        || event.claim_identity == PermissionClaimIdentity::Unknown
+                        || accounted[event_index]
+                    {
+                        continue;
+                    }
+                    accounted[event_index] = true;
+                    claim_transfers.push(CheckedUnitClaimTransferPlan {
+                        claim_identity: event.claim_identity,
+                        argument_index: u32::try_from(argument_position)
+                            .map_err(|_| "structural argument position exceeds u32")?,
+                    });
+                }
+            }
+            if accounted.iter().any(|accounted| !accounted) {
+                return Err("consumed claim does not cross at an owned whole argument");
+            }
         }
         // A bare `&'a V` shared-view result is itself counted a reference
         // record for custody, but it is no construction — its loan is the
@@ -1085,7 +1174,8 @@ pub fn reconstruct_structural_call_custody(
         return Ok(CheckedStructuralCallCustodyPlan {
             reference_loan,
             result_qualifications,
-            ..Default::default()
+            claim_transfers,
+            returned_claim_transfers: Vec::new(),
         });
     }
 

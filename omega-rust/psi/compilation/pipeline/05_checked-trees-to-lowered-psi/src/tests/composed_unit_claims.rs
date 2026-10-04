@@ -110,7 +110,7 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
         .ownership
         .permissions
         .get_mut(consumption)
-        .kind = language_semantics::PermissionEventKind::Transfer;
+        .kind = language_semantics::PermissionEventKind::AffineDrop;
     rejects(&facts, "consumption fact");
 
     let mut boundary = baseline;

@@ -37,22 +37,13 @@ pub(super) fn validate(
     };
     let expected = validation::unwrapped_type_reference(&checked.typed, reference)
         .ok_or(LoweringError::Unsupported("record carrier missing"))?;
-    // A lifetime-parameterized record names its carrier through a
-    // `Generic` node whose type arguments are empty — the authored
-    // record name is still the nominal carrier.
+    // A parameterized record names its carrier through a `Generic` node —
+    // the authored record name is still the nominal carrier. Type
+    // arguments specialize member carriers, which the field roster below
+    // still verifies field by field against the declarations.
     let nominal_carrier = match checked.type_reference_table.type_reference(expected) {
         checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-        checked_trees::types::TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if checked
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .is_empty() =>
-        {
-            *base_symbol
-        }
+        checked_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => {
             return unsupported("record establishment substituted its nominal carrier");
         }
