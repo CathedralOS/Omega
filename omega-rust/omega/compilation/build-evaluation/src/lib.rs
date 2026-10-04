@@ -44,7 +44,7 @@
 //! - `Build::bind(builder, target::ProgramEntry, Exact::machine);` executes
 //!   through the original Build activation, including local helpers/reborrows.
 //!   Executed requests rejoin their lexical owner before exact product selection.
-//! - `builder.select_provider<Slot, Provider>(mode)` likewise records only
+//! - `Build::select_provider<Slot, Provider>(builder, mode)` likewise records only
 //!   executed choices on the original Build value. Its static operands select
 //!   product declarations without executing them; target-default declarations
 //!   remain under their separate admitted target roster.

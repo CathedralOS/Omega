@@ -16,7 +16,7 @@ pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
 pub data SinkProvider { seen: u64; }
 
 pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
-    defaults.select_provider<Sink, SinkProvider>();
+    SinkProvider::select_provider<Sink, SinkProvider>(defaults);
 }
 
 pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {

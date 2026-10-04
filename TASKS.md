@@ -183,12 +183,11 @@ helper that passes does not close an item.
     `samples/gui/{window_app,window_demo,windowed_calculator}/main.omg`
     (owner questions Q3 `trait-requirement-subject-binding` and Q1
     `provider-private-state-home`) and the two memory canaries
-    (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build files still use
-    `builder.select_provider<...>()` and other receiver-style shapes that
-    the build-declarations projector recognizes
-    (`omega-rust/omega/packages/build-declarations/`); move them to
-    `Build::`-qualified calls like `Build::package(builder, name)`. Do not
-    restore implicit builder insertion.
+    (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
+    for boundary acceptance, representation/service selection, assumed bindings,
+    and facets such as test groups. Move their producers and consumers to
+    namespace-qualified calls with explicit arguments, following `Build::bind`
+    and `Build::select_provider`. Do not restore implicit builder insertion.
   - Compiler remainder: receiver-specific signatures, lookup, argument
     insertion, state carry and evidence flags remain (`is_self` in stages
     02-07, checking, Terminal Psi, Omega stages and review evidence). Replace

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "terminal_requirement_projected_context");
-    builder.select_provider<Items::get_count, ItemsProvider>();
+    Build::select_provider<Items::get_count, ItemsProvider>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

@@ -85,7 +85,7 @@ data DemoGuiProvider {
     rc: u64;
     r32: u32;}
 macos_arm64 machine DemoGuiProvider::provider_defaults(defaults: &mut DemoGuiProvider) {
-    defaults.select_provider<Gui, DemoGuiProvider>();
+    DemoGuiProvider::select_provider<Gui, DemoGuiProvider>(defaults);
 }
 macos_arm64 machine DemoGuiProvider::window_create(demo_gui_provider: &mut DemoGuiProvider, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
 reaches CoreGraphics + ObjectiveC
@@ -262,7 +262,7 @@ reaches CoreGraphics + ObjectiveC
 
 data DemoClockProvider { }
 macos_arm64 machine DemoClockProvider::provider_defaults(defaults: &mut DemoClockProvider) {
-    defaults.select_provider<Clock, DemoClockProvider>();
+    DemoClockProvider::select_provider<Clock, DemoClockProvider>(defaults);
 }
 macos_arm64 machine DemoClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {

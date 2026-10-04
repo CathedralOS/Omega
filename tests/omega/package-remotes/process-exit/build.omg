@@ -3,5 +3,5 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "process_exit");
     Build::depend(builder, Source::Git { repository: "git@github.com:CathedralOS/host-services.git", revision: "25c18b37f4891aa31b83e1434562fb2ab0994450" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    Build::select_provider<Console, ConsoleNativeProvider>(builder);
 }

@@ -59,6 +59,6 @@ terminates
 
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_receiver_progress_installation");
-    builder.select_provider<Scheduler, SchedulerProvider>();
+    Build::select_provider<Scheduler, SchedulerProvider>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

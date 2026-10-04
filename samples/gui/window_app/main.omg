@@ -83,7 +83,7 @@ data WindowGuiProvider {
     rc: u64;
     r32: u32;}
 macos_arm64 machine WindowGuiProvider::provider_defaults(defaults: &mut WindowGuiProvider) {
-    defaults.select_provider<Gui, WindowGuiProvider>();
+    WindowGuiProvider::select_provider<Gui, WindowGuiProvider>(defaults);
 }
 macos_arm64 machine WindowGuiProvider::window_create(window_gui_provider: &mut WindowGuiProvider, class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
 reaches CoreGraphics + ObjectiveC
@@ -290,7 +290,7 @@ reaches ObjectiveC
 
 data WindowInputProvider { }
 macos_arm64 machine WindowInputProvider::provider_defaults(defaults: &mut WindowInputProvider) {
-    defaults.select_provider<Input, WindowInputProvider>();
+    WindowInputProvider::select_provider<Input, WindowInputProvider>(defaults);
 }
 macos_arm64 machine WindowInputProvider::key_state(virtual_key: u32) -> u64 satisfies Input::key_state
 reaches CoreGraphics
@@ -360,7 +360,7 @@ macos_arm64 machine WindowInputProvider::map_keycode(virtual_key: u32) -> u64
 
 data WindowClockProvider { }
 macos_arm64 machine WindowClockProvider::provider_defaults(defaults: &mut WindowClockProvider) {
-    defaults.select_provider<Clock, WindowClockProvider>();
+    WindowClockProvider::select_provider<Clock, WindowClockProvider>(defaults);
 }
 macos_arm64 machine WindowClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {

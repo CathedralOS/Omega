@@ -29,7 +29,7 @@ pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock;
 // the static-machine contract places invocation scratch.
 data PacingClockProvider { }
 macos_arm64 machine PacingClockProvider::provider_defaults(defaults: &mut PacingClockProvider) {
-    defaults.select_provider<Clock, PacingClockProvider>();
+    PacingClockProvider::select_provider<Clock, PacingClockProvider>(defaults);
 }
 macos_arm64 machine PacingClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {

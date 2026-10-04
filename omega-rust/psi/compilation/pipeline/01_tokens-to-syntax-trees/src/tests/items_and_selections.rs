@@ -565,7 +565,7 @@ fn trait_machine_parameter_is_requirement_identity() {
 fn provider_selection_retains_two_structural_type_paths() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.select_provider<host::Console, application::ConsoleProvider>();
+            Build::select_provider<host::Console, application::ConsoleProvider>(builder);
         }
     "#;
     let tokens = Lexer::new(source)
@@ -671,8 +671,8 @@ fn service_exclusion_rejects_extra_paths_and_value_arguments() {
 fn provider_selection_retains_one_explicit_composition_mode_argument() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.select_provider<host::Console, application::ConsoleProvider>(
-                CompositionMode::Independent
+            Build::select_provider<host::Console, application::ConsoleProvider>(
+                builder, CompositionMode::Independent
             );
         }
     "#;
@@ -690,9 +690,14 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
         .expect("provider-selection call");
 
     assert_eq!(call.machine_arguments.len(), 2);
-    let [mode] = parsed.expressions.expression_handles(call.arguments) else {
-        panic!("one retained composition-mode argument")
+    let [builder, mode] = parsed.expressions.expression_handles(call.arguments) else {
+        panic!("explicit Build and retained composition-mode arguments")
     };
+    assert!(call.target_is_static);
+    assert!(matches!(
+        parsed.expressions.expression(*builder),
+        ExpressionNode::Name(_)
+    ));
     let ExpressionNode::Name(mode) = parsed.expressions.expression(*mode) else {
         panic!("composition mode remains one ordinary name expression")
     };

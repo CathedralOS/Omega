@@ -55,7 +55,7 @@ pub DeviceOrderingEventRepresentation:
 pub data LoopbackDeviceLoanProvider {}
 
 macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: &mut LoopbackDeviceLoanProvider) {
-    defaults.select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>();
+    LoopbackDeviceLoanProvider::select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
 }
 
 macos_arm64 machine LoopbackDeviceLoanProvider::reserve(length: u64) -> Extent

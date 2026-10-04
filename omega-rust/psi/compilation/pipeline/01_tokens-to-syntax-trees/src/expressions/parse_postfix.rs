@@ -202,60 +202,10 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 continue;
             }
 
-            // PRV4c PROVIDER SLOT SELECTION:
-            // `b.select_provider<BoundaryTrait, ProviderType>();` and
-            // `b.select_provider<BoundaryTrait, ProviderType>(
-            //     CompositionMode::Independent
-            // );` are build-declaration markers, not runtime generic machine
-            // calls. Omission means fused composition. The build evaluator
-            // validates an explicit argument against the exact compiler-owned
-            // `CompositionMode` declaration.
-            // The shared static-argument carrier preserves each path and its
-            // source span until ordinary symbol resolution assigns the exact
-            // trait/data identity. Build harvesting validates the two kinds;
-            // no generated target string becomes selection identity.
             if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {
-                let Some((machine_arguments, path_input)) =
-                    try_parse_static_machine_arguments(syntax_trees, rest)?
-                else {
-                    return Err(rest.error_here(
-                        "`select_provider` requires a boundary-trait type and provider type",
-                    ));
-                };
-                if machine_arguments.len() != 2
-                    || machine_arguments.iter().any(|argument| {
-                        argument.path.is_empty()
-                            || argument.application.is_some()
-                            || argument.const_literal.is_some()
-                            || argument.evidence_projection.is_some()
-                    })
-                {
-                    return Err(
-                        rest.error_here("`select_provider` requires exactly two plain type paths")
-                    );
-                }
-                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                let ((arguments, evidence_arguments), rest) =
-                    parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
-                if arguments.len() > 1 || !evidence_arguments.is_empty() {
-                    return Err(rest.error_here(
-                        "`select_provider` takes zero value arguments for fused composition or one compiler-owned `CompositionMode` value",
-                    ));
-                }
-                input = rest;
-                expression =
-                    syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Call(TableCallExpression {
-                            target_is_static: false,
-                            receiver: expression,
-                            target: member,
-                            machine_arguments,
-                            arguments,
-                            evidence_arguments,
-                            operational_acknowledgement: Default::default(),
-                        }));
-                continue;
+                return Err(rest.error_here(
+                    "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
+                ));
             }
 
             // BUILD SERVICE EXCLUSION (wiki/spec/build/behavior_exclusions.md):

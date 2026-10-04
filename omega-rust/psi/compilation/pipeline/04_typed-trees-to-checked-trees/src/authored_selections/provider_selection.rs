@@ -1,4 +1,9 @@
 //! Typed authority for designated product operands of Build provider selection.
+//!
+//! `Build::` identifies the toolchain namespace; it supplies no receiver value.
+//! The first ordinary argument must be a mutable Build borrow. Execution checks
+//! that borrow against the current activation's original cell, so a fabricated
+//! Build cannot acquire authority merely by passing this type-level check.
 
 use super::intrinsic_calls::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
@@ -36,10 +41,23 @@ pub(crate) fn is_build_provider_selection(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
+    is_provider_selection_call(program, call)
+}
+
+pub(crate) fn is_provider_selection_call(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
     BuildOperation::from_call_target(call.target.as_str())
         == Some(BuildOperation::ProviderSelection)
         && !call.target_symbol.is_valid()
-        && exact_mutable_build_receiver(program, call.receiver)
+        && call.receiver.is_valid()
+        && matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path)
+            if exact_build_prelude_data(program, path.symbol, "Build"))
+        && matches!(program.expression_table.expression_handles(call.arguments), [builder] | [builder, _]
+            if exact_mutable_build_receiver(program, *builder))
+        && call.machine_arguments.len() == 2
+        && call.evidence_arguments.is_empty()
 }
 
 pub(crate) fn exact_mutable_build_receiver(

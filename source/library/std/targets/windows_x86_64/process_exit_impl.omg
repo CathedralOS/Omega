@@ -15,5 +15,5 @@ windows_x86_64 machine ProcessExitNativeProvider::exit_process(return_code: i32)
     via process_exit_binding();
 
 windows_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
-    defaults.select_provider<ProcessExit, ProcessExitNativeProvider>();
+    ProcessExitNativeProvider::select_provider<ProcessExit, ProcessExitNativeProvider>(defaults);
 }

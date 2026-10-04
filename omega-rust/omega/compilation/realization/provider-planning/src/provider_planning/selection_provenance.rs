@@ -586,7 +586,7 @@ pub(crate) fn select_provider_plan_indices(
                     many.len().to_string()
                 };
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `b.select_provider<{slot_name}, ProviderType>();`",
+                    "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `Build::select_provider<{slot_name}, ProviderType>(b);`",
                     many.iter()
                         .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()))
                         .collect::<Vec<_>>()

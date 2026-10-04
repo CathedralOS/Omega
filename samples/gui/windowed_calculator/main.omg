@@ -83,7 +83,7 @@ data CalcGuiProvider {
     rc: u64;
     r32: u32;}
 macos_arm64 machine CalcGuiProvider::provider_defaults(defaults: &mut CalcGuiProvider) {
-    defaults.select_provider<Gui, CalcGuiProvider>();
+    CalcGuiProvider::select_provider<Gui, CalcGuiProvider>(defaults);
 }
 macos_arm64 machine CalcGuiProvider::window_create(calc_gui_provider: &mut CalcGuiProvider, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
 reaches CoreGraphics + ObjectiveC
@@ -277,7 +277,7 @@ reaches ObjectiveC
 
 data CalcInputProvider { }
 macos_arm64 machine CalcInputProvider::provider_defaults(defaults: &mut CalcInputProvider) {
-    defaults.select_provider<Input, CalcInputProvider>();
+    CalcInputProvider::select_provider<Input, CalcInputProvider>(defaults);
 }
 macos_arm64 machine CalcInputProvider::key_state(virtual_key: u32) -> u64 satisfies Input::key_state
 reaches CoreGraphics
@@ -347,7 +347,7 @@ macos_arm64 machine CalcInputProvider::map_keycode(virtual_key: u32) -> u64
 
 data CalcClockProvider { }
 macos_arm64 machine CalcClockProvider::provider_defaults(defaults: &mut CalcClockProvider) {
-    defaults.select_provider<Clock, CalcClockProvider>();
+    CalcClockProvider::select_provider<Clock, CalcClockProvider>(defaults);
 }
 macos_arm64 machine CalcClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {

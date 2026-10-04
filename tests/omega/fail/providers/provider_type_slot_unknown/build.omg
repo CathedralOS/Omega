@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_type_slot_unknown");
-    builder.select_provider<Pick, MissingProvider>();
+    Build::select_provider<Pick, MissingProvider>(builder);
 }

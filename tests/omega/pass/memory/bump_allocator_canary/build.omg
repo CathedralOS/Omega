@@ -7,7 +7,7 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/alloc"
     });
-    builder.select_provider<ExtentRootProvider, BumpRootProvider>();
+    Build::select_provider<ExtentRootProvider, BumpRootProvider>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

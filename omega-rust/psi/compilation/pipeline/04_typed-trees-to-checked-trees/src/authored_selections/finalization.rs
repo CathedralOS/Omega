@@ -5,7 +5,7 @@ use crate::authored_selections::call_targets::{
     checked_operator_conformance_targets, declaration_target,
 };
 use crate::authored_selections::intrinsic_calls::{
-    checked_call_intrinsic, checked_intrinsic_call_target, exact_build_prelude_data,
+    checked_expression_call_intrinsic, checked_intrinsic_call_target, exact_build_prelude_data,
     type_reference_names_exact_prelude_data,
 };
 use crate::authored_selections::member_targets::checked_member_target;
@@ -229,12 +229,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                     ExpressionNode::Call(call),
                 ) => checked_intrinsic_call_target(facts, expression)
                     .or_else(|| {
-                        checked_call_intrinsic(
-                            program,
-                            call.target.as_str(),
-                            call.target_symbol,
-                            call.receiver,
-                        )
+                        checked_expression_call_intrinsic(program, call)
                     })
                     .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| {

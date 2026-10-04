@@ -4,9 +4,20 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_adapter_dispatch_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    builder.select_provider<Echo, EchoProvider>();
+    configure_echo(builder, CompositionMode::Fused);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}
+
+machine configure_echo(builder: &mut Build, mode: CompositionMode) {
+    let selected_mode: CompositionMode = SelectionHelper::select_provider<Build, Build>(mode);
+    Build::select_provider<Echo, EchoProvider>(builder, selected_mode);
+}
+
+// Sharing the spelling does not make this ordinary machine a Build operation.
+data SelectionHelper {}
+machine SelectionHelper::select_provider<Slot, Provider>(mode: CompositionMode) -> CompositionMode {
+    mode
 }

@@ -208,7 +208,7 @@ impl CollectionMeasure {
 /// is a different vocabulary and stays with Omega's build declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildOperation {
-    /// `b.select_provider<Subject, Product>()` on the mutable root `Build`.
+    /// `Build::select_provider<Subject, Product>(b)` on the mutable root `Build`.
     ProviderSelection,
     /// `b.assume_binding_contract<Required::operation, Supplied::operation>()`
     /// on the mutable root `Build`: the consuming root's authorization of one

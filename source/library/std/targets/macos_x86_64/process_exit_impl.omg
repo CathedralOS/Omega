@@ -8,5 +8,5 @@ macos_x86_64 boundary machine ProcessExitNativeProvider::exit_process(return_cod
     satisfies ProcessExit::exit_process;
 
 macos_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
-    defaults.select_provider<ProcessExit, ProcessExitNativeProvider>();
+    ProcessExitNativeProvider::select_provider<ProcessExit, ProcessExitNativeProvider>(defaults);
 }

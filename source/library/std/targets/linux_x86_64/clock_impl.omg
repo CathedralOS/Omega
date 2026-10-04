@@ -50,6 +50,6 @@ reaches
 }
 
 linux_x86_64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
-    defaults.select_provider<Clock, ClockNativeProvider>();
-    defaults.select_provider<LinuxClockWait::poll, LinuxClockPoll>();
+    ClockNativeProvider::select_provider<Clock, ClockNativeProvider>(defaults);
+    ClockNativeProvider::select_provider<LinuxClockWait::poll, LinuxClockPoll>(defaults);
 }

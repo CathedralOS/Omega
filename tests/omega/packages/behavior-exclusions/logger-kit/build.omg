@@ -4,5 +4,5 @@
 
 machine build(builder: &mut Build) {
     Build::package(builder, "logger_kit");
-    builder.select_provider<Sink, QuietSink>();
+    Build::select_provider<Sink, QuietSink>(builder);
 }

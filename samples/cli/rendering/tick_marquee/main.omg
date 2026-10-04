@@ -27,7 +27,7 @@ pub boundary trait Clock2 {
 // static-machine contract places invocation scratch.
 data MarqueeClockProvider { }
 macos_arm64 machine MarqueeClockProvider::provider_defaults(defaults: &mut MarqueeClockProvider) {
-    defaults.select_provider<Clock2, MarqueeClockProvider>();
+    MarqueeClockProvider::select_provider<Clock2, MarqueeClockProvider>(defaults);
 }
 macos_arm64 machine MarqueeClockProvider::sleep(milliseconds: u32) satisfies Clock2::sleep
 {

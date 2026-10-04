@@ -18,12 +18,7 @@ pub(crate) fn static_argument_role(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
     let intrinsic = match call {
-        StaticArgumentCall::Expression(call) => checked_call_intrinsic(
-            program,
-            call.target.as_str(),
-            call.target_symbol,
-            call.receiver,
-        ),
+        StaticArgumentCall::Expression(call) => checked_expression_call_intrinsic(program, call),
         StaticArgumentCall::Statement(state, call) => {
             checked_statement_call_intrinsic(program, state, call)
         }
@@ -47,6 +42,8 @@ pub(crate) fn static_argument_role(
 /// the operation's intrinsic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuildOperationForm {
+    /// Namespace-qualified operation with an explicit Build argument.
+    StaticBuildArgument,
     /// Selected on the mutable root `Build` receiver.
     MutableBuildReceiver,
     /// Selected on a receiver of one exact build-prelude data type.
@@ -58,9 +55,8 @@ enum BuildOperationForm {
 
 fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
     match operation {
-        BuildOperation::ProviderSelection | BuildOperation::AssumedBindingContract => {
-            BuildOperationForm::MutableBuildReceiver
-        }
+        BuildOperation::ProviderSelection => BuildOperationForm::StaticBuildArgument,
+        BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
         }
@@ -102,7 +98,7 @@ pub(crate) fn checked_statement_call_intrinsic(
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_statement_build_member_receiver(program, state, call, expected_receiver)
             }
-            BuildOperationForm::Marker => false,
+            BuildOperationForm::Marker | BuildOperationForm::StaticBuildArgument => false,
         }
     {
         return Some(operation.intrinsic());
@@ -136,7 +132,22 @@ pub(crate) fn checked_intrinsic_call_target(
         .then_some(selected)
 }
 
-pub(crate) fn checked_call_intrinsic(
+pub(crate) fn checked_expression_call_intrinsic(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    if super::provider_selection::is_provider_selection_call(program, call) {
+        return Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection);
+    }
+    checked_call_intrinsic(
+        program,
+        call.target.as_str(),
+        call.target_symbol,
+        call.receiver,
+    )
+}
+
+fn checked_call_intrinsic(
     program: &TypedTrees,
     target: &str,
     target_symbol: SymbolHandle,
@@ -159,7 +170,7 @@ pub(crate) fn checked_call_intrinsic(
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_build_prelude_receiver(program, receiver, expected_receiver)
             }
-            BuildOperationForm::Marker => false,
+            BuildOperationForm::Marker | BuildOperationForm::StaticBuildArgument => false,
         };
         receiver_selects.then(|| operation.intrinsic())
     } else if let Some(predicate) =

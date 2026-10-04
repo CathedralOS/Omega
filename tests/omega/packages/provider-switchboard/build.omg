@@ -2,5 +2,5 @@
 
 machine build(builder: &mut Build) {
     Build::package(builder, "provider_switchboard");
-    builder.select_provider<ClockHost, MonotonicClock>();
+    Build::select_provider<ClockHost, MonotonicClock>(builder);
 }

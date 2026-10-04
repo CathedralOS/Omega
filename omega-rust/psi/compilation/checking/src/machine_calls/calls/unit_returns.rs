@@ -121,11 +121,12 @@ pub(super) fn admitted_provider_selection(
             != Some(BuildOperation::ProviderSelection)
         || !call.receiver.is_valid()
         || call.machine_arguments.len() != 2
-        || program
-            .expression_table
-            .expression_handles(call.arguments)
-            .len()
-            > 1
+        || !(1..=2).contains(
+            &program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+        )
         || !call.evidence_arguments.is_empty()
         || !call.selects_only_nominal_route()
     {

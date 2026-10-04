@@ -369,7 +369,10 @@ pub fn validate_executed_provider_selection_declaration(
          target_symbol: SymbolHandle,
          arguments: &[typed_trees::expression::StaticMachineArgument],
          values: &[typed_trees::expression::ExpressionHandle]| {
-            if target != "select_provider" || target_symbol.is_valid() || values.len() > 1 {
+            if target != "select_provider"
+                || target_symbol.is_valid()
+                || !(1..=2).contains(&values.len())
+            {
                 return false;
             }
             let [slot, provider] = arguments else {
@@ -418,6 +421,7 @@ pub fn validate_executed_provider_selection_declaration(
             {
                 return false;
             }
+            let values = &values[1..];
             if values.is_empty() && selection.composition_mode != crate::CompositionMode::Fused {
                 return false;
             }
@@ -468,6 +472,11 @@ fn provider_selection_composition_mode(
     typed: &TypedTrees,
     arguments: &[typed_trees::expression::ExpressionHandle],
 ) -> Result<crate::CompositionMode, Diagnostic> {
+    let Some((_, arguments)) = arguments.split_first() else {
+        return Err(Diagnostic::error(
+            "provider selection requires an explicit activation argument",
+        ));
+    };
     let [] = arguments else {
         let [argument] = arguments else {
             return Err(Diagnostic::error(
@@ -545,7 +554,7 @@ fn exact_case_argument_symbol(
     typed: &TypedTrees,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    match typed.expression_table.expression(argument) {
+    let symbol = match typed.expression_table.expression(argument) {
         typed_trees::expression::ExpressionNode::Name(path) => Some(path.symbol),
         typed_trees::expression::ExpressionNode::Member(member) => Some(member.member_symbol),
         typed_trees::expression::ExpressionNode::StructLiteral(literal)
@@ -554,5 +563,9 @@ fn exact_case_argument_symbol(
             Some(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid))
         }
         _ => None,
-    }
+    }?;
+    // A local or parameter naming a computed mode is not a case literal.
+    // Its value belongs to the retained Build execution; review may compare
+    // a literal directly only when resolution selected an actual variant.
+    (symbol.is_valid() && typed.symbols.get(symbol).kind == SymbolKind::Variant).then_some(symbol)
 }

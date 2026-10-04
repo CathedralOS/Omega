@@ -350,6 +350,8 @@ fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+w
 	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/retired_provider_selection_receiver rejected 5ms expected @944ee0efb38f+wt
+	tests/omega/fail/build/retired_provider_selection_receiver/main.omg:2:28: receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)
 fail/build/retired_root_binding_receiver rejected 1ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)
 fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b09f66e07ebd+wt
@@ -1105,8 +1107,10 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 9
 	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 259ms expected @2d8ed253669f
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
-fail/providers/provider_type_slot_ambiguous rejected 107ms expected @2d8ed253669f
-	slot `Pick` has two covering provider plans for the selected target: `<selected target>::FirstProvider::satisfies::Pick` [<fingerprint>], `<selected target>::SecondProvider::satisfies::Pick` [<fingerprint>] -- choose one in build.omg with `b.select_provider<Pick, ProviderType>();`
+fail/providers/provider_selection_fabricated_activation rejected 1230ms expected @944ee0efb38f+wt
+	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/providers/provider_type_slot_ambiguous rejected 167ms expected @944ee0efb38f+wt
+	slot `Pick` has two covering provider plans for the selected target: `<selected target>::FirstProvider::satisfies::Pick` [<fingerprint>], `<selected target>::SecondProvider::satisfies::Pick` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Pick, ProviderType>(b);`
 fail/providers/provider_type_slot_unknown rejected 749ms expected @2d8ed253669f
 	build selects provider `MissingProvider` for slot `Pick`, but no candidate exists in the loaded dependency closure
 fail/providers/provider_type_target_default_conflict rejected 113ms expected @2d8ed253669f

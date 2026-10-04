@@ -15,5 +15,5 @@ macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i3
     satisfies Console::exit_process;
 
 macos_arm64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
-    defaults.select_provider<Console, ConsoleNativeProvider>();
+    ConsoleNativeProvider::select_provider<Console, ConsoleNativeProvider>(defaults);
 }

@@ -60,6 +60,6 @@ reaches
 }
 
 macos_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
-    defaults.select_provider<Clock, ClockNativeProvider>();
-    defaults.select_provider<ClockNativeProvider::poll, ClockPollImport>();
+    ClockNativeProvider::select_provider<Clock, ClockNativeProvider>(defaults);
+    ClockNativeProvider::select_provider<ClockNativeProvider::poll, ClockPollImport>(defaults);
 }

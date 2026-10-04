@@ -3,7 +3,7 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
-    builder.select_provider<Value::read, ValueProvider>();
+    Build::select_provider<Value::read, ValueProvider>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

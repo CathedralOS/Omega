@@ -13,4 +13,5 @@ pass/calls/runtime_static_tail_local_custody_exit built 2771ms exit:0 interprete
 pass/calls/runtime_static_tail_reordered_local_custody_exit built 3632ms exit:0 interpreter-exit:0 interpreter:agrees @c5d32a008630+wt
 pass/control_flow/element_view_enum_equality_exit built 9147ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
+pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d

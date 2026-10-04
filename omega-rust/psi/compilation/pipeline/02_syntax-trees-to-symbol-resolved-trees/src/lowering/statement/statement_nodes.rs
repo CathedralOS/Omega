@@ -219,13 +219,12 @@ pub(crate) fn lower_statement_node(
                 },
             };
             // This spelling has designated static operands only if checking
-            // later proves the exact Build receiver. Preserve expression
-            // custody so that decision can finalize the operand occurrences;
+            // later proves the exact Build namespace and explicit argument.
+            // Preserve expression custody to finalize the operand occurrences;
             // the statement-call form retains only its callee occurrence.
-            // Static and explicit-discard calls retain their ordinary form.
+            // Retain the same operand custody for statement and value uses.
             if BuildOperation::from_call_target(call.target.as_str())
                 == Some(BuildOperation::ProviderSelection)
-                && !call.target_is_static
                 && !call.discards_result
             {
                 let expression = retain_provider_call_expression(lowerer, lowered_call);

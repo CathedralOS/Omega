@@ -37,6 +37,6 @@ reaches
 }
 
 linux_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
-    defaults.select_provider<Clock, ClockNativeProvider>();
-    defaults.select_provider<LinuxArmClockWait::nanosleep, LinuxArmClockNanosleep>();
+    ClockNativeProvider::select_provider<Clock, ClockNativeProvider>(defaults);
+    ClockNativeProvider::select_provider<LinuxArmClockWait::nanosleep, LinuxArmClockNanosleep>(defaults);
 }

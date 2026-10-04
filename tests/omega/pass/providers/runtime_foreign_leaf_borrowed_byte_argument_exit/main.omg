@@ -39,7 +39,7 @@ pub boundary trait Measure {
 data MeasureProvider {}
 
 macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasureProvider) {
-    defaults.select_provider<Measure, MeasureProvider>();
+    MeasureProvider::select_provider<Measure, MeasureProvider>(defaults);
 }
 
 macos_arm64 machine MeasureProvider::measure(text: &u8, words: &Words) -> i32 satisfies Measure::measure

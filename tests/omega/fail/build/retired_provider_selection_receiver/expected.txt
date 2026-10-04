@@ -1,0 +1,1 @@
+receiver-style provider selection is retired

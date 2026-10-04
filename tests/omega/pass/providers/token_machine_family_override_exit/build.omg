@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "token_machine_family_override_exit");
-    builder.select_provider<Math::choose, RightProvider>();
+    Build::select_provider<Math::choose, RightProvider>(builder);
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

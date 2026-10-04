@@ -23,8 +23,6 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(None);
         }
-        let receiver = self.statement_receiver_cell(call, frame)?;
-        self.require_provider_selection_receiver(receiver)?;
         let composition_case = self.provider_composition_case(
             self.program
                 .statement_table
@@ -51,10 +49,6 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(None);
         }
-        // Evaluate a returned reborrow once; speculative place lookup must not
-        // replay a receiver-producing helper or discard its original cell.
-        let receiver = self.eval_read_cell(call.receiver, frame)?;
-        self.require_provider_selection_receiver(Some(self.deref_cell(receiver)))?;
         let composition_case = self.provider_composition_case(
             self.program
                 .expression_table
@@ -69,11 +63,11 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    fn require_provider_selection_receiver(&self, receiver: Option<Cell>) -> EvalResult<()> {
-        if receiver
+    fn require_provider_selection_activation(&self, builder: Cell) -> EvalResult<()> {
+        if self
+            .root_build
             .as_ref()
-            .zip(self.root_build.as_ref())
-            .is_some_and(|(receiver, root)| Cell::ptr_eq(receiver, root))
+            .is_some_and(|root| Cell::ptr_eq(&builder, root))
         {
             Ok(())
         } else {
@@ -86,6 +80,13 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<SymbolHandle> {
+        let Some((builder, arguments)) = arguments.split_first() else {
+            return trap("provider selection requires an explicit mutable Build argument");
+        };
+        // Read a returned reborrow exactly once, retaining the activation's
+        // original cell rather than evaluating the Build namespace as a value.
+        let builder = self.eval_read_cell(*builder, frame)?;
+        self.require_provider_selection_activation(self.deref_cell(builder))?;
         if arguments.is_empty() {
             return Ok(SymbolHandle::invalid());
         }

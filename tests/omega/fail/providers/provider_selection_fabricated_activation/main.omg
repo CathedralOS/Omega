@@ -1,0 +1,10 @@
+pub boundary trait Echo {
+    machine value() -> i32;
+}
+
+data EchoProvider {}
+machine EchoProvider::value() -> i32 satisfies Echo::value {
+    7
+}
+
+machine main() {}
