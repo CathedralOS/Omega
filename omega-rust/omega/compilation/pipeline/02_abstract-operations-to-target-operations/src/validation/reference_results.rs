@@ -85,8 +85,78 @@ struct Leaf {
 /// declared contracts, so they are not stored here.
 #[derive(Clone, Default)]
 struct Custody {
+    borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     homes: BTreeMap<PlaceId, (StructuralTypeId, StructuralMultiplicity)>,
+}
+
+/// Reconstruct immutable borrowed arrivals from current source operations.
+/// The emitted target roster and the producer's cache are never consulted.
+fn borrowed_sources(
+    function: &AbstractFunction,
+    functions: &[AbstractFunction],
+    declarations: &[StructuralTypeDeclaration],
+) -> BTreeMap<PlaceId, Option<Vec<StructuralArgument>>> {
+    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
+    use terminal_semantics::descriptor_results::DescriptorAnalysis;
+    let mut sources = BTreeMap::new();
+    for parameter in function
+        .block_entries
+        .iter()
+        .flat_map(|entry| &entry.structural_parameters)
+    {
+        if parameter.access != StructuralAccess::Owned
+            && !terminal_semantics::descriptor_results::is_shared_descriptor(
+                declarations.iter(),
+                parameter.structural_type,
+            )
+        {
+            sources.insert(parameter.place, None);
+        }
+    }
+    if sources.is_empty() {
+        return sources;
+    }
+    let Some(graph) = optimization_unit_semantics::descriptor_results::abstract_catalog_graph(
+        functions.iter(),
+        declarations,
+    ) else {
+        return sources;
+    };
+    let Some(current) = graph.iter().find(|current| current.id == function.machine) else {
+        return sources;
+    };
+    let mut analysis = DescriptorAnalysis::new(declarations, &graph);
+    for entry in &function.block_entries {
+        for parameter in &entry.structural_parameters {
+            let Some(slot) = sources.get_mut(&parameter.place) else {
+                continue;
+            };
+            *slot = analysis
+                .storage_origins(
+                    function.machine,
+                    (entry.block, 0),
+                    &DescriptorLocation::whole(parameter.place),
+                )
+                .and_then(|origins| {
+                    origins
+                        .into_iter()
+                        .map(|origin| {
+                            Some(StructuralArgument {
+                                place: origin.root,
+                                path: descriptor_path(
+                                    declarations,
+                                    *current.place_types.get(&origin.root)?,
+                                    &origin.path,
+                                )?,
+                                access: parameter.access,
+                            })
+                        })
+                        .collect()
+                });
+        }
+    }
+    sources
 }
 
 fn lookup(
@@ -485,6 +555,50 @@ fn normalized_source(
     declarations: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<Root> {
+    let Some(origins) = custody.borrowed_sources.get(&source.place) else {
+        return normalized_direct_source(function, custody, declarations, source);
+    };
+    let origins = origins.as_ref().filter(|origins| !origins.is_empty())?;
+    let projected_type = |argument: &StructuralArgument| {
+        let (contract, _) = source_contract(function, custody, argument.place)?;
+        let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
+            declarations,
+            argument.place,
+            contract,
+            &argument.path,
+            None,
+        )?;
+        terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+            declarations,
+            contract,
+            &location.path,
+        )
+    };
+    let expected = projected_type(source)?;
+    let mut roots = Vec::with_capacity(origins.len());
+    for origin in origins {
+        let mut resolved = origin.clone();
+        resolved.path.extend_from_slice(&source.path);
+        resolved.access = source.access;
+        if projected_type(&resolved)? != expected {
+            return None;
+        }
+        roots.push(normalized_direct_source(
+            function,
+            custody,
+            declarations,
+            &resolved,
+        )?);
+    }
+    combine_roots(roots)
+}
+
+fn normalized_direct_source(
+    function: &AbstractFunction,
+    custody: &Custody,
+    declarations: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Option<Root> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         if let Some(leaf) = custody.leaves.get(&(source.place, carrier_path.to_vec())) {
             Some(leaf.root.clone())
@@ -718,16 +832,28 @@ fn call_result_leaves(
         if mapping.sources.is_empty() || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
             return None;
         }
+        let result_access = match lookup(
+            declarations,
+            leaf_type(declarations, result.structural_type, &mapping.path)?,
+        )?
+        .shape
+        {
+            StructuralTypeShape::Reference { access, .. } => access,
+            _ => return None,
+        };
         if mapping.sources.len() > 1 {
             let referent = bare_referent(declarations, result.structural_type)?;
             if !mapping.path.is_empty()
+                || !matches!(
+                    result_access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
                 || !matches!(
                     lookup(declarations, referent).map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Record { .. })
                 )
                 || mapping.sources.iter().any(|formal| {
                     formal.place != mapping.sources[0].place
-                        || formal.access != StructuralAccess::MutableBorrow
                         || formal.path.is_empty()
                         || formal.path.iter().any(|segment| {
                             !matches!(
@@ -743,6 +869,15 @@ fn call_result_leaves(
         }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
+            if formal.access != result_access
+                && !(formal.access == StructuralAccess::MutableBorrow
+                    && matches!(
+                        result_access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                    ))
+            {
+                return None;
+            }
             let source = call_source(callee, structural_arguments, formal)?;
             let leaf = if matches!(
                 formal_origin(callee, declarations, formal),
@@ -801,31 +936,42 @@ fn call_result_leaves(
 fn combine_alternatives(candidates: Vec<Leaf>) -> Option<Leaf> {
     let mut candidates = candidates.into_iter();
     let mut leaf = candidates.next()?;
-    let mut paths = Vec::new();
+    let mut roots = vec![leaf.root.clone()];
     for candidate in candidates {
         if candidate.structural_type != leaf.structural_type
             || candidate.multiplicity != leaf.multiplicity
-            || candidate.root.place() != leaf.root.place()
         {
             return None;
         }
-        let Root::Ingress(_, path) = candidate.root else {
-            return None;
-        };
-        paths.push(path);
+        roots.push(candidate.root);
     }
-    if !paths.is_empty() {
-        let Root::Ingress(place, path) = &leaf.root else {
-            return None;
-        };
-        paths.push(path.clone());
-        paths.sort();
-        if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+    leaf.root = combine_roots(roots)?;
+    Some(leaf)
+}
+
+fn combine_roots(roots: Vec<Root>) -> Option<Root> {
+    let mut roots = roots.into_iter();
+    let root = roots.next()?;
+    if roots.len() == 0 {
+        return Some(root);
+    }
+    let place = root.place();
+    let mut paths = Vec::new();
+    for root in std::iter::once(root).chain(roots) {
+        if root.place() != place {
             return None;
         }
-        leaf.root = Root::Alternatives(*place, paths);
+        match root {
+            Root::Ingress(_, path) => paths.push(path),
+            Root::Alternatives(_, alternatives) => paths.extend(alternatives),
+            Root::Place(_) => return None,
+        }
     }
-    Some(leaf)
+    paths.sort();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return None;
+    }
+    Some(Root::Alternatives(place, paths))
 }
 
 /// The custody effect of one authored or resolved provider call: owned
@@ -1540,11 +1686,14 @@ pub(super) fn expected(
     if !incoming[entry_position].is_empty() {
         return None;
     }
+    let mut initial = entry(function, declarations)?;
+    initial.borrowed_sources =
+        std::sync::Arc::new(borrowed_sources(function, source_functions, declarations));
     let mut exits: Vec<Option<Custody>> = vec![None; entries.len()];
     let mut expected = BTreeMap::new();
     for (position, dominator) in schedule(&incoming, &outgoing, entry_position)? {
         let mut custody = match dominator {
-            None => entry(function, declarations)?,
+            None => initial.clone(),
             Some(dominator) => exits[dominator].clone()?,
         };
         let range = &ranges[position];
