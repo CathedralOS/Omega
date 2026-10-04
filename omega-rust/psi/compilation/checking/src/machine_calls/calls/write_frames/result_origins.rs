@@ -520,7 +520,13 @@ fn merge_relative_origins(
         }
     }
     for leaf in returned.references {
-        for origin in canonical_result_reference_origins(program, &leaf.origin, context) {
+        for origin in canonical_result_reference_origins(
+            program,
+            state,
+            boundary_index,
+            &leaf.origin,
+            context,
+        ) {
             if let Some(origin) = &origin
                 && include_shared
                 && parameters.iter().any(|parameter| {
@@ -564,15 +570,28 @@ fn merge_relative_origins(
 /// retains the crossed-reference boundary while projecting any later fields.
 fn canonical_result_reference_origins(
     program: &TypedTrees,
+    state: &State,
+    boundary_index: usize,
     origin: &Option<FramePlaceOrigin>,
     context: &CollectedStatementPrefix,
 ) -> Vec<Option<FramePlaceOrigin>> {
     if let Some(origin) = origin
         && origin.source.root.is_valid()
+        && let Some(local) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take(boundary_index)
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == origin.source.root => {
+                    Some(local)
+                }
+                _ => None,
+            })
         && let Some((name, candidates)) = context
             .divergent
             .iter()
-            .find(|(name, _)| program.symbols.name(origin.source.root) == name)
+            .find(|(name, _)| local.name.as_str() == name)
     {
         if candidates.is_empty() {
             return vec![None];

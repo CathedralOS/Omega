@@ -1,5 +1,6 @@
 data Node { value: u64; }
 machine identity(node: &mut Node) -> &mut Node { node }
+machine generic_identity<T>(value: &mut T) -> &mut T { value }
 machine choose(node: &mut Node, take: bool) -> &mut Node {
     transition take {
         true -> identity(node)
@@ -14,7 +15,9 @@ machine main() crashes Trap {
     let second: &mut Node = choose(&mut node, false);
     second.value = 72;
     let second_value: u64 = second.value;
-    transition first_value == 71 && second_value == 72 && node.value == 72 {
+    let generic: &mut Node = generic_identity<Node>(&mut node);
+    generic.value = 73;
+    transition first_value == 71 && second_value == 72 && node.value == 73 {
         true -> done()
         _ -> bad()
     }
