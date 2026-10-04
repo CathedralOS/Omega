@@ -226,11 +226,8 @@ pub(super) fn build(
                     // counted it); its normal Unit result completes here.
                     TransitionTargetNode::Named { .. }
                         if result == checked_trees::CheckedControlResultPlan::Unit
-                            && control::terminal_named_call(
-                                program,
-                                machine,
-                                state,
-                                terminator_index,
+                            && terminal_calls::external_callable(
+                                program, machine, fused, transition,
                             )
                             .is_some() =>
                     {
@@ -379,7 +376,9 @@ pub(super) fn build(
                     }
                     // Another machine in target position is an invocation
                     // that completes this machine on its own arm only.
-                    if terminal_calls::invoked_callable(program, machine, transition).is_some() {
+                    if terminal_calls::external_callable(program, machine, fused, transition)
+                        .is_some()
+                    {
                         return terminal_calls::arm_call(
                             program,
                             facts,
@@ -531,6 +530,7 @@ pub(super) fn build(
                     let jump_target = internal_destination(
                         program,
                         machine,
+                        fused,
                         transition,
                         &exit.destination,
                         arm_ordinal,
@@ -613,6 +613,7 @@ pub(super) fn build(
                 let fallback = match internal_destination(
                     program,
                     machine,
+                    fused,
                     fallback_transition,
                     fallback_destination?,
                     fallback_ordinal,
@@ -714,11 +715,12 @@ pub(super) fn build(
 
 /// Rejoin the shared roster's authored destination, distinguishing a local
 /// state edge from completion through a value or another machine's result.
-/// A machine-named destination is not a jump inside this activation merely
-/// because the scalar roster retains its target alongside state targets.
+/// Only the composed graph's explicit fused roster makes a foreign machine
+/// entry an internal edge; the scalar branch roster alone cannot do so.
 fn internal_destination(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
     transition: &typed_trees::statement::TableTransition,
     destination: &checked_trees::CheckedScalarBranchDestination,
     ordinal: u32,
@@ -730,7 +732,7 @@ fn internal_destination(
         checked_trees::CheckedScalarBranchDestination::Jump(selected)
             if selected.statement_ordinal == ordinal && !selected.is_continuation =>
         {
-            match terminal_calls::invoked_callable(program, machine, transition) {
+            match terminal_calls::external_callable(program, machine, fused, transition) {
                 Some(target) => {
                     (target == selected.target).then_some(symbols::SymbolHandle::default())
                 }

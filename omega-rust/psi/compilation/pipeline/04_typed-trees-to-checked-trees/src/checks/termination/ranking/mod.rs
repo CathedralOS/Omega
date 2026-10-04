@@ -300,10 +300,19 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         return Some(Vec::new());
     }
 
-    // Every member must carry its own authored ranking witness that resolves
-    // to Nat descending on its own entry state.
+    // Only cyclic states need a rank. A finishing state may consume the
+    // component's other arguments without receiving its countdown subject.
+    // Requiring a rank there would make an acyclic exit change whether the
+    // same recursive component can be represented.
     let mut member_ranks = Vec::with_capacity(members.len());
-    for (member_machine, member_source) in &members {
+    for (member_position, (member_machine, member_source)) in members.iter().enumerate() {
+        if !cyclic_components
+            .iter()
+            .any(|component| component.contains(&member_position))
+        {
+            member_ranks.push(None);
+            continue;
+        }
         if !matches!(
             machine_decrease_outcome(program, member_machine, call_frames),
             DecreaseOutcome::Proven
@@ -345,12 +354,12 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
             })?;
         let rank_primitive_type =
             program.primitive_type_reference(rank_parameter.type_reference)?;
-        member_ranks.push((
+        member_ranks.push(Some((
             *decreases,
             rank_parameter_position,
             rank_parameter,
             rank_primitive_type,
-        ));
+        )));
     }
 
     let mut retained = Vec::with_capacity(cyclic_components.len());
@@ -358,16 +367,16 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         // The plan's header is the earliest member in fused-graph order, so
         // rejoined rosters compare element for element downstream.
         let header_index = *component.iter().min()?;
-        let (_, header_rank_position, _, header_primitive) = member_ranks[header_index];
+        let (_, header_rank_position, _, header_primitive) = member_ranks[header_index]?;
         let rank_upper_bound = unsigned_maximum(header_primitive)?;
 
         let mut covered_cyclic_edges = Vec::new();
         for &source_index in &component {
             let (decreases, source_rank_position, source_rank_parameter, source_primitive) =
-                member_ranks[source_index];
+                member_ranks[source_index]?;
             let (_, source) = members[source_index];
             for &target_index in &component {
-                let (_, _, target_rank_parameter, _) = member_ranks[target_index];
+                let (_, _, target_rank_parameter, target_primitive) = member_ranks[target_index]?;
                 let (_, target) = members[target_index];
                 for edge in patterns::edges_to_state(program, source, target.symbol) {
                     // The retained countdown coordinate currently names
@@ -384,7 +393,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
                         decreases,
                     )?;
                     if proof.source_parameter != source_rank_parameter.symbol
-                        || member_ranks[target_index].3 != source_primitive
+                        || target_primitive != source_primitive
                     {
                         return None;
                     }
@@ -435,6 +444,45 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         });
     }
     Some(retained)
+}
+
+/// Transport the existing fused countdown judgment into the shared state-rank
+/// carrier. Every cyclic edge was proved above and names its exact formal;
+/// this projection introduces no additional decrease recognizer.
+pub(crate) fn proven_fused_state_natural_ranks_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    member_states: &[symbols::SymbolHandle],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
+    let components =
+        proven_fused_nat_countdown_sccs_with_call_frames(program, member_states, call_frames)?;
+    let mut ranks = Vec::<checked_trees::CheckedStateNaturalRank>::new();
+    for component in components {
+        for edge in component.covered_cyclic_edges {
+            let (_, state) =
+                crate::semantic::calls::find_state_with_machine(program, edge.source_state)?;
+            let parameter = program
+                .state_parameters(state)
+                .get(edge.source_rank_parameter_position as usize)?;
+            let rank = checked_trees::CheckedStateNaturalRank {
+                state: state.symbol,
+                parameter: parameter.symbol,
+                parameter_position: edge.source_rank_parameter_position,
+                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type: component.rank_primitive_type,
+                },
+            };
+            if let Some(existing) = ranks.iter().find(|existing| existing.state == rank.state) {
+                if *existing != rank {
+                    return None;
+                }
+            } else {
+                ranks.push(rank);
+            }
+        }
+    }
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    Some(ranks)
 }
 
 fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128> {

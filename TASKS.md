@@ -911,12 +911,6 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`
   and `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`.
 
-  `pending/calls/runtime_static_tail_local_custody_exit` requires shared rank
-  evidence for a fused multi-machine roster with sibling finishing states.
-  `terminal_unit/state_graph/mod.rs` currently rejects it at `natural ranks`
-  when the fused roster exceeds the declaring machine's states. Preserve the
-  full cycle and explicit local borrow; acceptance is native/interpreter exit 0.
-
   Quotient/remainder, shifts and bitwise-AND actuals already use
   `install_nonpolynomial_terms`. Executing controls:
   `pass/control_flow/termination_index_distance_compile` (exit 0 on macOS and

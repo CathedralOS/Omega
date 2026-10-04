@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.01, "load1_start": 5.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -344,6 +344,8 @@ fail/calls/qualified_nontail_self_call_rejected rejected 72ms expected @5181ccde
 	exact arithmetic in machine `Walker::walk` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `walk(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/calls/statement_call_undeclared_callee_rejected rejected 676ms expected @2d8ed253669f
 	call `no_such_leg` selects no declaration: `no_such_leg` is not a declared machine, data, or proof definition
+fail/calls/static_tail_local_custody_no_decrease rejected 443ms expected @c5d32a008630+wt
+	machine call cycle: `Counter::even`, `Counter::odd` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/calls/struct_constant_requires_argument_rejected rejected 284ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `p == Point.zero()`: the instantiated fact is structurally false
 fail/calls/terminal_call_result_type_mismatch_rejected rejected 109ms expected @d0cd22d4e92a+wt
@@ -1513,6 +1515,8 @@ pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 184
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms @2d8ed253669f
 pass/calls/runtime_shared_ref_param_member_exit checked 835ms @2f8006be6cc9+wt
 pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
+pass/calls/runtime_static_tail_local_custody_exit checked 1649ms @c5d32a008630+wt
+pass/calls/runtime_static_tail_reordered_local_custody_exit checked 2398ms @c5d32a008630+wt
 pass/calls/runtime_std_math_sin_cos_exit checked 39961ms @ca8c127c90c5
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms @2d8ed253669f
 pass/calls/runtime_terminal_requirement_projected_context_exit checked 619ms @560687158d28

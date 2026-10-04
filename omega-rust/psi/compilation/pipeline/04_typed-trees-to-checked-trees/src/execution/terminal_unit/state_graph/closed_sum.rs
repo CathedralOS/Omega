@@ -363,7 +363,8 @@ pub(super) fn build(
                     (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
                 }
                 TransitionTargetNode::Named { arguments, .. }
-                    if terminal_calls::invoked_callable(program, machine, transition).is_some() =>
+                    if terminal_calls::external_callable(program, machine, fused, transition)
+                        .is_some() =>
                 {
                     // Operand computations can contain payload reads below
                     // nested calls or projections. Every receiver copy still

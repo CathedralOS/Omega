@@ -2,7 +2,8 @@
 //! ([state contracts](../../../../../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)).
 //!
 //! An arm is classified by its resolved target: a local state is an internal
-//! jump (`successor` plans its edge), while another machine is an ordinary
+//! jump (`successor` plans its edge), as is a machine entry retained in the
+//! recursive component. A destination outside that component is an ordinary
 //! invocation whose normal result completes this machine. Two placements
 //! exist, and neither bypasses the ordinary call plan:
 //!
@@ -75,6 +76,19 @@ pub(super) fn invoked_callable(
         return None;
     }
     control::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
+}
+
+/// Only a destination outside the retained graph needs a call operation.
+/// A fused machine entry still has its authored call contract, but execution
+/// transfers to its retained state instead of allocating another activation.
+pub(super) fn external_callable(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    fused: &super::FusedStates<'_>,
+    transition: &typed_trees::statement::TableTransition,
+) -> Option<symbols::SymbolHandle> {
+    invoked_callable(program, machine, transition)
+        .filter(|target| super::fused_target_index(program, fused, *target).is_none())
 }
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.
@@ -302,4 +316,3 @@ pub(super) fn has_guarded_machine_arm(
                 if invoked_callable(program, machine, transition).is_some())
         })
 }
-

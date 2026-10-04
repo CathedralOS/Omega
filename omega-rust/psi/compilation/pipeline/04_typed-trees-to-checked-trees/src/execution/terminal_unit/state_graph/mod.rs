@@ -43,7 +43,7 @@ mod terminal_calls;
 mod terminator;
 
 /// A composed graph's state roster: the dispatch machine's states followed by
-/// every foreign machine whose entry an arm can reach. Each entry pairs the
+/// the foreign machines in its recursive component. Each entry pairs the
 /// state with its owning machine — signatures, entry claims, and every
 /// machine-scoped fact answer through the owner, never the dispatch machine.
 type FusedStates<'program> = Vec<(
@@ -51,12 +51,11 @@ type FusedStates<'program> = Vec<(
     &'program typed_trees::state::State,
 )>;
 
-/// The dispatch machine's state list fused with every machine its transition
-/// arms can reach: `-> self.view(...)` names another machine's entry state,
-/// and that machine's whole state list joins this graph so the arm stays an
-/// in-graph edge — the same worklist rule the scalar machine graph applies
-/// transitively. Only the edge list is fused; states keep their own owning
-/// machine's parameters and contracts.
+/// Fuse the recursive component, not every transitively reachable callee.
+/// Mutually recursive tail transfers must stay in one graph to retain their
+/// shared rank and constant-stack execution. Acyclic calls keep the ordinary
+/// call plan, including operand preparation and completion cleanup. Each
+/// fused state retains its authored owner for signatures and proof facts.
 fn fused_states<'program>(
     program: &'program TypedTrees,
     machine: &'program typed_trees::machine::Machine,
@@ -67,9 +66,8 @@ fn fused_states<'program>(
         .map(|state| (machine, state))
         .collect();
     let mut cursor = 0;
-    while let Some(&(owner, state)) = fused.get(cursor) {
+    while let Some(&(_, state)) = fused.get(cursor) {
         cursor += 1;
-        let _ = owner;
         for statement in program.statement_table.statements(state.statement_nodes) {
             let StatementNode::Transition(transition) = statement else {
                 continue;
@@ -107,6 +105,71 @@ fn fused_states<'program>(
             }
         }
     }
+    // Discovery establishes forward reachability. Reverse reachability back
+    // to the root keeps exactly its machine component. Include all states of
+    // each retained owner, including acyclic finishing states.
+    let mut owners = fused
+        .iter()
+        .map(|(owner, _)| owner.symbol)
+        .collect::<Vec<_>>();
+    owners.dedup(); // Discovery appends each owner's complete state roster once.
+    let mut predecessors = Vec::new();
+    for (owner, state) in &fused {
+        let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol) else {
+            continue;
+        };
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if !program.statement_table.transition_target_is_valid(target) {
+                    continue;
+                }
+                let TransitionTargetNode::Named { path, .. } =
+                    program.statement_table.transition_target(target)
+                else {
+                    continue;
+                };
+                let Some(target_index) = fused_target_index(program, &fused, path.symbol) else {
+                    continue;
+                };
+                let target_owner = fused[target_index].0.symbol;
+                if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner)
+                {
+                    predecessors.push((target_index, source_index));
+                }
+            }
+        }
+    }
+    predecessors.sort_unstable();
+    predecessors.dedup();
+    let mut retained = vec![false; owners.len()];
+    let mut ready = Vec::new();
+    if let Some(root) = retained.first_mut() {
+        *root = true;
+        ready.push(0);
+    }
+    let mut cursor = 0;
+    while let Some(&target) = ready.get(cursor) {
+        cursor += 1;
+        let first = predecessors.partition_point(|(candidate, _)| *candidate < target);
+        for &(_, source) in predecessors[first..]
+            .iter()
+            .take_while(|(candidate, _)| *candidate == target)
+        {
+            if !retained[source] {
+                retained[source] = true;
+                ready.push(source);
+            }
+        }
+    }
+    fused.retain(|(owner, _)| {
+        owners
+            .iter()
+            .position(|symbol| *symbol == owner.symbol)
+            .is_some_and(|owner_index| retained[owner_index])
+    });
     fused
 }
 
@@ -317,14 +380,23 @@ fn build_traced_with(
         }
     }
     trace.phase("state graph: natural ranks");
-    let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
-        // A fused graph's cyclic edges may cross machine boundaries; the
-        // rank checker owns only the dispatch machine's own state list, so
-        // a witnessed machine that reaches foreign entries stays unadmitted
-        // until that custody extends to the whole fused roster.
-        if fused.len() != states.len() {
-            return None;
-        }
+    let natural_ranks = if fused.len() != states.len()
+        && fused
+            .iter()
+            .any(|(owner, _)| owner.termination_plan.implementation_witness.is_some())
+    {
+        // Fusion must retain the whole component's judgment, including when
+        // an unranked dispatch machine reaches ranked callees. Acyclic exits
+        // carry no rank; the existing fused checker proves every cyclic edge.
+        crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+            program,
+            &fused
+                .iter()
+                .map(|(_, state)| state.symbol)
+                .collect::<Vec<_>>(),
+            call_frames,
+        )?
+    } else if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
         let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
@@ -535,7 +607,7 @@ fn build_traced_with(
             checked_trees::CheckedControlResultPlan::Unit
                 | checked_trees::CheckedControlResultPlan::Scalar { .. }
         ) && control::terminal_named_call(program, owner, state, terminator_index)
-            .is_some()
+            .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
             // operation (`terminal_calls`): the sequence plans it and counts
