@@ -272,8 +272,10 @@ pub(super) fn validate_reference_return(
         .ok_or(LoweringError::Unsupported(
             "reference return ingress parameter is absent",
         ))?;
+    // Origin reconstruction includes the result's access. A shared return
+    // may weaken a mutable ingress; its declared parameter access need not
+    // equal the returned loan's access.
     if expected != *source
-        || parameter.access != source.access
         || parameter.multiplicity != Multiplicity::Unrestricted
         || !parameter.qualifications.is_empty()
         || plan
@@ -381,8 +383,8 @@ pub(super) fn validate_reference_roster(
     Ok(())
 }
 
-/// Rebuild one selected `&mut place` arm from authored syntax and the checked
-/// loan ledger. The composed plan's candidate roster is only a correspondence
+/// Rebuild a selected reference from ordinary ingress reconstruction; mutable
+/// projections additionally follow the checked loan ledger. The candidate roster is only a correspondence
 /// receipt: admission must not let a producer and that receipt be forged to a
 /// different, same-typed ingress together.
 fn reference_source(
@@ -392,6 +394,22 @@ fn reference_source(
     state: &CheckedComposedUnitControlStatePlan,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<checked_trees::CheckedUnitStructuralArgumentPlan, LoweringError> {
+    if validation::reference_result_custody::shared_borrowed_parts(
+        &checked.typed,
+        authored.return_type,
+    )
+    .is_some()
+    {
+        return validation::reference_result_custody::initializer_source(
+            &checked.typed,
+            authored,
+            expression,
+            authored.return_type,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "shared reference return has no exact ingress source",
+        ));
+    }
     let machine = checked
         .machines()
         .iter()
