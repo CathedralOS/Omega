@@ -1,8 +1,8 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BTreeMap, BinaryOperator, Cell, DataMember, EvalResult, EvaluatedArgument,
     Evaluator, ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap, FloatSemantics,
-    Frame, Halt, HashSet, Machine, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, State,
-    SymbolHandle, Value, trap, unsupported,
+    Frame, Halt, HashSet, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle,
+    Value, trap, unsupported,
 };
 use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
 use symbols::BuiltinFunction;
@@ -959,194 +959,194 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
-        // current machine runs that state; a receiver expression resolving to a contained
-        // sub-machine instance runs on that instance; otherwise a free helper machine.
-        let (machine, entry_state, instance) = match self
-            .resolve_value_call_target(call, target, frame)
-        {
-            Ok(resolution) => resolution,
-            Err(halt) => {
-                // A host-boundary VALUE call (`self.clock.tick_count()`,
-                // `self.fs.create(..)`): driven directly, like the
-                // statement-position host calls in try_host_call. User machines
-                // take precedence -- the host fallback only fires when nothing
-                // else resolves, mirroring the native collection (which keys on
-                // boundary-trait signature symbols).
+        // Ordinary calls consume the checked target, exactly as statement
+        // calls do. A boundary requirement may instead have a host realization.
+        let (machine, entry_state, instance) =
+            match self.resolve_static_call(call.target_symbol, target, frame) {
+                Ok(resolution) => resolution,
+                Err(halt) => {
+                    // A host-boundary VALUE call (`self.clock.tick_count()`,
+                    // `self.fs.create(..)`): driven directly, like the
+                    // statement-position host calls in try_host_call. User machines
+                    // take precedence -- the host fallback only fires when nothing
+                    // else resolves, mirroring the native collection (which keys on
+                    // boundary-trait signature symbols).
 
-                // Compatibility Math boundary calls are still imported through
-                // the host tables natively. The interpreter must nevertheless
-                // consume the same executable semantic definition as build-time
-                // folding and ordinary landed arithmetic; otherwise FMA acquires
-                // a third, host-language meaning (or remains unsupported).
-                if let Some(value) = self.try_float_boundary_value_call(target, call, frame)? {
-                    return Ok(value);
-                }
-
-                // Value-returning canonical FilesystemHost ops
-                // (assignment-position calls like
-                // `self.fd = self.fs.create(path, mode)`). Exact toolchain
-                // requirement identity selects authority before the readable
-                // leaf routes inside the provider.
-                if let Some(filesystem_operation) =
-                    self.exact_filesystem_host_operation(call.target_symbol)?
-                {
-                    let fs_args = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .to_vec();
-                    let value = self.try_filesystem_call(filesystem_operation, &fs_args, frame)?;
-                    self.host_boundary_touched = true;
-                    return Ok(value);
-                }
-
-                // A resolved boundary requirement the host serves (the
-                // bounded `Console::read_line(&mut line)`) runs by that
-                // identity, exactly like its statement-position twin. The
-                // requirement is bodyless, so declaration resolution above
-                // never selects it; ordinary calls resolve before this
-                // lookup is paid.
-                if let Some(value) = self.try_host_value_call(call, frame)? {
-                    if self.guard_depth > 0 {
-                        frame.record_guard_call_result(handle, &value);
+                    // Compatibility Math boundary calls are still imported through
+                    // the host tables natively. The interpreter must nevertheless
+                    // consume the same executable semantic definition as build-time
+                    // folding and ordinary landed arithmetic; otherwise FMA acquires
+                    // a third, host-language meaning (or remains unsupported).
+                    if let Some(value) = self.try_float_boundary_value_call(target, call, frame)? {
+                        return Ok(value);
                     }
-                    return Ok(value);
-                }
 
-                // Identity-backed intrinsic/requirement routes above remain
-                // valid for namespace calls. A missing ordinary declaration
-                // cannot inherit a host operation from its leaf spelling.
-                if qualified {
+                    // Value-returning canonical FilesystemHost ops
+                    // (assignment-position calls like
+                    // `self.fd = self.fs.create(path, mode)`). Exact toolchain
+                    // requirement identity selects authority before the readable
+                    // leaf routes inside the provider.
+                    if let Some(filesystem_operation) =
+                        self.exact_filesystem_host_operation(call.target_symbol)?
+                    {
+                        let fs_args = self
+                            .program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .to_vec();
+                        let value =
+                            self.try_filesystem_call(filesystem_operation, &fs_args, frame)?;
+                        self.host_boundary_touched = true;
+                        return Ok(value);
+                    }
+
+                    // A resolved boundary requirement the host serves (the
+                    // bounded `Console::read_line(&mut line)`) runs by that
+                    // identity, exactly like its statement-position twin. The
+                    // requirement is bodyless, so declaration resolution above
+                    // never selects it; ordinary calls resolve before this
+                    // lookup is paid.
+                    if let Some(value) = self.try_host_value_call(call, frame)? {
+                        if self.guard_depth > 0 {
+                            frame.record_guard_call_result(handle, &value);
+                        }
+                        return Ok(value);
+                    }
+
+                    // Identity-backed intrinsic/requirement routes above remain
+                    // valid for namespace calls. A missing ordinary declaration
+                    // cannot inherit a host operation from its leaf spelling.
+                    if qualified {
+                        return Err(halt);
+                    }
+
+                    if matches!(
+                        target,
+                        "tick_count"
+                            | "key_state"
+                            | "dc_create"
+                            | "get_dc"
+                            | "window_create"
+                            | "is_window"
+                            | "window_destroy"
+                            | "foreground_window"
+                            | "msg_peek"
+                            | "msg_translate"
+                            | "msg_dispatch"
+                    ) {
+                        // Value-position host fallbacks are host-boundary calls too
+                        // (the build-time purity backstop must see them); none of
+                        // these are filesystem ops, so the granted-build backstop
+                        // sees them as well.
+                        self.host_boundary_touched = true;
+                        self.non_fs_host_boundary_touched = true;
+                    }
+                    if target == "read_byte" {
+                        // The next raw stdin byte as `ByteRead::Byte { value }`,
+                        // or `ByteRead::Eof` at end-of-input (the ZII zero case;
+                        // sentinel spellings are vetoed); the byte path does no CRLF
+                        // normalization. Mirrors the statement-position arm in
+                        // try_host_call, but read_byte is value-position by
+                        // nature (`let r = self.console.read_byte()`).
+                        self.host_boundary_touched = true;
+                        self.non_fs_host_boundary_touched = true;
+                        let value = self.read_stdin_byte_value(call.target_symbol)?;
+                        if self.guard_depth > 0 {
+                            frame.record_guard_call_result(handle, &value);
+                        }
+                        return Ok(value);
+                    }
+                    if let Some(value) = self.virtual_time_host_value(target) {
+                        self.host_boundary_touched = true;
+                        self.non_fs_host_boundary_touched = true;
+                        return Ok(value);
+                    }
+                    if target == "tick_count" {
+                        self.advance_virtual_clock(1)?;
+                        return Ok(Value::Int(self.virtual_ticks));
+                    }
+                    if target == "key_state" {
+                        // The virtual host has no keyboard: no key is ever down.
+                        return Ok(Value::Int(0));
+                    }
+                    if target == "dc_create" || target == "get_dc" {
+                        // Virtual device contexts are the opaque non-zero token 1
+                        // (programs must branch on handle != 0, never on a concrete
+                        // handle value -- native handles are real pointers).
+                        return Ok(Value::Int(1));
+                    }
+                    if target == "window_create" {
+                        // Mint a live virtual window handle token.
+                        self.virtual_window_next += 1;
+                        self.virtual_live_windows.insert(self.virtual_window_next);
+                        return Ok(Value::Int(self.virtual_window_next));
+                    }
+                    if target == "foreground_window" {
+                        // The virtual desktop has one app: the most recently
+                        // created window is foreground while it lives, 0 after.
+                        let foreground = if self
+                            .virtual_live_windows
+                            .contains(&self.virtual_window_next)
+                        {
+                            self.virtual_window_next
+                        } else {
+                            0
+                        };
+                        return Ok(Value::Int(foreground));
+                    }
+                    if target == "is_window" || target == "window_destroy" {
+                        // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
+                        // live handle, 0 otherwise; destroy removes it.
+                        let Some(handle_argument) = self
+                            .program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .first()
+                            .copied()
+                        else {
+                            return Err(halt);
+                        };
+                        let handle = match &*self
+                            .eval_call_expression_argument(handle_argument, frame)?
+                            .borrow()
+                        {
+                            Value::Int(handle) => *handle,
+                            _ => return Ok(Value::Int(0)),
+                        };
+                        let live = if target == "window_destroy" {
+                            self.virtual_live_windows.remove(&handle)
+                        } else {
+                            self.virtual_live_windows.contains(&handle)
+                        };
+                        return Ok(Value::Int(i64::from(live)));
+                    }
+                    if target == "msg_peek" || target == "msg_translate" || target == "msg_dispatch"
+                    {
+                        // The virtual host posts no messages: the queue is always
+                        // empty (peek = 0) and translate/dispatch have nothing to do.
+                        return Ok(Value::Int(0));
+                    }
+                    if target == "blit" {
+                        // Virtual GDI blit(hdc, dest_w, dest_h, src_w, src_h, pixels,
+                        // info): StretchDIBits reports the copied SOURCE scanline
+                        // count (probed natively: the source height even when
+                        // stretching, even into the memory DC's default 1x1 bitmap).
+                        let Some(height) = self
+                            .program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .get(4)
+                            .copied()
+                        else {
+                            return Err(halt);
+                        };
+                        return self
+                            .eval_call_expression_argument(height, frame)
+                            .map(|value| value.borrow().clone());
+                    }
                     return Err(halt);
                 }
-
-                if matches!(
-                    target,
-                    "tick_count"
-                        | "key_state"
-                        | "dc_create"
-                        | "get_dc"
-                        | "window_create"
-                        | "is_window"
-                        | "window_destroy"
-                        | "foreground_window"
-                        | "msg_peek"
-                        | "msg_translate"
-                        | "msg_dispatch"
-                ) {
-                    // Value-position host fallbacks are host-boundary calls too
-                    // (the build-time purity backstop must see them); none of
-                    // these are filesystem ops, so the granted-build backstop
-                    // sees them as well.
-                    self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
-                }
-                if target == "read_byte" {
-                    // The next raw stdin byte as `ByteRead::Byte { value }`,
-                    // or `ByteRead::Eof` at end-of-input (the ZII zero case;
-                    // sentinel spellings are vetoed); the byte path does no CRLF
-                    // normalization. Mirrors the statement-position arm in
-                    // try_host_call, but read_byte is value-position by
-                    // nature (`let r = self.console.read_byte()`).
-                    self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
-                    let value = self.read_stdin_byte_value(call.target_symbol)?;
-                    if self.guard_depth > 0 {
-                        frame.record_guard_call_result(handle, &value);
-                    }
-                    return Ok(value);
-                }
-                if let Some(value) = self.virtual_time_host_value(target) {
-                    self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
-                    return Ok(value);
-                }
-                if target == "tick_count" {
-                    self.advance_virtual_clock(1)?;
-                    return Ok(Value::Int(self.virtual_ticks));
-                }
-                if target == "key_state" {
-                    // The virtual host has no keyboard: no key is ever down.
-                    return Ok(Value::Int(0));
-                }
-                if target == "dc_create" || target == "get_dc" {
-                    // Virtual device contexts are the opaque non-zero token 1
-                    // (programs must branch on handle != 0, never on a concrete
-                    // handle value -- native handles are real pointers).
-                    return Ok(Value::Int(1));
-                }
-                if target == "window_create" {
-                    // Mint a live virtual window handle token.
-                    self.virtual_window_next += 1;
-                    self.virtual_live_windows.insert(self.virtual_window_next);
-                    return Ok(Value::Int(self.virtual_window_next));
-                }
-                if target == "foreground_window" {
-                    // The virtual desktop has one app: the most recently
-                    // created window is foreground while it lives, 0 after.
-                    let foreground = if self
-                        .virtual_live_windows
-                        .contains(&self.virtual_window_next)
-                    {
-                        self.virtual_window_next
-                    } else {
-                        0
-                    };
-                    return Ok(Value::Int(foreground));
-                }
-                if target == "is_window" || target == "window_destroy" {
-                    // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
-                    // live handle, 0 otherwise; destroy removes it.
-                    let Some(handle_argument) = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .first()
-                        .copied()
-                    else {
-                        return Err(halt);
-                    };
-                    let handle = match &*self
-                        .eval_call_expression_argument(handle_argument, frame)?
-                        .borrow()
-                    {
-                        Value::Int(handle) => *handle,
-                        _ => return Ok(Value::Int(0)),
-                    };
-                    let live = if target == "window_destroy" {
-                        self.virtual_live_windows.remove(&handle)
-                    } else {
-                        self.virtual_live_windows.contains(&handle)
-                    };
-                    return Ok(Value::Int(i64::from(live)));
-                }
-                if target == "msg_peek" || target == "msg_translate" || target == "msg_dispatch" {
-                    // The virtual host posts no messages: the queue is always
-                    // empty (peek = 0) and translate/dispatch have nothing to do.
-                    return Ok(Value::Int(0));
-                }
-                if target == "blit" {
-                    // Virtual GDI blit(hdc, dest_w, dest_h, src_w, src_h, pixels,
-                    // info): StretchDIBits reports the copied SOURCE scanline
-                    // count (probed natively: the source height even when
-                    // stretching, even into the memory DC's default 1x1 bitmap).
-                    let Some(height) = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .get(4)
-                        .copied()
-                    else {
-                        return Err(halt);
-                    };
-                    return self
-                        .eval_call_expression_argument(height, frame)
-                        .map(|value| value.borrow().clone());
-                }
-                return Err(halt);
-            }
-        };
+            };
         let arguments = self.eval_state_arguments(
             entry_state,
             self.program
@@ -1472,103 +1472,6 @@ impl<'program> Evaluator<'program> {
             .first()
             .is_some_and(|member| member.is_self_receiver())
             && self.is_declaration_namespace(path.symbol)
-    }
-
-    fn resolve_value_call_target(
-        &mut self,
-        call: &typed_trees::expression::TableCallExpression,
-        target: &str,
-        frame: &mut Frame,
-    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
-        // Static-machine specialization rewrites a parameter call to the exact
-        // selected ENTRY symbol.  Its human-facing target remains the authored
-        // leaf (`TotalOrder`, not `F64::TotalOrder`), so name lookup alone is
-        // insufficient for attached or plural satisfiers.  Receiverless calls
-        // can dispatch directly through that resolved symbol; receiver calls
-        // still need the runtime instance logic below.
-        if !call.receiver.is_valid()
-            && let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame)
-        {
-            return Ok(resolved);
-        }
-
-        // Whether this call is on `self` (or receiverless). A NON-self receiver
-        // (`self.host.create(..)`) must resolve on the RECEIVER's type, never on
-        // a same-named sibling state of the current machine -- else a wrapper
-        // machine `Filesystem::create` calling `self.host.create` would recurse
-        // into itself. Mirrors the validator's receiver-typed resolution fix.
-        let receiver_is_self = if !call.receiver.is_valid() {
-            true
-        } else {
-            match self.program.expression_table.expression(call.receiver) {
-                typed_trees::expression::ExpressionNode::Name(path) => {
-                    let members = self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members);
-                    members.is_empty() || (members.len() == 1 && members[0].is_self_receiver())
-                }
-                _ => false,
-            }
-        };
-
-        // Qualification identifies the selected declaration, not a runtime
-        // object. Resolve it before probing storage so a same-spelled field
-        // cannot supply an instance. The target symbol also survives generic
-        // specialization and multi-component namespace paths.
-        if self.expression_receiver_is_namespace(call.receiver) {
-            return self.resolve_namespace_call(
-                call.target_symbol,
-                target,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .len(),
-                frame,
-            );
-        }
-
-        // (1) Receiver expression resolving to a contained sub-machine / data instance
-        // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
-        if call.receiver.is_valid()
-            && let Ok(cell) = self.resolve_place(call.receiver, frame)
-        {
-            let cell = self.deref_cell(cell);
-            // The receiver supplies storage, not a new method selection.
-            // Distinct const instances can retain the same authored name.
-            if let Some((machine, state, _)) =
-                self.resolve_entry_state_symbol(call.target_symbol, frame)
-            {
-                return Ok((machine, state, cell));
-            }
-            let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
-            if !is_self
-                && let Some(machine) = self.machine_for_instance_state(&cell, target)
-                && let Some(state) = self.find_state(machine, target)
-            {
-                return Ok((machine, state, cell));
-            }
-        }
-
-        // (2) Sibling state of the current machine -- ONLY for self/receiverless
-        // calls (a non-self receiver was handled by (1) or falls to the host
-        // fallback below).
-        if receiver_is_self
-            && let Some(machine) = self.current_machine(frame)
-            && let Some(state) = self.find_state(machine, target)
-        {
-            return Ok((machine, state, frame.self_cell.clone()));
-        }
-
-        // (3) A free helper machine (self/receiverless calls only).
-        let machine = self
-            .find_machine_for_call(target, frame)
-            .filter(|_| receiver_is_self)
-            .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
-        let entry_state = self
-            .machine_entry_state(machine)
-            .ok_or_else(|| Halt::Unsupported(format!("value-call `{target}` has no state")))?;
-        Ok((machine, entry_state, frame.self_cell.clone()))
     }
 
     /// Construct a `data` value from a struct literal `Type { field: value, .. }`. Fields

@@ -3,6 +3,104 @@ use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
 #[test]
+fn static_entry_does_not_allocate_its_namespace_fields() {
+    let checked = crate::front_end::checked_program(
+        "data Buffer { bytes: [u8; 64]; }
+         machine Buffer::main() -> i32 { 70 }
+         machine main() -> i32 { 70 }",
+    );
+    let run = |entry| {
+        interpret_entry(
+            &checked,
+            BuildMachineEntry::Name(entry),
+            &[],
+            InterpretOptions::default(),
+        )
+    };
+    let plain = run("main");
+    let qualified = run("Buffer::main");
+    assert_eq!(plain.error, None);
+    assert_eq!(qualified.error, None);
+    assert_eq!(qualified.exit_code, 70);
+    assert_eq!(
+        qualified.usage.peak_live_cells(),
+        plain.usage.peak_live_cells()
+    );
+}
+
+#[test]
+fn receiverless_statement_without_target_does_not_search_names() {
+    let mut checked = crate::front_end::checked_program(
+        "machine write(value: &mut i32) { value = 70; }
+         machine main() -> i32 {
+             let mut value: i32 = 0;
+             write(&mut value);
+             value
+         }",
+    );
+    let main = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap();
+    let statements = checked.machine_states(main)[0].statement_nodes;
+    let call = checked
+        .typed
+        .statement_table
+        .statements_mut(statements)
+        .iter_mut()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .unwrap();
+    assert!(call.target_symbol.is_valid());
+    call.target_symbol = symbols::SymbolHandle::invalid();
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
+    assert_eq!(
+        outcome.error.as_deref(),
+        Some("call target `write` has no resolved state")
+    );
+}
+
+#[test]
+fn receiverless_value_without_target_does_not_search_names() {
+    let mut checked = crate::front_end::checked_program(
+        "machine choose() -> i32 { 70 }
+         machine main() -> i32 { choose() }",
+    );
+    let expression = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, expression)| {
+            matches!(expression, typed_trees::expression::ExpressionNode::Call(_)).then_some(handle)
+        })
+        .unwrap();
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        checked.typed.expression_table.expression_mut(expression)
+    else {
+        unreachable!("selected call expression");
+    };
+    assert!(call.target_symbol.is_valid());
+    call.target_symbol = symbols::SymbolHandle::invalid();
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
+    assert_eq!(
+        outcome.error.as_deref(),
+        Some("call target `choose` has no resolved state")
+    );
+}
+
+#[test]
 fn qualified_user_calls_do_not_probe_build_facet_storage() {
     for (write, read) in [("write", "read"), ("close", "open"), ("create", "resolve")] {
         let helper = format!(
@@ -153,7 +251,7 @@ fn qualified_statement_without_target_does_not_select_a_namesake() {
     );
     assert_eq!(
         outcome.error.as_deref(),
-        Some("qualified call target `write` has no resolved state")
+        Some("call target `write` has no resolved state")
     );
 }
 
@@ -191,9 +289,7 @@ fn qualified_value_without_target_does_not_select_by_namespace_spelling() {
         );
         assert_eq!(
             outcome.error,
-            Some(format!(
-                "qualified call target `{target}` has no resolved state"
-            ))
+            Some(format!("call target `{target}` has no resolved state"))
         );
     }
 }
