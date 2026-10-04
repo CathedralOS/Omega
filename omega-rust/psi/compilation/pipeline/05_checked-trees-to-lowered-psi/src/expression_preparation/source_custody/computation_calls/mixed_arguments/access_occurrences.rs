@@ -231,8 +231,22 @@ pub(crate) fn replay(
                     expression,
                     first_access,
                 } => {
+                    // Completed plain-owned results retain no operand loan,
+                    // including affine results. Read-row expiry below still
+                    // requires copyability; completion grants no copy authority.
                     if matches!(table.expression(expression), ExpressionNode::Call(_))
-                        && plain_copy(expression)
+                        && validation::expression_result_type_reference(
+                            &checked.typed,
+                            source_machine,
+                            source_state,
+                            expression,
+                        )
+                        .is_some_and(|reference| {
+                            validation::has_plain_owned_contents_with_numeric_constraints(
+                                &checked.typed,
+                                reference,
+                            )
+                        })
                     {
                         for end in &mut observation_ends[first_access..] {
                             end.get_or_insert(position);
