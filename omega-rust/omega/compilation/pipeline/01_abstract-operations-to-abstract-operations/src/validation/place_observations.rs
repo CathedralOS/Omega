@@ -270,20 +270,28 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 /// `CallStructural`, scalar-result `CallStructural`, or structural-result
 /// `CallStructural` that moves no claims, whose borrow arguments —
 /// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
-/// below, and whose `Owned` arguments each name a whole root whose declared
-/// custody is copyable ([`copyable_owned_argument_root`]): an `Unrestricted`
-/// owned parameter or an unrestricted claim-free record, case, scalar-array, or
-/// structural-call result. An owned whole-root argument over an unrestricted
-/// payload copies the elements into the callee — the caller's place keeps its
-/// contents, so the argument is an observation, not custody movement — while an
-/// `Owned` argument over an affine or linear root moves the caller's place into
-/// the callee outright and refuses, as does any produced kind the cyclic
-/// owned-argument fence does not recognize. Mutating borrows each name a root
-/// no other member can observe. The callee's caller-visible write authority is
-/// exactly its mutable and write-only parameter roots — verified call bindings
-/// cannot hand it another place — so confining those roots to the one call
-/// leaves the bound's guarantee intact: no member observation of any place
-/// another member wrote changes across traversals, and no custody moves.
+/// below, and whose `Owned` arguments each name a whole root the cyclic
+/// owned-argument fence spells: a copyable unrestricted root
+/// ([`copyable_owned_argument_root`]) — an `Unrestricted` owned parameter or
+/// an unrestricted claim-free record, case, scalar-array, or structural-call
+/// result, where the argument copies the payload into the callee and the
+/// caller's place keeps its contents, so the argument is an observation —
+/// or a member-produced affine root the whole roster consumes and relocates
+/// together ([`consumed_owned_argument_root`]), where the argument genuinely
+/// transfers custody but the transfer is confined to the member roster the
+/// run empties: the moved call consumes the one persistent place the moved
+/// producer established, so the relocated run hands the callee the same
+/// custody every source traversal handed it. An `Owned` argument over a
+/// linear, claimed, qualified, projected, or produced kind the fence does
+/// not recognize moves custody this bound cannot re-express and refuses, as
+/// does a consumed root any member spelling observes after the move.
+/// Mutating borrows each name a root no other member can observe. The
+/// callee's caller-visible write authority is exactly its mutable and
+/// write-only parameter roots — verified call bindings cannot hand it
+/// another place — so confining those roots to the one call leaves the
+/// bound's guarantee intact: no member observation of any place another
+/// member wrote changes across traversals, and no custody moves outside the
+/// consumed shape's own run-covered transfer.
 fn exclusive_borrow_call_preserves_place_observations(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -328,14 +336,19 @@ fn exclusive_borrow_call_preserves_place_observations(
             }
             // An owned whole-root argument over a copyable unrestricted
             // root copies the payload into the callee — a read of the
-            // root's contents, not custody movement. An owned argument
-            // over an affine or linear root, a projected owned argument,
-            // or a produced kind outside the cyclic owned-argument fence's
-            // admitted shapes moves the caller's place into the callee
-            // outright.
+            // root's contents, not custody movement. An owned whole-root
+            // argument over a member-produced affine root consumes the
+            // caller's place — custody the boundary tolerates only when the
+            // place's whole lifecycle is confined to the roster the run
+            // empties and every consumer relocates with the producer
+            // ([`consumed_owned_argument_root`]). An owned argument over a
+            // linear or claimed root, a projected owned argument, or a
+            // produced kind outside the cyclic owned-argument fence's
+            // admitted shapes moves or aliases custody outright.
             terminal_psi::StructuralAccess::Owned => {
                 if !argument.path.is_empty()
-                    || !copyable_owned_argument_root(function, argument.place)
+                    || !(copyable_owned_argument_root(function, argument.place)
+                        || consumed_owned_argument_root(function, component, argument.place))
                 {
                     return false;
                 }
@@ -695,6 +708,37 @@ pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
         .collect()
 }
 
+/// The place roots `operation` hands a callee through an `Owned` structural
+/// argument — the consumption surface the proposal's move-together coupling
+/// and the freeze replay both read. Whether the move is a copy or a genuine
+/// transfer depends on the root's declared custody
+/// ([`copyable_owned_argument_root`] versus [`consumed_owned_argument_root`]),
+/// so this scan collects every `Owned` spelling — at any path — and lets the
+/// callers decide which roots make a staying consumer unsound: a relocated
+/// restricted root's every member `Owned` consumer must relocate with it,
+/// since a staying call would move custody of a place no traversal
+/// re-establishes. A projected `Owned` argument counts too — the confined
+/// bound refuses that spelling on a verified seed, but the freeze replay
+/// runs on hand-moved units where no source grammar pruned it.
+pub(crate) fn owned_argument_roots(operation: &O) -> BTreeSet<PlaceId> {
+    let structural_arguments = match operation {
+        O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return BTreeSet::new(),
+    };
+    structural_arguments
+        .iter()
+        .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+        .map(|argument| argument.place)
+        .collect()
+}
+
 /// The number of member nodes that produce `root` inside `component`'s
 /// roster. A verified unit declares a fresh place per establishment, so an
 /// admitted relocation expects exactly one; a roster producing a mut-borrowed
@@ -788,6 +832,41 @@ pub(super) fn copyable_owned_argument_root(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             })
+}
+
+/// Whether `root` is a member-produced restricted place whose member spellings
+/// are exactly its producer's declaration and the `Owned` whole-root call
+/// arguments that consume it — the consumed-custody counterpart of
+/// [`copyable_owned_argument_root`]. An `Owned` argument over such a root
+/// moves the caller's place into the callee — a genuine custody transfer the
+/// boundary tolerates only when the transfer is confined to the member roster
+/// the relocation run empties: exactly one member producer
+/// ([`member_root_producer_count`]) declaring affine claim-free custody
+/// (`restricted_member_produced_root`), at least one member call argument
+/// moving it (`scalar_case_result_consumed`), and every spelling covered by
+/// the consumed-mode containment bound (`scalar_case_result_contained`) — no
+/// member inspection, return, store, borrowed argument, edge binding, or
+/// discard roster can carry the dead place. The relocated run moves the
+/// producer and every consuming call together into the preheader, where the
+/// one persistent place is produced once and consumed once — the same custody
+/// every source traversal handed the callee. A linear, claimed, qualified, or
+/// projected root stays refused: no admitted cyclic frontier spelling carries
+/// it through an owned call argument today.
+pub(super) fn consumed_owned_argument_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+) -> bool {
+    member_root_producer_count(function, component, root) == 1
+        && crate::validation::relocation_rewrites::restricted_member_produced_root(
+            function, component, root,
+        )
+        && crate::validation::relocation_rewrites::scalar_case_result_consumed(
+            function, component, root,
+        )
+        && crate::validation::relocation_rewrites::scalar_case_result_contained(
+            function, component, root,
+        )
 }
 
 /// The complete invariant place-read admission shared by the proposal and the

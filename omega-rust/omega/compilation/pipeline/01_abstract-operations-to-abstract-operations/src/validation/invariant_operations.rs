@@ -361,14 +361,17 @@ pub(crate) fn invariant_primitive_local_admission(
 /// values in declaration order, and keep the result claim-free the way
 /// `record::fields` requires for the cyclic-eligibility fence — vacuous
 /// qualification, projection, and claim rosters, with either unrestricted
-/// multiplicity or the affine multiplicity the fence admits only for an
-/// empty declaration — so the moved declaration still validates as an owned
-/// establishment. An affine result is admitted only when `fields` is empty:
-/// the empty record is the composed-control spelling of a trivial affine
-/// local, so its custody is the place itself with no initializer whose
-/// contents could diverge between one establishment and per-traversal
-/// re-establishment; an affine record carrying initializers has no admitted
-/// custody model here and refuses. A bounded-integer field's
+/// multiplicity or the affine multiplicity the fence admits only when every
+/// field initializer is scalar — so the moved declaration still validates as
+/// an owned establishment. An affine result is admitted only when `fields`
+/// carries no structural initializer: the empty record is the
+/// composed-control spelling of a trivial affine local, and a scalar-only
+/// record's custody is still the place itself — the scalar contents read
+/// exactly what the substituted operands compute once, which the consumed
+/// confinement below then proves no member observes after the place's one
+/// move — while a structural field argument would move a second place's
+/// custody into the declared place, a transfer the relocation cannot
+/// re-express, so an affine record carrying one refuses. A bounded-integer field's
 /// `range_obligation` is not an operand position: it was discharged against
 /// the field value and operand substitution only rebinds a member parameter
 /// to the representative every reaching edge proves equal, so the
@@ -416,7 +419,9 @@ pub(crate) fn admissible_invariant_record(
         && node.ownership.is_empty()
         && (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             || (result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && fields.is_empty()))
+                && fields.iter().all(|field| {
+                    matches!(field.value, terminal_psi::RecordFieldValue::Scalar { .. })
+                })))
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
@@ -446,17 +451,21 @@ pub(crate) fn admissible_invariant_record(
 /// producer's declared place identity and orders it ahead of the record. A
 /// member-produced root the run does not cover is re-established fresh
 /// every traversal, so a record copying it cannot collapse into one
-/// preheader copy and refuses. An affine result — admitted only with an
-/// empty declaration — is the family's custody-rewriting shape the scalar
-/// case introduced: the cyclic eligibility fence already confined the fresh
-/// place to the member block that established it, discarding it on every
-/// departing edge, so hoisting the establishment keeps the one persistent
-/// result live through the whole component while member-internal edges stop
-/// discarding it and every exit edge and member return disposes it instead.
-/// [`scalar_case_result_contained`] is the bound proving the component only
-/// ever spells the result through positions that rewrite covers; the empty
-/// declaration reads no scalar or structural operand, so the substitution
-/// and the structural-field rewrites below both come out empty. Returns the
+/// preheader copy and refuses. An affine result — admitted only with a
+/// scalar-field declaration — is the family's custody shape the scalar case
+/// introduced, extended by the consumed family: the cyclic eligibility
+/// fence already confined the fresh place to the member roster, so hoisting
+/// the establishment either keeps the one persistent result live through
+/// the whole component — member-internal edges stop discarding it while
+/// every exit edge and member return disposes it instead — or, when a
+/// member call consumes it through an `Owned` whole-root argument, hands
+/// the one persistent place to the relocated callee exactly as every source
+/// traversal handed the fresh one. [`scalar_case_result_contained`] is the
+/// bound proving the component only ever spells the result through
+/// positions those two families cover; a scalar-field declaration reads no
+/// structural operand, so the structural-field rewrites below come out
+/// empty for it while the scalar substitution still rebinds its member
+/// parameters. Returns the
 /// scalar substitution plus the
 /// `(member parameter or member-produced root, preheader-visible root)`
 /// rewrites the relocated establishment performs on its structural field

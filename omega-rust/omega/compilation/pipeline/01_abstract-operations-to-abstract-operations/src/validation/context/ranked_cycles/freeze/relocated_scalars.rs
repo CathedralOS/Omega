@@ -236,7 +236,10 @@ pub(super) fn validate(
     // place live while exit edges and member returns dispose it — so the
     // retained-member comparison below normalizes each seed node through
     // the same custody rewrite the realization performs before comparing
-    // byte-exact.
+    // byte-exact. A relocated place a member call consumed through an
+    // `Owned` whole-root argument stays out of this set: the consumed
+    // family carries no member-edge disposal to re-express, so the seed's
+    // retained nodes compare byte-exact rather than normalized.
     let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
         let result = match &relocation.expected.operation {
@@ -252,16 +255,29 @@ pub(super) fn validate(
                 // A trivial affine local's declared place is affine by
                 // construction — the verifier admits only the whole,
                 // claim-free, empty-record declaration shape — so it joins
-                // the relocated custody set unconditionally.
-                relocated_case_results
-                    .entry(relocation.home.id.clone())
-                    .or_default()
-                    .insert(place.id);
+                // the relocated custody set unconditionally, unless a member
+                // `Owned` call argument consumed it instead.
+                if !crate::validation::relocation_rewrites::scalar_case_result_consumed(
+                    expected,
+                    relocation.home,
+                    place.id,
+                ) {
+                    relocated_case_results
+                        .entry(relocation.home.id.clone())
+                        .or_default()
+                        .insert(place.id);
+                }
                 continue;
             }
             _ => continue,
         };
-        if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && !crate::validation::relocation_rewrites::scalar_case_result_consumed(
+                expected,
+                relocation.home,
+                result.place,
+            )
+        {
             relocated_case_results
                 .entry(relocation.home.id.clone())
                 .or_default()
@@ -923,6 +939,51 @@ pub(super) fn validate(
                         if relocated_operations.contains(operation)
                 );
                 if !moved_borrower {
+                    return Err(mismatch(machine, expected_block.id));
+                }
+            }
+        }
+    }
+    // The owned-consumer half of the move-together coupling, replayed the
+    // same way: a relocated restricted root — affine, linear, or trivial
+    // affine — is dead to every traversal once its producer lands in the
+    // preheader, so a node that moved it into a callee through an `Owned`
+    // structural argument but stayed behind would consume custody of a
+    // place no traversal re-establishes. Every `Owned`-argument consumer of
+    // a relocated restricted root must itself appear among the relocated
+    // operations; a forged move that hoisted the producer while leaving its
+    // consumer resident rejects here. An unrestricted root's `Owned`
+    // argument copies instead — a staying consumer reads the persistent
+    // place correctly — so the scan is keyed off the producer's declared
+    // custody, not the argument spelling alone.
+    let restricted_relocated_roots: BTreeSet<PlaceId> = moved
+        .iter()
+        .filter(|relocation| {
+            crate::validation::relocation_rewrites::restricted_produced_root(
+                &relocation.expected.operation,
+            )
+        })
+        .filter_map(|relocation| {
+            crate::validation::place_observations::produced_place_root(
+                &relocation.expected.operation,
+            )
+        })
+        .collect();
+    if !restricted_relocated_roots.is_empty() {
+        for expected_block in &expected.blocks {
+            for node in &expected_block.nodes {
+                if !crate::validation::place_observations::owned_argument_roots(&node.operation)
+                    .iter()
+                    .any(|root| restricted_relocated_roots.contains(root))
+                {
+                    continue;
+                }
+                let moved_consumer = matches!(
+                    node.provenance.first(),
+                    Some(PsiProvenance::Operation(operation))
+                        if relocated_operations.contains(operation)
+                );
+                if !moved_consumer {
                     return Err(mismatch(machine, expected_block.id));
                 }
             }

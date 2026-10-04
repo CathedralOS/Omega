@@ -12,8 +12,9 @@
 
 use super::member_blocks::{member_scalar_operand_substitution, shared_entry_source};
 use super::place_observations::{
-    component_preserves_place_observations_tolerating, copyable_owned_argument_root,
-    invariant_member_place_parameters, member_root_producer_count, place_observation_root_visible,
+    component_preserves_place_observations_tolerating, consumed_owned_argument_root,
+    copyable_owned_argument_root, invariant_member_place_parameters, member_root_producer_count,
+    place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
 use abstract_operations::{
@@ -400,9 +401,11 @@ fn structural_call_shape(
 /// multiplicity is `Unrestricted` — an unrestricted owned parameter or an
 /// unrestricted claim-free record, case, scalar-array, or structural-call
 /// result copies its payload into the
-/// callee — and an `Owned` argument over an affine or linear root moves the
-/// caller's place outright, custody movement this boundary cannot
-/// re-express, so it stays refused.
+/// callee — or over a member-produced affine root the consumed bound
+/// confines ([`consumed_owned_argument_root`]), so the moved call transfers
+/// the one persistent place its relocated producer established; an `Owned`
+/// argument over a linear, claimed, or otherwise unconfined root moves
+/// custody this boundary cannot re-express, so it stays refused.
 /// A call carrying `crash_continuations` takes the crash-custody lane
 /// ([`admissible_invariant_crash_continuation_structural_call`]) instead,
 /// which re-derives the roster rather than carrying it byte-exact. Callee
@@ -481,9 +484,13 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_call(
 /// requires the landed root to be copyable
 /// ([`copyable_owned_argument_root`]) — an unrestricted owned parameter or
 /// an unrestricted claim-free record, case, scalar-array, or
-/// structural-call result — so the relocated invocation copies exactly the
-/// payload every in-loop invocation copied; an `Owned` argument over
-/// affine or linear custody would move the caller's place outright and
+/// structural-call result, so the relocated invocation copies exactly the
+/// payload every in-loop invocation copied — or the spelled place itself to
+/// be a member-produced affine root the consumed bound confines
+/// ([`consumed_owned_argument_root`]), so the relocated invocation transfers
+/// the one persistent place the relocated producer established — the same
+/// custody every in-loop invocation moved. An `Owned` argument over linear,
+/// claimed, or any other custody still moves the caller's place outright and
 /// stays refused.
 ///
 /// Returns the scalar substitution plus the `(member parameter or
@@ -586,7 +593,7 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// relocated — with a mutable or write-only borrow additionally requiring
 /// that root's unique member producer among the relocated set and an
 /// `Owned` argument requiring the landed root to declare an unrestricted
-/// copyable shape.
+/// copyable shape or spell the confined member-produced affine root itself.
 ///
 /// The place-custody bound runs with the run's relocating roots plus an
 /// affine result tolerated: a borrow argument lets the callee observe a
@@ -913,8 +920,14 @@ fn crash_continuation_borrow_call_admission(
 /// of the copyable shapes [`copyable_owned_argument_root`] recognizes — an
 /// unrestricted owned parameter or an unrestricted claim-free record, case,
 /// scalar-array, or structural-call result — because `Owned` over an
-/// unrestricted payload copies it into the callee while `Owned` over affine
-/// or linear custody would move the caller's place outright.
+/// unrestricted payload copies it into the callee, while `Owned` over a
+/// member-produced affine root takes the consumed shape
+/// ([`consumed_owned_argument_root`]): the spelled place itself must be the
+/// confined affine root whose unique producer the same run already relocated,
+/// so the moved invocation transfers the one persistent place exactly as
+/// every in-loop invocation did. `Owned` over linear, claimed, or any other
+/// custody would move a place this boundary cannot re-express and stays
+/// refused.
 fn borrow_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -1000,11 +1013,20 @@ fn borrow_call_admission(
             // scalar-array, or structural-call result — for a
             // member-produced root, the landing rule already required its
             // unique producer to relocate in the same run ahead of the
-            // call. An `Owned` argument over an affine or
-            // linear root moves the caller's place into the callee — the
-            // per-traversal transfer this boundary cannot re-express — and
-            // a projected `Owned` argument or any other produced kind keeps
-            // the refusal.
+            // call. An `Owned` argument over an affine root takes the
+            // second, consumed shape: the argument genuinely transfers
+            // custody, so the admission requires the spelled place itself —
+            // never a member parameter's resolution, since the owned edge
+            // binding that carried it cannot be re-expressed — to be a
+            // member-produced affine root whose whole member lifecycle the
+            // consumed bound confines ([`consumed_owned_argument_root`]) and
+            // whose unique producer the same run already relocates ahead of
+            // the call (the landing rule's `relocating_roots` half). The
+            // moved call then consumes the one persistent place the moved
+            // producer established — the same transfer every source
+            // traversal performed. An `Owned` argument over a linear or
+            // claimed root, a projected `Owned` argument, or any other
+            // produced kind keeps the refusal.
             terminal_psi::StructuralAccess::Owned => {
                 if !argument.path.is_empty() {
                     return None;
@@ -1017,11 +1039,14 @@ fn borrow_call_admission(
                     relocating_roots,
                     argument.place,
                 )?;
-                if !copyable_owned_argument_root(function, resolved) {
+                if copyable_owned_argument_root(function, resolved) {
+                    if resolved != argument.place {
+                        rewrites.push((argument.place, resolved));
+                    }
+                } else if !(resolved == argument.place
+                    && consumed_owned_argument_root(function, component, resolved))
+                {
                     return None;
-                }
-                if resolved != argument.place {
-                    rewrites.push((argument.place, resolved));
                 }
             }
         }

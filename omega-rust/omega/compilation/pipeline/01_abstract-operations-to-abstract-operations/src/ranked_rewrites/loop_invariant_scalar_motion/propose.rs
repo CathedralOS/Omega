@@ -763,6 +763,45 @@ fn mutable_borrowers_relocate(
     true
 }
 
+/// Whether every node spelling `root` through an `Owned` structural
+/// argument will itself relocate when `root`'s producer does: a relocated
+/// establishment establishes its declared place once in the preheader, so
+/// an `Owned`-argument call that stayed inside would move custody of a
+/// place the traversal no longer re-establishes — the producer may only
+/// move when every owned consumer moves with it. The scan covers the whole
+/// function, like [`mutable_borrowers_relocate`]: a consumer outside this
+/// component's roster cannot relocate under this run, so the producer stays
+/// too. Each in-roster consumer is replayed through the shared member
+/// admission with `root` already produced; admission is monotone in the run
+/// sets, so a consumer admissible now still admits on the later pass that
+/// actually scans it. The caller invokes this oracle only for a restricted
+/// root — an unrestricted root's `Owned` argument copies the payload, so a
+/// staying consumer reads the persistent place correctly.
+fn owned_consumers_relocate(
+    evidence: &PlanEvidence<'_>,
+    root: PlaceId,
+    relocating: &std::collections::BTreeSet<ValueId>,
+    relocating_roots: &std::collections::BTreeSet<PlaceId>,
+) -> bool {
+    let mut extended = relocating_roots.clone();
+    extended.insert(root);
+    for block in &evidence.function.blocks {
+        for node in &block.nodes {
+            if !crate::validation::place_observations::owned_argument_roots(&node.operation)
+                .contains(&root)
+            {
+                continue;
+            }
+            if !evidence.component.members.contains(&block.id)
+                || admit_member_node(evidence, block.id, node, relocating, &extended).is_none()
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 pub(super) fn component_plan(
     session: &VerifiedPsiOptimizationSession,
     component: &optimization_unit::OptimizerCycleComponent,
@@ -886,13 +925,30 @@ pub(super) fn component_plan(
                 // the same run: the moved establishment initializes its cell
                 // once, so a mutable borrower left inside would read
                 // accumulated post-write contents where the source traversal
-                // re-initialized the cell. The oracle replays each
-                // borrower's admission with the root already produced;
-                // admission is monotone in the run sets, so the borrower
+                // re-initialized the cell. A restricted root — affine, linear,
+                // or trivial affine — additionally relocates only when every
+                // member `Owned`-argument consumer relocates with it: the
+                // moved establishment establishes the place once, so a call
+                // left inside would move custody of a place the traversal no
+                // longer re-establishes. The oracles replay each borrower's
+                // or consumer's admission with the root already produced;
+                // admission is monotone in the run sets, so the dependent
                 // lands on a later pass.
                 if let Some(root) =
                     crate::validation::place_observations::produced_place_root(&node.operation)
-                    && !mutable_borrowers_relocate(&evidence, root, &relocating, &relocating_roots)
+                    && !(mutable_borrowers_relocate(
+                        &evidence,
+                        root,
+                        &relocating,
+                        &relocating_roots,
+                    ) && (!crate::validation::relocation_rewrites::restricted_produced_root(
+                        &node.operation,
+                    ) || owned_consumers_relocate(
+                        &evidence,
+                        root,
+                        &relocating,
+                        &relocating_roots,
+                    )))
                 {
                     continue;
                 }

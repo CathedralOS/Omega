@@ -149,7 +149,9 @@ pub(crate) fn rewrite_relocated_case_result_frontiers(
 /// The frontier sites where `place` is owned under `function`'s current
 /// custody, reconstructed as the greatest fixpoint of the verifier's
 /// frontier rules restricted to that one place. An operation exit owns it
-/// when its entry does or the operation produces it; an operation entry
+/// when its entry does or the operation produces it — and drops it when the
+/// operation itself consumes it through an `Owned` whole-root argument
+/// ([`operation_consumes_place`]); an operation entry
 /// chains the block's node order; an edge entry owns it when the source
 /// block's tail does; a successor edge's exit owns it when the entry does
 /// and the edge's disposal rosters — trivial discards, residual discards,
@@ -166,9 +168,9 @@ fn case_result_owned_sites(
     place: PlaceId,
 ) -> BTreeSet<OwnershipFrontierSite> {
     struct BlockPlan {
-        /// `(operation, produces)` for each node carrying an `Operation`
-        /// provenance row, in block order.
-        operations: Vec<(OperationId, bool)>,
+        /// `(operation, produces, consumes)` for each node carrying an
+        /// `Operation` provenance row, in block order.
+        operations: Vec<(OperationId, bool, bool)>,
     }
 
     let mut plans: BTreeMap<BlockId, BlockPlan> = BTreeMap::new();
@@ -189,6 +191,7 @@ fn case_result_owned_sites(
                     *operation,
                     crate::validation::place_observations::produced_place_root(&node.operation)
                         == Some(place),
+                    operation_consumes_place(&node.operation, place),
                 ));
                 sites.push(OwnershipFrontierSite::OperationEntry(*operation));
                 sites.push(OwnershipFrontierSite::OperationExit(*operation));
@@ -240,7 +243,7 @@ fn case_result_owned_sites(
 
     let mut operation_position: BTreeMap<OperationId, (BlockId, usize)> = BTreeMap::new();
     for (block, plan) in &plans {
-        for (index, (operation, _)) in plan.operations.iter().enumerate() {
+        for (index, (operation, _, _)) in plan.operations.iter().enumerate() {
             operation_position.insert(*operation, (*block, index));
         }
     }
@@ -250,7 +253,7 @@ fn case_result_owned_sites(
         plans
             .get(block)
             .and_then(|plan| plan.operations.last())
-            .map(|(operation, _)| OwnershipFrontierSite::OperationExit(*operation))
+            .map(|(operation, _, _)| OwnershipFrontierSite::OperationExit(*operation))
             .unwrap_or(OwnershipFrontierSite::BlockEntry(*block))
     };
 
@@ -283,8 +286,10 @@ fn case_result_owned_sites(
                 OwnershipFrontierSite::OperationExit(operation) => operation_position
                     .get(&operation)
                     .is_some_and(|(block, index)| {
-                        owned[&OwnershipFrontierSite::OperationEntry(operation)]
-                            || plans[block].operations[*index].1
+                        let (_, produces, consumes) = plans[block].operations[*index];
+                        produces
+                            || (owned[&OwnershipFrontierSite::OperationEntry(operation)]
+                                && !consumes)
                     }),
                 OwnershipFrontierSite::EdgeEntry(edge) => edge_rows
                     .get(&edge)
@@ -311,4 +316,44 @@ fn case_result_owned_sites(
         .into_iter()
         .filter_map(|(site, owned)| owned.then_some(site))
         .collect()
+}
+
+/// Whether `operation` moves `place` out of the caller's custody at its own
+/// exit: an `Owned` whole-root call argument handing it to a callee, or an
+/// `Owned` whole-root structural field initializer moving it into the
+/// produced record or case. Consumption is the one custody event the
+/// live-through derivation cannot infer from edges — a consumed place dies
+/// at the operation's own exit even though no discard roster spells it — so
+/// `case_result_owned_sites` records it alongside `produces` and lets the
+/// `OperationExit` rule drop the place instead of carrying it forward. An
+/// `Owned` argument at a non-empty path projects rather than consumes the
+/// root — the confinement bound refuses that spelling on admitted
+/// relocations, and on an unconfined hand-moved unit the projected custody
+/// still leaves the root alive at the exit, so it does not count here.
+fn operation_consumes_place(operation: &O, place: PlaceId) -> bool {
+    match operation {
+        O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().any(|argument| {
+            argument.place == place
+                && argument.access == terminal_psi::StructuralAccess::Owned
+                && argument.path.is_empty()
+        }),
+        O::EstablishRecord { fields, .. } | O::EstablishCase { fields, .. } => {
+            fields.iter().any(|field| match &field.value {
+                terminal_psi::RecordFieldValue::Structural(argument) => {
+                    argument.place == place
+                        && argument.access == terminal_psi::StructuralAccess::Owned
+                        && argument.path.is_empty()
+                }
+                terminal_psi::RecordFieldValue::Scalar { .. } => false,
+            })
+        }
+        _ => false,
+    }
 }

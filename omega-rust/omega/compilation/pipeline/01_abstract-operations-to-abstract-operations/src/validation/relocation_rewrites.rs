@@ -3,7 +3,7 @@
 //! and the operand, place-root and call-root substitutions that rebind an
 //! admitted operation from member parameters to their representatives.
 
-use super::place_observations::member_place_references;
+use super::place_observations::{member_place_references, produced_place_root};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
@@ -11,6 +11,113 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, PlaceId, ScalarTerm, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Whether `picked`'s declared custody is restricted — an affine or linear
+/// result, or a trivial affine local — as opposed to the copyable
+/// unrestricted payload [`super::place_observations::copyable_owned_argument_root`]
+/// recognizes. The proposal's move-together coupling and the relocation
+/// freeze replay both need the distinction: an `Owned` whole-root argument
+/// copies an unrestricted root — a consumer that stayed inside simply reads
+/// the persistent preheader place on every traversal — but consumes a
+/// restricted one, where a staying consumer would move custody of a place
+/// no traversal re-establishes.
+pub(crate) fn restricted_produced_root(operation: &O) -> bool {
+    match operation {
+        O::EstablishCase { result, .. }
+        | O::EstablishRecord { result, .. }
+        | O::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } => result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted,
+        O::EstablishTrivialAffineLocal { .. } => true,
+        _ => false,
+    }
+}
+
+/// Whether `picked` is moved into a callee inside `component`'s member
+/// roster through an `Owned` whole-root structural argument — the consumed
+/// custody shape [`scalar_case_result_contained`] treats separately from the
+/// live-through family. A consumed place has no member-edge disposal or
+/// inspection custody to re-express: the relocated call consumes the one
+/// persistent place the relocated producer established, so the boundary's
+/// custody work is the move-together coupling (every member consumer must
+/// relocate with the producer) and the frontier reconstruction's operation
+/// consumption, not the member-edge rewrite. Detection is deliberately one
+/// direction of the containment check — a call argument spelling `picked`
+/// `Owned` and whole — while the confinement half inside
+/// [`scalar_case_result_contained`] proves every member spelling of `picked`
+/// is exactly such a position. `BoundaryCall` arguments count too — the
+/// spellings that reach an admissible call stay `CallStructural`-only today,
+/// but a boundary-owned consumption is the same member spelling the
+/// confinement must refuse everywhere else, so detection stays complete.
+pub(crate) fn scalar_case_result_consumed(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    picked: PlaceId,
+) -> bool {
+    let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    function
+        .blocks
+        .iter()
+        .filter(|block| members.contains(&block.id))
+        .flat_map(|block| block.nodes.iter())
+        .any(|node| {
+            matches!(
+                &node.operation,
+                O::CallStructural {
+                    structural_arguments,
+                    ..
+                }
+                | O::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } if structural_arguments.iter().any(|argument| {
+                    argument.place == picked
+                        && argument.access == terminal_psi::StructuralAccess::Owned
+                        && argument.path.is_empty()
+                })
+            )
+        })
+}
+
+/// Whether `root`'s member producer — callers prove it unique through
+/// `member_root_producer_count` — declares the restricted affine custody an
+/// `Owned`
+/// whole-root call argument consumes outright: an affine claim-free,
+/// qualification-free record, case, or structural-call result, or a trivial
+/// affine local (affine by construction). A linear or claimed declaration
+/// keeps the refusal: no admitted cyclic frontier spelling carries a linear
+/// place through an owned call argument today, and claim-transfer evidence
+/// stays outside this boundary. Every other produced kind — a view, a
+/// primitive or array cell, a boundary outcome — fails the match arm and
+/// stays refused.
+pub(crate) fn restricted_member_produced_root(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    root: PlaceId,
+) -> bool {
+    component
+        .members
+        .iter()
+        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .flat_map(|block| block.nodes.iter())
+        .filter(|node| produced_place_root(&node.operation) == Some(root))
+        .all(|node| match &node.operation {
+            O::EstablishCase { result, .. }
+            | O::EstablishRecord { result, .. }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => {
+                result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            }
+            O::EstablishTrivialAffineLocal { place, .. } => place.id == root,
+            _ => false,
+        })
+}
 
 /// Whether the affine scalar-case, empty-record, or structural-call result
 /// — or the affine trivial-local place — `picked` stays
@@ -37,12 +144,28 @@ use std::collections::{BTreeMap, BTreeSet};
 /// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural` either
 /// returns `picked` outright or lists it in `trivial_affine_discards`, and a
 /// `Crash` carries only claims.
+///
+/// The second family is the consumed shape [`scalar_case_result_consumed`]
+/// detects: a member call spelling `picked` `Owned` moves the caller's place
+/// into the callee outright, so `picked` never carries live-through custody —
+/// the confinement then requires every member spelling to be the producer
+/// declaration or a claim-free `Owned` whole-root call argument (an
+/// inspection, return, store, borrowed argument, edge binding, or member-edge
+/// discard spelling it would observe or move custody the relocation cannot
+/// re-express) and every member-departing edge to leave it out of all three
+/// rosters — the trivial discards included, since the dead place has nothing
+/// to dispose. The consuming calls still relocate with the producer: the
+/// move-together coupling (`owned_consumers_relocate` at proposal, the
+/// freeze replay's same scan inside `relocated_scalars`) is what makes the
+/// consumed spelling admissible — the moved call consumes the one persistent
+/// place the moved producer established.
 pub(crate) fn scalar_case_result_contained(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     picked: PlaceId,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
+    let consumed = scalar_case_result_consumed(function, component, picked);
     for block in &function.blocks {
         for node in &block.nodes {
             let member = members.contains(&block.id);
@@ -73,7 +196,12 @@ pub(crate) fn scalar_case_result_contained(
                 O::EstablishTrivialAffineLocal { place, .. } if place.id == picked => member,
                 // Dispatch, inspection, and structural-return positions keep
                 // the result inside re-expressible custody when they live
-                // inside the roster.
+                // inside the roster. A consumed `picked` instead refuses
+                // them: its only admitted member spellings are the
+                // producer's declaration and the `Owned` whole-root call
+                // arguments that move it — an inspection or dispatch would
+                // observe a place whose one consumption the relocation
+                // collapses into the preheader.
                 O::StructuralCase { source, .. }
                 | O::StructuralCaseMembership { source, .. }
                 | O::StructuralScalarFieldRead { source, .. }
@@ -84,13 +212,16 @@ pub(crate) fn scalar_case_result_contained(
                 | O::StructuralByteSequenceFieldLength { source, .. }
                     if *source == picked =>
                 {
-                    member
+                    member && !consumed
                 }
                 // A member structural return disposes `picked` through its
                 // exit roster or returns it outright — either shape is
                 // expressible — while a non-member return cannot name a
-                // place that is dead outside the member roster.
-                O::ReturnStructural { source, .. } => member || *source != picked,
+                // place that is dead outside the member roster. Returning a
+                // consumed `picked` would move custody the `Owned`-argument
+                // confinement does not cover, so the consumed shape refuses
+                // the spelling entirely.
+                O::ReturnStructural { source, .. } => *source != picked || (member && !consumed),
                 // A member unit call that only shared-borrows `picked` is an
                 // observation position like the inspections above: the loan
                 // is created and released inside the call on every
@@ -109,25 +240,46 @@ pub(crate) fn scalar_case_result_contained(
                 // primitive local, a view, or a parameter, and no verified
                 // cyclic seed has yet shown a structural-result call lending
                 // a relocatable case, so neither shape has a witness here.
+                //
+                // The consumed shape flips the arm: `picked` is moved into
+                // the callee outright, so every spelling a member
+                // `CallStructural` carries must be `Owned` and whole — a
+                // borrow alongside the consumption would observe the place
+                // after the one persistent move — and the call still moves
+                // no claims in either direction.
                 O::CallStructural {
                     structural_arguments,
                     dynamic_arguments,
                     claim_transfers,
-                    result: AbstractStructuralCallResult::Unit,
+                    result,
                     ..
                 } if dynamic_arguments.is_empty()
                     && structural_arguments
                         .iter()
                         .any(|argument| argument.place == picked) =>
                 {
+                    let claims_quiet = claim_transfers.is_empty()
+                        && !matches!(
+                            result,
+                            AbstractStructuralCallResult::Structural {
+                                returned_claim_transfers,
+                                ..
+                            } if !returned_claim_transfers.is_empty()
+                        );
                     member
-                        && claim_transfers.is_empty()
+                        && claims_quiet
                         && structural_arguments
                             .iter()
                             .filter(|argument| argument.place == picked)
                             .all(|argument| {
-                                argument.access == terminal_psi::StructuralAccess::SharedBorrow
+                                if consumed {
+                                    argument.access == terminal_psi::StructuralAccess::Owned
+                                        && argument.path.is_empty()
+                                } else {
+                                    argument.access == terminal_psi::StructuralAccess::SharedBorrow
+                                }
                             })
+                        && (consumed || matches!(result, AbstractStructuralCallResult::Unit))
                 }
                 operation => {
                     // Every modeled operation spelling `picked` outside the
@@ -171,6 +323,13 @@ pub(crate) fn scalar_case_result_contained(
                 return false;
             }
             for edge in &node.successors {
+                // A member-departing residual discard or structural binding
+                // spelling `picked` is custody this rewrite never spells —
+                // refuse under either family. A member-departing trivial
+                // discard is the live-through family's own disposal roster,
+                // which the custody rewrite adjusts; under the consumed
+                // family the dead place must leave every roster alone, so
+                // the discard refuses too.
                 if edge
                     .residual_affine_discards
                     .iter()
@@ -178,6 +337,11 @@ pub(crate) fn scalar_case_result_contained(
                     || edge.structural_bindings.iter().any(|binding| {
                         binding.parameter == picked || binding.argument.place == picked
                     })
+                    || (consumed
+                        && edge
+                            .trivial_affine_discards
+                            .iter()
+                            .any(|place| *place == picked))
                 {
                     return false;
                 }

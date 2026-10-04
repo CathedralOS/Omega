@@ -151,9 +151,13 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/invariant_operations.rs`. Scheduled as
     `PsiOptimization::LoopInvariantScalarMotion` through
     `optimize_abstract_operations`.
-  - Remaining families: affine/linear Owned argument transfers, claimed,
+  - Remaining families: linear Owned argument transfers, claimed,
     qualified and projected roots, and claim transfers (unrestricted
-    claim-free whole roots already move). `CallStructuralScalar` shared borrows
+    claim-free whole roots already copy; member-produced affine record,
+    case, structural-call results and trivial affine locals consumed by
+    member whole-root `Owned` arguments relocate with every consumer in
+    one run, and affine records admit all-scalar field initializers).
+    `CallStructuralScalar` shared borrows
     stop at the Terminal verifier's cyclic fence
     (`omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`).
   - Structural predicates in crash-continuation rosters: structural-signature

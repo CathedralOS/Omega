@@ -204,7 +204,7 @@ pub(crate) fn realize(
     // preheader place live through the whole component where the source
     // established — and discarded — a fresh place at every traversal's
     // dispatch.
-    let case_results: BTreeSet<PlaceId> = nodes
+    let relocated_affine: BTreeSet<PlaceId> = nodes
         .iter()
         .filter_map(|node| match &node.operation {
             O::EstablishCase { result, .. }
@@ -219,6 +219,32 @@ pub(crate) fn realize(
             _ => None,
         })
         .collect();
+    // A relocated affine place a member call consumed through an `Owned`
+    // whole-root argument keeps no disposal custody to re-express: the
+    // seed's member blocks no longer spell it — the moved call consumed the
+    // persistent place in the preheader — so the custody rewrite leaves it
+    // out while the frontier reconstruction still re-times its membership.
+    // The consumed scan runs against the seed unit: the consumers have
+    // already left the member roster in `output`.
+    let consumed: BTreeSet<PlaceId> = {
+        let seed_function = unit
+            .functions
+            .iter()
+            .find(|function| function.machine == machine)
+            .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
+        relocated_affine
+            .iter()
+            .copied()
+            .filter(|place| {
+                crate::validation::relocation_rewrites::scalar_case_result_consumed(
+                    seed_function,
+                    component,
+                    *place,
+                )
+            })
+            .collect()
+    };
+    let case_results: BTreeSet<PlaceId> = relocated_affine.difference(&consumed).copied().collect();
     for (offset, node) in nodes.into_iter().enumerate() {
         preheader.nodes.insert(insertion + offset, node);
     }
@@ -251,14 +277,15 @@ pub(crate) fn realize(
         }
     }
     refresh_coordinates_effects_and_facts(function)?;
-    if !case_results.is_empty() {
+    if !relocated_affine.is_empty() {
         // Re-express each relocated result's verifier-frontier membership
         // through the transformed custody: production at the establishing
-        // operation's exit, must-own joins across the component, and removal
-        // at each disposal the custody rewrite spelled. The context
-        // projection re-derives this same delta when it checks the attached
-        // catalog, so the rewritten facts are evidence, not authority.
-        let relocated = BTreeMap::from([(machine, case_results)]);
+        // operation's exit, consumption at each `Owned`-argument call's
+        // exit, must-own joins across the component, and removal at each
+        // disposal the custody rewrite spelled. The context projection
+        // re-derives this same delta when it checks the attached catalog, so
+        // the rewritten facts are evidence, not authority.
+        let relocated = BTreeMap::from([(machine, relocated_affine)]);
         let mut facts = std::mem::take(&mut output.ownership_frontier_facts);
         crate::validation::rewrite_relocated_case_result_frontiers(&mut facts, &output, &relocated);
         output.ownership_frontier_facts = facts;
