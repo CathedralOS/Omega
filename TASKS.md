@@ -360,7 +360,18 @@ defines the complete product bar.
     `layouts/runtime_reborrow_preserves_store_origin_exit` returns 70 in both
     engines. The public stored-view command checks the standard library, then
     awaits 52 fresh project package-review decisions, not a compiler waiver.
-    Carry exact
+    Direct collection extents now compose through borrow and range formation
+    in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs`.
+    At the `45782ade0cb`-based repair on macOS ARM64,
+    `pass/slices/runtime_direct_view_requires_index_exit` passes source
+    checking and interprets to 70 unchanged, but `python3 tools/corpus_gate.py
+    --both --filter runtime_direct_view_requires_index_exit` still fails native
+    production with `OperationProofUnavailable(ObligationId(9223372036854775808))`.
+    This customer depends on **PCC-CERTIFICATES-DELETED**, after
+    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**; do not extend late certificate
+    search. Its expected native exit remains 70. The public `omega run` route
+    additionally awaits package review; **COMPILE-TRUSTS-ACCEPTED-PACKAGES**
+    owns that separate dependency. Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.

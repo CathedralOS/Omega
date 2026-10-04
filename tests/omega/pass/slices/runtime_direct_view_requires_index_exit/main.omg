@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine read(values: &[u32], position: u64) -> u32
+requires position < values.len;
+{
+    values[position]
+}
+
+data Main {
+    console: Binding<Console>;
+    values: [u32; 4];
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.values[2] = 105;
+    let whole: u32 = read(&context.values[..], 2);
+    let window: u32 = read(&context.values[1..=2], 1);
+    let saved: &[u32] = &context.values[1..3];
+    let stored: u32 = read(saved, 1);
+    let code: i32 = match whole == 105 && window == 105 && stored == 105 {
+        true -> 70,
+        false -> 71
+    };
+    context.console.exit_process(code);
+}

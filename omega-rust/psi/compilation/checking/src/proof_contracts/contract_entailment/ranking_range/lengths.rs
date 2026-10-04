@@ -1,4 +1,8 @@
 //! Exact slice metadata coordinates, kept separate from scalar parameter values.
+//! Collection lengths compose through borrows and range formation regardless
+//! of whether the source extent is declared or observed. Saved initializers
+//! use the same evaluator without caller facts: a later observation cannot
+//! retroactively describe the descriptor captured by an earlier binding.
 use super::fields::{
     collect_leaf_paths, declared_field, member_chain, nested_arrival_chain, record_referent,
     rooted_carrier, unique_literal_field,
@@ -14,7 +18,7 @@ use typed_trees::data::DataField;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn is_slice(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
     let mut visited = Vec::new();
@@ -253,6 +257,38 @@ pub(super) fn actual(
     bindings: &[(SymbolHandle, String)],
     engine: &mut Engine<'_>,
 ) -> Option<Polynomial> {
+    evaluate_length(program, machine, state, expression, bindings, engine, 0)
+}
+
+fn evaluate_length(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    bindings: &[(SymbolHandle, String)],
+    engine: &mut Engine<'_>,
+    depth: usize,
+) -> Option<Polynomial> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        if !matches!(
+            borrow.access,
+            language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+        ) {
+            return None;
+        }
+        return evaluate_length(
+            program,
+            machine,
+            state,
+            borrow.target,
+            bindings,
+            engine,
+            depth + 1,
+        );
+    }
     let coordinate = |expression| {
         if let Some(parameter) = parameter(program, state, expression) {
             let (_, identity) = bindings
@@ -284,7 +320,23 @@ pub(super) fn actual(
         else {
             return None;
         };
-        let source = coordinate(indexed.collection)?;
+        // Constant-extent queries also enter here without the call owner's
+        // meaning pass. Never interpret an authored operator as arithmetic
+        // merely because its operands happen to normalize to constants.
+        for endpoint in [range.start, range.end] {
+            if endpoint.is_valid() {
+                super::meanings::builtin(program, machine, state, endpoint, depth + 1)?;
+            }
+        }
+        let source = evaluate_length(
+            program,
+            machine,
+            state,
+            indexed.collection,
+            bindings,
+            engine,
+            depth + 1,
+        )?;
         let start = if range.start.is_valid() {
             engine.normalize(range.start)?
         } else {
@@ -314,32 +366,20 @@ pub(super) fn actual(
             && prove(source.sub(&end)))
         .then(|| end.sub(&start));
     }
-    // The actual names no formal coordinate, but its produced length can still
-    // be exact caller evidence: a state-local slice binding's own extent, or a
-    // declared fixed array's `.as_slice()` view.
-    produced_length(program, machine, state, expression, 0)
-        .map(|length| Polynomial::constant(BigInt::from_u64(length)))
-}
-
-/// The produced length a non-formal actual still carries into the call
-/// boundary. A slice formal's `.len` binds a symbolic coordinate the caller
-/// fills from `bindings`; a state-local `let` binding or a declared fixed
-/// array's slice view instead carries a constant the callee's requires row
-/// substitutes exactly -- the saved caller observation the boundary keeps.
-/// Only immutable shapes qualify: a `let mut` local can trade its extent for
-/// another descriptor at any later write, and an arbitrary call or borrow
-/// produces nothing either.
-pub(super) fn produced_length(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> Option<u64> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-        return None;
+    // Array extent belongs to the declared place, not to its current contents.
+    // Replacing elements or the whole array cannot resize it.
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+    ) && let Some(length) = crate::value_custody::places::declared_collection_extent(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
     }
-    match program.expression_table.expression(expression) {
+    let length = match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid()
                 || path.head_symbol != path.symbol
@@ -365,22 +405,27 @@ pub(super) fn produced_length(
             }
             produced_length(program, machine, state, local.initial_value, depth + 1)
         }
-        ExpressionNode::Borrow(borrow) => {
-            produced_length(program, machine, state, borrow.target, depth + 1)
-        }
         ExpressionNode::ArrayLiteral(values) => Some(values.len() as u64),
-        ExpressionNode::Member(_) => declared_fixed_array_extent(
-            program,
-            crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                expression,
-            )?,
-        ),
         ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call),
         _ => None,
-    }
+    }?;
+    Some(Polynomial::constant(BigInt::from_u64(length)))
+}
+
+/// A constant produced extent, independent of current caller facts. Reuse
+/// ordinary length composition with an empty arithmetic environment so saved
+/// initializers never borrow facts established after their evaluation.
+pub(super) fn produced_length(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<u64> {
+    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    evaluate_length(program, machine, state, expression, &[], &mut engine, depth)?
+        .constant_value()?
+        .to_u64()
 }
 
 /// An immutable local's initializer describes this occurrence only while no
@@ -531,38 +576,13 @@ fn slice_view_call_length(
     {
         return None;
     }
-    declared_fixed_array_extent(
+    crate::value_custody::places::declared_collection_extent(
         program,
-        crate::value_custody::places::declared_place_type_raw(
-            program,
-            machine,
-            Some(state),
-            call.receiver,
-        )?,
+        machine,
+        Some(state),
+        call.receiver,
     )
-}
-
-/// The literal extent a declared type spells, unwrapping reference and
-/// domain-constraint shells. Any other extent form -- a const binder, an
-/// unevaluated const call, a slice -- keeps the length unknown.
-fn declared_fixed_array_extent(
-    program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
-) -> Option<u64> {
-    let mut visited = Vec::new();
-    while reference.is_valid() && !visited.contains(&reference) {
-        visited.push(reference);
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::FixedArray {
-                length: FixedArrayLength::Literal(length),
-                ..
-            } => return Some(*length as u64),
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            _ => return None,
-        }
-    }
-    None
+    .map(|length| length as u64)
 }
 
 /// A produced length coordinate over projected storage: the slice leaf of an

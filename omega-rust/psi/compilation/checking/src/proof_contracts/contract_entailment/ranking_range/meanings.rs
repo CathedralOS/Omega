@@ -93,16 +93,11 @@ pub(super) fn builtin(
             ))
         }
         ExpressionNode::Indexed(indexed) => {
-            // A builtin subslice's collection is a slice formal or an exact
-            // projected slice leaf reached through a member chain.
-            let collection_type = match lengths::parameter(program, state, indexed.collection) {
-                Some(parameter) => parameter.type_reference,
-                None => {
-                    lengths::SliceCoordinate::resolve(program, state, indexed.collection)?
-                        .field
-                        .type_reference
-                }
-            };
+            // Range formation composes with its collection's meaning. The
+            // length owner separately proves its geometry against that exact
+            // collection; being a formal rather than an array or another
+            // range is not part of the operation's meaning.
+            let collection_type = builtin(program, machine, state, indexed.collection, depth + 1)?;
             if !crate::value_custody::places::has_builtin_subslice_meaning(
                 program,
                 machine,
@@ -120,7 +115,7 @@ pub(super) fn builtin(
                     builtin(program, machine, state, endpoint, depth + 1)?;
                 }
             }
-            Some(Some(collection_type))
+            Some(collection_type)
         }
         ExpressionNode::Borrow(borrow) => {
             // A borrow performs no operation of its own; the referent's
