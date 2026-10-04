@@ -62,6 +62,24 @@ pub struct BlockLocalEvidence {
 /// module itself; the lowering stage separately protects rows its unsealed
 /// sidecars name.
 pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
+    block_local_evidence_over_machines(module, &module.machines)
+}
+
+/// `block_local_evidence` with the machine-owned carriers read from `machines`
+/// instead of the module's whole machine table.
+///
+/// The module-level carriers are read whole either way: each one lives beside
+/// the machine table and names its rows by module-unique identity, so which
+/// machines are listed cannot change what they retain. Only the closed-reach
+/// applications, content-partition compositions, and contract propositions a
+/// machine owns depend on the listing, and those die with their machine. A
+/// producer deciding which machines to drop therefore reads the evidence the
+/// surviving module publishes by naming the kept machines here, without
+/// building that module first.
+pub fn block_local_evidence_over_machines<'machine>(
+    module: &TerminalModule,
+    machines: impl IntoIterator<Item = &'machine terminal_psi::TerminalMachine>,
+) -> BlockLocalEvidence {
     let mut evidence = BlockLocalEvidence::default();
     fn retain_proposition(
         proposition: &semantic_vocabulary::Proposition,
@@ -167,7 +185,7 @@ pub fn block_local_evidence(module: &TerminalModule) -> BlockLocalEvidence {
             | terminal_psi::FloatMeaningSource::SemanticApplication(_) => {}
         }
     }
-    for machine in &module.machines {
+    for machine in machines {
         if let Some(application) = &machine.closed_reach_application {
             for call in &application.calls {
                 evidence.operations.insert(call.operation);

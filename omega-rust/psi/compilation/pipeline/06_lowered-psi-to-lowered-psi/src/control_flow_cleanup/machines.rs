@@ -21,11 +21,12 @@ use std::collections::BTreeSet;
 use terminal_psi::{TerminalMachine, TerminalModule};
 
 /// Drop every machine outside the keep-set the retained closure and the
-/// surviving-evidence check converge on. Evidence is computed over the
-/// module with all unreachable candidates removed, matching the relation the
-/// independent verifier re-derives on the rewrite's output: a candidate the
-/// remaining rows still pin stays unreachable but retained, and the machines
-/// its own transitions name are pulled into the next round's closure.
+/// surviving-evidence check converge on. Evidence is read over the kept
+/// machines alone, which is the evidence the module with every unreachable
+/// candidate removed publishes, matching the relation the independent
+/// verifier re-derives on the rewrite's output: a candidate the remaining
+/// rows still pin stays unreachable but retained, and the machines its own
+/// transitions name are pulled into the next round's closure.
 pub(super) fn prune(
     module: &mut TerminalModule,
     sidecar_operations: &BTreeSet<OperationId>,
@@ -40,11 +41,17 @@ pub(super) fn prune(
         {
             return;
         }
-        let mut proposed = module.clone();
-        proposed
-            .machines
-            .retain(|machine| kept.contains(&machine.id));
-        let evidence = terminal_verifier::block_local_evidence(&proposed);
+        // The proposed removal changes nothing but which machines the module
+        // lists, and the module-level evidence carriers name their rows by
+        // module-unique identity: reading the evidence over the kept machines
+        // answers exactly what the module with the others removed publishes.
+        let evidence = terminal_verifier::block_local_evidence_over_machines(
+            module,
+            module
+                .machines
+                .iter()
+                .filter(|machine| kept.contains(&machine.id)),
+        );
         let bound = module.machines.iter().filter(|machine| {
             !kept.contains(&machine.id)
                 && machine_bound(machine, &evidence, sidecar_operations, sidecar_values)
