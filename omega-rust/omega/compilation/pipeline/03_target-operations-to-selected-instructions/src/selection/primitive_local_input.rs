@@ -231,16 +231,12 @@ pub(super) fn read_geometry(
             ..
         } => {
             let signature = source.structural.as_ref()?;
-            if !signature.entry_claims.is_empty() {
-                return None;
-            }
             // Field length and scalar reads use the same exact incoming or
             // state-owned storage declaration. Ownership does not hide the
             // byte field's extent; it remains separate from content authority.
             let structural_type = if let Some(parameter) = read_parameter(source, argument.place) {
                 if parameter.access != argument.access
                     || parameter.access == StructuralAccess::WriteOnlyBorrow
-                    || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
@@ -253,10 +249,7 @@ pub(super) fn read_geometry(
                 // operations. Replaying geometry cannot create permissions.
                 let (_, result) =
                     super::aggregate_result_input::operation_result(source, argument.place)?;
-                if result.multiplicity == StructuralMultiplicity::Linear
-                    || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
-                    || !result.claims.is_empty()
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
                 {
                     return None;
                 }

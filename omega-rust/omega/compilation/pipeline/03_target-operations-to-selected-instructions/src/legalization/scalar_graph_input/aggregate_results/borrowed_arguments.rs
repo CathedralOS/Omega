@@ -173,8 +173,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                     block,
                     declaration,
                 } => {
-                    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
-                        || !target::control_flow::sources::dominates(caller, block, after.0)
+                    if !target::control_flow::sources::dominates(caller, block, after.0)
                         || !caller.structural_places.iter().any(|place| {
                             place.id == declaration.place
                                 && place.kind

@@ -1194,16 +1194,16 @@ pub(super) fn home(
     &terminal_psi::StructuralOperationResult,
 )> {
     let (operation, result) = operation_result(source, place)?;
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
-        // Primitive predicates do not change a bounded owner's `{length,
-        // bytes}` home. Producer replay already authenticated the exact result
-        // roster; this storage query must not reclassify that roster by which
-        // operation happened to produce it. Other aggregate carriers retain
-        // their established unqualified-home boundary.
-        || (!result.qualifications.is_empty()
-            && (!bounded_owned_byte_type(source, result.structural_type)
-                || !result.qualification_establishments.is_empty()))
+    // Claims ride the retained operation result; storage lookup grants no
+    // permission to consume them.
+    // Primitive predicates do not change a bounded owner's `{length,
+    // bytes}` home. Producer replay already authenticated the exact result
+    // roster; this storage query must not reclassify that roster by which
+    // operation happened to produce it. Other aggregate carriers retain
+    // their established unqualified-home boundary.
+    if (!result.qualifications.is_empty()
+        && (!bounded_owned_byte_type(source, result.structural_type)
+            || !result.qualification_establishments.is_empty()))
         || !result.projected_qualifications.is_empty()
     {
         return None;
@@ -1253,7 +1253,6 @@ pub(super) fn block_home(
         );
     if matching.next().is_some()
         || parameter.access != StructuralAccess::Owned
-        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
         || !parameter.projected_qualifications.is_empty()
         || !signature.structural_places.iter().any(|declaration| {

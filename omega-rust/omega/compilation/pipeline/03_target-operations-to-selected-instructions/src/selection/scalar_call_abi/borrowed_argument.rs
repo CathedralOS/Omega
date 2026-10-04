@@ -420,14 +420,13 @@ pub(super) fn validate_borrowed_argument(
             || signature.parameters.iter().any(|parameter| {
                 parameter.semantic.is_self && parameter.semantic.structural_type != attachment
             })
-    }) || !signature.entry_claims.is_empty()
-        || (!parameters.is_empty()
-            && !crate::structural_inputs::unobserved_owned_input::accepts(source)
-            && !crate::structural_inputs::structural_unit_input::accepts_graph(
-                &source.call_plan,
-                &parameters,
-                &signature.structural_types,
-            ))
+    }) || (!parameters.is_empty()
+        && !crate::structural_inputs::unobserved_owned_input::accepts(source)
+        && !crate::structural_inputs::structural_unit_input::accepts_graph(
+            &source.call_plan,
+            &parameters,
+            &signature.structural_types,
+        ))
         || !call.claim_transfers.is_empty()
         || call.call_plan != expected
         || (!exclusive

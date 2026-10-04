@@ -46,6 +46,7 @@ pub(in crate::legalization) fn expected(
             .ok_or_else(invalid)?;
         if callee.machine == caller.machine
             || callee.attachment != Some(cleanup.structural_type)
+            || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
             || callee.result != AbstractFunctionResult::Unit
             || !callee.parameters.is_empty()
             || callee.structural_parameters.len() > 1

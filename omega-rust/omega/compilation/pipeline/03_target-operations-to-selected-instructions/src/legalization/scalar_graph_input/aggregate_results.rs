@@ -149,65 +149,63 @@ pub(super) fn cleanup(
 ) -> bool {
     let mut discarded = std::collections::BTreeSet::new();
     let mut residuals = std::collections::BTreeSet::new();
-    let eligible_owner = |place: semantic_vocabulary::PlaceId| {
-        // A storage-free affine local still has one exact establishment. Use
-        // the same source reconstruction as owned calls; no target home is
-        // invented merely to justify its no-code discard.
-        if owned_arguments::trivial_affine_local(function, place).is_some() {
-            return true;
+    // This reconstructs the retained owner declaration, not permission to
+    // dispose it. Unit custody independently checks the action's exact live
+    // claim frontier and authorized nominal hook before native lowering.
+    let owner = |place: semantic_vocabulary::PlaceId| {
+        if let Some((_, structural_type, _)) =
+            owned_arguments::trivial_affine_local(function, place)
+        {
+            return Some((structural_type, StructuralMultiplicity::Affine));
+        }
+        if function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+        {
+            return None;
         }
         if let Some(parameter) = function
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == place)
         {
-            // Exact source cleanup and the current ownership frontier are
-            // checked independently. Observing a plain owned input does not
-            // turn its no-code discard into a constructor-result requirement.
-            return parameter.access == terminal_psi::StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine
+            return (parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
-                && function
-                    .entry_claim_declarations
-                    .iter()
-                    .all(|claim| claim.input != place)
-                && function
-                    .content_entry_claims
-                    .iter()
-                    .all(|claim| claim.input.root != place);
+                && (parameter.multiplicity != StructuralMultiplicity::Affine
+                    || function
+                        .entry_claim_declarations
+                        .iter()
+                        .all(|claim| claim.input != place)))
+            .then_some((parameter.structural_type, parameter.multiplicity));
         }
-        // Selection transfers a fresh owner into a block parameter. Its final
-        // discard owes the same whole affine cleanup as a direct producer;
-        // requiring an operation result here would reject the completed join.
-        super::structural_case::source_owner(function, place).is_ok_and(|owner| match owner {
+        match super::structural_case::source_owner(function, place).ok()? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 result, ..
-            } => {
-                result.multiplicity == StructuralMultiplicity::Affine
-                    && result.claims.is_empty()
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-            }
+            } => (result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && (result.multiplicity != StructuralMultiplicity::Affine
+                    || result.claims.is_empty()))
+            .then_some((result.structural_type, result.multiplicity)),
             legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 declaration,
                 ..
-            } => {
-                declaration.multiplicity == StructuralMultiplicity::Affine
-                    && declaration.access == terminal_psi::StructuralAccess::Owned
-                    && declaration.qualifications.is_empty()
-                    && declaration.projected_qualifications.is_empty()
-            }
+            } => (declaration.access == terminal_psi::StructuralAccess::Owned
+                && declaration.qualifications.is_empty()
+                && declaration.projected_qualifications.is_empty())
+            .then_some((declaration.structural_type, declaration.multiplicity)),
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
-                false
-            }
-        })
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => None,
+        }
+    };
+    let discardable = |place| {
+        owner(place).is_some_and(|(_, multiplicity)| multiplicity == StructuralMultiplicity::Affine)
     };
     actions.iter().all(|action| {
         match action {
             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                discarded.insert(*place) && eligible_owner(*place)
+                discarded.insert(*place) && discardable(*place)
             }
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 // A residual is a strictly projected plain subtree of a still
@@ -225,12 +223,27 @@ pub(super) fn cleanup(
                                     || discard.path.starts_with(path))
                         },
                     )
-                    && eligible_owner(discard.place)
+                    && discardable(discard.place)
                     && residuals.insert((discard.place, discard.path.clone()))
             }
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                 discarded.insert(cleanup.place)
-                    && eligible_owner(cleanup.place)
+                    && owner(cleanup.place).is_some_and(|(structural_type, multiplicity)| {
+                        structural_type == cleanup.structural_type
+                            && match multiplicity {
+                                StructuralMultiplicity::Affine => {
+                                    cleanup.consumed_claims.is_empty()
+                                }
+                                StructuralMultiplicity::Linear => {
+                                    !cleanup.consumed_claims.is_empty()
+                                        && cleanup
+                                            .consumed_claims
+                                            .windows(2)
+                                            .all(|pair| pair[0] < pair[1])
+                                }
+                                StructuralMultiplicity::Unrestricted => false,
+                            }
+                    })
                     && cleanup.requirement_obligations.is_empty()
             }
         }
@@ -256,9 +269,12 @@ pub(super) fn header(
         || optimized.result != abstracted.result
         || !super::place_declarations::matches_producers(optimized)
         || optimized.structural_parameters != abstracted.structural_parameters
-        || !abstracted.entry_claims.is_empty()
-        || !optimized.entry_claims.is_empty()
-        || !optimized.entry_claim_declarations.is_empty()
+        || abstracted.entry_claims != optimized.entry_claim_declarations
+        || abstracted.entry_claims.len() != optimized.entry_claims.len()
+        || abstracted
+            .entry_claims
+            .iter()
+            .any(|claim| !optimized.entry_claims.contains(&claim.claim))
         || !optimized.content_entry_claims.is_empty()
         || abstracted.published_service_ceiling != optimized.published_service_ceiling
         || abstracted.parameters.len() != optimized.parameters.len()
@@ -442,7 +458,6 @@ pub(in crate::legalization) fn block_home_layout(
         );
     if !(!parameter.is_self
         && parameter.access == terminal_psi::StructuralAccess::Owned
-        && parameter.multiplicity != StructuralMultiplicity::Linear
         && (parameter.qualifications.is_empty() || owned_bounded_bytes)
         && parameter.projected_qualifications.is_empty())
     {
@@ -820,11 +835,8 @@ pub(in crate::legalization) fn home_layout(
                     | StructuralTypeShape::ElementView { .. }
             )
     }) {
-        // Qualifications ride the home origin verbatim as custody evidence;
-        // the layout is the carrier's physical shape alone.
-        if result.multiplicity == StructuralMultiplicity::Linear || !result.claims.is_empty() {
-            return Err(LegalizationError::custody());
-        }
+        // Claims and qualifications ride the home origin verbatim as custody
+        // evidence; the layout is the carrier's physical shape alone.
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
             crate::structural_inputs::structural_reference_input::primitive_array_shape(
                 result.structural_type,

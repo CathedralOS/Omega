@@ -1447,6 +1447,24 @@ pub(super) fn scalar_store_footprints_retained(
     }
 }
 
+/// Owned field observations retain the complete obligation on the carrier.
+/// Reference/view shells keep their separate referent and descriptor rules.
+fn owned_observation_storage(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    types.iter().any(|declaration| {
+        declaration.id == structural_type
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Record { .. }
+                    | terminal_psi::StructuralTypeShape::Mixed { .. }
+                    | terminal_psi::StructuralTypeShape::Sum { .. }
+                    | terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+    })
+}
+
 /// Access policy belongs to the declared storage, not whether its address
 /// arrived through the entry ABI or a state edge. Their transport identities
 /// are independently checked by `read_access` below.
@@ -1456,7 +1474,10 @@ fn parameter_access(
     purpose: AccessPurpose,
 ) -> bool {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
-    if parameter.multiplicity == StructuralMultiplicity::Linear
+    if (parameter.multiplicity == StructuralMultiplicity::Linear
+        && (parameter.access != StructuralAccess::Owned
+            || purpose == AccessPurpose::ByteOwnerReplacement
+            || !owned_observation_storage(types, parameter.structural_type)))
         || !parameter.projected_qualifications.is_empty()
         || (parameter.access == StructuralAccess::WriteOnlyBorrow
             && purpose == AccessPurpose::Field)
@@ -1593,11 +1614,18 @@ fn read_access(
         // Metadata reads observe the same established home as scalar fields.
         // This does not authorize replacing an owned byte carrier: mutation
         // keeps its separately checked borrowed-destination contract.
+        // An observation carries the existing claim roster unchanged. Exact
+        // source/home equality below rejoins that roster; construction and
+        // current semantic replay, not this read, validate its authority.
+        // Borrowed carriers keep their separate claim-free contract.
+        let retained_custody =
+            owned_observation_storage(&target.graph.structural_types, result.structural_type)
+                || (result.multiplicity != StructuralMultiplicity::Linear
+                    && result.claims.is_empty());
         if purpose == AccessPurpose::ByteOwnerReplacement
-            || result.multiplicity == StructuralMultiplicity::Linear
+            || !retained_custody
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
             || !target
                 .graph
                 .blocks

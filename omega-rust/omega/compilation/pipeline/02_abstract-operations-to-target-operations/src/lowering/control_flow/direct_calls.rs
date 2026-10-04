@@ -397,9 +397,9 @@ fn require_exact_target_abi(
 }
 
 /// Ordinary calls share the declared signature, independently of result kind
-/// and operand storage. Claims and descriptor forwarding retain their separate
-/// unsupported transport boundaries; proof obligations and crash routes travel
-/// unchanged on the emitted call.
+/// and operand storage. Exact claim transfers, proof obligations and crash
+/// routes travel unchanged on the emitted call. Descriptor forwarding retains
+/// its separate transport contract.
 fn ordinary_contract(
     call: &DirectCall<'_>,
     callee_function: &AbstractFunction,
@@ -414,10 +414,7 @@ fn ordinary_contract(
     LoweringError,
 > {
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    if !call.dynamic_arguments.is_empty()
-        || !call.claim_transfers.is_empty()
-        || !callee_function.entry_claims.is_empty()
-    {
+    if !call.dynamic_arguments.is_empty() {
         return Err(invalid());
     }
     if call.scalar_arguments.len() != callee_function.parameters.len() {
@@ -777,6 +774,7 @@ pub(super) fn lower_cleanup_calls(
             .copied()
             .ok_or_else(invalid)?;
         if callee.attachment != Some(cleanup.structural_type)
+            || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
             || callee.result != AbstractFunctionResult::Unit
             || !callee.parameters.is_empty()
             || callee.structural_parameters.len() > 1

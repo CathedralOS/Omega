@@ -20,9 +20,18 @@ pub(super) fn fields(
         return None;
     };
     let declarations = &source.structural.as_ref()?.structural_types;
+    // Complete construction retains its independently admitted whole-root
+    // issuance; field transport below still authenticates each child.
+    let complete_root_custody = match result.multiplicity {
+        StructuralMultiplicity::Linear => {
+            matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
+        }
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
+            result.claims.is_empty()
+        }
+    };
     if row.result.is_some()
-        || result.multiplicity == StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
+        || !complete_root_custody
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || crate::structural_inputs::structural_reference_input::shape(

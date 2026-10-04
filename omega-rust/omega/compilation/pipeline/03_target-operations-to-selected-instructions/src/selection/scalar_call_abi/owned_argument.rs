@@ -10,9 +10,6 @@ pub(super) fn validate_owned_arguments(
     call: &LegalizedScalarCall,
     operation: semantic_vocabulary::OperationId,
 ) -> Option<()> {
-    if !call.claim_transfers.is_empty() {
-        return None;
-    }
     for argument in &call.arguments {
         let LegalizedScalarArgument::Structural {
             semantic, target, ..
@@ -97,8 +94,6 @@ pub(super) fn validate_owned_arguments(
                 if actual_producer != psi_operation
                     || result.place != semantic.place
                     || result.structural_type != target.root_structural_type
-                    || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                    || !result.claims.is_empty()
                     || !result.projected_qualifications.is_empty()
                     || (!semantic.path.is_empty() && !result.qualifications.is_empty())
                 {
@@ -119,7 +114,6 @@ pub(super) fn validate_owned_arguments(
                     || block == source.entry_block
                     || place != semantic.place
                     || parameter.access != StructuralAccess::Owned
-                    || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.structural_type != target.root_structural_type
                     || !parameter.projected_qualifications.is_empty()
                     || (!semantic.path.is_empty() && !parameter.qualifications.is_empty())
@@ -149,8 +143,6 @@ pub(super) fn validate_owned_arguments(
                     .find(|parameter| parameter.semantic.place == semantic.place)?;
                 if !semantic.path.is_empty()
                     || parameter.semantic.access != StructuralAccess::Owned
-                    || parameter.semantic.multiplicity
-                        == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.semantic.structural_type != target.structural_type
                     || !parameter.semantic.projected_qualifications.is_empty()
                     || placement != &parameter.target.placement

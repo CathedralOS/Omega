@@ -415,13 +415,9 @@ pub(in crate::legalization) fn read(
     };
     let (operation, result, place, field) = (*operation, *result, *place, *field);
     if function
-        .entry_claim_declarations
+        .content_entry_claims
         .iter()
-        .any(|claim| claim.input == place)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == place)
+        .any(|claim| claim.input.root == place)
     {
         return None;
     }
@@ -443,7 +439,6 @@ pub(in crate::legalization) fn read(
         .find(|parameter| parameter.place == place)
     {
         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -452,11 +447,7 @@ pub(in crate::legalization) fn read(
         (parameter.structural_type, parameter.access)
     } else {
         let (_, result) = super::structural_case::source_result(function, place).ok()?;
-        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-        {
+        if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
             return None;
         }
         // A view or reference lends storage through its descriptor; an owned

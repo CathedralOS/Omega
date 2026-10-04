@@ -10,9 +10,8 @@ use target_operations::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
 };
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralOperationResult,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -945,17 +944,13 @@ fn conventional_sum_layout(
 /// way the producer derives it: the retained operation-result origin carries
 /// the semantic result row verbatim, and the layout is the aggregate shape or
 /// the conventional sum layout the declared structural type resolves to.
-/// Claimed, linear, qualified, or non-aggregate non-sum results have no honest
-/// home, so a retained home on one is forged regardless of how plausible the
-/// layout looks.
+/// Claim and qualification rows stay in the exact origin; their authority is
+/// independently checked before physical realization. They do not change layout.
 pub(super) fn structural_result_home(
     operation: OperationId,
     result: &StructuralOperationResult,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<TargetStructuralHomeRequirement, InvalidStructuralShape> {
-    if !result.claims.is_empty() {
-        return Err(InvalidStructuralShape);
-    }
     Ok(TargetStructuralHomeRequirement {
         origin: TargetStructuralHomeOrigin::OperationResult {
             operation,
@@ -1015,12 +1010,8 @@ fn result_home_layout(
     result: &StructuralOperationResult,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<TargetStructuralHomeLayout, InvalidStructuralShape> {
-    // The qualification roster rides `origin.result` verbatim as custody
-    // evidence; the home layout is the carrier's physical shape alone, so
-    // only linear multiplicity still rejects here.
-    if result.multiplicity == StructuralMultiplicity::Linear {
-        return Err(InvalidStructuralShape);
-    }
+    // The complete claim and qualification rosters ride `origin.result`
+    // verbatim; the independently reconstructed layout uses the carrier type.
     let indexed = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))

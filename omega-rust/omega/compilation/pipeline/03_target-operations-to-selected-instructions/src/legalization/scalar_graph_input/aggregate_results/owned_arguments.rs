@@ -35,7 +35,6 @@ pub(super) fn reconstruct(
     // roster and re-checks it exactly wherever an argument binds to a
     // parameter. Projected (path-beneath-root) qualifications still decline.
     if destination.access != terminal_psi::StructuralAccess::Owned
-        || destination.multiplicity == StructuralMultiplicity::Linear
         || !destination.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());
@@ -164,7 +163,6 @@ pub(super) fn reconstruct(
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
         if result.multiplicity != destination.multiplicity
-            || !result.claims.is_empty()
             || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());

@@ -4,7 +4,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
 fn sum_layout(
     structural_type: StructuralTypeId,
@@ -33,9 +33,7 @@ pub(super) fn block_home(
     declaration: &terminal_psi::StructuralParameterDeclaration,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
-    if !super::super::unobserved_owned::parameter(declaration)
-        && !super::super::scalar::byte_views::is_owned_byte_parameter(declaration, types)
-    {
+    if !super::owned_arguments::is_owned_parameter(declaration, types) {
         return Err(LoweringError::UnsupportedStructuralSum(
             declaration.structural_type,
         ));
@@ -63,14 +61,8 @@ pub(in crate::lowering) fn result_home_layout(
     result: &terminal_psi::StructuralResultDeclaration,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
-    // Qualification rosters are caller-visible custody evidence replayed
-    // through the requirement's origin; they do not change the carrier's
-    // physical layout, so only linear multiplicity still rejects here.
-    if result.multiplicity == StructuralMultiplicity::Linear {
-        return Err(LoweringError::UnsupportedStructuralSum(
-            result.structural_type,
-        ));
-    }
+    // Claims and qualifications remain in the exact home origin. They govern
+    // ownership admission, while the complete carrier type determines layout.
     value_home_layout(result.structural_type, types)
 }
 
@@ -117,11 +109,6 @@ pub(in crate::lowering) fn home(
     result: &terminal_psi::StructuralOperationResult,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeRequirement, LoweringError> {
-    if !result.claims.is_empty() {
-        return Err(LoweringError::UnsupportedStructuralSum(
-            result.structural_type,
-        ));
-    }
     let declaration = terminal_psi::StructuralResultDeclaration {
         reference_sources: Vec::new(),
         place: result.place,

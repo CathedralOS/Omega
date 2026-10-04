@@ -190,20 +190,13 @@ pub(super) fn field_root(
         return Ok((structural_type, access));
     }
     if let Some(home) = live.structural_homes.get(&place) {
-        if home.has_claims()
-            || home.multiplicity() == StructuralMultiplicity::Linear
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
-        {
+        if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty() {
             return Err(unsupported());
         }
         return Ok((structural_type, StructuralAccess::Owned));
     }
     let parameter = function.arrival_parameter(place).ok_or_else(unsupported)?;
-    if parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-    {
+    if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
         return Err(unsupported());
     }
     Ok((structural_type, parameter.access))
@@ -424,10 +417,7 @@ pub(super) fn lower(
                 through_reference = true;
                 (referent, access)
             } else if let Some(home) = live.structural_homes.get(&place) {
-                if home.has_claims()
-                    || home.multiplicity() == StructuralMultiplicity::Linear
-                    || !home.qualifications().is_empty()
-                    || !home.projected_qualifications().is_empty()
+                if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
@@ -450,8 +440,7 @@ pub(super) fn lower(
                     StructuralAccess::Owned
                         | StructuralAccess::SharedBorrow
                         | StructuralAccess::MutableBorrow
-                ) || source.multiplicity == StructuralMultiplicity::Linear
-                    || !source.qualifications.is_empty()
+                ) || !source.qualifications.is_empty()
                     || !source.projected_qualifications.is_empty()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));

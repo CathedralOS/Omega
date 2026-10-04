@@ -696,20 +696,18 @@ impl Replay<'_> {
         else {
             return Err(psi_operation);
         };
-        // The producer admits only empty claim rosters on every lane that can
-        // emit this row, and an authored source never retains an
-        // installed-provider origin. Requirement obligations are discharged
-        // proof metadata: the retained row must replay the source roster
+        // The source and target retain identical claim transfers; physical
+        // transport cannot erase or substitute semantic ownership. An authored
+        // source never retains an installed-provider origin. Requirement obligations
+        // are discharged proof metadata: the retained row must replay the source roster
         // exactly rather than drop it. Crash continuations are the call's
         // verified surviving-route roster: they ride the same correspondence,
         // so the retained row must replay them exactly as the dynamic call
         // lane already does. A retained call carrying extra rows or the wrong
         // origin is forged even when plausible.
         if *origin != &NativeCallOrigin::Authored
-            || !source.claim_transfers.is_empty()
-            || !source.returned_claim_transfers.is_empty()
-            || !actual_claims.is_empty()
-            || !actual_returned.is_empty()
+            || source.claim_transfers != *actual_claims
+            || source.returned_claim_transfers != *actual_returned
             || *actual_crashes != source.crash_continuations
             || source.requirement_obligations != *actual_obligations
             || *callee != source.callee
@@ -3289,8 +3287,8 @@ fn declared_or_minted_qualifications(
 }
 
 /// A scalar result retains its home at this operation with the declared value,
-/// the callee's declared type and that type's fixed-native shape; a callee with
-/// entry claims cannot produce it.
+/// the callee's declared type and that type's fixed-native shape. The call's
+/// separately retained claim transfers preserve consumed structural arguments.
 fn scalar_result(
     psi_operation: OperationId,
     expected: &AbstractResult,
@@ -3304,7 +3302,6 @@ fn scalar_result(
         || structural_signatures::fixed_native_scalar_shape(expected.scalar_type)
             != Some(actual.shape)
         || actual.scalar_type != declared.scalar_type
-        || !callee.entry_claims.is_empty()
     {
         return Err(psi_operation);
     }

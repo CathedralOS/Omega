@@ -53,7 +53,6 @@ pub(in crate::legalization) fn source_owner(
     let (block, declaration) = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || declaration.access != terminal_psi::StructuralAccess::Owned
-        || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
     {

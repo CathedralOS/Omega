@@ -171,7 +171,6 @@ pub(super) fn lower(
                         && (!parameter.is_self
                             || owned_arguments::is_owned_parameter(parameter, structural_types))))
         }))
-        || !function.entry_claims.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

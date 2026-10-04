@@ -276,7 +276,6 @@ fn mixed_entrance(
     abi: &MixedStructuralScalarFunctionAbi,
 ) -> Option<()> {
     if source.structural_parameters.is_empty()
-        || !source.entry_claims.is_empty()
         || source.operations.iter().any(|operation| {
             matches!(
                 operation,

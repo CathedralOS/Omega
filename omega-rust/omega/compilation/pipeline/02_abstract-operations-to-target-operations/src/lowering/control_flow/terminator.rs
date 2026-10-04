@@ -109,6 +109,31 @@ fn owned_root_type(
     })
 }
 
+/// A nominal disposition uses the exact established owner's storage. Unlike
+/// a no-code affine discard, its claim authority remains on the cleanup action
+/// and is checked by semantic replay; geometry grants no consumption rights.
+fn nominal_owner_type(
+    live: &LiveDefinitions,
+    function: &AbstractFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    if let Some(home) = live.structural_homes.get(&place) {
+        return (home.access() == StructuralAccess::Owned
+            && home.qualifications().is_empty()
+            && home.projected_qualifications().is_empty())
+        .then(|| home.structural_type());
+    }
+    function
+        .arrival_parameter(place)
+        .filter(|parameter| {
+            parameter.access == StructuralAccess::Owned
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| owned_root_type(live, function, place))
+}
+
 fn live_home_or_arrival(
     live: &LiveDefinitions,
     function: &AbstractFunction,
@@ -212,7 +237,7 @@ pub(super) fn plain_home_cleanup(
                 // The call's ABI is reconstructed before this disposition. Its
                 // root still owes exactly one whole cleanup on this edge.
                 if !discarded_roots.insert(cleanup.place)
-                    || owned_root_type(live, function, cleanup.place)
+                    || nominal_owner_type(live, function, cleanup.place)
                         != Some(cleanup.structural_type)
                     || !cleanup.requirement_obligations.is_empty()
                     || super::references::is_suspended_root(live, cleanup.place)

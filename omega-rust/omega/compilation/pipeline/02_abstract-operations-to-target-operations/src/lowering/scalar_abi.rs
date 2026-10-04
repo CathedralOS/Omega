@@ -16,7 +16,6 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<MixedStructuralScalarFunctionAbi>, LoweringError> {
     if function.structural_parameters.is_empty()
-        || !function.entry_claims.is_empty()
         || function.operations.iter().any(|operation| {
             matches!(
                 operation,

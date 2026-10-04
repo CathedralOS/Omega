@@ -16,7 +16,6 @@ pub(super) fn is_owned_parameter(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     parameter.access == StructuralAccess::Owned
-        && parameter.multiplicity != StructuralMultiplicity::Linear
         && parameter.projected_qualifications.is_empty()
         && super::aggregate_results::value_home_layout(parameter.structural_type, types).is_ok()
 }
@@ -49,7 +48,6 @@ pub(super) fn argument(
         // of the unvalidated core remain responsible for supplying that proof.
         if home.access() != StructuralAccess::Owned
             || home.multiplicity() != declaration.multiplicity
-            || home.has_claims()
             || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
         {
             return Err(invalid());
