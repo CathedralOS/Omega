@@ -129,7 +129,12 @@ pub(super) fn emit(
         .transpose()?;
     let (source, establishment) = storage.bind(checked, state.state, bindings, whole)?;
     if let Some(establishment) = establishment {
-        places.push(view_ranges::establish(&establishment, operations));
+        places.push(view_ranges::establish(
+            &establishment,
+            values,
+            next_value,
+            operations,
+        ));
     }
     let site = ViewRangeSite {
         state: state.state,

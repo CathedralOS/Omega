@@ -51,7 +51,8 @@ pub(crate) enum RuntimeIndexExtent {
 
 /// Operations whose validation resolves their projections through a runtime
 /// projection resolver: calls through their structural arguments, leaf copies
-/// through their source path, primitive-leaf reads and stores through
+/// through their source path, collection-view establishment through its backing
+/// projection, primitive-leaf reads and stores through
 /// `terminal_semantics::primitive_projection_type`, scalar field stores
 /// through their carrier path, and case observations through the path to
 /// their sum. Extending this set is a claim that the operation's own checks,
@@ -65,6 +66,8 @@ fn admits_runtime_indexes(kind: &OperationKind) -> bool {
             | OperationKind::CallStructuralScalar { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::CallStructuralWithScalarArguments { .. }
+            | OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. }
             | OperationKind::StructuralLeafCopy { .. }
             | OperationKind::StructuralCaseMembership { .. }
             | OperationKind::PrimitiveScalarRead { .. }

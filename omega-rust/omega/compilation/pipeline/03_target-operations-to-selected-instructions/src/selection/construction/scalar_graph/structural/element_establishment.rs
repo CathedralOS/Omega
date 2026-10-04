@@ -2,7 +2,7 @@
 use super::local_storage::{address, store};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    SelectedInstructionKind, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -24,6 +24,7 @@ pub(super) fn establish(
         element,
         region,
         accepted_fact,
+        indices,
     } = &row.kind
     else {
         return Err(invalid());
@@ -136,6 +137,12 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
+    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+        indices,
+        &geometry.elements,
+    ) {
+        return Err(invalid());
+    }
     let field_offset = geometry.offset;
     let element_count = geometry.extent;
     // An empty view has no dereferenceable payload. Keep its independently
@@ -146,16 +153,8 @@ pub(super) fn establish(
     {
         constant(builder, row, 0, 0)?
     } else if parameter.is_some() {
-        let Some(base) = builder
-            .transport
-            .pointers
-            .iter()
-            .find(|(place, _)| *place == source.place)
-            .map(|(_, register)| *register)
-        else {
-            return Err(invalid());
-        };
-        base
+        super::runtime_address::projection_base(function, builder, row, source.place, field_offset)?
+            .ok_or_else(|| invalid())?
     } else {
         let mut homes = builder.transport.local_slots.iter().filter(|slot| {
             Some(slot.id)
@@ -176,6 +175,13 @@ pub(super) fn establish(
         };
         address(builder, row, home.id, 0, home.byte_size, false)?
     };
+    let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
+        base
+    } else {
+        super::runtime_address::scale(builder, row, source.place, field_offset, base, indices)?
+    };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: *destination,
@@ -194,13 +200,14 @@ pub(super) fn establish(
         base
     } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
         let pointer = transport_register(builder, *destination, 0)?;
-        memory(
+        super::runtime_address::footprint(
             builder,
             row,
             source.place,
             field_offset,
             8,
-            SelectedMemoryAccessRole::ReadPlace,
+            indices,
+            super::runtime_address::Written::None,
         )?;
         builder.emit(
             SelectedInstructionKind::Load64 {
@@ -239,13 +246,14 @@ pub(super) fn establish(
                 terminal_semantics::CollectionExtent::LiveLength { .. } => {
                     let header = field_offset.checked_sub(8).ok_or_else(invalid)?;
                     let pointer = transport_register(builder, *destination, 0)?;
-                    memory(
+                    super::runtime_address::footprint(
                         builder,
                         row,
                         source.place,
                         header,
                         8,
-                        SelectedMemoryAccessRole::ReadPlace,
+                        indices,
+                        super::runtime_address::Written::None,
                     )?;
                     builder.emit(
                         SelectedInstructionKind::Load64 {

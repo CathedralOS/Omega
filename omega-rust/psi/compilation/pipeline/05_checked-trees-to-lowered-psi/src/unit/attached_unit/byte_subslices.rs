@@ -144,7 +144,12 @@ pub(super) fn emit(
         .transpose()?;
     let (source, establishment) = storage.bind(checked, context.state, context.bindings, whole)?;
     if let Some(establishment) = establishment {
-        temporaries.push(view_ranges::establish(&establishment, operations));
+        temporaries.push(view_ranges::establish(
+            &establishment,
+            values,
+            next_value,
+            operations,
+        ));
     }
     let declaration = view_ranges::emit(
         checked,

@@ -3,7 +3,7 @@ use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_layout::{
-    direct_scalar_field_offset, resolve_structural_projection_path,
+    direct_scalar_field_offset, resolve_structural_projection_path, runtime_projection,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -29,16 +29,19 @@ use terminal_psi::{
 pub(in crate::lowering) struct ElementViewBackings<'a> {
     pub(super) homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     address_joins: &'a BTreeSet<PlaceId>,
+    selectors: crate::lowering::control_flow::scalar_sources::ScalarSources<'a>,
 }
 
 impl<'a> ElementViewBackings<'a> {
     pub(in crate::lowering) fn new(
         homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
         address_joins: &'a BTreeSet<PlaceId>,
+        selectors: crate::lowering::control_flow::scalar_sources::ScalarSources<'a>,
     ) -> Self {
         Self {
             homes,
             address_joins,
+            selectors,
         }
     }
 
@@ -420,16 +423,22 @@ pub(in crate::lowering) fn resolve_element_view(
         {
             return Err(invalid());
         }
-        let (root_structural_type, source_byte_offset, extent, element_stride, source_home) =
-            established_source(
-                function,
-                structural_types,
-                parameters,
-                backings,
-                source,
-                *element,
-                *region,
-            )?;
+        let (
+            root_structural_type,
+            source_byte_offset,
+            indices,
+            extent,
+            element_stride,
+            source_home,
+        ) = established_source(
+            function,
+            structural_types,
+            parameters,
+            backings,
+            source,
+            *element,
+            *region,
+        )?;
         let region = match region {
             terminal_psi::ElementViewRegion::WholeCollection => {
                 target_operations::TargetElementViewRegion::WholeCollection
@@ -467,6 +476,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 element: *element,
                 root_structural_type,
                 source_byte_offset,
+                indices,
                 extent,
                 region,
                 element_stride,
@@ -654,6 +664,7 @@ fn established_source(
     (
         StructuralTypeId,
         u32,
+        Vec<target_operations::TargetStructuralRuntimeIndex>,
         target_operations::TargetViewExtent,
         u32,
         TargetStructuralArgumentSource,
@@ -718,12 +729,18 @@ fn established_source(
     };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (projected_type, projected_shape, source_byte_offset) = resolve_structural_projection_path(
-        root_structural_type,
-        field_path,
-        structural_types,
-        &mut shape_cache,
-        &mut active,
+    let (projected_type, projected_shape, source_byte_offset, runtime_elements) =
+        runtime_projection(
+            root_structural_type,
+            field_path,
+            structural_types,
+            &mut shape_cache,
+            &mut active,
+        )?;
+    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
+        runtime_elements,
+        function,
+        &backings.selectors,
     )?;
     let geometry = terminal_semantics::element_view_region_geometry(
         structural_types.values().copied(),
@@ -888,6 +905,7 @@ fn established_source(
     Ok((
         root_structural_type,
         source_byte_offset,
+        indices,
         extent,
         element_stride,
         backing,

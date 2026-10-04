@@ -637,6 +637,7 @@ pub(super) fn validate(
         )?,
         (
             LegalizedScalarInstructionKind::EstablishElementView {
+                indices,
                 result,
                 destination,
                 source,
@@ -656,6 +657,13 @@ pub(super) fn validate(
             if result != expected_result
                 || destination != expected_destination
                 || source != expected_source
+                || *indices
+                    != crate::legalization::runtime_indices::collection_view(
+                        optimized,
+                        unit,
+                        operation,
+                        expected_source,
+                    )?
                 || element != expected_element
                 || region != expected_region
                 || match region {

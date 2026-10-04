@@ -105,3 +105,43 @@ pub(crate) fn structural_argument(
         .ok_or(LegalizationError::custody())?;
     operands(optimized, unit, operation, &elements)
 }
+
+/// A collection-view formation retains the backing projection's runtime
+/// selectors independently of its final optional fixed byte window.
+pub(crate) fn collection_view(
+    optimized: &PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+    source: &terminal_psi::StructuralArgument,
+) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
+    if !source
+        .path
+        .iter()
+        .any(|segment| segment.runtime_index().is_some())
+    {
+        return Ok(Vec::new());
+    }
+    let root = super::scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
+        .ok_or(LegalizationError::custody())?;
+    let path = match source.path.last() {
+        Some(terminal_psi::StructuralPathSegment::FixedByteRange { .. }) => {
+            &source.path[..source.path.len() - 1]
+        }
+        _ => &source.path,
+    };
+    let (_, _, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
+            root,
+            path,
+            &unit.structural_types,
+        )
+        .or_else(|| {
+            crate::structural_inputs::structural_reference_input::runtime_leaf_copy_projection(
+                root,
+                path,
+                &unit.structural_types,
+            )
+        })
+        .ok_or(LegalizationError::custody())?;
+    operands(optimized, unit, operation, &elements)
+}

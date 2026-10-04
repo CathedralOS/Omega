@@ -485,6 +485,7 @@ pub(super) fn byte_argument(
                     crate::lowering::scalar::element_views::ElementViewBackings::new(
                         &live.structural_homes,
                         &live.address_joins,
+                        crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                     ),
                     &values,
                     &live.lengths,
@@ -509,6 +510,7 @@ pub(super) fn byte_argument(
                 crate::lowering::scalar::element_views::ElementViewBackings::new(
                     &live.structural_homes,
                     &live.address_joins,
+                    crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                 ),
                 &values,
                 &live.lengths,

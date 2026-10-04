@@ -1674,8 +1674,12 @@ impl Emission<'_, '_, '_> {
             let (bound, establishment) =
                 storage.bind(self.checked, self.state, &bindings, whole)?;
             if let Some(establishment) = establishment {
-                self.temporary_places
-                    .push(view_ranges::establish(&establishment, self.operations));
+                self.temporary_places.push(view_ranges::establish(
+                    &establishment,
+                    self.values,
+                    self.next_value,
+                    self.operations,
+                ));
             }
             let (_, authored) = crate::expression_preparation::source_custody::authored_state(
                 self.checked,

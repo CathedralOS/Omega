@@ -8,7 +8,10 @@
 //! independent of this choice.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
+    emit_prepared_path, path_with_current_bounds,
+};
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -73,7 +76,9 @@ pub(crate) struct RangeStorage {
 /// One ordinary collection-view operation, shared by scalar and Unit schedules.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CollectionView {
-    pub(crate) source: terminal_psi::StructuralArgument,
+    pub(crate) source: PlaceId,
+    pub(crate) access: terminal_psi::StructuralAccess,
+    pub(crate) path: Vec<LoweredElementPathSegment>,
     pub(crate) element: StructuralTypeId,
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
@@ -107,7 +112,7 @@ impl RangeStorage {
                 access: self.access,
                 type_identity: String::new(),
             };
-            let source = bindings.borrowed_structural_argument(
+            let source = bindings.borrowed_structural_place(
                 &argument,
                 machine,
                 checked.state_parameters(authored),
@@ -116,6 +121,11 @@ impl RangeStorage {
                 destination,
                 Some(CollectionView {
                     source,
+                    access:
+                        crate::expression_preparation::bindings::structural_paths::terminal_access(
+                            self.access,
+                        ),
+                    path: collection_path(&self.collection, bindings)?,
                     element,
                     place: destination,
                     structural_type: self.structural_type,
@@ -150,6 +160,52 @@ impl RangeStorage {
             establishment,
         ))
     }
+}
+
+/// Bind selectors without observing them. Establishment evaluates the complete
+/// projection before range endpoints, under the occurrence's current frame.
+fn collection_path(
+    path: &[CheckedUnitStructuralPathSegment],
+    bindings: &ScalarBindings,
+) -> Result<Vec<LoweredElementPathSegment>, LoweringError> {
+    use crate::expression_preparation::bindings::structural_paths::{
+        PreparedStructuralPathSegment, prepare_unscoped_path,
+    };
+    let mut runtime_indices = 0;
+    prepare_unscoped_path(path)?
+        .into_iter()
+        .map(|segment| match segment {
+            PreparedStructuralPathSegment::Static(segment) => {
+                Ok(LoweredElementPathSegment::Static(segment))
+            }
+            PreparedStructuralPathSegment::RuntimeIndex(index) => {
+                runtime_indices += 1;
+                if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {
+                    return unsupported("collection view exceeds the runtime selector namespace");
+                }
+                let selector = match index {
+                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                        bindings.runtime_index_parameter(position)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::Local { position } => {
+                        bindings.runtime_index_local(position)?
+                    }
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        bindings.runtime_index_field(&field)?
+                    }
+                    _ => {
+                        return unsupported("collection view cannot borrow an assignment selector");
+                    }
+                };
+                Ok(LoweredElementPathSegment::RuntimeIndex {
+                    selector: crate::expression_preparation::prepare_expression::exact_u64_index(
+                        selector,
+                    )?,
+                    extent: None,
+                })
+            }
+        })
+        .collect()
 }
 
 /// Resolve the collection's declared type before reserving descriptor storage.
@@ -361,8 +417,16 @@ fn validate_element(
 
 pub(crate) fn establish(
     view: &CollectionView,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> StructuralPlaceDeclaration {
+    let path = emit_prepared_path(&view.path, 0, values, next_value, operations);
+    let source = terminal_psi::StructuralArgument {
+        place: view.source,
+        access: view.access,
+        path: path_with_current_bounds(&path, operations.next_identity),
+    };
     let producer = operations.allocate();
     operations.push(terminal_psi::Operation {
         static_reach_binding: None,
@@ -373,8 +437,7 @@ pub(crate) fn establish(
                 qualification_establishments: Vec::new(),
                 place: view.place,
                 structural_type: view.structural_type,
-                multiplicity: if view.source.access == terminal_psi::StructuralAccess::MutableBorrow
-                {
+                multiplicity: if view.access == terminal_psi::StructuralAccess::MutableBorrow {
                     terminal_psi::StructuralMultiplicity::Affine
                 } else {
                     terminal_psi::StructuralMultiplicity::Unrestricted
@@ -384,17 +447,17 @@ pub(crate) fn establish(
                 claims: Vec::new(),
             },
         ),
-        kind: if view.source.access == terminal_psi::StructuralAccess::MutableBorrow {
+        kind: if view.access == terminal_psi::StructuralAccess::MutableBorrow {
             terminal_psi::OperationKind::EstablishMutableElementView {
                 destination: view.place,
-                source: view.source.clone(),
+                source,
                 element: view.element,
                 region: terminal_psi::ElementViewRegion::WholeCollection,
             }
         } else {
             terminal_psi::OperationKind::EstablishElementView {
                 destination: view.place,
-                source: view.source.clone(),
+                source,
                 element: view.element,
                 region: terminal_psi::ElementViewRegion::WholeCollection,
             }

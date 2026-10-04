@@ -434,6 +434,12 @@ pub(super) fn project(
                 ),
             };
             LegalizedScalarInstructionKind::EstablishElementView {
+                indices: crate::legalization::runtime_indices::collection_view(
+                    optimized,
+                    unit,
+                    *psi_operation,
+                    source,
+                )?,
                 result: result.clone(),
                 destination: *destination,
                 source: source.clone(),

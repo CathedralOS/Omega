@@ -141,7 +141,9 @@ pub(crate) fn emit(
                 )?
             }
             LoweredScalarEffect::EstablishElementView(view) => {
-                crate::unit::attached_unit::view_ranges::establish(view, operations);
+                crate::unit::attached_unit::view_ranges::establish(
+                    view, values, next_value, operations,
+                );
             }
             LoweredScalarEffect::ByteSequenceSubslice {
                 source,

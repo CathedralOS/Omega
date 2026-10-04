@@ -625,6 +625,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_byte_operand(bytes, right);
                 }
                 LegalizedScalarInstructionKind::EstablishElementView {
+                    indices,
                     result,
                     destination,
                     source,
@@ -633,6 +634,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(40);
+                    encode_runtime_indices(bytes, indices);
                     super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&destination.get().to_le_bytes());
                     super::structural_types::encode_structural_argument(bytes, source);

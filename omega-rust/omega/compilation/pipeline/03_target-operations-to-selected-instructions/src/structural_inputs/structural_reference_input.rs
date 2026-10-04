@@ -347,8 +347,6 @@ pub(crate) fn shape(
     shape_inner(root, declarations, &mut Vec::new())
 }
 
-
-
 /// Reconstruct parameter storage from its access, independently of body order.
 pub(crate) fn parameter_shape(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -663,11 +661,9 @@ pub(crate) fn fixed_element_array_view(
     let terminal_semantics::CollectionExtent::Fixed(length) = geometry.extent else {
         return None;
     };
-    (geometry.storage == terminal_semantics::CollectionStorage::Inline).then_some((
-        geometry.offset,
-        length,
-        geometry.stride,
-    ))
+    (geometry.storage == terminal_semantics::CollectionStorage::Inline
+        && geometry.elements.is_empty())
+    .then_some((geometry.offset, length, geometry.stride))
 }
 
 /// Native storage coordinates for an ordinary collection establishment.
@@ -677,6 +673,7 @@ pub(crate) fn fixed_element_array_view(
 /// viewed bytes begin where the descriptor points.
 pub(crate) struct CollectionViewGeometry {
     pub offset: u32,
+    pub elements: Vec<RuntimeElement>,
     pub extent: terminal_semantics::CollectionExtent,
     pub stride: u32,
     pub storage: terminal_semantics::CollectionStorage,
@@ -753,10 +750,9 @@ pub(crate) fn collection_view_region_geometry(
         shape if shape.is_borrowed_byte_view() => None,
         _ => return None,
     };
-    let (tip, offset) =
-        project(source.structural_type, field_path, declarations).or_else(|| {
+    let (tip, offset, elements) =
+        runtime_projection(source.structural_type, field_path, declarations).or_else(|| {
             runtime_leaf_copy_projection(source.structural_type, field_path, declarations)
-                .map(|(carrier, offset, _)| (carrier, offset))
         })?;
     let element = view_element.or_else(|| {
         declarations.iter().find_map(|declaration| {
@@ -874,6 +870,7 @@ pub(crate) fn collection_view_region_geometry(
     }
     Some(CollectionViewGeometry {
         offset,
+        elements,
         extent,
         stride: element_stride,
         storage: backing.storage,
@@ -2221,10 +2218,6 @@ pub(crate) fn byte_view_field_descriptor(
     .then(|| length_word.checked_sub(8))
     .flatten()
 }
-
-
-
-
 
 /// A typed representation loan keeps both declarations. Portable validity
 /// grants no target layout authority: replay each realized leaf and padded

@@ -16,9 +16,9 @@ use crate::control_graph::DominatorTree;
 
 use super::byte_extent::{block_length_equation, descriptor_origins, operation_position};
 
-/// Resolve the collection through the same canonical static projections as
-/// establishment validation. A nested array's extent belongs to the selected
-/// child, not its outer backing. Reference crossings remain explicit, while
+/// Resolve the collection through the same typed projections as establishment
+/// validation. Runtime selectors retain their independent bound obligations. A
+/// nested array's extent belongs to the selected child, not its outer backing. Reference crossings remain explicit, while
 /// byte windows need their own extent denotation and do not enter this walk.
 fn path_end_type(
     module: &TerminalModule,
@@ -44,6 +44,11 @@ fn path_end_type(
                 .1
                 .id
             }
+            (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element },
+            ) => *element,
             (
                 terminal_psi::StructuralPathSegment::Referent,
                 StructuralTypeShape::Reference { referent, .. },

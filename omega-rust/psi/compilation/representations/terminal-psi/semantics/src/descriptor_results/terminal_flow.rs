@@ -1,6 +1,8 @@
 //! Current Terminal operations adapted once for both contents and cohort replay.
 use super::*;
-use crate::descriptor_lifetimes::{DescriptorFlowEdge, descriptor_location};
+use crate::descriptor_lifetimes::{
+    DescriptorFlowEdge, descriptor_location, descriptor_location_type,
+};
 use terminal_psi::RecordFieldValue;
 
 pub(super) fn adapt(
@@ -116,7 +118,12 @@ pub(super) fn adapt(
                 | OperationKind::EstablishMutableElementView { source, .. }
                 | OperationKind::EstablishReference { source } => {
                     let destination = DescriptorLocation::whole(result?.place);
-                    let source_location = location(source.place, &source.path, None)?;
+                    let (source_location, mut backing_projection) = captured_storage_source(
+                        &module.structural_types,
+                        source,
+                        *graph.place_types.get(&source.place)?,
+                        position,
+                    )?;
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
                     let preserves_coordinates = match &operation.kind {
@@ -148,8 +155,11 @@ pub(super) fn adapt(
                     };
                     if !preserves_coordinates {
                         // Viewed element paths cannot refine differently named backing paths.
-                        let mut projection = Projection::new(&[]);
-                        projection.exact = false;
+                        backing_projection
+                            .get_or_insert_with(|| Projection::new(&[]))
+                            .exact = false;
+                    }
+                    if let Some(projection) = backing_projection {
                         graph
                             .projections
                             .insert((position, source_location, destination.clone()), projection);
@@ -571,6 +581,46 @@ pub(super) fn adapt(
         }
     }
     Some(graph)
+}
+
+/// Descriptor storage has an exact address, while selecting its backing may
+/// capture runtime coordinates. Keep those roles separate: a dynamic element
+/// below ordinary owned storage is a projection of that storage, never a
+/// fabricated static descriptor slot. The complete typed path and formation
+/// position survive even when later relative windows must remain conservative.
+fn captured_storage_source(
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+    root_type: StructuralTypeId,
+    position: DescriptorPosition,
+) -> Option<(DescriptorLocation, Option<Projection>)> {
+    let prefix_length = source
+        .path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+        .unwrap_or(source.path.len());
+    let location = descriptor_location(
+        types,
+        source.place,
+        root_type,
+        &source.path[..prefix_length],
+        None,
+    )?;
+    if prefix_length == source.path.len() {
+        return Some((location, None));
+    }
+    let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
+    // An incoming/stored descriptor is not its payload. Dynamic selection of
+    // such a slot needs its own contents lineage; a parent storage address
+    // cannot supply that missing relationship.
+    if !plain_owned_shape(types.iter(), prefix_type) {
+        return None;
+    }
+    crate::runtime_structural_path_tip(types.iter(), prefix_type, &source.path[prefix_length..])?;
+    Some((
+        location,
+        Some(Projection::new(&source.path[prefix_length..]).at(position)),
+    ))
 }
 fn destination_root(kind: &OperationKind) -> Option<&PlaceId> {
     match kind {

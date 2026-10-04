@@ -2,7 +2,7 @@
 use super::local_storage::{address, store};
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
-    SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    SelectedInstructionKind, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -24,6 +24,7 @@ pub(super) fn establish(
         element,
         region,
         accepted_fact,
+        indices,
     } = &row.kind
     else {
         return Err(replay.invalid());
@@ -138,6 +139,12 @@ pub(super) fn establish(
     else {
         return Err(replay.invalid());
     };
+    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+        indices,
+        &geometry.elements,
+    ) {
+        return Err(replay.invalid());
+    }
     let field_offset = geometry.offset;
     let element_count = geometry.extent;
     // An empty view has no dereferenceable payload. Keep its independently
@@ -148,16 +155,8 @@ pub(super) fn establish(
     {
         constant(replay, row, *destination, 0, 0)?
     } else if parameter.is_some() {
-        let Some(base) = replay
-            .transport
-            .pointers
-            .iter()
-            .find(|(place, _)| *place == source.place)
-            .map(|(_, register)| *register)
-        else {
-            return Err(replay.invalid());
-        };
-        base
+        super::runtime_address::projection_base(function, replay, row, source.place, field_offset)?
+            .ok_or_else(|| replay.invalid())?
     } else {
         let mut homes = replay.transport.local_slots.iter().filter(|slot| {
             Some(slot.id)
@@ -178,6 +177,13 @@ pub(super) fn establish(
         };
         address(replay, row, home.id, 0, home.byte_size, false)?
     };
+    let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
+        base
+    } else {
+        super::runtime_address::scale(replay, row, source.place, field_offset, base, indices)?
+    };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: *destination,
@@ -193,13 +199,14 @@ pub(super) fn establish(
         base
     } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
         let pointer = result(replay, *destination, 0)?;
-        memory(
+        super::runtime_address::footprint(
             replay,
             row,
             source.place,
             field_offset,
             8,
-            SelectedMemoryAccessRole::ReadPlace,
+            indices,
+            super::runtime_address::Written::None,
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Load64 {
@@ -244,13 +251,14 @@ pub(super) fn establish(
                         .checked_sub(8)
                         .ok_or_else(|| replay.invalid())?;
                     let pointer = result(replay, *destination, 0)?;
-                    memory(
+                    super::runtime_address::footprint(
                         replay,
                         row,
                         source.place,
                         header,
                         8,
-                        SelectedMemoryAccessRole::ReadPlace,
+                        indices,
+                        super::runtime_address::Written::None,
                     )?;
                     replay.check_instruction(
                         SelectedInstructionKind::Load64 {

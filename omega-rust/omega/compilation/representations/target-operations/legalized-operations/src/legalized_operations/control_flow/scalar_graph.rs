@@ -205,7 +205,10 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::ElementViewLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_)
             | LegalizedScalarInstructionKind::DynamicParameterCall(_) => {}
-            LegalizedScalarInstructionKind::EstablishElementView { region, .. } => {
+            LegalizedScalarInstructionKind::EstablishElementView {
+                region, indices, ..
+            } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
                 if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } =
                     region
                 {
@@ -589,6 +592,7 @@ pub enum LegalizedScalarInstructionKind {
     /// Establish one borrowed element descriptor over a structural collection
     /// projection; custody, access and extent were discharged before lowering.
     EstablishElementView {
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         result: terminal_psi::StructuralOperationResult,
         destination: semantic_vocabulary::PlaceId,
         source: terminal_psi::StructuralArgument,

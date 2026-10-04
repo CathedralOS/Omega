@@ -103,6 +103,7 @@ impl Checker<'_> {
                 element,
                 root_structural_type,
                 source_byte_offset,
+                indices,
                 extent,
                 region,
                 element_stride,
@@ -198,6 +199,7 @@ impl Checker<'_> {
                         &argument.path,
                         *element,
                         *source_byte_offset,
+                        indices,
                         *extent,
                         *element_stride,
                         expected_region,
@@ -395,6 +397,7 @@ impl Checker<'_> {
         path: &[terminal_psi::StructuralPathSegment],
         element: semantic_vocabulary::StructuralTypeId,
         source_byte_offset: u32,
+        indices: &[target_operations::TargetStructuralRuntimeIndex],
         extent: target_operations::TargetViewExtent,
         element_stride: u32,
         region: terminal_psi::ElementViewRegion,
@@ -414,8 +417,8 @@ impl Checker<'_> {
         // An owned byte-carrier field has no canonical leaf spelling: it
         // resolves through the copy-snapshot channel, which names the
         // carrier's own declaration for the collection check below.
-        let Some((collection, offset)) =
-            crate::structural_inputs::structural_reference_input::project(
+        let Some((collection, offset, elements)) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
                 root_structural_type,
                 collection_path,
                 self.types,
@@ -426,11 +429,13 @@ impl Checker<'_> {
                     collection_path,
                     self.types,
                 )
-                .map(|(carrier, offset, _)| (carrier, offset))
             })
         else {
             return false;
         };
+        if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
+            return false;
+        }
         let Some(geometry) = terminal_semantics::element_view_region_geometry(
             self.types.iter(),
             collection,

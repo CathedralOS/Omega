@@ -2644,7 +2644,12 @@ impl OperationFrame<'_, '_> {
         let (range_source, establishment) =
             storage.bind(self.checked, self.state, &bindings, whole)?;
         if let Some(establishment) = establishment {
-            let declaration = super::view_ranges::establish(&establishment, self.operations);
+            let declaration = super::view_ranges::establish(
+                &establishment,
+                self.values,
+                self.next_value,
+                self.operations,
+            );
             self.private_places.push(declaration);
         }
         let declaration = super::view_ranges::emit(

@@ -36,6 +36,9 @@ pub enum TargetElementView {
         element: StructuralTypeId,
         root_structural_type: StructuralTypeId,
         source_byte_offset: u32,
+        /// Runtime element displacements in source projection order. The
+        /// descriptor adds each selector times its stride to the static offset.
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         extent: TargetViewExtent,
         region: TargetElementViewRegion,
         element_stride: u32,

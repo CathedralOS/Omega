@@ -12,6 +12,7 @@ use target_operations::{
 /// Borrowed view over the scalar maps a live graph carries, so sibling
 /// lowering modules replay the same dominance precedence without naming the
 /// private `LiveDefinitions` owner.
+#[derive(Clone, Copy)]
 pub(crate) struct ScalarSources<'a> {
     pub integers: &'a BTreeMap<ValueId, KnownUnitInteger>,
     pub scalar_homes: &'a BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,

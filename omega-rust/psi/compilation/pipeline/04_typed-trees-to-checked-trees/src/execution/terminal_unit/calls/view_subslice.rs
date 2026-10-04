@@ -616,8 +616,16 @@ fn array_collection(
         }
         CheckedStorageRoot::OwnedLocal { symbol }
     };
-    let (mut projected, path) =
-        super::projected_argument_path(program, state.symbol, statement_index, &place)?;
+    // Forming a view lends its selected collection; it does not move an
+    // array element. Reuse the borrowed projection's runtime selector and
+    // bounds obligation instead of requiring the collection index to fold.
+    let (mut projected, path) = super::projected_borrowed_path(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
     // The declared reference shell stays on the storage handle: byte
     // carriers enroll in the checked type table under that shell's spelling
     // (`ref-mut(array(u8,3))` for a `&mut [u8;3]` parameter), so peeling

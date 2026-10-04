@@ -35,6 +35,13 @@ pub(in crate::validation) fn source_collection_type(
                 .1
                 .id
             }
+            // The operation owns every runtime selector's SSA use and bound.
+            // Type selection does not establish either obligation.
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element },
+            ) => *element,
             (
                 StructuralPathSegment::Referent,
                 StructuralTypeShape::Reference { referent, access },

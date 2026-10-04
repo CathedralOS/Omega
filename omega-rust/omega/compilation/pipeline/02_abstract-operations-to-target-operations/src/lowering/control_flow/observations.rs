@@ -56,6 +56,7 @@ pub(super) fn lower(
                     element_views::ElementViewBackings::new(
                         &live.structural_homes,
                         &live.address_joins,
+                        crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                     ),
                     &mut values,
                     &live.lengths,
@@ -73,6 +74,7 @@ pub(super) fn lower(
                 element_views::ElementViewBackings::new(
                     &live.structural_homes,
                     &live.address_joins,
+                    crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                 ),
                 &mut values,
                 &live.lengths,
@@ -91,6 +93,7 @@ pub(super) fn lower(
                 element_views::ElementViewBackings::new(
                     &live.structural_homes,
                     &live.address_joins,
+                    crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                 ),
                 &mut values,
                 &live.lengths,
@@ -118,6 +121,7 @@ pub(super) fn lower(
                     crate::lowering::scalar::element_views::ElementViewBackings::new(
                         &live.structural_homes,
                         &live.address_joins,
+                        crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
                     ),
                     &mut values,
                     &live.lengths,
@@ -137,7 +141,11 @@ pub(super) fn lower(
             function,
             structural_types,
             &prepared.parameters,
-            element_views::ElementViewBackings::new(&live.structural_homes, &live.address_joins),
+            element_views::ElementViewBackings::new(
+                &live.structural_homes,
+                &live.address_joins,
+                crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
+            ),
             &values,
             &live.lengths,
             result.place,
@@ -174,6 +182,7 @@ pub(super) fn lower(
             crate::lowering::scalar::element_views::ElementViewBackings::new(
                 &live.structural_homes,
                 &live.address_joins,
+                crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
             ),
             &values,
             &live.lengths,
