@@ -7,7 +7,7 @@ use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
     TableMembershipExpression, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
-    TableUnaryExpression,
+    TableUnaryExpression, UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
@@ -150,6 +150,12 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                     },
                 ))
             }
+            // A condition-shaped pattern already evaluates to a decision:
+            // `transition text.len { text.len == 0 -> .. }` guards by the
+            // authored comparison rather than comparing the subject against
+            // a boolean (`subject == bool` cannot type). Value patterns keep
+            // their subject-equality desugar.
+            _ if arm_pattern_is_condition(syntax_trees, right) => right,
             _ => syntax_trees
                 .expressions
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
@@ -181,6 +187,30 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         bool_tuple,
         rest,
     ))
+}
+
+/// Whether an arm's parsed pattern already evaluates to a decision -- a
+/// comparison, boolean composition or negation, or a membership test. Such
+/// arms guard the transition as spelled; equal-matching them against the
+/// subject would type `subject == bool` nonsense. Everything else keeps the
+/// subject-equality desugar.
+fn arm_pattern_is_condition(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => matches!(
+            binary.operator,
+            BinaryOperator::And
+                | BinaryOperator::Or
+                | BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+        ),
+        ExpressionNode::Membership(_) => true,
+        ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
+        _ => false,
+    }
 }
 
 /// Parse a tuple arm containing one or more record/case destructures:
