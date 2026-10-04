@@ -113,7 +113,7 @@ impl<'a> BorrowAccessCollection<'a> {
 
     pub(super) fn retain_receiver_accesses(&mut self, first_access: usize) {
         // A copyable receiver's storage may still back its borrowed result.
-        // Only completion of a plain-copy-returning call ends these accesses.
+        // Completion releases them only when the result contains no retained loans.
         for access in self
             .argument_accesses
             .span_mut_or_empty(*self.accesses)
@@ -125,7 +125,18 @@ impl<'a> BorrowAccessCollection<'a> {
     }
 
     pub(super) fn finish_nested_call(&mut self, first_access: usize, expression: ExpressionHandle) {
-        if !self.is_plain_copy(expression) {
+        // A completed call returning plain owned storage cannot carry its
+        // operand loans onward. Affine results still transfer ownership; that
+        // restriction is independent of whether their contents retain loans.
+        if !self
+            .expression_type_reference(expression)
+            .is_some_and(|reference| {
+                validation::has_plain_owned_contents_with_numeric_constraints(
+                    self.program,
+                    reference,
+                )
+            })
+        {
             return;
         }
         let end_before_access = self.access_count();

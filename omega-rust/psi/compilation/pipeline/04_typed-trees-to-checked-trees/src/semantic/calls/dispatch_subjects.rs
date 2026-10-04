@@ -11,29 +11,14 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-/// The call a case guard tests, when the dispatch subject is a call whose
-/// operands evaluate no call of their own. Every copy repeats those
-/// operands, so a nested call would appear once per arm while running once;
-/// no planner accounts for that yet.
+/// The authored call whose saved result a case guard tests. Ordinary call
+/// operand preparation owns its nested invocations and evaluation order.
 pub(crate) fn computed_case_subject(
     program: &TypedTrees,
     guard: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let (subject, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-    let table = &program.expression_table;
-    let ExpressionNode::Call(call) = table.expression(subject) else {
-        return None;
-    };
-    if table.authored_selection_occurrences(subject).len() == 0
-        || (call.receiver.is_valid() && !call_free(program, call.receiver))
-        || !table
-            .expression_handles(call.arguments)
-            .iter()
-            .all(|argument| call_free(program, *argument))
-    {
-        return None;
-    }
-    Some(subject)
+    repeats_subject(program, subject, subject).then_some(subject)
 }
 
 /// Whether `copy` repeats the computed `subject`: the same call and operands
@@ -79,33 +64,4 @@ pub(crate) fn evaluated_case_subject(
         tested(statement).is_some_and(|earlier| repeats_subject(program, subject, earlier))
     }))
     .then_some(subject)
-}
-
-/// Whether `expression` reads names, literals and places through operators
-/// alone, invoking no call.
-fn call_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let table = &program.expression_table;
-    let mut pending = vec![expression];
-    while let Some(expression) = pending.pop() {
-        if !table.expression_is_valid(expression) {
-            return false;
-        }
-        match table.expression(expression) {
-            ExpressionNode::Name(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_) => {}
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Indexed(indexed) => {
-                pending.extend([indexed.collection, indexed.index]);
-            }
-            _ => return false,
-        }
-    }
-    true
 }

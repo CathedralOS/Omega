@@ -1022,6 +1022,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         scheduled_dispatch_subject(
             program,
             facts,
+            owner,
             source_state,
             call,
             candidate,
@@ -1055,19 +1056,20 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         .then_some(())
 }
 
-/// Join a saved dispatch read to its one already scheduled structural
+/// Join a saved dispatch call or operand read to its one already scheduled
 /// producer. Exact selection occurrence custody distinguishes parser copies
 /// from independently authored calls with identical targets and arguments.
 fn scheduled_dispatch_subject(
     program: &TypedTrees,
     facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     invocation: &checked_trees::FlowCallFact,
     candidate: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
     predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> bool {
-    let Some((statement, expression)) = validation::saved_dispatch_subject(
+    let Some((statement, expression)) = validation::saved_dispatch_call(
         program,
         state,
         candidate.statement_index,
@@ -1089,16 +1091,62 @@ fn scheduled_dispatch_subject(
     {
         return false;
     }
-    let mut planned = predecessors.iter().filter_map(|operation| {
-        let call = operation.call()?;
-        (call.coordinate.statement_index as usize == producer.statement_index
-            && call.coordinate.call_ordinal as usize == producer.call_ordinal)
-            .then_some(operation)
-    });
-    let Some(operation) = planned.next() else {
-        return false;
-    };
-    planned.next().is_none() && operation.structural_result_binding().is_some()
+    let mut owners = 0;
+    for operation in predecessors {
+        let Some(planned) = operation.call() else {
+            continue;
+        };
+        let mut occurrences = calls.iter().filter(|candidate| {
+            candidate.statement_index == planned.coordinate.statement_index as usize
+                && candidate.call_ordinal == planned.coordinate.call_ordinal as usize
+        });
+        let Some(prior) = occurrences.next() else {
+            return false;
+        };
+        if occurrences.next().is_some() || facts.flow.control.is_retired(state.symbol, prior) {
+            return false;
+        }
+        if std::ptr::eq(prior, producer) {
+            owners += 1;
+            continue;
+        }
+        if prior.statement_index != producer.statement_index {
+            continue;
+        }
+        // Scalar operand invocations execute in the preceding call's retained
+        // computation roots rather than as separate structural operations.
+        let Some(site) = crate::semantic::calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            prior.statement_index,
+            prior.call_ordinal,
+        ) else {
+            return false;
+        };
+        let mut consumed = Vec::new();
+        if collect_argument_calls(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            prior,
+            crate::semantic::calls::call_site_argument_expressions(program, &site),
+            calls,
+            &mut consumed,
+        )
+        .is_none()
+        {
+            return false;
+        }
+        if consumed
+            .iter()
+            .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), producer))
+        {
+            owners += 1;
+        }
+    }
+    owners == 1
 }
 
 fn collect_argument_calls(

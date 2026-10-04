@@ -541,6 +541,179 @@ fn saved_subject_field_rejects_an_identically_spelled_independent_call() {
     assert!(structural_scalar_field(&program, machine, state, statement, expression).is_none());
 }
 
+fn nested_dispatch_fixture() -> TypedTrees {
+    crate::front_end::typed_program(
+        "data Choice [copy] { case Left(value: u64); case Right(value: u64); }
+         machine identity(incoming: Choice) -> Choice { incoming }
+         machine combine(first: Choice, second: Choice) -> Choice { first }
+         machine finish(value: u64, independent: Choice) -> u64 { value }
+         machine observe(incoming: Choice) -> u64 {
+             transition combine(identity(incoming), identity(incoming)) {
+                 Choice::Left { value } -> finish(value, identity(incoming))
+                 Choice::Right { value } -> finish(value, identity(incoming))
+             }
+         }",
+    )
+}
+
+fn first_call_argument(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        panic!("call expression");
+    };
+    program.expression_table.expression_handles(call.arguments)[0]
+}
+
+#[test]
+fn saved_dispatch_calls_keep_nested_positions_and_independent_evaluations() {
+    let program = nested_dispatch_fixture();
+    let (machine, _, first_statement, _) = payload_argument(&program, 0);
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let state = &program.machine_states(owner)[0];
+    let canonical = super::dispatch_case_subject(
+        &program,
+        &program.statement_table.statements(state.statement_nodes)[first_statement as usize],
+    )
+    .expect("canonical dispatch subject");
+    let ExpressionNode::Call(call) = program.expression_table.expression(canonical) else {
+        panic!("canonical producer call");
+    };
+    let canonical_arguments = program.expression_table.expression_handles(call.arguments);
+    assert_ne!(canonical_arguments[0], canonical_arguments[1]);
+    for arm in 0..2 {
+        let (_, _, statement, payload) = payload_argument(&program, arm);
+        let ExpressionNode::Member(member) = program.expression_table.expression(payload) else {
+            panic!("saved payload");
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression(member.receiver)
+        else {
+            panic!("copied producer call");
+        };
+        for (position, copied) in program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .enumerate()
+        {
+            assert_eq!(
+                super::saved_dispatch_call(&program, state, statement as usize, *copied),
+                Some((first_statement as usize, canonical_arguments[position]))
+            );
+        }
+        let StatementNode::Transition(transition) =
+            &program.statement_table.statements(state.statement_nodes)[statement as usize]
+        else {
+            panic!("transition arm");
+        };
+        let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("terminal call");
+        };
+        let independent = program.statement_table.expression_handles(*arguments)[1];
+        assert!(
+            program
+                .expression_table
+                .expressions_structurally_equal(independent, canonical_arguments[0])
+        );
+        assert!(
+            super::saved_dispatch_call(&program, state, statement as usize, independent).is_none()
+        );
+    }
+    assert_eq!(
+        super::saved_dispatch_call(
+            &program,
+            state,
+            first_statement as usize,
+            canonical_arguments[0]
+        ),
+        Some((first_statement as usize, canonical_arguments[0]))
+    );
+    assert!(
+        super::saved_dispatch_call(&program, state, usize::MAX, canonical_arguments[0]).is_none()
+    );
+    assert!(
+        super::saved_dispatch_call(
+            &program,
+            state,
+            first_statement as usize + 1,
+            canonical_arguments[0]
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn saved_dispatch_call_rejects_a_shared_handle_on_an_independent_edge() {
+    let mut program = nested_dispatch_fixture();
+    let (machine, _, statement, payload) = payload_argument(&program, 0);
+    let ExpressionNode::Member(member) = program.expression_table.expression(payload) else {
+        panic!("saved payload");
+    };
+    let nested = first_call_argument(&program, member.receiver);
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let state = &program.machine_states(owner)[0];
+    assert!(super::saved_dispatch_call(&program, state, statement as usize, nested).is_some());
+    let StatementNode::Transition(transition) =
+        &program.statement_table.statements(state.statement_nodes)[statement as usize]
+    else {
+        panic!("transition arm");
+    };
+    let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        panic!("terminal call");
+    };
+    let arguments = *arguments;
+    program
+        .statement_table
+        .set_expression_handle_at_offset(arguments, 1, nested);
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let state = &program.machine_states(owner)[0];
+    assert!(super::saved_dispatch_call(&program, state, statement as usize, nested).is_none());
+}
+
+#[test]
+fn saved_dispatch_call_rejects_equal_nested_calls_swapped_between_positions() {
+    let mut program = nested_dispatch_fixture();
+    let (machine, _, statement, payload) = payload_argument(&program, 0);
+    let ExpressionNode::Member(member) = program.expression_table.expression(payload) else {
+        panic!("saved payload");
+    };
+    let subject = member.receiver;
+    let ExpressionNode::Call(call) = program.expression_table.expression(subject) else {
+        panic!("copied producer call");
+    };
+    let arguments = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    assert!(
+        program
+            .expression_table
+            .expressions_structurally_equal(arguments[0], arguments[1])
+    );
+    let swapped = program
+        .expression_table
+        .insert_expression_handles([arguments[1], arguments[0]]);
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(subject) else {
+        panic!("copied producer call");
+    };
+    call.arguments = swapped;
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let state = &program.machine_states(owner)[0];
+    assert!(
+        super::saved_dispatch_call(&program, state, statement as usize, arguments[0]).is_none()
+    );
+}
+
 fn payload_argument(
     program: &TypedTrees,
     arm_index: usize,

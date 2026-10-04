@@ -322,16 +322,7 @@ pub fn saved_dispatch_subject(
     if !expression_at_statement(program, statement, expression) {
         return None;
     }
-    let same_subject = |subject| {
-        if !matches!(table.expression(subject), ExpressionNode::Call(_))
-            || !table.expressions_structurally_equal(subject, expression)
-        {
-            return false;
-        }
-        let mut occurrences = table.authored_selection_occurrences(subject).peekable();
-        occurrences.peek().is_some()
-            && occurrences.eq(table.authored_selection_occurrences(expression))
-    };
+    let same_subject = |subject| same_authored_call(program, subject, expression);
     if !same_subject(dispatch_case_subject(program, statement)?) {
         return None;
     }
@@ -342,6 +333,116 @@ pub fn saved_dispatch_subject(
             let subject = dispatch_case_subject(program, statement)?;
             same_subject(subject).then_some((ordinal, subject))
         })
+}
+
+/// Rejoin a call anywhere beneath the saved subject to its canonical
+/// evaluation, retaining its exact position inside that subject's tree.
+/// Guards and payload receivers can contain separate copies of the entire
+/// tree. Every copied call keeps its authored selection occurrence; a fresh
+/// equal-looking call in an arm does not become a saved observation.
+///
+/// A shared expression handle may also occur on an independently evaluated
+/// edge. Track containment per path, and decline that ambiguity rather than
+/// letting a copied occurrence erase the independent edge's effects.
+pub fn saved_dispatch_call(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(usize, ExpressionHandle)> {
+    let table = &program.expression_table;
+    if !table.expression_is_valid(expression)
+        || !matches!(table.expression(expression), ExpressionNode::Call(_))
+    {
+        return None;
+    }
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let mut pending =
+        crate::machine_calls::calls::statement_value_expression_roots(program, statement)
+            .into_iter()
+            .map(|node| (node, None))
+            .collect::<Vec<_>>();
+    let mut visited = Vec::new();
+    let mut found = None;
+    while let Some((node, inherited)) = pending.pop() {
+        if node == ExpressionHandle::invalid() {
+            if inherited.is_some_and(|(_, counterpart)| counterpart != ExpressionHandle::invalid())
+            {
+                return None;
+            }
+            continue;
+        }
+        if !table.expression_is_valid(node) {
+            return None;
+        }
+        let canonical =
+            inherited.or_else(|| saved_dispatch_subject(program, state, statement_index, node));
+        if visited.contains(&(node, canonical)) {
+            continue;
+        }
+        visited.push((node, canonical));
+        if let Some((_, counterpart)) = canonical
+            && (!table.expression_is_valid(counterpart)
+                || !table.expressions_structurally_equal(node, counterpart)
+                || (matches!(table.expression(node), ExpressionNode::Call(_))
+                    && !same_authored_call(program, node, counterpart)))
+        {
+            return None;
+        }
+        if node == expression {
+            let canonical = canonical?;
+            if found.is_some_and(|prior| prior != canonical) {
+                return None;
+            }
+            found = Some(canonical);
+            continue;
+        }
+        let mut children = Vec::new();
+        crate::expression_traversal::children(program, table.expression(node), |child| {
+            children.push(child);
+        });
+        if let Some((ordinal, counterpart)) = canonical {
+            let mut counterparts = Vec::new();
+            crate::expression_traversal::children(
+                program,
+                table.expression(counterpart),
+                |child| {
+                    counterparts.push(child);
+                },
+            );
+            if children.len() != counterparts.len() {
+                return None;
+            }
+            pending.extend(
+                children
+                    .into_iter()
+                    .zip(counterparts)
+                    .map(|(child, counterpart)| (child, Some((ordinal, counterpart)))),
+            );
+        } else {
+            pending.extend(children.into_iter().map(|child| (child, None)));
+        }
+    }
+    found
+}
+
+fn same_authored_call(
+    program: &TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let table = &program.expression_table;
+    if !matches!(table.expression(left), ExpressionNode::Call(_))
+        || !matches!(table.expression(right), ExpressionNode::Call(_))
+        || !table.expressions_structurally_equal(left, right)
+    {
+        return false;
+    }
+    let mut occurrences = table.authored_selection_occurrences(left).peekable();
+    occurrences.peek().is_some() && occurrences.eq(table.authored_selection_occurrences(right))
 }
 
 fn dispatch_case_subject(

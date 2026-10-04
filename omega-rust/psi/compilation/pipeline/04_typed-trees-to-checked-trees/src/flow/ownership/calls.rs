@@ -73,12 +73,10 @@ pub(in crate::flow) fn append_call_ownership_events(
         return;
     };
     if let CallSite::Expression { expression, .. } = call_site
-        && call_reads_saved_dispatch_subject(
-            program,
-            state,
-            borrow_call.statement_index,
-            expression,
-        )
+        && validation::saved_dispatch_call(program, state, borrow_call.statement_index, expression)
+            .is_some_and(|(statement, canonical)| {
+                statement != borrow_call.statement_index || canonical != expression
+            })
     {
         return;
     }
@@ -188,74 +186,6 @@ pub(in crate::flow) fn append_call_ownership_events(
             source,
         );
     }
-}
-
-/// A copied subject reads one completed dispatch value, including the results
-/// of calls nested in its operands. The flat borrow-call roster retains those
-/// authored nodes, so locate this exact call beneath a saved subject copy before
-/// suppressing its ownership effects. Equal independent calls remain evaluations.
-fn call_reads_saved_dispatch_subject(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    expression: ExpressionHandle,
-) -> bool {
-    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-    let Some(StatementNode::Transition(transition)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
-        return false;
-    };
-    let mut pending = Vec::new();
-    if let TransitionGuardNode::When(guard) = transition.guard {
-        pending.push((guard, false));
-    }
-    for target in [transition.target, transition.continuation] {
-        if !program.statement_table.transition_target_is_valid(target) {
-            continue;
-        }
-        match program.statement_table.transition_target(target) {
-            TransitionTargetNode::Value(value) => pending.push((*value, false)),
-            TransitionTargetNode::Named { arguments, .. } => pending.extend(
-                program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .iter()
-                    .map(|argument| (*argument, false)),
-            ),
-            _ => {}
-        }
-    }
-    let mut visited = Vec::new();
-    let mut saved = false;
-    while let Some((node, inherited_copy)) = pending.pop() {
-        if !program.expression_table.expression_is_valid(node)
-            || visited.contains(&(node, inherited_copy))
-        {
-            continue;
-        }
-        visited.push((node, inherited_copy));
-        let copied = inherited_copy
-            || validation::saved_dispatch_subject(program, state, statement_index, node)
-                .is_some_and(|(ordinal, subject)| ordinal != statement_index || subject != node);
-        if node == expression {
-            if !copied {
-                // A shared node also reached by an evaluated edge cannot
-                // justify erasing that edge's move.
-                return false;
-            }
-            saved = true;
-            continue;
-        }
-        validation::expression_traversal::children(
-            program,
-            program.expression_table.expression(node),
-            |child| pending.push((child, copied)),
-        );
-    }
-    saved
 }
 
 fn affine_call_result_type(
