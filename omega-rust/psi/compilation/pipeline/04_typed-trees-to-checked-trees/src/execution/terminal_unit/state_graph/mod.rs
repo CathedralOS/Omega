@@ -1006,17 +1006,21 @@ fn retire_guarded_reference_completion(
         .terminal_scalar_graphs
         .guarded_exits
         .span(tail.arms)?;
+    // Each value-return arm owns its own completion. A sibling invocation
+    // or state edge does not produce this sequence's reference binding and
+    // therefore neither contributes a value coordinate nor prevents retiring
+    // the duplicate producer for the exact arm below.
     let mut returned_statements = arms
         .iter()
         .map(|arm| &arm.destination)
         .chain(tail.fallback.iter())
-        .map(|destination| match destination {
+        .filter_map(|destination| match destination {
             checked_trees::CheckedScalarBranchDestination::Return {
                 statement_ordinal, ..
             } => Some(*statement_ordinal),
             _ => None,
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     returned_statements.sort_unstable();
     returned_statements.dedup();
     let mut matches = operations
