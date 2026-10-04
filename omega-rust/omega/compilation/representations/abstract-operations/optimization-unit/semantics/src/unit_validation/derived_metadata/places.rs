@@ -6,16 +6,23 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{ClaimId, MachineId, PlaceId};
 use std::collections::BTreeSet;
 
-/// Terminal ownership treats ordinary and content entry claims as one live
-/// claim namespace while retaining their declarations as distinct authority.
-/// `entry_claims` remains the independently checked ordinary-claim index;
-/// content-only claims are resolved from their complete retained catalog.
+/// Entry and structural-result claims share the declared identity namespace.
+/// Membership does not establish a birth, a current home, or liveness: structural
+/// foundation and current-ownership replay independently authenticate those.
+/// `entry_claims` remains the independently checked ordinary-entry index;
+/// content and operation claims retain their complete source declarations.
 pub(crate) fn function_has_claim(function: &PsiOptimizationFunction, claim: ClaimId) -> bool {
     function.entry_claims.contains(&claim)
         || function
             .content_entry_claims
             .iter()
             .any(|candidate| candidate.claim == claim)
+        || function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .filter_map(|node| node.operation.structural_result())
+            .any(|(_, result)| result.claims.iter().any(|binding| binding.claim == claim))
 }
 
 pub(crate) fn reconstruct_declared_places(
