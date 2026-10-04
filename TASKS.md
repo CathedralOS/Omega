@@ -2561,6 +2561,18 @@ lands alone with its corpus slice unchanged and no fallback path.
   its package-owned physical entry contract needs explicit acceptance. The
   admissions-file deletion and lock-row settlement above remain unfinished.
 
+  The end-to-end reproducer is
+  `tests/omega/packages/accepted-claim-run` (macOS ARM64, `9952e21837a`). Its
+  foreign axiom establishes the entry's postcondition. The current root grant
+  is rejected by `selected-dispatch/src/provider_checking.rs` before package
+  review can settle it. Diagnostic removal of the grant reaches the separate
+  stage-04 execution-planning refusal: boundary `establish` has no boundary
+  plan. Preserve the citation: this needs an admitted fact-only invocation,
+  not an invented executable provider. The static `Build::accept_boundary`
+  spelling also still rejects at generic-callee resolution; coordinate with
+  **STATIC-MACHINE-MIGRATION** and the execution-planning owner. These are
+  implementation dependencies, not unanswered language decisions.
+
 - **TRUST-REPORT-DELETED.** (new-scope)
   `omega-rust/omega/compilation/realization/trust-model/src/admission_settlement.rs::reconstruct_trust_settlement`
   builds a `TrustReport` (`trust-model/src/trust_report/`) on every compile,

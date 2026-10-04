@@ -1,0 +1,4 @@
+pub proposition established();
+
+pub boundary machine establish()
+ensures established();

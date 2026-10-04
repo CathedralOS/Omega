@@ -59,11 +59,13 @@ malicious compiler or host, and does not attest that a person audited the code.
 A compiler identity change requires explicit review before the accepted route
 can be used again. The project still trusts whoever lands the lock.
 
-Native production requires accepted state for its exact target and rejects
-missing acceptance before Build execution. Check-only observation may run without
-a lock, but it neither accepts the package nor creates lock state; its success
-is not permission to produce a native artifact. A malformed or obsolete lock
-does not become an unlocked observation request. Format version 4 requires
+An absent lock permits development checking and native compilation through
+the same package route. It supplies no accepted semantic bindings,
+restricted-build grants or receiver permissions and creates no acceptance
+state. Dependencies needing those inputs still require explicit review. When
+a lock exists, its exact target and occurrence inputs must match before Build
+execution; malformed, obsolete or stale locks never become unlocked requests.
+Format version 4 requires
 accepted compilation inputs; older versions reject on the ordinary compile route.
 Explicit review/update can recover version 3 pins, targets and decisions as a
 historical baseline. It must freshly review the candidate before publishing a
@@ -221,9 +223,9 @@ construction, fetched-source validation, bounds, and separation from downloaded
 code—not host attestation or ambient desktop isolation. Extra compiler/native
 receipts belong to their artifacts or concrete caches, not ordinary lock acceptance.
 
-Native preparation consumes the same identity-matched accepted occurrence inputs;
-it does not reconstruct a fresh package review for comparison. Stale or missing
-acceptance directs the user to `omega update`; no second native approval file is
+Locked native preparation consumes the same identity-matched accepted occurrence
+inputs; it does not reconstruct a fresh package review for comparison. Stale or
+missing required acceptance directs the user to `omega update`; no second native approval file is
 required. This does not waive compiler proof checks, enforceable terminal
 permissions, or actual build-execution grants. Ecosystem receiving
 policy applies separately at explicit admission/installation, not as a required

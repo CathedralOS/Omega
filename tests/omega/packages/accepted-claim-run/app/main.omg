@@ -1,0 +1,9 @@
+use trusted_claims::claims;
+
+data Main {}
+
+machine Main::main()
+ensures established()
+{
+    establish();
+}
