@@ -183,25 +183,32 @@ pub(crate) fn validate_computation_calls(
                         .calls_for_root(*receiver_value)
                         .unwrap_or(&[])
                     {
-                        let value = checked
-                            .facts
-                            .values
-                            .structural_values
-                            .nodes
-                            .get(retained.value);
-                        let checked_trees::CheckedStructuralValueKind::Call { source_call } =
-                            value.kind
-                        else {
-                            return unsupported("structural receiver call lost its value node");
-                        };
-                        let expression = control.calls.get(source_call).authored_expression;
-                        if structural_calls.contains(&expression) {
-                            return unsupported(
-                                "computed invocation evaluates a structural call twice",
-                            );
+                        for operation in retained
+                            .operands()
+                            .iter()
+                            .chain(std::iter::once(retained.operation()))
+                            .flat_map(
+                                checked_trees::CheckedUnitEffectOperationPlan::with_value_calls,
+                            )
+                        {
+                            let Some(call) = operation.call() else {
+                                continue;
+                            };
+                            if call.structural_result().is_none() {
+                                continue;
+                            }
+                            let flow = crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
+                                checked, machine, state, call.coordinate, call.target.state,
+                            )?;
+                            let expression = flow.authored_expression;
+                            if !expression.is_valid() || structural_calls.contains(&expression) {
+                                return unsupported(
+                                    "computed invocation evaluates a structural call twice",
+                                );
+                            }
+                            structural_calls.push(expression);
+                            calls.push(expression);
                         }
-                        structural_calls.push(expression);
-                        calls.push(expression);
                     }
                 }
                 pending.extend(

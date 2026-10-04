@@ -61,15 +61,71 @@ pub(super) fn coordinate(
     }
 }
 
+/// Borrow the actual published caller signature, independently of its result representation.
+pub(super) struct Caller<'a> {
+    pub(super) state: symbols::SymbolHandle,
+    pub(super) structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
+    pub(super) erased_proof_parameters: &'a [checked_trees::CheckedErasedProofParameterPlan],
+}
+
+impl<'a> Caller<'a> {
+    pub(super) fn published(
+        checked: &'a CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+    ) -> Result<Self, LoweringError> {
+        if let Some(plan) = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+            .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
+        {
+            return Ok(Self {
+                state,
+                structural_parameters: &plan.structural_parameters,
+                erased_proof_parameters: &plan.erased_proof_parameters,
+            });
+        }
+        match UnitBody::find(
+            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+            machine,
+        )? {
+            UnitBody::Ordinary(plan) if plan.state == state => Ok(Self {
+                state,
+                structural_parameters: &plan.structural_parameters,
+                erased_proof_parameters: &plan.erased_proof_parameters,
+            }),
+            UnitBody::Composed(plan) => {
+                let plan = plan.states.iter().find(|plan| plan.state == state).ok_or(
+                    LoweringError::Unsupported("effect caller has no published state"),
+                )?;
+                Ok(Self {
+                    state,
+                    structural_parameters: &plan.structural_parameters,
+                    erased_proof_parameters: &plan.erased_proof_parameters,
+                })
+            }
+            _ => unsupported("effect caller has no published state"),
+        }
+    }
+}
+
 pub(super) fn prepare(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedScalarStateGraph,
+    state: &Caller<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     result: Option<terminal_psi::StructuralOperationResult>,
+    results: &[(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
 ) -> Result<Prepared, LoweringError> {
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
@@ -117,7 +173,7 @@ pub(super) fn prepare(
             crate::scalar_graph::scalar_contracts::checked_proof_term(
                 checked,
                 term,
-                &state.erased_proof_parameters,
+                state.erased_proof_parameters,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -189,7 +245,7 @@ pub(super) fn prepare(
         machine,
         state.state,
         operation,
-        &state.structural_parameters,
+        state.structural_parameters,
     )?;
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
@@ -284,13 +340,48 @@ pub(super) fn prepare(
         .iter()
         .zip(target.structural_parameters)
     {
-        if parameter.multiplicity != Multiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
+        if !parameter.qualifications.is_empty()
             || parameter.fused_service_erasure.is_some()
             || parameter.access != argument.access
             || parameter.type_identity != argument.type_identity
         {
             return unsupported("scalar Unit argument does not retain a plain primitive borrow");
+        }
+        if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+            let source = if let Some(ordinal) = argument.source_structural_result_binding_ordinal()
+            {
+                let mut matches = results
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == ordinal);
+                let (_, binding) = matches.next().ok_or(LoweringError::Unsupported(
+                    "effect operand has no completed structural result",
+                ))?;
+                let declaration = structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == binding.structural_type())
+                    .ok_or(LoweringError::Unsupported(
+                        "effect operand result has no carrier",
+                    ))?;
+                if matches.next().is_some()
+                    || !argument.path.is_empty()
+                    || declaration.identity != argument.type_identity
+                    || !binding.claims().is_empty()
+                {
+                    return unsupported("effect operand substituted its structural result");
+                }
+                terminal_psi::StructuralArgument {
+                    place: binding.place(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                }
+            } else {
+                bindings.owned_argument(argument)?
+            };
+            lowered_arguments.push(source);
+            continue;
+        }
+        if parameter.multiplicity != Multiplicity::Unrestricted {
+            return unsupported("effect borrow changed its multiplicity");
         }
         let source_parameter = checked
             .state_parameters(callee_state)
@@ -390,6 +481,16 @@ pub(super) fn prepare(
 }
 
 impl Prepared {
+    /// All operands have already completed through the common formal-order schedule.
+    pub(super) fn finish_completed(
+        self,
+        value_types: &[QualifiedScalarType],
+        target: usize,
+        computations: &mut super::computations::Expansion<'_>,
+    ) -> usize {
+        emit_call(self.call, value_types, value_types, target, computations)
+    }
+
     pub(super) fn finish(
         self,
         state: symbols::SymbolHandle,
@@ -398,27 +499,15 @@ impl Prepared {
         target: usize,
         computations: &mut super::computations::Expansion<'_>,
     ) -> Result<usize, LoweringError> {
-        use super::prepared_graph::{
-            LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
-        };
         let mut argument_types = value_types.to_vec();
         argument_types.extend_from_slice(&self.argument_types);
-        let call_block = computations.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: argument_types,
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: vec![LoweredScalarEffect::Call(self.call)],
-            terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
-                target,
-                arguments: super::computations::parameters(value_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
-        });
+        let call_block = emit_call(
+            self.call,
+            &argument_types,
+            value_types,
+            target,
+            computations,
+        );
         computations.call_arguments(
             state,
             self.coordinate,
@@ -430,4 +519,32 @@ impl Prepared {
             call_block,
         )
     }
+}
+
+fn emit_call(
+    call: LoweredEffectCall,
+    input_types: &[QualifiedScalarType],
+    output_types: &[QualifiedScalarType],
+    target: usize,
+    computations: &mut super::computations::Expansion<'_>,
+) -> usize {
+    use super::prepared_graph::{
+        LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    };
+    computations.push(LoweredScalarBranchState {
+        structural_parameters: Vec::new(),
+        parameter_types: input_types.to_vec(),
+        erased_formal_types: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        bindings: Vec::new(),
+        structural_effects: vec![LoweredScalarEffect::Call(call)],
+        terminator: LoweredScalarBranchTerminator::Jump {
+            trivial_affine_discards: Vec::new(),
+            target,
+            arguments: super::computations::parameters(output_types),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+        },
+    })
 }

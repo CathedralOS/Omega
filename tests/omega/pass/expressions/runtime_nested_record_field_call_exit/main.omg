@@ -1,0 +1,20 @@
+data Input { value: u64; }
+data Reading { value: u64; }
+machine produce(count: &mut u64) -> Input {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    Input { value: 70 }
+}
+machine make(input: Input) -> Reading { Reading { value: input.value } }
+machine observe(count: &mut u64) -> u64 {
+    make(produce(&mut count)).value
+}
+machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let value: u64 = observe(&mut count);
+    transition value == 70 && count == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

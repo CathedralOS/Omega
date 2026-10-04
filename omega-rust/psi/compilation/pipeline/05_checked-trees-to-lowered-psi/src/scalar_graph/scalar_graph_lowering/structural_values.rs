@@ -29,6 +29,8 @@ use checked_trees::{
     CheckedStructuralRecordFieldValue, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
 };
 
+mod calls;
+
 pub(super) struct Prepared {
     pub(super) symbol: symbols::SymbolHandle,
     pub(super) place: PlaceId,
@@ -43,6 +45,7 @@ pub(super) struct Prepared {
 #[derive(Clone)]
 pub(crate) struct Storage {
     places: Vec<(checked_trees::CheckedStructuralValueHandle, PlaceId)>,
+    results: Vec<(u32, PlaceId)>,
 }
 
 impl Storage {
@@ -51,15 +54,12 @@ impl Storage {
         root: checked_trees::CheckedStructuralValueHandle,
         next_place: &mut u64,
     ) -> Result<Self, LoweringError> {
-        let mut places = Vec::new();
-        for value in crate::expression_preparation::computation_graph::structural_dependencies(
-            checked, root,
-        )?
-        .values
-        {
-            places.push((value, place_id(allocate_dense(next_place)?)));
-        }
-        Ok(Self { places })
+        let mut storage = Self {
+            places: Vec::new(),
+            results: Vec::new(),
+        };
+        storage.reserve_value(checked, root, next_place)?;
+        Ok(storage)
     }
 
     fn place(
@@ -85,6 +85,16 @@ pub(crate) struct PreparedValue {
 }
 
 enum Step {
+    Argument {
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        ordinal: usize,
+        argument: checked_trees::CheckedCallScalarArgument,
+        prefix: Vec<QualifiedScalarType>,
+    },
+    Value {
+        prepared: PreparedValue,
+        prefix: Vec<QualifiedScalarType>,
+    },
     Call {
         prepared: super::unit_operations::Prepared,
         prefix: Vec<QualifiedScalarType>,
@@ -311,55 +321,8 @@ impl Preparation<'_> {
             if producers.next().is_some() || self.consumed_calls.contains(&value) {
                 return unsupported("structural value call has duplicate producer custody");
             }
-            if producer.operands().iter().next().is_some() {
-                return unsupported(
-                    "scalar effect call operands require their structural preparation bindings",
-                );
-            }
-            let (machine, _) = source_custody::authored_state(self.checked, self.state)?;
-            let state = self
-                .checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .machines
-                .iter()
-                .find(|graph| graph.machine == machine.symbol)
-                .and_then(|graph| graph.states.iter().find(|state| state.state == self.state))
-                .ok_or(LoweringError::Unsupported(
-                    "structural call lost its scalar source state",
-                ))?;
-            let multiplicity = match self.checked.type_multiplicity(reference) {
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => {
-                    return unsupported("scalar structural value cannot acquire linear claims");
-                }
-            };
-            let place = self.reserved.place(value)?;
-            let prepared = super::unit_operations::prepare(
-                self.checked,
-                machine.symbol,
-                state,
-                producer.operation(),
-                self.bindings,
-                &self.prefix,
-                self.types,
-                Some(super::super::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place,
-                    structural_type: declaration.id,
-                    multiplicity,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-            )?;
+            let place = self.prepare_calls(producer)?;
             self.consumed_calls.push(value);
-            self.steps.push(Step::Call {
-                prepared,
-                prefix: self.prefix.clone(),
-            });
             return Ok(place);
         }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
@@ -632,6 +595,8 @@ impl PreparedValue {
             .last()
             .map(|step| match step {
                 Step::Call { prefix, .. }
+                | Step::Argument { prefix, .. }
+                | Step::Value { prefix, .. }
                 | Step::Scalar { prefix, .. }
                 | Step::Record { prefix, .. }
                 | Step::Zeroed { prefix, .. }
@@ -659,6 +624,24 @@ impl PreparedValue {
         for step in self.steps.into_iter().rev() {
             target = match step {
                 Step::Call { prepared, prefix } => {
+                    prepared.finish_completed(&prefix, target, computations)
+                }
+                Step::Argument {
+                    coordinate,
+                    ordinal,
+                    argument,
+                    prefix,
+                } => computations.call_arguments(
+                    state,
+                    coordinate,
+                    false,
+                    std::slice::from_ref(&argument),
+                    ordinal,
+                    bindings,
+                    &prefix,
+                    target,
+                )?,
+                Step::Value { prepared, prefix } => {
                     prepared.finish(state, bindings, &prefix, target, computations)?
                 }
                 Step::Bind {

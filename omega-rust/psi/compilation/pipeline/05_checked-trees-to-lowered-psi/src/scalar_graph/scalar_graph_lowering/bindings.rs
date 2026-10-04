@@ -633,12 +633,13 @@ fn prepare_operation(
         Ok(PreparedOperation::Unit(unit_operations::prepare(
             checked,
             machine,
-            state,
+            &unit_operations::Caller::published(checked, machine, state.state)?,
             operation,
             bindings,
             value_types,
             types,
             None,
+            &[],
         )?))
     }
 }

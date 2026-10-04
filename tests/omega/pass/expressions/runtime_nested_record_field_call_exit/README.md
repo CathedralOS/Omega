@@ -1,0 +1,1 @@
+A scalar tail observes a field of a record whose call argument is another call-produced record. The inner call increments a borrowed counter exactly once; the outer call receives its produced owner and preserves the value. Both engines must exit zero.

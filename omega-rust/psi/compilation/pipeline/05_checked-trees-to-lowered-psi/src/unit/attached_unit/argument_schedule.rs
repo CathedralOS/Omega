@@ -13,7 +13,7 @@ use checked_trees::{
     CheckedArrayConstructionSource, CheckedUnitCallCoordinate,
     CheckedUnitStructuralResultBindingPlan,
 };
-pub(super) enum Step {
+pub(crate) enum Step {
     CaptureBefore(u32),
     Ordinary(usize),
     Begin,
@@ -171,12 +171,24 @@ pub(crate) fn validate_operand_preparation(
     operands: &checked_trees::CheckedOperandSequence,
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
+    operand_preparation(checked, machine, state, operands, consumer).map(|_| ())
+}
+
+/// The same checked operand schedule is consumed by statement and expression bodies.
+pub(crate) fn operand_preparation(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    operands: &checked_trees::CheckedOperandSequence,
+    consumer: &CheckedUnitEffectOperationPlan,
+) -> Result<Vec<Step>, LoweringError> {
     let operations = operands
         .iter()
         .cloned()
         .chain(std::iter::once(consumer.clone()))
         .collect::<Vec<_>>();
     let mut emitted = Vec::new();
+    let mut steps = Vec::new();
     append(
         checked,
         machine,
@@ -186,12 +198,12 @@ pub(crate) fn validate_operand_preparation(
         operations.len() - 1,
         &mut Vec::new(),
         &mut emitted,
-        &mut Vec::new(),
+        &mut steps,
     )?;
     if !emitted.iter().copied().eq(0..operations.len()) {
         return unsupported("call preparation contains an unrelated or reordered producer");
     }
-    Ok(())
+    Ok(steps)
 }
 
 /// Source ordinals identify occurrences, not an execution stream's root. A
