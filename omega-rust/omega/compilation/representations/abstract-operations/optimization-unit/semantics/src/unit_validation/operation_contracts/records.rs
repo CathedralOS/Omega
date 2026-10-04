@@ -464,9 +464,9 @@ fn record_type(
     true
 }
 
-/// A locally constructible whole-carrier type: records, sums, and mixed sums
-/// compose scalar leaves and bare primitive-reference leaves. Other owned
-/// containers have no relocation vocabulary yet.
+/// A locally constructible carrier: records, sums and fixed arrays compose
+/// scalar fields and supported reference leaves. A reference owns its loan,
+/// not the referent's storage; traversal stops at that carrier boundary.
 pub(crate) fn constructible(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
@@ -498,6 +498,11 @@ pub(crate) fn constructible(
                 pending.push(*element);
                 Vec::new()
             }
+            StructuralTypeShape::Reference { .. }
+                if crate::unit_validation::references::referent(types, current).is_some() =>
+            {
+                Vec::new()
+            }
             _ => return false,
         };
         for field in matching {
@@ -510,8 +515,6 @@ pub(crate) fn constructible(
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
-                StructuralFieldType::Structural(child)
-                    if crate::unit_validation::references::referent(types, child).is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push(child),
                 _ => return false,
             }

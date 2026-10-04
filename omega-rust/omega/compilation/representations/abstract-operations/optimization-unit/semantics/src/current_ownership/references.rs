@@ -1564,24 +1564,7 @@ pub(super) fn apply_operation(
                         .map(|source| {
                             (
                                 source,
-                                matches!(
-                                    formal_origin(callee, formal),
-                                    Some(ReferenceOrigin::IngressLeaf(identity))
-                                        if structural_source_contract(
-                                            callee,
-                                            identity.place,
-)
-                                        .and_then(|signature| {
-                                            leaf_type(
-                                                structural_types,
-                                                signature.structural_type,
-                                                &identity.path,
-                                            )
-                                        })
-                                        .is_some_and(|leaf| {
-                                            reference_access(structural_types, leaf).is_some()
-                                        })
-                                ),
+                                crate::unit_validation::references::formal_transfers_reference(structural_types, callee, formal),
                             )
                         })
                         .ok_or_else(|| {
@@ -1630,7 +1613,8 @@ pub(super) fn apply_operation(
         // cannot duplicate an exclusive origin, even through distinct actual
         // argument spellings. Borrowing a result does not move its parent loan.
         let mut established = Vec::with_capacity(sources.len());
-        let mut roots = BTreeSet::new();
+        let mut roots = Vec::new();
+        let mut identities = BTreeSet::new();
         for (path, candidates) in sources {
             let expected = leaf_referent(structural_types, result.structural_type, &path)
                 .ok_or_else(|| {
@@ -1639,6 +1623,16 @@ pub(super) fn apply_operation(
                         block,
                         Some(node),
                         "reference call result leaf is unsupported",
+                    )
+                })?;
+            let access = leaf_type(structural_types, result.structural_type, &path)
+                .and_then(|leaf| reference_access(structural_types, leaf))
+                .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference call result access is absent",
                     )
                 })?;
             let mut alternatives = Vec::with_capacity(candidates.len());
@@ -1724,9 +1718,14 @@ pub(super) fn apply_operation(
                 alternatives.push(reference);
             }
             let reference = combine_alternative_references(function, block, node, alternatives)?;
-            if roots
-                .iter()
-                .any(|root| origins_overlap(root, &reference.root))
+            // Distinct shared loans may observe the same backing. A moved
+            // carrier identity still cannot be returned into two result slots.
+            if !identities.insert(reference.identity.clone())
+                || roots.iter().any(|(root, prior_access)| {
+                    origins_overlap(root, &reference.root)
+                        && (access != StructuralAccess::SharedBorrow
+                            || *prior_access != StructuralAccess::SharedBorrow)
+                })
             {
                 return Err(invalid(
                     function,
@@ -1735,7 +1734,7 @@ pub(super) fn apply_operation(
                     "reference result aliases its mapped sources",
                 ));
             }
-            roots.insert(reference.root.clone());
+            roots.push((reference.root.clone(), access));
             established.push(reference);
         }
         // Normal completion consumes the incoming owners. Returned carriers

@@ -583,7 +583,11 @@ pub(crate) fn validate_value(
                     || coordinate.call_ordinal as usize != captured.call_ordinal
                     || returned.type_identity
                         != checked.normalized_type_identity(reference).as_str()
-                    || returned.multiplicity != checked.type_multiplicity(reference)
+                    || returned.multiplicity
+                        != validation::reference_result_custody::result_multiplicity(
+                            &checked.typed,
+                            reference,
+                        )
                 {
                     return unsupported(
                         "structural operand substituted its call or returned carrier",

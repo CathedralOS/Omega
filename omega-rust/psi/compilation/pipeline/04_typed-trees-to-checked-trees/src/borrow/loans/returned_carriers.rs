@@ -18,6 +18,118 @@ use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
+/// Refine declaration-level lifetime candidates with the checked body's
+/// complete returned-leaf relation. Descriptor selection in an owned input
+/// stays separate from a projection beneath a borrowed input. A declaration
+/// without a reconstructible body retains its conservative lifetime footprint;
+/// executable custody still requires an exact returned-origin replay.
+pub(super) fn completed_field_sources(
+    program: &typed_trees::TypedTrees,
+    target: SymbolHandle,
+    fields: &[ViewReturnFieldSource],
+) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
+    use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
+    use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
+
+    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, target)?;
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !machine.body_is_present
+    {
+        return None;
+    }
+    let sources = returned_reference_sources(program, state)?;
+    let parameters = program.state_parameters(state);
+    let mut output = Vec::with_capacity(sources.len());
+    let mut covered = vec![false; fields.len()];
+    for source in sources {
+        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            source.source.source
+        else {
+            return None;
+        };
+        let (position, parameter) = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                !parameter.is_const
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .nth(parameter_index as usize)?;
+        if parameter.is_self {
+            return None;
+        }
+        let non_self_index = parameters[..position]
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+        let owner_path = owner_segments(loan_place_segments(
+            program,
+            state.return_type,
+            &source.path,
+        )?)?;
+        let kind = match source.source.access {
+            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
+            CheckedStructuralAccess::Owned => return None,
+        };
+        let (source_path, projection) = if is_reference_type(program, parameter.type_reference) {
+            (
+                Vec::new(),
+                loan_place_segments(program, parameter.type_reference, &source.source.path)?,
+            )
+        } else {
+            let (last, path) = source.source.path.split_last()?;
+            if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent {
+                return None;
+            }
+            (
+                owner_segments(loan_place_segments(
+                    program,
+                    parameter.type_reference,
+                    path,
+                )?)?,
+                Vec::new(),
+            )
+        };
+        // Body precision cannot invent a lifetime source or amplify access
+        // beyond the declaration's already checked input/output relation.
+        let (index, field) = fields.iter().enumerate().find(|(_, field)| {
+            field.owner_path == owner_path
+                && field.source_path == source_path
+                && field.non_self_index == non_self_index
+                && field.kind == kind
+        })?;
+        covered[index] = true;
+        output.push((field.clone(), projection));
+    }
+    // An explicit lifetime shared by several inputs keeps every declared
+    // candidate live, even if this body's normal returns select only one.
+    // Body precision refines a candidate's place; it cannot erase the other
+    // inputs' lifetime obligations.
+    for (index, field) in fields.iter().enumerate() {
+        if !covered[index] {
+            output.push((field.clone(), Vec::new()));
+        }
+    }
+    Some(output)
+}
+
+fn owner_segments(segments: Vec<facts::PlaceSegment>) -> Option<Vec<BorrowOwnerSegment>> {
+    segments
+        .into_iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => Some(BorrowOwnerSegment::Field(symbol)),
+            facts::PlaceSegment::FixedIndex { index } => {
+                Some(BorrowOwnerSegment::FixedIndex(index))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// Follow finite call operands without collapsing carried source leaves into
 /// the single-place query used for bare reference inputs.
 #[allow(clippy::too_many_arguments)]

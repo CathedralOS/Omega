@@ -1751,7 +1751,8 @@ pub(super) fn call_results(
     // duplicate an exclusive origin, even through distinct actual argument
     // spellings. Borrowing a result does not move its parent loan.
     let mut established = Vec::new();
-    let mut roots = BTreeSet::new();
+    let mut roots = Vec::new();
+    let mut identities = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
         if mapping.sources.is_empty() || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -1844,10 +1845,16 @@ pub(super) fn call_results(
             candidates.push(leaf);
         }
         let leaf = combine_alternatives(function, candidates)?;
-        if roots.iter().any(|root| roots_overlap(root, &leaf.root)) {
+        if !identities.insert(leaf.identity.clone())
+            || roots.iter().any(|(root, prior_access)| {
+                roots_overlap(root, &leaf.root)
+                    && (result_access != StructuralAccess::SharedBorrow
+                        || *prior_access != StructuralAccess::SharedBorrow)
+            })
+        {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        roots.insert(leaf.root.clone());
+        roots.push((leaf.root.clone(), result_access));
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),

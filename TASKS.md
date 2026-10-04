@@ -1264,20 +1264,26 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: bounded scalar and Boolean reads through reference-bearing records
-    and direct shared/mutable reference arrays preserve captured loans, runtime
-    selection and nested storage. The 70-case native/interpreter gate retains
-    its authored outcomes on macOS ARM64; all three direct-array controls exit
-    70. Conflicting mutable elements and live-backing move/write controls reject.
-    Remaining: reference arrays returned by a helper. A single `&Pair` input
-    with `collect(source: &Pair) -> [&Cell; 2] { [&source.first, &source.second] }`
-    avoids ambiguous input lifetimes, but binding `collect(&main.cells)` in the
-    same control omits the caller's plan at `state graph: result custody accounting`
-    (state 0), observed from a worktree based on `15c77983aab` during selected-entry
-    package checking by `omega update --offline`. Stage 04 must carry the
-    aggregate's loan roster through call-result disposition, with stage 05 replay and native
-    transport retaining each leaf. Next acceptance remains authored exit 70
-    in both engines, with all current controls preserved.
+  - State: bounded scalar and Boolean reads retain exact loan backing through
+    direct and helper-returned reference arrays. Shared, mutable, nested shared
+    and forwarded helper results exit 70 in native and checked-interpreter
+    execution. Every normal return contributes its backing; local escape,
+    live-backing writes and overlapping mutable results reject. Distinct shared
+    result leaves may observe the same backing without duplicating a moved
+    carrier identity.
+    Remaining: statement-boundary aggregate loan retirement. A caller that
+    reads both slots of `collect(&mut main.cells) -> [&mut Cell; 2]`, then writes
+    `main.cells.second.value = 81` after the array's last use, passes source
+    borrowing but rejects at Terminal reference custody (`operation accesses
+    suspended referent`). Both constructed and returned aggregates retain
+    disposal until state exit. Generalize the checked cleanup edge to any
+    authenticated last-use statement, preserving complete captured-loan
+    weakening and independent result-custody replay; singular `ReleaseReference`
+    cannot retire an aggregate. Reuse the existing whole-owner edge disposal
+    under stage 05 `operation_frame::call_continuation_cleanup`, removing its
+    preceding-call restriction rather than adding an array-only release route.
+    Next acceptance is exit 70 after both reads and the backing write, with all
+    existing reference controls preserved.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

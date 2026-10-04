@@ -1336,7 +1336,7 @@ pub fn local_record_loans(
         // Both sides resolve through the declared aggregate. Owner paths use
         // symbols/ordinals while result paths use declaration identities; the
         // same typed projection walk authenticates fields and fixed slots.
-        let owner_path = expected_loan_segments(program, local.type_reference, &source.path)?
+        let owner_path = loan_place_segments(program, local.type_reference, &source.path)?
             .into_iter()
             .map(|segment| match segment {
                 facts::PlaceSegment::Field { symbol } => {
@@ -1362,7 +1362,7 @@ pub fn local_record_loans(
             CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
             CheckedStructuralAccess::Owned => return None,
         };
-        let expected_segments = expected_loan_segments(program, root_type, &source.source.path)?;
+        let expected_segments = loan_place_segments(program, root_type, &source.source.path)?;
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
             || loan.root_symbol != root_symbol
@@ -1413,7 +1413,7 @@ pub fn local_record_loans(
 /// Runtime-indexed, case and referent hops have no initializer-side
 /// producer (`borrowed_initializer_source` admits Field and FixedIndex
 /// hops only), so anything else declines the source.
-fn expected_loan_segments(
+pub fn loan_place_segments(
     program: &TypedTrees,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],

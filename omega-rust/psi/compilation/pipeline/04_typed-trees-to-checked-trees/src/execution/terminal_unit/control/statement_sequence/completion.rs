@@ -21,7 +21,7 @@ use super::{
     returned_mutable_view, returned_named_view, returned_parameter, returned_reference_leaf,
     returned_subslice, structural_operands,
 };
-use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
+use checked_trees::CheckedUnitCallPlan;
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
@@ -189,14 +189,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 *discard_result_on_return = false;
             }
         }
-        let mut returned: CheckedUnitStructuralReturnPlan = binding.into();
-        if super::super::super::reference_results::stored_loan_parts(program, state.return_type)
-            .is_some()
-        {
-            returned.reference_sources =
-                super::super::super::reference_results::returned_reference_sources(program, state)?;
-        }
-        Some(returned)
+        Some(binding.into())
     } else if let Some(result) = returned_parameter(
         program,
         facts,
@@ -297,12 +290,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             &mut operations,
         )?;
         operations.push(establishment);
-        let mut returned: CheckedUnitStructuralReturnPlan = result.into();
-        if super::super::super::reference_results::is_reference_record(program, state.return_type) {
-            returned.reference_sources =
-                super::super::super::reference_results::returned_record_sources(program, state)?;
-        }
-        Some(returned)
+        Some(result.into())
     } else if let Some(binding) = returned_call {
         // A call result forwarded straight to the machine's structural return
         // is consumed by that return; it must not also carry disposal debt.
@@ -376,6 +364,20 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         None
     };
     trace.phase("statement sequence: reference result");
+    // Returning a carrier retains the same origin roster whether its binding
+    // came from a local, construction, or call. Completion owns this relation;
+    // the binding conversion alone carries only value identity and custody.
+    if let Some(result) = &mut structural_result
+        && (super::super::super::reference_results::stored_loan_parts(program, state.return_type)
+            .is_some()
+            || super::super::super::reference_results::is_reference_record(
+                program,
+                state.return_type,
+            ))
+    {
+        result.reference_sources =
+            super::super::super::reference_results::returned_reference_sources(program, state)?;
+    }
     if let Some(result) = &mut structural_result
         && !matches!(
             result.source,

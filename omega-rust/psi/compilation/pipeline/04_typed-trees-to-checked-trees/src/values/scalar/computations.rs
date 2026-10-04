@@ -209,16 +209,15 @@ pub(crate) fn build_checked_value_computation_plans(
                             && structural_values::is_view_element_copy(
                                 program, expression, expected,
                             ))
-                        // An element-wise structural array literal registers
-                        // its elements the same way a record literal registers
-                        // its fields: each owned child keeps its own value
-                        // node under the declared element type.
-                        || (matches!(statement, StatementNode::LocalData(_))
-                            && structural_values::is_fixed_array_value(
-                                program,
-                                expression,
-                                expected,
-                            )))
+                        // Array construction owns the same child values in
+                        // a local initializer and a returned expression. Each
+                        // element keeps its value node and declared type so
+                        // completion can retain its loan custody as well.
+                        || structural_values::is_fixed_array_value(
+                            program,
+                            expression,
+                            expected,
+                        ))
                     && let Some(root) = builder.structural_value(expression, expected)
                 {
                     builder.structural_values.roots.append(

@@ -161,7 +161,7 @@ pub(super) fn signature_matches(
                 .normalized_type_identity(carrier)
                 .as_str()
                 == result.type_identity
-                && checked.type_multiplicity(source.return_type) == result.multiplicity
+                && validation::reference_result_custody::result_multiplicity(&checked.typed, source.return_type) == result.multiplicity
                 && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
                 && validation::structural_result_projected_qualifications(
                     &checked.typed,
@@ -173,6 +173,7 @@ pub(super) fn signature_matches(
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
                 && (result.multiplicity == Multiplicity::Linear
+                    || validation::reference_result_custody::is_reference_record(&checked.typed, source.return_type)
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
                     || validation::has_cleanup_owned_contents(

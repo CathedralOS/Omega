@@ -264,6 +264,12 @@ fn structural_result_type(
         statement_index: 0,
         binding_ordinal: 0,
         type_identity: shapes.add_type(result_type, binders, &[])?,
-        multiplicity,
+        // Admission above classifies authored contents. The completed result
+        // owns its stored loan carriers, whose retirement is distinct from
+        // source copyability (including references nested in fixed arrays).
+        multiplicity: validation::reference_result_custody::result_multiplicity(
+            program,
+            result_type,
+        ),
     })
 }

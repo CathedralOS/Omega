@@ -2,10 +2,10 @@
 //! mutable byte-array views a structural call may admit.
 
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
+use crate::execution::terminal_unit::types::is_unit;
 use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
-use crate::execution::terminal_unit::types::is_unit;
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
     TypedTrees, is_reference,
@@ -101,7 +101,8 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
 /// before shape evidence is replayed, and a compound result such as
 /// `Task<T>` substitutes inside the identity comparison itself.
 /// This joins the returned carrier, not its eventual disposal: completion
-/// transfers nominal cleanup obligations with the whole owned value.
+/// transfers nominal cleanup obligations and stored loan custody with the
+/// whole value. Source copyability does not erase either carried obligation.
 pub(crate) fn boundary_value_result_matches(
     program: &TypedTrees,
     return_type: typed_trees::types::TypeReferenceHandle,
@@ -117,7 +118,8 @@ pub(crate) fn boundary_value_result_matches(
             program.primitive_type_reference(return_type).is_none()
                 && !is_unit(program, return_type)
                 && !is_reference(program, return_type)
-                && crate::checks::type_multiplicity(program, return_type) == expected.multiplicity
+                && validation::reference_result_custody::result_multiplicity(program, return_type)
+                    == expected.multiplicity
                 && base_type_identity_with_substitutions(program, return_type, &[], substitutions)
                     .is_some_and(|identity| identity == expected.type_identity)
         }

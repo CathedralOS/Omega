@@ -1014,7 +1014,7 @@ pub(super) fn validate_machine(
     {
         validate_alternative_result_dependencies(module, machine)?;
     }
-    let mut sources = BTreeSet::new();
+    let mut sources = BTreeMap::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent = leaf_referent(module, result.structural_type, path)
             .ok_or_else(|| invalid(machine, "reference result leaf is unsupported"))?;
@@ -1062,10 +1062,22 @@ pub(super) fn validate_machine(
             }
         }
         for source in &mapping.sources {
+            // Repeated observations of borrowed ingress create independent
+            // shared descendants. An owned ingress instead transfers existing
+            // carrier identities, which cannot fill multiple result slots.
+            let shared_descendant = leaf_reference_type(module, result.structural_type, path)
+                .and_then(|leaf| reference_access(module, leaf))
+                == Some(StructuralAccess::SharedBorrow)
+                && !formal_transfers_reference(module, machine, source)
+                && machine.structural_parameters.iter().any(|parameter| {
+                    parameter.place == source.place && parameter.access != StructuralAccess::Owned
+                });
             if !matches!(
                 source.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            ) || !sources.insert((source.place, source.path.clone()))
+            ) || sources
+                .insert((source.place, source.path.clone()), shared_descendant)
+                .is_some_and(|previous_shared| !previous_shared || !shared_descendant)
                 || !machine
                     .structural_parameters
                     .iter()
@@ -1182,6 +1194,25 @@ fn formal_origin(
     } else {
         None
     }
+}
+
+/// A returned mapping relocates an existing descriptor only when its
+/// formal origin selects a stored reference leaf. Borrowing plain storage
+/// creates a fresh descendant even when several leaves share that backing.
+fn formal_transfers_reference(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &StructuralArgument,
+) -> bool {
+    matches!(
+        formal_origin(machine, source),
+        Some(ReferenceOrigin::IngressLeaf(identity))
+            if super::structural::result_contracts::source_signature(machine, identity.place)
+                .and_then(|signature| {
+                    leaf_reference_type(module, signature.structural_type, &identity.path)
+                })
+                .is_some_and(|leaf| reference_access(module, leaf).is_some())
+    )
 }
 
 pub(super) fn validate_result(
@@ -2427,30 +2458,12 @@ pub(super) fn apply_operation(
                         .iter()
                         .map(|formal| {
                             call_source(callee, structural_arguments, formal)
-                        .map(|source| {
-                            (
-                                source,
-                                matches!(
-                                    formal_origin(callee, formal),
-                                    Some(ReferenceOrigin::IngressLeaf(identity))
-                                        if super::structural::result_contracts::source_signature(
-                                            callee,
-                                            identity.place,
-                                        )
-                                        .and_then(|signature| {
-                                            leaf_reference_type(
-                                                module,
-                                                signature.structural_type,
-                                                &identity.path,
-                                            )
-                                        })
-                                        .is_some_and(|leaf| {
-                                            reference_access(module, leaf).is_some()
-                                        })
-                                ),
-                            )
-                        })
-                        .ok_or_else(|| invalid(machine, "reference call source mapping is absent"))
+                                .map(|source| {
+                                    (source, formal_transfers_reference(module, callee, formal))
+                                })
+                                .ok_or_else(|| {
+                                    invalid(machine, "reference call source mapping is absent")
+                                })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok((mapping.path.clone(), sources))
@@ -2473,10 +2486,14 @@ pub(super) fn apply_operation(
         // cannot duplicate an exclusive origin, even through distinct actual
         // argument spellings. Borrowing a result does not move its parent loan.
         let mut established = Vec::with_capacity(sources.len());
-        let mut roots = BTreeSet::new();
+        let mut roots = Vec::new();
+        let mut identities = BTreeSet::new();
         for (path, candidates) in sources {
             let expected = leaf_referent(module, result.structural_type, &path)
                 .ok_or_else(|| invalid(machine, "reference call result leaf is unsupported"))?;
+            let access = leaf_reference_type(module, result.structural_type, &path)
+                .and_then(|leaf| reference_access(module, leaf))
+                .ok_or_else(|| invalid(machine, "reference call result access is absent"))?;
             let mut alternatives = Vec::with_capacity(candidates.len());
             for (source, transfers_existing) in candidates {
                 let compatible = source_type(module, machine, &source).is_some_and(|actual| {
@@ -2545,16 +2562,21 @@ pub(super) fn apply_operation(
                 alternatives.push(reference);
             }
             let reference = combine_alternative_references(machine, alternatives)?;
-            if roots
-                .iter()
-                .any(|root| origins_overlap(root, &reference.root))
+            // Distinct shared loans may observe the same backing. A moved
+            // carrier identity still cannot be returned into two result slots.
+            if !identities.insert(reference.identity.clone())
+                || roots.iter().any(|(root, prior_access)| {
+                    origins_overlap(root, &reference.root)
+                        && (access != StructuralAccess::SharedBorrow
+                            || *prior_access != StructuralAccess::SharedBorrow)
+                })
             {
                 return Err(invalid(
                     machine,
                     "reference result aliases its mapped sources",
                 ));
             }
-            roots.insert(reference.root.clone());
+            roots.push((reference.root.clone(), access));
             established.push(reference);
         }
         // Normal completion consumes the incoming owners. Returned carriers

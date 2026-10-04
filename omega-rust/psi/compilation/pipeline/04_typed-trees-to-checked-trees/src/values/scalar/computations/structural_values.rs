@@ -283,8 +283,7 @@ fn plain_or_policy_scalar_field(program: &TypedTrees, reference: TypeReferenceHa
     }
 }
 
-/// A LocalData initializer or assignment value whose declared type is a fixed
-/// array of structural elements spelled as a literal. Primitive arrays keep
+/// A fixed-array construction of structural elements spelled as a literal. Primitive arrays keep
 /// their scalar-element route; structural elements each register their own
 /// value node, the same way record fields do inside a constructor.
 pub(super) fn is_fixed_array_value(

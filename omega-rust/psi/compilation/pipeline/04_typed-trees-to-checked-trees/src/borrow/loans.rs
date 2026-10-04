@@ -1008,9 +1008,16 @@ fn helper_call_aggregate_borrow_loans(
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut carried_arguments = Vec::new();
 
-    fields
+    let sources = returned_carriers::completed_field_sources(program, call.target_symbol, &fields)
+        .unwrap_or_else(|| {
+            fields
+                .into_iter()
+                .map(|field| (field, Vec::new()))
+                .collect()
+        });
+    sources
         .into_iter()
-        .flat_map(|field| {
+        .flat_map(|(field, projection)| {
             let Some(argument) = arguments.get(field.non_self_index).copied() else {
                 return Vec::new();
             };
@@ -1042,6 +1049,9 @@ fn helper_call_aggregate_borrow_loans(
                 loan_trackers,
             ) {
                 returned_carriers::attenuate(&mut loans, &field.kind);
+                for loan in &mut loans {
+                    loan.place.segments.extend_from_slice(&projection);
+                }
                 return loans;
             }
             let Some(place) = argument_borrow_loan_place(
@@ -1055,7 +1065,8 @@ fn helper_call_aggregate_borrow_loans(
             };
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
-                .map(|source| {
+                .map(|mut source| {
+                    source.place.segments.extend_from_slice(&projection);
                     let mut owner_path = owner_path_prefix.to_vec();
                     owner_path.extend(field.owner_path.iter().copied());
                     StatementBorrowLoan {

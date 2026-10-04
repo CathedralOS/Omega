@@ -222,6 +222,15 @@ fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b6591
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
+fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
+	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
+	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
+fail/borrows/reference_array_result_duplicate_mutable rejected 2696ms expected @6ba9c43af356+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "reference result aliases its mapped sources" }))
+fail/borrows/reference_array_result_live_source_write rejected 1362ms expected @6ba9c43af356+wt
+	statement 8 mutates `main.cells.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
+fail/borrows/reference_array_result_local_escape rejected 1407ms expected @6ba9c43af356+wt
+	machine `collect` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/borrows/reference_carrier_store_while_shared rejected 210ms expected @f41cc6938f06+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
@@ -1448,6 +1457,7 @@ pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d4
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
+pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 3216ms @6ba9c43af356+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 2072ms @e477ee0294de+wt
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 3082ms @056c1343fac1+wt
@@ -1458,6 +1468,9 @@ pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms @056c1343
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms @15c77983aab0+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
+pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 2600ms @6ba9c43af356+wt
+pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3295ms @6ba9c43af356+wt
+pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms @6ba9c43af356+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_state_boolean_reference_exit checked 3855ms @3fa817733300+wt

@@ -1116,12 +1116,14 @@ fn call_results(
     // duplicate an exclusive origin, even through distinct actual argument
     // spellings. Borrowing a result does not move its parent loan.
     let mut established = Vec::new();
-    let mut roots = BTreeSet::new();
+    let mut roots = Vec::new();
+    let mut identities = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
         let expected =
             leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
-        validate_alternatives(mapping, result.structural_type, expected, types)?;
+        let result_access =
+            validate_alternatives(mapping, result.structural_type, expected, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             let source = call_source(callee_function, structural_arguments, formal)
@@ -1177,10 +1179,16 @@ fn call_results(
             candidates.push(leaf);
         }
         let leaf = combine_alternatives(candidates)?;
-        if roots.iter().any(|root| roots_overlap(root, &leaf.root)) {
+        if !identities.insert(leaf.identity.clone())
+            || roots.iter().any(|(root, prior_access)| {
+                roots_overlap(root, &leaf.root)
+                    && (result_access != StructuralAccess::SharedBorrow
+                        || *prior_access != StructuralAccess::SharedBorrow)
+            })
+        {
             return Err(invalid());
         }
-        roots.insert(leaf.root.clone());
+        roots.push((leaf.root.clone(), result_access));
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
@@ -1199,7 +1207,7 @@ fn validate_alternatives(
     result_type: StructuralTypeId,
     referent: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
-) -> Result<(), LegalizationError> {
+) -> Result<StructuralAccess, LegalizationError> {
     let Some(first) = mapping.sources.first() else {
         return Err(invalid());
     };
@@ -1239,7 +1247,7 @@ fn validate_alternatives(
     {
         return Err(invalid());
     }
-    Ok(())
+    Ok(result_access)
 }
 
 /// Alternatives retain one returned permission, not independently live loans.
@@ -2294,12 +2302,12 @@ pub(in crate::legalization) fn reference_results(
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
     let callee_result = callee.result.structural().ok_or_else(|| invalid())?;
-    let mut roots = BTreeSet::new();
+    let mut roots = Vec::new();
     let mut expected = Vec::new();
     for mapping in &callee_result.reference_sources {
         let expected_referent =
             leaf_referent(types, result_type, &mapping.path).ok_or_else(|| invalid())?;
-        validate_alternatives(mapping, result_type, expected_referent, types)?;
+        let result_access = validate_alternatives(mapping, result_type, expected_referent, types)?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for formal in &mapping.sources {
             let source = call_source(callee, arguments, formal).ok_or_else(invalid)?;
@@ -2310,10 +2318,14 @@ pub(in crate::legalization) fn reference_results(
             candidates.push((root, parent));
         }
         let (root, _) = combine_candidate_origins(candidates)?;
-        if roots.iter().any(|other| roots_overlap(other, &root)) {
+        if roots.iter().any(|(other, prior_access)| {
+            roots_overlap(other, &root)
+                && (result_access != StructuralAccess::SharedBorrow
+                    || *prior_access != StructuralAccess::SharedBorrow)
+        }) {
             return Err(invalid());
         }
-        roots.insert(root.clone());
+        roots.push((root.clone(), result_access));
         expected.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: root.place(),

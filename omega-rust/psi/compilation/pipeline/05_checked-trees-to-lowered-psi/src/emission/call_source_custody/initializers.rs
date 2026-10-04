@@ -241,7 +241,10 @@ pub(crate) fn validate_structural(
                 )?)
                 .as_str()
                 != result.type_identity
-            || checked.type_multiplicity(state.return_type) != result.multiplicity
+            || validation::reference_result_custody::result_multiplicity(
+                &checked.typed,
+                state.return_type,
+            ) != result.multiplicity
         {
             return unsupported(
                 "structural call result differs from its authored return destination",
@@ -277,7 +280,10 @@ pub(crate) fn validate_structural(
                 )?)
                 .as_str()
                 != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
+            || validation::reference_result_custody::result_multiplicity(
+                &checked.typed,
+                target.return_type,
+            ) != result.multiplicity
             || result.multiplicity == Multiplicity::Linear
         {
             return unsupported("structural call result disagrees with its assigned field");

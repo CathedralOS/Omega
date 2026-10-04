@@ -629,6 +629,25 @@ pub(crate) fn formal_origin(
     }
 }
 
+/// A returned mapping relocates an existing descriptor only when its
+/// formal origin selects a stored reference leaf. Borrowing plain storage
+/// creates a fresh descendant even when several leaves share that backing.
+pub(crate) fn formal_transfers_reference(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    function: &PsiOptimizationFunction,
+    source: &terminal_psi::StructuralArgument,
+) -> bool {
+    matches!(
+        formal_origin(function, source),
+        Some(ReferenceOrigin::IngressLeaf(identity))
+            if structural_source_contract(function, identity.place)
+                .and_then(|signature| {
+                    leaf_type(types, signature.structural_type, &identity.path)
+                })
+                .is_some_and(|leaf| reference_access(types, leaf).is_some())
+    )
+}
+
 /// The structural result row an operation publishes, when it publishes one.
 /// Reference custody cares only about the structural contract; scalar and
 /// Unit results carry no loans.
@@ -826,7 +845,7 @@ pub(crate) fn validate_function_references(
     {
         validate_alternative_result_dependencies(function, functions, types)?;
     }
-    let mut sources = BTreeSet::new();
+    let mut sources = BTreeMap::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent =
             leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;
@@ -868,11 +887,24 @@ pub(crate) fn validate_function_references(
             }
         }
         for formal in &mapping.sources {
+            // Repeated observations of borrowed ingress create independent
+            // shared descendants. An owned ingress instead transfers existing
+            // carrier identities, which cannot fill multiple result slots.
+            let shared_descendant = leaf_type(types, result.structural_type, path)
+                .and_then(|leaf| reference_access(types, leaf))
+                == Some(terminal_psi::StructuralAccess::SharedBorrow)
+                && !formal_transfers_reference(types, function, formal)
+                && function.structural_parameters.iter().any(|parameter| {
+                    parameter.place == formal.place
+                        && parameter.access != terminal_psi::StructuralAccess::Owned
+                });
             if !matches!(
                 formal.access,
                 terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::SharedBorrow
-            ) || !sources.insert((formal.place, formal.path.clone()))
+            ) || sources
+                .insert((formal.place, formal.path.clone()), shared_descendant)
+                .is_some_and(|previous_shared| !previous_shared || !shared_descendant)
                 || !function
                     .structural_parameters
                     .iter()
