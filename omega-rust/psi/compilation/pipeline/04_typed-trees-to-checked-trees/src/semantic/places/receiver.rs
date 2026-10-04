@@ -1,8 +1,22 @@
 use crate::lookup::{statement_call_receiver_members, statement_call_receiver_path};
 use checked_trees::ContractCallFact;
 use facts::FactPlan;
-use symbols::SymbolHandle;
 
+/// The place a call reads its subject from, or `None` when the call names no
+/// subject operand.
+///
+/// Every call supplies its subject explicitly: a statement call names a
+/// receiver path, an expression call names a receiver expression, and a
+/// transition supplies the record as the argument at the callee's data-binding
+/// position, which `instantiate_call_relative_places` resolves positionally.
+/// Nothing arrives implicitly -- a carrier qualification names the semantic
+/// owner and contributes no argument or storage -- so a call with no receiver
+/// operand has no subject place to report here.
+///
+/// The three arms below each ended in a `StateParameter::is_self` lookup for
+/// the retired implicit receiver, and the statement arm recognized a receiver
+/// path headed by the `self` keyword. Stage 01 rejects both spellings, so each
+/// was an unconditional refusal standing in front of the explicit operand.
 pub(crate) fn receiver_place_for_call(
     program: &typed_trees::TypedTrees,
     facts: &mut FactPlan,
@@ -11,51 +25,7 @@ pub(crate) fn receiver_place_for_call(
 ) -> Option<facts::PlaceHandle> {
     match call_site {
         super::CallSite::Statement(statement) => {
-            if let Some(members) = statement_call_receiver_members(program, statement) {
-                if members
-                    .first()
-                    .is_some_and(|member| member.is_self_receiver())
-                {
-                    let caller_state = super::find_state_in_machine(
-                        program,
-                        call.caller_machine_symbol,
-                        call.caller_state_symbol,
-                    )?;
-                    let self_parameter = program
-                        .state_parameters(caller_state)
-                        .iter()
-                        .find(|parameter| parameter.is_self)?;
-                    let mut place = facts.append_symbol_place(self_parameter.symbol);
-                    for member in members.iter().skip(1) {
-                        let symbol = super::resolve_place_member_symbol(
-                            program,
-                            facts,
-                            place,
-                            member.as_str(),
-                        )
-                        .or_else(|| {
-                            statement
-                                .receiver_symbol
-                                .is_valid()
-                                .then_some(statement.receiver_symbol)
-                        })
-                        .unwrap_or_else(SymbolHandle::invalid);
-                        if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-                            place = super::append_place_segment(
-                                facts,
-                                place,
-                                facts::PlaceSegment::Case { variant },
-                            );
-                        }
-                        place = super::append_place_segment(
-                            facts,
-                            place,
-                            facts::PlaceSegment::Field { symbol },
-                        );
-                    }
-                    return Some(place);
-                }
-
+            if statement_call_receiver_members(program, statement).is_some() {
                 let state = super::find_state_in_machine(
                     program,
                     call.caller_machine_symbol,
@@ -73,34 +43,11 @@ pub(crate) fn receiver_place_for_call(
                 .then(|| facts.append_symbol_place(statement.receiver_symbol))
         }
         super::CallSite::Expression {
-            call: statement, ..
-        } => {
-            if statement.receiver.is_valid() {
-                return Some(facts.append_place_from_expression(program, statement.receiver));
-            }
-
-            let caller_state = super::find_state_in_machine(
-                program,
-                call.caller_machine_symbol,
-                call.caller_state_symbol,
-            )?;
-            let self_parameter = program
-                .state_parameters(caller_state)
-                .iter()
-                .find(|parameter| parameter.is_self)?;
-            Some(facts.append_symbol_place(self_parameter.symbol))
-        }
-        super::CallSite::TransitionNamed { .. } => {
-            let caller_state = super::find_state_in_machine(
-                program,
-                call.caller_machine_symbol,
-                call.caller_state_symbol,
-            )?;
-            let self_parameter = program
-                .state_parameters(caller_state)
-                .iter()
-                .find(|parameter| parameter.is_self)?;
-            Some(facts.append_symbol_place(self_parameter.symbol))
-        }
+            call: expression, ..
+        } => expression
+            .receiver
+            .is_valid()
+            .then(|| facts.append_place_from_expression(program, expression.receiver)),
+        super::CallSite::TransitionNamed { .. } => None,
     }
 }

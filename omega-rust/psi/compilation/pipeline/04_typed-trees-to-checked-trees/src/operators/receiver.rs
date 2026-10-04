@@ -76,7 +76,7 @@ fn expression_type_reference_in_state(
         .and_then(|receiver| {
             field_type_reference(program, receiver, member.member_symbol, &member.member)
         })
-        .or_else(|| self_field_type_reference(program, state_symbol, member)),
+        .or_else(|| data_binding_field_type_reference(program, state_symbol, member)),
         ExpressionNode::Indexed(indexed) => expression_type_reference_in_state(
             program,
             state_symbol,
@@ -327,10 +327,16 @@ fn local_type_reference_before_statement(
         })
 }
 
-/// Field type for a `self.field` receiver. The `self` parameter often carries
-/// no usable declared type reference, so resolve the field through the
-/// machine's attached data definition instead.
-fn self_field_type_reference(
+/// Field type for a member read rooted at the state's own data binding.
+///
+/// A binding's declared type reference does not always reach the record it
+/// names: a conformance body spells its subject `&Self`, which resolves to no
+/// data declaration, so `field_type_reference` cannot type `subject.value`.
+/// Resolve the field through the machine's attached data definition instead.
+/// `data_binding_parameter` owns which parameter holds that record; this gate
+/// was keyed to `StateParameter::is_self`, which stage 01 rejects, so it
+/// refused for every program.
+fn data_binding_field_type_reference(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
@@ -339,26 +345,18 @@ fn self_field_type_reference(
         return None;
     };
     let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
-    let self_parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.is_self)?;
+    let data_binding = program.data_binding_parameter(machine, program.state_parameters(state))?;
     let path_members = program.expression_table.name_path_members(path.members);
-    let names_self = path_members.len() == 1
-        && (path_members
-            .first()
-            .is_some_and(|name| name.is_self_receiver())
-            || (path.symbol.is_valid() && path.symbol == self_parameter.symbol)
-            || (path.head_symbol.is_valid() && path.head_symbol == self_parameter.symbol));
-    if !names_self {
+    // The binding is an ordinary parameter, so resolution carries its symbol;
+    // the head is consulted for a path whose leaf symbol names the field.
+    let names_data_binding = path_members.len() == 1
+        && ((path.symbol.is_valid() && path.symbol == data_binding.symbol)
+            || (path.head_symbol.is_valid() && path.head_symbol == data_binding.symbol));
+    if !names_data_binding {
         return None;
     }
 
-    let attached_data = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *attached_data)?;
+    let data = crate::lookup::data_definition_by_symbol(program, machine.attached_data_symbol)?;
     program.data_members(data).iter().find_map(|data_member| {
         let typed_trees::data::DataMember::Field(field) = data_member else {
             return None;
