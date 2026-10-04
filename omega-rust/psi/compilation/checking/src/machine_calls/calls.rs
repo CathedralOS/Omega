@@ -456,14 +456,12 @@ pub(crate) fn validate_call_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let retain_arithmetic_policy = callee_state.is_some_and(|callee_state| {
-        machine_state_by_symbol(program, callee_state.symbol).is_some_and(
-            |(callee_machine, callee_state)| {
-                float_requirement_retains_argument_policy(program, callee_machine, callee_state)
-            },
-        )
+    let retains_primitive_float_policy = callee_state.is_some_and(|state| {
+        machine_state_by_symbol(program, state.symbol).is_some_and(|(machine, _)| {
+            primitive_float_operator_retains_argument_policy(program, machine.symbol)
+        })
     });
-    validate_call_arguments_handles_with_policy_retention(
+    validate_call_arguments_with_environments(
         program,
         current_machine,
         current_state,
@@ -473,44 +471,45 @@ pub(crate) fn validate_call_arguments_handles(
         parameters,
         callee_state,
         writable_roots,
-        retain_arithmetic_policy,
+        retains_primitive_float_policy,
         &[],
         diagnostics,
     );
 }
 
-/// Whether a call to this state retains its arguments' arithmetic policy the
-/// way a named primitive `Float::`, `F32::` or `F64::` operator use does: the
-/// callee is a public nongeneric receiver-free top-level requirement whose path
-/// identifies a float operation and whose result is f32 or f64. Both
-/// spellings of one float requirement adapt policy-qualified operands through
-/// the selected provider; an ordinary machine still weakens nothing implicitly.
-pub(crate) fn float_requirement_retains_argument_policy(
+/// Primitive Float arithmetic reaches call validation after token lowering.
+/// Its sealed operation adapter retains operand policy; an ordinary named
+/// requirement cannot acquire that adapter from its namespace or result type.
+pub(crate) fn primitive_float_operator_retains_argument_policy(
     program: &TypedTrees,
-    callee_machine: &Machine,
-    callee_state: &State,
+    symbol: symbols::SymbolHandle,
 ) -> bool {
-    let float_result = matches!(
-        program.primitive_type_reference(callee_state.return_type),
-        Some(PrimitiveType::F32 | PrimitiveType::F64)
-    );
-    callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        && callee_machine.is_public
-        && callee_machine.lifetime_parameters.is_empty()
-        && program.machine_type_parameters(callee_machine).is_empty()
-        && (callee_machine.name.as_str().starts_with("F32::")
-            || callee_machine.name.as_str().starts_with("F64::")
-            || typed_trees::operator::declaration_by_symbol(program, callee_machine.symbol)
-                .is_some_and(|operator| {
-                    typed_trees::operator::primitive_float_binary_semantics(program, operator)
-                        .is_some()
-                }))
-        && float_result
-        && matches!(program.machine_states(callee_machine), [entry] if entry.symbol == callee_state.symbol)
-        && !program
-            .state_parameters(callee_state)
-            .iter()
-            .any(|parameter| parameter.is_self)
+    let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) else {
+        return false;
+    };
+    if !operator.is_boundary
+        || !matches!(
+            program.primitive_type_reference(operator.return_type),
+            Some(PrimitiveType::F32 | PrimitiveType::F64)
+        )
+        || typed_trees::operator::primitive_float_binary_semantics(program, operator).is_none()
+    {
+        return false;
+    }
+    let [namespace, name] = program.operator_path_members(operator.name) else {
+        return false;
+    };
+    program
+        .normalized_hermetic_symbol_identity(operator.symbol)
+        .is_ok_and(|identity| {
+            identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
+        })
+        && crate::proof_contracts::float_projection_bindings::semantic_operations::
+            symbol_is_declared_in_sealed_source(
+                program,
+                operator.symbol,
+                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
+            )
 }
 
 fn validate_generic_bound_argument_types(
@@ -558,7 +557,7 @@ fn validate_generic_bound_argument_types(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_call_arguments_handles_with_policy_retention(
+pub(crate) fn validate_call_arguments_with_environments(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
@@ -568,7 +567,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
     parameters: &[StateParameter],
     callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
-    retain_arithmetic_policy: bool,
+    retains_primitive_float_policy: bool,
     argument_environments: &[ValueEnvironment],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -582,7 +581,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
         parameters,
         callee_state,
         writable_roots,
-        retain_arithmetic_policy,
+        retains_primitive_float_policy,
         argument_environments,
         false,
         |argument, required| argument_matches_carrier(program, argument, required),
@@ -603,7 +602,7 @@ fn validate_call_arguments_with_type_correspondence(
     parameters: &[StateParameter],
     callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
-    retain_arithmetic_policy: bool,
+    retains_primitive_float_policy: bool,
     argument_environments: &[ValueEnvironment],
     self_is_argument: bool,
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
@@ -764,7 +763,7 @@ fn validate_call_arguments_with_type_correspondence(
                 *argument,
                 parameter,
                 target_name,
-                retain_arithmetic_policy,
+                retains_primitive_float_policy,
                 diagnostics,
             );
         }
@@ -814,27 +813,16 @@ fn validate_call_arguments_with_type_correspondence(
             "argument",
             diagnostics,
         );
-        if retain_arithmetic_policy {
-            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening_retaining_arithmetic_policy(
-                program,
-                current_machine,
-                current_state,
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                diagnostics,
-            );
-        } else {
-            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
-                program,
-                current_machine,
-                current_state,
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                diagnostics,
-            );
-        }
+        crate::proof_contracts::domain_weakening::validate_argument_domain_weakening(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            retains_primitive_float_policy,
+            diagnostics,
+        );
         // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
         // -- `&self.msg` (address-of a `[u8; N]` buffer) passed to an `addr`/pointer
         // param is a valid array-value-into-scalar-target flow, and boundary/host
@@ -973,8 +961,8 @@ fn validate_value_call_argument_classes(
         )));
     }
 
-    let retain_arithmetic_policy =
-        float_requirement_retains_argument_policy(program, callee_machine, callee_state);
+    let retains_primitive_float_policy =
+        primitive_float_operator_retains_argument_policy(program, callee_machine.symbol);
     for (argument, parameter) in arguments.iter().zip(
         program
             .state_parameters(callee_state)
@@ -1061,7 +1049,7 @@ fn validate_value_call_argument_classes(
                 *argument,
                 parameter,
                 callee_state.name.as_str(),
-                retain_arithmetic_policy,
+                retains_primitive_float_policy,
                 diagnostics,
             );
         }
@@ -1093,27 +1081,16 @@ fn validate_value_call_argument_classes(
             "argument",
             diagnostics,
         );
-        if retain_arithmetic_policy {
-            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening_retaining_arithmetic_policy(
-                program,
-                current_machine,
-                Some(current_state),
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                diagnostics,
-            );
-        } else {
-            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
-                program,
-                current_machine,
-                Some(current_state),
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                diagnostics,
-            );
-        }
+        crate::proof_contracts::domain_weakening::validate_argument_domain_weakening(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            retains_primitive_float_policy,
+            diagnostics,
+        );
         // (No array/scalar shape check here -- see the note in
         // `validate_call_arguments_handles`: `&buffer`-into-`addr` and text/byte args
         // make the argument position a false-positive minefield.)

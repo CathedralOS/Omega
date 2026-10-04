@@ -16,7 +16,6 @@ use super::{
     is_arithmetic, literal_i64, place_path, range_constraint_interval,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
-use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
 use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
 use language_core::is_self_receiver;
@@ -150,22 +149,6 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                     (None, None) => None,
                 }
             }
-            ExpressionNode::Call(call)
-                if resolve_named_float_arithmetic(program, call).is_some() =>
-            {
-                let mut selected = None;
-                for argument in program.expression_table.expression_handles(call.arguments) {
-                    let Some(domain) = selected_domain(program, *argument, expression_domain)
-                    else {
-                        continue;
-                    };
-                    selected = match selected {
-                        None | Some(ArithmeticDomain::Exact) => Some(domain),
-                        Some(current) => Some(current),
-                    };
-                }
-                selected
-            }
             _ => expression_domain(expression),
         }
     }
@@ -277,15 +260,10 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     recurse(*argument, diagnostics, visited);
                 }
-                if resolve_named_float_arithmetic(program, call).is_some()
-                    && selected_domain(program, expression, expression_domain)
-                        == Some(ArithmeticDomain::Trapping)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                            "direct Trapping named float operation `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `Float::meaning32`/`Float::meaning64` or an explicitly total policy",
-                            call.target,
-                        )));
-                }
+                // A call's declared result policy governs enclosing operations.
+                // Operand qualification does not synthesize a trapping adapter
+                // for an ordinary named call, and returning a qualified value
+                // does not by itself execute a trapping operation.
             }
             ExpressionNode::Indexed(indexed) => {
                 recurse(indexed.collection, diagnostics, visited);

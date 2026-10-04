@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.22, "load1_start": 4.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 12.43, "load1_start": 10.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -671,6 +671,7 @@ pass/float/runtime_float_to_integer_policy_casts_exit built 2588ms exit:70 @1c13
 pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
+pass/float/runtime_named_policy_result_exit built 5582ms exit:70 @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit built 19983ms exit:70 @7e0a52664189
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt

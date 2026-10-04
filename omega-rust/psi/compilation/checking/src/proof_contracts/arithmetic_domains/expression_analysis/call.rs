@@ -6,9 +6,11 @@
 //! range using captured immutable actuals. Even an unknown value retains its declared
 //! carrier and policy.
 //! Unknown values are not untyped values, regardless of the call's receiver.
+//! A named float call follows its selected signature too: operand policies do
+//! not synthesize an adapter absent from that requirement. Binary-expression
+//! policy selection belongs to the binary operation, not namespace spelling.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
-use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_range,
 };
@@ -16,7 +18,7 @@ use crate::proof_contracts::arithmetic_domains::return_ranges::{
     ensured_call_result_interval, infer_return_interval,
 };
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, TableCallExpression, TypedTrees,
+    ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, TypedTrees,
     call_return_type, range_constraint_interval,
 };
 use symbols::BuiltinFunction;
@@ -25,14 +27,10 @@ pub(super) fn analyze(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
     call: &TableCallExpression,
-    diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
     // The shared expression walk has checked receiver and argument formation,
     // including calls whose result folds before reaching this result query.
     // Speculative interval queries below must not repeat those diagnostics.
-    if let Some(result) = named_float_operation(walk, call, diagnostics) {
-        return result;
-    }
     let analysis = named_operator_result(walk.program, call)
         .or_else(|| bounding_builtin_result(walk, call))
         .unwrap_or_else(|| {
@@ -85,51 +83,6 @@ fn with_declared_result_carrier(
                 analysis.interval.intersect(carrier)
             }),
     }
-}
-
-/// F7 named float requirements use the same operand-driven policy selection as
-/// spellings. Preserve the selected domain for an enclosing expression and
-/// reject two different explicit policies before checked evidence is built.
-/// Classification calls return a non-float and therefore carry no float result
-/// policy.
-fn named_float_operation(
-    walk: &ExpressionWalk,
-    call: &TableCallExpression,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Option<Analysis> {
-    let (_operator, return_primitive) = resolve_named_float_arithmetic(walk.program, call)?;
-    let mut selected_domain: Option<ArithmeticDomain> = None;
-    for argument in walk
-        .program
-        .expression_table
-        .expression_handles(call.arguments)
-    {
-        let mut throwaway = Vec::new();
-        let Some(domain) = walk.analyze(*argument, &mut throwaway).domain else {
-            continue;
-        };
-        if let Some(selected) = selected_domain
-            && selected != domain
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "mixed arithmetic domains in {}: named float operation `{}` receives both \
-                 `{}` and `{}` operands. Decision 17 forbids implicit domain mixing -- cross \
-                 domains with an explicit `as` cast, or declare every operand in the same \
-                 domain.",
-                walk.owner,
-                call.target,
-                selected.name(),
-                domain.name(),
-            )));
-        } else {
-            selected_domain = Some(domain);
-        }
-    }
-    Some(Analysis {
-        domain: selected_domain,
-        interval: Interval::UNBOUNDED,
-        primitive: Some(return_primitive),
-    })
 }
 
 /// A named operator's declared result supplies its carrier even when provider

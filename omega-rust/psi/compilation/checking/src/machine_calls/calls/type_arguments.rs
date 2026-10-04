@@ -147,7 +147,7 @@ pub(super) fn validate_resolved_call_arguments(
         program.state_parameters(entry),
         Some(entry),
         writable_roots,
-        float_requirement_retains_argument_policy(program, callee, entry),
+        primitive_float_operator_retains_argument_policy(program, callee.symbol),
         &[],
         self_is_argument,
         |argument, required| {

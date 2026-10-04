@@ -1,0 +1,10 @@
+use omega::language::core::float_operations;
+
+// A named requirement's declared operands and result determine its policy.
+// F32::multiply_then_add declares bare f32, not a caller-selected adapter.
+machine invalid(value: f32 in Saturating) {
+    let result: f32 in Saturating = F32::multiply_then_add(value, value, value);
+}
+
+data Main {}
+machine Main::main(main: &mut Main) { invalid(2.0f32 as f32 in Saturating); }

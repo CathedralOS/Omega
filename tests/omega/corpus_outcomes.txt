@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.06, "load1_start": 4.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.28, "load1_start": 8.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -759,6 +759,18 @@ fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected 
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
+fail/float/named_call_computed_policy_erasure rejected 625ms expected @fa2336e35cbc
+	store in machine `invalid` state `multiply_then_add` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `right` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `multiply_then_add` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `addend` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/float/named_call_implicit_policy_erasure rejected 2020ms expected @fa2336e35cbc
+	store in machine `invalid` state `multiply_then_add` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `left` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `multiply_then_add` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `right` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `multiply_then_add` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `addend` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c08960bee2b1+wt
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
@@ -2110,6 +2122,7 @@ pass/float/runtime_float_to_integer_policy_casts_exit checked 4840ms @2d8ed25366
 pass/float/runtime_named_float_to_integer_conversion_exit checked 6246ms @921839635ad
 pass/float/runtime_named_fma_sequence_exit checked 16819ms @2d8ed253669f
 pass/float/runtime_named_format_conversion_exit checked 6217ms @2d8ed253669f
+pass/float/runtime_named_policy_result_exit checked 5484ms @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit checked 5045ms @2d8ed253669f
 pass/float/runtime_total_order_satisfiers_exit checked 73060ms @3284f31163c
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms @2d8ed253669f

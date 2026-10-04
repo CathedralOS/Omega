@@ -154,7 +154,7 @@ impl ExpressionWalk<'_> {
             }
             ExpressionNode::Unary(unary) => unary::analyze(self, unary, diagnostics),
             ExpressionNode::Cast(cast) => cast::analyze(self, cast, diagnostics),
-            ExpressionNode::Call(call) => call::analyze(self, expression, call, diagnostics),
+            ExpressionNode::Call(call) => call::analyze(self, expression, call),
             ExpressionNode::Match(dispatch) => {
                 dispatch::analyze(self, expression, dispatch, diagnostics)
             }

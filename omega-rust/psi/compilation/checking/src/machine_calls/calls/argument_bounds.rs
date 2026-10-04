@@ -20,7 +20,7 @@ pub(super) fn report_argument_bounds(
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
-    retain_arithmetic_policy: bool,
+    retains_primitive_float_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
@@ -50,22 +50,29 @@ pub(super) fn report_argument_bounds(
         }
         return;
     }
-    // A selected float adapter retains the operand's policy rather than
-    // storing it into an ordinary unqualified parameter. Width and range
-    // compatibility still use the requirement's declared carrier.
     let parameter_domain = program.arithmetic_domain_for_type_reference(parameter.type_reference);
-    let target_domain = if retain_arithmetic_policy && parameter_domain == ArithmeticDomain::Exact {
-        crate::value_custody::places::declared_place_type_raw(
-            program,
-            current_machine,
-            current_state,
-            argument,
-        )
-        .map(|source| program.arithmetic_domain_for_type_reference(source))
-        .unwrap_or(parameter_domain)
-    } else {
-        parameter_domain
-    };
+    // Primitive Float adapters consume the evaluated operand policy, including
+    // computed operands. Ordinary parameter delivery uses its declared policy.
+    let target_domain =
+        if retains_primitive_float_policy && parameter_domain == ArithmeticDomain::Exact {
+            let mut arithmetic_diagnostics = Vec::new();
+            let (_, _, operand_domain) = arithmetic_domains::validate_value_range(
+                program,
+                current_machine,
+                current_state,
+                argument,
+                value_environment,
+                Some(parameter_primitive),
+                ArithmeticDomain::Exact,
+                &owner,
+                &mut arithmetic_diagnostics,
+            );
+            // The expression validator owns formation diagnostics; this query
+            // selects only the delivery policy, as check_value_narrowing does.
+            operand_domain.unwrap_or(parameter_domain)
+        } else {
+            parameter_domain
+        };
     arithmetic_domains::check_value_narrowing(
         program,
         current_machine,

@@ -1,4 +1,4 @@
-//! Named float arithmetic and float sources of integer casts.
+//! Float sources of integer casts and their representability bounds.
 
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
@@ -7,60 +7,12 @@ use crate::proof_contracts::arithmetic_domains::value_environment::{
 };
 use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-
-/// Resolve only the reserved named-float arithmetic surface. Contract
-/// expressions can reach validation before their static namespace receiver has
-/// a symbol, so use the retained one-segment `F32`/`F64` spelling as a strict
-/// fallback. The shared resolver still enforces exact path, arity, and
-/// uniqueness; arbitrary float-returning operators do not enter this lane.
-pub(crate) fn resolve_named_float_arithmetic<'program>(
-    program: &'program TypedTrees,
-    call: &TableCallExpression,
-) -> Option<(
-    &'program typed_trees::operator::OperatorDefinition,
-    PrimitiveType,
-)> {
-    let operator =
-        typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
-            let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
-            else {
-                return None;
-            };
-            let [namespace] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            if !matches!(namespace.as_str(), "F32" | "F64") {
-                return None;
-            }
-            let static_receiver = [namespace.as_str()];
-            typed_trees::operator::resolve_named_call(
-                program,
-                call.target_symbol,
-                Some(&static_receiver),
-                call.target.as_str(),
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .len(),
-                false,
-            )
-        })?;
-    let primitive = program.primitive_type_reference(operator.return_type)?;
-    let namespace = program.operator_path_members(operator.name).first()?;
-    matches!(
-        (namespace.as_str(), primitive),
-        ("F32", PrimitiveType::F32) | ("F64", PrimitiveType::F64)
-    )
-    .then_some((operator, primitive))
-}
 
 /// The float value of a literal operand (through a `Mutable` wrapper), read at
 /// its landed format, or `None` when the operand is not a plain float literal.

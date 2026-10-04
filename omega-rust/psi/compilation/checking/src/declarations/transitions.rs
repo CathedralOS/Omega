@@ -1,5 +1,5 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::validate_call_arguments_handles_with_policy_retention;
+use crate::machine_calls::calls::validate_call_arguments_with_environments;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
@@ -165,7 +165,7 @@ pub(crate) fn validate_transition_target_node(
     }
 
     if let Some(signature) = program.machine_parameter_signature_in(current_machine, path.symbol) {
-        validate_call_arguments_handles_with_policy_retention(
+        validate_call_arguments_with_environments(
             program,
             current_machine,
             current_state,
@@ -278,7 +278,7 @@ fn validate_transition_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments_handles_with_policy_retention(
+    validate_call_arguments_with_environments(
         program,
         current_machine,
         current_state,

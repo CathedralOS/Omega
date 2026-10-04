@@ -3985,13 +3985,15 @@ wait for Cathedral's instruction coverage. The interpreter is
     reports an arity error, then an overflow, then the conversion. Keep real
     primary subjects and independent errors; do not blanket-suppress domain
     obligations.
-  - Float-policy customers: on Windows `pass/float/float_saturating_arithmetic_exit`
-    is rejected because named-operator admission reports `f32 in Saturating` to
-    `f32` twice (store conversion and weakening). The weakening checker keeps the
-    policy while the numeric argument checker compares the bare parameter. Fix
-    with **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** without erasing
-    Saturating/Trapping; keep the two-rounding multiply-then-add, saturation and
-    trap oracles of `tests/omega/pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps,named_provider_multiply_then_add_exit}`.
+  - Float-policy customers: revalidate the reported Windows named-operator
+    admission failure; the saturation, overflow-trap, propagated-NaN-trap and
+    two-rounding multiply-then-add oracles now execute correctly on macOS ARM64.
+    Primitive Float adapters retain evaluated operand policies, while ordinary
+    named calls obey their declared parameter and result policies. Preserve
+    that distinction when deduplicating diagnostics with
+    **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS**; an `F32`/`F64` namespace
+    never supplies an adapter. Run `python tools/corpus_gate.py --native --filter
+    float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps,named_provider_multiply_then_add_exit,runtime_named_policy_result_exit`.
   - Migration: every cross-carrier/policy store in maintained pass fixtures,
     samples (**SAMPLE-CORPUS**), bundled libraries and `source/omega/main.omg`
     with `source/psi/{lex,parse,source}` spells its conversion, preserving each

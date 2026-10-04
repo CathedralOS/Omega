@@ -1,0 +1,9 @@
+use omega::language::core::float_operations;
+
+// Computing or casting an argument does not authorize a named requirement to
+// erase its policy. The required parameter remains the declared bare f32.
+machine invalid(value: f32 in Saturating) {
+    let result: f32 in Saturating = F32::multiply_then_add(
+        value * value, value as f32 in Saturating, value
+    );
+}

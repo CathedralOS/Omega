@@ -5,8 +5,9 @@
 //! diagnostics emitted at those scan sites.
 
 use super::{
-    free_machine_entry_state, machine_state_by_symbol, user_asm_contract,
-    validate_asm_operand_constraint, validate_call_arguments_handles_with_policy_retention,
+    free_machine_entry_state, machine_state_by_symbol,
+    primitive_float_operator_retains_argument_policy, user_asm_contract,
+    validate_asm_operand_constraint, validate_call_arguments_with_environments,
     validate_generic_bound_argument_types, validate_machine_call_type_parameter_bounds,
     validate_value_call_argument_classes,
 };
@@ -435,23 +436,7 @@ fn validate_expression_call_bounds(
             Ok(_) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
-        let retains_arithmetic_policy = matches!(
-            (
-                program
-                    .operator_path_members(operator.name)
-                    .first()
-                    .map(|name| name.as_str()),
-                program.primitive_type_reference(operator.return_type),
-            ),
-            (Some("F32"), Some(PrimitiveType::F32)) | (Some("F64"), Some(PrimitiveType::F64))
-        )
-            || (typed_trees::operator::primitive_float_binary_semantics(program, operator)
-                .is_some()
-                && matches!(
-                    program.primitive_type_reference(operator.return_type),
-                    Some(PrimitiveType::F32 | PrimitiveType::F64)
-                ));
-        validate_call_arguments_handles_with_policy_retention(
+        validate_call_arguments_with_environments(
             program,
             current_machine,
             Some(current_state),
@@ -461,7 +446,7 @@ fn validate_expression_call_bounds(
             parameters,
             None,
             writable_roots,
-            retains_arithmetic_policy,
+            primitive_float_operator_retains_argument_policy(program, operator.symbol),
             &[],
             diagnostics,
         );

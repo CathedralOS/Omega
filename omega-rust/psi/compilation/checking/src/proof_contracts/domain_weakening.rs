@@ -72,7 +72,7 @@ pub(crate) fn validate_implicit_domain_weakening(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_implicit_domain_weakening_with_policy_retention(
+    validate_argument_domain_weakening(
         program,
         machine,
         state,
@@ -84,39 +84,18 @@ pub(crate) fn validate_implicit_domain_weakening(
     );
 }
 
-/// Named float operators deliberately carry an operand arithmetic policy to
-/// their float result through checked adapter evidence. Other semantic atoms
-/// still obey the ordinary explicit-removal rule.
-pub(crate) fn validate_implicit_domain_weakening_retaining_arithmetic_policy(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
-    value: ExpressionHandle,
-    target_type: TypeReferenceHandle,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_implicit_domain_weakening_with_policy_retention(
-        program,
-        machine,
-        state,
-        value,
-        target_type,
-        owner,
-        true,
-        diagnostics,
-    );
-}
-
+/// A sealed primitive Float operation may retain its evaluated operand policy
+/// through its adapter. All other calls obey their declared parameter policy;
+/// no semantic or provenance atom is exempted by primitive adaptation.
 #[allow(clippy::too_many_arguments)]
-fn validate_implicit_domain_weakening_with_policy_retention(
+pub(crate) fn validate_argument_domain_weakening(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
     owner: &str,
-    retain_arithmetic_policy: bool,
+    retains_primitive_float_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !value.is_valid() || !target_type.is_valid() {
@@ -139,7 +118,9 @@ fn validate_implicit_domain_weakening_with_policy_retention(
 
     let dropped = source
         .iter()
-        .filter(|atom| !(retain_arithmetic_policy && matches!(atom, DomainAtom::Arithmetic(_))))
+        .filter(|atom| {
+            !(retains_primitive_float_policy && matches!(atom, DomainAtom::Arithmetic(_)))
+        })
         .filter(|atom| atom_requires_explicit_removal(program, atom))
         // PDI3 same-family indexed mismatches are equality obligations, not
         // implicit semantic removal. Their exact closed/normalization/local-
