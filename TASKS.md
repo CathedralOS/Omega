@@ -824,33 +824,28 @@ the complete product bar; focused successes below do not establish that baseline
   requirements, service reach, finite normal completion, and provider identity.
 
   `omega run --both tests/omega/pass/drops/contextual_core_drop_exit/main.omg`
-  now prints `BA` and exits 0 in both engines on macOS ARM64 in the local
-  cleanup-composition candidate. Ordinary core `drop<T>` and unrelated generic
+  now prints `BA` and exits 0 in both engines on macOS ARM64. Ordinary core
+  `drop<T>` and unrelated generic
   forwarding retain exact hook prerequisites and substituted cleanup reach.
   Source checks use each selected exit, post-call temporary cleanup, and
   replacement facts captured after RHS evaluation but before the store.
 
-  The local cleanup-composition candidate retains selected-edge cleanup actions
-  through structural returns and materializes the returned owner before running
-  sibling hooks. Source inference retains whole guards, exact named-transition
-  contexts and operand-time values; the prior focused source run passed 91
-  controls. After rebasing onto `e56af86474`, five permission-schedule controls
-  pass, including upstream's cached-call transfer-identity regression.
+  `omega run --both tests/omega/pass/drops/conditional_structural_return_cleanup_exit/main.omg`
+  prints `BA\n` and exits 0 in both engines on macOS ARM64. Generic forwarding
+  returns an initially unready owner, cleans its ready sibling, then the caller
+  repairs and drops the returned owner. Structural returns materialize the
+  result before remaining-owner cleanup. Ordinary branch-fact reconstruction
+  includes edge-owned cleanup calls; their prerequisites use the existing call
+  contract proof machinery. Both selections and direct/forwarded calls execute;
+  missing or reversed guards and altered source custody reject independently.
 
-  The execution customer is
-  `omega run --both build/cleanup-probes/conditional-run/main.omg`: generic
-  forwarding returns an initially unready owner, cleans its ready sibling, then
-  the caller repairs and drops the returned owner. Its expected output is
-  `BA\n`, exit 0. The retained draft achieved that output in both engines, but
-  required an added receiver-proof route. That extension and its receiver-proof
-  tests have been removed under the PCC-removal ruling below; the existing
-  `OperationProofUnavailable` gate remains. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
-  and the PCC removal sequence own replacing that gate with source checking;
-  do not extend receiver verification to close this item. Ordered cleanup
-  lowering and runtime changes remain local and unpublished. Complete execution
-  on the replacement path, promote the unchanged customer to the drops corpus,
-  and finish dying local owners. Preserve source rejection of unmet hook
-  prerequisites and duplicate consumption, helper calls and erased-field controls.
+  Finish dying local owners and retain exact selected-exit, named-transition and
+  operand-time ownership. Preserve source rejection of unmet hook prerequisites
+  and duplicate consumption, helper calls and erased-field controls. Cleanup
+  prerequisites remain call contracts, distinct from primitive operation
+  conditions. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** and the PCC removal
+  sequence own replacing the remaining operation gate with source checking;
+  do not add cleanup-specific receiver proof machinery.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing

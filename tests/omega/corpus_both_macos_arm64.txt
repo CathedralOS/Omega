@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.86, "load1_start": 3.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.96, "load1_start": 3.96, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 1630ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -38,6 +38,8 @@ pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/collections/runtime_shared_array_polynomial_exit built 2652ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/contracts/named_tail_return_contract built 1356ms exit:70 interpreter-exit:70 interpreter:agrees @43a77116e58+wt
+pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
+pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/domains/case_payload_predicate_domain_member_exit built 1130ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/record_interval_domain_member_exit built 1277ms exit:70 interpreter-exit:70 interpreter:agrees @3b6b4258b4af+wt
@@ -45,6 +47,7 @@ pass/domains/record_literal_view_member_store_exit built 1699ms exit:70 stdout:m
 pass/domains/record_predicate_domain_member_exit built 1214ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 1493ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @6949147699f7
 pass/domains/utf8_field_write_from_param built 469ms @6949147699f7
+pass/drops/conditional_structural_return_cleanup_exit built 1549ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/drops/contextual_cleanup_exit built 1075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db0816c5dcd4+wt
 pass/drops/contextual_core_drop_exit built 1453ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @bf12cd0f89bb+wt
 pass/drops/core_drop_explicit_consume built 701ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
