@@ -3,12 +3,12 @@ use omega_language_std::console;
 
 data Main { console: Binding<Console>; bytes: [u8; 2]; }
 
-// The boundary writes its capability, not the receiver's borrowed byte field.
+// Explicit disjoint arguments lend the capability and the byte field.
 // Keep the loan live through an internal state and a boundary invocation.
-machine Main::publish(main: &mut Main, bytes: &[u8]) reaches Console {
-    transition { _ -> forward(main, bytes) }
-    state forward(main: &mut Main, bytes: &[u8]) {
-        main.console.write_line(bytes);
+machine Main::publish(console: &mut Binding<Console>, bytes: &[u8]) reaches Console {
+    transition { _ -> forward(console, bytes) }
+    state forward(console: &mut Binding<Console>, bytes: &[u8]) {
+        console.write_line(bytes);
     }
 }
 
@@ -16,6 +16,6 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[0] = 79;
     main.bytes[1] = 75;
     let bytes_0__2_value: u8 = main.bytes[0..2];
-    Main::publish(main, bytes_0__2_value);
+    Main::publish(&mut main.console, bytes_0__2_value);
     main.console.exit_process(70);
 }

@@ -1,7 +1,7 @@
 //! Exclusive-place operations and explicit state-jump subject access.
 //! Ordinary machine arguments use the shared call compatibility checks.
 
-use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
@@ -12,29 +12,10 @@ use super::super::statements::local_jump;
 use super::super::{access_sources, aliases};
 mod footprint;
 
+pub(super) use footprint::explicit_jump_data_access;
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
 };
-pub(super) use footprint::{
-    entered_subject_access, explicit_jump_data_access, subject_data_access,
-};
-
-/// Whether `call` runs its target on the caller's implicit receiver.
-///
-/// An authored receiver operand records `has_receiver`. A named jump to a
-/// sibling state spells none, yet a successor declaring `self` runs on the
-/// caller's own `self` while it holds every loan the jump's arguments carry:
-/// `transition { _ -> next(&mut self.count) }` is the invocation
-/// `self.next(&mut self.count)` with the successor as callee, and the same
-/// receiver judgments apply. Each judgment still requires the target's `self`
-/// parameter, so a successor without one passes nothing.
-fn call_passes_receiver(
-    program: &TypedTrees,
-    state_flow: &FlowStateFact,
-    call: &BorrowCallFact,
-) -> bool {
-    call.has_receiver || local_jump(program, state_flow, call).is_some()
-}
 
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
@@ -200,36 +181,4 @@ fn receiver_is_writable(
         .flow
         .borrow_writable_root_constraints(entry_constraints)
         .any(|root| facts.borrow.writable_roots.get(root).symbol == receiver.root_symbol)
-}
-
-/// Older access rows represent a direct self field as a root. Rejoin it to
-/// this caller's exact attached storage before comparing it with whole self;
-/// a same-named field under another owner must not become an alias.
-fn attached_place(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    mut place: CapturedPlace,
-) -> CapturedPlace {
-    if program.machine_states(machine).iter().any(|state| {
-        program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == place.root_symbol)
-    }) {
-        place.root_symbol = machine.symbol;
-    } else if let Some(field) = validation::exact_attached_field(
-        program,
-        machine,
-        place.root_symbol,
-        program.symbols.name(place.root_symbol),
-    ) {
-        place.root_symbol = machine.symbol;
-        place.segments.insert(
-            0,
-            facts::PlaceSegment::Field {
-                symbol: field.symbol,
-            },
-        );
-    }
-    place
 }

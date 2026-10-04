@@ -3,7 +3,7 @@
 // transition arms"). The arm narrows its view only when selected, and the
 // length its guard observed bounds the range:
 //
-//   bytes     `Main::measure(main, path[0..main.k])` narrows a byte view parameter
+//   bytes     `Main::measure(&mut main.seen, path[0..main.k])` narrows a byte view parameter
 //             to an end held in a field, guarded by `main.k < path.len`.
 //   domained  the same range over a `&[u8] in Path` parameter supplies a
 //             plain `&[u8]` formal; the narrowed view leaves the domain behind.
@@ -25,8 +25,8 @@ data Main {
     entries: [i32; 5];
 }
 
-machine Main::measure(main: &mut Main, prefix: &[u8]) {
-    main.seen = prefix.len;
+machine Main::measure(seen: &mut u64, prefix: &[u8]) {
+    seen = prefix.len;
 }
 
 machine Main::count(seen: &mut u64, sub: &[i32]) {
@@ -35,7 +35,7 @@ machine Main::count(seen: &mut u64, sub: &[i32]) {
 
 machine Main::bytes(main: &mut Main, path: &[u8]) {
     transition main.k < path.len {
-        true -> Main::measure(main, path[0..main.k])
+        true -> Main::measure(&mut main.seen, path[0..main.k])
         false -> skipped(main)
     }
     state skipped(main: &mut Main) { main.seen = 0; }
@@ -43,7 +43,7 @@ machine Main::bytes(main: &mut Main, path: &[u8]) {
 
 machine Main::domained(main: &mut Main, path: &[u8] in Path) {
     transition main.k < path.len {
-        true -> Main::measure(main, path[0..main.k])
+        true -> Main::measure(&mut main.seen, path[0..main.k])
         false -> skipped(main)
     }
     state skipped(main: &mut Main) { main.seen = 0; }

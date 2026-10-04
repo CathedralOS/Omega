@@ -93,43 +93,6 @@ helper that passes does not close an item.
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
 
-- **STATIC-RECEIVER-FOOTPRINT-UNVERIFIED.** (split-of:STATIC-MACHINE-MIGRATION)
-  Retire the receiver-only borrow footprint judgment and leave ordinary
-  argument exclusivity as the only rule for static calls.
-  - Where: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/receiver/footprint.rs`
-    and `receiver.rs`, `conflicts.rs` beside it. The file still mixes retired
-    receiver lookup (`is_self`) with the live explicit same-machine jump
-    footprint. Keep the jump's carried-loan and scope-exit judgments; remove
-    `is_self` and implicit receiver authority.
-  - Conflict to resolve first: `subject_data_access` (added after the
-    receiver retirement) excuses a static call's whole `&mut` data-binding
-    argument by the callee's field footprint. That is the whole-record
-    exception this item and the migration said not to add.
-    [Ownership](wiki/spec/language/ownership.md#borrows-and-aliases) says
-    "Exclusivity prevents reading old contents through a second alias" but does
-    not address footprint-based excusal. Either remove it or record the
-    question in `OWNER_QUESTIONS.md`; do not extend it.
-  - Migrated call sites that lent the data and mentioned it again
-    (`Main::verify(main, main.k)`) were restructured, not excused: scalar
-    projections read into a local first; a second exclusive loan
-    (`&mut main.field` beside `main`) passes only the projection. Dropping the
-    projected argument so the callee re-projects it was tried and lost
-    fixtures; do not retry it without a per-callee reason.
-  - Unverified: the `_exit` fixtures migrated off receivers have been
-    measured at the check tier; a checked `_exit` fixture is not a native
-    result. Run `python tools/corpus_gate.py --native` over `pass/calls`,
-    `pass/borrows` and `pass/borrow`.
-  Acceptance: corpus fixtures (replacing the deleted stage 04 receiver-loan
-  Rust tests) cover overlapping whole-record/field loan rejection, disjoint projections,
-  completed nested calls and ended loans in static spelling.
-  `fail/borrows/bare_self_mut_operand_beside_self_view` and
-  `fail/borrows/whole_mut_receiver_*` keep their rejections;
-  `pass/borrow/runtime_method_view_write_after_last_use_exit` (exit 70, Bag
-  local, not entry-owned), `pass/calls/guarded_arm_tail_call_to_state_machine_exit`,
-  `pass/calls/mutable_receiver_scalar_destinations_exit` and
-  `pass/calls/runtime_dispatch_machine_array_slice_arg_exit` run natively to
-  exit 70.
-
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   A receiver call on a public boundary requirement reaches it without a
   selected provider; the static qualified call demands one.
