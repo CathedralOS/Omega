@@ -555,22 +555,55 @@ fn resolve_parent_for_check(path: &Path) -> Option<PathBuf> {
 }
 
 /// Resolve a path to its REAL location for the grant check: canonicalize the
-/// path itself when it exists, else canonicalize its parent and re-attach the
-/// leaf (the create/new-file case). `None` when even the parent does not
-/// resolve -- the caller reports ENOENT, exactly what the OS would say.
+/// path itself when it exists, else walk the leaf's symlink chain by hand and
+/// canonicalize the final target's parent, re-attaching that target's leaf
+/// (the create/new-file case). `None` when even that parent does not resolve
+/// -- the caller reports ENOENT, exactly what the OS would say.
+///
+/// The chain is walked rather than trusted because `canonicalize` fails on a
+/// DANGLING leaf link, and re-attaching the original leaf then names the link
+/// instead of the file the host would create. A scoped `build.omg` could
+/// authorize `out/x -> /outside/new` (only the link name is authorized, and
+/// its target need not exist), pass the grant check because `out` is the write
+/// root, and have `open(O_CREAT)` follow the link and create the file outside
+/// every grant. Reporting the location the open will actually reach makes the
+/// check and the open agree: the escape is refused for being outside the root,
+/// while a dangling link whose target is inside the root still opens, which
+/// refusing every symlink leaf would have broken.
 fn resolve_for_check(path: &Path) -> Option<PathBuf> {
     if let Ok(canonical) = path.canonicalize() {
         return Some(canonical);
     }
-    let parent = path.parent()?;
-    let name = path.file_name()?;
-    let parent = if parent.as_os_str().is_empty() {
-        Path::new(".").canonicalize().ok()?
-    } else {
-        parent.canonicalize().ok()?
-    };
-    Some(parent.join(name))
+    // One past Linux's MAXSYMLINKS, so a cycle among dangling links ends here
+    // as an unresolvable path rather than running until the host complains.
+    const LINK_LIMIT: usize = 41;
+    let mut current = path.to_path_buf();
+    for _ in 0..LINK_LIMIT {
+        let Ok(target) = std::fs::read_link(&current) else {
+            // Not a link: `current` is the real leaf the open will create.
+            let parent = current.parent()?;
+            let name = current.file_name()?;
+            let parent = if parent.as_os_str().is_empty() {
+                Path::new(".").canonicalize().ok()?
+            } else {
+                parent.canonicalize().ok()?
+            };
+            return Some(parent.join(name));
+        };
+        current = if target.is_absolute() {
+            target
+        } else {
+            current.parent()?.join(target)
+        };
+        if let Ok(canonical) = current.canonicalize() {
+            return Some(canonical);
+        }
+    }
+    None
 }
+
+#[cfg(all(test, unix))]
+mod confinement_tests;
 
 /// Encode a canonical path beneath a canonical grant root without retaining
 /// host separators or an absolute compiler path. Scoped execution rejects an
