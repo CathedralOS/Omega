@@ -1570,8 +1570,7 @@ pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms
 pass/calls/runtime_value_call_dispatch_results_exit checked 1550ms @2d8ed253669f
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 1412ms @2d8ed253669f
 pass/calls/runtime_value_call_nested_entry_call_exit checked 1388ms @63377f7122bb+wt
-pass/calls/runtime_value_call_return_types_exit rejected 2489ms @c5d32a00863
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: edge cleanup: no state plan` (state 1)
+pass/calls/runtime_value_call_return_types_exit checked 1692ms @70f761d06258
 pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
@@ -1737,6 +1736,7 @@ pass/control_flow/owned_array_local_state_transfer_exit checked 1326ms @cf6e9ae2
 pass/control_flow/owned_array_state_transfer_exit checked 1257ms @cf6e9ae2565b
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms @2d8ed253669f
+pass/control_flow/runtime_branch_parameter_cleanup_exit checked 603ms @70f761d06258
 pass/control_flow/runtime_branching_helper_string checked 635ms @58e4f6f8667
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms @2d8ed253669f
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 1328ms @2d8ed253669f

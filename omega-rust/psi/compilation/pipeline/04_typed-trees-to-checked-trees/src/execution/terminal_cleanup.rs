@@ -925,6 +925,13 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         }
         discard_parameters.push((root, position));
     }
+    // This is a union of owners across selected exits, not one exit's drop
+    // stream. Forwarding a later parameter on the first edge can make an
+    // earlier parameter appear first in that union. Derive cleanup order
+    // from declarations, then let each edge subtract its own transfers.
+    // The permission query retains per-exit duplicate and custody checks;
+    // Terminal checks the resulting edge's live frontier and disposal order.
+    discard_parameters.sort_unstable_by_key(|(_, position)| std::cmp::Reverse(*position));
     if discard_parameters != expected_discard_parameters {
         return None;
     }
