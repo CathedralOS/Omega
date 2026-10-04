@@ -1,0 +1,27 @@
+domain u64::Positive(value) requires value >= 1;
+
+machine answer(value: u64) -> u64 in Positive
+requires value >= 1
+{ value as u64 in Positive }
+
+machine choose(first: bool) -> u64 in Positive {
+    transition first {
+        true -> answer(70)
+        _ -> answer(71)
+    }
+}
+
+machine forward(first: bool) -> u64 in Positive {
+    transition { _ -> choose(first) }
+}
+
+machine main() crashes Trap {
+    let first: u64 = forward(true);
+    let second: u64 = forward(false);
+    transition first == 70 && second == 71 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

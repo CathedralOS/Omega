@@ -64,6 +64,8 @@ pub(crate) struct Expansion<'a> {
     checked: &'a CheckedTrees,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     qualifications: &'a PreparedScalarQualifications,
+    /// Authored owner of the current source state. Fused graphs retain each
+    /// state's original computation and call identities under that owner.
     machine: symbols::SymbolHandle,
     base: usize,
     /// Erased-proof roster of the enclosing state being expanded: every state
@@ -125,6 +127,19 @@ impl<'a> Expansion<'a> {
         self.erased_proof_formals =
             crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
         self
+    }
+
+    /// Rejoin the next source state before expanding any of its operations.
+    /// The enclosing graph keeps its dispatch identity; computation custody
+    /// and source-call lookup use the state's independently resolved owner.
+    pub(crate) fn enter_source_state(
+        &mut self,
+        state: symbols::SymbolHandle,
+    ) -> Result<(), LoweringError> {
+        let (owner, _) =
+            crate::expression_preparation::source_custody::authored_state(self.checked, state)?;
+        self.machine = owner.symbol;
+        Ok(())
     }
 
     /// Mark the start of one authored state's private expansion.
