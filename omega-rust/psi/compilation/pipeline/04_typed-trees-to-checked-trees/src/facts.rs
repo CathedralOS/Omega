@@ -127,6 +127,7 @@ pub(crate) fn build_check_facts(
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
     static_machine_selections: validation::ValidatedStaticMachineSelections,
+    mathematics: crate::proof::CheckedMathematics,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
@@ -139,7 +140,8 @@ pub(crate) fn build_check_facts(
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
-    let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators)?;
+    let mut proof =
+        build_proof_facts_with_operators(program, proof_plan, &borrow, &operators, mathematics)?;
     crate::proof::bind_float_meaning_projection_facts(
         program,
         &mut proof,

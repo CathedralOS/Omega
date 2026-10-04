@@ -191,17 +191,11 @@ fn lower_typed_trees_uncached(
         asm_authority: _,
         wire_compatibility_demands: _,
     } = *request;
-    // Mathematical `let`/`boundary let` declarations elaborate into
-    // `CheckedMathematicalDeclaration` records and then into a kernel
-    // signature the kernel itself re-decides; run both elaborations first so
-    // a declaration that fails either fails with its own diagnostic. The
-    // checked records land on `ProofFacts::mathematical_declarations`; the
-    // Terminal-side consumer refuses them with a named diagnostic until the
-    // evidence encoding lands (PROOF-CONTRACT-MIGRATION).
-    if !program.mathematical_definitions().is_empty() {
-        crate::proof::build_checked_mathematical_declarations(&program)?;
-        crate::proof::check_mathematical_signature(&program)?;
-    }
+    // Mathematical `let`/`boundary let` declarations elaborate into checked
+    // records and a kernel signature the kernel re-decides. Check them first,
+    // so a declaration that fails either elaboration fails with its own
+    // diagnostic, and carry the result to the proof facts.
+    let mathematics = crate::proof::check_mathematical_declarations(&program)?;
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
     // concrete machine here. Validation permits unused template bodies but the
@@ -346,6 +340,7 @@ fn lower_typed_trees_uncached(
         validated.service_reaches,
         validated.validation_facts,
         static_machine_selections,
+        mathematics,
         &mutation_summaries,
     )?;
     // Sealed quotient requests were deferred by validation until termination
