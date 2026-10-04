@@ -2055,9 +2055,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `calls/runtime_computed_case_subject_affine_argument_exit` exits **0** in both
   engines with an affine subject operand. Ownership checking counts the original
   subject evaluation once, and case cleanup retains the preceding call's whole
-  parameter transfer. Independent repeated moves still reject. Nested calls
-  inside a computed subject now check but still need ordinary operand preparation
-  and saved-call accounting in the native plan.
+  parameter transfer. Independent repeated moves still reject.
+  `calls/runtime_nested_case_subject_operand_order_exit` exits **0** in both
+  engines: scalar and affine nested operands execute in authored order, and each
+  computed subject and selected payload runs once. Subject operands share the
+  ordinary argument records and result-transfer cleanup; parser copies retain
+  call coordinates without invoking their nested calls again.
   Whole-reference result origins still need transport from terminal calls into
   the composed return roster; range-constrained result compatibility and
   claim-transferring arm calls remain unfinished.
