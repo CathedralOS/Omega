@@ -127,4 +127,3 @@ fn scalar_value(expression: &Scalar, primitive: PrimitiveType, value: i64) -> Op
         _ => None,
     }
 }
-

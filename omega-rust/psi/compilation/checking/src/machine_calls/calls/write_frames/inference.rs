@@ -28,8 +28,6 @@ impl FrameInference {
             .find(|local| local.local_symbol == symbol)
     }
 
-
-
     pub(super) fn with_local_scope<T>(&mut self, action: impl FnOnce(&mut Self) -> T) -> T {
         let start = self.local_shapes.len();
         let result = action(self);
@@ -37,4 +35,3 @@ impl FrameInference {
         result
     }
 }
-

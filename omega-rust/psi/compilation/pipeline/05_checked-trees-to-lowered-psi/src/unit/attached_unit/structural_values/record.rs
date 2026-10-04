@@ -266,10 +266,9 @@ impl emission::Emission<'_, '_, '_> {
                         let member_carrier = if child_is_reference {
                             Some(field.type_reference)
                         } else {
-                            validation::unwrapped_type_reference(
-                                &self.checked.typed,
-                                field.type_reference,
-                            )
+                            self.checked
+                                .typed
+                                .unwrapped_type_reference(field.type_reference)
                         };
                         if !matches!(
                             target.field_type,

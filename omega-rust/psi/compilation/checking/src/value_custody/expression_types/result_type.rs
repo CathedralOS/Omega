@@ -20,11 +20,6 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-
-
-
-
-
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.

@@ -529,5 +529,3 @@ pub(super) fn validate_abstract(
         &mut Vec::new(),
     );
 }
-
-

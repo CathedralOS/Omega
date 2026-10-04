@@ -143,9 +143,12 @@ pub(crate) fn statement_receiver_path(
     let mut endpoint = root;
     let mut path = Vec::new();
     for (position, member) in members.iter().enumerate().skip(1) {
-        let nominal = validation::unwrapped_type_reference(&checked.typed, type_reference).ok_or(
-            LoweringError::Unsupported("statement receiver field lost its nominal type"),
-        )?;
+        let nominal = checked
+            .typed
+            .unwrapped_type_reference(type_reference)
+            .ok_or(LoweringError::Unsupported(
+                "statement receiver field lost its nominal type",
+            ))?;
         let TypeReferenceNode::Named { symbol, .. } =
             checked.type_reference_table.type_reference(nominal)
         else {

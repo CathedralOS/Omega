@@ -399,4 +399,3 @@ fn field_name_unique(program: &TypedTrees, owner: &DataDefinition, name: &str) -
     }
     count == 1
 }
-

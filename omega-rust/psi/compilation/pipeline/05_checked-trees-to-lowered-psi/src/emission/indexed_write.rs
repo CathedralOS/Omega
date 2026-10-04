@@ -261,9 +261,7 @@ fn indexed_target(
                     Some(state),
                     member.receiver,
                 )
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                })
+                .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
                 .ok_or(LoweringError::Unsupported(
                     "element-view field lost its authored owner",
                 ))?;

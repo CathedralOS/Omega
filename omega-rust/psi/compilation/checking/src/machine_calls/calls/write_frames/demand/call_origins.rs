@@ -6,7 +6,6 @@ use super::super::caller_aliases::{
 use super::{CallFrameResolver, ExpressionHandle, ExpressionNode, Machine, TableCall};
 use crate::machine_calls::calls::write_frames as frames;
 
-
 impl<'program> CallFrameResolver<'program> {
     pub fn call_write_origins(
         &self,

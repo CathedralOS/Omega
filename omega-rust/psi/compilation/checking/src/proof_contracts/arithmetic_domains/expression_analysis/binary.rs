@@ -122,8 +122,7 @@ pub(super) fn analyze(
         primitive
     };
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
-    if let Some(primitive) = primitive
-    {
+    if let Some(primitive) = primitive {
         crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
             walk.program,
             walk.machine,

@@ -462,4 +462,3 @@ fn unconstrained_type(
     }
     reference.is_valid().then_some(reference)
 }
-

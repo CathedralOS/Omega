@@ -118,7 +118,7 @@ pub(crate) fn replay(
                 source_state,
                 indexed.collection,
             )
-            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
             .and_then(
                 |reference| match checked.type_reference_table.type_reference(reference) {
                     checked_trees::types::TypeReferenceNode::Slice { element_type }

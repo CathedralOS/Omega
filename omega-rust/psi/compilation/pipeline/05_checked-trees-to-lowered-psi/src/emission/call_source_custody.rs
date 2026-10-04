@@ -154,11 +154,12 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     {
         return unsupported("binding receiver has inconsistent ordinary parameter custody");
     }
-    let source_type =
-        validation::unwrapped_type_reference(&checked.typed, source_parameter.type_reference)
-            .ok_or(LoweringError::Unsupported(
-                "binding receiver parameter has no declared carrier",
-            ))?;
+    let source_type = checked
+        .typed
+        .unwrapped_type_reference(source_parameter.type_reference)
+        .ok_or(LoweringError::Unsupported(
+            "binding receiver parameter has no declared carrier",
+        ))?;
     if parameter.type_identity != checked.normalized_type_identity(source_type).as_str() {
         return unsupported("binding receiver parameter changed its retained carrier identity");
     }

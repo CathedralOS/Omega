@@ -29,10 +29,13 @@ impl emission::Emission<'_, '_, '_> {
         if u64::try_from(elements.len()).ok() != Some(length) {
             return unsupported("fixed array literal changed its declared extent");
         }
-        let reference = validation::unwrapped_type_reference(&self.checked.typed, type_reference)
+        let reference = self
+            .checked
+            .typed
+            .unwrapped_type_reference(type_reference)
             .ok_or(LoweringError::Unsupported(
-            "fixed array source carrier is missing",
-        ))?;
+                "fixed array source carrier is missing",
+            ))?;
         let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
             self.checked.type_reference_table.type_reference(reference)
         else {
@@ -46,9 +49,12 @@ impl emission::Emission<'_, '_, '_> {
         let element_carrier = if element_is_reference {
             super::super::structural_carrier_type(self.checked, element_reference)?
         } else {
-            validation::unwrapped_type_reference(&self.checked.typed, element_reference).ok_or(
-                LoweringError::Unsupported("fixed array element carrier is missing"),
-            )?
+            self.checked
+                .typed
+                .unwrapped_type_reference(element_reference)
+                .ok_or(LoweringError::Unsupported(
+                    "fixed array element carrier is missing",
+                ))?
         };
         if lookup_type_id(
             self.type_ids,

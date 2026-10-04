@@ -164,8 +164,7 @@ fn resolve_source(
                             Some(state),
                             member.receiver,
                         )?;
-                        let reference =
-                            validation::unwrapped_type_reference(&checked.typed, reference)?;
+                        let reference = checked.typed.unwrapped_type_reference(reference)?;
                         let owner = checked.typed.closed_data_definition(reference)?;
                         validation::exact_data_member_field(
                             &checked.typed,
@@ -614,7 +613,7 @@ fn validate_indexed_collection(
 ) -> Result<(), LoweringError> {
     let reference =
         validation::declared_place_type_raw(&checked.typed, machine, Some(state), collection)
-            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
             .ok_or(LoweringError::Unsupported(
                 "projected index has no declared collection",
             ))?;

@@ -473,7 +473,7 @@ pub(crate) fn operand_source(
         if let ExpressionNode::ArrayLiteral(elements) =
             checked.expression_table.expression(expression)
         {
-            let reference = validation::unwrapped_type_reference(&checked.typed, declared).ok_or(
+            let reference = checked.typed.unwrapped_type_reference(declared).ok_or(
                 LoweringError::Unsupported("structural array operand lost its type"),
             )?;
             let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
@@ -501,7 +501,7 @@ pub(crate) fn operand_source(
             source,
             dispatch.subject,
         )
-        .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+        .and_then(|reference| checked.typed.unwrapped_type_reference(reference))
         .and_then(|reference| checked.primitive_type_reference(reference))
         .or_else(|| validation::match_subject_primitive_type(&checked.typed, dispatch));
         if role == (CheckedScalarExpressionRole::StructuralValueSubject { expression }) {

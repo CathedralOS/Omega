@@ -144,7 +144,7 @@ pub(super) fn validate_shape(
                 // storage carrier: an element spelled `i32 in Saturating`
                 // stores under the bare carrier's shape, so walk through the
                 // shell the way custody checks do.
-                match validation::unwrapped_type_reference(&checked.typed, reference) {
+                match checked.typed.unwrapped_type_reference(reference) {
                     Some(carrier) if carrier != reference => {
                         reference = carrier;
                         continue;
@@ -181,14 +181,13 @@ pub(super) fn validate_shape(
                             .type_reference_table
                             .type_reference(*element_type),
                         checked_trees::types::TypeReferenceNode::Constrained { .. }
-                    ) && validation::unwrapped_type_reference(
-                        &checked.typed,
-                        *element_type,
-                    )
-                    .is_some_and(|carrier| {
-                        checked.typed.normalized_type_identity(carrier).as_str()
-                            == element_type_identity
-                    }))) =>
+                    ) && checked
+                        .typed
+                        .unwrapped_type_reference(*element_type)
+                        .is_some_and(|carrier| {
+                            checked.typed.normalized_type_identity(carrier).as_str()
+                                == element_type_identity
+                        }))) =>
             {
                 reference = *element_type
             }

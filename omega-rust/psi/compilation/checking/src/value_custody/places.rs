@@ -596,20 +596,16 @@ pub(crate) fn declared_indexed_projection_type_raw(
     }
 }
 
+/// The legacy spelling of `TypedTrees::unwrapped_type_reference`, kept for the
+/// callers inside checking and stage 04 that still name it. Peeling a
+/// `Reference` or `Constrained` shell is a pure question about the type table,
+/// so the implementation lives with the table in `typed-trees`; this delegates
+/// rather than restating it, leaving one implementation to maintain.
 pub fn unwrapped_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => unwrapped_type_reference(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            unwrapped_type_reference(program, *base_type)
-        }
-        _ => Some(type_reference),
-    }
+    program.unwrapped_type_reference(type_reference)
 }
 
 /// The declared carrier beneath a type's `Constrained` shells: a predicate

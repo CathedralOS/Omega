@@ -9,6 +9,33 @@ use crate::typed_trees::{
 use crate::{data, expression, name, types};
 
 impl TypedTrees {
+    /// The carrier type beneath a reference's `Reference` shells and a
+    /// qualification's `Constrained` shells, or `None` for the zero handle.
+    ///
+    /// This is a pure query over the type table: peeling a shell asks nothing
+    /// of a machine, a state or a checked fact, so it belongs to the table's
+    /// owner rather than to a checking pass. `validation::unwrapped_type_
+    /// reference` is the legacy spelling and now delegates here, so there is
+    /// one implementation; a consumer outside checking calls this method and
+    /// does not re-enter `validation` for a structural question.
+    pub fn unwrapped_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<types::TypeReferenceHandle> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        match self.type_reference_table.type_reference(type_reference) {
+            types::TypeReferenceNode::Reference { referee, .. } => {
+                self.unwrapped_type_reference(*referee)
+            }
+            types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.unwrapped_type_reference(*base_type)
+            }
+            _ => Some(type_reference),
+        }
+    }
+
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {
         self.type_reference_table.display_name(type_reference)
     }

@@ -352,7 +352,9 @@ fn authored_storage_path(
             }
             CheckedUnitStructuralPathSegment::FixedIndex(_)
             | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
-                let carrier = validation::unwrapped_type_reference(&checked.typed, selected)
+                let carrier = checked
+                    .typed
+                    .unwrapped_type_reference(selected)
                     .ok_or_else(invalid)?;
                 match checked.type_reference_table.type_reference(carrier) {
                     TypeReferenceNode::FixedArray { element_type, .. }

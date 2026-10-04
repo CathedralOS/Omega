@@ -320,4 +320,3 @@ fn literal_fixed_array_target_terminal(
         _ => None,
     }
 }
-

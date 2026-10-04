@@ -225,7 +225,7 @@ pub(crate) fn walk_exact_place(
                     Some(authored),
                     member.receiver,
                 )
-                .and_then(|receiver| validation::unwrapped_type_reference(&checked.typed, receiver))
+                .and_then(|receiver| checked.typed.unwrapped_type_reference(receiver))
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection lost its receiver type",
                 ))?;
@@ -318,9 +318,7 @@ pub(crate) fn walk_exact_place(
                     Some(authored),
                     indexed.collection,
                 )
-                .and_then(|container| {
-                    validation::unwrapped_type_reference(&checked.typed, container)
-                })
+                .and_then(|container| checked.typed.unwrapped_type_reference(container))
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection index has no declared collection",
                 ))?;

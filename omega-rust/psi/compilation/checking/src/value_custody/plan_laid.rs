@@ -3,7 +3,6 @@
 //! checking proves the concrete value fits when the semantic carrier is wider
 //! than storage. Borrowing or recasting the destination does not change that law.
 
-
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
