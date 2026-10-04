@@ -652,64 +652,104 @@ fn call_sources_with_calls(
     active_origins.push(destination.symbol);
     let sources = returned_sources_with_calls(program, destination, active_origins);
     active_origins.pop();
-    sources?
-        .into_iter()
-        .map(|mut source| {
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } = source.value.source.source
-            else {
+    let mut output = Vec::new();
+    for source in sources? {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            source.value.source.source
+        else {
+            return None;
+        };
+        let (position, parameter) = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .nth(parameter_index as usize)?;
+        let actual_sources = construction_sources_with_calls(
+            program,
+            state,
+            *arguments.get(position)?,
+            parameter.type_reference,
+            active_origins,
+        )?;
+        let borrowed_formal = stored_loan_parts(program, parameter.type_reference);
+        let selected_path = if let Some((referent, access)) = borrowed_formal {
+            if !reference_access_can_supply(access, source.value.source.access) {
                 return None;
-            };
-            let (position, parameter) = parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-                })
-                .nth(parameter_index as usize)?;
-            let mut actual = if source.value.source.path.is_empty() {
-                let mut actual = construction_sources_with_calls(
-                    program,
-                    state,
-                    *arguments.get(position)?,
-                    parameter.type_reference,
-                    active_origins,
-                )?;
-                if actual.len() != 1 {
-                    return None;
-                }
-                actual.pop()?
-            } else {
-                let (last, path) = source.value.source.path.split_last()?;
-                if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent
-                    || !is_reference_record(program, parameter.type_reference)
-                {
-                    return None;
-                }
-                let actual = construction_sources_with_calls(
-                    program,
-                    state,
-                    *arguments.get(position)?,
-                    parameter.type_reference,
-                    active_origins,
-                )?;
-                let mut matching = actual
-                    .into_iter()
-                    .filter(|actual| actual.value.path == path);
-                let selected = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
-                selected
-            };
-            actual.value.path = std::mem::take(&mut source.value.path);
+            }
+            // The callee's source reconstruction already authenticates each
+            // projected declaration and its final referent type. Substitution
+            // requires the actual to supply that exact formal referent; its
+            // existing backing path then precedes the callee's projection.
+            let identity = program.normalized_type_identity(referent);
+            if actual_sources.iter().any(|actual| {
+                !actual.value.path.is_empty()
+                    || actual.value.source.type_identity != identity.as_str()
+                    || !reference_access_can_supply(actual.value.source.access, access)
+            }) {
+                return None;
+            }
+            &[][..]
+        } else {
+            let (last, path) = source.value.source.path.split_last()?;
+            if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent
+                || !is_reference_record(program, parameter.type_reference)
+            {
+                return None;
+            }
+            // An owned carrier's stored reference supplies its captured
+            // origin. Its field path selects a permission leaf; it is not
+            // an address projection to append to that captured origin.
+            path
+        };
+        let before = output.len();
+        for mut actual in actual_sources
+            .into_iter()
+            .filter(|actual| actual.value.path == selected_path)
+        {
+            if !reference_access_can_supply(actual.value.source.access, source.value.source.access)
+            {
+                return None;
+            }
+            if borrowed_formal.is_some() {
+                actual
+                    .value
+                    .source
+                    .path
+                    .extend_from_slice(&source.value.source.path);
+                actual.value.source.type_identity = source.value.source.type_identity.clone();
+            } else if actual.value.source.type_identity != source.value.source.type_identity {
+                return None;
+            }
+            actual.value.path = source.value.path.clone();
             actual.value.source.access = source.value.source.access;
-            Some(actual)
-        })
-        .collect()
+            output.push(actual);
+            if output.len() > MAX_REFERENCE_ORIGIN_LEAVES {
+                return None;
+            }
+        }
+        if output.len() == before {
+            return None;
+        }
+    }
+    Some(output)
+}
+
+fn reference_access_can_supply(
+    source: CheckedStructuralAccess,
+    result: CheckedStructuralAccess,
+) -> bool {
+    source == result
+        || matches!(
+            (source, result),
+            (
+                CheckedStructuralAccess::MutableBorrow,
+                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+            )
+        )
 }
 
 fn returned_sources_with_calls(

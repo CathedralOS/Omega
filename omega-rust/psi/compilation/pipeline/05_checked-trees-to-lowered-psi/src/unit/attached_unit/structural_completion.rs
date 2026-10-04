@@ -96,13 +96,11 @@ pub(super) fn validate(
     if state.symbol != machine.state
         || !source.body_is_present
         || result.multiplicity != expected_multiplicity
-        || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
-            .is_some()
-            || validation::reference_result_custody::shared_borrowed_parts(
-                &checked.typed,
-                state.return_type,
-            )
-            .is_some()
+        || !(validation::reference_result_custody::stored_loan_parts(
+            &checked.typed,
+            state.return_type,
+        )
+        .is_some()
             || validation::reference_result_custody::is_reference_record(
                 &checked.typed,
                 state.return_type,
@@ -133,11 +131,7 @@ pub(super) fn validate(
         return unsupported("structural completion coordinate differs from source");
     }
     let whole_reference =
-        validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some()
-            || validation::reference_result_custody::shared_borrowed_parts(
-                &checked.typed,
-                state.return_type,
-            )
+        validation::reference_result_custody::stored_loan_parts(&checked.typed, state.return_type)
             .is_some()
             || shared_borrowed_slice_view(checked, state.return_type);
     // A `&` result returned at a tail transition mints through the
@@ -154,119 +148,111 @@ pub(super) fn validate(
         Some(StatementNode::Transition(_)) => None,
         _ => return unsupported("structural result source has no completion value"),
     };
-    if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
+    if validation::reference_result_custody::stored_loan_parts(&checked.typed, state.return_type)
+        .is_some()
+        || validation::reference_result_custody::is_reference_record(
+            &checked.typed,
+            state.return_type,
+        )
     {
         let expected =
-            validation::reference_result_custody::returned_record_sources(&checked.typed, state)
+            validation::reference_result_custody::returned_reference_sources(&checked.typed, state)
                 .ok_or(LoweringError::Unsupported(
-                    "record completion has no exact returned leaf origins",
+                    "reference completion has no exact returned leaf origins",
                 ))?;
         if expected != result.reference_sources {
-            return unsupported("record completion changed its returned leaf origins");
+            return unsupported("reference completion changed its returned leaf origins");
         }
     } else if !result.reference_sources.is_empty() {
-        let mut establishments = machine.operations.iter().filter(|operation| {
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::EstablishReference { .. }
-            )
-        });
-        let establishment = establishments.next().ok_or(LoweringError::Unsupported(
-            "returned reference has no establishment",
-        ))?;
-        if establishments.next().is_some() {
-            return unsupported("returned reference has ambiguous establishments");
-        }
-        super::reference_results::validate_establishment(checked, machine, establishment)?;
-    } else if validation::reference_result_custody::parts(&checked.typed, state.return_type)
-        .is_some()
-    {
-        return unsupported("reference result omits its retained ingress source");
+        return unsupported("structural completion invents returned reference origins");
     }
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            if whole_reference && !shared_borrowed_slice_view(checked, state.return_type) {
-                // The exact authored ingress, result binding and tail coordinate
-                // were checked above; ordinary statement coverage still follows.
-            } else {
-                let mut producers =
-                    machine
-                        .operations
-                        .iter()
-                        .filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                result: candidate,
-                                discard_result_on_return: false,
-                                ..
-                            } if candidate.binding_ordinal == binding_ordinal => {
-                                Some((candidate, true))
-                            }
-                            CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                                result: candidate,
-                                ..
-                            } if candidate.binding_ordinal == binding_ordinal => {
-                                Some((candidate, true))
-                            }
-                            CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                                source,
-                                result: candidate,
-                                ..
-                            } if candidate.binding_ordinal == binding_ordinal => Some((
-                                candidate,
-                                *source == CheckedArrayConstructionSource::Statement,
-                            )),
-                            // An ordinary structural call.
-                            CheckedUnitEffectOperationPlan::Call(call)
-                                if let Some(candidate) = call.structural_result()
-                                    && !call.is_boundary()
-                                    && candidate.binding_ordinal == binding_ordinal =>
-                            {
-                                Some((candidate, call.coordinate.call_ordinal == 0))
-                            }
-                            _ => None,
-                        });
-                let (binding, owns_statement_result) = producers.next().ok_or(
-                    LoweringError::Unsupported("returned structural value has no exact producer"),
-                )?;
-                if producers.next().is_some()
-                    || !owns_statement_result
-                    || binding.type_identity != result.type_identity
-                    || binding.multiplicity != result.multiplicity
-                {
-                    return unsupported("returned structural producer is ambiguous or changed");
-                }
-                if let Some(expression) = expression {
-                    if let ExpressionNode::Name(path) =
-                        checked.typed.expression_table.expression(expression)
-                    {
-                        let Some(StatementNode::LocalData(local)) =
-                            statements.get(binding.statement_index as usize)
-                        else {
-                            return unsupported("returned structural binding has no declaration");
-                        };
-                        if path.symbol != local.symbol
-                            || path.head_symbol != local.symbol
-                            || checked
-                                .typed
-                                .expression_table
-                                .name_path_members(path.members)
-                                .len()
-                                != 1
-                        {
-                            return unsupported("returned structural binding differs from source");
-                        }
-                    } else if binding.statement_index as usize + 1 != statements.len() {
-                        return unsupported("returned constructor differs from source");
+            let mut producers = machine
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result: candidate,
+                        discard_result_on_return: false,
+                        ..
+                    } if candidate.binding_ordinal == binding_ordinal => {
+                        Some((candidate, true, None))
                     }
-                } else if binding.statement_index as usize + 1 != statements.len()
-                    || !matches!(statements.last(), Some(StatementNode::Transition(_)))
+                    CheckedUnitEffectOperationPlan::EstablishReference {
+                        result: candidate,
+                        ..
+                    } if candidate.binding_ordinal == binding_ordinal => {
+                        Some((candidate, true, Some(operation)))
+                    }
+                    CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                        result: candidate,
+                        ..
+                    } if candidate.binding_ordinal == binding_ordinal => {
+                        Some((candidate, true, None))
+                    }
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source,
+                        result: candidate,
+                        ..
+                    } if candidate.binding_ordinal == binding_ordinal => Some((
+                        candidate,
+                        *source == CheckedArrayConstructionSource::Statement,
+                        None,
+                    )),
+                    // An ordinary structural call.
+                    CheckedUnitEffectOperationPlan::Call(call)
+                        if let Some(candidate) = call.structural_result()
+                            && !call.is_boundary()
+                            && candidate.binding_ordinal == binding_ordinal =>
+                    {
+                        Some((candidate, call.coordinate.call_ordinal == 0, None))
+                    }
+                    _ => None,
+                });
+            let (binding, owns_statement_result, establishment) = producers.next().ok_or(
+                LoweringError::Unsupported("returned structural value has no exact producer"),
+            )?;
+            if producers.next().is_some()
+                || !owns_statement_result
+                || binding.type_identity != result.type_identity
+                || binding.multiplicity != result.multiplicity
+            {
+                return unsupported("returned structural producer is ambiguous or changed");
+            }
+            if let Some(establishment) = establishment {
+                super::reference_results::validate_establishment(checked, machine, establishment)?;
+            } else if let Some(expression) = expression {
+                if let ExpressionNode::Name(path) =
+                    checked.typed.expression_table.expression(expression)
                 {
-                    // A completing transition's call is itself the completion
-                    // coordinate: the body has no tail expression, and 04 mints
-                    // the result on the transition statement's own call. Any
-                    // other completion without an expression names no value.
-                    return unsupported("structural result source has no completion value");
+                    let Some(StatementNode::LocalData(local)) =
+                        statements.get(binding.statement_index as usize)
+                    else {
+                        return unsupported("returned structural binding has no declaration");
+                    };
+                    if path.symbol != local.symbol
+                        || path.head_symbol != local.symbol
+                        || checked
+                            .typed
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            != 1
+                    {
+                        return unsupported("returned structural binding differs from source");
+                    }
+                } else if binding.statement_index as usize + 1 != statements.len() {
+                    return unsupported("returned constructor differs from source");
                 }
+            } else if binding.statement_index as usize + 1 != statements.len()
+                || !matches!(statements.last(), Some(StatementNode::Transition(_)))
+            {
+                // A completing transition's call is itself the completion
+                // coordinate: the body has no tail expression, and 04 mints
+                // the result on the transition statement's own call. Any
+                // other completion without an expression names no value.
+                return unsupported("structural result source has no completion value");
             }
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {

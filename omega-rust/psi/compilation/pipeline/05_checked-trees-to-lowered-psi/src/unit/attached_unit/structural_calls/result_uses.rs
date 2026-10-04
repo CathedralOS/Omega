@@ -1118,6 +1118,7 @@ pub(crate) fn validate_usage(
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
+    let mut returned_carrier = false;
     if let Some(returned) = &caller.structural_result
         && returned.source
             == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -1132,6 +1133,7 @@ pub(crate) fn validate_usage(
         {
             return unsupported("structural completion reuses or changes its owned result");
         }
+        returned_carrier = true;
         consumed = result.multiplicity != Multiplicity::Unrestricted;
     }
     // Unrestricted values carry no disposal debt. Argument transport is still
@@ -1143,18 +1145,46 @@ pub(crate) fn validate_usage(
             Ok(())
         };
     }
-    // A `&mut` reference result's custody is the loan its producing call's
-    // custody row records, never an owned consume or discard: retirement is
-    // the loan's release — the explicit `ReleaseReference` the loop already
-    // counted as `disposed`, or the state exit when the last use is the
-    // final statement. Edge retirement still owns the carrier place, so its
-    // return discard is required; an explicit release already retired both
-    // and must not carry one.
+    // A reference result either transfers its live carrier through completion
+    // or retires the producing call's exact loan. Retirement is an explicit
+    // ReleaseReference, or state exit when the last use is the final statement.
+    // Edge retirement still owns the carrier place and requires its discard;
+    // an explicit release or a return transfer must not also discard it.
     if let Some(custody) = operations[producer.operation_index]
         .call()
         .and_then(|call| call.structural_custody())
         && custody.reference_loan.is_valid()
     {
+        if returned_carrier {
+            // Completion forwards the exact carrier and its outstanding loan;
+            // it does not retire either as an owned consume or disposal.
+            if producer.discard || disposed || !projected_paths.is_empty() {
+                return unsupported("returned reference also acquired disposal custody");
+            }
+            let boundary = validation::reference_result_custody::release_boundary(
+                &checked.typed,
+                &checked.facts,
+                caller.machine,
+                caller.state,
+                custody.reference_loan,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "returned reference has no exact transfer boundary",
+            ))?;
+            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )?;
+            if (boundary as usize)
+                < checked
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .len()
+            {
+                return unsupported("returned reference loan ends before completion");
+            }
+            return Ok(());
+        }
         if consumed || !projected_paths.is_empty() || (disposed && producer.discard) {
             return unsupported("reference result acquired owned cleanup custody");
         }

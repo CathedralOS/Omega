@@ -716,39 +716,14 @@ pub(super) fn result(
         id: place,
         kind: StructuralPlaceKind::Result,
     });
-    // Each arm retains its exact ingress source. The result interface groups
-    // alternatives by returned leaf; Terminal replay checks actual exit coverage.
-    let mut reference_sources = reference_sources
-        .iter()
-        .map(|reference| {
-            let source = crate::unit::attached_unit::parameters::lower_reference_source(
-                &reference.source, &catalogs.structural_types, parameters, &[], &[], &[],
-            )?;
-            Ok(terminal_psi::StructuralReferenceResultSource {
-                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&reference.path)?,
-                sources: vec![source],
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    reference_sources.sort_by(|left, right| left.path.cmp(&right.path));
-    let mut grouped_sources: Vec<terminal_psi::StructuralReferenceResultSource> =
-        Vec::with_capacity(reference_sources.len());
-    for reference in reference_sources {
-        if let Some(group) = grouped_sources.last_mut()
-            && group.path == reference.path
-        {
-            group.sources.extend(reference.sources);
-        } else {
-            grouped_sources.push(reference);
-        }
-    }
-    for group in &mut grouped_sources {
-        group.sources.sort();
-        group.sources.dedup();
-    }
+    let reference_sources = crate::unit::attached_unit::parameters::lower_reference_result_sources(
+        reference_sources,
+        &catalogs.structural_types,
+        parameters,
+    )?;
     Ok(TerminalMachineResult::Structural(
         StructuralResultDeclaration {
-            reference_sources: grouped_sources,
+            reference_sources,
             place,
             structural_type: lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
             multiplicity: match result.multiplicity {

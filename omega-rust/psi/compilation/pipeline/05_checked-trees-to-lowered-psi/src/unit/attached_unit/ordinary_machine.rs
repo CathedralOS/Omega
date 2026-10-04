@@ -30,7 +30,6 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
@@ -740,30 +739,11 @@ pub(super) fn emit(
                     },
                     qualifications,
                     projected_qualifications: Vec::new(),
-                    reference_sources: result
-                        .reference_sources
-                        .iter()
-                        .map(|reference| {
-                            let source = parameters::lower_reference_source(
-                                &reference.source,
-                                structural_types,
-                                parameters,
-                                &[],
-                                &[],
-                                &[],
-                            )?;
-                            Ok(terminal_psi::StructuralReferenceResultSource {
-                                path: lower_structural_path(&reference.path)?,
-                                sources: vec![source],
-                            })
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()
-                        .map(|mut sources| {
-                            // Wire maps use canonical path order, independently
-                            // of authored construction and reverse cleanup order.
-                            sources.sort_by(|left, right| left.path.cmp(&right.path));
-                            sources
-                        })?,
+                    reference_sources: parameters::lower_reference_result_sources(
+                        &result.reference_sources,
+                        structural_types,
+                        parameters,
+                    )?,
                 },
             ))
         })

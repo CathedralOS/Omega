@@ -53,3 +53,47 @@ pub(crate) fn lower_reference_source(
     }
     Ok(argument)
 }
+
+/// Normalize exact caller-relative origins under each returned reference leaf.
+/// Multiple completion alternatives share one output path without losing their
+/// distinct source places, projections, or access permissions.
+pub(crate) fn lower_reference_result_sources(
+    references: &[checked_trees::CheckedReferenceResultSourcePlan],
+    structural_types: &[StructuralTypeDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, LoweringError> {
+    let mut references = references
+        .iter()
+        .map(|reference| {
+            let source = lower_reference_source(
+                &reference.source,
+                structural_types,
+                parameters,
+                &[],
+                &[],
+                &[],
+            )?;
+            Ok(terminal_psi::StructuralReferenceResultSource {
+                path: super::lower_structural_path(&reference.path)?,
+                sources: vec![source],
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    references.sort_by(|left, right| left.path.cmp(&right.path));
+    let mut grouped: Vec<terminal_psi::StructuralReferenceResultSource> =
+        Vec::with_capacity(references.len());
+    for reference in references {
+        if let Some(group) = grouped.last_mut()
+            && group.path == reference.path
+        {
+            group.sources.extend(reference.sources);
+        } else {
+            grouped.push(reference);
+        }
+    }
+    for group in &mut grouped {
+        group.sources.sort();
+        group.sources.dedup();
+    }
+    Ok(grouped)
+}
