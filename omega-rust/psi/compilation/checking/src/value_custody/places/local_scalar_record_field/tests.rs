@@ -375,3 +375,101 @@ fn scalar_predicate_local_field_rejects_unrepresented_domains() {
         );
     }
 }
+
+#[test]
+fn local_payload_observation_preserves_case_and_statement_identity() {
+    let mut program = crate::front_end::typed_program(
+        "data Choice [copy] { case Left(value: u64); case Right(value: u64); }
+         machine finish(value: u64) -> u64 { value }
+         machine observe(incoming: Choice) -> u64 {
+             let saved: Choice = incoming;
+             transition saved {
+                 Choice::Left { value } -> finish(value)
+                 Choice::Right { value } -> finish(value)
+             }
+         }",
+    );
+    let (machine, state, left) = payload_argument(&program, 1);
+    let (_, _, right) = payload_argument(&program, 2);
+    let left_field = local_scalar_record_field(&program, machine, state, 1, left)
+        .expect("selected left payload");
+    let right_field = local_scalar_record_field(&program, machine, state, 2, right)
+        .expect("selected right payload");
+    assert_eq!(
+        left_field.path,
+        [CheckedUnitStructuralPathSegment::Case("Left".into())]
+    );
+    assert_eq!(
+        right_field.path,
+        [CheckedUnitStructuralPathSegment::Case("Right".into())]
+    );
+    assert_ne!(left_field.field, right_field.field);
+    assert_eq!(left_field.local, right_field.local);
+    assert_eq!(left_field.primitive_type, super::PrimitiveType::U64);
+    assert!(local_scalar_record_field(&program, machine, state, 2, left).is_none());
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(left) else {
+        panic!("case-qualified payload projection");
+    };
+    member.member_symbol = right_field.field;
+    assert!(local_scalar_record_field(&program, machine, state, 1, left).is_none());
+}
+
+#[test]
+fn local_payload_observation_keeps_nested_record_projection() {
+    let program = crate::front_end::typed_program(
+        "data Item [copy] { amount: u64; }
+         data Choice [copy] { case Left(value: Item); case Right(value: Item); }
+         machine finish(value: u64) -> u64 { value }
+         machine observe(incoming: Choice) -> u64 {
+             let saved: Choice = incoming;
+             transition saved {
+                 Choice::Left { value } -> finish(value.amount)
+                 Choice::Right { value } -> finish(value.amount)
+             }
+         }",
+    );
+    let (machine, state, expression) = payload_argument(&program, 1);
+    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+        .expect("record field beneath the selected payload");
+    assert_eq!(
+        field.path,
+        [
+            CheckedUnitStructuralPathSegment::Case("Left".into()),
+            CheckedUnitStructuralPathSegment::Field("value".into()),
+        ]
+    );
+    assert_eq!(
+        program
+            .normalized_type_identity(field.carrier_type_reference)
+            .as_str(),
+        "Item"
+    );
+    assert_eq!(field.primitive_type, super::PrimitiveType::U64);
+}
+
+fn payload_argument(
+    program: &TypedTrees,
+    statement_index: usize,
+) -> (SymbolHandle, SymbolHandle, ExpressionHandle) {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .expect("authored observation machine");
+    let state = &program.machine_states(machine)[0];
+    let StatementNode::Transition(transition) =
+        program.statement_table.statements(state.statement_nodes)[statement_index]
+    else {
+        panic!("payload transition");
+    };
+    let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        panic!("terminal payload call");
+    };
+    (
+        machine.symbol,
+        state.symbol,
+        program.statement_table.expression_handles(*arguments)[0],
+    )
+}

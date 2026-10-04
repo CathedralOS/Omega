@@ -832,10 +832,16 @@ pub(crate) fn prepare(
             if !field.is_valid() || field_symbol.kind != symbols::SymbolKind::Field {
                 return unsupported("record read has no resolved field identity");
             }
+            let owner_symbol =
+                if checked.symbols.get(field_symbol.parent).kind == symbols::SymbolKind::Variant {
+                    checked.symbols.get(field_symbol.parent).parent
+                } else {
+                    field_symbol.parent
+                };
             let mut owners = checked
                 .data_definitions()
                 .iter()
-                .filter(|owner| owner.symbol == field_symbol.parent);
+                .filter(|owner| owner.symbol == owner_symbol);
             let owner = owners.next().ok_or(LoweringError::Unsupported(
                 "record read has no declared field owner",
             ))?;
@@ -847,6 +853,12 @@ pub(crate) fn prepare(
                 .iter()
                 .find_map(|member| match member {
                     DataMember::Field(candidate) if candidate.symbol == *field => Some(candidate),
+                    DataMember::Variant(variant) if variant.symbol == field_symbol.parent => {
+                        checked
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|candidate| candidate.symbol == *field)
+                    }
                     _ => None,
                 })
                 .ok_or(LoweringError::Unsupported("record read field is absent"))?;
@@ -957,9 +969,34 @@ pub(crate) fn prepare(
             }) {
                 return unsupported("record read selects an element below a trailing element");
             }
+            let mut selected_case_fields = None;
             for segment in &walk {
                 let identity = match segment {
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => identity,
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                        let (StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+                        else {
+                            return unsupported("field observation case left its sum namespace");
+                        };
+                        let mut cases = cases.iter().filter(|case| case.identity == *identity);
+                        let case = cases.next().ok_or(LoweringError::Unsupported(
+                            "field observation selected an absent case",
+                        ))?;
+                        if cases.next().is_some() || selected_case_fields.is_some() {
+                            return unsupported("field observation has an ambiguous case path");
+                        }
+                        path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                            case.id,
+                        ));
+                        if matches!(leaf_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                            primitive_path.push(terminal_psi::StructuralPathSegment::Case(
+                                case.id,
+                            ));
+                        }
+                        selected_case_fields = Some(case.fields.as_slice());
+                        continue;
+                    }
                     // A literal element of a fixed array of records selects
                     // that element's record as the next carrier.
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
@@ -991,8 +1028,16 @@ pub(crate) fn prepare(
                         );
                     }
                 };
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                    return unsupported("record read carrier path left its record namespace");
+                let fields = match selected_case_fields.take() {
+                    Some(fields) => fields,
+                    None => {
+                        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                            return unsupported(
+                                "record read carrier path left its record namespace",
+                            );
+                        };
+                        fields.as_slice()
+                    }
                 };
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
@@ -1022,8 +1067,14 @@ pub(crate) fn prepare(
             if expected_type.is_some_and(|expected| declaration.identity != expected) {
                 return unsupported("record read carrier path changed its declared type");
             }
-            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                return unsupported("record read requires a record namespace");
+            let fields = match selected_case_fields {
+                Some(fields) => fields,
+                None => {
+                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                        return unsupported("record read requires a record namespace");
+                    };
+                    fields.as_slice()
+                }
             };
             let mut fields = fields.iter().filter(|field| field.identity == identity);
             let retained = fields.next().ok_or(LoweringError::Unsupported(
@@ -1294,12 +1345,15 @@ pub(super) fn observation(
                 parameters,
             )?
             .place,
-        None => {
-            bindings
-                .shared_structural_argument(subject, machine, parameters)?
-                .place
-        }
+        None => bindings.shared_structural_place(subject, machine, parameters)?,
     };
+    if let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
+        binding.path.as_slice()
+        && let Some(payload) =
+            bindings.established_case_payload(source, *case, binding.field, scalar_type)?
+    {
+        return Ok(payload);
+    }
     if binding.leaf_scalar_type != scalar_type
         && (binding.runtime_index.is_some() || binding.byte_overlay.is_some())
     {
