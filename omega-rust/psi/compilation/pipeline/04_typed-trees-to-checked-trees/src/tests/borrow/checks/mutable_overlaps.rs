@@ -417,3 +417,49 @@ fn rejects_ambiguous_view_return_from_boundary_trait_signature() {
         "expected the bodyless-signature elision rejection, got:\n{combined}"
     );
 }
+
+#[test]
+fn nested_affine_call_releases_operand_loans_before_later_arguments() {
+    let source = "data Choice { case Value(value: u64); }
+        data Counter { value: u64 in Wrapping; }
+        machine forward(choice: Choice, counter: &mut Counter) -> Choice {
+            counter.value = counter.value + 1;
+            choice
+        }
+        machine stamp(counter: &mut Counter) -> u64 in Wrapping {
+            counter.value = counter.value + 1;
+            counter.value
+        }
+        machine consume(choice: Choice, value: u64 in Wrapping, counter: &mut Counter) {}
+        machine exercise(choice: Choice, counter: &mut Counter) {
+            consume(forward(choice, counter), stamp(counter), counter);
+        }";
+    check_program(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
+#[test]
+fn nested_structural_result_retains_carried_loans_across_later_arguments() {
+    for (access, diagnostic) in [
+        ("&mut", "as mutable more than once"),
+        ("&", "as both mutable and read-only"),
+    ] {
+        let source = format!(
+            "data View {{ value: {access} i32; }}
+             machine keep(value: {access} i32) -> View {{ View {{ value: value }} }}
+             machine stamp(value: &mut i32) -> i32 {{ value = 1; 1 }}
+             machine consume(view: View, value: i32, next: &mut i32) {{}}
+             machine exercise() {{
+                 let mut value: i32 = 0;
+                 consume(keep({access} value), stamp(&mut value), &mut value);
+             }}"
+        );
+        let diagnostics = check_program(&source)
+            .expect_err("a returned structural carrier keeps its original backing loan");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|entry| entry.message.contains(diagnostic)),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}

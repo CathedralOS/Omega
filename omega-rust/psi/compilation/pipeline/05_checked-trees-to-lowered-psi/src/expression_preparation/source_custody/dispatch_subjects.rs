@@ -139,10 +139,10 @@ fn declared_case(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> bool 
     })
 }
 
-/// The call a case guard tests, when the dispatch subject is a call whose
-/// operands evaluate no call of their own. Every copy repeats those
-/// operands, so a nested call would be numbered once per arm while running
-/// once; the checker plans no such dispatch and this replay admits none.
+/// The call a case guard tests. Its operands use ordinary call preparation;
+/// copied guards and payload receivers read the completed subject instead of
+/// evaluating those operands again. Source custody and the argument schedule
+/// still account for each producer before this subject becomes available.
 pub(crate) fn computed_case_subject(
     checked: &CheckedTrees,
     guard: ExpressionHandle,
@@ -155,8 +155,6 @@ pub(crate) fn computed_case_subject(
     let operands = table.expression_handles(call.arguments);
     if !repeats_subject(checked, subject, subject)
         || operands.len() != call.arguments.count() as usize
-        || (call.receiver.is_valid() && !call_free(checked, call.receiver))
-        || !operands.iter().all(|operand| call_free(checked, *operand))
     {
         return None;
     }
@@ -206,33 +204,4 @@ pub(crate) fn evaluated_case_subject(
         tested(statement).is_some_and(|earlier| repeats_subject(checked, subject, earlier))
     }))
     .then_some(subject)
-}
-
-/// Whether `expression` reads names, literals and places through operators
-/// alone, invoking no call.
-fn call_free(checked: &CheckedTrees, expression: ExpressionHandle) -> bool {
-    let table = &checked.expression_table;
-    let mut pending = vec![expression];
-    while let Some(expression) = pending.pop() {
-        if !table.expression_is_valid(expression) {
-            return false;
-        }
-        match table.expression(expression) {
-            ExpressionNode::Name(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_) => {}
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Indexed(indexed) => {
-                pending.extend([indexed.collection, indexed.index]);
-            }
-            _ => return false,
-        }
-    }
-    true
 }

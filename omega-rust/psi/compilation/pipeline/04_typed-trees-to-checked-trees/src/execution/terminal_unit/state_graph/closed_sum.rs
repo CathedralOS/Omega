@@ -802,16 +802,10 @@ fn subject_call(
         return None;
     }
     let return_type = crate::flow::call_target_return_type(program, call.target_symbol)?;
-    let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
-        statement_index: u32::try_from(transition_start).ok()?,
-        binding_ordinal: u32::try_from(returns::next_result_ordinal(operations)?).ok()?,
-        type_identity: shapes.add_type(return_type, &[], &[])?,
-        multiplicity: program.type_multiplicity(return_type),
-    };
     // The subject may lend a named local of this state, exactly as a `let`
     // initializer's call does.
     let statements = program.statement_table.statements(state.statement_nodes);
-    let locals = operations
+    let mut structural_results = operations
         .iter()
         .filter_map(|operation| {
             let result = operation.structural_result_binding()?;
@@ -826,6 +820,31 @@ fn subject_call(
                 .then(|| (result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
         })
         .collect::<Vec<_>>();
+    let mut structural_count = returns::next_result_ordinal(operations)?;
+    crate::execution::terminal_unit::control::structural_operands::plan_call_operands(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural,
+        &[],
+        entry_claims,
+        &mut structural_results,
+        operations,
+        &mut structural_count,
+        call,
+        trace,
+    )?;
+    // Preparations bind their own results first. The saved subject receives
+    // the next ordinary result ordinal and consumes those exact operands.
+    let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
+        statement_index: u32::try_from(transition_start).ok()?,
+        binding_ordinal: u32::try_from(structural_count).ok()?,
+        type_identity: shapes.add_type(return_type, &[], &[])?,
+        multiplicity: program.type_multiplicity(return_type),
+    };
     let operation = crate::execution::terminal_unit::calls::build_call_operation(
         program,
         facts,
@@ -838,7 +857,7 @@ fn subject_call(
         call,
         false,
         Some(crate::execution::terminal_unit::calls::ExpectedCallValueResult::Structural(&result)),
-        &locals,
+        &structural_results,
         trace,
     )?;
     let mut operation = crate::execution::terminal_unit::control::bind_structural_call_result(
@@ -861,6 +880,9 @@ fn subject_call(
     {
         return None;
     }
+    crate::execution::terminal_unit::control::statement_sequence::consume_results(
+        operations, &operation,
+    )?;
     operations.push(operation);
     Some((result, return_type))
 }

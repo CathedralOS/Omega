@@ -93,8 +93,8 @@ pub use value_custody::places::{
     canonical_storage_label, collection_length_receiver, declaration_storage_label,
     declared_collection_extent, exact_attached_field, exact_attached_storage_field,
     exact_data_member_field, exact_self_field, expression_names_attached_storage,
-    has_builtin_subslice_meaning, place_has_builtin_coordinates, saved_dispatch_subject,
-    structural_scalar_field, subslice_expression,
+    has_builtin_subslice_meaning, place_has_builtin_coordinates, saved_dispatch_call,
+    saved_dispatch_subject, structural_scalar_field, subslice_expression,
 };
 
 pub use proof_contracts::bound_expression_meaning::{

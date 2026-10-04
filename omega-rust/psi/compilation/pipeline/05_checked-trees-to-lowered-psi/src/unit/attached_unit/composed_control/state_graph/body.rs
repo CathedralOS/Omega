@@ -490,11 +490,17 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
-            // A computed case subject's one call occupies the first arm's
-            // statement; the case replay rejoins it to that arm's subject.
+            // A computed case subject and its prepared operand calls occupy
+            // the first arm's statement. Only their canonical evaluated
+            // occurrences belong here; copied receivers read saved storage.
             (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Transition(_))
-                if case_subject_call.is_some_and(|subject| std::ptr::eq(subject, call))
-                    && ordinal == end =>
+                if case_subject_call.is_some()
+                    && ordinal == end
+                    && matches!(call.source_site().flatten(),
+                        Some(checked_trees::NominalMachineUseSite::Expression(expression))
+                            if validation::saved_dispatch_call(
+                                &checked.typed, source, ordinal, expression,
+                            ) == Some((ordinal, expression))) =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
