@@ -26,12 +26,12 @@ use omega::language::core::binding;
 
 data Main { raw_fs: Binding<FilesystemHost>; }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches FilesystemHost
 invokes FilesystemHost;
 {
-    let fd: i32 = self.raw_fs.open("/tmp/omega-entry-service-field.control", 0);
-    let rc: i32 = self.raw_fs.close(fd);
+    let fd: i32 = main.raw_fs.open("/tmp/omega-entry-service-field.control", 0);
+    let rc: i32 = main.raw_fs.close(fd);
 }
 "#,
     );

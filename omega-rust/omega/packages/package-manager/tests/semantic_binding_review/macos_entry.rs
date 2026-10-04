@@ -20,7 +20,7 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
         .join("source/library/std");
     write_file(
         application.join("main.omg"),
-        "data Main { count: u64; }\nmachine Main::main(&mut self) { self.count = 1; }\n",
+        "data Main { count: u64; }\nmachine Main::main(main: &mut Main) { main.count = 1; }\n",
     );
     write_file(
         application.join("build.omg"),

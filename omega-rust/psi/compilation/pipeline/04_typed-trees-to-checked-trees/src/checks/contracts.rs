@@ -143,7 +143,7 @@ pub(super) fn check_flow_call_contracts(
                     is_proof_machine(call_flow.target_symbol),
                 );
             }
-            exits::check_scalar_tail_result_domains(
+            exits::check_state_transfer_result_domains(
                 program,
                 state_flow,
                 call_flow,

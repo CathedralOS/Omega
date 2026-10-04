@@ -5,7 +5,7 @@
 //! `contracts::check_flow_call_contracts` creates one
 //! `CyclicHeaderInvariants` for the pass and, for each state, calls:
 //!
-//! - for each call, `check_scalar_tail_result_domains` (`result_domains`);
+//! - for each call, `check_state_transfer_result_domains` (`result_domains`);
 //! - for each exit, in order, `check_scalar_result_domains`,
 //!   `check_exit_ensures`, `check_result_field_domains` and
 //!   `check_mutable_referent_field_domains`.
@@ -45,7 +45,7 @@ mod scalars;
 pub(super) use cyclic_headers::CyclicHeaderInvariants;
 pub(super) use result_domains::{
     check_mutable_referent_field_domains, check_result_field_domains, check_scalar_result_domains,
-    check_scalar_tail_result_domains,
+    check_state_transfer_result_domains,
 };
 pub(crate) use result_domains::{
     is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,

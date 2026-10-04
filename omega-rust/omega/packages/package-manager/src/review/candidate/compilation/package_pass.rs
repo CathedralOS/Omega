@@ -20,7 +20,8 @@ use super::super::custody::{
 };
 use super::super::rows::RetainedReviewRows;
 use super::super::semantic_bindings::{
-    SemanticBindingReviewCandidate, candidate_service_bindings, candidate_target_entry_binding,
+    SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
+    candidate_target_entry_binding,
 };
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
@@ -46,7 +47,7 @@ use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
 use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
-use package_evidence::record::{PackagePolicyRepresentationProducerInstance, PackagePolicyRowKind};
+use package_evidence::record::PackagePolicyRowKind;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -393,11 +394,6 @@ struct AssembledOccurrence {
     build_snapshot: build_evaluation::BuildSnapshotRequest,
     /// The discovery pass's nominated target-entry binding, if one joined.
     proposed_entry: Option<SemanticBindingReviewCandidate>,
-    /// Each dependency bundle's consumed-source instance, by package and purpose.
-    dependency_source_instances: BTreeMap<
-        (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        package_compilation::PackageSourceConsumptionCommitment,
-    >,
 }
 
 impl ClosurePass<'_> {
@@ -546,15 +542,6 @@ impl ClosurePass<'_> {
                 dependency_bundles.push(bundle.clone());
             }
         }
-        let dependency_source_instances = dependency_bundles
-            .iter()
-            .map(|bundle| {
-                (
-                    (bundle.package(), bundle.purpose()),
-                    bundle.source_consumption_commitment(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
         let inputs = inputs
             .with_complete_dependency_generated_sources(dependency_bundles)
             .map_err(
@@ -621,7 +608,6 @@ impl ClosurePass<'_> {
                 entry,
                 build_snapshot,
                 proposed_entry,
-                dependency_source_instances,
             },
         ))
     }
@@ -1044,7 +1030,6 @@ impl ClosurePass<'_> {
             entry,
             build_snapshot,
             proposed_entry,
-            dependency_source_instances,
         } = assembled;
         let entry = entry.as_path();
         checked
@@ -1120,38 +1105,16 @@ impl ClosurePass<'_> {
             checked_target,
             self.retained_policy_canonical_total,
         )?;
-        // Dependency reviews precede consumers, so prior rows are available
-        // for rejoining actual foreign by-value representation demands. Each
-        // rejoin binds the producer review to the immutable source instance
-        // this consumer compiled against through its retained dependency
-        // bundle.
-        policy
-            .representation()
-            .rejoin_foreign_demands(|identity| {
-                let review = self.reviews.iter().find(|review| {
-                    review.key.identity() == identity
-                        && review.checked_context().purpose() == purpose
-                })?;
-                let expected_source_instance = dependency_source_instances
-                    .get(&(identity, purpose))
-                    .copied()?;
-                Some(PackagePolicyRepresentationProducerInstance {
-                    policy: review.policy.representation(),
-                    expected_source_instance,
-                    reviewed_source_instance: review.source_consumption_commitment(),
-                })
-            })
-            .map_err(
-                |error| CompileResolvedPackageReviewsError::RepresentationAgreement {
-                    consumer: key.clone(),
-                    error,
-                },
-            )?;
+        // This is a source compilation, not a link between independently
+        // compiled artifacts. Psi already checks declaration visibility,
+        // the selected relationship and every by-value representation demand.
+        // The consumer Build owns the combined compilation's choice; a
+        // dependency's historical review selection cannot constrain it.
         let policy_canonical_bytes = policy_total - self.retained_policy_canonical_total;
         self.retained_policy_canonical_total = policy_total;
-        let mut semantic_binding_candidates =
-            candidate_service_bindings(&checked, &projection, key)?;
+        let mut semantic_binding_candidates = candidate_service_bindings(&checked, key)?;
         semantic_binding_candidates.extend(proposed_entry);
+        semantic_binding_candidates.extend(candidate_hosted_exit_bindings(&checked, key)?);
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(
                 candidate_target_entry_binding(&checked, key, checked_target)?

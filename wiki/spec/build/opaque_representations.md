@@ -48,8 +48,11 @@ ordinary drop behavior.
 Consumer evidence retains opaque declaration, conformance or TargetSemantics
 source, concrete carrier, derived shape, physical movement, lifecycle role,
 evidence origin, closed-conformance commitment, and complete boundary-plan
-commitment. Foreign demands rejoin exact producer canonical rows and immutable
-source instances. Compact fingerprints are report coordinates, not identity.
+commitment. In a combined source compilation, declaration visibility and the
+exact selected conformance are checked directly against the retained dependency
+source; review projections are not compiler inputs. Independently compiled
+artifact exchanges rejoin exact producer rows and immutable source instances.
+Compact fingerprints are report coordinates, not identity.
 
 Selecting machine and source occurrence are audit/source provenance, not
 application identity. Moving an unchanged selection cannot change ABI agreement.

@@ -1,0 +1,17 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine answer() -> i32
+ensures result == 70
+{ 70 }
+
+machine forward() -> i32
+ensures result == 70
+{ transition { _ -> answer() } }
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = forward();
+    main.console.exit_process(result);
+}

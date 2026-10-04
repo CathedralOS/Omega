@@ -1,0 +1,6 @@
+proposition paired(left: u64, right: u64) = min(left, right) >= 1;
+
+machine unchecked_claim(left: u64, right: u64)
+requires paired(left, right)
+ensures paired(right, 0)
+{}

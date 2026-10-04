@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.52, "load1_start": 7.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -411,12 +411,16 @@ fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 368ms expected 
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
 fail/contracts/ensures_wrapping_field_arithmetic_wrong rejected 197ms expected @c08960bee2b1+wt
 	cannot prove ensures contract for exit from Countdown::arm at statement 1: countdown.remaining - 1 < 8
+fail/contracts/named_tail_return_contract rejected 202ms expected @43a77116e58+wt
+	cannot prove ensures contract for exit from forward at statement 0: result == 1
 fail/contracts/negated_edge_guard_unproven_bound rejected 1025ms expected @2d8ed253669f
 	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 808ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 850ms expected @2d8ed253669f
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
+fail/contracts/undischarged_contract_entailment rejected 77ms expected @43a77116e58+wt
+	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/control_flow/arm_pattern_missing_field rejected 294ms expected @2d8ed253669f
 	destructure arm in machine `Main::apply` state `apply` does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 fail/control_flow/arm_pattern_rest_unknown_field rejected 259ms expected @2d8ed253669f
@@ -1600,6 +1604,7 @@ pass/contracts/ensures_fact_list_exit checked 1320ms @4e4bfed13aee+wt
 pass/contracts/ensures_named_parameter_arithmetic_exit checked 431ms @1fa864024c44+wt
 pass/contracts/ensures_saturating_field_arithmetic_exit checked 1347ms @c13c39a874dc+wt
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 1321ms @4e4bfed13aee+wt
+pass/contracts/named_tail_return_contract checked 1210ms @43a77116e58+wt
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms @527c7c316c6f+wt

@@ -298,13 +298,25 @@ pub(crate) fn build_contract_exit_facts(
                 has_transition = true;
                 if transition.exit == typed_trees::statement::TransitionExit::Ordinary {
                     for target in [transition.target, transition.continuation] {
-                        if target.is_valid()
-                            && matches!(
-                                program.statement_table.transition_target(target),
+                        if !target.is_valid() {
+                            continue;
+                        }
+                        let returns_from_machine =
+                            match program.statement_table.transition_target(target) {
                                 typed_trees::statement::TransitionTargetNode::Terminal
-                                    | typed_trees::statement::TransitionTargetNode::Value(_)
-                            )
-                        {
+                                | typed_trees::statement::TransitionTargetNode::Value(_) => true,
+                                typed_trees::statement::TransitionTargetNode::Named {
+                                    path,
+                                    ..
+                                } => {
+                                    // Another machine returns to this invocation's
+                                    // caller. A state transfer within this machine
+                                    // keeps the invocation and its obligations live.
+                                    contract_target_from_state_symbol(program, path.symbol)
+                                        .is_some_and(|(owner, _)| owner != machine.symbol)
+                                }
+                            };
+                        if returns_from_machine {
                             exits.append(ContractExitFact {
                                 machine_symbol: machine.symbol,
                                 state_symbol: state.symbol,

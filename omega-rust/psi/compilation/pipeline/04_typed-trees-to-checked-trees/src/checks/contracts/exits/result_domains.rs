@@ -18,7 +18,7 @@ use diagnostics::Diagnostic;
 use facts::{FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
 use typed_trees::types::TypeReferenceNode;
 
-use super::super::return_values::exit_return_expression;
+use super::super::return_values::{exit_return_call, exit_return_expression};
 use crate::flow::{
     CanonicalPlace, canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
 };
@@ -150,8 +150,9 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         });
         // No actual value means no subject on which to establish a nonempty
         // theory or routed provenance. A signature does not synthesize zero.
-        let satisfied = returned.is_valid() && (transported
-            || exact_call_result_membership(program, facts, exit, returned, constraint)
+        let supplied_by_return = exit_return_call(program, facts, exit)
+            .is_some_and(|call| call_result_has_domain(program, call.target_symbol, constraint));
+        let satisfied = supplied_by_return || (returned.is_valid() && (transported
             || program
             .domain_definitions()
             .iter()
@@ -168,7 +169,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                             domain_symbol,
                         ))
                     && establishes_scalar_predicates(program, facts, exit, &contexts, domain, constraint)
-            }));
+            })));
         if !satisfied {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove scalar result domain for return from {} at statement {}: {}",
@@ -210,13 +211,14 @@ fn scalar_exit_domains<'program>(
     domains
 }
 
-/// A named external tail invocation supplies the returned value directly.
+/// A local state transfer keeps the machine invocation alive, but cannot erase
+/// a stronger result qualification promised by its source state's signature.
 /// Consume its retained call occurrence and checked result contract; it has
 /// no authored value expression to manufacture for the ordinary exit prover.
 /// Transfers within this machine preserve additional state promises through
 /// the selected target contract. The common machine promise is checked at leaf
 /// exits, so intermediate states need not repeat it in their annotations.
-pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
+pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     program: &typed_trees::TypedTrees,
     state_flow: &checked_trees::FlowStateFact,
     call: &checked_trees::FlowCallFact,
@@ -258,17 +260,18 @@ pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
         && crate::proof::contract_target_from_state_symbol(program, path.symbol) == selected;
     let local_transfer =
         exact_invocation && selected.is_some_and(|(owner, _)| owner == machine.symbol);
+    if !local_transfer {
+        return;
+    }
     let common_domains = program
         .machine_states(machine)
         .first()
         .map(|entry| scalar_result_domains(program, entry.return_type))
         .unwrap_or_default();
     for required in scalar_exit_domains(program, machine, state.symbol) {
-        if local_transfer
-            && common_domains.iter().any(|common| {
-                common.symbol == required.symbol && common.semantic_id == required.semantic_id
-            })
-        {
+        if common_domains.iter().any(|common| {
+            common.symbol == required.symbol && common.semantic_id == required.semantic_id
+        }) {
             continue;
         }
         if crate::facts::domain_is_vacuous(program, required.symbol, &mut Vec::new()) {
@@ -302,59 +305,6 @@ fn call_result_has_domain(
                         && provided.semantic_id == required.semantic_id
                 })
     })
-}
-
-/// A completed call returns its checked signature's qualification. Rejoin the
-/// actual returned expression to the retained invocation occurrence before
-/// reading that signature: neither an arbitrary callable symbol nor this
-/// enclosing machine's promised result constitutes an invocation result.
-fn exact_call_result_membership(
-    program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
-    exit: &FlowExitFact,
-    returned: typed_trees::expression::ExpressionHandle,
-    required: &typed_trees::types::DomainConstraint,
-) -> bool {
-    let typed_trees::expression::ExpressionNode::Call(authored) =
-        program.expression_table.expression(returned)
-    else {
-        return false;
-    };
-    let mut occurrences = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, state)| {
-            state.machine_symbol == exit.machine_symbol && state.state_symbol == exit.state_symbol
-        })
-        .flat_map(|(_, state)| facts.flow.control.calls.span_or_empty(state.calls))
-        .filter(|call| {
-            call.authored_expression == returned && call.statement_index == exit.statement_index
-        });
-    let Some(call) = occurrences.next() else {
-        return false;
-    };
-    if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
-        return false;
-    }
-    let Some(crate::semantic::calls::CallSite::Expression {
-        expression,
-        call: selected,
-    }) = crate::semantic::calls::find_call_site(
-        program,
-        exit.machine_symbol,
-        exit.state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    )
-    else {
-        return false;
-    };
-    if expression != returned || selected.target_symbol != call.target_symbol {
-        return false;
-    }
-    call_result_has_domain(program, call.target_symbol, required)
 }
 
 pub(in crate::checks::contracts) fn exact_scalar_membership(

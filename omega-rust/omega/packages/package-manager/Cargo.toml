@@ -32,6 +32,8 @@ terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_te
 arena = { path = "../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
+symbols = { path = "../../../psi/foundation/symbols" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }

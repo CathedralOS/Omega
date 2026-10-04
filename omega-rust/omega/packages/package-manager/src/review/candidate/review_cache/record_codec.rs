@@ -28,7 +28,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 3;
+// Hosted binding nominations now belong to the checked candidate roster,
+// rather than being rediscovered from cached provider review rows.
+const RECORD_VERSION: u16 = 4;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {

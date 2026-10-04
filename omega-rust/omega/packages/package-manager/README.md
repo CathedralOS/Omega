@@ -72,7 +72,7 @@ on resume. Missing old-source bytes only limit code diffs, not lock policy
 comparison; historical recovery also honors the network restriction.
 
 `operations::review_package_change` checks an already-resolved candidate for an
-exact target, rejects outstanding ordinary contract obligations in any package,
+exact target, with ordinary contract obligations rejected by Psi checking,
 and compares its risk-bearing projection against an optional accepted lock section. Missing
 baseline means fresh review; unavailable old source is not needed for comparison.
 The resulting `PackageChangeReview` exposes compiler findings and the ordinary
@@ -121,8 +121,12 @@ rejected before authored build execution. Package runtime capability decisions
 do not grant additional build or resolver authority. Accepted project files are
 not modified by this operation.
 
-Dependency-first review compilation rejoins foreign opaque demands to the
-independently compiled producer rows before retaining each consumer review.
+Opaque declaration visibility, selected conformance validity and by-value
+representation demands are checked during compilation, without reading a
+review projection. The consumer's Build selects the representation for the
+combined source compilation; a dependency's historical root-build choice is
+not a second selection. Independently compiled artifact composition is a
+different boundary and still requires representation agreement.
 
 Its package-aware native operation consumes a `PreparedLocalProject` carrying
 the source closure and accepted `omega.lock` section for one exact target.
@@ -149,11 +153,13 @@ checked occurrences and requires canonical-row bijections for open accepted
 claims, dangerous authorities, external executable supplies, and Terminal
 permissions. Those rows and the normalized policy comparison come from the same
 fresh compiler reviews; there is no parallel initial-conflict comparison or
-second approval decision. Contract-entailment obligations remain unadmittable
-while open; canonically recorded,
-locally rechecked assumption discharges compose separately across the complete
-closure with their original package owners and checked contexts. The result
-remains review and policy state.
+second approval decision. Source contract validity belongs to Psi's call and
+normal-exit checks, including a return through a tail call. The legacy review
+ledger retains arithmetic-engine stand-downs and its supported discharge rows;
+those are not a second source-validity gate. A different checked proof route,
+such as a transparent proposition, can establish an arithmetic-engine
+stand-down. Locally rechecked assumption discharges retain their original
+package owners and checked contexts. The result remains review and policy state.
 
 `admission` rechecks live source custody, obligation reconstruction, and accepted
 policy before producing in-memory evidence. That evidence retains exact
@@ -226,13 +232,19 @@ target. The closure retains at most 64 MiB in aggregate canonical policy
 encoding size; this is not an exact heap-size limit. Legacy comparison rows,
 commitments, and obligation checks remain separate and unchanged. This retained
 finding is not accepted-lock storage or an additional authorization stage.
-For a requirement-only service candidate, the preliminary review exposes the
-exact checked `ServiceSchema` beside the proposed binding. This is
+Binding nomination reads the checked callable reach/invocation facts, entry
+requirements and selected provider plans directly. The review exposes the
+exact checked `ServiceSchema` beside each proposed binding. This is
 non-authoritative review material: a consumer may use complete requirement
-identities from that schema to author terminal-permission rows, but neither the
-candidate nor the manager assigns classes from service paths or method names.
+identities from that schema to author terminal-permission rows. Requirement-only
+services do not gain authority from readable names. Hosted leaf proposals use
+the compiler's fixed permission policy and remain subject to root approval.
 The resulting binding must still survive the complete final recompilation and
-ordinary root-policy admission.
+ordinary root-policy admission. Hosted permission proposals are retained with
+the candidate, but only the current product root carries them into policy;
+dependency/build-host uses strip them even on a cache hit. Nomination does not
+read rendered callable or provider review rows. The remaining per-compile
+review workflow is tracked separately by `COMPILE-TRUSTS-ACCEPTED-PACKAGES`.
 
 Production-bearing operations use
 `compile_resolved_package_candidate_for_production`. Its non-clonable result

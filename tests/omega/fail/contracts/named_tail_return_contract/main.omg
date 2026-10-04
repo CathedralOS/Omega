@@ -1,0 +1,7 @@
+machine zero() -> u64
+ensures result == 0
+{ 0 }
+
+machine forward() -> u64
+ensures result == 1
+{ transition { _ -> zero() } }

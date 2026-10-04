@@ -46,7 +46,6 @@ pub enum FreshPackageRootPolicyError {
     ConflictComparison(ReviewOnlyCapabilityConflictError),
     PolicyComparison(PackagePolicyChangeError),
     ReviewRequired(PackagePolicyChangeSet),
-    UnresolvedLaterDischarge(PackageReviewCanonicalRowKind),
     OpenObligationConflictShapeMismatch(PackageReviewCanonicalRowKind),
     OpenObligationConflictSetMismatch(PackageReviewCanonicalRowKind),
     AllocationFailed,
@@ -79,10 +78,6 @@ impl fmt::Display for FreshPackageRootPolicyError {
                     ),
                 }
             }
-            Self::UnresolvedLaterDischarge(kind) => write!(
-                formatter,
-                "fresh {kind:?} obligation requires a concrete later discharge and cannot be admitted by root policy",
-            ),
             Self::OpenObligationConflictShapeMismatch(kind) => write!(
                 formatter,
                 "fresh {kind:?} row has the wrong obligation kind or risk",
@@ -105,7 +100,6 @@ impl std::error::Error for FreshPackageRootPolicyError {
             Self::ConflictComparison(error) => Some(error),
             Self::PolicyComparison(error) => Some(error),
             Self::ReviewRequired(_)
-            | Self::UnresolvedLaterDischarge(_)
             | Self::OpenObligationConflictShapeMismatch(_)
             | Self::OpenObligationConflictSetMismatch(_)
             | Self::AllocationFailed => None,
@@ -163,15 +157,10 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
         &associated_reviews,
     )
     .map_err(FreshPackageRootPolicyError::Reconstruction)?;
-    if obligations
-        .root_open_contract_entailment_obligations()
-        .next()
-        .is_some()
-    {
-        return Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
-            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation,
-        ));
-    }
+    // Psi rejects unproved contracts before issuing checked compilation.
+    // Arithmetic-engine stand-down rows are not unresolved language proofs:
+    // another checked proof route may have established the same guarantee.
+    // Root policy decides trust in disclosed assumptions, not source validity.
     validate_open_obligation_rows(&obligations, &associated_reviews, conflict_limits)?;
 
     // Both projections belong to the same immutable compiler-issued reviews.

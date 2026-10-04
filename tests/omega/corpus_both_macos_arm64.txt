@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.71, "load1_start": 3.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.52, "load1_start": 7.52, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 1630ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -33,6 +33,7 @@ pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-e
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/collections/runtime_shared_array_polynomial_exit built 2652ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
+pass/contracts/named_tail_return_contract built 1356ms exit:70 interpreter-exit:70 interpreter:agrees @43a77116e58+wt
 pass/domains/case_payload_call_restore_exit built 1232ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/domains/case_payload_predicate_domain_member_exit built 1130ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/record_interval_domain_member_exit built 1277ms exit:70 interpreter-exit:70 interpreter:agrees @3b6b4258b4af+wt

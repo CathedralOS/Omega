@@ -1,25 +1,25 @@
-//! This canary pins independently compiled producer/consumer review compilation.
-//! It requires the consumer's by-value `Token` demand to rejoin the producer's
-//! declaration, availability row, and selected application through
-//! `PackagePolicyRepresentation::rejoin_foreign_demands`, called from
-//! `review/candidate/compilation/package_pass.rs`, and rejects a differing
-//! consumer application. `Calling<...>` comes from the real
+//! The consumer's Build selects representations for its combined source
+//! compilation; a producer's historical review selection is not that authority.
+//! Direct checked compilation must reject invalid demands without constructing
+//! package reviews. `Calling<...>` comes from the real
 //! standard library because it creates an actual demand row; a plain boundary
 //! trait does not.
 
-use package_evidence::record::{
-    PackagePolicyRepresentationAgreementError, PackageReviewNominalOwner,
+use build_declarations::DependencyPurpose;
+use compiler::{CheckedCompileRequest, compile_to_checked};
+use package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
+use package_evidence::record::PackageReviewNominalOwner;
 use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
     resolve_external_local_project_closure,
 };
-use package_manager::review::{
-    CompileResolvedPackageReviewsError, SemanticBindingReview, compile_resolved_package_reviews,
-};
+use package_manager::review::{SemanticBindingReview, compile_resolved_package_reviews};
 use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
+use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -64,13 +64,13 @@ impl Drop for Tree {
     }
 }
 
-const PRODUCER_SOURCE: &str = r#"use omega::language::core::representation;
-use omega_language_std::calling;
-
+const PRODUCER_TYPES: &str = r#"use omega::language::core::representation;
 pub boundary data Token;
 pub data Carrier { value: u64; }
 pub TokenRepresentation: Carrier satisfies OpaqueRepresentation<Token>;
+"#;
 
+const CALLING_POLICY_SOURCE: &str = r#"use omega_language_std::calling;
 pub data TransferPolicy { }
 pub TransferPolicyCallingPolicy: TransferPolicy satisfies CallingPolicy;
 
@@ -163,8 +163,7 @@ machine ConsumerProvider::accept(token: Token)
 {
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }
 "#;
 
 const MATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
@@ -190,8 +189,7 @@ machine ConsumerProvider::accept(token: Token)
 {
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }
 "#;
 
 const MISMATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
@@ -208,24 +206,15 @@ fn fixture(
     consumer_source: &str,
     consumer_build: &str,
 ) -> ResolvedPackageSourceClosure {
-    let producer = tree.path("sources/producer");
-    let consumer = tree.path("sources/consumer");
-    fs::create_dir_all(&producer).expect("create producer package");
-    fs::create_dir_all(&consumer).expect("create consumer package");
-    fs::write(producer.join("main.omg"), PRODUCER_SOURCE).expect("write producer source");
-    let standard_library = repository_root().join("source/library/std");
-    fs::write(
-        producer.join("build.omg"),
-        producer_build(&standard_library),
-    )
-    .expect("write producer build");
-
-    fs::write(consumer.join("main.omg"), consumer_source).expect("write consumer source");
-    fs::write(consumer.join("build.omg"), consumer_build).expect("write consumer build");
-
+    write_sources(
+        tree,
+        &format!("{PRODUCER_TYPES}\n{CALLING_POLICY_SOURCE}"),
+        consumer_source,
+        consumer_build,
+    );
     let storage = tree.storage("closure-cache");
     resolve_external_local_project_closure(
-        consumer,
+        tree.path("sources/consumer"),
         ExternalSourceContext::derive(b"opaque-boundary-agreement"),
         &storage,
         LocalSourceLimits::default(),
@@ -235,8 +224,25 @@ fn fixture(
     .expect("resolve producer and consumer package closure")
 }
 
+fn write_sources(tree: &Tree, producer_source: &str, consumer_source: &str, consumer_build: &str) {
+    let producer = tree.path("sources/producer");
+    let consumer = tree.path("sources/consumer");
+    fs::create_dir_all(&producer).expect("create producer package");
+    fs::create_dir_all(&consumer).expect("create consumer package");
+    fs::write(producer.join("main.omg"), producer_source).expect("write producer source");
+    let standard_library = repository_root().join("source/library/std");
+    fs::write(
+        producer.join("build.omg"),
+        producer_build(&standard_library),
+    )
+    .expect("write producer build");
+
+    fs::write(consumer.join("main.omg"), consumer_source).expect("write consumer source");
+    fs::write(consumer.join("build.omg"), consumer_build).expect("write consumer build");
+}
+
 #[test]
-fn independently_compiled_opaque_boundary_agreement_rejoins_foreign_demand() {
+fn package_reviews_retain_foreign_opaque_demand_ownership() {
     let tree = Tree::new();
     let closure = fixture(&tree, CONSUMER_SOURCE, MATCHING_CONSUMER_BUILD);
     let result = compile_resolved_package_reviews(
@@ -298,7 +304,7 @@ fn independently_compiled_opaque_boundary_agreement_rejoins_foreign_demand() {
 }
 
 #[test]
-fn independently_compiled_opaque_boundary_rejects_a_different_consumer_conformance() {
+fn consumer_build_overrides_the_producers_historical_representation_choice() {
     let tree = Tree::new();
     let closure = fixture(
         &tree,
@@ -310,13 +316,131 @@ fn independently_compiled_opaque_boundary_rejects_a_different_consumer_conforman
         &tree.path("mismatching-build"),
         SemanticBindingReview::Discover,
     );
-    assert!(matches!(
-        result,
-        Err(
-            CompileResolvedPackageReviewsError::RepresentationAgreement {
-                error: PackagePolicyRepresentationAgreementError::SelectedApplicationMismatch { .. },
-                ..
-            }
+    let reviews = result.expect("consumer Build owns the combined compilation's representation");
+    let consumer = reviews
+        .reviews()
+        .iter()
+        .find(|review| review.key().name().as_str() == "opaque_consumer")
+        .expect("consumer review");
+    let demands = consumer.policy().representation().demands();
+    assert!(
+        !demands.is_empty(),
+        "the changed application has an actual demand"
+    );
+    assert!(
+        demands
+            .iter()
+            .flat_map(|demand| demand.calling().opaque_uses())
+            .any(
+                |use_| use_.application().declaration().path() == "OtherRepresentation"
+                    && use_.carrier().path() == "OtherCarrier"
+            )
+    );
+}
+
+/// Construct compiler inputs directly, without package resolution, review
+/// reconstruction, or producer-policy agreement. Both packages retain exact
+/// ownership so ordinary declaration admission checks foreign visibility.
+fn check_without_package_review(
+    producer_source: &str,
+    selected: bool,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    let tree = Tree::new();
+    let consumer_identity = PackageKeyIdentity::from_digest([41; 32]).unwrap();
+    let producer_identity = PackageKeyIdentity::from_digest([42; 32]).unwrap();
+    let standard_identity = PackageKeyIdentity::from_digest([43; 32]).unwrap();
+    let selection = if selected {
+        "builder.select_representation<Token, TokenRepresentation>();"
+    } else {
+        ""
+    };
+    let consumer_build = format!(
+        "use producer::main;\nmachine build(builder: &mut Build) {{ Build::package(builder, \"opaque_consumer\"); {selection} }}"
+    );
+    // The Build imports only the foreign type surface. The consumer owns its
+    // calling policy in Product scope, so no second CallingPolicy conformance
+    // is introduced by loading the producer's declarations in Build scope.
+    write_sources(
+        &tree,
+        producer_source,
+        &format!("{CALLING_POLICY_SOURCE}\n{CONSUMER_SOURCE}"),
+        &consumer_build,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        consumer_identity,
+        vec![
+            PackageSourceBinding::new(
+                consumer_identity,
+                "opaque_consumer",
+                tree.path("sources/consumer"),
+            ),
+            PackageSourceBinding::new(
+                producer_identity,
+                "opaque_producer",
+                tree.path("sources/producer"),
+            ),
+            PackageSourceBinding::new(
+                standard_identity,
+                "omega_language_std",
+                repository_root().join("source/library/std"),
+            ),
+        ],
+        vec![
+            PackageDependencyBinding::new(consumer_identity, "producer", producer_identity),
+            PackageDependencyBinding::for_purpose(
+                consumer_identity,
+                "producer",
+                producer_identity,
+                DependencyPurpose::Build,
+            ),
+            PackageDependencyBinding::new(
+                consumer_identity,
+                "omega_language_std",
+                standard_identity,
+            ),
+        ],
+    )
+    .expect("direct checked package inputs");
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        build_dir: Some(tree.path("direct-checked-build")),
+        ..CheckedCompileRequest::new(
+            &tree.path("sources/consumer/main.omg"),
+            Some("windows_x86_64"),
         )
-    ));
+    })
+}
+
+#[test]
+fn checked_foreign_opaque_demand_accepts_a_public_selected_conformance_without_review() {
+    check_without_package_review(PRODUCER_TYPES, true)
+        .expect("public foreign representation checks without package review");
+}
+
+#[test]
+fn checked_foreign_opaque_demand_rejects_missing_selection_without_review() {
+    let diagnostics = check_without_package_review(PRODUCER_TYPES, false)
+        .err()
+        .expect("actual by-value demand requires a consumer selection");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("authoritative build selects no exact")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn checked_foreign_opaque_demand_rejects_a_private_conformance_without_review() {
+    let producer = PRODUCER_TYPES.replace("pub TokenRepresentation:", "TokenRepresentation:");
+    let diagnostics = check_without_package_review(&producer, true)
+        .err()
+        .expect("foreign private conformance cannot authorize a representation");
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("TokenRepresentation")
+        ),
+        "{diagnostics:#?}"
+    );
 }

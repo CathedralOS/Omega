@@ -6,50 +6,71 @@ use super::{
 #[path = "../../fixture_rosters/semantic_failures.rs"]
 mod fixture_roster;
 
-// Existing package_reconstruction_question fixture: ordinary exit checking
-// proves the guarantee through its transparent proposition, but a
-// proposition guarantee stands down from contract entailment and package exit
-// evidence covers only domain memberships and scalar predicates, so the
-// obligation stays open. A bare `min(left, right) >= 1` guarantee now closes
-// by exit evidence.
-const OPEN_CONTRACT: &str = "pub proposition paired(left: u64, right: u64) = min(left, right) >= 1;\n\npub machine unchecked_claim(left: u64, right: u64)\nrequires paired(left, right)\nensures paired(left, right)\n{}\n";
+// The arithmetic engine stands down, but the ordinary proposition checker
+// proves this exact guarantee from the unchanged inputs' entry requirement.
+const PROVED_CONTRACT: &str = "pub proposition paired(left: u64, right: u64) = min(left, right) >= 1;\n\npub machine retain_claim(left: u64, right: u64)\nrequires paired(left, right)\nensures paired(left, right)\n{}\n";
 
 #[test]
 fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
     for transitive in [false, true] {
-        let tree = Tree::new();
-        if transitive {
-            source(
-                &tree,
-                PURE,
-                " Build::depend(builder, Source::Path { location: \"../middle\" });\n",
+        for valid in [true, false] {
+            let tree = Tree::new();
+            let contract = if valid {
+                PROVED_CONTRACT.to_owned()
+            } else {
+                PROVED_CONTRACT.replace("ensures paired(left, right)", "ensures paired(right, 0)")
+            };
+            if transitive {
+                source(
+                    &tree,
+                    PURE,
+                    " Build::depend(builder, Source::Path { location: \"../middle\" });\n",
+                );
+                package(
+                    &tree.path("sources/middle"),
+                    "middle",
+                    " Build::depend(builder, Source::Path { location: \"../leaf\" });\n",
+                );
+                package(&tree.path("sources/leaf"), "unresolved_leaf", "");
+                fs::write(tree.path("sources/leaf/main.omg"), &contract).unwrap();
+            } else {
+                source(&tree, &contract, "");
+            }
+            let closure = resolve(&tree, "open-contract");
+            let owner = if transitive {
+                closure
+                    .custodies()
+                    .iter()
+                    .find(|custody| custody.key().name().as_str() == "unresolved_leaf")
+                    .unwrap()
+                    .key()
+                    .clone()
+            } else {
+                closure.graph().root().clone()
+            };
+            let reviewed = review_package_change(closure, TARGET, None, &tree.path("build"));
+            if valid {
+                reviewed.expect("fresh review consumes the proposition checker's successful proof");
+                continue;
+            }
+            let error = reviewed
+                .err()
+                .expect("an unrelated proposition must reject in checking");
+            let PackageChangeError::Compilation(CompileResolvedPackageReviewsError::Compilation {
+                package,
+                diagnostics,
+            }) = error
+            else {
+                panic!("expected source checking failure: {error:?}");
+            };
+            assert_eq!(package, owner);
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot establish proposition ensure")),
+                "{diagnostics:?}"
             );
-            package(
-                &tree.path("sources/middle"),
-                "middle",
-                " Build::depend(builder, Source::Path { location: \"../leaf\" });\n",
-            );
-            package(&tree.path("sources/leaf"), "unresolved_leaf", "");
-            fs::write(tree.path("sources/leaf/main.omg"), OPEN_CONTRACT).unwrap();
-        } else {
-            source(&tree, OPEN_CONTRACT, "");
         }
-        let closure = resolve(&tree, "open-contract");
-        let owner = if transitive {
-            closure
-                .custodies()
-                .iter()
-                .find(|custody| custody.key().name().as_str() == "unresolved_leaf")
-                .unwrap()
-                .key()
-                .clone()
-        } else {
-            closure.graph().root().clone()
-        };
-        let error = review_package_change(closure, TARGET, None, &tree.path("build")).unwrap_err();
-        assert!(
-            matches!(error, PackageChangeError::UndischargedContract { package, count } if *package == owner && count == 1)
-        );
     }
 }
 

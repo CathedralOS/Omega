@@ -5,6 +5,85 @@ use checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContrac
 use semantic_vocabulary::Proposition;
 
 #[test]
+fn proposition_contracts_use_checked_proof_at_each_checkpoint() {
+    let source = r#"
+        proposition paired(left: u64, right: u64) = min(left, right) >= 1;
+        machine unchecked_claim(left: u64, right: u64)
+        requires paired(left, right)
+        ensures paired(left, right)
+        {}
+    "#;
+    for request in [CheckingRequest::preliminary(), CheckingRequest::settled()] {
+        lower_typed_trees(parse_typed_trees(source), &request)
+            .expect("the unchanged inputs preserve the required proposition at every exit");
+        let invalid = source.replace("ensures paired(left, right)", "ensures paired(right, 0)");
+        let diagnostics = lower_typed_trees(parse_typed_trees(&invalid), &request)
+            .err()
+            .expect("the unrelated proposition has no proof at the normal exit");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot establish proposition ensure")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn named_tail_return_must_establish_the_callers_contract() {
+    let source = r#"
+        machine zero() -> u64
+        ensures result == 0
+        { 0 }
+        machine forward() -> u64
+        ensures result == 0
+        { transition { _ -> zero() } }
+    "#;
+    for request in [CheckingRequest::preliminary(), CheckingRequest::settled()] {
+        lower_typed_trees(parse_typed_trees(source), &request)
+            .expect("the selected callee establishes the caller's return guarantee");
+        let invalid = source.replace(
+            "machine forward() -> u64\n        ensures result == 0",
+            "machine forward() -> u64\n        ensures result == 1",
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&invalid), &request)
+            .err()
+            .expect("a named tail call cannot bypass the caller's return guarantee");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn named_tail_return_preserves_exact_scalar_result_domains() {
+    let source = r#"
+        domain u64::Zero(value) requires value == 0;
+        domain u64::One(value) requires value == 1;
+        machine zero() -> u64 in Zero { 0 }
+        machine forward() -> u64 in Zero { transition { _ -> zero() } }
+    "#;
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("the exact call result supplies its declared domain");
+    let invalid = source.replace(
+        "machine forward() -> u64 in Zero",
+        "machine forward() -> u64 in One",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&invalid), &CheckingRequest::settled())
+        .err()
+        .expect("a different result domain is not supplied by the tail return");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove scalar result domain")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn exit_membership_discharge_requires_every_live_exit_and_exact_commitment() {
     let source = r#"
         domain [u8; 4]::Utf8 requires valid_utf8(self);
