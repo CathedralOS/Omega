@@ -1733,7 +1733,7 @@ pub(super) fn statement_steps(
 ) -> Vec<WindowStep> {
     let mut order = WindowOrder {
         program,
-        state: state.symbol,
+        state,
         statement_index,
         operators,
         remaining: moves
@@ -1825,7 +1825,7 @@ pub(super) fn statement_steps(
 
 struct WindowOrder<'a> {
     program: &'a typed_trees::TypedTrees,
-    state: SymbolHandle,
+    state: &'a typed_trees::state::State,
     statement_index: usize,
     operators: &'a checked_trees::CheckedOperatorFacts,
     remaining: Vec<(usize, &'a crate::flow::DiscoveredMoveEvent)>,
@@ -1857,6 +1857,20 @@ impl WindowOrder<'_> {
         {
             return;
         }
+        // Later guards and payload receivers name the dispatch's saved
+        // result. They neither invoke the producer nor observe its consumed
+        // operands again; its canonical occurrence keeps the ordinary walk.
+        if validation::saved_dispatch_subject(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+        .is_some_and(|(statement, subject)| {
+            statement != self.statement_index || subject != expression
+        }) {
+            return;
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Indexed(indexed) if self.selected_index(expression) => {
                 self.expression(indexed.collection, conditional);
@@ -1872,7 +1886,7 @@ impl WindowOrder<'_> {
                 self.selectors(expression, conditional);
                 if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
                     self.program,
-                    self.state,
+                    self.state.symbol,
                     self.statement_index,
                     expression,
                 ) {
@@ -1979,7 +1993,7 @@ impl WindowOrder<'_> {
                 && usage.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
                 && matches!(usage.origin, checked_trees::CheckedValueOrigin::StateStatement {
                     state_symbol, statement_index, ..
-                } if state_symbol == self.state && statement_index == self.statement_index)
+                } if state_symbol == self.state.symbol && statement_index == self.statement_index)
                 && typed_trees::operator::declaration_by_symbol(
                     self.program,
                     usage.selected_operator_symbol,

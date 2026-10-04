@@ -1,0 +1,25 @@
+data Output { value: u64; }
+data Choice { case Left(value: u64); case Right(value: u64); }
+data Counter { calls: u64 in Wrapping; }
+machine forward(choice: Choice, counter: &mut Counter) -> Choice {
+    counter.calls = counter.calls + 1;
+    choice
+}
+machine make(value: u64) -> Output { Output { value: value } }
+machine choose(choice: Choice, counter: &mut Counter) -> Output {
+    transition forward(choice, counter) {
+        Choice::Left { value } -> make(value)
+        Choice::Right { value } -> make(value)
+    }
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { calls: 0 };
+    let first: Output = choose(Choice::Left { value: 70 }, &mut counter);
+    let second: Output = choose(Choice::Right { value: 71 }, &mut counter);
+    transition first.value == 70 && second.value == 71 && counter.calls == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

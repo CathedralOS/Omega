@@ -111,3 +111,83 @@ fn active_case_rejects_duplicate_payload_move() {
             .contains("linear value `state::Live.receipt` was already transferred")
     }));
 }
+
+const COMPUTED_AFFINE_SUBJECT: &str = r#"
+    data Output { value: u64; }
+    data Choice { case Left(value: u64); case Right(value: u64); }
+    data Counter { calls: u64 in Wrapping; }
+    machine identity(choice: Choice) -> Choice { choice }
+    machine forward(choice: Choice, counter: &mut Counter) -> Choice {
+        counter.calls = counter.calls + 1;
+        choice
+    }
+    machine make(value: u64) -> Output { Output { value: value } }
+    machine again(value: u64, choice: Choice) -> Output { Output { value: value } }
+    machine choose(choice: Choice, counter: &mut Counter) -> Output {
+        BEFORE
+        transition SUBJECT {
+            Choice::Left { value } -> make(value)
+            Choice::Right { value } -> make(value)
+        }
+    }
+"#;
+
+#[test]
+fn computed_dispatch_moves_its_affine_input_once_including_nested_operands() {
+    for subject in [
+        "forward(choice, counter)",
+        "forward(identity(choice), counter)",
+    ] {
+        let checked = checked_program(
+            &COMPUTED_AFFINE_SUBJECT
+                .replace("BEFORE", "")
+                .replace("SUBJECT", subject),
+        );
+        let owner = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "choose")
+            .expect("dispatch owner");
+        let state = &checked.machine_states(owner)[0];
+        let choice = checked.state_parameters(state)[0].symbol;
+        let transfers = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.state_symbol == state.symbol
+                    && event.root == facts::PlaceRoot::Symbol(choice)
+                    && event.kind == language_semantics::PermissionEventKind::Transfer
+            })
+            .count();
+        assert_eq!(transfers, 1, "{subject}");
+    }
+}
+
+#[test]
+fn computed_dispatch_does_not_hide_independent_affine_input_moves() {
+    let source = COMPUTED_AFFINE_SUBJECT.replace("SUBJECT", "forward(choice, counter)");
+    for invalid in [
+        source.replace(
+            "BEFORE",
+            "let independent: Choice = forward(choice, counter);",
+        ),
+        source
+            .replace("BEFORE", "")
+            .replace("make(value)", "again(value, choice)"),
+    ] {
+        let diagnostics = checked_program_result(&invalid)
+            .expect_err("independently evaluated affine moves still consume the input");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("already transferred or consumed")
+                    || diagnostic.message.contains("holds no value")
+            }),
+            "{diagnostics:#?}"
+        );
+    }
+}

@@ -557,6 +557,18 @@ pub(super) fn build(
     // subjects have no disposal debt; do not invent an affine-drop receipt.
     // Parameter-origin carriers and fresh results have different provenance.
     let needs_discard = program.type_multiplicity(type_reference) == Multiplicity::Affine;
+    // Source exit rows describe entry custody. An ordinary preceding call
+    // can already own a whole parameter's disposal, including the call that
+    // produces this dispatch subject. Projected moves leave their debt here.
+    let consumed_parameters = operations
+        .iter()
+        .flat_map(|operation| operation.call_structural_arguments())
+        .filter(|argument| {
+            argument.access == CheckedStructuralAccess::Owned && argument.path.is_empty()
+        })
+        .filter_map(|argument| argument.source_parameter_index())
+        .collect::<Vec<_>>();
+    let mut consumed_drops = Vec::new();
     let mut found = false;
     for (_, event) in facts
         .flow
@@ -571,12 +583,30 @@ pub(super) fn build(
         })
     {
         if !dispatch.is_symbol_root(event.root) {
-            if program
+            if let Some(source_position) = program
                 .state_parameters(state)
                 .iter()
-                .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
+                .position(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
             {
-                return None;
+                let (index, parameter) = structural
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.position as usize == source_position)?;
+                let index = u32::try_from(index).ok()?;
+                if !consumed_parameters.contains(&index)
+                    || parameter.access != CheckedStructuralAccess::Owned
+                    || parameter.multiplicity != Multiplicity::Affine
+                    || event.access != PermissionAccess::Owned
+                    || event.multiplicity != Multiplicity::Affine
+                    || event.claim_identity != PermissionClaimIdentity::Unknown
+                    || event.provenance != language_semantics::PermissionProvenance::Unknown
+                    || event.obligation_live
+                    || !event.segments.is_empty()
+                    || consumed_drops.contains(&index)
+                {
+                    return None;
+                }
+                consumed_drops.push(index);
             }
             continue;
         }
