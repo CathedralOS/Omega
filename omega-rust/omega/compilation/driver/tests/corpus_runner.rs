@@ -452,10 +452,11 @@ fn execute_fixture(
         return vec!["exit:unrunnable".to_owned()];
     };
     let mut stdout = child.stdout.take().expect("piped stdout");
-    let reader = std::thread::spawn(move || {
+    let (output_sender, output_receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
         let mut bytes = Vec::new();
         let _ = std::io::Read::read_to_end(&mut stdout, &mut bytes);
-        bytes
+        let _ = output_sender.send(bytes);
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     let mut facts = Vec::new();
@@ -477,12 +478,27 @@ fn execute_fixture(
             }
             _ => {
                 let _ = child.kill();
-                let _ = child.wait();
+                // A host whose crash reporter stops answering leaves a trapped
+                // child in uninterruptible exit, where neither the kill nor
+                // `wait` ever completes. Waiting without a bound pinned this
+                // worker's in-flight slot, and once every slot held such a
+                // child the whole native leg stopped making progress. Give
+                // the kill a short grace, then abandon the child unreaped.
+                let grace = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while std::time::Instant::now() < grace
+                    && !matches!(child.try_wait(), Ok(Some(_)))
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
                 break "exit:timeout".to_owned();
             }
         }
     };
-    let output = reader.join().unwrap_or_default();
+    // An abandoned child may hold its stdout open forever; its output is lost
+    // with it rather than blocking this worker on the reader.
+    let output = output_receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .unwrap_or_default();
     let _ = fs::remove_dir_all(&work);
     facts.insert(0, exit);
     if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
