@@ -2064,7 +2064,7 @@ fn validate_operand_producers(
                 && validation::is_closed_primitive_array_type(&checked.typed, construction_type);
             let whole_owned_contents = copied_array
                 || result.multiplicity != Multiplicity::Linear
-                    && validation::has_cleanup_owned_contents(
+                    && validation::has_structural_construction_contents(
                         &checked.typed,
                         construction_type,
                     )
