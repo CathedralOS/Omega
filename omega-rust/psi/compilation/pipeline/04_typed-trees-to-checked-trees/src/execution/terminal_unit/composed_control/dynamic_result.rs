@@ -61,8 +61,9 @@ pub(crate) fn build(
             structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
         if !structural.is_empty()
             || !scalar.is_empty()
-            || !super::topology::only_implicit_reference_self_is_omitted(
+            || !super::topology::only_implicit_data_binding_is_omitted(
                 program,
+                machine,
                 state,
                 &structural,
                 &scalar,

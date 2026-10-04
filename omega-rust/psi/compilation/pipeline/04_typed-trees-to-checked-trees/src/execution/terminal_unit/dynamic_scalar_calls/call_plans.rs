@@ -20,7 +20,7 @@ use super::realization_bodies::checked_call_service_reach;
 use super::realization_callables::{
     checked_dynamic_realization_callables, dynamic_family_realization, dynamic_family_tuple,
 };
-use super::receivers::{DynamicReceiverPlace, dynamic_receiver_place, statement_receiver_place};
+use super::receivers::dispatch_subject_place;
 use super::result_lanes::DynamicResultLane;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, structural_access_for_type_reference, terminal_field_identity,
@@ -49,13 +49,6 @@ pub(super) struct AuthoredCall<'program> {
     /// no static requirement dispatch, quotient or private layout request, and
     /// no `_ =` discard.
     pub(super) ordinary_route: bool,
-    receiver: AuthoredReceiver<'program>,
-}
-
-#[derive(Clone, Copy)]
-enum AuthoredReceiver<'program> {
-    Expression(typed_trees::expression::ExpressionHandle),
-    Statement(&'program typed_trees::statement::TableCall),
 }
 
 impl<'program> AuthoredCall<'program> {
@@ -71,7 +64,6 @@ impl<'program> AuthoredCall<'program> {
                     .len(),
                 evidence_free: call.evidence_arguments.is_empty(),
                 ordinary_route: call.static_requirement_dispatch.is_none() && !call.discards_result,
-                receiver: AuthoredReceiver::Statement(call),
             }),
             CallSite::Expression { call, .. } => Some(Self {
                 target_symbol: call.target_symbol,
@@ -83,17 +75,8 @@ impl<'program> AuthoredCall<'program> {
                     .len(),
                 evidence_free: call.evidence_arguments.is_empty(),
                 ordinary_route: call.selects_only_nominal_route(),
-                receiver: AuthoredReceiver::Expression(call.receiver),
             }),
             CallSite::TransitionNamed { .. } => None,
-        }
-    }
-
-    /// The place the call dispatches through.
-    fn receiver_place(&self, program: &TypedTrees) -> Option<DynamicReceiverPlace> {
-        match self.receiver {
-            AuthoredReceiver::Expression(receiver) => dynamic_receiver_place(program, receiver),
-            AuthoredReceiver::Statement(call) => statement_receiver_place(program, call),
         }
     }
 }
@@ -218,7 +201,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
                 .last()
                 .map(|transfer| transfer.parameter)
                 .unwrap_or(forwarded.transfer.parameter);
-            if parameter.is_self || parameter.is_const || parameter.symbol != forwarded_parameter {
+            if parameter.is_const || parameter.symbol != forwarded_parameter {
                 return None;
             }
             forwarded_parameter_type = Some(parameter.type_reference);
@@ -229,7 +212,12 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
                     statement_index: u32::try_from(forwarded.flow_call.statement_index).ok()?,
                     call_ordinal: u32::try_from(forwarded.flow_call.call_ordinal).ok()?,
                 },
-                parameter: forwarded.flow_call.receiver_symbol,
+                parameter: dispatch_subject_place(
+                    program,
+                    &forwarded.call_site,
+                    forwarded.flow_call.target_symbol,
+                )?
+                .leaf,
             };
             let selection_name = forwarded.transfer.sole_selection()?.binding_name.clone();
             forwarding_transfers = forwarded.prior_transfers;
@@ -244,14 +232,18 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
             )
         }
         None => {
-            let (selection_binding, selection_name) = stored
-                .map(|storage| {
-                    (
-                        storage.selection.binding,
-                        storage.selection.binding_name.clone(),
-                    )
-                })
-                .unwrap_or((flow_call.receiver_symbol, Identifier::default()));
+            let (selection_binding, selection_name) = match stored {
+                Some(storage) => (
+                    storage.selection.binding,
+                    storage.selection.binding_name.clone(),
+                ),
+                // A directly dispatched descriptor names its selection
+                // through the subject operand itself.
+                None => (
+                    dispatch_subject_place(program, &call_site, flow_call.target_symbol)?.leaf,
+                    Identifier::default(),
+                ),
+            };
             (
                 state,
                 flow_call,
@@ -265,40 +257,41 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
     let dispatch_call = AuthoredCall::of(program, &dispatch_site)?;
     if coordinate.call_ordinal != 0
         || dispatch_flow_call.call_ordinal != 0
-        || !dispatch_flow_call.has_receiver
-        || !dispatch_flow_call.receiver_symbol.is_valid()
         || !dispatch_flow_call.target_symbol.is_valid()
         || dispatch_call.target_symbol != dispatch_flow_call.target_symbol
         || !dispatch_call.ordinary_route
-        || dispatch_call.argument_count != 0
         || !dispatch_call.evidence_free
     {
         return None;
     }
 
-    let receiver_place = dispatch_call.receiver_place(program)?;
-    let receiver_name = receiver_place.path.last()?;
+    // The descriptor travels in the requirement's subject operand. The
+    // qualifier a trait-qualified call carries names the trait, so the flow
+    // fact's receiver symbol describes the qualifier rather than storage and
+    // cannot identify the dispatched place.
+    let subject_place =
+        dispatch_subject_place(program, &dispatch_site, dispatch_flow_call.target_symbol)?;
+    let subject_name = subject_place.path.last()?;
     let expected_selection_name = if selection_name.as_str().is_empty() {
-        receiver_name
+        subject_name
     } else {
         &selection_name
     };
     match stored {
         Some(storage) => {
-            if receiver_place.root != storage.destination_binding
-                || (receiver_place.leaf.is_valid()
-                    && receiver_place.leaf != storage.destination_field)
-                || receiver_place.path != storage.destination_path
-                || storage.destination_field != dispatch_flow_call.receiver_symbol
+            if subject_place.root != storage.destination_binding
+                || (subject_place.leaf.is_valid()
+                    && subject_place.leaf != storage.destination_field)
+                || subject_place.path != storage.destination_path
                 || storage.selection.binding != selection_binding
             {
                 return None;
             }
         }
         None => {
-            if receiver_place.path.len() != 1
-                || receiver_place.leaf != dispatch_flow_call.receiver_symbol
-                || receiver_place.root != receiver_place.leaf
+            if subject_place.path.len() != 1
+                || !subject_place.leaf.is_valid()
+                || subject_place.root != subject_place.leaf
             {
                 return None;
             }
@@ -343,7 +336,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
     let selected_conformance = selection.conformance.filter(|symbol| symbol.is_valid())?;
 
     let (source_parameter_position, caller_parameter_access, source_access) =
-        checked_source_argument(program, facts, state, statements, &selection)?;
+        checked_source_argument(program, facts, machine, state, statements, &selection)?;
     // The final helper's parameter lends the descriptor with the selection's
     // own access.
     if forwarded_parameter_type.is_some_and(|type_reference| {
@@ -360,7 +353,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
     let caller_attachment_type_identity =
         shapes.add_attached_data(attachment, &machine_binders(program, machine))?;
     let (source_field, source_path, source_type_identity) =
-        checked_self_attachment_source(program, machine, &selection)?;
+        checked_attachment_source(program, machine, state, &selection)?;
     let source_definition = sole(
         program
             .data_definitions()
@@ -427,14 +420,16 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
             .iter()
             .filter(|requirement| requirement.symbol == row.requirement),
     )?;
-    let [requirement_self] = program.state_signature_parameters(requirement) else {
+    // The requirement's subject is the one parameter whose type names `Self`,
+    // and it is the only operand this lane describes.
+    let [requirement_subject] = program.state_signature_parameters(requirement) else {
         return None;
     };
     if program.trait_requirement_callable_identity_text(declaring_trait, requirement)
         != row.requirement_identity
         || !lane.returns(program, requirement.return_type)
-        || !requirement_self.is_self
-        || structural_access_for_type_reference(program, requirement_self.type_reference)
+        || program.dynamic_subject_position(requirement) != Ok(0)
+        || structural_access_for_type_reference(program, requirement_subject.type_reference)
             != Some(source_access)
     {
         return None;
@@ -485,14 +480,14 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
             row.realization_identity.clone(),
             &family_tuple,
         )?;
-    let [realization_self] = program.state_parameters(realization_state) else {
+    let [realization_subject] = program.state_parameters(realization_state) else {
         return None;
     };
     if realization_machine.supply_mode != MachineSupplyMode::CheckedBody
         || realization_machine.attached_data_symbol != selection.source_data
         || !lane.returns(program, realization_state.return_type)
-        || !realization_self.is_self
-        || structural_access_for_type_reference(program, realization_self.type_reference)
+        || !program.parameter_declares_attached_data(realization_machine, realization_subject)
+        || structural_access_for_type_reference(program, realization_subject.type_reference)
             != Some(source_access)
     {
         return None;
@@ -661,7 +656,7 @@ fn checked_rebound_dynamic_selection(
         return None;
     }
     let (initial_position, initial_caller_access, initial_source_access) =
-        checked_source_argument(program, facts, state, statements, initial)?;
+        checked_source_argument(program, facts, machine, state, statements, initial)?;
     if initial_position != source_parameter_position
         || initial_caller_access != caller_parameter_access
         || initial_source_access != source_access
@@ -669,7 +664,7 @@ fn checked_rebound_dynamic_selection(
         return None;
     }
     let (source_field, source_path, initial_source_type_identity) =
-        checked_self_attachment_source(program, machine, initial)?;
+        checked_attachment_source(program, machine, state, initial)?;
     if initial_source_type_identity != source_type_identity {
         return None;
     }
@@ -684,21 +679,17 @@ fn checked_rebound_dynamic_selection(
 fn checked_source_argument(
     program: &TypedTrees,
     facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     selection: &checked_trees::DynamicConformanceBindingFact,
 ) -> Option<(u32, CheckedStructuralAccess, CheckedStructuralAccess)> {
-    let self_parameters = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self)
-        .collect::<Vec<_>>();
-    let [(source_parameter_position, self_parameter)] = self_parameters.as_slice() else {
-        return None;
-    };
-    let source_parameter_position = u32::try_from(*source_parameter_position).ok()?;
-    let root_access = structural_access_for_type_reference(program, self_parameter.type_reference)?;
+    let parameters = program.state_parameters(state);
+    let source_parameter_position =
+        program.data_binding_position(machine.attached_data_symbol, parameters)?;
+    let data_binding = parameters.get(source_parameter_position)?;
+    let source_parameter_position = u32::try_from(source_parameter_position).ok()?;
+    let root_access = structural_access_for_type_reference(program, data_binding.type_reference)?;
     if !matches!(
         root_access,
         CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
@@ -781,7 +772,7 @@ fn checked_source_argument(
         selection.statement_index,
         cast.value,
     )?;
-    if source_place.root != facts::PlaceRoot::Symbol(self_parameter.symbol)
+    if source_place.root != facts::PlaceRoot::Symbol(data_binding.symbol)
         || source_place.segments
             != [facts::PlaceSegment::Field {
                 symbol: selection.source_symbol,
@@ -793,15 +784,19 @@ fn checked_source_argument(
     Some((source_parameter_position, root_access, cast_access))
 }
 
-fn checked_self_attachment_source(
+fn checked_attachment_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     selection: &checked_trees::DynamicConformanceBindingFact,
 ) -> Option<(SymbolHandle, Vec<CheckedUnitStructuralPathSegment>, String)> {
-    let [self_name, field_name] = selection.source_path.as_slice() else {
+    // The selected descriptor's source is one field of this state's own data
+    // binding, named by that binding: `main.item`, not a retired receiver
+    // keyword.
+    let [binding_name, field_name] = selection.source_path.as_slice() else {
         return None;
     };
-    if !self_name.is_self_receiver()
+    if binding_name != program.state_data_binding(machine, state)?
         || field_name != &selection.source_name
         || !machine.attached_data_symbol.is_valid()
         || !selection.source_symbol.is_valid()

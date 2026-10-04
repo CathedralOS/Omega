@@ -42,28 +42,27 @@ pub(crate) fn dynamic_receiver_place(
     }
 }
 
-/// A statement call's receiver: its authored name path, rooted at the
-/// storage it names.
-pub(crate) fn statement_receiver_place(
+/// The place one dynamic dispatch reads its descriptor from: the operand at
+/// the dispatched requirement's subject position.
+///
+/// A requirement names its subject as an ordinary parameter, so the authored
+/// call supplies the descriptor as that position's argument
+/// (`Shape::code(erased)`). The qualifier a trait-qualified call carries names
+/// the trait, not storage, so the subject is located by POSITION in the
+/// requirement -- the same rule `dynamic_subject_position` states for the
+/// surface itself. Only the subject operand is supported: a requirement with
+/// further parameters supplies no descriptor place here.
+pub(crate) fn dispatch_subject_place(
     program: &TypedTrees,
-    call: &typed_trees::statement::TableCall,
+    call_site: &crate::semantic::calls::CallSite<'_>,
+    target_symbol: SymbolHandle,
 ) -> Option<DynamicReceiverPlace> {
-    let path = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .to_vec();
-    if path.is_empty() {
+    let (_, _, position) = program.dynamic_requirement_subject(target_symbol)?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
+    if arguments.len() != position.checked_add(1)? {
         return None;
     }
-    Some(DynamicReceiverPlace {
-        root: if call.receiver_root_symbol.is_valid() {
-            call.receiver_root_symbol
-        } else {
-            call.receiver_symbol
-        },
-        leaf: call.receiver_symbol,
-        path,
-    })
+    dynamic_receiver_place(program, *arguments.get(position)?)
 }
 
 pub(crate) fn stored_dynamic_receiver<'facts>(
@@ -73,11 +72,9 @@ pub(crate) fn stored_dynamic_receiver<'facts>(
     state: SymbolHandle,
     statement_index: usize,
     call_site: &crate::semantic::calls::CallSite<'_>,
+    target_symbol: SymbolHandle,
 ) -> Option<&'facts checked_trees::DynamicDescriptorStorageFact> {
-    let crate::semantic::calls::CallSite::Expression { call, .. } = call_site else {
-        return None;
-    };
-    let place = dynamic_receiver_place(program, call.receiver)?;
+    let place = dispatch_subject_place(program, call_site, target_symbol)?;
     facts.dynamic_conformances.stored_receiver(
         machine,
         state,
@@ -85,29 +82,4 @@ pub(crate) fn stored_dynamic_receiver<'facts>(
         &place.path,
         statement_index,
     )
-}
-
-pub(crate) fn local_receiver_symbol(
-    program: &TypedTrees,
-    call_site: &crate::semantic::calls::CallSite<'_>,
-) -> Option<SymbolHandle> {
-    match call_site {
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
-            else {
-                return None;
-            };
-            let [_name] = program.expression_table.name_path_members(path.members) else {
-                return None;
-            };
-            Some(path.symbol)
-        }
-        crate::semantic::calls::CallSite::Statement(call) => {
-            let [_name] = program.statement_table.name_path_members(call.receiver) else {
-                return None;
-            };
-            Some(call.receiver_symbol)
-        }
-        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
-    }
 }

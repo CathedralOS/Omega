@@ -30,7 +30,7 @@ use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 use call_plans::build_checked_dynamic_call;
 use descriptor_transfers::build_checked_dynamic_descriptor_transfers;
 use forwarded_calls::build_checked_forwarded_dynamic_calls;
-use receivers::{local_receiver_symbol, stored_dynamic_receiver};
+use receivers::{dispatch_subject_place, stored_dynamic_receiver};
 use result_lanes::{ScalarResultLane, UnitResultLane};
 
 pub(super) fn build_checked_dynamic_dispatch_plans(
@@ -60,7 +60,8 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                 ) else {
                     continue;
                 };
-                let receiver_symbol = local_receiver_symbol(program, &call_site);
+                let subject_place =
+                    dispatch_subject_place(program, &call_site, flow_call.target_symbol);
                 let stored_receiver = stored_dynamic_receiver(
                     program,
                     facts,
@@ -68,15 +69,22 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                     state.symbol,
                     flow_call.statement_index,
                     &call_site,
+                    flow_call.target_symbol,
                 );
-                let is_direct_dynamic_receiver = receiver_symbol.is_some_and(|receiver_symbol| {
-                    binding_facts.selections.iter().any(|selection| {
-                        selection.machine == machine.symbol
-                            && selection.state == state.symbol
-                            && selection.statement_index < flow_call.statement_index
-                            && selection.binding == receiver_symbol
-                    })
-                });
+                // A directly dispatched descriptor is the subject operand of a
+                // local selection earlier in this state.
+                let is_direct_dynamic_receiver =
+                    subject_place
+                        .as_ref()
+                        .is_some_and(|place| match place.path.as_slice() {
+                            [_single] => binding_facts.selections.iter().any(|selection| {
+                                selection.machine == machine.symbol
+                                    && selection.state == state.symbol
+                                    && selection.statement_index < flow_call.statement_index
+                                    && selection.binding == place.leaf
+                            }),
+                            _ => false,
+                        });
                 if !is_direct_dynamic_receiver && stored_receiver.is_none() {
                     continue;
                 }

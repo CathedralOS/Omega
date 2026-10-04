@@ -120,7 +120,7 @@ pub(crate) fn checked_realization_scalar_body(
         });
     }
 
-    let return_expression = checked_direct_self_field_return(
+    let return_expression = checked_direct_data_binding_field_return(
         program,
         realization_machine,
         realization_state,
@@ -142,25 +142,19 @@ fn checked_realization_structural_scalar_field_store_plan(
     statement_index: usize,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<(checked_trees::CheckedStructuralScalarFieldStorePlan, String)> {
-    let self_parameters = program
-        .state_parameters(realization_state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self)
-        .collect::<Vec<_>>();
-    let [(self_position, self_parameter)] = self_parameters.as_slice() else {
-        return None;
-    };
+    let parameters = program.state_parameters(realization_state);
+    let data_binding_position =
+        program.data_binding_position(realization_machine.attached_data_symbol, parameters)?;
+    let data_binding = parameters.get(data_binding_position)?;
     let TypeReferenceNode::Reference { access, .. } = program
         .type_reference_table
-        .type_reference(self_parameter.type_reference)
+        .type_reference(data_binding.type_reference)
     else {
         return None;
     };
-    if self_parameter.is_const
-        || !self_parameter.is_mutable
+    if data_binding.is_const
+        || !data_binding.is_mutable
         || *access != language_semantics::ReferenceAccess::Mutable
-        || !realization_machine.attached_data_symbol.is_valid()
     {
         return None;
     }
@@ -171,7 +165,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         statement_index,
         assignment.target,
     )?;
-    if destination.root != facts::PlaceRoot::Symbol(self_parameter.symbol) {
+    if destination.root != facts::PlaceRoot::Symbol(data_binding.symbol) {
         return None;
     }
 
@@ -269,7 +263,7 @@ fn checked_realization_structural_scalar_field_store_plan(
         checked_trees::CheckedStructuralScalarFieldStorePlan {
             statement_index: u32::try_from(statement_index).ok()?,
             destination: checked_trees::CheckedStoreRoot::Parameter {
-                position: u32::try_from(*self_position).ok()?,
+                position: u32::try_from(data_binding_position).ok()?,
             },
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
@@ -280,7 +274,7 @@ fn checked_realization_structural_scalar_field_store_plan(
     ))
 }
 
-fn checked_direct_self_field_return(
+fn checked_direct_data_binding_field_return(
     program: &TypedTrees,
     realization_machine: &typed_trees::machine::Machine,
     realization_state: &typed_trees::state::State,
@@ -288,18 +282,10 @@ fn checked_direct_self_field_return(
     expression: typed_trees::expression::ExpressionHandle,
     result_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    let self_parameters = program
-        .state_parameters(realization_state)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self)
-        .collect::<Vec<_>>();
-    let [(self_position, self_parameter)] = self_parameters.as_slice() else {
-        return None;
-    };
-    if !realization_machine.attached_data_symbol.is_valid() {
-        return None;
-    }
+    let parameters = program.state_parameters(realization_state);
+    let data_binding_position =
+        program.data_binding_position(realization_machine.attached_data_symbol, parameters)?;
+    let data_binding = parameters.get(data_binding_position)?;
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         realization_state.symbol,
@@ -314,7 +300,7 @@ fn checked_direct_self_field_return(
     else {
         return None;
     };
-    if place.root != facts::PlaceRoot::Symbol(self_parameter.symbol) || !field_symbol.is_valid() {
+    if place.root != facts::PlaceRoot::Symbol(data_binding.symbol) || !field_symbol.is_valid() {
         return None;
     }
     let attachment = program
@@ -343,7 +329,7 @@ fn checked_direct_self_field_return(
     {
         return None;
     }
-    let parameter_position = u32::try_from(*self_position).ok()?;
+    let parameter_position = u32::try_from(data_binding_position).ok()?;
     let path = vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
         terminal_field_identity(program, field.symbol)?,
     )];

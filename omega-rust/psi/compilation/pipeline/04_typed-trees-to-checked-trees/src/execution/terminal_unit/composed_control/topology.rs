@@ -7,8 +7,15 @@ use super::super::{
 
 use crate::execution::terminal_unit::is_reference;
 
-pub(super) fn only_implicit_reference_self_is_omitted(
+/// Every state parameter is either planned as a structural or scalar input,
+/// erased, or the borrowed data binding the attachment supplies implicitly.
+///
+/// The implicit position is the one the machine's attached data declares; the
+/// retired `self` flag no longer marks it, so the binding is recognized by the
+/// data it names.
+pub(super) fn only_implicit_data_binding_is_omitted(
     program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
     scalar: &[CheckedStructuralScalarParameterPlan],
@@ -24,7 +31,8 @@ pub(super) fn only_implicit_reference_self_is_omitted(
                 || scalar
                     .iter()
                     .any(|candidate| candidate.source_position as usize == position)
-                || (parameter.is_self && is_reference(program, parameter.type_reference))
+                || (program.parameter_declares_attached_data(machine, parameter)
+                    && is_reference(program, parameter.type_reference))
                 || parameter.relevance.is_erased()
         })
 }

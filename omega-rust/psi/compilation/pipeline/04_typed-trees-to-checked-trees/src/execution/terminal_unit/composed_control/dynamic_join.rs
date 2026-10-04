@@ -124,20 +124,23 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
         || !false_structural.is_empty()
         || !true_scalar.is_empty()
         || !false_scalar.is_empty()
-        || !topology::only_implicit_reference_self_is_omitted(
+        || !topology::only_implicit_data_binding_is_omitted(
             program,
+            machine,
             entry,
             &entry_structural,
             &scalar_parameters,
         )
-        || !topology::only_implicit_reference_self_is_omitted(
+        || !topology::only_implicit_data_binding_is_omitted(
             program,
+            machine,
             when_true_state,
             &true_structural,
             &true_scalar,
         )
-        || !topology::only_implicit_reference_self_is_omitted(
+        || !topology::only_implicit_data_binding_is_omitted(
             program,
+            machine,
             when_false_state,
             &false_structural,
             &false_scalar,

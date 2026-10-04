@@ -46,7 +46,7 @@ pub(super) fn checked_dynamic_realization_callables(
             .machine_states(row_realization_machine)
             .iter()
             .find(|candidate| candidate.symbol == closed.realization_state)?;
-        let [requirement_self] = program.state_signature_parameters(requirement) else {
+        let [requirement_subject] = program.state_signature_parameters(requirement) else {
             return None;
         };
         let result_type = if is_unit(program, requirement.return_type) {
@@ -58,8 +58,8 @@ pub(super) fn checked_dynamic_realization_callables(
             }
             Some(primitive)
         };
-        if !requirement_self.is_self
-            || structural_access_for_type_reference(program, requirement_self.type_reference)
+        if program.dynamic_subject_position(requirement) != Ok(0)
+            || structural_access_for_type_reference(program, requirement_subject.type_reference)
                 != Some(source_access)
             || row_realization_machine.supply_mode != MachineSupplyMode::CheckedBody
             || row_realization_machine.attached_data_symbol != selection.source_data
@@ -78,11 +78,11 @@ pub(super) fn checked_dynamic_realization_callables(
                     row_realization_identity.clone(),
                     &family_tuple,
                 )?;
-            let [realization_self] = program.state_parameters(realization_state) else {
+            let [realization_subject] = program.state_parameters(realization_state) else {
                 return None;
             };
-            if !realization_self.is_self
-                || structural_access_for_type_reference(program, realization_self.type_reference)
+            if !program.parameter_declares_attached_data(realization_machine, realization_subject)
+                || structural_access_for_type_reference(program, realization_subject.type_reference)
                     != Some(source_access)
                 || realization_machine.supply_mode != MachineSupplyMode::CheckedBody
                 || realization_machine.attached_data_symbol != selection.source_data

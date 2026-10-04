@@ -56,26 +56,7 @@ impl TypedTrees {
         }
 
         let parameters = self.state_signature_parameters(requirement);
-        // The subject reaches a dynamic surface under either spelling. `self`
-        // set `is_self` and meant "my type is Self"; a static requirement says
-        // the same thing in its parameter type, as
-        // `machine code(shape: &Self) -> i32` does. So the receiver is the one
-        // parameter whose type names `Self`, found by POSITION rather than by
-        // the retired flag -- which keeps the `Self`-outside-receiver check
-        // below exact instead of letting it re-match the subject itself.
-        let receiver_positions = parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| {
-                parameter.is_self || type_reference_contains_self(self, parameter.type_reference)
-            })
-            .map(|(position, _)| position)
-            .collect::<Vec<_>>();
-        let receiver_position = match receiver_positions.as_slice() {
-            [position] => *position,
-            [] => return Err(DynamicSignatureIneligibility::MissingBorrowedReceiver),
-            _ => return Err(DynamicSignatureIneligibility::MultipleReceivers),
-        };
+        let receiver_position = self.dynamic_subject_position(requirement)?;
         let receiver = &parameters[receiver_position];
         if !is_reference_to_self(self, receiver.type_reference) {
             return Err(DynamicSignatureIneligibility::ByValueReceiver);
@@ -94,6 +75,58 @@ impl TypedTrees {
             return Err(DynamicSignatureIneligibility::SelfResult);
         }
         Ok(())
+    }
+
+    /// The position of `requirement`'s dynamic subject: the one parameter
+    /// whose type names `Self`.
+    ///
+    /// The subject reaches a dynamic surface under either spelling. `self`
+    /// set `is_self` and meant "my type is Self"; a static requirement says
+    /// the same thing in its parameter type, as
+    /// `machine code(shape: &Self) -> i32` does. So the subject is found by
+    /// POSITION rather than by the retired flag -- which keeps the
+    /// `Self`-outside-receiver check exact instead of letting it re-match the
+    /// subject itself, and gives every dynamic-dispatch owner the one
+    /// answer to "which operand carries the descriptor".
+    pub fn dynamic_subject_position(
+        &self,
+        requirement: &StateSignature,
+    ) -> Result<usize, DynamicSignatureIneligibility> {
+        let mut positions = self
+            .state_signature_parameters(requirement)
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                parameter.is_self || type_reference_contains_self(self, parameter.type_reference)
+            })
+            .map(|(position, _)| position);
+        let Some(position) = positions.next() else {
+            return Err(DynamicSignatureIneligibility::MissingBorrowedReceiver);
+        };
+        if positions.next().is_some() {
+            return Err(DynamicSignatureIneligibility::MultipleReceivers);
+        }
+        Ok(position)
+    }
+
+    /// The trait requirement `symbol` names, with its dynamic subject
+    /// position: what a call site holding only a target symbol needs to find
+    /// which operand carries the descriptor.
+    pub fn dynamic_requirement_subject(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(&TraitDefinition, &StateSignature, usize)> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        self.traits().iter().find_map(|definition| {
+            let requirement = self
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|candidate| candidate.symbol == symbol)?;
+            let position = self.dynamic_subject_position(requirement).ok()?;
+            Some((definition, requirement, position))
+        })
     }
 
     /// Requirements that survive the currently implemented signature-only

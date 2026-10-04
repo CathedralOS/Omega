@@ -455,7 +455,7 @@ fn checked_caller_structural_scalar_field_store_plan(
     else {
         return None;
     };
-    if !destination_parameter.is_self
+    if !program.parameter_declares_attached_data(caller.machine, destination_parameter)
         || destination_parameter.is_const
         || !destination_parameter.is_mutable
         || *access != language_semantics::ReferenceAccess::Mutable
