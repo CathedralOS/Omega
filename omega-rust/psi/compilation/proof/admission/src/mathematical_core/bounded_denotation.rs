@@ -158,8 +158,8 @@ use semantic_vocabulary::{
 };
 
 use super::certificate::{
-    MathematicalCertificate, certificate_assumption_closure, run_on_verification_stack,
-    verify_mathematical_certificate_on_current_thread,
+    MathematicalCertificate, certificate_assumption_closure_on_current_thread,
+    run_on_verification_stack, verify_mathematical_certificate_on_current_thread,
 };
 use super::conversion::Budget;
 use super::scheme_dsl::{self, Syntax};
@@ -219,14 +219,24 @@ impl BoundedDenotation {
     /// call — after `verify_bounded_certificate` that includes the
     /// kernel's working terms, which is the checking cost the board asks
     /// to be measured. The closure is computed over the stored signature
-    /// by [`certificate_assumption_closure`], never by watching what
+    /// by [`super::certificate::certificate_assumption_closure`], never by watching what
     /// conversion unfolded.
     pub fn receipt(&self) -> MathematicalJudgmentReceipt {
+        run_on_verification_stack(|| self.receipt_on_current_thread())
+    }
+
+    /// Collect the same receipt inside an already-reserved verification stack.
+    /// Admission calls this after elaboration and kernel checking have returned:
+    /// their recursive frames are gone, so assumption traversal can reuse the
+    /// full reservation. Public receipt collection still reserves its own stack;
+    /// certificate size and producer identity never decide stack safety.
+    pub(crate) fn receipt_on_current_thread(&self) -> MathematicalJudgmentReceipt {
         let saturating = |count: usize| u32::try_from(count).unwrap_or(u32::MAX);
         MathematicalJudgmentReceipt {
             declarations: saturating(self.certificate.signature.len()),
             assumption_closure: saturating(
-                certificate_assumption_closure(&self.arena, &self.certificate).len(),
+                certificate_assumption_closure_on_current_thread(&self.arena, &self.certificate)
+                    .len(),
             ),
             context_depth: saturating(self.certificate.context.len()),
             arena_slots: saturating(self.arena.len()),

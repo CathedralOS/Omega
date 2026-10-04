@@ -337,7 +337,12 @@ fn re_decide_in_mathematical_core(
         proof,
         &mut Budget::default(),
     ) {
-        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(denoted.receipt())),
+        // Admission reserved the stack before the bounded traversal. Kernel
+        // recursion has returned; collect the exact closure on that same
+        // stack instead of spawning a second worker per accepted certificate.
+        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(
+            denoted.receipt_on_current_thread(),
+        )),
         Err(BoundedDenotationError::Unsupported(family)) => {
             Ok(MathematicalCoreDecision::Refused(family))
         }
@@ -548,6 +553,106 @@ mod tests {
         IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment,
     };
     use semantic_vocabulary::PropositionId;
+
+    fn transport_certificate() -> (PropositionContext, Vec<Proposition>, ProofNode) {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let scalar_type = ScalarType::Integer(integer);
+        let source = ValueId::new(1).expect("source");
+        let destination = ValueId::new(2).expect("destination");
+        let context = PropositionContext::from_value_types([
+            (source, scalar_type),
+            (destination, scalar_type),
+        ])
+        .expect("context");
+        let source = ScalarTerm::value(source, scalar_type);
+        let destination = ScalarTerm::value(destination, scalar_type);
+        let ceiling = ScalarTerm::integer(integer, IntegerValue::Signed(100)).expect("ceiling");
+        let axioms = vec![
+            Proposition::LessOrEqual(source.clone(), ceiling.clone()),
+            Proposition::Equal(destination.clone(), source),
+        ];
+        let proof = ProofNode {
+            conclusion: Proposition::LessOrEqual(destination, ceiling),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: axioms[0].clone(),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                equalities: vec![ProofNode {
+                    conclusion: axioms[1].clone(),
+                    rule: ProofRule::SemanticAxiom { index: 1 },
+                }],
+            },
+        };
+        (context, axioms, proof)
+    }
+
+    #[test]
+    fn certificate_receipt_reuses_admission_verification_stack() {
+        super::run_on_verification_stack(|| {
+            let (context, axioms, proof) = transport_certificate();
+            let before = crate::mathematical_core::verification_workers_started();
+            let accepted = super::accept_certificate_on_current_thread(
+                &context,
+                &proof.conclusion,
+                &[],
+                &axioms,
+                &BTreeSet::new(),
+                &proof,
+            )
+            .expect("transport certificate");
+            assert_eq!(accepted.semantic_axioms.len(), 2);
+            assert!(matches!(
+                accepted.mathematical_core,
+                super::MathematicalCoreDecision::Judged(_)
+            ));
+            assert_eq!(
+                crate::mathematical_core::verification_workers_started(),
+                before,
+                "receipt traversal already owns the admission stack"
+            );
+        });
+    }
+
+    #[test]
+    fn standalone_certificate_receipt_reserves_stack_and_matches_admission() {
+        let (context, axioms, proof) = transport_certificate();
+        let accepted = accept_certificate(&context, &proof.conclusion, &[], &axioms, &proof)
+            .expect("transport certificate");
+        let denoted = crate::verify_bounded_certificate(
+            &context,
+            &proof.conclusion,
+            &[],
+            &axioms,
+            &proof,
+            &mut crate::Budget::default(),
+        )
+        .expect("independent denotation and kernel check");
+        let before = crate::mathematical_core::verification_workers_started();
+        let receipt = denoted.receipt();
+        assert_eq!(
+            crate::mathematical_core::verification_workers_started(),
+            before + 1
+        );
+        assert_eq!(
+            accepted.mathematical_core,
+            super::MathematicalCoreDecision::Judged(receipt)
+        );
+    }
+
+    #[test]
+    #[ignore = "manual certificate admission timing; cargo test -- --ignored --nocapture"]
+    fn measure_repeated_transport_certificate_admission() {
+        let (context, axioms, proof) = transport_certificate();
+        let started = std::time::Instant::now();
+        for _ in 0..1000 {
+            let accepted = accept_certificate(&context, &proof.conclusion, &[], &axioms, &proof)
+                .expect("transport certificate");
+            std::hint::black_box(accepted);
+        }
+        eprintln!("1000 transport admissions: {:?}", started.elapsed());
+    }
 
     #[test]
     fn existing_assumption_rule_checks_fixed_carrier_normalization_to_math() {
