@@ -593,11 +593,11 @@ invokes
         create: false,
         create_new: true,
     };
-    Filesystem::encode_open_options(&mut filesystem);
+    Filesystem::encode_open_options(filesystem);
     let fd: i32 = filesystem.host.open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
     state ok(filesystem: &mut Filesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, fd); OpenResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
 // Open an existing file for reading. The selected target format supplies its
@@ -649,11 +649,11 @@ invokes
         create: false,
         create_new: false,
     };
-    Filesystem::encode_open_options(&mut filesystem);
+    Filesystem::encode_open_options(filesystem);
     let fd: i32 = filesystem.host.open(path, filesystem.open_flags);
     transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
     state ok(filesystem: &mut Filesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, fd); OpenResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
 // Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
@@ -743,7 +743,7 @@ invokes
         create: true,
         create_new: false,
     };
-    Filesystem::encode_open_options(&mut filesystem);
+    Filesystem::encode_open_options(filesystem);
     let fd: i32 = filesystem.host.open_create(path, filesystem.open_flags, 438);
     let n: i64 = filesystem.host.write(fd, bytes);
     let rc: i32 = filesystem.host.close(fd);
@@ -752,8 +752,8 @@ invokes
     state err(filesystem: &mut Filesystem, fd: i32, n: i64) -> UnitResult {
         transition fd < 0 { true -> open_err(filesystem, fd) _ -> write_err(filesystem, n) }
     }
-    state open_err(filesystem: &mut Filesystem, fd: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, fd); UnitResult::Error { kind: kind } }
-    state write_err(filesystem: &mut Filesystem, n: i64) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut filesystem, n); UnitResult::Error { kind: kind } }
+    state open_err(filesystem: &mut Filesystem, fd: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); UnitResult::Error { kind: kind } }
+    state write_err(filesystem: &mut Filesystem, n: i64) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i64(filesystem, n); UnitResult::Error { kind: kind } }
 }
 
 // Read a whole file into `buffer` in one shot (Rust `std::fs::read`): open the
@@ -777,7 +777,7 @@ invokes
         create: false,
         create_new: false,
     };
-    Filesystem::encode_open_options(&mut filesystem);
+    Filesystem::encode_open_options(filesystem);
     filesystem.read_flags = filesystem.open_flags;
     let fd: i32 = filesystem.host.open(path, filesystem.read_flags);
     let n: i64 = filesystem.host.read(fd, buffer, count);
@@ -790,8 +790,8 @@ invokes
     state err(filesystem: &mut Filesystem, fd: i32, n: i64) -> IoResult {
         transition fd < 0 { true -> open_err(filesystem, fd) _ -> read_err(filesystem, n) }
     }
-    state open_err(filesystem: &mut Filesystem, fd: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, fd); IoResult::Error { kind: kind } }
-    state read_err(filesystem: &mut Filesystem, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut filesystem, n); IoResult::Error { kind: kind } }
+    state open_err(filesystem: &mut Filesystem, fd: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); IoResult::Error { kind: kind } }
+    state read_err(filesystem: &mut Filesystem, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
 }
 
 // Copy the contents of `from` to `to` (Rust `std::fs::copy`), returning the
@@ -948,8 +948,8 @@ invokes
 {
     let rc: i32 = filesystem.host.read_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
-    state decode(filesystem: &mut Filesystem) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(&mut filesystem); MetadataResult::Ok { meta: m } }
-    state err(filesystem: &mut Filesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, rc); MetadataResult::Error { kind: kind } }
+    state decode(filesystem: &mut Filesystem) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state err(filesystem: &mut Filesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
 
 // Rust `fs::symlink_metadata` — metadata of the path ITSELF, not following a
@@ -1093,7 +1093,7 @@ invokes
     FilesystemHost;
 {
     filesystem.dir_mode = 493;
-    transition { _ -> Filesystem::mkall_walk(&mut filesystem, path, 1) }
+    transition { _ -> Filesystem::mkall_walk(filesystem, path, 1) }
 }
 
 // Climbing-index walk: at each position create the ancestor prefix (via the
@@ -1516,6 +1516,6 @@ invokes
     filesystem.file_fd = file.fd;
     let rc: i32 = filesystem.host.read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
-    state decode(filesystem: &mut Filesystem) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(&mut filesystem); MetadataResult::Ok { meta: m } }
-    state err(filesystem: &mut Filesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut filesystem, rc); MetadataResult::Error { kind: kind } }
+    state decode(filesystem: &mut Filesystem) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state err(filesystem: &mut Filesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
