@@ -30,7 +30,6 @@ pub(super) fn plan(
         proof_terms,
         source_bindings,
         binding_symbols,
-        statement_index,
         ..
     } = planner;
     if let TransitionGuardNode::When(authored_guard) = transition.guard

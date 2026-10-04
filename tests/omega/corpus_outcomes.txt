@@ -1470,6 +1470,7 @@ pass/calls/runtime_option_value_call_exit checked 1531ms @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms @2d8ed253669f
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms @2d8ed253669f
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms @2d8ed253669f
+pass/calls/runtime_qualified_terminal_result_exit checked 418ms @4655ab8ed512
 pass/calls/runtime_reference_returned_slice_element_write_exit checked 3431ms @8b265e4e6ad8+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 1841ms @ca8c127c90c5
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms @2d8ed253669f
