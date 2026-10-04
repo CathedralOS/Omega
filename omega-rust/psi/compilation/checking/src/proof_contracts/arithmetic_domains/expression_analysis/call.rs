@@ -1,12 +1,11 @@
 //! Call results: the bound a call's value brings to enclosing arithmetic.
 //!
-//! Sources are tried from the most specific to the least: a named float
-//! operation's policy, a named operator's declared carrier, a resolved static
-//! machine's carrier, a selected constant call's result bounds, `min`/`max`
-//! over their operands, a declared or ensured return range, and finally a
-//! return interval inferred from the callee's body. A call none of them
-//! describes stays neutral. Whichever source bounds the value, a callee's
-//! declared result policy (`-> u32 in Wrapping`) is the call's domain.
+//! Builtin and declared operators supply their own result semantics. Ordinary
+//! calls intersect independent declared, selected-constant and ensured bounds;
+//! one guarantee must not hide another. Body inference is optional when no
+//! contract supplies a bound. Even an unknown value retains its declared
+//! carrier and policy.
+//! Unknown values are not untyped values, regardless of the call's receiver.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
@@ -18,7 +17,7 @@ use crate::proof_contracts::arithmetic_domains::return_ranges::{
 };
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, TableCallExpression, TypedTrees,
-    call_result_bounds, call_return_type, range_constraint_interval,
+    call_return_type, range_constraint_interval,
 };
 use symbols::BuiltinFunction;
 
@@ -56,13 +55,21 @@ pub(super) fn analyze(
         return result;
     }
     let analysis = named_operator_result(walk.program, call)
-        .or_else(|| resolved_static_integer_call(walk, call))
-        .or_else(|| selected_const_call_result(walk, expression))
         .or_else(|| bounding_builtin_result(walk, call))
-        .or_else(|| declared_return_range(walk, call))
-        .or_else(|| inferred_return_range(walk, call))
-        .unwrap_or(NEUTRAL);
-    with_declared_result_policy(walk.program, call, analysis)
+        .unwrap_or_else(|| {
+            match (
+                selected_const_call_result(walk, expression),
+                declared_return_range(walk, call),
+            ) {
+                (Some(selected), Some(declared)) => Analysis {
+                    interval: selected.interval.intersect(declared.interval),
+                    ..selected
+                },
+                (Some(analysis), None) | (None, Some(analysis)) => analysis,
+                (None, None) => inferred_return_range(walk, call).unwrap_or(NEUTRAL),
+            }
+        });
+    with_declared_result_carrier(walk.program, call, analysis)
 }
 
 /// Decision 17 is operand-driven: a call whose callee declares a qualified
@@ -71,28 +78,32 @@ pub(super) fn analyze(
 /// sources above only bound the value; without this a receiver method's
 /// Wrapping result read as Exact whenever its body defeated inference, and the
 /// overflow diagnostic then asked for the annotation already present. An
-/// Exact result keeps the neutral domain it had.
-fn with_declared_result_policy(
+/// Exact result keeps the neutral domain it had, but not a missing carrier:
+/// the declared type bounds an unknown value for ordinary and receiver calls
+/// alike. Otherwise an unbounded call could evade its enclosing operation's
+/// formation checks merely because it failed the static-call recognizer.
+fn with_declared_result_carrier(
     program: &TypedTrees,
     call: &TableCallExpression,
     analysis: Analysis,
 ) -> Analysis {
-    if analysis.domain.is_some() {
-        return analysis;
-    }
     let Some(return_type) = call_return_type(program, call) else {
         return analysis;
     };
     let domain = program.arithmetic_domain_for_type_reference(return_type);
-    if domain == ArithmeticDomain::Exact {
-        return analysis;
-    }
+    let primitive = analysis
+        .primitive
+        .or_else(|| program.primitive_type_reference(return_type));
     Analysis {
-        domain: Some(domain),
-        primitive: analysis
-            .primitive
-            .or_else(|| program.primitive_type_reference(return_type)),
-        ..analysis
+        domain: analysis
+            .domain
+            .or((domain != ArithmeticDomain::Exact).then_some(domain)),
+        primitive,
+        interval: primitive
+            .and_then(primitive_range)
+            .map_or(analysis.interval, |carrier| {
+                analysis.interval.intersect(carrier)
+            }),
     }
 }
 
@@ -159,66 +170,6 @@ fn named_operator_result(program: &TypedTrees, call: &TableCallExpression) -> Op
     })
 }
 
-/// A resolved monomorphic call without a self operand has its declared carrier
-/// and policy even when no body or result-contract range is available. Unknown
-/// values are not untyped values: their full carrier range still constrains
-/// later operations. An attached static call retains its exact Data receiver
-/// symbol, not a runtime place whose state or aliasing must be inferred.
-fn resolved_static_integer_call(
-    walk: &ExpressionWalk,
-    call: &TableCallExpression,
-) -> Option<Analysis> {
-    let program = walk.program;
-    if !call.target_symbol.is_valid()
-        || !call.machine_arguments.is_empty()
-        || !call.selects_only_nominal_route()
-    {
-        return None;
-    }
-    let mut targets = program.machines().iter().filter_map(|machine| {
-        let state = program.machine_states(machine).first()?;
-        (state.symbol == call.target_symbol).then_some((machine, state))
-    });
-    let (machine, state) = targets.next()?;
-    if targets.next().is_some()
-        || !program.machine_type_parameters(machine).is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self)
-    {
-        return None;
-    }
-    if call.receiver.is_valid()
-        && !matches!(
-            program.expression_table.expression(call.receiver),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && path.symbol == machine.attached_data_symbol
-                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Data
-        )
-    {
-        return None;
-    }
-    let primitive = program.primitive_type_reference(state.return_type)?;
-    let carrier_range = primitive_range(primitive)?;
-    let declared = range_constraint_interval(program, state.return_type)
-        .map(|declared| declared.intersect(carrier_range))
-        .unwrap_or(carrier_range);
-    Some(Analysis {
-        domain: Some(program.arithmetic_domain_for_type_reference(state.return_type)),
-        interval: call_result_bounds::normal_return_interval(
-            program,
-            machine,
-            state,
-            declared,
-            &exact_ordinary_actual_intervals(walk, call).unwrap_or_default(),
-        ),
-        primitive: Some(primitive),
-    })
-}
-
 fn selected_const_call_result(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
@@ -247,12 +198,10 @@ fn selected_const_call_result(
 /// S4: the `min`/`max` builtins bound their result by their operands' intervals
 /// (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a clamped value can feed
 /// exact arithmetic instead of poisoning the enclosing op. Reserved-builtin
-/// name + a free (receiverless) call + exactly two arguments. Each operand is
-/// analyzed into a THROWAWAY diagnostic buffer and its interval is trusted ONLY
-/// if it proves clean -- the bound then rests on sound operand ranges, while an
-/// unproven operand's diagnostics are dropped (call arguments are not otherwise
-/// overflow-checked today, so this stays strictly permissive: it can only
-/// tighten a previously-unbounded call result, never add a rejection).
+/// name + a free (receiverless) call + exactly two arguments. The caller checks
+/// all arguments before result inference. This query independently requires
+/// clean operand analyses before using their intervals, without duplicating
+/// the diagnostics already emitted by that common argument walk.
 fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
     let builtin = BuiltinFunction::from_name(call.target.as_str());
     if call.receiver.is_valid()
@@ -294,11 +243,9 @@ fn bounding_builtin_result(walk: &ExpressionWalk, call: &TableCallExpression) ->
 /// range constraint (`-> i32 [0..=10]`) is ENFORCED to return within that range
 /// (validate_return_value_range), so a caller doing exact arithmetic on the
 /// result can rely on the narrowed interval instead of being forced into a
-/// domain. Narrow ONLY when the return type carries a range constraint -- a
-/// plain `-> u32` stays NEUTRAL (opaque/unbounded, as before); attaching a bare
-/// type's full range + primitive to an otherwise-unbounded call result would
-/// turn a previously-unchecked expression into a spurious overflow. A callee's
-/// `ensures result <= K` is the same enforced guarantee.
+/// domain. This owner supplies narrower declared/ensured bounds; the common
+/// result-carrier step retains the full type range when no tighter fact exists.
+/// A callee's `ensures result <= K` is the same enforced guarantee.
 fn declared_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
     let program = walk.program;
     let return_type = call_return_type(program, call)?;

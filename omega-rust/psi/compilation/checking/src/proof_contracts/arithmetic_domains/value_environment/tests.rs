@@ -103,7 +103,7 @@ fn unknown_writes_retain_only_existing_immutable_scalar_snapshots() {
         environment.ordered_values.push(Relation {
             left: ceiling.clone(),
             right: Operand::parameter(parameter),
-            floor: 1,
+            constraint: super::super::ordered_values::RelationConstraint::MinimumDifference(1),
         });
     }
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -120,7 +120,7 @@ fn unknown_writes_retain_only_existing_immutable_scalar_snapshots() {
                 fields: Vec::new(),
                 path: local.name.as_str().to_owned(),
             },
-            floor: 1,
+            constraint: super::super::ordered_values::RelationConstraint::MinimumDifference(1),
         });
     }
     // Matching display text cannot authorize an absent declaration or a field
@@ -138,7 +138,7 @@ fn unknown_writes_retain_only_existing_immutable_scalar_snapshots() {
                 fields,
                 path: "input".to_owned(),
             },
-            floor: 1,
+            constraint: super::super::ordered_values::RelationConstraint::MinimumDifference(1),
         });
     }
 

@@ -146,8 +146,9 @@ pub use ranking_range::{
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
 pub use scoped_arithmetic::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue, scoped_arithmetic_implication,
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
+    ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
+    scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
     scoped_arithmetic_values_relation,
 };
 pub(crate) use specification_calls::validate_specification_call_requirements;

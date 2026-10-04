@@ -77,6 +77,18 @@ fn value(
     }
     Some(match source {
         ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => source.clone(),
+        ScopedArithmeticValue::IntegerOperation {
+            operator,
+            left,
+            right,
+        } => {
+            let next_depth = depth.checked_sub(1)?;
+            ScopedArithmeticValue::IntegerOperation {
+                operator: *operator,
+                left: Box::new(value(left, substitutions, remaining, next_depth)?),
+                right: Box::new(value(right, substitutions, remaining, next_depth)?),
+            }
+        }
         ScopedArithmeticValue::Term(term) => {
             ScopedArithmeticValue::Term(expression(term, substitutions, remaining, depth)?)
         }

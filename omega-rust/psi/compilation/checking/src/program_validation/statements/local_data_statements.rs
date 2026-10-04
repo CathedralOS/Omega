@@ -200,9 +200,8 @@ pub(super) fn validate(
                 diagnostics,
             )
         });
-    // A cleanly-analyzed initializer whose value cannot fit the declared
-    // local type is a silent narrowing (`let x: i8 = 300`).
-    if local_data.initial_value.is_valid() && diagnostics.len() == before {
+    // Keep the declared carrier check independent of arithmetic failures.
+    if local_data.initial_value.is_valid() {
         let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
             program,
             machine,
@@ -220,6 +219,8 @@ pub(super) fn validate(
             &owner,
             diagnostics,
         );
+    }
+    if local_data.initial_value.is_valid() && diagnostics.len() == before {
         // Containment against a declared Exact `[a..=b]`: literal
         // initializers refuse through the proof plan, but a
         // NON-LITERAL initializer's interval was never checked --

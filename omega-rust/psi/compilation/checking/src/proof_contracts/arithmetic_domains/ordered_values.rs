@@ -46,11 +46,34 @@ pub(super) enum Operand {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+/// A relation between admitted fixed-integer observations. Every producer,
+/// including projected case facts, must establish integer carrier meaning
+/// before publication: a strict integer order has a gap of at least one,
+/// whereas the same real or floating-point order does not.
+#[derive(Clone, Debug)]
 pub(super) struct Relation {
     pub(super) left: Operand,
     pub(super) right: Operand,
-    pub(super) floor: i64,
+    pub(super) constraint: RelationConstraint,
+}
+
+impl PartialEq for Relation {
+    fn eq(&self, other: &Self) -> bool {
+        self.constraint == other.constraint
+            && ((self.left == other.left && self.right == other.right)
+                || (self.constraint == RelationConstraint::Unequal
+                    && self.left == other.right
+                    && self.right == other.left))
+    }
+}
+
+/// Inequality is not an ordering: a signed value unequal to zero may be on
+/// either side of it. Both facts share operand identity, edge transport and
+/// mutation lifetime, but only a minimum difference grants an ordered bound.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum RelationConstraint {
+    MinimumDifference(i64),
+    Unequal,
 }
 
 impl Operand {
@@ -229,6 +252,13 @@ impl Operand {
 }
 
 impl Relation {
+    pub(super) fn minimum_difference(&self) -> Option<i64> {
+        match self.constraint {
+            RelationConstraint::MinimumDifference(floor) => Some(floor),
+            RelationConstraint::Unequal => None,
+        }
+    }
+
     pub(super) fn survives_byte_store(&self, written: &[String], collection: &Operand) -> bool {
         self.left
             .survives_preserving_length(written, Some(collection))
@@ -251,7 +281,7 @@ impl Relation {
                     .map(move |right| Self {
                         left: left.clone(),
                         right,
-                        floor: self.floor,
+                        constraint: self.constraint,
                     })
             })
             .collect()
@@ -530,6 +560,10 @@ pub(super) fn record(
     comparison: &typed_trees::expression::TableBinaryExpression,
     positive: bool,
 ) {
+    let unequal = matches!(
+        (comparison.operator, positive),
+        (BinaryOperator::NotEqual, true) | (BinaryOperator::Equal, false)
+    );
     let (left, right, strict, equal) = match (comparison.operator, positive) {
         (BinaryOperator::GreaterOrEqual, true) | (BinaryOperator::Less, false) => {
             (comparison.left, comparison.right, false, false)
@@ -546,6 +580,9 @@ pub(super) fn record(
         (BinaryOperator::Equal, true) | (BinaryOperator::NotEqual, false) => {
             (comparison.left, comparison.right, false, true)
         }
+        (BinaryOperator::NotEqual, true) | (BinaryOperator::Equal, false) => {
+            (comparison.left, comparison.right, false, false)
+        }
         _ => return,
     };
     let left_meaning = integer_meaning(program, machine, state, left);
@@ -561,6 +598,23 @@ pub(super) fn record(
     // can still be an ordered operand if it lies in the fixed-integer window.
     // Retain its anonymous identity: this does not stamp a guessed width.
     if !bounded_integer(left, left_meaning) || !bounded_integer(right, right_meaning) {
+        return;
+    }
+    if unequal {
+        let (Some(left), Some(right)) = (
+            operand(program, machine, state, left),
+            operand(program, machine, state, right),
+        ) else {
+            return;
+        };
+        let relation = Relation {
+            left,
+            right,
+            constraint: RelationConstraint::Unequal,
+        };
+        if !environment.ordered_values.contains(&relation) {
+            environment.ordered_values.push(relation);
+        }
         return;
     }
     // Builtin integer equality contributes both non-strict orders. Keep them
@@ -592,7 +646,7 @@ pub(super) fn record(
             let relation = Relation {
                 left: ceiling,
                 right: value.clone(),
-                floor: i64::from(strict),
+                constraint: RelationConstraint::MinimumDifference(i64::from(strict)),
             };
             if !environment.ordered_values.contains(&relation) {
                 environment.ordered_values.push(relation);
@@ -658,8 +712,56 @@ pub(super) fn subtract_floor(
         .ordered_values
         .iter()
         .filter(|relation| relation.left == left && relation.right == right)
-        .map(|relation| relation.floor)
+        .filter_map(Relation::minimum_difference)
         .max()
+}
+
+/// Query a live comparison without widening an unequal value into an interval
+/// that includes the excluded point. No source guard is replayed here: joins,
+/// edge substitution and writes already determined which relations survive.
+pub(super) fn excludes_integer_value(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    value: i64,
+) -> bool {
+    if environment.ordered_values.is_empty() {
+        return false;
+    }
+    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression)) else {
+        return false;
+    };
+    environment.ordered_values.iter().any(|relation| {
+        for (candidate, opposite, subject_is_left) in [
+            (&relation.left, &relation.right, true),
+            (&relation.right, &relation.left, false),
+        ] {
+            if *candidate != subject {
+                continue;
+            }
+            let Operand::Integer(literal, _) = opposite else {
+                continue;
+            };
+            let Some(constant) = literal.value_i64() else {
+                continue;
+            };
+            let excludes = match relation.constraint {
+                RelationConstraint::Unequal => constant == value,
+                RelationConstraint::MinimumDifference(floor) if subject_is_left => {
+                    i128::from(constant) + i128::from(floor) > i128::from(value)
+                }
+                RelationConstraint::MinimumDifference(floor) => {
+                    i128::from(constant) - i128::from(floor) < i128::from(value)
+                }
+            };
+            if excludes {
+                return true;
+            }
+        }
+        false
+    })
 }
 
 /// A live bound `ceiling - value >= distance` proves that an unsigned
@@ -782,10 +884,13 @@ fn composed_ceiling_gap(
     for _ in 1..operands.len() {
         let mut improved = false;
         for relation in relations {
+            let Some(floor) = relation.minimum_difference() else {
+                continue;
+            };
             let Some(gap) = known_gap(&dist, &relation.right) else {
                 continue;
             };
-            let gap = gap.saturating_add(relation.floor);
+            let gap = gap.saturating_add(floor);
             match dist.iter_mut().find(|(known, _)| **known == relation.left) {
                 Some((_, known)) if *known >= gap => {}
                 Some((_, known)) => {

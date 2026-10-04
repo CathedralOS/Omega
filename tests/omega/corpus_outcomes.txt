@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 9.97, "load1_start": 9.97, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.53, "load1_start": 6.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -26,6 +26,8 @@ fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed
 	construction of `Slot` field `index`: value 9999 is outside its declared range `0..=15`
 fail/arithmetic/divide_by_zero_rejected rejected 168ms expected @2d8ed253669f
 	anonymous division by zero has no exact numeric value
+fail/arithmetic/exact_divisor_unproven rejected 121ms expected @d9720a4fa49b+wt
+	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero and the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_integer_cast_unproven rejected 263ms expected @2d8ed253669f
 	Exact integer cast in machine `narrow` state `entry` cast expression from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `narrow` state `entry` terminal expression from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
@@ -33,6 +35,8 @@ fail/arithmetic/exact_integer_cast_unproven rejected 263ms expected @2d8ed253669
 	Exact integer cast in machine `wrapped_then_cross_signed` state `entry` terminal expression from `i8` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/exact_overflow_value_call_hint rejected 286ms expected @2d8ed253669f
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`).
+fail/arithmetic/exact_remainder_signed_pair_unproven rejected 129ms expected @d9720a4fa49b+wt
+	partial exact remainder in machine `remainder` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_shift_count_unproven rejected 244ms expected @2d8ed253669f
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/exact_shift_left_value_unproven rejected 261ms expected @2d8ed253669f
@@ -41,18 +45,20 @@ fail/arithmetic/float_to_int_exact_unproven rejected 118ms expected @c08960bee2b
 	machine `Main::main` state `main` cannot prove Exact float-to-`i32` cast operand `main.value` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
 	float-to-int cast in machine `Main::main` state `main` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
 	float-to-int cast in machine `Main::main` state `main` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
-fail/arithmetic/float_to_int_wrapping_rejected rejected 244ms expected @2d8ed253669f
+fail/arithmetic/float_to_int_wrapping_rejected rejected 129ms expected @d9720a4fa49b+wt
 	machine `Main::main` state `main` casts a float to `i32` in `Wrapping`, but floats have no modular conversion semantics; use an Exact cast with a proven finite/in-range operand, `in Saturating`, or `in Trapping`
 	implicit domain weakening in machine `Main::main` state `main` assignment drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	float-to-int cast `in Wrapping` in machine `Main::main` state `main` assignment: there is no modular reading of a float (ch5 cast ruling). Use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range) instead.
+	store in machine `Main::main` state `main` assignment implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/fractional_integer_landing rejected 250ms expected @2d8ed253669f
 	anonymous value `7/2` is not an integer and cannot land in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 146ms expected @c08960bee2b1+wt
+fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 127ms expected @d9720a4fa49b+wt
 	state `roll` expects 1 argument(s), got 0
+	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `roll(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/implicit_store_conversion_rejected rejected 216ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -85,8 +91,9 @@ fail/arithmetic/unknown_field_write_rejected rejected 249ms expected @2d8ed25366
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/unqualified_case_value_rejected rejected 39ms expected @2d8ed253669f
 	case value `On` requires its carrier-qualified `Type::On` path
-fail/arithmetic/wrapping_target_plain_operands_rejected rejected 300ms expected @2d8ed253669f
+fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected @d9720a4fa49b+wt
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
+	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8ed253669f
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/arithmetic/zii_range_excludes_zero_rejected rejected 81ms expected @3a2d2f7aa797+wt
@@ -985,12 +992,12 @@ fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
 fail/recast/field_precondition_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
 	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/field_precondition_invalidated_before_capture rejected 81ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
-	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/field_precondition_invalidated_before_capture rejected 123ms expected @d9720a4fa49b+wt
+	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/incoming_offset_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
 	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/incoming_offset_invalidated_before_capture rejected 87ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
-	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/incoming_offset_invalidated_before_capture rejected 132ms expected @d9720a4fa49b+wt
+	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_slice_exclusive_backing_read rejected 168ms expected @57fc72937714+wt
@@ -1236,6 +1243,7 @@ pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms @2d8ed253669f
 pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms @2d8ed253669f
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms @2d8ed253669f
 pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1304ms @2d8ed253669f
+pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 973ms @d9720a4fa49b+wt
 pass/arithmetic/runtime_float_nan_comparison_exit checked 4994ms @2d8ed253669f
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 4254ms @2d8ed253669f
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 1292ms @2d8ed253669f
