@@ -3,15 +3,15 @@
 //!
 //! Ordinary value arms are one state's own result routes; ordinary named edges
 //! compose the selected state or called machine's relation through the authored
-//! arguments exactly like call-frame instantiation. The reachable named subgraph must be finite:
-//! a cycle keeps the result relation explicitly opaque instead of solving
+//! arguments exactly like call-frame instantiation. The reachable named subgraph
+//! must be finite: a cycle keeps the result relation explicitly opaque instead of solving
 //! leaves against a truncated depth-first walk.
 
 use super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver,
     reference_leaves_with_origins,
 };
-use super::stored_origins::{StoredLocalOrigins, canonical_reference_origins};
+use super::stored_origins::canonical_reference_origins;
 use super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, Machine, StatementNode,
     TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees, machine_state_by_symbol,
@@ -136,7 +136,7 @@ pub(super) fn call_result_origins(
 /// boundary type. `complete` memoizes computed states so a shared acyclic
 /// target is not re-derived for every incoming edge.
 #[allow(clippy::too_many_arguments)]
-fn state_result_origins<'program>(
+pub(super) fn state_result_origins<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
     state: &'program State,
@@ -349,61 +349,143 @@ fn merge_result_arm(
         for local in &context.stored {
             inference.record_local(local);
         }
-        let returned = reference_leaves_with_origins(
-            program,
-            machine,
-            result,
-            expected_result,
-            "",
-            symbols,
-            inference,
-            include_shared,
-            &|expression, reference, implicit_borrow, inference| {
-                if include_shared {
-                    super::reference_subjects::value_origin(
+        let returned = if super::type_reference_is_reference(program, expected_result) {
+            // A whole reference exports provenance before its caller supplies
+            // generic/Self bindings. The actual-reference resolver owns storage
+            // eligibility; aggregate leaf extraction below still requires its
+            // concrete referent boundary before exporting embedded references.
+            reference_result_relation(
+                program,
+                machine,
+                state,
+                boundary_index,
+                result,
+                symbols,
+                inference,
+            )?
+        } else {
+            reference_leaves_with_origins(
+                program,
+                machine,
+                result,
+                expected_result,
+                "",
+                symbols,
+                inference,
+                include_shared,
+                &|expression, reference, implicit_borrow, inference| {
+                    if include_shared {
+                        super::reference_subjects::value_origin(
+                            program,
+                            machine,
+                            expression,
+                            symbols,
+                            inference,
+                            &context.aliases,
+                            &context.stored,
+                            implicit_borrow,
+                        )
+                        .or_else(|| {
+                            super::reference_subjects::unknown_readonly_origin(
+                                program, reference, "",
+                            )
+                        })
+                        .map(|origin| vec![origin])
+                    } else {
+                        super::reference_origins::exclusive_reference_origins(
+                            program, machine, expression, symbols, inference,
+                        )
+                    }
+                },
+                &|expression, reference, _| {
+                    super::stored_origins::reference_leaves_before_statement_for_query(
                         program,
-                        machine,
+                        state,
+                        boundary,
                         expression,
-                        symbols,
-                        inference,
-                        &context.aliases,
-                        &context.stored,
-                        implicit_borrow,
+                        reference,
+                        Some(&context.stored),
+                        None,
+                        include_shared,
                     )
-                    .or_else(|| {
-                        super::reference_subjects::unknown_readonly_origin(program, reference, "")
-                    })
-                    .map(|origin| vec![origin])
-                } else {
-                    super::reference_origins::exclusive_reference_origins(
-                        program, machine, expression, symbols, inference,
-                    )
-                }
-            },
-            &|expression, reference, _| {
-                super::stored_origins::reference_leaves_before_statement_for_query(
-                    program,
-                    state,
-                    boundary,
-                    expression,
-                    reference,
-                    Some(&context.stored),
-                    None,
-                    include_shared,
-                )
-            },
-        )?;
+                },
+            )?
+        };
         merge_relative_origins(
             program,
             machine,
             state,
             boundary_index,
             returned,
-            &context.aliases,
-            &context.stored,
+            context,
             relative,
             include_shared,
         )
+    })
+}
+
+/// Adapt the already-collected prefix to the existing parameter-relative
+/// expression resolver. Local declaration symbols authenticate alias identity;
+/// the prefix supplies the referents after all preceding writes and rebinds.
+#[allow(clippy::too_many_arguments)]
+fn reference_result_relation(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    boundary_index: usize,
+    result: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<AggregateOrigins> {
+    use super::parameter_aliases::ParameterRelativeFrameOrigin;
+
+    let parameters = program.state_parameters(state);
+    let mut aliases = Vec::new();
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..boundary_index)?
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if !super::type_reference_is_reference(program, local.type_reference) {
+            continue;
+        }
+        let declared = FramePlaceOrigin {
+            path: local.name.as_str().to_owned(),
+            precision: FramePathPrecision::Exact,
+            source: super::FrameSourcePlace {
+                root: local.symbol,
+                builtin_coordinates: true,
+                ..Default::default()
+            },
+        };
+        // Preserve the declaration until the result merge crosses the
+        // captured alias exactly once. Resolving here would turn a captured
+        // reference into a fresh read of a subsequently replaced carrier slot.
+        aliases.push((
+            local.name.as_str().to_owned(),
+            local.symbol,
+            vec![ParameterRelativeFrameOrigin {
+                place: declared,
+                parameter_symbol: SymbolHandle::invalid(),
+            }],
+        ));
+    }
+    let origins = super::parameter_relative_origins::parameter_relative_place_or_carrier_origins(
+        program, machine, result, parameters, &aliases, symbols, inference,
+    )?;
+    Some(AggregateOrigins {
+        references: origins
+            .into_iter()
+            .map(|origin| ReferenceLeaf {
+                local_suffix: String::new(),
+                local_segments: Vec::new(),
+                origin: Some(origin.place),
+            })
+            .collect(),
+        ..Default::default()
     })
 }
 
@@ -418,8 +500,7 @@ fn merge_relative_origins(
     state: &State,
     boundary_index: usize,
     returned: AggregateOrigins,
-    aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredLocalOrigins],
+    context: &CollectedStatementPrefix,
     relative: &mut AggregateOrigins,
     include_shared: bool,
 ) -> Option<()> {
@@ -439,7 +520,7 @@ fn merge_relative_origins(
         }
     }
     for leaf in returned.references {
-        for origin in canonical_reference_origins(program, &leaf.origin, aliases, stored) {
+        for origin in canonical_result_reference_origins(program, &leaf.origin, context) {
             if let Some(origin) = &origin
                 && include_shared
                 && parameters.iter().any(|parameter| {
@@ -458,7 +539,7 @@ fn merge_relative_origins(
                     state,
                     boundary_index,
                     &origin.source,
-                    stored,
+                    &context.stored,
                 )?;
             }
             let leaf = ReferenceLeaf {
@@ -476,6 +557,39 @@ fn merge_relative_origins(
         }
     }
     Some(())
+}
+
+/// Each divergent alias candidate is an already-captured referent. Resolve
+/// the authored local through that candidate once so the shared canonicalizer
+/// retains the crossed-reference boundary while projecting any later fields.
+fn canonical_result_reference_origins(
+    program: &TypedTrees,
+    origin: &Option<FramePlaceOrigin>,
+    context: &CollectedStatementPrefix,
+) -> Vec<Option<FramePlaceOrigin>> {
+    if let Some(origin) = origin
+        && origin.source.root.is_valid()
+        && let Some((name, candidates)) = context
+            .divergent
+            .iter()
+            .find(|(name, _)| program.symbols.name(origin.source.root) == name)
+    {
+        if candidates.is_empty() {
+            return vec![None];
+        }
+        return candidates
+            .iter()
+            .flat_map(|candidate| {
+                canonical_reference_origins(
+                    program,
+                    &Some(origin.clone()),
+                    &[(name.clone(), candidate.clone())],
+                    &context.stored,
+                )
+            })
+            .collect();
+    }
+    canonical_reference_origins(program, origin, &context.aliases, &context.stored)
 }
 
 /// A named edge routes the call's result through the target state's own
@@ -630,8 +744,7 @@ fn merge_named_edge(
             source_state,
             boundary_index,
             instantiated,
-            &context.aliases,
-            &context.stored,
+            context,
             relative,
             include_shared,
         )

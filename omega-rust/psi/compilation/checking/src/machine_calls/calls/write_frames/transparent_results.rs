@@ -1,88 +1,30 @@
 //! Origins of transparent call results and the calls that preserve them.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
-use crate::machine_calls::calls::write_frames::assignment_targets::{
-    assignment_target_type, expression_is_effectful_indexed_place,
-    transparent_assignment_target_effect_is_structural,
-};
-use crate::machine_calls::calls::write_frames::boundary_calls::{
-    known_boundary_call_written_paths_for_parts, known_requirement_call_written_paths_for_parts,
-};
-use crate::machine_calls::calls::write_frames::call_targets;
-use crate::machine_calls::calls::write_frames::call_targets::{
-    discarded_primitive_internal_call_is_relationally_neutral, machine_state_by_symbol,
-};
-use crate::machine_calls::calls::write_frames::call_trees::parameter_relative_expression_preserves_transparent_result;
-use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
-use crate::machine_calls::calls::write_frames::demand::{
-    collect_expression_call_written_paths, statement_value_expression_roots,
-};
+use crate::declarations::symbols::TopLevelSymbols;
+use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
-use crate::machine_calls::calls::write_frames::isolated_initializers::isolated_local_initializer_preserves_transparent_result;
-use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
-use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
-use crate::machine_calls::calls::write_frames::local_aliases::{
-    expression_has_exclusive_borrow, expression_may_rebind_mutable_alias,
-};
-use crate::machine_calls::calls::write_frames::parameter_aliases::{
-    ParameterRelativeFrameOrigin, parameter_relative_alias_position,
-};
-use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_or_carrier_origins;
-use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
-use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origins;
-use crate::machine_calls::calls::write_frames::parameter_relative_origins::single_parameter_relative_origin;
+use crate::machine_calls::calls::write_frames::parameter_aliases::ParameterRelativeFrameOrigin;
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
     push_unique_origin, same_place_origin, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
-    frame_place_root_symbol,
 };
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
-use crate::machine_calls::calls::write_frames::value_expressions::{
-    ValuePosition, value_expression_preserves_transparent_result,
-};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{
-    StatementNode, TableCall, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
 
-/// Every proven caller route one deliberately structural value-call result
-/// may alias. The helper may be
-/// free or attached, but must be acyclic at the result surface, return a reference,
-/// and have ordinary result expressions rooted in reference
-/// parameters -- a trailing expression or value-transition arms with an
-/// unconditional final result -- or rooted in
-/// a declared exclusive reference leaf of one by-value carrier parameter whose
-/// binding stayed frozen across the prefix. A prefix may
-/// contain caller-isolated scratch locals and local
-/// reference bindings that forward direct places from that parameter, an
-/// earlier such local, or another structurally transparent helper. Value-shaped
-/// assignments with effect-free right-hand sides may write through those
-/// places, scratch locals, validated mutable recast aliases with effect-free
-/// sources, or exact transparent call-produced targets without changing their
-/// origins; the ordinary frame summary still publishes caller-visible writes.
-/// Effect-free discarded expressions are also neutral.
-/// A direct stable alias rebind updates only that local; prior reborrows retain
-/// their established origins. Explicit arguments and an attached helper's
-/// actual receiver both supply exact caller origins. This is body evidence, not
-/// lifetime elision: a reference-bearing scratch local, opaque computed rebind,
-/// unsupported discarded/statement call, recursive helper relation, named-state route, or
-/// alternate result fails closed.
-///
-/// Conditional result arms each contribute the candidate origins of their
-/// selected actual, so a divergent helper result keeps the exact finite union
-/// rather than selecting one arm. A candidate whose own actual cannot be
-/// resolved leaves the whole result opaque: the union must cover every route
-/// the callee admits. Consumers that need one binding collapse the set
-/// through `single_place_origin`.
+/// Instantiate every proven result route through its exact actual input.
+/// The shared body relation preserves each normal completion's origins and
+/// validates intervening writes, rebinding and exposure. This boundary retains
+/// its caller-specific input resolver: a body-derived source does not itself
+/// authorize borrowing the actual storage. Unresolved alternatives and cycles
+/// remain opaque; a return type or lifetime is never an origin.
 pub(crate) fn transparent_call_result_origins(
     program: &TypedTrees,
     call: &TableCallExpression,
@@ -260,686 +202,74 @@ pub(crate) fn transparent_callee_result_origins(
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     if inference.active_states.contains(&callee_state.symbol)
         || !type_reference_is_reference(program, callee_state.return_type)
+        || !super::transition_topology::named_state_transition_subgraph_is_acyclic(
+            program,
+            callee_machine,
+            callee_state,
+        )
     {
         return None;
     }
-    inference.active_states.push(callee_state.symbol);
-    let result = (|| {
-        let statements = program
-            .statement_table
-            .statements(callee_state.statement_nodes);
-        let (tail, prefix) = statements.split_last()?;
-        // Every fallthrough must reach a result. A trailing expression
-        // publishes it directly; the tail's ordinary transition publishes one
-        // route per live value-target edge — a guarded arm contributes at
-        // the tail exactly as the earlier guarded arms do in the prefix
-        // walk. Earlier guarded value arms contribute their own origins
-        // during that walk.
-        match tail {
-            StatementNode::Expression(_) => {}
-            StatementNode::Transition(transition)
-                if transition.exit == TransitionExit::Ordinary => {}
-            _ => return None,
-        }
-
-        let parameters = program.state_parameters(callee_state);
-        let mut local_aliases = Vec::new();
-        let mut isolated_local_roots = Vec::new();
-        let mut returned_origins = Vec::new();
-        for (statement_index, statement) in prefix.iter().enumerate() {
-            match statement {
-                StatementNode::Transition(transition)
-                    if transition.exit == TransitionExit::Ordinary
-                        && !transition.continuation.is_valid()
-                        && transition.target.is_valid() =>
-                {
-                    let TransitionGuardNode::When(guard) = transition.guard else {
-                        return None;
-                    };
-                    let TransitionTargetNode::Value(result) =
-                        program.statement_table.transition_target(transition.target)
-                    else {
-                        return None;
-                    };
-                    // A guard can execute calls before selecting either path.
-                    // Their complete non-rebinding effect check is separate
-                    // from collecting this arm's possible returned referents.
-                    if expression_is_effectful_for_transparent_result(program, guard)
-                        && !value_expression_preserves_transparent_result(
-                            program,
-                            callee_machine,
-                            guard,
-                            None,
-                            symbols,
-                            inference,
-                            parameters,
-                            &local_aliases,
-                        )
-                    {
-                        return None;
-                    }
-                    collect_returned_origins(
-                        program,
-                        callee_machine,
-                        *result,
-                        parameters,
-                        &local_aliases,
-                        &prefix[..=statement_index],
-                        symbols,
-                        inference,
-                        &mut returned_origins,
-                    )?;
-                }
-                StatementNode::LocalData(local) => {
-                    // The isolated-initializer write fence rebases a written
-                    // path through a binding's single proven place. A
-                    // divergent binding has none, so its name stays opaque:
-                    // any write through it could land on a non-isolated
-                    // candidate and fails closed rather than picking a route.
-                    let stable_aliases = local_aliases
-                        .iter()
-                        .filter_map(
-                            |(name, _, origins): &(
-                                String,
-                                SymbolHandle,
-                                Vec<ParameterRelativeFrameOrigin>,
-                            )| {
-                                single_parameter_relative_origin(origins.clone())
-                                    .map(|origin| (name.clone(), origin.place))
-                            },
-                        )
-                        .collect::<Vec<_>>();
-                    if type_is_caller_isolated_local(program, local.type_reference)
-                        && !type_reference_is_reference(program, local.type_reference)
-                    {
-                        if expression_is_effectful_for_transparent_result(
-                            program,
-                            local.initial_value,
-                        ) && !value_expression_preserves_transparent_result(
-                            program,
-                            callee_machine,
-                            local.initial_value,
-                            Some(local.type_reference),
-                            symbols,
-                            inference,
-                            parameters,
-                            &local_aliases,
-                        ) {
-                            return None;
-                        }
-                        if !isolated_local_initializer_preserves_transparent_result(
-                            program,
-                            callee_machine,
-                            local.initial_value,
-                            &isolated_local_roots,
-                            &stable_aliases,
-                            |machine_symbols, written| {
-                                collect_expression_call_written_paths(
-                                    program,
-                                    local.initial_value,
-                                    callee_machine,
-                                    machine_symbols,
-                                    symbols,
-                                    inference,
-                                    written,
-                                    &super::caller_aliases::CallOriginContext {
-                                        parameters,
-                                        isolated_locals: &isolated_local_roots,
-                                        aliases: &stable_aliases,
-                                        divergent: &[],
-                                        stored: &[],
-                                    },
-                                )
-                            },
-                        ) {
-                            return None;
-                        }
-                        isolated_local_roots.push(local.name.as_str().to_owned());
-                        continue;
-                    }
-                    if !type_reference_is_reference(program, local.type_reference) {
-                        return None;
-                    }
-                    // A reference binding keeps every proven route its
-                    // initializer admits: a transparent helper result or
-                    // divergent match arms bind the exact finite union so a
-                    // returned alias re-exports all of them.
-                    let origins = parameter_relative_place_or_carrier_origins(
-                        program,
-                        callee_machine,
-                        local.initial_value,
-                        parameters,
-                        &local_aliases,
-                        symbols,
-                        inference,
-                    )
-                    .or_else(|| {
-                        let mut diagnostics = Vec::new();
-                        let machine_symbols =
-                            MachineSymbols::build(program, callee_machine, &mut diagnostics);
-                        if !diagnostics.is_empty() {
-                            return None;
-                        }
-                        let places = stable_alias_initializer_origins(
-                            program,
-                            callee_machine,
-                            &machine_symbols,
-                            inference,
-                            local.initial_value,
-                            parameters,
-                            &isolated_local_roots,
-                            &stable_aliases,
-                            &[],
-                            symbols,
-                            true,
-                            &[],
-                        )?;
-                        // A caller-isolated route composes inside the helper
-                        // but cannot be exported; every admitted candidate
-                        // must root in one, or the binding mixes private and
-                        // caller-visible storage this relation cannot name.
-                        places
-                            .iter()
-                            .all(|place| {
-                                let (root, _) = split_place_root(&place.path);
-                                isolated_local_roots.iter().any(|local| local == root)
-                            })
-                            .then(|| {
-                                places
-                                    .into_iter()
-                                    .map(|place| ParameterRelativeFrameOrigin {
-                                        place,
-                                        parameter_symbol: SymbolHandle::invalid(),
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                    })?;
-                    local_aliases.push((local.name.as_str().to_owned(), local.symbol, origins));
-                }
-                StatementNode::Assignment(assignment) => {
-                    if expression_is_effectful_for_transparent_result(program, assignment.target)
-                        && (!transparent_assignment_target_effect_is_structural(
-                            program,
-                            assignment.target,
-                        ) || parameter_relative_place_origin(
-                            program,
-                            callee_machine,
-                            assignment.target,
-                            parameters,
-                            &local_aliases,
-                            symbols,
-                            inference,
-                        )
-                        .is_none())
-                    {
-                        return None;
-                    }
-                    if value_expression_preserves_transparent_result(
-                        program,
-                        callee_machine,
-                        assignment.value,
-                        assignment_target_type(
-                            program,
-                            callee_machine,
-                            callee_state,
-                            assignment.target,
-                        ),
-                        symbols,
-                        inference,
-                        parameters,
-                        &local_aliases,
-                    ) {
-                        // A non-reference call result can change only the
-                        // target's value, not an established alias origin.
-                    } else if expression_may_rebind_mutable_alias(
-                        program,
-                        callee_machine,
-                        callee_state,
-                        assignment.value,
-                    ) {
-                        let position = parameter_relative_alias_position(
-                            program,
-                            assignment.target,
-                            &local_aliases,
-                        )?;
-                        let replacement = parameter_relative_place_or_carrier_origins(
-                            program,
-                            callee_machine,
-                            assignment.value,
-                            parameters,
-                            &local_aliases,
-                            symbols,
-                            inference,
-                        )?;
-                        local_aliases[position].2 = replacement;
-                    } else if expression_is_effectful_for_transparent_result(
-                        program,
-                        assignment.value,
-                    ) {
-                        return None;
-                    }
-                }
-                StatementNode::Expression(expression)
-                    if !expression_is_effectful_for_transparent_result(program, *expression) => {}
-                StatementNode::Call(call)
-                    if statement_call_preserves_transparent_result(
-                        program,
-                        callee_machine,
-                        call,
-                        symbols,
-                        inference,
-                        parameters,
-                        &local_aliases,
-                    ) => {}
-                _ => return None,
-            }
-        }
-        match tail {
-            StatementNode::Expression(result) => {
-                collect_returned_origins(
-                    program,
-                    callee_machine,
-                    *result,
-                    parameters,
-                    &local_aliases,
-                    prefix,
-                    symbols,
-                    inference,
-                    &mut returned_origins,
-                )?;
-            }
-            StatementNode::Transition(transition) => {
-                // A guarded tail's arm condition must preserve the
-                // transparent result, matching the earlier guarded arms.
-                if let TransitionGuardNode::When(guard) = transition.guard
-                    && expression_is_effectful_for_transparent_result(program, guard)
-                    && !value_expression_preserves_transparent_result(
-                        program,
-                        callee_machine,
-                        guard,
-                        None,
-                        symbols,
-                        inference,
-                        parameters,
-                        &local_aliases,
-                    )
-                {
-                    return None;
-                }
-                // Every live edge must produce a value: a named target
-                // leaves production to another body, which this relation
-                // does not model. Under `Always` the continuation cannot
-                // fire; under `When` both edges route possible results.
-                let guarded = matches!(transition.guard, TransitionGuardNode::When(_));
-                for edge in [transition.target, transition.continuation]
-                    .into_iter()
-                    .filter(|edge| edge.is_valid() && (guarded || *edge != transition.continuation))
-                {
-                    let TransitionTargetNode::Value(result) =
-                        program.statement_table.transition_target(edge)
-                    else {
-                        return None;
-                    };
-                    collect_returned_origins(
-                        program,
-                        callee_machine,
-                        *result,
-                        parameters,
-                        &local_aliases,
-                        prefix,
-                        symbols,
-                        inference,
-                        &mut returned_origins,
-                    )?;
-                }
-            }
-            _ => return None,
-        }
-        Some(returned_origins)
-    })();
-    inference.active_states.pop();
-    result
-}
-
-/// Resolve each exit at its own prefix, before subsequent fallthrough writes
-/// can replace a local alias. An untraceable arm invalidates the whole union.
-fn collect_returned_origins(
-    program: &TypedTrees,
-    callee_machine: &Machine,
-    result: ExpressionHandle,
-    parameters: &[StateParameter],
-    local_aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-    prefix: &[StatementNode],
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    returned_origins: &mut Vec<ParameterRelativeFrameOrigin>,
-) -> Option<()> {
-    let origins = parameter_relative_place_or_carrier_origins(
+    let include_shared =
+        super::reference_origins::exclusive_reference_referee(program, callee_state.return_type)
+            .is_none();
+    let relative = super::result_origins::state_result_origins(
         program,
         callee_machine,
-        result,
-        parameters,
-        local_aliases,
+        callee_state,
+        callee_state.return_type,
         symbols,
         inference,
-    )
-    // A returned place may also be rooted in a by-value carrier
-    // parameter's declared exclusive reference leaf.
-    .or_else(|| carrier_leaf_result_origins(program, result, parameters, prefix))
-    // Every admitted route must export an actual parameter root; a
-    // candidate that reaches only helper-private storage means the result
-    // may escape to a referent this relation cannot name. A route rooted
-    // in a by-value carrier parameter additionally must spell one of the
-    // carrier's declared exclusive reference leaves, and its binding must
-    // stay frozen across the prefix — the same guards
-    // `carrier_leaf_result_origins` enforces, now applied to origins the
-    // primary resolver produced through bound locals and nested calls.
-    .filter(|origins| {
-        origins.iter().all(|origin| {
-            // An image-storage route names the same backing for every
-            // caller; it needs no parameter root to be exported.
-            if origin.place.source.is_static() {
-                return true;
-            }
-            let Some(parameter) = parameters
-                .iter()
-                .find(|parameter| parameter.symbol == origin.parameter_symbol)
-            else {
-                return false;
-            };
-            if !(origin.place.source.root == parameter.symbol
-                || (parameter.is_self && origin.place.source.root == callee_machine.symbol))
-            {
-                return false;
-            }
-            if type_reference_is_reference(program, parameter.type_reference) {
-                return true;
-            }
-            let Some(declared) = super::stored_origins::declared_origins_for_query(
-                program,
-                parameter.symbol,
-                parameter.name.as_str(),
-                parameter.type_reference,
-                false,
-            ) else {
-                return false;
-            };
-            declared.references.iter().any(|leaf| {
-                super::stored_origins::source_reaches_leaf(
-                    &origin.place.source.segments,
-                    &leaf.local_segments,
-                )
-            }) && !prefix.iter().any(|statement| {
-                statement_rebases_carrier_root(program, statement, parameter.symbol)
-            })
-        })
-    })?;
-    for origin in origins {
-        if !returned_origins.iter().any(|existing| {
-            existing.parameter_symbol == origin.parameter_symbol
-                && same_place_origin(&existing.place, &origin.place)
-        }) {
-            returned_origins.push(origin);
-        }
-    }
-    Some(())
-}
-
-/// One direct Unit statement call is neutral to a returned-place relation when
-/// its inferred frame is complete and no argument exposes a mutable-reference
-/// binding for rebinding. The same applies to an explicitly discarded concrete
-/// primitive result from a nongeneric checked-body call: the value cannot carry
-/// an alias, while the call's complete frame still publishes its writes. Writes
-/// through references passed by value may change their contents, but cannot
-/// redirect the established origin. One direct value-call argument is admitted
-/// under the same complete-frame rule. Other discarded results, deeper computed
-/// arguments, binding reborrows, and opaque frames remain fences.
-fn statement_call_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    call: &TableCall,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-) -> bool {
-    if call.discards_result
-        && !discarded_primitive_internal_call_is_relationally_neutral(program, call, symbols)
-    {
-        return false;
-    }
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return false;
-    }
-    let arguments = program.statement_table.expression_handles(call.arguments);
-    let receiver_members = program
-        .statement_table
-        .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str().to_owned())
-        .collect::<Vec<_>>();
-    let argument_types = call_targets::call_argument_types(
-        program,
-        current_machine,
-        call.target_symbol,
-        call.target.as_str(),
-        &receiver_members,
-        CallerWriteSite::Call(call),
-        symbols,
-    );
-    // Every sibling must independently preserve the returned-place origin.
-    if arguments.iter().enumerate().any(|(index, argument)| {
-        !parameter_relative_expression_preserves_transparent_result(
-            program,
-            current_machine,
-            *argument,
-            ValuePosition::CallArgument(argument_types.get(index).copied().unwrap_or_default()),
-            &machine_symbols,
-            symbols,
-            inference,
-            parameters,
-            aliases,
-        )
-    }) {
-        return false;
-    }
-
-    let argument_origins = arguments
-        .iter()
-        .map(|argument| {
-            parameter_relative_place_origins(
-                program,
-                current_machine,
-                *argument,
-                parameters,
-                aliases,
-                symbols,
-                inference,
-            )
-            .map(|origins| {
-                origins
-                    .into_iter()
-                    .map(|origin| origin.place)
-                    .collect::<Vec<_>>()
-            })
-        })
-        .collect::<Vec<_>>();
-    known_call_written_paths_for_parts_with_origins(
-        program,
-        call.target_symbol,
-        call.target.as_str(),
-        &receiver_members,
-        &[],
-        None,
-        arguments,
-        current_machine,
-        &machine_symbols,
-        symbols,
-        inference,
-        Some(&argument_origins),
-    )
-    .or_else(|| {
-        (!arguments
-            .iter()
-            .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
-        .then(|| {
-            known_boundary_call_written_paths_for_parts(
-                program,
-                current_machine,
-                &machine_symbols,
-                symbols,
-                &receiver_members,
-                call.target.as_str(),
-                CallerWriteSite::Call(call),
-                arguments,
-                inference,
-            )
-        })
-        .flatten()
-    })
-    .or_else(|| {
-        (!arguments
-            .iter()
-            .any(|argument| expression_is_effectful_indexed_place(program, *argument)))
-        .then(|| {
-            known_requirement_call_written_paths_for_parts(
-                program,
-                current_machine,
-                &machine_symbols,
-                symbols,
-                &receiver_members,
-                call.target.as_str(),
-                None,
-                CallerWriteSite::Call(call),
-                arguments,
-                inference,
-            )
-        })
-        .flatten()
-    })
-    .is_some()
-}
-
-/// A returned place can be rooted in a by-value carrier parameter's declared
-/// exclusive reference leaf: `machine pf(a: View) -> &mut u64 { a.body }`
-/// returns the reference stored in `a.body`, which instantiates through the
-/// carrier actual exactly like a parameter-rooted place. The projected path
-/// must land on a declared exclusive leaf of the parameter's own type; the
-/// declaration walk has already enforced owned referent storage, so a private
-/// or doubly-loaded slot cannot be named here. Conditional result arms each
-/// contribute their own carrier leaf, keeping the exact finite union; an arm
-/// that names no declared leaf fails the whole route closed.
-///
-/// The carrier binding must also stay frozen across the prefix: reassigning
-/// or rebinding the parameter, or lending any place rooted in it through an
-/// exclusive borrow, would leave the exported leaf describing a binding the
-/// helper no longer holds.
-fn carrier_leaf_result_origins(
-    program: &TypedTrees,
-    result: ExpressionHandle,
-    parameters: &[StateParameter],
-    prefix: &[StatementNode],
-) -> Option<Vec<ParameterRelativeFrameOrigin>> {
-    let leaves = carrier_leaf_places(program, result, parameters)?;
-    // Every selected carrier's binding must stay frozen across the prefix:
-    // rebasing any one of them leaves that route's exported leaf describing
-    // storage the helper no longer holds.
-    if leaves.iter().any(|(parameter_symbol, _)| {
-        prefix
-            .iter()
-            .any(|statement| statement_rebases_carrier_root(program, statement, *parameter_symbol))
-    }) {
+        include_shared,
+        &mut Vec::new(),
+    )?;
+    // This boundary exports one reference value, never an aggregate subtree or
+    // unresolved moved carrier. Its source still must name a declared input
+    // reference frontier, or parameter-independent image storage.
+    if !relative.moves.is_empty() || !relative.cases.is_empty() {
         return None;
     }
-    Some(
-        leaves
-            .into_iter()
-            .map(|(parameter_symbol, place)| ParameterRelativeFrameOrigin {
-                place,
-                parameter_symbol,
-            })
-            .collect(),
-    )
-}
-
-/// Resolve a result expression to its `(carrier parameter, place)` routes
-/// when every producing arm spells a declared exclusive reference leaf
-/// beneath a by-value parameter. Divergent arms keep the exact finite union;
-/// an arm that names no declared leaf fails the whole route closed.
-fn carrier_leaf_places(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-) -> Option<Vec<(SymbolHandle, FramePlaceOrigin)>> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => carrier_leaf_places(program, inner.target, parameters),
-        ExpressionNode::Match(dispatch) => {
-            let mut selected = Vec::new();
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for leaf in carrier_leaf_places(program, arm.value, parameters)? {
-                    if !selected.iter().any(|(parameter_symbol, place)| {
-                        *parameter_symbol == leaf.0 && same_place_origin(place, &leaf.1)
-                    }) {
-                        selected.push(leaf);
-                    }
-                }
-            }
-            Some(selected)
+    let parameters = program.state_parameters(callee_state);
+    let mut returned = Vec::new();
+    for leaf in relative.references {
+        if !leaf.local_suffix.is_empty() || !leaf.local_segments.is_empty() {
+            return None;
         }
-        ExpressionNode::Cast(cast)
-            if cast.form.is_recast()
-                && !expression_is_effectful_for_transparent_result(program, cast.value) =>
-        {
-            carrier_leaf_places(program, cast.value, parameters)
-        }
-        _ => {
-            let place = frame_place_path(program, expression)?;
+        let place = leaf.origin?;
+        let parameter_symbol = if place.source.is_static() {
+            SymbolHandle::invalid()
+        } else {
             let parameter = parameters.iter().find(|parameter| {
-                !parameter.is_self
-                    && parameter.symbol == place.source.root
-                    && !type_reference_is_reference(program, parameter.type_reference)
+                place.source.root == parameter.symbol
+                    || (parameter.is_self && place.source.root == callee_machine.symbol)
             })?;
-            let declared = super::stored_origins::declared_origins_for_query(
-                program,
-                parameter.symbol,
-                parameter.name.as_str(),
-                parameter.type_reference,
-                false,
-            )?;
-            declared
-                .references
-                .iter()
-                .any(|leaf| {
+            if !type_reference_is_reference(program, parameter.type_reference) {
+                let declared = super::stored_origins::declared_origins_for_query(
+                    program,
+                    parameter.symbol,
+                    parameter.name.as_str(),
+                    parameter.type_reference,
+                    include_shared,
+                )?;
+                if !declared.references.iter().any(|leaf| {
                     super::stored_origins::source_reaches_leaf(
                         &place.source.segments,
                         &leaf.local_segments,
                     )
-                })
-                .then_some(vec![(parameter.symbol, place)])
+                }) {
+                    return None;
+                }
+            }
+            parameter.symbol
+        };
+        if !returned.iter().any(|prior: &ParameterRelativeFrameOrigin| {
+            prior.parameter_symbol == parameter_symbol && same_place_origin(&prior.place, &place)
+        }) {
+            returned.push(ParameterRelativeFrameOrigin {
+                place,
+                parameter_symbol,
+            });
         }
     }
-}
-
-/// Whether one prefix statement can redirect the exported carrier leaf: a
-/// direct assignment target rooted in the parameter replaces or reshapes the
-/// binding, and an exclusive borrow of a rooted place hands the slot to a
-/// callee that may rebind it. Either leaves the parameter-relative result
-/// describing storage the helper no longer holds.
-fn statement_rebases_carrier_root(
-    program: &TypedTrees,
-    statement: &StatementNode,
-    parameter_symbol: SymbolHandle,
-) -> bool {
-    let retargeted = matches!(statement, StatementNode::Assignment(assignment)
-        if frame_place_root_symbol(program, assignment.target) == Some(parameter_symbol));
-    retargeted
-        || statement_value_expression_roots(program, statement)
-            .into_iter()
-            .any(|expression| {
-                expression_has_exclusive_borrow(program, expression, &|target| {
-                    frame_place_root_symbol(program, target) == Some(parameter_symbol)
-                })
-            })
+    (!returned.is_empty()).then_some(returned)
 }
