@@ -227,7 +227,7 @@ fn validate_partial_moves(
                     }
                     arm_plan.seal();
                 }
-                for step in borrowed_windows::statement_steps(
+                for step in crate::checks::ownership_occurrences::statement_steps(
                     program,
                     machine,
                     state,
@@ -236,8 +236,11 @@ fn validate_partial_moves(
                     &moves,
                     &facts.operators,
                 ) {
-                    let (event_index, conditional, ordered) = match step {
-                        borrowed_windows::WindowStep::Observe { place, expression } => {
+                    let (event_index, conditional, ordered) = match step.step {
+                        crate::checks::ownership_occurrences::StatementStep::Observe {
+                            place,
+                            expression,
+                        } => {
                             windows.check_use(
                                 program,
                                 machine,
@@ -268,7 +271,9 @@ fn validate_partial_moves(
                             );
                             continue;
                         }
-                        borrowed_windows::WindowStep::Invoke(expression) => {
+                        crate::checks::ownership_occurrences::StatementStep::Complete(
+                            expression,
+                        ) => {
                             // The match's own invocation is its join: agreed
                             // arm debts become one statement-level hole here,
                             // after every arm's reads already ran against its
@@ -312,7 +317,7 @@ fn validate_partial_moves(
                             );
                             continue;
                         }
-                        borrowed_windows::WindowStep::Move {
+                        crate::checks::ownership_occurrences::StatementStep::Move {
                             event,
                             conditional,
                             ordered,

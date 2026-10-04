@@ -110,12 +110,12 @@ pub(in crate::validation) fn has_empty_structural_custody(
 
 /// Recover the invariant of the exact field observed by a validated read.
 /// Construction proves it, entry checks it, and raw restricted-field stores reject.
-pub(crate) fn scalar_structural_field_read_refinement<'module>(
+pub(crate) fn scalar_read_field_refinement<'module>(
     module: &'module TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Option<&'module StructuralFieldType> {
-    let (source, path, field) = match &operation.kind {
+    let declaration = match &operation.kind {
         OperationKind::IntegerStructuralField {
             source,
             path,
@@ -125,19 +125,34 @@ pub(crate) fn scalar_structural_field_read_refinement<'module>(
             source,
             path,
             field,
-        } => (*source, path, *field),
+        } => {
+            let signature = crate::validation::structural::result_contracts::source_signature(
+                machine, *source,
+            )?;
+            // Canonical case observations already prove active membership;
+            // their payload construction establishes the same invariant.
+            terminal_semantics::observed_field_declaration(
+                module.structural_types.iter(),
+                signature.structural_type,
+                path,
+                *field,
+            )?
+        }
+        OperationKind::PrimitiveScalarRead { source, path } => {
+            let signature = crate::validation::structural::result_contracts::source_signature(
+                machine, *source,
+            )?;
+            // Resolve the original complete path. This preserves the exact
+            // final declaration after all selectors and pointer crossings,
+            // without treating the referent as owned carrier storage.
+            terminal_semantics::primitive_read_field(
+                module.structural_types.iter(),
+                signature.structural_type,
+                path,
+            )?
+        }
         _ => return None,
     };
-    let signature =
-        crate::validation::structural::result_contracts::source_signature(machine, source)?;
-    // A predicate-bearing payload keeps its invariant: construction proves
-    // it for the active case exactly as for a record field.
-    let declaration = terminal_semantics::observed_field_declaration(
-        module.structural_types.iter(),
-        signature.structural_type,
-        path,
-        field,
-    )?;
     (terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
         && Some(operation.result.scalar_ref()?.scalar_type) == declaration.field_type.scalar_type())
     .then_some(&declaration.field_type)

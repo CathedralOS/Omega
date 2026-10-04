@@ -108,29 +108,15 @@ pub(crate) fn captured_observation(
         if observation.view_container {
             return unsupported("captured primitive observation requires fixed-array storage");
         }
-        if let Some(field) = observation.field {
-            Direct::IndexedElementFieldRead {
-                source,
-                path: capture.carrier_path.clone(),
-                index,
-                element: observation.element.ok_or(LoweringError::Unsupported(
-                    "captured field observation lost its selected element type",
-                ))?,
-                carrier: observation.path.clone(),
-                field,
-                scalar_type: observation.scalar_type,
-            }
-        } else {
-            Direct::IndexedPrimitiveRead {
-                source,
-                path: capture.carrier_path.clone(),
-                index,
-                inner_indexes: Vec::new(),
-                element_path: observation.element_path.iter().cloned().map(
-                    crate::emission::operation_emission::expressions::LoweredElementPathSegment::Static,
-                ).collect(),
-                scalar_type: observation.scalar_type,
-            }
+        Direct::IndexedPrimitiveRead {
+            source,
+            path: capture.carrier_path.clone(),
+            index,
+            inner_indexes: Vec::new(),
+            element_path: observation.element_path.iter().cloned().map(
+                crate::emission::operation_emission::expressions::LoweredElementPathSegment::Static,
+            ).collect(),
+            scalar_type: observation.scalar_type,
         }
     } else if let Some(field) = observation.field {
         match observation.scalar_type {

@@ -138,7 +138,7 @@ pub(super) fn result_loans(
         }
         expression = match call_view_return_source_at(program, state_symbol, call) {
             ViewReturnSource::Fields { .. } => {
-                let loans = helper_call_aggregate_borrow_loans(
+                let mut loans = helper_call_aggregate_borrow_loans(
                     program,
                     state_symbol,
                     statement_index,
@@ -148,6 +148,11 @@ pub(super) fn result_loans(
                     owner_path,
                     loan_trackers,
                 );
+                // The call's completed result carries these leaves. Its
+                // operands have their own access lifetimes during invocation.
+                for loan in &mut loans {
+                    loan.formation_expression = expression;
+                }
                 return Some(limit_access(loans, &access_limits));
             }
             ViewReturnSource::Parameter { non_self_index } => *program
@@ -250,6 +255,7 @@ pub(super) fn argument_loans(
     {
         place.segments.extend(source_segments);
         carried.push(StatementBorrowLoan {
+            formation_expression: argument,
             owner_symbol: local_data.symbol,
             owner_name: local_data.name.clone(),
             owner_path: field.source_path.clone(),

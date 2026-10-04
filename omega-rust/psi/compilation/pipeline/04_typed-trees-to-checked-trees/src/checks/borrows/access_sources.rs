@@ -1,4 +1,4 @@
-//! Resolve an exclusive operation's receiver from checked source returns.
+//! Resolve storage accesses through retained aliases and checked source returns.
 //!
 //! A lifetime annotation constrains a result but does not prove its storage or
 //! parent authority. Reconstruct every callee exit's actual substitution, then
@@ -15,7 +15,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
-pub(super) fn resolve(
+pub(in crate::checks::borrows) fn resolve(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,

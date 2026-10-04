@@ -182,17 +182,10 @@ pub(crate) struct Binding {
     /// `true` when the runtime index steps through an element view (live
     /// extent); `false` for a fixed array (literal extent on the type).
     view_container: bool,
-    /// The structural type the runtime index selects — the element the
-    /// bounded-leaf hoist materializes. `None` for static loans.
-    element: Option<StructuralTypeId>,
-    /// Canonical segments below the runtime index, inside the selected
-    /// element, to the leaf's declaring record. Empty for static loans.
-    carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     /// The element path to the scalar leaf: every segment below the runtime
     /// index plus the leaf's own field projection.
     element_path: Vec<terminal_psi::StructuralPathSegment>,
-    /// The leaf declares a bounded integer, so the runtime read must hoist
-    /// the element instead of carrying the bound.
+    /// Element-view observations retain their separate invariant contract.
     bounded_leaf: bool,
     field: StructuralFieldId,
     scalar_type: ScalarType,
@@ -409,11 +402,6 @@ struct CapturedPlaceSubject {
     selector_primitive: Option<typed_trees::types::PrimitiveType>,
     /// `true` when the runtime index steps through an element view.
     view_container: bool,
-    /// The structural type the runtime index selects, for the bounded-leaf
-    /// hoist. `None` for static loans.
-    element: Option<StructuralTypeId>,
-    /// Canonical segments below the runtime index, inside the element.
-    carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     /// Terminal segments below the runtime index, inside the element.
     element_suffix: Vec<terminal_psi::StructuralPathSegment>,
 }
@@ -594,7 +582,6 @@ fn captured_place_subject(
     let mut runtime_index = None;
     let mut selector_primitive = None;
     let mut view_container = false;
-    let mut selected_element = None;
     let mut runtime_split = None;
     // The last literal index step and the array extent it selected inside —
     // set only when that index ends the prefix (`a[i]` cannot extend into a
@@ -727,7 +714,6 @@ fn captured_place_subject(
                     ))?,
                 );
                 runtime_split = Some(path.len());
-                selected_element = Some(element);
                 tail = None;
                 declaration = types
                     .iter()
@@ -840,7 +826,6 @@ fn captured_place_subject(
                     path.clone()
                 },
                 element_path: element_suffix.clone(),
-                element: selected_element,
                 view_container,
             })
         })
@@ -857,8 +842,6 @@ fn captured_place_subject(
         runtime_index,
         selector_primitive,
         view_container,
-        element: selected_element,
-        carrier,
         element_suffix,
     }))
 }
@@ -1092,8 +1075,6 @@ pub(crate) fn prepare(
                 runtime_index,
                 selector_primitive,
                 view_container,
-                element,
-                carrier,
                 element_suffix,
             ) = match loan {
                 Some(subject) => (
@@ -1111,8 +1092,6 @@ pub(crate) fn prepare(
                     subject.runtime_index,
                     subject.selector_primitive,
                     subject.view_container,
-                    subject.element,
-                    subject.carrier,
                     subject.element_suffix,
                 ),
                 None => {
@@ -1136,8 +1115,6 @@ pub(crate) fn prepare(
                         None,
                         None,
                         false,
-                        None,
-                        Vec::new(),
                         Vec::new(),
                     )
                 }
@@ -1331,8 +1308,6 @@ pub(crate) fn prepare(
                 runtime_index,
                 selector_primitive,
                 view_container,
-                element,
-                carrier,
                 element_path,
                 bounded_leaf,
                 primitive_path,
@@ -1687,18 +1662,6 @@ fn observe(
                 source,
                 index: Box::new(index),
                 path: binding.element_path.clone(),
-                scalar_type,
-            }
-        } else if binding.bounded_leaf {
-            LoweredDirectExpression::IndexedElementFieldRead {
-                source,
-                path: binding.carrier_path.clone(),
-                index: Box::new(index),
-                element: binding.element.ok_or(LoweringError::Unsupported(
-                    "record loan's runtime element lost its type",
-                ))?,
-                carrier: binding.carrier.clone(),
-                field: binding.field,
                 scalar_type,
             }
         } else {

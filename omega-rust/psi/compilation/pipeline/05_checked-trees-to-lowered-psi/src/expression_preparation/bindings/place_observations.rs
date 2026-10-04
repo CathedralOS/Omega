@@ -155,7 +155,6 @@ pub(crate) struct PrimitiveObservation {
     pub(crate) field: Option<semantic_vocabulary::StructuralFieldId>,
     pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub(crate) element_path: Vec<terminal_psi::StructuralPathSegment>,
-    pub(crate) element: Option<semantic_vocabulary::StructuralTypeId>,
     pub(crate) view_container: bool,
 }
 

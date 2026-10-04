@@ -154,8 +154,7 @@ pub(crate) fn lowered_direct_scalar_term(
             ScalarTerm::value(value.id, *scalar_type)
         }
         LoweredDirectExpression::PrimitiveRead { .. }
-        | LoweredDirectExpression::IndexedPrimitiveRead { .. }
-        | LoweredDirectExpression::IndexedElementFieldRead { .. } => {
+        | LoweredDirectExpression::IndexedPrimitiveRead { .. } => {
             return unsupported(
                 "primitive storage read requires an occurrence-bound crash predicate",
             );

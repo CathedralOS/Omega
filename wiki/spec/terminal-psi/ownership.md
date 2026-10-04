@@ -76,6 +76,14 @@ name, carrier type, or bytes at another place is insufficient. Contained loans
 travel with their values, and filling vacant storage must not dispose the moved
 value again. Residual siblings and the removed value retain their own obligations.
 
+Opening a window first rejects overlap with any live reference's carrier slot
+or possible referent origin, including references stored in other owned carriers.
+Only the exact exclusive parent permission authenticated for this move is exempt;
+its descendants must already have ended. Every candidate origin pins its region,
+and an unresolved projection conservatively pins its whole spelled root. Opaque
+ingress identities bound interference without identifying a runtime pointer or
+granting permission to repair another carrier's debt.
+
 Whole-value assignment through an exclusive loan (`referent = value` where
 `referent: &mut T`) is the same window rooted at the loan itself: the move names
 no field and an empty path, vacating the whole referent, and the store reseats

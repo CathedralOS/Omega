@@ -111,6 +111,34 @@ pub(super) fn append_transfer(
     });
 }
 
+/// A move candidate detaches owned storage only when its canonical endpoint
+/// resolves to a non-copy value. Reference carriers transfer their permission,
+/// while unresolved derived observations retain their existing owning checks.
+/// Loan exclusion and borrowed-window opening must use the same judgment.
+pub(in crate::checks) fn transfers_owned_storage(
+    program: &typed_trees::TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    event: &crate::flow::DiscoveredMoveEvent,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    let place = crate::flow::CanonicalPlace {
+        root: event.root,
+        segments: path.to_vec(),
+    };
+    let Some(projected_type) =
+        crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+    else {
+        return false;
+    };
+    if type_multiplicity(program, projected_type) == Multiplicity::Unrestricted
+        || type_reference_is_reference(program, projected_type)
+    {
+        return false;
+    }
+    true
+}
+
 /// Projection identifies a subtree, but grants no ownership of a borrowed
 /// referent. Pattern payloads and ordinary fields obey the same reference-prefix
 /// checks; moving a reference carrier itself does not move its referent.
@@ -122,18 +150,7 @@ pub(super) fn is_borrowed_place_transfer(
     path: &[facts::PlaceSegment],
 ) -> bool {
     let statement_index = event_statement_index(event.source).unwrap_or(0);
-    let place = crate::flow::CanonicalPlace {
-        root: event.root,
-        segments: path.to_vec(),
-    };
-    let Some(projected_type) =
-        crate::flow::canonical_place_type_reference(program, state.symbol, statement_index, &place)
-    else {
-        return false;
-    };
-    if type_multiplicity(program, projected_type) == Multiplicity::Unrestricted
-        || type_reference_is_reference(program, projected_type)
-    {
+    if !transfers_owned_storage(program, state.symbol, statement_index, event, path) {
         return false;
     }
     // Self event roots are normalized to the machine; recover its actual

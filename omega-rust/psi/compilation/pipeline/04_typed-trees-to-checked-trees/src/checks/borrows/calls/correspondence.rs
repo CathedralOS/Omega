@@ -22,11 +22,14 @@ pub(super) fn matches_source(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let expected = crate::borrow::build_borrow_facts(program, call_frames);
-    // There are no call judgments to authenticate in a call-free program.
-    // Other borrow/resource validators still own its formation and mutations.
+    // Without calls or loans there is no retained exclusion subject to replay.
+    // A call-free program with loans still authenticates formation occurrences:
+    // statement move checks depend on their authored evaluation order.
     if expected.calls.is_empty()
         && facts.borrow.calls.is_empty()
         && facts.flow.control.calls.is_empty()
+        && expected.loans.is_empty()
+        && facts.borrow.loans.is_empty()
     {
         return true;
     }

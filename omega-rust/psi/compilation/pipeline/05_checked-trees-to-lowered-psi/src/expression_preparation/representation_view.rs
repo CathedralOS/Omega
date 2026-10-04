@@ -191,7 +191,6 @@ fn observes_one_place(operand: &LoweredDirectExpression) -> bool {
         LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
-        | LoweredDirectExpression::IndexedElementFieldRead { .. }
         | LoweredDirectExpression::ElementViewRead { .. }
         | LoweredDirectExpression::Parameter { .. }
         | LoweredDirectExpression::Local { .. } => true,

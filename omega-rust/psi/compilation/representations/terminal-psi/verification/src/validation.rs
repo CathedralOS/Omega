@@ -136,7 +136,7 @@ pub(crate) use structural::operations::{
     canonical_field_path, exact_payloadless_case_return_exits, is_runtime_indexed_borrow_path,
     is_static_borrow_path, structural_argument_canonical_prefix, structural_field_store_write_path,
 };
-pub(crate) use structural::scalar_fields::scalar_structural_field_read_refinement;
+pub(crate) use structural::scalar_fields::scalar_read_field_refinement;
 pub(crate) use structural::scalar_fields::structural_scalar_field_store_refinement;
 
 #[derive(Debug, Clone, Copy)]

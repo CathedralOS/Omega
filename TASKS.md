@@ -1256,23 +1256,24 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: primitive shared references, Boolean observations and captured
-    runtime-index loans execute through the common storage-read path. Scalar
-    observations from reference-bearing array elements now compose literal and
-    runtime selection with stored-pointer crossings, including nested references
-    and changing selectors. The four
-    `pass/borrows/{runtime_indexed,static,runtime_nested}_carrier_reference_read_exit`
-    and `runtime_carrier_reference_reselection_exit` controls return 70 in both
-    engines on macOS ARM64. Each crossing retains declaration-derived descriptor
-    coverage, live backing, access and independent bounds obligations.
-    Remaining: give those observations the declared scalar field's evidence.
-    Changing `Cell.value` and its observed local to `i32 [0..=100]` in
-    `runtime_indexed_carrier_reference_read_exit` passes source checking but
-    rejects stage 05 with `indexed element carrier field is absent`. The bounded
-    field route still tries canonical carrier resolution and whole-element
-    hoisting across the stored reference. Preserve the field's range evidence
-    and loan custody without copying the reference-bearing element or admitting
-    constrained fields as unqualified primitive reads.
+  - State: scalar observations from reference-bearing array elements compose
+    literal and runtime selection with stored-pointer crossings. Bounded and
+    refined fields retain their declaration's invariant on the fresh scalar
+    value, without copying the carrier or treating it as canonical owned
+    storage. The three `pass/borrows/{runtime_indexed,static,runtime_nested}_carrier_bounded_reference_read_exit`
+    controls return 70 in native and checked-interpreter execution on macOS ARM64;
+    guarded indexed field updates retain their unchanged-read evidence. Live
+    loans exclude extraction of their backing, including a loan formed earlier
+    in the same initializer; disjoint extraction and exact exclusive-parent
+    authority remain valid.
+    Remaining: direct reference arrays. Replacing `[Message; 2]` by
+    `[&Cell; 2] = [&main.first, &main.second]` in the runtime bounded-read
+    control and reading `messages[main.index].value` still omits the unit plan
+    at `statement sequence: local data: structural value: type shape`
+    (state 0, statement 7). Stage 04's local-data structural type planning must
+    admit the reference element while preserving each stored loan and runtime
+    selector. Next acceptance is the same program's authored exit 70 in both
+    engines through `omega run --both`.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root
@@ -1304,7 +1305,7 @@ crash and native exit behavior.
   invalid escapes. A constrained referent such as `u8 [0..=1]` borrowed as
   `&mut u8` keeps the original storage's obligations. The original sample
   `samples/cli/systems/descriptor_walk/main.omg` runs through
-  `omega run --both` (today it stops at package-review acceptance).
+  `omega run --both` and returns 50 in both engines after local package review.
 
 - **TRANSITION-TAIL-CALL-TO-MACHINE.** Terminal machine calls in attached Unit
   transition arms complete the caller for every result and operand form, per

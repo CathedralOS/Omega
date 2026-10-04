@@ -798,8 +798,8 @@ pub(crate) fn resolve_nested_indexed_array(
 /// Resolve a scalar field of a runtime-selected record element
 /// (`cells[i].hp`): `path` reaches the fixed array and `element_path` walks
 /// the selected element to one relevant integer or Boolean field. Returns the
-/// read's source, the array prefix, the leaf route — a flat element path or
-/// the hoist a bounded leaf needs — and the field's scalar type.
+/// read's source, array prefix, complete element path and declared scalar type.
+/// The read's fresh SSA result retains any declaration-owned scalar invariant.
 pub(crate) fn resolve_indexed_element_field(
     fields: &StructuralFieldBindings,
     root: checked_trees::CheckedStorageRoot,

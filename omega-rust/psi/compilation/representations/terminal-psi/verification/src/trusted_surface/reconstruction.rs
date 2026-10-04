@@ -511,20 +511,21 @@ static FACT_STRUCTURAL_EFFECT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceE
     soundness: TRUSTED,
 };
 
-static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry {
+static FACT_SCALAR_FIELD_READ_REFINEMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:scalar-structural-field-read-refinement",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a scalar structural field read over a valid referent, including a predicate-bearing payload of a proved-active case or a mixed shape's common field",
+    premises: "a validated scalar field observation over a valid referent: a canonical field read, including a proved-active case payload or mixed common field, or a primitive read whose complete runtime-selector/reference path resolves to the exact restricted declaration with independently checked bounds and live readable custody",
     conclusion: "the read's SSA snapshot carries the instantiated declared predicate, surviving later writes without asserting old storage contents",
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/record_field.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs",
     ],
     soundness: SoundnessStatus::Proved {
-        evidence: "the row contributes only facts from declared_scalar_field_facts, whose transport certificates are checked independently. The exact declaration and active case are validated before reading; construction, stores, and input admission preserve the storage-validity premise. Rejected transport certificates emit nothing",
+        evidence: "the row contributes only facts from declared_scalar_field_facts, whose transport certificates are checked independently. The exact declaration, any active case, selector bounds and reference custody are validated before reading; construction, stores, and input admission preserve the storage-validity premise. Dynamic/reference reads receive only the predicate on their fresh SSA value, never a canonical storage equation. Rejected transport certificates emit nothing",
     },
 };
 
@@ -846,7 +847,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_BYTE_READ_CLASS,
     FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
-    FACT_INTEGER_FIELD_READ_RANGE,
+    FACT_SCALAR_FIELD_READ_REFINEMENT,
     FACT_RUNTIME_INDEX_BOUND,
     FACT_IEEE_PRIMITIVE_FIELD_OBSERVATION,
     FACT_PRIMITIVE_ELEMENT_OBSERVATION,

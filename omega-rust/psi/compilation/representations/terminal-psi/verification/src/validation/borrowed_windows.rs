@@ -327,8 +327,9 @@ pub(super) fn apply_operation(
                     place: root,
                 });
             }
-            // A live reference carrier or claim inside the moving subtree
-            // would leave the loan pointing at relocated storage.
+            // A live reference carrier, possible referent origin, or claim
+            // inside the moving subtree pins storage against extraction.
+            // Checking only the carrier misses loans stored in another owner.
             let observed = frontier.references.iter().any(|reference| {
                 // This carrier is the authority for the move, not a child
                 // observer into the subtree. The exact parent and absence of
@@ -344,7 +345,17 @@ pub(super) fn apply_operation(
                     &reference.carrier_path,
                 )
                 .unwrap_or_default();
+                let origin_overlaps = |place, path: &[StructuralPathSegment]| {
+                    // Origins bound interference only. An opaque ingress
+                    // leaf is a permission identity, not a resolved pointer
+                    // or authority to repair storage. Unknown projections
+                    // conservatively pin their entire spelled root.
+                    let region = canonical_field_path(walk.module, walk.machine, place, path)
+                        .unwrap_or_default();
+                    regions_may_alias(walk.window_aliases, root, &hole, place, &region)
+                };
                 regions_may_alias(walk.window_aliases, root, &hole, reference.carrier, &slot)
+                    || reference.any_origin_region(origin_overlaps)
             }) || frontier.claims.values().any(|claim| {
                 claim.input.is_some_and(|input| {
                     let region =

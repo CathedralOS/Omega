@@ -33,6 +33,7 @@ pub(super) fn loans(
                 .sources
                 .into_iter()
                 .map(move |source| StatementBorrowLoan {
+                    formation_expression: Default::default(),
                     owner_symbol: owner,
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),

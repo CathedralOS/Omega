@@ -44,10 +44,13 @@ mod persistent;
 pub(crate) mod calls;
 mod resources;
 pub(crate) use resources::{LifecyclePhase, weakening_event_boundary};
+mod moves;
 mod statements;
 
 // Shared by the checks: compatibility judgments, and binding and loan
 // details.
+mod access_sources;
+mod aliases;
 mod details;
 mod overlap;
 

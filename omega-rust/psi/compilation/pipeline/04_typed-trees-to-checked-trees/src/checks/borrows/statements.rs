@@ -66,9 +66,9 @@ pub(super) fn check_statement_borrows<'p>(
     else {
         return;
     };
-    if crate::lookup::machine_by_symbol(program, state_flow.machine_symbol).is_none() {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return;
-    }
+    };
     let Some(borrow_state) = facts.borrow.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == state_flow.machine_symbol
             && state.state_symbol == state_flow.state_symbol)
@@ -76,6 +76,18 @@ pub(super) fn check_statement_borrows<'p>(
     }) else {
         return;
     };
+    // Use the same occurrence inventory as ownership replay: an extraction
+    // invalidates borrowed storage even when it is a local initializer rather
+    // than an assignment. Production destinations are not source accesses.
+    let mut move_segments = arena::Arena::default();
+    let moves = crate::flow::discover_state_move_events(
+        program,
+        &facts.borrow,
+        &facts.operators,
+        machine,
+        state,
+        &mut move_segments,
+    );
     for statement in facts
         .flow
         .control
@@ -250,6 +262,81 @@ pub(super) fn check_statement_borrows<'p>(
                     )
                     .unwrap_or_else(|| format!("borrowed at statement {}", active_loan.statement_index)),
                 )));
+            }
+        }
+
+        // Loan rows retain their source formation occurrence, authenticated by
+        // source correspondence. A statement's future result loans cannot be
+        // treated as live before their operands finish. Sibling selection arms
+        // remain alternatives, while loans join after a selection completes.
+        let mut formed: Vec<(
+            arena::Handle<checked_trees::BorrowLoanFact>,
+            Vec<super::super::ownership_occurrences::EvaluationBranch>,
+        )> = Vec::new();
+        for occurrence in crate::checks::ownership_occurrences::statement_steps(
+            program,
+            machine,
+            state,
+            statement.statement_index,
+            statement_node,
+            &moves,
+            &facts.operators,
+        ) {
+            use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
+            match occurrence.step {
+                StatementStep::Complete(expression) => {
+                    for (handle, _) in facts.borrow.loans.iter().filter(|(handle, loan)| {
+                        facts.borrow.state_owns_loan(borrow_state, *handle)
+                            && loan.statement_index == statement.statement_index
+                            && loan.formation_expression == expression
+                    }) {
+                        if !formed.iter().any(|(previous, route)| {
+                            *previous == handle && route == &occurrence.route
+                        }) {
+                            formed.push((handle, occurrence.route.clone()));
+                        }
+                    }
+                }
+                StatementStep::Move {
+                    event,
+                    ordered: true,
+                    ..
+                } => {
+                    let event = &moves[event];
+                    // Call transfers use their own checked occurrence and
+                    // argument authority; production targets have no operand.
+                    if !event.expression.is_valid()
+                        || !matches!(
+                            event.source,
+                            crate::flow::FlowOwnershipEventSource::Statement { .. }
+                        )
+                    {
+                        continue;
+                    }
+                    let active = facts
+                        .flow
+                        .borrow_loan_constraints(statement.entry_constraints)
+                        .chain(
+                            formed
+                                .iter()
+                                .filter(|(_, route)| routes_compatible(route, &occurrence.route))
+                                .map(|(handle, _)| *handle),
+                        );
+                    super::moves::check_storage_move(
+                        program,
+                        facts,
+                        state_flow,
+                        statement,
+                        event,
+                        move_segments.span_or_empty(event.segments),
+                        active,
+                        stated_premises,
+                        call_frames,
+                        diagnostics,
+                        bound_lookup,
+                    );
+                }
+                _ => {}
             }
         }
 

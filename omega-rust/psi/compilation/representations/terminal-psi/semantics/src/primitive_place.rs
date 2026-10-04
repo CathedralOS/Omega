@@ -11,32 +11,28 @@
 //! owned canonical path. Geometry never grants the live permission needed to
 //! follow that pointer. Consumers check custody separately from the leaf type.
 //!
-//! # Scalar fields of runtime-selected elements
+//! # Scalar field observations without a canonical storage identity
 //!
-//! A read (never a store) may also end at a relevant integer or Boolean
-//! scalar field of a record element it selected at run time
-//! (`self.cells[self.i].hp`, `primitive_read_projection_type`). Such a read is
-//! the same observation `IntegerStructuralField` makes of `self.cells[2].hp`,
-//! but its element is chosen by a runtime value, so it names no canonical
-//! leaf: it keys no field fact, and the verifier bounds its selector with the
-//! `RuntimeIndex` obligation it already reconstructs for every primitive read.
-//! A static integer/Boolean projection keeps the canonical field read, so
-//! each read has one spelling. This is the smaller of two routes: giving the
-//! field observations a runtime carrier would change the canonical path type
-//! that every field fact is keyed by, while the primitive read already carries
-//! runtime elements through Terminal verification and every Omega stage. Stores
-//! keep `StructuralScalarFieldStore`, which owns a bounded field's range
-//! obligation; admitting bounded fields as primitive endpoints would bypass it.
-//! Plain IEEE fields instead use primitive storage: there is no integer-field
-//! equation for their bits, and their exact format survives the path unchanged.
+//! A read may end at a scalar field below a runtime-selected element or a
+//! stored-reference crossing. Its complete projection retains the selectors
+//! and pointer boundaries, so it cannot mint an owned field alias. The verifier
+//! separately authenticates bounds and live custody, then transports the exact
+//! field's declared invariant onto the fresh read SSA value. Construction,
+//! entry and replacement remain responsible for establishing that invariant.
+//! A static integer/Boolean projection keeps its canonical field observation.
+//! Stores keep `StructuralScalarFieldStore` and its declaration-owned receiving
+//! obligation; read admission cannot authorize a raw restricted-field store.
+//! Plain IEEE fields use primitive storage. Their exact format survives the
+//! path; observing a refined IEEE field transports its predicate rather than
+//! inventing a reflexive IEEE equality that would fail for NaN.
 
 use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, is_static_structural_path,
+    ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, is_static_structural_path,
 };
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
@@ -127,10 +123,11 @@ pub fn primitive_projection_type<'a>(
 }
 
 /// Resolve the scalar a primitive *read* observes: every leaf
-/// `primitive_projection_type` admits, plus a relevant integer or Boolean
-/// scalar field that ends a projection selecting some element at run time
-/// (see the module documentation). Stores resolve through
-/// `primitive_projection_type` alone. This grants no access authority.
+/// `primitive_projection_type` admits, plus a declared scalar field reached
+/// through a runtime selection or stored reference. Declaration invariants
+/// remain on that field and are independently transported to the observed SSA
+/// value. Stores resolve through `primitive_projection_type` alone. This grants
+/// no access authority.
 pub fn primitive_read_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -142,23 +139,27 @@ pub fn primitive_read_projection_type<'a>(
     {
         return None;
     }
-    primitive_projection_type(declarations.clone(), root, path)
-        .or_else(|| runtime_element_field(declarations, root, path).map(|(scalar, _)| scalar))
+    primitive_projection_type(declarations.clone(), root, path).or_else(|| {
+        primitive_read_field(declarations, root, path)?
+            .field_type
+            .scalar_type()
+    })
 }
 
-/// The scalar field a runtime-selected read ends at, with the record
-/// declaration that owns it: `path` is a carrier with at least one
-/// `RuntimeIndex` element, resolved like any primitive projection, followed
-/// by one `Field` naming a relevant, non-address integer or Boolean scalar
-/// field of the record the carrier reaches. Erased, bounded, IEEE, byte and
-/// structural fields, a static carrier, and any other final segment name
-/// nothing: a static carrier has the canonical field read, and a bounded
-/// field's declared range is supplied only by that read.
-pub fn runtime_element_field<'a>(
+/// The exact scalar field observed by a noncanonical primitive read. The
+/// complete carrier contains a runtime selector or reference crossing; its
+/// final field identity is relevant and unique in its declared record. Bounds,
+/// access and live permission remain independent operation obligations.
+///
+/// Restricted scalar declarations retain their complete predicate, including
+/// IEEE refinements. Plain integer/Boolean fields keep their existing readable
+/// carrier rule; plain IEEE fields already use primitive storage. This query
+/// grants neither a canonical owned field identity nor primitive-store access.
+pub fn primitive_read_field<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-) -> Option<(ScalarType, &'a StructuralTypeDeclaration)> {
+) -> Option<&'a StructuralFieldDeclaration> {
     if path
         .iter()
         .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
@@ -191,14 +192,15 @@ pub fn runtime_element_field<'a>(
     {
         return None;
     }
-    let scalar = match field.field_type {
-        StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
-        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
-            ScalarType::Integer(integer)
+    match field.field_type {
+        StructuralFieldType::Scalar(ScalarType::Boolean) => {}
+        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}
+        StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
+            field.field_type.scalar_type()?;
         }
         _ => return None,
-    };
-    Some((scalar, record))
+    }
+    Some(field)
 }
 
 /// The canonical spelling of a static primitive projection, the key facts

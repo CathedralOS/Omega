@@ -15,6 +15,8 @@ mod consumed_owners;
 mod linear_obligations;
 mod linear_validation;
 mod owned_selection;
+pub(super) use owned_selection::reachable_arms;
+pub(super) use projected_affine::transfers_owned_storage;
 mod permission_events;
 mod permission_schedule;
 pub(crate) use permission_events::prepare_permission_events;

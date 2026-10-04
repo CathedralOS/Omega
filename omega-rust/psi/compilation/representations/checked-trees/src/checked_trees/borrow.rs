@@ -391,6 +391,10 @@ pub struct BorrowCallFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowLoanFact {
     pub statement_index: usize,
+    /// The evaluated source occurrence that makes this loan available within
+    /// its statement. Zero denotes a statement-call completion. Source replay
+    /// reconstructs this identity; equal storage does not imply equal timing.
+    pub formation_expression: ExpressionHandle,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
     /// Projection within the owner that carries this loan. An empty path means

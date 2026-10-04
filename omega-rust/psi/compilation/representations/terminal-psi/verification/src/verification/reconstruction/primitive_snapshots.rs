@@ -1,4 +1,4 @@
-//! Exact reaching-store identities for copied primitive SSA values.
+//! Exact storage definitions and unchanged observations for primitive SSA values.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,6 +11,8 @@ use terminal_psi::{
 use terminal_semantics::{StructuralEffectAction, structural_effect_semantic_row};
 
 use crate::ModuleError;
+
+mod observations;
 
 const MAXIMUM_QUERY_WORK: usize = 1_000_000;
 
@@ -104,14 +106,27 @@ impl<'a> PrimitiveSnapshots<'a> {
         let Some(result) = operation.result.scalar_ref() else {
             return Ok(());
         };
-        // A runtime-selected element names no single place, so no store can
-        // be its exact reaching definition.
-        if matches!(result.scalar_type, ScalarType::IeeeFloat(_))
-            || !terminal_psi::is_static_structural_path(path)
-        {
+        if matches!(result.scalar_type, ScalarType::IeeeFloat(_)) {
             return Ok(());
         }
-        let Some(value) = self.reaching_value(block, position, source, path)? else {
+        let stored = if terminal_psi::is_static_structural_path(path) {
+            self.reaching_value(block, position, source, path)?
+        } else {
+            None
+        };
+        let value = match stored {
+            Some(value) => Some(value),
+            None => self.reaching_observation(
+                block,
+                position,
+                source,
+                path,
+                result.scalar_type,
+                value_types,
+                axioms,
+            )?,
+        };
+        let Some(value) = value else {
             return Ok(());
         };
         if value_types.get(&value) == Some(&result.scalar_type) {

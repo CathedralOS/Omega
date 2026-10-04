@@ -64,6 +64,7 @@ use types::{is_reference_type, reference_borrow_access_kind};
 
 #[derive(Clone)]
 pub(super) struct StatementBorrowLoan {
+    pub(super) formation_expression: ExpressionHandle,
     pub(super) owner_symbol: SymbolHandle,
     pub(super) owner_name: Identifier,
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
@@ -507,6 +508,7 @@ fn reference_local_borrow_loans(
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {
+            formation_expression: local_data.initial_value,
             owner_symbol: local_data.symbol,
             owner_name: local_data.name.clone(),
             owner_path: Vec::new(),
@@ -572,6 +574,7 @@ fn selected_arm_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_expression: arm.value,
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: Vec::new(),
@@ -835,6 +838,7 @@ fn borrowed_initializer_loans(
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_expression: initializer.expression,
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: initializer.owner_path.clone(),
@@ -903,6 +907,7 @@ fn aggregate_expression_borrow_loans(
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
                 .map(|source| StatementBorrowLoan {
+                    formation_expression: expression,
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: owner_path_prefix.to_vec(),
@@ -945,6 +950,7 @@ fn aggregate_expression_borrow_loans(
             transferred_aggregate_loans(
                 program,
                 local_data,
+                expression,
                 &source,
                 owner_path_prefix,
                 loan_trackers,
@@ -1053,6 +1059,7 @@ fn helper_call_aggregate_borrow_loans(
                     let mut owner_path = owner_path_prefix.to_vec();
                     owner_path.extend(field.owner_path.iter().copied());
                     StatementBorrowLoan {
+                        formation_expression: argument,
                         owner_symbol: local_data.symbol,
                         owner_name: local_data.name.clone(),
                         owner_path,
@@ -1071,6 +1078,7 @@ fn helper_call_aggregate_borrow_loans(
 fn transferred_aggregate_loans(
     program: &typed_trees::TypedTrees,
     local_data: &checked_trees::statement::TableLocalData,
+    expression: ExpressionHandle,
     source: &accesses::BorrowAccessPlace,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
@@ -1097,6 +1105,7 @@ fn transferred_aggregate_loans(
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
+                formation_expression: expression,
                 owner_symbol: local_data.symbol,
                 owner_name: local_data.name.clone(),
                 owner_path: prefixed_owner_path,

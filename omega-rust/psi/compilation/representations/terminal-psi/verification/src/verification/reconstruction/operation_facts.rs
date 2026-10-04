@@ -812,11 +812,14 @@ pub(super) fn append_operation(
             axioms.extend(bounds);
         }
         if let Some(field_type) =
-            crate::validation::scalar_structural_field_read_refinement(module, machine, operation)
+            crate::validation::scalar_read_field_refinement(module, machine, operation)
             && let Some(result) = operation.result.scalar_ref()
         {
-            // A valid referent retains its declared predicate. Capture that
-            // invariant on this read's SSA value, which survives later writes
+            // A valid referent retains its declared predicate, including
+            // through a runtime selection or stored reference. Index bounds
+            // were recorded before this observation, so its result cannot
+            // justify its own access. Capture the invariant on this fresh
+            // SSA value without a canonical field alias; it survives later writes
             // without asserting that the mutable field keeps its old value.
             // The emission is certificate-gated: only a bound whose fixed-shape
             // elimination certificate re-decides joins under this row.

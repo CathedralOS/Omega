@@ -11,11 +11,13 @@
 //! the leaf's scalar type and that every selector is an integer carrier the
 //! 64-bit address model can extend; it never restates or re-derives a bound.
 //!
-//! A read (not a store) may end at an integer or Boolean scalar field of a
-//! record element it selects at run time (`cells[i].hp`,
+//! A read may end at a scalar field reached through an element selection or
+//! stored reference, including a bounded or refined declaration (`cells[i].hp`,
 //! `terminal_semantics::primitive_read_projection_type`). Target lowering
 //! places that field at its declared offset inside the element; the leaf's
-//! type is rebuilt here from the same declarations.
+//! type is rebuilt here from the same declarations. Terminal independently
+//! transported any declared invariant onto the fresh result; this geometry
+//! query grants no field equation, range evidence or replacement authority.
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};

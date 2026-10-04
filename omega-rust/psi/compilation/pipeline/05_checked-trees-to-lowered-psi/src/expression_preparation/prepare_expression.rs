@@ -202,19 +202,6 @@ fn lower_indexed_field_observation(
                 .collect(),
             scalar_type,
         },
-        IndexedElementLeaf::Hoist {
-            element,
-            carrier,
-            field,
-        } => LoweredDirectExpression::IndexedElementFieldRead {
-            source,
-            path,
-            index: Box::new(index),
-            element,
-            carrier,
-            field,
-            scalar_type,
-        },
         IndexedElementLeaf::RuntimeTail { .. } => {
             return unsupported("static element path minted a runtime tail");
         }

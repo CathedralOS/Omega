@@ -234,7 +234,6 @@ pub(crate) fn evaluate_direct_expression(
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
-        | LoweredDirectExpression::IndexedElementFieldRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }

@@ -850,18 +850,11 @@ pub(crate) fn lower_nested_indexed_path(
     ))
 }
 
-/// How a resolved runtime-indexed element field read reaches its leaf: the
-/// flat `RuntimeIndex`-inserted path for leaves the runtime read admits, or
-/// an element hoist whose `StructuralLeafCopy` materializes the selected
-/// record so the canonical field read supplies a bound the runtime path
-/// cannot carry.
+/// The selected element's scalar projection retains either only static steps
+/// or additional checked runtime selectors. Both emit one primitive read whose
+/// fresh scalar receives the exact endpoint declaration's invariant.
 pub(crate) enum IndexedElementLeaf {
     Flat(Vec<terminal_psi::StructuralPathSegment>),
-    Hoist {
-        element: StructuralTypeId,
-        carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        field: semantic_vocabulary::StructuralFieldId,
-    },
     /// The element path's leaf is a runtime selection into a fixed-array
     /// member — `cells[i].data[j]` names `data`'s element. The path's
     /// static steps resolve exactly like `Flat`'s; its `RuntimeIndex` steps
@@ -872,16 +865,9 @@ pub(crate) enum IndexedElementLeaf {
     },
 }
 
-/// The static prefix and leaf of a scalar field inside a runtime-selected
-/// record element (`cells[i].hp`). The prefix ends at the fixed array, as
-/// for a primitive element; the element path walks the selected record
-/// through structural fields and literal indexes and ends at one relevant,
-/// non-address integer, Boolean, or plain IEEE scalar field. The reader
-/// places its `RuntimeIndex` segment between the two. Independent read
-/// verification checks the exact leaf type and index bound; accepting IEEE
-/// here does not erase bounded-field refinements. A bounded leaf instead
-/// hoists: the copy materializes the element and the canonical field read
-/// on the fresh place supplies its declared range.
+/// Resolve the full selected-field path without copying its carrier. The read
+/// retains every index and stored-reference crossing. Its declared scalar
+/// invariant constrains only the fresh SSA result, not a canonical storage fact.
 pub(crate) fn lower_indexed_element_field_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
@@ -923,35 +909,19 @@ pub(crate) fn lower_indexed_element_field_path(
     if matching.next().is_some() || field.relevance.is_erased() {
         return unsupported("indexed element field is erased or ambiguous");
     }
-    if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
-        let carrier = canonical_carrier(record, carrier, types)?;
-        return Ok((
-            super::runtime_elements::static_segments(steps)?,
-            IndexedElementLeaf::Hoist {
-                element,
-                carrier,
-                field: field.id,
-            },
-            field
-                .field_type
-                .scalar_type()
-                .ok_or(LoweringError::Unsupported(
-                    "restricted indexed element field has no scalar carrier",
-                ))?,
-        ));
-    }
-    let scalar_type = match field.field_type {
+    let scalar_type = match &field.field_type {
+        declared if terminal_semantics::scalar_field_requires_evidence(declared) => {
+            declared.scalar_type().ok_or(LoweringError::Unsupported(
+                "indexed field invariant has no scalar carrier",
+            ))?
+        }
         StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
-            ScalarType::Integer(integer)
+            ScalarType::Integer(*integer)
         }
-        StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => scalar,
-        StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
-        _ => {
-            return unsupported(
-                "indexed element field is not a non-address integer, Boolean, or plain IEEE scalar",
-            );
-        }
+        StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => *scalar,
+        StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(*format),
+        _ => return unsupported("indexed element field is not an observable scalar declaration"),
     };
     let mut element_path = super::runtime_elements::static_segments(carrier_steps)?;
     element_path.push(terminal_psi::StructuralPathSegment::Field(
@@ -962,55 +932,6 @@ pub(crate) fn lower_indexed_element_field_path(
         IndexedElementLeaf::Flat(element_path),
         scalar_type,
     ))
-}
-
-/// Canonicalize the element path's structural prefix for a hoisted read:
-/// each carrier field resolves to its declared field identity, and a
-/// literal fixed-array index carries over verbatim. The lowered leaf walk
-/// already accepted the path, so every carrier step is structural here.
-fn canonical_carrier(
-    structural_type: StructuralTypeId,
-    path: &[CheckedUnitStructuralPathSegment],
-    types: &[StructuralTypeDeclaration],
-) -> Result<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>, LoweringError> {
-    let mut result = Vec::with_capacity(path.len());
-    let mut structural_type = structural_type;
-    for segment in path {
-        let declaration = unique_type(types, structural_type)?;
-        match (segment, &declaration.shape) {
-            (
-                CheckedUnitStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let field = matching.next().ok_or(LoweringError::Unsupported(
-                    "indexed element carrier field is absent",
-                ))?;
-                if matching.next().is_some() {
-                    return unsupported("indexed element carrier field is ambiguous");
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return unsupported("indexed element carrier descends through a scalar field");
-                };
-                result.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                    field.id,
-                ));
-                structural_type = child;
-            }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                result
-                    .push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*index));
-                structural_type = *element;
-            }
-            _ => {
-                return unsupported("indexed element carrier is not structural");
-            }
-        }
-    }
-    Ok(result)
 }
 
 /// The runtime-tail element path's leaf walk (`cells[i].data[j]`): the same

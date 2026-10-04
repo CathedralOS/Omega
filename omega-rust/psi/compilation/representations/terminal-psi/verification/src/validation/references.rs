@@ -66,6 +66,23 @@ pub(super) struct LiveReference {
     parent: ReferenceParent,
 }
 
+impl LiveReference {
+    /// Visit every possible origin for interference checks, without exposing
+    /// formation identities as concrete storage addresses or repair authority.
+    pub(super) fn any_origin_region(
+        &self,
+        mut overlaps: impl FnMut(PlaceId, &[StructuralPathSegment]) -> bool,
+    ) -> bool {
+        match &self.root {
+            ReferenceOrigin::Primitive(place) => overlaps(*place, &[]),
+            ReferenceOrigin::IngressLeaf(identity) => overlaps(identity.place, &identity.path),
+            ReferenceOrigin::Alternatives { place, paths } => {
+                paths.iter().any(|path| overlaps(*place, path))
+            }
+        }
+    }
+}
+
 /// Borrowed block names are immutable addresses whose exact incoming storage
 /// alternatives are reconstructed once at the block-entry snapshot. Unknown
 /// storage remains an explicit failed query, never an alias or origin grant.

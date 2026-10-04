@@ -2,10 +2,9 @@
 // bounded local and drives both a guard and the exit code:
 // `let level: u8 [0..=9] = main.cells[k].level;` where `k` is the scanning
 // state's own scalar parameter, advanced by one per loop step. The declared
-// range belongs to the canonical field read, so the element is hoisted
-// through a `StructuralLeafCopy` at the runtime index and `level` is read
-// canonically on the fresh element place; that declaration discharges the
-// local's own range.
+// range is instantiated on the fresh scalar read from the exact field
+// declaration. No element copy or mutable field equality supplies the local's
+// own range.
 //
 //   element   hp   level
 //   cells[0]   0     3

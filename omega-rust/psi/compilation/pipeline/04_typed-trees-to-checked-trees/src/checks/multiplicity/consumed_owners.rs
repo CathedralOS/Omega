@@ -12,7 +12,7 @@
 //! name nor a cleanup hook decides anything here.
 //!
 //! The tracker rides the occurrence-ordered replay that borrowed-storage
-//! windows already use (`borrowed_windows::statement_steps`): each evaluated
+//! windows already use (`ownership_occurrences::statement_steps`): each evaluated
 //! place is observed before its own move applies, so `take(g.handle, g)`
 //! reads before it moves while `take(g); g.handle` reads a consumed owner.
 //! Its limits keep it from inventing moves the ownership lane did not record:

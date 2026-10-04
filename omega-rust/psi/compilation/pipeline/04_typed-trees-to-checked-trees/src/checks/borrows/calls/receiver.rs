@@ -9,9 +9,8 @@ use typed_trees::types::TypeReferenceNode;
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 use super::super::statements::local_jump;
 
-mod aliases;
+use super::super::{access_sources, aliases};
 mod footprint;
-mod returned;
 
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
@@ -52,7 +51,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let Some(receiver) = returned::resolve(
+    let Some(receiver) = access_sources::resolve(
         program,
         facts,
         state_flow,

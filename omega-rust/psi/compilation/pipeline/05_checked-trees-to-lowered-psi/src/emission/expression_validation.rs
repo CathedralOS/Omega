@@ -119,7 +119,6 @@ pub(crate) fn validate_direct_parameter_types(
             validate_direct_parameter_types(index, parameter_types)
         }
         LoweredDirectExpression::ByteSequenceRead { index, .. }
-        | LoweredDirectExpression::IndexedElementFieldRead { index, .. }
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }

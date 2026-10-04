@@ -380,34 +380,41 @@ crossing requires custody for every candidate slot in the declared fixed array;
 an absent slot cannot shrink that set. The retained selector chooses the runtime
 pointer, while the candidate roster supplies permission only. Further crossings
 require concrete stored lineage at every possible origin. A crossing has no
-canonical owned leaf and supplies no field fact.
+canonical owned leaf and supplies no mutable-field equation. A scalar read may
+retain the final field declaration's invariant on its fresh immutable result.
 Native realization loads the pointer at the retained slot before applying the
 referent-relative offsets and indices; independent replay checks that sequence.
 
-A read, and only a read, may also end at a scalar field of a record element it
-selects at run time: `context.cells[context.i].hp` is one `PrimitiveScalarRead` whose
-path is `cells`, `RuntimeIndex`, `hp`. The final field must be a relevant,
-non-address integer or Boolean `Scalar` field of the record the carrier
-resolves to; erased, bounded, IEEE, byte and structural fields reject, and so
-does a carrier with neither a runtime element nor a reference crossing, which
-keeps the canonical
-`IntegerStructuralField` or `BooleanStructuralField` read. Each runtime element
-owns the obligation every runtime segment owns, `index < extent` plus
-`0 <= index` for a signed selector, reconstructed against the array its prefix
-resolves to. The read observes "some element", so it names no canonical leaf
-and keys no field fact; a bounded field's declared range is supplied only by
-the canonical read, which is why bounded fields stay outside this route.
-This route was chosen over a runtime carrier on the field observations because
-the primitive read already carries runtime elements through verification, the
-codec, the interpreter and every Omega stage, while the field observations'
-canonical carrier is the key every field fact uses; the field store keeps its
-own operation because only it owns a bounded field's range obligation. Omega
-rebuilds the leaf from declarations: the carrier's static offset and
-`(index, stride)` runs, then the field's declared offset inside the record. This is direct storage access, not a synthetic record field or an
-introduced reference lifetime. Root access, whole-value availability, claims,
-qualifications and conflicting loans remain independently checked. An affine
-root stays affine; observing or replacing an unrestricted leaf does not consume
-the root or weaken its cleanup obligations.
+A read, and only a read, may also end at a scalar field reached through a
+runtime element or stored reference. `context.cells[context.i].hp` is one
+`PrimitiveScalarRead` whose path is `cells`, `RuntimeIndex`, `hp`. The final
+field must be relevant and uniquely identified in the exact record reached by
+the complete path. Plain integer, Boolean and IEEE fields retain their scalar
+carrier; bounded integers and refined scalars retain their declaration-owned
+predicate as well. Erased, atomic, byte and structural fields do not become
+ordinary scalar observations through this rule. A carrier with neither a
+runtime element nor a reference crossing keeps the canonical
+`IntegerStructuralField` or `BooleanStructuralField` read.
+
+Each runtime segment independently owes `index < extent`, plus `0 <= index`
+for a signed selector, against the array reached by its prefix. A read cannot
+use its own resulting range to justify that access. Every stored-reference
+crossing separately requires readable access, live unsuspended custody and
+available descriptor storage. The read observes a selected value and names no
+canonical mutable field, so it supplies no field equation. The final field's
+validated declaration instead supplies its invariant on the fresh result SSA
+value through the same certificate-checked transport as canonical field reads.
+Construction, entry and replacement stores remain responsible for establishing
+that invariant; neither a type label on an incoming scalar nor a layout offset
+establishes it. IEEE predicates retain IEEE meaning, including NaN behavior.
+
+This observation does not copy the containing element or create a reference
+lifetime. Omega rebuilds the leaf from declarations: ordered pointer crossings,
+static offsets, selector strides and the final field's exact storage width.
+Root access, availability, claims, qualifications and conflicting loans remain
+independently checked. An affine root stays affine; observing an unrestricted
+scalar leaf does not consume its containing value or weaken cleanup obligations.
+The field store keeps its own operation and declared-range proof obligation.
 
 An exact reaching-store check may equate the copied SSA result with a stored SSA
 value only when every actual arrival reaches that same stored SSA value and the
@@ -416,6 +423,12 @@ arrival, intervening effect, or unproved cyclic arrival supplies no equality.
 The reaching store must name the identical root and complete path: a store to a
 sibling element cannot supply a read's value. Statically disjoint sibling writes
 may preserve that exact reaching definition.
+A repeated read may also equal an earlier immutable observation when every
+arrival reaches that same read of the identical root and complete path. Runtime
+selectors must be equal under currently reconstructed integer equality facts.
+Any intervening mutation, call, custody change, cleanup edge or feedback cut
+prevents this conclusion. The result relates the two immutable SSA values; it
+does not make either read a canonical mutable-field observation.
 This is storage-version availability, not evaluation of a symbolic expression.
 The resulting equality relates immutable values; writes after the capture do
 not invalidate it. Floating-point copies do not license mathematical reflexive

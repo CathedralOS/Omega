@@ -64,6 +64,7 @@ pub(super) fn append_state_borrow_facts(
                 &mut loans_span,
                 BorrowLoanFact {
                     statement_index,
+                    formation_expression: pending.formation_expression,
                     last_use_statement_index: statement_index,
                     owner_symbol: pending.owner_symbol,
                     owner_path,

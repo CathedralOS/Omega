@@ -50,6 +50,7 @@ mod stored_integer_calls;
 mod carry;
 mod content;
 mod multiplicity;
+mod ownership_occurrences;
 
 // Crash routes.
 mod cleanup_admission;

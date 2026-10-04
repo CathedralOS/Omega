@@ -612,14 +612,14 @@ impl TerminalExecution {
         Ok(())
     }
 
-    /// A read that ends at a scalar field of a record element it selected at
-    /// run time (`cells[i].hp`). The loop has already replaced each selector
-    /// with the element its value names, so `path` is static here and the
-    /// read is the same observation `IntegerStructuralField` or
-    /// `BooleanStructuralField` makes of that element's field: the field's
-    /// value lives in `structural_scalar_fields` under its record's runtime
-    /// place. `None` when the path ends at a primitive leaf instead.
-    fn element_field_read(
+    /// Observe the final scalar field under its original runtime record.
+    /// Admission checked the complete primitive-read path before the loop
+    /// replaced runtime selectors with fixed indices. Resolve every stored
+    /// reference in that selected path before locating the field; rechecking
+    /// read eligibility on a suffix would lose the preceding selectors.
+    /// Restricted fields retain their declared scalar carrier and stored value,
+    /// without manufacturing primitive homes or granting store authority.
+    fn scalar_field_read(
         &self,
         source: PlaceId,
         path: &[StructuralPathSegment],
@@ -629,15 +629,14 @@ impl TerminalExecution {
         let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
             return Ok(None);
         };
-        let root = self.observation_root(source)?;
-        let Some((carrier, record)) = terminal_semantics::canonical_static_projection(
-            self.program.structural_types.values(),
-            root.structural_type,
-            carrier,
-        ) else {
-            return Ok(None);
-        };
-        let terminal_psi::StructuralTypeShape::Record { fields } = &record.shape else {
+        let record =
+            self.resolve_live_projection(source, carrier, StructuralAccess::SharedBorrow)?;
+        let declaration = self
+            .program
+            .structural_types
+            .get(&record.structural_type)
+            .ok_or_else(invalid)?;
+        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
             return Ok(None);
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
@@ -646,13 +645,20 @@ impl TerminalExecution {
         };
         // A field holding a structural child is an ordinary primitive leaf
         // projection; only a scalar field ends this route.
-        let terminal_psi::StructuralFieldType::Scalar(declared) = field.field_type else {
+        if matches!(
+            field.field_type,
+            terminal_psi::StructuralFieldType::Atomic(_)
+        ) {
+            return Err(invalid());
+        }
+        let Some(declared) = field.field_type.scalar_type() else {
             return Ok(None);
         };
         if field.relevance.is_erased() || declared != scalar_type {
             return Err(invalid());
         }
-        let cell = self.observed_field_cell(source, &carrier, field.id)?;
+        let cell =
+            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&record), field.id);
         let value = self.structural_scalar_fields.get(&cell).copied().ok_or(
             TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
@@ -688,7 +694,7 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         expected: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        if let Some(value) = self.element_field_read(source, path, expected)? {
+        if let Some(value) = self.scalar_field_read(source, path, expected)? {
             if !terminal_scalar_belongs_to_type(value) {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }

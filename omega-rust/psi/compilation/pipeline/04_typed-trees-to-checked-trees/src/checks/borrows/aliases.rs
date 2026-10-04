@@ -1,22 +1,23 @@
 //! Local reference operands rejoin retained storage before overlap comparison.
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
-use super::{CapturedPlace, CheckFacts, FlowStateFact, TypeReferenceNode, TypedTrees};
 use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
+use checked_trees::{CapturedPlace, CheckFacts, FlowStateFact};
 use typed_trees::statement::StatementNode;
+use typed_trees::{TypedTrees, types::TypeReferenceNode};
 
-pub(super) struct ResolvedAlias {
-    pub(super) place: CapturedPlace,
-    pub(super) lineage: Vec<Handle<BorrowLoanFact>>,
+pub(in crate::checks::borrows) struct ResolvedAlias {
+    pub(in crate::checks::borrows) place: CapturedPlace,
+    pub(in crate::checks::borrows) lineage: Vec<Handle<BorrowLoanFact>>,
 }
 
-pub(super) struct ResolvedPlace {
-    pub(super) place: CapturedPlace,
-    pub(super) local_loan: Handle<BorrowLoanFact>,
+pub(in crate::checks::borrows) struct ResolvedPlace {
+    pub(in crate::checks::borrows) place: CapturedPlace,
+    pub(in crate::checks::borrows) local_loan: Handle<BorrowLoanFact>,
 }
 
-pub(super) fn resolve_receiver(
+pub(in crate::checks::borrows) fn resolve_receiver(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -40,7 +41,7 @@ pub(super) fn resolve_receiver(
     })
 }
 
-pub(super) fn resolve_place(
+pub(in crate::checks::borrows) fn resolve_place(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,

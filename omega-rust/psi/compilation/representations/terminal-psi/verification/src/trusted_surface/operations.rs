@@ -234,11 +234,12 @@ static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
     "operation:primitive-scalar-read",
-    "a readable live root and a relevant-field/fixed-array path to initialized primitive storage whose elements may be runtime-selected",
-    "the read observation's local equation where the schema declares one and the path is static; an exact-format static IEEE field also yields result-to-field bit identity, preserving NaN payloads and signed zero rather than asserting IEEE equality; a static primitive element yields result-to-element equality at its canonical path; each runtime element's bound is the operation's own obligation",
+    "a readable live root and a relevant-field/fixed-array path to initialized primitive storage whose elements may be runtime-selected or reached through live readable stored references; a restricted field retains its exact declared invariant",
+    "the read observation's local equation where the schema declares one and the path is static; an exact-format static IEEE field also yields result-to-field bit identity, preserving NaN payloads and signed zero rather than asserting IEEE equality; a static primitive element yields result-to-element equality at its canonical path; each runtime element's bound is the operation's own obligation; a restricted noncanonical field read receives its declared predicate on the fresh SSA value through independently checked transport, without a canonical field alias",
     &[
         "fact:structural-effect-observation",
         "fact:runtime-index-bound",
+        "fact:scalar-structural-field-read-refinement",
         "fact:ieee-primitive-field-observation",
         "fact:primitive-element-observation",
         "formation:operation-validation",
