@@ -381,9 +381,13 @@ fn fixed_array_lengths_match(
             .find(|binding| binding.required == *required)
             .map_or(actual == required, |binding| binding.actual == *actual),
         (
-            FixedArrayLength::ConstCall { name: actual, .. },
-            FixedArrayLength::ConstCall { name: required, .. },
-        ) => actual == required,
+            FixedArrayLength::ConstCall {
+                machine: actual, ..
+            },
+            FixedArrayLength::ConstCall {
+                machine: required, ..
+            },
+        ) => actual.is_valid() && actual == required,
         _ => false,
     }
 }

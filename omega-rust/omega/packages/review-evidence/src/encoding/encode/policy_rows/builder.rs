@@ -2,15 +2,15 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::Encoder;
 use crate::encoding::encode::policy_rows::rejected;
 use crate::record::PACKAGE_POLICY_ROW_VERSION;
-use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyRow;
 use crate::record::PackagePolicyRowKind;
 use crate::record::PackagePolicyRowLimits;
 use crate::record::PackagePolicyRowUsage;
 use semantic_vocabulary::PackageKeyIdentity;
 
-pub(super) struct Builder<'policy> {
-    policy: &'policy PackagePolicyBaseline,
+pub(super) struct Builder {
+    package: PackageKeyIdentity,
+    target: target::TargetProfile,
     limits: PackagePolicyRowLimits,
     usage: PackagePolicyRowUsage,
     rows: Vec<PackagePolicyRow>,
@@ -18,9 +18,10 @@ pub(super) struct Builder<'policy> {
     acceptance_only: bool,
 }
 
-impl<'policy> Builder<'policy> {
+impl Builder {
     pub(super) fn new(
-        policy: &'policy PackagePolicyBaseline,
+        package: PackageKeyIdentity,
+        target: target::TargetProfile,
         count: usize,
         limits: PackagePolicyRowLimits,
         acceptance_only: bool,
@@ -32,7 +33,8 @@ impl<'policy> Builder<'policy> {
             .checked_mul(std::mem::size_of::<PackagePolicyRow>())
             .ok_or_else(|| rejected("package policy row table size overflows"))?;
         let mut builder = Self {
-            policy,
+            package,
+            target,
             limits,
             usage: PackagePolicyRowUsage::default(),
             rows: Vec::new(),
@@ -116,8 +118,8 @@ impl<'policy> Builder<'policy> {
         );
         frame_row(
             &mut measure,
-            self.policy.package,
-            self.policy.target,
+            self.package,
+            self.target,
             kind,
             initial,
             audit,
@@ -138,8 +140,8 @@ impl<'policy> Builder<'policy> {
         )?;
         frame_row(
             &mut output,
-            self.policy.package,
-            self.policy.target,
+            self.package,
+            self.target,
             kind,
             initial,
             audit,

@@ -120,7 +120,7 @@ pub(crate) fn bind_evidence_projection_facts(
 
     let mut diagnostics = Vec::new();
     let mut applications = Vec::new();
-    for (fact_handle, fact) in program.proof_facts.iter() {
+    for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
         let ProofFact::Proposition(application) = fact else {
             continue;
         };

@@ -122,9 +122,7 @@ pub(crate) fn build_checked_proposition_vocabulary(
             })
         })
         .collect();
-    let applications = program
-        .proof_facts
-        .iter()
+    let applications = typed_trees::references::program_proof_facts(program)
         .filter_map(|(_, fact)| {
             let typed_trees::domain::ProofFact::Proposition(application) = fact else {
                 return None;

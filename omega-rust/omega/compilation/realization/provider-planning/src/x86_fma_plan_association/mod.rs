@@ -119,7 +119,13 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                 }),
         );
     for (requirement_symbol, origin) in named_uses {
-        match crate::selected_use_plan(checked, selected.plans(), requirement_symbol, origin) {
+        match crate::selected_use_plan(
+            checked,
+            source::DependencyScope::Product,
+            selected.plans(),
+            requirement_symbol,
+            origin,
+        ) {
             None => continue,
             Some((plan_index, _)) => {
                 let retained = &provenance[plan_index];

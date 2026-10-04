@@ -1,0 +1,3 @@
+use token;
+
+machine main() {}

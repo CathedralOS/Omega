@@ -6,6 +6,38 @@ use language_semantics::declaration_selection::{
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
+
+/// Only an exact compiler operation grants declaration-description operands.
+/// The same classification drives dependency traversal and static conformance
+/// validation; an ordinary same-named callable keeps host value dependencies.
+pub(crate) fn static_argument_role(
+    program: &TypedTrees,
+    call: StaticArgumentCall<'_>,
+) -> StaticArgumentRole {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    let intrinsic = match call {
+        StaticArgumentCall::Expression(call) => checked_call_intrinsic(
+            program,
+            call.target.as_str(),
+            call.target_symbol,
+            call.receiver,
+        ),
+        StaticArgumentCall::Statement(state, call) => {
+            checked_statement_call_intrinsic(program, state, call)
+        }
+    };
+    match intrinsic {
+        Some(
+            Intrinsic::BuildProviderSelection
+            | Intrinsic::BuildRepresentationSelection
+            | Intrinsic::BuildServiceExclusion
+            | Intrinsic::BuildAssumedBindingContract,
+        ) => StaticArgumentRole::DeclarationDescription,
+        _ => StaticArgumentRole::ValueDependency,
+    }
+}
 
 /// How checking tells a toolchain-owned build operation apart from an
 /// ordinary call which happens to share its spelling.

@@ -5,7 +5,8 @@ use super::super::{
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
-    concrete_machine_expression_handles,
+    concrete_machine_expression_handles, visit_expression_type_inputs,
+    visit_static_argument_type_inputs,
 };
 
 use crate::preparation::generic_data::EvaluatedConst;
@@ -184,45 +185,9 @@ fn update_captured_names(
         }
         for handle in pending {
             visited.insert(handle);
-            match syntax.expressions.expression(handle) {
-                ExpressionNode::Cast(cast) => {
-                    collect_type_expression_handles(
-                        syntax,
-                        cast.target_type,
-                        expressions,
-                        type_references,
-                    );
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(cast.semantic_domain_arguments)
-                    {
-                        collect_type_expression_handles(
-                            syntax,
-                            *argument,
-                            expressions,
-                            type_references,
-                        );
-                    }
-                }
-                ExpressionNode::TypeExpression(reference)
-                | ExpressionNode::ZeroValue(reference) => {
-                    collect_type_expression_handles(
-                        syntax,
-                        *reference,
-                        expressions,
-                        type_references,
-                    );
-                }
-                ExpressionNode::Call(call) => {
-                    collect_static_argument_expression_handles(
-                        syntax,
-                        &call.machine_arguments,
-                        expressions,
-                        type_references,
-                    );
-                }
-                _ => {}
-            }
+            visit_expression_type_inputs(syntax, handle, &mut |reference| {
+                collect_type_expression_handles(syntax, reference, expressions, type_references);
+            });
         }
     }
     for handle in expressions.iter() {
@@ -251,24 +216,9 @@ fn collect_static_argument_expression_handles(
     expressions: &mut HashSet<ExpressionHandle>,
     type_references: &mut HashSet<TypeReferenceHandle>,
 ) {
-    for argument in arguments {
-        if argument.type_reference.is_valid() {
-            collect_type_expression_handles(
-                syntax,
-                argument.type_reference,
-                expressions,
-                type_references,
-            );
-        }
-        if let Some(application) = &argument.application {
-            collect_static_argument_expression_handles(
-                syntax,
-                &application.arguments,
-                expressions,
-                type_references,
-            );
-        }
-    }
+    visit_static_argument_type_inputs(arguments, &mut |reference| {
+        collect_type_expression_handles(syntax, reference, expressions, type_references);
+    });
 }
 
 fn collect_contract_expression_handles(
@@ -404,9 +354,11 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
     syntax: &mut SyntaxTrees,
     const_values: &HashMap<String, i128>,
     warnings: &mut Vec<Diagnostic>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) -> Result<(), Diagnostic> {
-    let templates: Vec<(String, HashSet<String>, Vec<TypeReferenceHandle>)> = syntax
-        .root_items()
+    let templates: Vec<(String, HashSet<String>, Vec<TypeReferenceHandle>)> = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| {
             let Item::Data(definition) = item else {
                 return None;
@@ -572,17 +524,18 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
 /// Every TYPE-REFERENCE position a generic-data spelling can appear in: data
 /// FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN types. Run
 /// afresh each fixpoint round so newly-synthesized records' fields are seen.
-pub(in crate::preparation::generic_data) fn collect_type_reference_positions(
+pub(in crate::preparation::generic_data) fn collect_selected_type_reference_positions(
     syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) -> Vec<TypeReferenceHandle> {
-    collect_owned_type_reference_positions(syntax, true, false)
+    collect_owned_type_reference_positions(syntax, declarations, true, false)
 }
 
 pub(in crate::preparation::generic_data) fn collect_data_type_reference_positions(
     syntax: &SyntaxTrees,
     public_only: bool,
 ) -> Vec<TypeReferenceHandle> {
-    collect_owned_type_reference_positions(syntax, false, public_only)
+    collect_owned_type_reference_positions(syntax, syntax.root_item_handles(), false, public_only)
 }
 
 pub(in crate::preparation) fn collect_type_positions(
@@ -646,11 +599,13 @@ pub(in crate::preparation) fn collect_type_positions(
 
 fn collect_owned_type_reference_positions(
     syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
     include_machines: bool,
     public_only: bool,
 ) -> Vec<TypeReferenceHandle> {
     let mut positions: Vec<TypeReferenceHandle> = Vec::new();
-    for item in syntax.root_items() {
+    for &declaration in declarations {
+        let item = syntax.root_item(declaration);
         match item {
             // SKIP the bodies of GENERIC TEMPLATES (defs/machines with type
             // parameters): their `Box<T>` fields carry the type PARAMETER as an
@@ -746,7 +701,8 @@ fn collect_owned_type_reference_positions(
     if !include_machines {
         return positions;
     }
-    let concrete_expressions = concrete_machine_expression_handles(syntax);
+    let concrete_expressions =
+        super::super::uses::selected_machine_expression_handles(syntax, declarations);
     for (handle, expression) in syntax.expressions.iter_expressions() {
         if concrete_expressions.contains(handle)
             && let ExpressionNode::Cast(cast) = expression

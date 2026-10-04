@@ -1,3 +1,9 @@
+//! Executed Build path operations selected by exact toolchain declaration.
+//!
+//! Declaration qualification supplies no runtime receiver. Both call forms
+//! pass explicit operands to this owner; the first operand carries the private
+//! activation facet. Filesystem operand evaluation stays inside its existing
+//! accounting owner, so nested calls retain call-start order and live buffers.
 use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
     SymbolHandle, TableCall, Value,
@@ -6,61 +12,184 @@ use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
     MAX_INCLUDED_BUILD_SOURCES,
 };
-use language_semantics::declaration_selection::BuildOperation;
 
 pub(in crate::interpreter::evaluator) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
 pub(in crate::interpreter::evaluator) const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
+const INPUT_SLOTS_FACET_TYPE: &str = "$OmegaBuildInputSlots";
+
+enum BuildPathOperation {
+    Resolve(&'static str),
+    NamedInput,
+    Filesystem {
+        facet: &'static str,
+        operation: FilesystemHostOperation,
+    },
+    IncludeSource,
+}
 
 impl<'program> Evaluator<'program> {
-    /// Slot lookup returns an existing compiler-issued read root. It never
-    /// interprets a slot name as a host pathname or extends filesystem grants.
-    pub(in crate::interpreter::evaluator) fn try_build_named_input_value_call(
+    /// Select only the resolved compiler-owned declaration. Ordinary user
+    /// machines with the same spelling never acquire Build host semantics.
+    fn build_path_operation(&self, target: SymbolHandle) -> Option<BuildPathOperation> {
+        if !target.is_valid() || !self.symbol_has_build_prelude_source(target) {
+            return None;
+        }
+        let (machine, state) = if let Some(machine) = self.program.machine_by_symbol(target) {
+            (machine, self.machine_entry_state(machine)?)
+        } else {
+            let machine = self.program.machine_holding_state(target)?;
+            (machine, self.find_state_by_symbol(machine, target)?)
+        };
+        if !self.symbol_has_build_prelude_source(machine.symbol)
+            || !self.symbol_has_build_prelude_source(state.symbol)
+        {
+            return None;
+        }
+        match (
+            machine.attached_data.as_ref()?.as_str(),
+            state.name.as_str(),
+        ) {
+            ("BuildSource", "resolve") => Some(BuildPathOperation::Resolve(SOURCE_ROOT_FACET_TYPE)),
+            ("BuildOutput", "resolve") => Some(BuildPathOperation::Resolve(OUTPUT_ROOT_FACET_TYPE)),
+            ("BuildInputs", "get") => Some(BuildPathOperation::NamedInput),
+            ("BuildOutput", "include_source") => Some(BuildPathOperation::IncludeSource),
+            ("BuildSource", method) => {
+                let operation = match method {
+                    "open" => FilesystemHostOperation::Open,
+                    "read" => FilesystemHostOperation::Read,
+                    "close" => FilesystemHostOperation::Close,
+                    _ => return None,
+                };
+                Some(BuildPathOperation::Filesystem {
+                    facet: SOURCE_ROOT_FACET_TYPE,
+                    operation,
+                })
+            }
+            ("BuildOutput", method) => {
+                let operation = match method {
+                    "create" => FilesystemHostOperation::Create,
+                    "write" => FilesystemHostOperation::Write,
+                    "close" => FilesystemHostOperation::Close,
+                    _ => return None,
+                };
+                Some(BuildPathOperation::Filesystem {
+                    facet: OUTPUT_ROOT_FACET_TYPE,
+                    operation,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    pub(in crate::interpreter::evaluator) fn try_build_path_call(
         &mut self,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "get"
-            || !call.receiver.is_valid()
-            || !self.exact_build_facet_method("BuildInputs", "get", call.target_symbol)
-        {
+        let Some(operation) = self.build_path_operation(target) else {
             return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        };
+        let Some((facet, operands)) = arguments.split_first() else {
+            return Err(Halt::Trap(
+                "Build path operation has no explicit activation facet".into(),
+            ));
+        };
+        let value = match operation {
+            BuildPathOperation::Resolve(expected) => {
+                let root = self.build_root_argument(*facet, expected, frame)?;
+                let [relative] = operands else {
+                    return Err(Halt::Trap(
+                        "build-root resolution requires one relative path".into(),
+                    ));
+                };
+                let relative = self.build_relative_bytes(*relative, frame)?;
+                validate_build_relative_path(&relative)?;
+                Value::Struct {
+                    type_symbol: SymbolHandle::invalid(),
+                    type_name: ROOTED_BUILD_PATH_TYPE.into(),
+                    fields: BTreeMap::from([
+                        (
+                            "root".into(),
+                            self.allocate_cell(Value::Int(i64::from(root.get())))?,
+                        ),
+                        (
+                            "relative".into(),
+                            self.allocate_cell(self.allocate_text(relative)?)?,
+                        ),
+                    ]),
+                }
+            }
+            BuildPathOperation::NamedInput => {
+                let facet = self.eval_argument(*facet, frame)?;
+                let facet = self.deref_cell(facet);
+                self.build_named_input(&facet, operands, frame)?
+            }
+            BuildPathOperation::Filesystem {
+                facet: expected,
+                operation,
+            } => self.evaluate_filesystem_operation(operation, |evaluator| {
+                evaluator.build_root_argument(*facet, expected, frame)?;
+                evaluator.prepare_filesystem_call(operation, operands, frame)
+            })?,
+            BuildPathOperation::IncludeSource => {
+                let root = self.build_root_argument(*facet, OUTPUT_ROOT_FACET_TYPE, frame)?;
+                self.include_build_source(root, operands, frame)?
+            }
+        };
+        Ok(Some(value))
+    }
+
+    fn build_root_argument(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: &str,
+        frame: &mut Frame,
+    ) -> EvalResult<FilesystemGrantRootIdentity> {
+        let facet = self.eval_argument(expression, frame)?;
+        let facet = self.deref_cell(facet);
+        build_root_facet_identity(&facet.borrow(), expected)
+    }
+
+    /// Slot lookup returns an existing compiler-issued read root. A slot name
+    /// is never interpreted as a pathname and cannot extend filesystem grants.
+    fn build_named_input(
+        &mut self,
+        facet: &Cell,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Value> {
         let [name] = arguments else {
             return Err(Halt::Trap(
-                "named build input lookup requires one slot name".to_owned(),
+                "named build input lookup requires one slot name".into(),
             ));
         };
-        let name = self.build_relative_bytes(*name, frame)?;
-        validate_build_relative_path(&name)?;
-        let receiver = receiver.borrow();
-        let Value::Struct {
-            type_name, fields, ..
-        } = &*receiver
-        else {
+        // Validate the private facet before evaluating the selected name.
+        if !matches!(&*facet.borrow(), Value::Struct { type_name, .. } if &**type_name == INPUT_SLOTS_FACET_TYPE)
+        {
             return Err(Halt::Trap(
-                "named build inputs require a compiler-issued facet".to_owned(),
-            ));
-        };
-        if **type_name != *"$OmegaBuildInputSlots" {
-            return Err(Halt::Trap(
-                "named build inputs require a compiler-issued facet".to_owned(),
+                "named build inputs require a compiler-issued facet".into(),
             ));
         }
+        let name = self.build_relative_bytes(*name, frame)?;
+        validate_build_relative_path(&name)?;
         let name = std::str::from_utf8(&name)
-            .map_err(|_| Halt::Trap("named build input slot is not UTF-8".to_owned()))?;
+            .map_err(|_| Halt::Trap("named build input slot is not UTF-8".into()))?;
+        let facet = facet.borrow();
+        let Value::Struct { fields, .. } = &*facet else {
+            return Err(Halt::Trap(
+                "named build inputs lost their compiler-issued facet".into(),
+            ));
+        };
         let input = fields.get(name).ok_or_else(|| {
             Halt::Trap(format!(
                 "named build input `{name}` is not assigned to this activation"
             ))
         })?;
-        Ok(Some(input.borrow().clone()))
+        let value = input.borrow().clone();
+        build_root_facet_identity(&value, SOURCE_ROOT_FACET_TYPE)?;
+        Ok(value)
     }
 
     fn build_relative_bytes(
@@ -105,239 +234,12 @@ impl<'program> Evaluator<'program> {
         });
     }
 
-    pub(in crate::interpreter::evaluator) fn try_build_root_resolve_value_call(
+    fn include_build_source(
         &mut self,
-        call: &typed_trees::expression::TableCallExpression,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "resolve" || !call.receiver.is_valid() {
-            return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let (expected_attached, root) = match &*receiver.borrow() {
-            Value::Struct {
-                type_name, fields, ..
-            } if matches!(
-                &**type_name,
-                SOURCE_ROOT_FACET_TYPE | OUTPUT_ROOT_FACET_TYPE
-            ) =>
-            {
-                let attached = if **type_name == *SOURCE_ROOT_FACET_TYPE {
-                    "BuildSource"
-                } else {
-                    "BuildOutput"
-                };
-                let root = fields
-                    .get("root")
-                    .and_then(|root| root.borrow().as_int())
-                    .and_then(|root| u32::try_from(root).ok())
-                    .and_then(FilesystemGrantRootIdentity::new)
-                    .ok_or_else(|| {
-                        Halt::Trap(
-                            "build-root activation facet has no valid root identity".to_owned(),
-                        )
-                    })?;
-                (attached, root)
-            }
-            _ => return Ok(None),
-        };
-        if !self.exact_build_root_resolver(expected_attached, call.target_symbol) {
-            return Err(Halt::Trap(
-                "build-root resolution did not select the exact toolchain resolver".to_owned(),
-            ));
-        }
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        let [relative] = arguments else {
-            return Err(Halt::Trap(
-                "build-root resolution requires one relative path".to_owned(),
-            ));
-        };
-        let relative = self.build_relative_bytes(*relative, frame)?;
-        validate_build_relative_path(&relative)?;
-        Ok(Some(Value::Struct {
-            type_symbol: SymbolHandle::invalid(),
-            type_name: ROOTED_BUILD_PATH_TYPE.into(),
-            fields: BTreeMap::from([
-                (
-                    "root".into(),
-                    self.allocate_cell(Value::Int(i64::from(root.get())))?,
-                ),
-                (
-                    "relative".into(),
-                    self.allocate_cell(self.allocate_text(relative)?)?,
-                ),
-            ]),
-        }))
-    }
-
-    pub(in crate::interpreter::evaluator) fn try_build_facet_filesystem_value_call(
-        &mut self,
-        call: &typed_trees::expression::TableCallExpression,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if !call.receiver.is_valid()
-            || !matches!(
-                call.target.as_str(),
-                "open" | "read" | "close" | "create" | "write"
-            )
-        {
-            return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let Some(operation) = self.build_facet_filesystem_operation(
-            &receiver,
-            call.target.as_str(),
-            call.target_symbol,
-        )?
-        else {
-            return Ok(None);
-        };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        self.try_filesystem_call(operation, arguments, frame)
-            .map(Some)
-    }
-
-    pub(in crate::interpreter::evaluator) fn try_build_facet_filesystem_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if call.receiver.is_empty()
-            || !matches!(
-                call.target.as_str(),
-                "open" | "read" | "close" | "create" | "write"
-            )
-        {
-            return Ok(None);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(None);
-        };
-        let Some(operation) = self.build_facet_filesystem_operation(
-            &receiver,
-            call.target.as_str(),
-            call.target_symbol,
-        )?
-        else {
-            return Ok(None);
-        };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        self.try_filesystem_call(operation, arguments, frame)
-            .map(Some)
-    }
-
-    fn build_facet_filesystem_operation(
-        &self,
-        receiver: &Cell,
-        target: &str,
-        target_symbol: SymbolHandle,
-    ) -> EvalResult<Option<FilesystemHostOperation>> {
-        let receiver = self.deref_cell(receiver.clone());
-        let attached = match &*receiver.borrow() {
-            Value::Struct { type_name, .. } if **type_name == *SOURCE_ROOT_FACET_TYPE => {
-                "BuildSource"
-            }
-            Value::Struct { type_name, .. } if **type_name == *OUTPUT_ROOT_FACET_TYPE => {
-                "BuildOutput"
-            }
-            _ => return Ok(None),
-        };
-        let operation = match (attached, target) {
-            ("BuildSource", "open") => FilesystemHostOperation::Open,
-            ("BuildSource", "read") => FilesystemHostOperation::Read,
-            ("BuildSource", "close") => FilesystemHostOperation::Close,
-            ("BuildOutput", "create") => FilesystemHostOperation::Create,
-            ("BuildOutput", "write") => FilesystemHostOperation::Write,
-            ("BuildOutput", "close") => FilesystemHostOperation::Close,
-            _ => return Ok(None),
-        };
-        if !self.exact_build_facet_method(attached, target, target_symbol) {
-            return Err(Halt::Trap(format!(
-                "build {attached} operation `{target}` did not select the exact toolchain machine"
-            )));
-        }
-        Ok(Some(operation))
-    }
-
-    pub(in crate::interpreter::evaluator) fn try_build_output_include_source_value_call(
-        &mut self,
-        call: &typed_trees::expression::TableCallExpression,
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::IncludedSourceHandoff)
-            || !call.receiver.is_valid()
-        {
-            return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        self.try_include_source(receiver, call.target_symbol, arguments, frame)
-            .map(|handled| handled.then_some(Value::Unit))
-    }
-
-    pub(in crate::interpreter::evaluator) fn try_build_output_include_source_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::IncludedSourceHandoff)
-            || call.receiver.is_empty()
-        {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        self.try_include_source(receiver, call.target_symbol, arguments, frame)
-    }
-
-    fn try_include_source(
-        &mut self,
-        receiver: Cell,
-        target_symbol: SymbolHandle,
+        output_root: FilesystemGrantRootIdentity,
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        let receiver = self.deref_cell(receiver);
-        let output_root = match &*receiver.borrow() {
-            Value::Struct {
-                type_name, fields, ..
-            } if **type_name == *OUTPUT_ROOT_FACET_TYPE => fields
-                .get("root")
-                .and_then(|root| root.borrow().as_int())
-                .and_then(|root| u32::try_from(root).ok())
-                .and_then(FilesystemGrantRootIdentity::new)
-                .ok_or_else(|| {
-                    Halt::Trap(
-                        "build-output activation facet has no valid root identity".to_owned(),
-                    )
-                })?,
-            _ => return Ok(false),
-        };
-        if !self.exact_build_output_include_source(target_symbol) {
-            return Err(Halt::Trap(
-                "generated-source handoff did not select the exact toolchain machine".to_owned(),
-            ));
-        }
+    ) -> EvalResult<Value> {
         let [included] = arguments else {
             return Err(Halt::Trap(
                 "generated-source handoff requires one Output-rooted path".to_owned(),
@@ -383,7 +285,7 @@ impl<'program> Evaluator<'program> {
                 relative_path,
                 self.filesystem_operation_attempts.len(),
             ));
-        Ok(true)
+        Ok(Value::Unit)
     }
 
     pub(in crate::interpreter::evaluator) fn statement_receiver_cell(
@@ -409,14 +311,6 @@ impl<'program> Evaluator<'program> {
             };
         }
         Ok(Some(self.deref_cell(cell)))
-    }
-
-    fn exact_build_root_resolver(
-        &self,
-        expected_attached: &str,
-        target_symbol: SymbolHandle,
-    ) -> bool {
-        self.exact_build_facet_method(expected_attached, "resolve", target_symbol)
     }
 
     pub(in crate::interpreter::evaluator) fn exact_build_facet_method(
@@ -445,21 +339,6 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn exact_build_output_include_source(&self, target_symbol: SymbolHandle) -> bool {
-        self.program.machines().iter().any(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|attached| attached.as_str() == "BuildOutput")
-                && self.symbol_has_build_prelude_source(machine.symbol)
-                && self.program.machine_states(machine).iter().any(|state| {
-                    state.name.as_str() == BuildOperation::IncludedSourceHandoff.authored_spelling()
-                        && self.symbol_has_build_prelude_source(state.symbol)
-                        && (!target_symbol.is_valid() || state.symbol == target_symbol)
-                })
-        })
-    }
-
     pub(in crate::interpreter::evaluator) fn symbol_has_build_prelude_source(
         &self,
         symbol: SymbolHandle,
@@ -473,6 +352,33 @@ impl<'program> Evaluator<'program> {
                     && file.path == std::path::Path::new("<build-prelude>")
             })
     }
+}
+
+/// Only private activation values carry rooted host authority. The public
+/// empty BuildSource/BuildOutput stubs cannot manufacture this identity.
+fn build_root_facet_identity(
+    value: &Value,
+    expected: &str,
+) -> EvalResult<FilesystemGrantRootIdentity> {
+    let Value::Struct {
+        type_name, fields, ..
+    } = value
+    else {
+        return Err(Halt::Trap(
+            "Build path operation requires a compiler-issued facet".into(),
+        ));
+    };
+    if &**type_name != expected {
+        return Err(Halt::Trap(
+            "Build path operation received a different activation facet".into(),
+        ));
+    }
+    fields
+        .get("root")
+        .and_then(|root| root.borrow().as_int())
+        .and_then(|root| u32::try_from(root).ok())
+        .and_then(FilesystemGrantRootIdentity::new)
+        .ok_or_else(|| Halt::Trap("build-root activation facet has no valid root identity".into()))
 }
 
 pub(in crate::interpreter::evaluator) fn rooted_build_path_parts(

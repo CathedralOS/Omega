@@ -57,6 +57,9 @@ machine-emission = { path = "../backend/machine-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 
+[build-dependencies]
+sha2 = "0.10.9"
+
 [dev-dependencies]
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 calling-conventions = { path = "../backend/calling-conventions" }

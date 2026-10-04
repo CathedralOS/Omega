@@ -9,10 +9,9 @@ mod restricted_build_grants;
 mod symbolic_boundary_applications;
 mod timings;
 
-pub(crate) use candidate::{
-    compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
-    production_candidate_reusing, verify_transitive_source_custody,
-};
+#[cfg(test)]
+pub(crate) use candidate::compile_resolved_package_candidate_for_check;
+pub(crate) use candidate::verify_transitive_source_custody;
 
 pub use audit::{
     CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,

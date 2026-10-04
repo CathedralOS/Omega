@@ -1071,6 +1071,8 @@ pub enum FixedArrayLength {
     /// checking/layout; downstream consumers never see it in a well-formed
     /// pipeline (comptime stage 1).
     ConstCall {
+        /// Exact declaration selected in the extent's original source scope.
+        machine: SymbolHandle,
         name: Identifier,
         source_span: source::SourceSpan,
     },

@@ -76,8 +76,8 @@ use sha2::{Digest, Sha256};
 use symbols::SymbolHandle;
 use typed_trees::{AuthoredDeclarationSelectionOccurrenceId, TypedTrees};
 
-mod dependencies;
-mod rewrite;
+pub(crate) mod dependencies;
+pub(crate) mod rewrite;
 mod sibling_evidence;
 
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
@@ -445,15 +445,20 @@ fn retain_live_family_members(typed: &mut TypedTrees) {
 pub fn target_sibling_selection_occurrences(
     typed: &TypedTrees,
 ) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
-    // A sibling still carries its record; a sibling this program already
-    // pruned keeps only its machine symbol.
-    let owner_is_sibling = |symbol: SymbolHandle| match typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
-        Some(machine) => machine.target.is_some(),
-        None => typed.symbols.get(symbol).kind == symbols::SymbolKind::Machine,
+    // Projection retains backing declarations. Absence from executable roots
+    // alone is not a target-sibling designation: ordinary private projections
+    // remove machine roots too, and their unknown occurrences must still fail.
+    let owner_is_sibling = |symbol: SymbolHandle| {
+        let mut declarations = typed
+            .tables
+            .machines
+            .iter()
+            .filter(|(_, machine)| machine.symbol == symbol)
+            .map(|(_, machine)| machine);
+        let Some(first) = declarations.next() else {
+            return false;
+        };
+        first.target.is_some() && declarations.all(|machine| machine.target == first.target)
     };
     let mut starts: Vec<(usize, usize, SymbolHandle)> = typed
         .symbols

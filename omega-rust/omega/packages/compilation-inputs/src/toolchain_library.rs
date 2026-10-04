@@ -113,6 +113,13 @@ fn validate(root: &Path, expected: Option<&str>) -> Result<PathBuf, String> {
     Ok(root)
 }
 
+/// Identify the selected library's current source bytes, including injected core
+/// modules absent from a project's package graph. Do not cache this with the
+/// selected path: a development library may have changed since the prior use.
+pub fn identity() -> Result<String, String> {
+    library_digest(&root()?)
+}
+
 // The packager uses the same versioned framing: sorted UTF-8 relative paths,
 // each prefixed by its u64 byte length, then file length and exact file bytes.
 fn library_digest(root: &Path) -> Result<String, String> {

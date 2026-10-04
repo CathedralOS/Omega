@@ -57,7 +57,11 @@ data Main { bytes: [u8; 2]; }
 machine set(dst: &mut i64, value: i64) { dst = value; }
 machine forward(dst: &mut i64, value: i64) { set(dst, value); }
 
+machine set_sentinel(main: &mut Main) { main.bytes[1] = 85; }
+
 machine Main::main(main: &mut Main) crashes Trap {
+    // A completed reborrow preserves the origin of the next ordinary store.
+    set_sentinel(&mut main);
     main.bytes[1] = 85;
     let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
     let leaf: &mut i64 = &mut view.value.value;

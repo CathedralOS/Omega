@@ -4,7 +4,9 @@ use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::contracts::propositions::endpoint::project_proposition_signature;
 use crate::capture::contracts::propositions::evidence::project_evidence_interface;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
@@ -20,11 +22,10 @@ pub(crate) fn project_public_propositions(
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     let mut rows = Vec::new();
-    for declaration in compilation
-        .propositions()
-        .iter()
-        .filter(|declaration| declaration.is_public)
-    {
+    for declaration in compilation.propositions().iter().filter(|declaration| {
+        declaration.is_public
+            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
+    }) {
         let identity = nominal_identity(compilation, declaration.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

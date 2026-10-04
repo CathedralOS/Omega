@@ -20,6 +20,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
     retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,

@@ -19,9 +19,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_constant
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    let constants = syntax
-        .root_items()
+    let constants = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| {
             let Item::Const(constant) = item else {
                 return None;
@@ -69,9 +71,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    let concrete_states = syntax
-        .root_items()
+    let concrete_states = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| match item {
             Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
             _ => None,

@@ -47,8 +47,9 @@ mod constant;
 // The entrance, its post-base re-entry, and the requests and carriers both
 // name.
 pub use resolution::{
-    ExtensionRequest, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
-    SeededSymbolResolvedTrees, resolve, resolve_extension,
+    DeferredResolvedFrontier, ExtensionRequest, RebasedResolvedBodyCompletion,
+    RebasedSeededSymbolResolvedTrees, ResolutionRequest, ResolvedBodyCompletion,
+    SeededSymbolResolvedTrees, resolve, resolve_deferred, resolve_extension,
 };
 
 /// What build-time evaluation drives before this stage can run.
@@ -58,7 +59,9 @@ pub use resolution::{
 /// and the syntax-to-syntax rewrites here between its evaluations, then hands
 /// the forest to [`resolve`]. Nothing downstream of resolution may use this.
 pub mod pre_resolution {
-    pub use crate::constant::initializer_dependencies::ConstInitializerDependencies;
+    pub use crate::constant::initializer_dependencies::{
+        ConstInitializerDependencies, ResolvedMachineBodyDemand,
+    };
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::generic_data::{
         GenericDataRequest, canonicalize_declared_const_definition,
@@ -68,6 +71,6 @@ pub mod pre_resolution {
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{
         ConstInitializerSelection, prepare_const_initializer_selection,
-        resolve_const_argument_selection, resolve_numeric_probe,
+        resolve_const_argument_selection, resolve_deferred_numeric_probe, resolve_numeric_probe,
     };
 }

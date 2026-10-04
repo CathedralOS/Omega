@@ -116,19 +116,19 @@ impl<'program> Evaluator<'program> {
         // product alias leaves only the occurrence's own package path
         // reading of the full spelling.
         let is_provider = |symbol: SymbolHandle| {
-            self.program.machines().iter().any(|machine| {
+            self.product_declarations.machines().iter().any(|machine| {
                 machine.attached_data_symbol == symbol && !machine.satisfies.is_empty()
             })
         };
         let qualified = name.split_once("::");
         let authorized = qualified.and_then(|(alias, _)| {
-            self.program
+            self.product_declarations
                 .symbols
                 .product_dependency_target(occurrence, alias)
         });
         let candidates = match (qualified, authorized) {
             (Some((_, rest)), Some(target)) => self
-                .program
+                .product_declarations
                 .data_definitions()
                 .iter()
                 .filter(|definition| {
@@ -136,22 +136,22 @@ impl<'program> Evaluator<'program> {
                         && is_provider(definition.symbol)
                         // The dependency alias qualifies a complete path;
                         // a different module's relative name is not a match.
-                        && self.program.symbols.display_path(definition.symbol, "::") == rest
+                        && self.product_declarations.symbols.display_path(definition.symbol, "::") == rest
                         && self
-                            .program
+                            .product_declarations
                             .symbols
                             .symbol_product_package_identity(definition.symbol)
                             == Some(target)
                 })
                 .collect::<Vec<_>>(),
             _ => self
-                .program
+                .product_declarations
                 .data_definitions()
                 .iter()
                 .filter(|definition| {
                     (match qualified {
                         Some(_) => {
-                            self.program
+                            self.product_declarations
                                 .symbols
                                 .display_path(definition.symbol, "::")
                                 .as_str()
@@ -160,11 +160,11 @@ impl<'program> Evaluator<'program> {
                         None => definition.name.as_str() == name,
                     }) && is_provider(definition.symbol)
                         && self
-                            .program
+                            .product_declarations
                             .symbols
                             .symbol_source_span(definition.symbol)
                             .is_some_and(|span| {
-                                self.program
+                                self.product_declarations
                                     .symbols
                                     .same_product_package_instance(occurrence, span)
                             })
@@ -178,12 +178,15 @@ impl<'program> Evaluator<'program> {
                 )));
             }
             let probe = qualified.map_or(name, |(_, rest)| rest);
-            let names_a_provider_elsewhere =
-                self.program.data_definitions().iter().any(|definition| {
+            let names_a_provider_elsewhere = self
+                .product_declarations
+                .data_definitions()
+                .iter()
+                .any(|definition| {
                     is_provider(definition.symbol)
                         && (definition.name.as_str() == probe
                             || self
-                                .program
+                                .product_declarations
                                 .symbols
                                 .display_path(definition.symbol, "::")
                                 .as_str()
@@ -200,7 +203,10 @@ impl<'program> Evaluator<'program> {
             };
             return Err(Halt::Trap(message));
         };
-        let canonical_path = self.program.symbols.display_path(definition.symbol, "::");
+        let canonical_path = self
+            .product_declarations
+            .symbols
+            .display_path(definition.symbol, "::");
         let index = self.product_provider_descriptions.len();
         self.product_provider_descriptions
             .try_reserve(1)

@@ -14,6 +14,16 @@ pub struct TypeReferenceTable {
     const_argument_origins: Arena<ConstArgumentOrigin>,
     const_argument_builtin_operators: Arena<source::SourceSpan>,
     integer_range_normalizations: Arena<RetainedIntegerRangeNormalization>,
+    pending_const_arguments: Arena<PendingConstArgument>,
+}
+
+/// Private probe custody, never a canonical value or checking receipt. Copies
+/// inside one retained syntax lineage keep the original argument handle even
+/// when provisional applications share a synthesized carrier.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct PendingConstArgument {
+    position: TypeReferenceHandle,
+    original: TypeReferenceHandle,
 }
 
 /// Closed interval meaning supplied by typed semantic evaluation. Authored
@@ -80,11 +90,63 @@ impl TypeReferenceTable {
             const_argument_origins: Arena::new(),
             const_argument_builtin_operators: Arena::new(),
             integer_range_normalizations: Arena::new(),
+            pending_const_arguments: Arena::new(),
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    pub fn retain_pending_const_argument(
+        &mut self,
+        position: TypeReferenceHandle,
+        original: TypeReferenceHandle,
+    ) {
+        if !self
+            .pending_const_arguments(position)
+            .any(|pending| pending == original)
+        {
+            self.pending_const_arguments
+                .insert(PendingConstArgument { position, original });
+        }
+    }
+
+    pub fn pending_const_arguments(
+        &self,
+        position: TypeReferenceHandle,
+    ) -> impl Iterator<Item = TypeReferenceHandle> + '_ {
+        self.pending_const_arguments
+            .iter()
+            .filter_map(move |(_, pending)| {
+                (pending.position == position && pending.original.is_valid())
+                    .then_some(pending.original)
+            })
+    }
+
+    /// Mark the use owning an argument, rather than its substitutable value
+    /// leaf: shared generated carrier metadata may reuse the leaf, but must
+    /// not acquire whichever authored use caused that carrier to be created.
+    pub fn retain_pending_const_argument_uses(&mut self, argument: TypeReferenceHandle) {
+        let positions = self.type_references.iter().filter_map(|(handle, node)| {
+            let owns = match node {
+                TypeReferenceNode::Generic { arguments, .. } => self.type_reference_handles(*arguments).contains(&argument),
+                TypeReferenceNode::Constrained { constraints, .. } => self.constraints(*constraints).iter().any(|constraint| {
+                    matches!(constraint, TypeConstraintNode::Domain(domain) if self.type_reference_handles(domain.arguments).contains(&argument))
+                }),
+                _ => false,
+            };
+            owns.then_some(handle)
+        }).collect::<Vec<_>>();
+        // An explicit static machine argument is itself a type-input use,
+        // without a containing generic or domain type node.
+        if positions.is_empty() {
+            self.retain_pending_const_argument(argument, argument);
+        } else {
+            for position in positions {
+                self.retain_pending_const_argument(position, argument);
+            }
+        }
     }
 
     pub fn integer_range_normalization(

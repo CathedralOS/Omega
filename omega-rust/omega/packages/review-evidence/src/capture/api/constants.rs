@@ -1,5 +1,7 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{PackageReviewConstShape, PackageReviewSourceLocationRole};
@@ -14,7 +16,10 @@ pub(crate) fn project_public_consts(
     for declaration in compilation
         .const_declarations()
         .iter()
-        .filter(|declaration| declaration.is_public)
+        .filter(|declaration| {
+            declaration.is_public
+                && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
+        })
     {
         let identity = nominal_identity(compilation, declaration.symbol)?;
         if !reviewed_package_owns(&identity, package)? {

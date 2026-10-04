@@ -252,7 +252,7 @@ pub(crate) fn collect_float_meaning_projection_invocations(
     let mut visited = Vec::new();
     let mut projections = Vec::new();
     let mut equalities = Vec::new();
-    for (_, fact) in program.proof_facts.iter() {
+    for (_, fact) in typed_trees::references::program_proof_facts(program) {
         let roots: &[ExpressionHandle] = match fact {
             ProofFact::Expression(expression) => std::slice::from_ref(expression),
             ProofFact::Membership(membership) => std::slice::from_ref(&membership.value),

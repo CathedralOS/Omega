@@ -13,6 +13,9 @@ use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedConstantEvaluation {
+    /// Provider identities are relative to the checked dependency purpose.
+    /// Replay must use the same context that supplied their execution bodies.
+    scope: source::DependencyScope,
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic
@@ -23,47 +26,44 @@ pub struct SelectedConstantEvaluation {
 
 impl SelectedConstantEvaluation {
     /// Resume pending Psi evaluation under the exact selected providers.
-    /// Empty input leaves the typed program untouched. Otherwise, settle literal
-    /// destinations, join provider execution once, and consume continuations in
-    /// their original order. Retained folds stay with the selections used to
-    /// produce them until final checked-program replay.
+    /// Consume continuations in their original order against canonical storage.
+    /// Preparation may select an executable declaration projection of that same
+    /// storage; only its occurrences acquire selected execution. Retained folds
+    /// stay with those selections until final checked-program replay.
     pub fn evaluate_pending(
+        mut self,
         typed: &mut TypedTrees,
-        plans: &SelectedProviderPlanFacts,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if pending.is_empty() {
-            return Ok(Self::default());
-        }
-        validation::land_float_literal_destinations(typed);
-        let mut selected = Self::prepare(typed, plans)?;
         for continuation in pending {
-            selected
-                .folds
-                .extend(continuation.evaluate_selected_operators(
-                    typed,
-                    SelectedBuildTimeOperators {
-                        operators: &selected.operators,
-                        provider_bodies: &selected.provider_bodies,
-                    },
-                )?);
+            self.folds.extend(continuation.evaluate_selected_operators(
+                typed,
+                SelectedBuildTimeOperators {
+                    operators: &self.operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+            )?);
         }
-        Ok(selected)
+        Ok(self)
     }
 
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution; the coordinator supplies only the selected realization.
-    fn prepare(
-        typed: &TypedTrees,
+    pub fn prepare(
+        context: provider_planning::ProviderPlanningContext<'_>,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let typed = context.typed;
         let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
         let uses = facts.resolved_expression_selections();
-        let mut selected = Self::default();
+        let mut selected = Self {
+            scope: context.scope,
+            ..Self::default()
+        };
         for (expression, origin, requirement, policy) in uses {
             let Some((_, plan)) =
-                provider_planning::selected_requirement_plan(typed, plans.plans(), requirement)
+                provider_planning::selected_requirement_plan(context, plans.plans(), requirement)
             else {
                 continue;
             };
@@ -91,15 +91,9 @@ impl SelectedConstantEvaluation {
                         .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     );
                 }
-            } else if let Some(provider) = provider_planning::selected_requirement_checked_adapter(
-                provider_planning::ProviderPlanningContext::new(
-                    typed,
-                    source::DependencyScope::Product,
-                ),
-                plan,
-                requirement,
-            )
-            .map_err(|error| vec![error])?
+            } else if let Some(provider) =
+                provider_planning::selected_requirement_checked_adapter(context, plan, requirement)
+                    .map_err(|error| vec![error])?
             {
                 selected.provider_bodies.push(
                     SelectedBuildTimeProviderBody::prepare(
@@ -141,7 +135,10 @@ impl SelectedConstantEvaluation {
         if self.folds.is_empty() {
             return Ok(());
         }
-        let current = Self::prepare(&checked.typed, plans)?;
+        let current = Self::prepare(
+            provider_planning::ProviderPlanningContext::new(&checked.typed, self.scope),
+            plans,
+        )?;
         for selected in &self.operators {
             if current
                 .operators
@@ -154,8 +151,13 @@ impl SelectedConstantEvaluation {
                     "folded operator differs from current selected provider execution",
                 )]);
             }
-            if joined_plan_commitment(checked, plans, selected.requirement, selected.origin)
-                != Some(selected.provider)
+            if joined_plan_commitment(
+                checked,
+                self.scope,
+                plans,
+                selected.requirement,
+                selected.origin,
+            ) != Some(selected.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded operator lost its exact final provider custody",
@@ -174,7 +176,7 @@ impl SelectedConstantEvaluation {
                     "folded provider body differs from current selected provider execution",
                 )]);
             }
-            if joined_plan_commitment(checked, plans, body.requirement, body.origin)
+            if joined_plan_commitment(checked, self.scope, plans, body.requirement, body.origin)
                 != Some(body.provider)
             {
                 return Err(vec![Diagnostic::error(
@@ -200,11 +202,12 @@ impl SelectedConstantEvaluation {
 /// joined by requirement identity.
 fn joined_plan_commitment(
     checked: &CheckedTrees,
+    scope: source::DependencyScope,
     plans: &SelectedProviderPlanFacts,
     requirement: symbols::SymbolHandle,
     origin: checked_trees::CheckedValueOrigin,
 ) -> Option<CheckedProviderPlanCommitment> {
-    provider_planning::selected_use_plan(checked, plans.plans(), requirement, origin).map(
+    provider_planning::selected_use_plan(checked, scope, plans.plans(), requirement, origin).map(
         |(_, plan)| CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
     )
 }

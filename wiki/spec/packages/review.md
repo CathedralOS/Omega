@@ -4,10 +4,28 @@
 This contract defines the facts presented for that decision, not a second
 acceptance authority or an executable package format.
 
+## When review runs
+
+Under the owner ruling of 2026-10-03, full-package review and its
+discovery/bound passes belong to explicit review, acceptance, and update
+workflows. Ordinary compilation does not re-review an accepted package: it
+compares each occurrence's source and compiler input identities with the lock
+and consumes the exact accepted bindings on a match. This includes the root
+and dependency Product/Build occurrences. A mismatch rejects with the package
+name and `omega update`, rather than running an inline audit.
+
+Ordinary dependency product checking follows the consumer's imported modules
+and their transitive imports, not each dependency's package root. The compiled
+program still undergoes normal language, proof, representation, and native
+checks. Unlocked check-only observation can report findings without creating
+acceptance; missing accepted state stops native production before Build.
+See [ordinary compilation](acceptance.md#ordinary-compilation).
+
 ## Complete checked findings
 
-After successful checking, derive a complete report for the exact source graph
-and target. It includes public API contracts, declared and inferred reach,
+In an explicit review workflow, after successful checking derive a complete
+report for the exact source graph and target. It includes public API contracts,
+declared and inferred reach,
 reachable implementation authority, selected providers, opaque executable
 supplies, accepted assumptions, and relevant build/generated-source facts.
 An unused dangerous public API remains reviewable independently of actual
@@ -23,9 +41,12 @@ the selected implementation remains visible rather than being reported as an
 ordinary checked satisfier of the stronger requirement.
 
 This full fresh report is distinct from retained project acceptance. The lock
-keeps only exact admission-claim/external-realization callable rows, external
+keeps exact admission-claim/external-realization callable rows, external
 supplies, dangerous capabilities, terminal permissions, and accepted restricted
-build requests. Complete-row meaning
+build requests, plus the compiler identity and exact occurrence-scoped accepted
+semantic binding inputs needed by ordinary compilation. These bindings retain
+schema/selected-plan digests and explicit permission rows, not a full provider
+review snapshot. Complete-row meaning
 is retained for those risks; other API, provider, representation, dependency,
 and symbolic-demand findings remain fresh audit material. Comparing acceptance
 does not reconstruct an old compiler report or compile historical source.
@@ -193,6 +214,12 @@ producer/signature/audit metadata. A signature records custody, not review quali
 a kernel establishes only its exact checked logical claim. Observing pathname
 bytes at `current_exe()` does not identify the loaded compiler image and enters
 neither package review, lock, conflict, cache, nor admission identity.
+The accepted compiler input identity instead combines a build-produced digest
+embedded in the compiler with the exact selected toolchain library content.
+Review retains that identity across checking and verifies it again before lock
+proposal. Compiled-review cache keys use the same identity; inability to identify
+these inputs is a cache miss, not a weaker developer-version key. This identity
+invalidates stale inputs and makes no compiler or audit attestation.
 
 ## Target-dependent public identity
 

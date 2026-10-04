@@ -24,7 +24,7 @@ use syntax_trees::{
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
-#[derive(Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SourceLinks {
     pub(crate) declarations: Vec<(usize, Machine)>,
     pub(crate) expressions: Vec<(
@@ -102,7 +102,7 @@ fn selected_machine(trees: &SymbolResolvedTrees, symbol: symbols::SymbolHandle) 
 pub(crate) fn complete(
     syntax: &mut SyntaxTrees,
     trees: &SymbolResolvedTrees,
-    sources: SourceLinks,
+    sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut completed_type_roots = Vec::new();
@@ -164,7 +164,7 @@ pub(crate) fn complete(
                     index,
                     &authored.target,
                     &authored.machine_arguments,
-                    &sources,
+                    sources,
                     selection,
                 )
                 .map_err(|error| vec![error])?;
@@ -214,7 +214,7 @@ pub(crate) fn complete(
             index,
             &authored.target,
             &authored.machine_arguments,
-            &sources,
+            sources,
             selection,
         )
         .map_err(|error| vec![error])?;
@@ -241,11 +241,14 @@ pub(crate) fn complete(
         super::generic_data::collect_type_positions(syntax, root, &mut positions, false);
     }
     let mut warnings = Vec::new();
-    super::generic_data::desugar_generic_data_instances_with_selection(
+    super::generic_data::desugar_generic_data_instances_in(
         syntax,
         &mut warnings,
         Some(selection),
-        &completed_type_roots,
+        super::generic_data::GenericDataWorkDomain::Selected {
+            type_roots: &completed_type_roots,
+            declarations: &[],
+        },
     )?;
     // Synthesis deliberately leaves unsupported applications untouched.
     // Matching one does not establish its formation obligations.

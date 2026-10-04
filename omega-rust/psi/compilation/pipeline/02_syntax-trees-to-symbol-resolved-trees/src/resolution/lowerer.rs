@@ -65,7 +65,7 @@ pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) result_data_source_span: source::SourceSpan,
     pub(crate) result_case_name: String,
 }
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum ConstResolutionMode {
     #[default]
     Complete,
@@ -73,6 +73,10 @@ pub(crate) enum ConstResolutionMode {
     InitializerSelection,
 }
 pub(crate) struct Lowerer {
+    pub(crate) defer_machine_bodies: bool,
+    pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
+    pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
+    pub(crate) encountered_pending_type_arguments: Vec<syntax_trees::types::TypeReferenceHandle>,
     pub(crate) equation_sources: Option<crate::preparation::machine_equations::SourceLinks>,
     pub(crate) const_resolution_mode: ConstResolutionMode,
     /// Constant values may be normalized before structural equations have
@@ -90,6 +94,9 @@ pub(crate) struct Lowerer {
         Vec<symbol_resolved_trees::name::DiagnosticName>,
     )>,
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
+    /// Origin rows before this frontier already own exact declaration symbols.
+    /// Body completion must bind its suffix without reinterpreting that prefix.
+    pub(crate) bound_generic_application_origins: usize,
     /// Authored machine `reaches` clauses retained until symbol assignment
     /// binds every member occurrence to its exact boundary-trait identity.
     pub(crate) pending_machine_service_reaches:
@@ -132,7 +139,7 @@ pub(crate) struct Lowerer {
     /// temporaries hoisted out of operands, calls and match subjects (see
     /// `statement::hoist_temps`). `__hoist_` prefixed so the generated names
     /// cannot collide with source identifiers.
-    hoist_counter: u32,
+    pub(crate) hoist_counter: u32,
     /// Names of the CURRENT state's parameters declared as a shared reference
     /// to a NAMED type (`table: &EfiSystemTable`). A member read through one
     /// (`table.con_out`) must dereference the pointer slot; the flat fold reads
@@ -180,7 +187,7 @@ pub(crate) struct Lowerer {
     /// Present when this lowerer extends a retained base.
     pub(crate) seed: Option<BaseSeed>,
 }
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RootWatermarks {
     pub(crate) const_declarations: usize,
     pub(crate) data_definitions: usize,
@@ -225,6 +232,10 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            defer_machine_bodies: false,
+            pending_machine_bodies: Vec::new(),
+            pending_type_inputs: Vec::new(),
+            encountered_pending_type_arguments: Vec::new(),
             equation_sources: None,
             const_resolution_mode: ConstResolutionMode::Complete,
             structural_type_equations_pending: true,
@@ -233,6 +244,7 @@ impl Lowerer {
             pending_static_module_calls: Vec::new(),
             pending_static_module_statement_calls: Vec::new(),
             symbol_resolved_trees: SymbolResolvedTrees::default(),
+            bound_generic_application_origins: 0,
             pending_machine_service_reaches: Vec::new(),
             pending_signature_service_reaches: Vec::new(),
             pending_authored_expressions: Vec::new(),
@@ -350,6 +362,8 @@ impl Lowerer {
                     authored: pending.authored,
                 });
         }
+        self.bound_generic_application_origins =
+            base.tables.types.generic_application_origins.len();
         self.symbol_resolved_trees = base;
         Ok(())
     }

@@ -452,7 +452,15 @@ impl SymbolTable {
                     && self.symbol_module(*candidate) == current_module
                     && self
                         .symbol_provenance_source_span(*candidate)
-                        .is_some_and(|span| self.same_source_package(reference, span))
+                        .is_some_and(|span| {
+                            if current_module.is_valid() {
+                                self.same_source_package(reference, span)
+                            } else {
+                                // An absent module is not a shared namespace:
+                                // sibling files retain distinct local owners.
+                                span.source_id == reference.source_id
+                            }
+                        })
             })
             .collect::<Vec<_>>();
         if !local.is_empty() {
@@ -498,6 +506,24 @@ impl SymbolTable {
             .collect::<Vec<_>>();
         if !imported.is_empty() {
             return SymbolLookup::from_candidates(imported.into_iter());
+        }
+        // Keep unmoduled package discovery below exact local/import selection.
+        // A shared spelling in another checked occurrence must not compete
+        // with this occurrence's existing package vocabulary (including the
+        // toolchain's declaration dependencies). This is still a candidate
+        // set: multiple declarations in this package remain ambiguous.
+        if !current_module.is_valid() {
+            let package = candidates.iter().copied().filter(|candidate| {
+                self.name(*candidate) == name
+                    && !self.symbol_module(*candidate).is_valid()
+                    && self
+                        .symbol_provenance_source_span(*candidate)
+                        .is_some_and(|span| self.same_source_package(reference, span))
+            });
+            let package = SymbolLookup::from_candidates(package);
+            if !matches!(package, SymbolLookup::NotFound) {
+                return package;
+            }
         }
         // In a module-less closure this selector is reached only because an
         // exact loader import supplied namespace custody. A missing imported

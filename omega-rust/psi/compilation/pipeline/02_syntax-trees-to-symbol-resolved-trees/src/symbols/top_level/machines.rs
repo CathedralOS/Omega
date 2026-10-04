@@ -529,13 +529,19 @@ pub(super) fn assign_machine_symbols(
             .copied()
         {
             let state = machine_states.get_mut(state);
-            state.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::State);
+            let declaration = next_child_of_kind(&mut machine_children, symbols, SymbolKind::State);
+            if !state.symbol.is_valid() {
+                state.symbol = declaration;
+            }
             let state_symbol = state.symbol;
             let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
 
             for parameter in state_parameters.span_mut_or_empty(state.parameters) {
-                parameter.symbol =
+                let declaration =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
+                if !parameter.symbol.is_valid() {
+                    parameter.symbol = declaration;
+                }
                 assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                     symbols,
                     child_type_references,
@@ -544,18 +550,6 @@ pub(super) fn assign_machine_symbols(
                     machine_symbol,
                     &mut parameter.type_reference,
                 );
-            }
-
-            for statement in declarations
-                .state_statements
-                .span_mut_or_empty(state.statements)
-            {
-                if let symbol_resolved_trees::statement::Statement::LocalData(local_data) =
-                    statement
-                {
-                    local_data.symbol =
-                        next_child_of_kind(&mut state_children, symbols, SymbolKind::Local);
-                }
             }
 
             if let Some(return_type) = &mut state.return_type {

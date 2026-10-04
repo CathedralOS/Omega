@@ -83,6 +83,7 @@
 //! previously folded signature bounds between rounds.
 
 use crate::SelectedBuildTimeOperators;
+use crate::build_time_evaluation::EvaluationDomain;
 use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -90,7 +91,9 @@ use numerics::{
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 use crate::BuildTimeAdmissionPlan;
 
@@ -128,15 +131,18 @@ pub(crate) fn deferred_endpoint_stand_ins(
     program: &TypedTrees,
 ) -> Vec<(ExpressionHandle, ExpressionNode)> {
     let mut stand_ins = Vec::new();
-    for (constrained_type, _, constraints) in program
-        .type_reference_table
-        .constrained_type_reference_sites()
-    {
+    for constrained_type in EvaluationDomain::all().references(program).type_references {
+        let TypeReferenceNode::Constrained { constraints, .. } = program
+            .type_reference_table
+            .type_reference(constrained_type)
+        else {
+            continue;
+        };
         let carrier = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
             program,
             constrained_type,
         );
-        for constraint in program.type_reference_table.constraints(constraints) {
+        for constraint in program.type_reference_table.constraints(*constraints) {
             let TypeConstraintNode::Range {
                 minimum, maximum, ..
             } = constraint
@@ -229,6 +235,7 @@ pub fn evaluate_const_range_endpoints(
             operators: &[],
             provider_bodies: &[],
         },
+        &EvaluationDomain::all(),
     )
 }
 
@@ -240,14 +247,15 @@ pub fn evaluate_const_range_endpoints(
 pub(crate) fn pending_endpoint_calls_need_operator_selection(
     typed: &TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let pending = pending_endpoints(typed)?;
+    let pending = pending_endpoints(typed, domain)?;
     if pending.is_empty() {
         return Ok(false);
     }
     // Admission and the deferral scan must see the same closed static
     // applications as the eventual evaluation; prepare once and reuse it.
-    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
@@ -334,7 +342,14 @@ pub(super) fn resolve_endpoint_callee(
 /// continuation resumes, so the marks keep a pending endpoint from being
 /// misread as a non-constant or dependent bound; each fold removes its mark.
 pub(crate) fn defer_pending_endpoint_calls(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    for endpoint in pending_endpoints(typed)? {
+    defer_pending_endpoint_calls_in(typed, &EvaluationDomain::all())
+}
+
+pub(crate) fn defer_pending_endpoint_calls_in(
+    typed: &mut TypedTrees,
+    domain: &EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    for endpoint in pending_endpoints(typed, domain)? {
         typed
             .pending_const_range_endpoints
             .insert(endpoint.expression);
@@ -354,6 +369,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
+    domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -374,7 +390,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             }
         };
     loop {
-        let plan = match endpoint_plan(typed) {
+        let plan = match endpoint_plan(typed, domain) {
             Ok(plan) => plan,
             Err(errors) => {
                 restore(typed, published);
@@ -391,6 +407,7 @@ pub(crate) fn evaluate_selected_range_endpoints(
             operators,
             provider_bodies,
             &mut warnings,
+            domain,
         ) {
             Ok(round) => round,
             // Optional closed probing must not make preparation a new
@@ -454,6 +471,7 @@ fn evaluate_round(
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
     warnings: &mut Vec<Diagnostic>,
+    domain: &EvaluationDomain,
 ) -> Result<Round, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations.
     // Rebinding only the template after preparation would leave its cloned
@@ -466,8 +484,10 @@ fn evaluate_round(
             operators,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let prepared =
-        crate::PreparedBuildMachineProgram::prepare(selected_execution.as_ref().unwrap_or(typed))?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
+        selected_execution.as_ref().unwrap_or(typed),
+        domain,
+    )?;
     let execution = prepared.typed();
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
         .with_selected_operators(execution, operators)
@@ -560,19 +580,27 @@ fn evaluate_endpoint(
     Ok(ExpressionNode::Integer(literal))
 }
 
-fn pending_endpoints(typed: &TypedTrees) -> Result<Vec<PendingEndpoint>, Vec<Diagnostic>> {
-    Ok(endpoint_plan(typed)?.calls)
+fn pending_endpoints(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+) -> Result<Vec<PendingEndpoint>, Vec<Diagnostic>> {
+    Ok(endpoint_plan(typed, domain)?.calls)
 }
 
-fn endpoint_plan(typed: &TypedTrees) -> Result<EndpointPlan, Vec<Diagnostic>> {
+fn endpoint_plan(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+) -> Result<EndpointPlan, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut roots = Vec::new();
     let mut visited = Vec::new();
-    for (constrained_type, _, constraints) in typed
-        .type_reference_table
-        .constrained_type_reference_sites()
-    {
-        for constraint in typed.type_reference_table.constraints(constraints) {
+    for constrained_type in domain.references(typed).type_references {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            typed.type_reference_table.type_reference(constrained_type)
+        else {
+            continue;
+        };
+        for constraint in typed.type_reference_table.constraints(*constraints) {
             let TypeConstraintNode::Range {
                 minimum, maximum, ..
             } = constraint

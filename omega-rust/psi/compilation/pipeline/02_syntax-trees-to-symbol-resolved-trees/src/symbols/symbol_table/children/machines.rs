@@ -199,11 +199,7 @@ fn insert_state_symbol_children(
         program
             .state_parameters(state.parameters)
             .iter()
-            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources))
-            .chain(local_symbol_seeds(
-                program.state_statements(state.statements),
-                has_sources,
-            )),
+            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
     );
 }
 
@@ -230,18 +226,4 @@ fn inherited_data_field_symbols<'program>(
             symbol_resolved_trees::data::DataMember::Variant(_) => None,
         })
         .collect()
-}
-
-fn local_symbol_seeds<'program>(
-    statements: &'program [symbol_resolved_trees::statement::Statement],
-    has_sources: bool,
-) -> impl Iterator<Item = SymbolSeed<'program>> + 'program {
-    statements
-        .iter()
-        .filter_map(move |statement| match statement {
-            symbol_resolved_trees::statement::Statement::LocalData(local_data) => Some(
-                symbol_seed(SymbolKind::Local, &local_data.name, has_sources),
-            ),
-            _ => None,
-        })
 }

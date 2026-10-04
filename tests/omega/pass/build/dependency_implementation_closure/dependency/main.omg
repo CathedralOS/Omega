@@ -1,0 +1,5 @@
+use value;
+use unused;
+use same_spelling;
+
+pub machine launch() {}

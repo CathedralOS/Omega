@@ -994,11 +994,26 @@ fn called_state<'program>(
 /// This pass runs before validation and checked-fact construction, so no later
 /// consumer has to recover a slot from its spelling.
 pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    resolve_selected_dynamic_call_targets(
+        program,
+        &typed_trees::references::DeclarationSelection::all(),
+    )
+}
+
+/// Bind only calls owned by the selected declarations, publishing their exact
+/// targets into the same canonical expression and statement arenas.
+pub fn resolve_selected_dynamic_call_targets(
+    program: &mut TypedTrees,
+    domain: &typed_trees::references::DeclarationSelection,
+) -> Result<(), Vec<Diagnostic>> {
     let mut expression_updates = Vec::new();
     let mut statement_updates = Vec::new();
     let mut diagnostics = Vec::new();
 
     for machine in program.machines() {
+        if !domain.contains(machine.symbol) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
                 .statement_table

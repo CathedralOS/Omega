@@ -118,6 +118,16 @@ pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // Declaration descriptions may retain pending implementations, but the
+    // executable roster must be complete before any proof or memo lookup.
+    for machine in program.machines() {
+        if machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred {
+            return Err(vec![diagnostics::Diagnostic::error(format!(
+                "machine `{}` requires implementation completion before checking",
+                machine.name.as_str(),
+            ))]);
+        }
+    }
     // Wire validity is part of this stage's contract, not an optional report
     // pass in a product compiler. Demands are invocation-owned, so recheck them
     // before any exact-input memo can return a prior language judgment.
@@ -154,7 +164,10 @@ pub fn lower_typed_trees(
     // judgment. Always admit the returned selections under the current caller's
     // authority, including when an identical typed program hits the memo.
     if let Some(authority) = request.declaration_authority {
-        let sibling_occurrences = crate::target_sibling_selection_occurrences(&checked);
+        let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked);
+        sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
+            &checked,
+        ));
         validation::validate_authored_declaration_selections(
             &checked,
             authority,

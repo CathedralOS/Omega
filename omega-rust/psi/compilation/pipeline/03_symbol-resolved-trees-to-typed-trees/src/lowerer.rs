@@ -51,9 +51,13 @@ pub(crate) mod progress;
 pub(crate) mod seeded_continuation;
 mod target_machine_families;
 
-pub fn lower_symbol_resolved_trees(
+/// These judgments require authored membership and case nodes, which typing
+/// erases. Every producer of new resolved bodies must run them before lowering,
+/// including retained body completion and generated-source extension. Checking
+/// the declaration-only predecessor does not validate its later implementations.
+pub(crate) fn validate_resolved_semantics(
     symbol_resolved_trees: &SymbolResolvedTrees,
-) -> Result<TypedTrees, Diagnostic> {
+) -> Result<(), Diagnostic> {
     // Decision 11: user-written `==` against bare payload-bearing case names
     // must be rejected BEFORE membership lowering synthesizes its internal
     // tag-equality compares, which are deliberately the same typed shape.
@@ -67,10 +71,13 @@ pub fn lower_symbol_resolved_trees(
     // trees: membership is still a distinct node here, so case arms and
     // domain arms are recognizable before lowering erases them into tag
     // compares and classifier expansions.
-    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness(
-        symbol_resolved_trees,
-    )?;
+    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness(symbol_resolved_trees)
+}
 
+pub fn lower_symbol_resolved_trees(
+    symbol_resolved_trees: &SymbolResolvedTrees,
+) -> Result<TypedTrees, Diagnostic> {
+    validate_resolved_semantics(symbol_resolved_trees)?;
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
         source_trees: symbol_resolved_trees,
@@ -392,6 +399,10 @@ impl Lowerer<'_> {
             // The tag identifies the instance being taken apart, not any
             // piece of it, so it does not travel with the fields.
             identity: _,
+            // Build-context projection follows typing; no declaration view
+            // exists in this freshly lowered source program.
+            product_declaration_frontier: _,
+            excluded_authored_selection_occurrences,
             roots,
             tables,
             symbols,
@@ -424,6 +435,7 @@ impl Lowerer<'_> {
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
+        trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
         // The copied semantic interners survive the rebuild.
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;

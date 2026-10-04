@@ -6,6 +6,11 @@
 //! into pending form. The guarded-arm rewrites in `statement` mint their
 //! continuation states here.
 
+mod lexical_inputs;
+pub(crate) use lexical_inputs::{
+    StateLexicalInputs, lower_local_declaration, lower_state_lexical_inputs,
+};
+
 use crate::lowering::domain::lower_proof_facts;
 use crate::lowering::statement::lower_statement_handle;
 use crate::lowering::type_reference::lower_type_reference_handle;
@@ -49,15 +54,14 @@ fn lower_state_parts(
     statements: arena::HandleSpan<syntax::statement::StatementHandle>,
     public_signature: bool,
 ) -> Result<State, Diagnostic> {
-    lowerer.current_state_name = Some(name.as_str().to_owned());
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-    let signature_exposure = if public_signature {
+    let exposure = if public_signature {
         AuthoredDeclarationSelectionExposure::PublicInterface
     } else {
         AuthoredDeclarationSelectionExposure::PrivateImplementation
     };
     let (parameters, return_type) =
-        lowerer.with_authored_expression_exposure(signature_exposure, |lowerer| {
+        lowerer.with_authored_expression_exposure(exposure, |lowerer| {
             let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
             let return_type = return_type_handle
                 .is_valid()
@@ -65,31 +69,73 @@ fn lower_state_parts(
                 .transpose()?;
             Ok::<_, Diagnostic>((parameters, return_type))
         })?;
+    let mut state = State {
+        symbol: SymbolHandle::invalid(),
+        name: crate::lowering::name::lower_name(name),
+        storage: StateStorage {
+            parameters,
+            return_type,
+            ..StateStorage::default()
+        },
+    };
+    state.contracts = with_state_scope(lowerer, &state, |lowerer| {
+        lower_signature_contracts(lowerer, syntax_trees, contracts)
+    })?;
+    if !lowerer.defer_machine_bodies {
+        state.statements = lower_state_body(lowerer, syntax_trees, &state, statements)?;
+    }
+    Ok(state)
+}
+
+/// Complete statements under their already indexed signature. The caller owns
+/// the pending syntax and only publishes the machine as Complete afterwards.
+pub(crate) fn lower_state_body(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    declaration: &State,
+    statements: HandleSpan<syntax::statement::StatementHandle>,
+) -> Result<HandleSpan<Statement>, Diagnostic> {
+    with_state_scope(lowerer, declaration, |lowerer| {
+        lower_state_statements(lowerer, syntax, statements)
+    })
+}
+
+/// Signatures and statements read the same declared parameter/receiver scope.
+/// Restore the previous scope on both success and failure; completing one state
+/// must not change how a later state's body or generated continuation is lowered.
+fn with_state_scope<T>(
+    lowerer: &mut Lowerer,
+    state: &State,
+    operation: impl FnOnce(&mut Lowerer) -> Result<T, Diagnostic>,
+) -> Result<T, Diagnostic> {
+    let previous_name = lowerer
+        .current_state_name
+        .replace(state.name.as_str().to_owned());
     // Record which of THIS state's params are shared references to a NAMED
     // type (`table: &EfiSystemTable`): a member read through one must
     // dereference the pointer slot, so the guard/operand hoists materialize it
     // into a `let` (the boot-verified pointee path). `&mut` params are
     // excluded -- their alias slots share the caller's storage and fold flat
     // correctly. Overwrites the previous state's list.
-    lowerer.reference_struct_parameters = if lowerer.current_machine_is_boundary {
-        reference_struct_parameter_names(lowerer, &parameters)
+    let reference_parameters = if lowerer.current_machine_is_boundary {
+        reference_struct_parameter_names(lowerer, &state.parameters)
     } else {
         // Non-boundary `&Struct` params are call-site alias slots sharing the
         // caller's storage -- their member reads fold correctly and must NOT
         // be pointee-materialized.
         Vec::new()
     };
-    lowerer.current_state_parameter_names = lowerer
+    let parameter_names = lowerer
         .symbol_resolved_trees
-        .state_parameters(parameters)
+        .state_parameters(state.parameters)
         .iter()
         .map(|parameter| parameter.name.as_str().to_string())
         .collect();
     // The scalar-computation classification of transition values reads the
     // enclosing state's parameter, receiver and return shapes.
-    lowerer.current_state_parameters = lowerer
+    let parameters = lowerer
         .symbol_resolved_trees
-        .state_parameters(parameters)
+        .state_parameters(state.parameters)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
@@ -100,32 +146,32 @@ fn lower_state_parts(
             )
         })
         .collect();
-    lowerer.current_state_self_parameter = lowerer
+    let receiver = lowerer
         .symbol_resolved_trees
-        .state_parameters(parameters)
+        .state_parameters(state.parameters)
         .iter()
         .find(|parameter| parameter.is_self)
         .cloned();
-    lowerer.current_state_return_type = return_type.clone();
-    let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
-    let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
-    lowerer.reference_struct_parameters = Vec::new();
-    lowerer.current_state_parameter_names = Vec::new();
-    lowerer.current_state_parameters = Vec::new();
-    lowerer.current_state_self_parameter = None;
-    lowerer.current_state_return_type = None;
-
-    Ok(State {
-        symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(name),
-        storage: StateStorage {
-            parameters,
-            return_type,
-            contracts,
-            statements,
-            statement_nodes: Default::default(),
-        },
-    })
+    let previous_references = std::mem::replace(
+        &mut lowerer.reference_struct_parameters,
+        reference_parameters,
+    );
+    let previous_names =
+        std::mem::replace(&mut lowerer.current_state_parameter_names, parameter_names);
+    let previous_parameters = std::mem::replace(&mut lowerer.current_state_parameters, parameters);
+    let previous_receiver = std::mem::replace(&mut lowerer.current_state_self_parameter, receiver);
+    let previous_return = std::mem::replace(
+        &mut lowerer.current_state_return_type,
+        state.return_type.clone(),
+    );
+    let result = operation(lowerer);
+    lowerer.current_state_name = previous_name;
+    lowerer.reference_struct_parameters = previous_references;
+    lowerer.current_state_parameter_names = previous_names;
+    lowerer.current_state_parameters = previous_parameters;
+    lowerer.current_state_self_parameter = previous_receiver;
+    lowerer.current_state_return_type = previous_return;
+    result
 }
 
 pub(crate) fn lower_state_signature_node(

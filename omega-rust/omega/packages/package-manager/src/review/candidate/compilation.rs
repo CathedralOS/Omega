@@ -3,103 +3,24 @@
 //! All products share discovery and final checking. Each pass owns a disposable
 //! sponsored session; package_pass owns dependency-order compilation and projection.
 
-mod component_publication;
 mod ledger;
 mod package_pass;
 mod policy;
-mod session;
-mod session_accounting;
 
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};
 use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
     ConsumerScopedSemanticBindingReviewInput, ReviewedPackageProductionCandidate,
 };
-use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
+use crate::build_session::PackageBuildSession;
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
-use session::ReviewBuildSession;
 use std::path::Path;
 
-/// Target-independent prepared package sources retained across candidate
-/// reviews of one resolved source closure.
-///
-/// Slots follow the resolver's package positions, each keyed by the entry
-/// root it was prepared for. A populated slot supplies only that package's
-/// binding-independent parse frontier to a later pass or candidate: custody
-/// verification, Build admission, and product checking always run again, and
-/// each child's root-path and source-input validation rejects a checkpoint
-/// that no longer names its prepared sources. The separate compilation-owned
-/// Pure Build store retains only completed output-free values after exact
-/// checked-program comparison and a fresh current-pass logical charge. It
-/// carries no checked product, review row, entry token, or host grant.
-///
-/// One store belongs to one resolved closure. Callers reviewing several exact
-/// targets of the same closure share it; a differently shaped closure drops
-/// stale slots rather than risk a misplaced checkpoint, and a slot whose
-/// recorded entry root differs from the request's is prepared fresh.
-#[derive(Default)]
-pub struct CandidateSourcePreparation {
-    slots: Vec<Option<PreparedPackageSource>>,
-    /// Only this compilation owns these values. Package/purpose/custody remain
-    /// exact input keys; each consumer admits and pays its current-pass charge.
-    pure_build_compilation: build_evaluation::PureBuildCompilation,
-    /// Fresh preparations performed through this store; witnesses that a
-    /// repeated or cross-target candidate prepared each package once.
-    fresh_preparations: usize,
-    /// Collect the internal stage ladder on every fresh preparation this
-    /// store performs. Off by default: the ladder measures nothing until a
-    /// caller asks for it, and the rows stay on the checked record until a
-    /// report-facing leg prints them.
-    collect_timings: bool,
-}
-
-/// One package's retained parse frontier and the entry root it belongs to.
-/// The root is the exact identity the child request validates, so a same
-/// count but differently resolved closure cannot consume a misplaced slot.
-struct PreparedPackageSource {
-    entry_root: std::path::PathBuf,
-    prepared: compilation_products::PreparedCheckedSource,
-}
-
-impl CandidateSourcePreparation {
-    /// An empty store; the first candidate sizes it to that closure's graph.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Slots pre-sized for this closure's package graph.
-    pub fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
-        Self {
-            slots: empty_slots(closure.graph().packages().len()),
-            pure_build_compilation: Default::default(),
-            fresh_preparations: 0,
-            collect_timings: false,
-        }
-    }
-
-    /// Prepare fresh sources with the stage ladder enabled.
-    pub fn collecting_timings(mut self, collect_timings: bool) -> Self {
-        self.collect_timings = collect_timings;
-        self
-    }
-
-    /// Size slots to this closure's package positions. A differently shaped
-    /// closure starts over empty rather than risk a misplaced checkpoint.
-    fn size_for(&mut self, closure: &ResolvedPackageSourceClosure) {
-        let package_count = closure.graph().packages().len();
-        if self.slots.len() != package_count {
-            self.slots = empty_slots(package_count);
-            self.pure_build_compilation = Default::default();
-        }
-    }
-}
-
-fn empty_slots(count: usize) -> Vec<Option<PreparedPackageSource>> {
-    std::iter::repeat_with(|| None).take(count).collect()
-}
+pub use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
 
 /// How this invocation obtains consumer-scoped semantic bindings.
 /// Explicit input is checked as supplied; it does not trigger discovery or admission.
@@ -238,6 +159,7 @@ pub(crate) fn production_candidate_reusing(
 /// observational route carries no restricted-request consent; a consuming
 /// check supplies its accepted target's checkpoint through
 /// [`compile_candidate_for_check_reusing`].
+#[cfg(test)]
 pub(crate) fn compile_resolved_package_candidate_for_check(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
@@ -268,6 +190,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
 /// request's own build effect inside the pass rather than at the operation's
 /// boundary after it; the store's own `collecting_timings` choice governs the
 /// stage ladder.
+#[cfg(test)]
 pub(crate) fn compile_candidate_for_check_reusing(
     candidate: CandidateCompilation<'_, '_>,
     entry_path: &Path,
@@ -486,7 +409,7 @@ fn compile_pass(
     })?;
     let bindings =
         semantic_bindings_by_consumer(target_closure, execution_profile, &roster, bindings)?;
-    let session = ReviewBuildSession::create(build_root)?;
+    let session = PackageBuildSession::create(build_root)?;
     let result = package_pass::compile_dependency_closure(
         target_closure,
         execution_profile,

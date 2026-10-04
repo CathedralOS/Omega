@@ -25,6 +25,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::build_time_evaluation::EvaluationDomain;
 use access_plans::PlacementPlanId;
 use diagnostics::Diagnostic;
 use language_semantics::DataSupplyMode;
@@ -130,18 +131,39 @@ pub fn desugar_placed_views(
         None,
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = crate::syntax_probes::resolve(probe, sources, source_scoped_top_level_bindings)?;
-    let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    crate::evaluate_const_array_lengths(&mut typed, selection_authority.clone())?;
-    crate::evaluate_const_domain_facts(&mut typed, selection_authority.clone())?;
-    crate::compute_plan_laid_layouts(&mut typed, &probe_plan_laid, selection_authority.clone())?;
+    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: probe,
+            sources,
+            top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+        },
+    )?;
+    let (mut typed, domain, selected_layouts) =
+        prepare_placement_probe(frontier, &applications, &probe_plan_laid)?;
+    crate::const_evaluation::const_lengths::evaluate_const_array_lengths_in(
+        &mut typed,
+        selection_authority.clone(),
+        &domain,
+    )?;
+    crate::const_evaluation::const_domain_facts::evaluate_selected_domain_facts(
+        &mut typed,
+        selection_authority.clone(),
+        crate::SelectedBuildTimeOperators::default(),
+        &domain,
+    )?;
+    super::plan_laid::compute_plan_laid_layouts_in(
+        &mut typed,
+        &selected_layouts,
+        selection_authority.clone(),
+        &domain,
+    )?;
+    let execution = domain.execution_program(&typed);
 
     let mut plans = BTreeMap::new();
     for application in &applications {
         let policy_machine = format!("{}::plan", application.policy);
         admit_policy_invocations(
-            &typed,
+            &execution,
             &policy_machine,
             &application.invocation_sources,
             selection_authority.clone(),
@@ -152,7 +174,7 @@ pub fn desugar_placed_views(
                 application.synthetic_name
             ))]
         })?;
-        let plan = crate::compute_placement_plan(&typed, &policy_machine, &application.schema)
+        let plan = crate::compute_placement_plan(&execution, &policy_machine, &application.schema)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(
                     "placed view `{}`: {reason}",
@@ -181,14 +203,124 @@ pub fn desugar_placed_views(
         .collect())
 }
 
+/// Reflection consumes a schema declaration even when the policy's generic
+/// `Schema` parameter gives no ordinary call edge to that declaration. Pending
+/// plan-laid records likewise contribute policy dependencies before their typed
+/// layout rows exist. Close those edges from selected producers only; unrelated
+/// bodies remain in the immutable frontier, not in the executable probe.
+fn prepare_placement_probe(
+    frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    applications: &[Application],
+    records: &[crate::PlanLaidRecord],
+) -> Result<(TypedTrees, EvaluationDomain, Vec<crate::PlanLaidRecord>), Vec<Diagnostic>> {
+    let mut machines = applications
+        .iter()
+        .map(|application| application.policy_machine_source)
+        .collect::<Vec<_>>();
+    let mut declarations = Vec::new();
+    for source in applications
+        .iter()
+        .flat_map(|application| [application.policy_source, application.schema_source])
+    {
+        let mut candidates = frontier
+            .trees()
+            .roots
+            .data_definitions
+            .iter()
+            .filter(|data| {
+                frontier.trees().symbols.symbol_source_span(data.symbol) == Some(source)
+            });
+        let (Some(declaration), None) = (candidates.next(), candidates.next()) else {
+            return Err(vec![
+                Diagnostic::error("placed-view probe lost its unique reflected declaration")
+                    .with_source_span(source),
+            ]);
+        };
+        if !declarations.contains(&declaration.symbol) {
+            declarations.push(declaration.symbol);
+        }
+    }
+    let mut selected = Vec::new();
+    loop {
+        let (typed, domain) = crate::syntax_probes::prepare_evaluation(
+            frontier.clone(),
+            &machines,
+            &[],
+            &declarations,
+        )?;
+        let previous_count = selected.len();
+        for record in records {
+            if selected.contains(record) || !domain.contains_data(&typed, &record.synthetic_name)? {
+                continue;
+            }
+            let mut policies = typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.name.as_str() == record.policy_machine);
+            let (Some(policy), None) = (policies.next(), policies.next()) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "plan-laid probe `{}` lost its unique policy declaration",
+                    record.synthetic_name,
+                ))]);
+            };
+            let mut schemas = typed
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.name.as_str() == record.schema_data);
+            let (Some(schema), None) = (schemas.next(), schemas.next()) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "plan-laid probe `{}` lost its unique schema declaration",
+                    record.synthetic_name,
+                ))]);
+            };
+            let Some(policy_source) = typed.symbols.symbol_source_span(policy.symbol) else {
+                return Err(vec![Diagnostic::error(
+                    "plan-laid probe lost its policy source",
+                )]);
+            };
+            if !machines.contains(&policy_source) {
+                machines.push(policy_source);
+            }
+            // A normalized schema can be generated and have no authored span.
+            // These records were synthesized before the retained frontier was
+            // indexed, so their exact declaration symbols are stable roots.
+            if !declarations.contains(&schema.symbol) {
+                declarations.push(schema.symbol);
+            }
+            selected.push(record.clone());
+        }
+        if selected.len() == previous_count {
+            return Ok((typed, domain, selected));
+        }
+    }
+}
+
 pub fn validate_placed_view_plans(
     typed: &mut TypedTrees,
     records: &[PlacedViewRecord],
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_placed_view_plans_in(
+        typed,
+        records,
+        selection_authority,
+        &crate::build_time_evaluation::EvaluationDomain::all(),
+    )
+}
+
+pub(crate) fn validate_placed_view_plans_in(
+    typed: &mut TypedTrees,
+    records: &[PlacedViewRecord],
+    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    if records.is_empty() {
+        return Ok(());
+    }
+    let execution = domain.execution_program(typed);
     for record in records {
         admit_policy_invocations(
-            typed,
+            &execution,
             &record.policy_machine,
             &record.invocation_sources,
             selection_authority.clone(),
@@ -200,7 +332,7 @@ pub fn validate_placed_view_plans(
             ))]
         })?;
         let plan =
-            crate::compute_placement_plan(typed, &record.policy_machine, &record.schema_data)
+            crate::compute_placement_plan(&execution, &record.policy_machine, &record.schema_data)
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "placed view `{}`: {reason}",

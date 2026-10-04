@@ -2,6 +2,10 @@
 
 use std::sync::Arc;
 
+mod evaluation;
+pub(crate) use evaluation::prepare_evaluation;
+pub(crate) use evaluation::{PreparedEvaluationInputs, prepare_evaluation_inputs};
+
 /// A provisional index supplies a carrier, not membership in the indexed domain.
 /// Remove only affected constant qualifications in this private probe forest.
 /// The authoritative declarations keep every constraint and are checked after
@@ -82,23 +86,4 @@ pub(crate) fn normalize_generic_data(
             retained_base: if has_sources { retained_base } else { None },
         },
     )
-}
-
-pub(crate) fn resolve(
-    syntax_trees: syntax_trees::SyntaxTrees,
-    sources: Option<Arc<source::SourceMap>>,
-    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
-) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
-    match sources {
-        Some(sources) => syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax_trees,
-                sources: Some(sources),
-                top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-            },
-        ),
-        None => syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax_trees),
-        ),
-    }
 }

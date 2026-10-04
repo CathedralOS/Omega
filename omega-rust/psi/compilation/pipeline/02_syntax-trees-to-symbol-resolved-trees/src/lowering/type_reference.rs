@@ -21,6 +21,11 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    lowerer.encountered_pending_type_arguments.extend(
+        syntax_trees
+            .type_references
+            .pending_const_arguments(type_reference),
+    );
     // Provisional and probe drives lower references before generic synthesis;
     // a surviving generic application is only an obligation on the final pass.
     if !lowerer.structural_type_equations_pending {
@@ -336,6 +341,7 @@ pub(crate) fn lower_fixed_array_length(
             name: crate::lowering::name::lower_name(name),
         },
         syntax::types::FixedArrayLength::ConstCall(name) => FixedArrayLength::ConstCall {
+            machine: SymbolHandle::invalid(),
             name: crate::lowering::name::lower_name(name),
         },
     }

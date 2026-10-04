@@ -275,6 +275,8 @@ fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> boo
         // its own equality is vacuous by construction, so it decides nothing
         // here either way.
         identity: _,
+        product_declaration_frontier,
+        excluded_authored_selection_occurrences,
         roots,
         tables,
         symbols,
@@ -301,7 +303,10 @@ fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> boo
         ranking_expression_custody,
         pending_const_range_endpoints,
     } = retained;
-    *roots == incoming.roots
+    *product_declaration_frontier == incoming.product_declaration_frontier
+        && *excluded_authored_selection_occurrences
+            == incoming.excluded_authored_selection_occurrences
+        && *roots == incoming.roots
         && *tables == incoming.tables
         && *symbols == incoming.symbols
         && *service_reaches == incoming.service_reaches
@@ -330,6 +335,9 @@ fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> boo
 /// the full comparison decides a match.
 fn fingerprint(program: &TypedTrees, request: &RequestKey) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    program
+        .excluded_authored_selection_occurrences
+        .hash(&mut hasher);
     let machines = program.machines();
     machines.len().hash(&mut hasher);
     machines

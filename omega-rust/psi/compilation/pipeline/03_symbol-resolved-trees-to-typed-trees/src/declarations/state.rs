@@ -8,9 +8,10 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
-pub(crate) fn lower_state(
+/// Lower the declaration once; deferred implementation completion reuses these
+/// exact parameters, return type and synthesized contract handles.
+pub(crate) fn lower_state_declaration(
     lowerer: &mut Lowerer,
-    attached_data: Option<&resolved::name::DiagnosticName>,
     state: &resolved::state::State,
 ) -> Result<typed::state::State, Diagnostic> {
     let mut typed_state = typed::state::State {
@@ -124,6 +125,23 @@ pub(crate) fn lower_state(
             .push_state_contract(&mut typed_state, contract);
     }
 
+    Ok(typed_state)
+}
+
+/// Complete the existing declaration through the ordinary statement lowering
+/// path. A missing implementation is represented by its machine's status, not
+/// inferred from an empty statement span (which is also a valid complete body).
+pub(crate) fn complete_state_body(
+    lowerer: &mut Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    typed_state: &mut typed::state::State,
+) -> Result<(), Diagnostic> {
+    if typed_state.symbol != state.symbol || !typed_state.statement_nodes.is_empty() {
+        return Err(Diagnostic::error(
+            "state body completion does not match its retained declaration",
+        ));
+    }
     let statements = lowerer
         .source_trees
         .tables
@@ -194,7 +212,7 @@ pub(crate) fn lower_state(
             .push_statement(&mut typed_state.statement_nodes, statement);
     }
 
-    Ok(typed_state)
+    Ok(())
 }
 
 fn proof_output_call_requires_execution(

@@ -22,6 +22,7 @@
 //! synthesizing the generated data instance, substituting const parameters in
 //! member types with the folded literals, and rewriting the site to `Named`.
 
+use crate::build_time_evaluation::EvaluationDomain;
 use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
@@ -79,12 +80,13 @@ struct ConstApplicationPlan {
 pub(crate) fn pending_const_applications_need_operator_selection(
     typed: &TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let plan = const_application_plan(typed);
+    let plan = const_application_plan(typed, domain);
     if plan.applications.is_empty() {
         return Ok(false);
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
     let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
@@ -131,8 +133,9 @@ pub(crate) fn pending_const_applications_need_operator_selection(
 /// stay open, and each fold removes its marks.
 pub(crate) fn defer_pending_const_applications(
     typed: &mut TypedTrees,
+    domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    let plan = const_application_plan(typed);
+    let plan = const_application_plan(typed, domain);
     for application in &plan.applications {
         typed.pending_const_range_endpoints.insert(application.root);
     }
@@ -151,6 +154,7 @@ pub(crate) fn evaluate_selected_const_applications(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
+    domain: &mut EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
@@ -177,7 +181,7 @@ pub(crate) fn evaluate_selected_const_applications(
         }
     };
     loop {
-        let plan = const_application_plan(typed);
+        let plan = const_application_plan(typed, domain);
         if plan.applications.is_empty() {
             break;
         }
@@ -188,6 +192,7 @@ pub(crate) fn evaluate_selected_const_applications(
             operators,
             provider_bodies,
             &mut warnings,
+            domain,
         ) {
             Ok(round) => round,
             Err(errors) => {
@@ -225,7 +230,7 @@ pub(crate) fn evaluate_selected_const_applications(
             return Err(round.diagnostics);
         }
     }
-    realize_folded_applications(typed, &published);
+    realize_folded_applications(typed, &published, domain);
     for warning in warnings {
         eprintln!("{warning}");
     }
@@ -252,6 +257,7 @@ fn realize_folded_applications(
         TypeReferenceNode,
         Vec<ExpressionHandle>,
     )],
+    domain: &mut EvaluationDomain,
 ) {
     if published.is_empty() {
         return;
@@ -269,15 +275,24 @@ fn realize_folded_applications(
             .filter_map(|definition| definition.generic_instance)
             .collect();
         let mut progress = false;
-        for (site, base_symbol, arguments) in
-            typed.type_reference_table.generic_type_reference_sites()
-        {
+        // Recollect after publication: a realized instance can add live field
+        // types, while detached backing nodes must not acquire instances.
+        for site in domain.references(typed).type_references {
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = typed.type_reference_table.type_reference(site)
+            else {
+                continue;
+            };
+            let base_symbol = *base_symbol;
             if closed.contains(&site) || declined.contains(&site) || origins.contains(&site) {
                 continue;
             }
             let argument_handles = typed
                 .type_reference_table
-                .type_reference_handles(arguments)
+                .type_reference_handles(*arguments)
                 .to_vec();
             if !argument_handles
                 .iter()
@@ -295,6 +310,9 @@ fn realize_folded_applications(
                 declined.insert(site);
                 continue;
             };
+            // The selected application owns the realized fields and any nested
+            // applications they introduce. Keep their canonical symbol identity.
+            domain.include(symbol);
             typed.type_reference_table.substitute_node(
                 site,
                 TypeReferenceNode::Named {
@@ -747,6 +765,7 @@ fn evaluate_application_round(
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
     warnings: &mut Vec<Diagnostic>,
+    domain: &EvaluationDomain,
 ) -> Result<ApplicationRound, Vec<Diagnostic>> {
     // Bind exact authored provider occurrences before cloning specializations,
     // on a private copy: the caller's tree keeps its authored selection and
@@ -758,8 +777,10 @@ fn evaluate_application_round(
             operators,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let prepared =
-        crate::PreparedBuildMachineProgram::prepare(selected_execution.as_ref().unwrap_or(typed))?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(
+        selected_execution.as_ref().unwrap_or(typed),
+        domain,
+    )?;
     let execution = prepared.typed();
     let admission = crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
         .with_selected_operators(execution, operators)
@@ -892,16 +913,24 @@ fn expression_subtree(typed: &TypedTrees, root: ExpressionHandle) -> Vec<Express
 /// argument position and still carries authored calls. Positions under a
 /// domain constraint's own arguments are owned by `const_domain_facts`, so
 /// this scan descends only through type constructors.
-fn const_application_plan(typed: &TypedTrees) -> ConstApplicationPlan {
+fn const_application_plan(typed: &TypedTrees, domain: &EvaluationDomain) -> ConstApplicationPlan {
     let mut plan = ConstApplicationPlan {
         applications: Vec::new(),
         calls: Vec::new(),
     };
-    for (_, base_symbol, arguments) in typed.type_reference_table.generic_type_reference_sites() {
-        let parameters = generic_type_parameters(typed, base_symbol);
+    for site in domain.references(typed).type_references {
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = typed.type_reference_table.type_reference(site)
+        else {
+            continue;
+        };
+        let parameters = generic_type_parameters(typed, *base_symbol);
         for (index, argument) in typed
             .type_reference_table
-            .type_reference_handles(arguments)
+            .type_reference_handles(*arguments)
             .iter()
             .enumerate()
         {

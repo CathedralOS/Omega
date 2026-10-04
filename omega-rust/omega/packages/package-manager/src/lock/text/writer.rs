@@ -70,6 +70,17 @@ impl PackageLock {
                 let text = policy.canonical_text()?;
                 drop(budget.baseline(&text, policy.package(), policy.target())?);
                 writer.section("acceptance", &text)?;
+                let compilation = occurrence
+                    .compilation()
+                    .ok_or(Error::MissingCompilationInputs)?;
+                let text = super::compilation::write(compilation, policy.package(), context)?;
+                drop(super::compilation::read(
+                    &text,
+                    policy.package(),
+                    context,
+                    &mut budget,
+                )?);
+                writer.section("compilation", &text)?;
             }
             let decisions = target
                 .decisions

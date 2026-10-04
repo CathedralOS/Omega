@@ -3,18 +3,19 @@
 
 machine build(builder: &mut Build) {
     Build::package(builder, "generated_table");
-    let input_bytes: [u8; 64];
-    let input: BuildPath = builder.source.resolve("inputs/table.txt");
-    let input_descriptor: i32 = builder.source.open(input, 0);
-    let input_count: i64 = builder.source.read(input_descriptor, &mut input_bytes, 64);
-    let input_close: i32 = builder.source.close(input_descriptor);
+    let mut input_bytes: [u8; 64];
+    let input: BuildPath = BuildSource::resolve(&builder.source, "inputs/table.txt");
+    let input_descriptor: i32 = BuildSource::open(&builder.source, input, 0);
+    let input_count: i64 = BuildSource::read(&builder.source, input_descriptor, &mut input_bytes, 64);
+    let input_close: i32 = BuildSource::close(&builder.source, input_descriptor);
 
-    let generated: BuildPath = builder.output.resolve("table.generated.omg");
-    let output_descriptor: i32 = builder.output.create(generated, 438);
-    let output_count: i64 = builder.output.write(
+    let generated: BuildPath = BuildOutput::resolve(&builder.output, "table.generated.omg");
+    let output_descriptor: i32 = BuildOutput::create(&mut builder.output, generated, 438);
+    let output_count: i64 = BuildOutput::write(
+        &mut builder.output,
         output_descriptor,
         "pub machine table_size() -> u64 {\n    3\n}\n"
     );
-    let output_close: i32 = builder.output.close(output_descriptor);
-    builder.output.include_source(generated);
+    let output_close: i32 = BuildOutput::close(&mut builder.output, output_descriptor);
+    BuildOutput::include_source(&mut builder.output, generated);
 }

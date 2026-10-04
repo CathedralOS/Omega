@@ -25,11 +25,13 @@ pub fn collect_root_bindings(
     typed: &TypedTrees,
     executed: &[checked_interpreter::ExecutedRootBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
+    let execution = typed;
+    let typed = typed.product_declarations();
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
     for request in executed {
         let StatementNode::RootBinding(binding) =
-            typed.statement_table.statement(request.statement)
+            execution.statement_table.statement(request.statement)
         else {
             return Err(vec![Diagnostic::error(
                 "executed root-binding coordinate is not a declaration in the admitted program",

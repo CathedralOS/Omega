@@ -78,7 +78,7 @@ pub struct PreparedBuildMachineProgram {
 
 enum PreparedBuildMachineBody {
     Typed(Box<TypedTrees>),
-    Checked(Arc<checked_trees::CheckedTrees>),
+    Checked(CheckedBuildProgram),
 }
 
 /// Immutable checked execution content, including all CheckFacts. Equality
@@ -87,6 +87,9 @@ enum PreparedBuildMachineBody {
 #[derive(Clone, PartialEq, Eq)]
 pub struct CheckedBuildProgram {
     checked: Arc<checked_trees::CheckedTrees>,
+    /// Descriptor queries are observable Build inputs, even when their bodies
+    /// are absent from the checked executable closure.
+    product_declarations: Arc<TypedTrees>,
 }
 
 /// Exact build-machine entry owned by one prepared program.
@@ -119,14 +122,32 @@ impl PreparedBuildMachineProgram {
     /// facts keep naming the exact arena the interpreter consumes.
     /// Host grants and the exact entry's operational contract remain caller duties.
     pub fn from_checked(program: checked_trees::CheckedTrees) -> Self {
+        let product_declarations = program
+            .typed
+            .product_declaration_frontier
+            .clone()
+            .unwrap_or_else(|| Arc::new(program.typed.clone()));
         Self {
-            program: PreparedBuildMachineBody::Checked(Arc::new(program)),
+            program: PreparedBuildMachineBody::Checked(CheckedBuildProgram {
+                checked: Arc::new(program),
+                product_declarations,
+            }),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         }
     }
 
     pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        let mut typed = program.clone();
+        Self::prepare_in(
+            program,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )
+    }
+
+    pub(crate) fn prepare_in(
+        program: &TypedTrees,
+        domain: &crate::build_time_evaluation::EvaluationDomain,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut typed = domain.execution_program(program);
         // Preparation may precede endpoint evaluation. Preserve those exact
         // obligations on the private copy: specialization leaves a tuple with
         // pending type bounds unreplaced, so it cannot execute before a later
@@ -142,7 +163,7 @@ impl PreparedBuildMachineProgram {
     pub fn typed(&self) -> &TypedTrees {
         match &self.program {
             PreparedBuildMachineBody::Typed(typed) => typed,
-            PreparedBuildMachineBody::Checked(checked) => &checked.typed,
+            PreparedBuildMachineBody::Checked(program) => &program.checked.typed,
         }
     }
 
@@ -150,9 +171,7 @@ impl PreparedBuildMachineProgram {
     /// This is content only, never the preparation's executable entry token.
     pub fn checked_program(&self) -> Option<CheckedBuildProgram> {
         match &self.program {
-            PreparedBuildMachineBody::Checked(checked) => Some(CheckedBuildProgram {
-                checked: Arc::clone(checked),
-            }),
+            PreparedBuildMachineBody::Checked(program) => Some(program.clone()),
             PreparedBuildMachineBody::Typed(_) => None,
         }
     }
@@ -162,8 +181,11 @@ impl PreparedBuildMachineProgram {
             PreparedBuildMachineBody::Typed(typed) => {
                 checked_interpreter::BuildMachineProgram::Typed(typed)
             }
-            PreparedBuildMachineBody::Checked(checked) => {
-                checked_interpreter::BuildMachineProgram::Checked(checked)
+            PreparedBuildMachineBody::Checked(program) => {
+                checked_interpreter::BuildMachineProgram::CheckedClosure {
+                    execution: &program.checked,
+                    product_declarations: &program.product_declarations,
+                }
             }
         }
     }

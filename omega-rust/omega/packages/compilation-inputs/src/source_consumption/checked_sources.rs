@@ -30,6 +30,38 @@ pub struct CheckedSourceCustody {
 }
 
 impl BuildSourceCustody {
+    /// Seal a completed Build's generated handoff against its retained typed
+    /// continuation. This establishes source and staged-output custody only;
+    /// it does not claim the dependency's product has passed final checking.
+    /// Consumers still check these bytes in their own product or Build scope.
+    pub fn package_generated_source_bundle(
+        &self,
+        program: &typed_trees::TypedTrees,
+        inputs: &PackageCompilationInputs,
+        target: target::TargetProfile,
+        own_generated_sources: Vec<build_output::PackageGeneratedSource>,
+    ) -> Result<PackageGeneratedSourceBundle, Vec<Diagnostic>> {
+        let subject = derive_package_compilation_subject(
+            program.symbols.source_files(),
+            inputs,
+            &self.generated_source_custody,
+        )?;
+        verify_current_files(
+            program.symbols.source_files(),
+            &self.generated_source_custody,
+        )?;
+        inputs.validate_canonical_source_metadata()?;
+        Ok(PackageGeneratedSourceBundle::from_source_consumption(
+            subject.root(),
+            inputs.compilation_purpose(),
+            target,
+            self.build_execution_profile,
+            subject.dependency_closure().clone(),
+            subject.source_consumption_commitment(),
+            own_generated_sources,
+        ))
+    }
+
     /// Admit this activation's generated sources and retain their exact source
     /// coordinates before parsing. Empty output needs no package context.
     /// Rejection leaves the prior count and custody unchanged; admission alone

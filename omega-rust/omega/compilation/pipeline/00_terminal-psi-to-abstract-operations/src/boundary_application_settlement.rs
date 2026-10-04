@@ -228,6 +228,7 @@ fn project_compiler_intrinsic_application_realization(
     // This target's selected plan joins the use by requirement identity.
     let Some((plan_index, plan)) = provider_planning::selected_use_plan(
         settlement.checked,
+        source::DependencyScope::Product,
         plans,
         application.requirement_symbol,
         *use_origin,

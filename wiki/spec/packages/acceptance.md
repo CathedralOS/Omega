@@ -11,8 +11,9 @@ representation findings. Native emission is a separate operation.
 
 `build.omg` records requested sources, purpose-scoped aliases, and build selections.
 `omega.lock` records exact resolutions, build/product edges, accepted normalized
-policy for reviewed purposes, execution profiles and product targets, and explicit
-project decisions. Dependency rows do not contain package-asserted trusted
+policy for reviewed purposes, execution profiles and product targets, exact
+accepted semantic bindings and compiler input identity, and explicit project
+decisions. Dependency rows do not contain package-asserted trusted
 capability manifests.
 
 The project trusts whoever edits and lands its lock. Parsing, content checks,
@@ -22,11 +23,51 @@ is neither a package-safety certificate nor evidence that anyone audited code.
 Project review and branch/build-machine policy remain project responsibilities.
 
 Retained acceptance cannot validate a false proof or suppress actual reachable
-authority. Reconstruct compiler findings from selected code; cached analysis is
-not an admission certificate. Preserve normalized policy sufficient to explain
-changes without the old checkout, not only opaque hashes. The lock uses versioned,
+authority. Source checking derives proofs and reachable authority from selected
+code; a cached analysis is not an admission certificate. Preserve normalized
+policy sufficient to explain changes without the old checkout, not only opaque
+hashes. The lock uses versioned,
 deterministic LF text; [its codec](../../../omega-rust/omega/packages/package-manager/src/lock/README.md)
 owns the physical format.
+
+## Ordinary compilation
+
+The owner ruling of 2026-10-03 separates compilation from deciding whether to
+accept new package code. An ordinary compile compares every accepted occurrence's
+source identity and compiler input identity with the lock, including the local
+root and each dependency in its exact Product or Build context. On a match it
+consumes the retained occurrence-scoped semantic bindings and skips package
+review. On a mismatch it rejects, names the package and `omega update`, and
+does not run an inline audit or rewrite acceptance.
+
+Full-package review and its discovery/bound passes belong only to explicit
+review, acceptance, and update workflows. Dependency product checking instead
+loads the modules selected by the consumer's `use` items and their transitive
+imports, not the dependency's authored package root. This changes review
+orchestration, not language validity: ordinary source, proof, representation,
+provider, and native artifact checks still apply to the compiled program.
+
+Before native production, the checked root's supplied terminal permissions must
+match its retained Product acceptance rows in exact coordinate and canonical
+meaning. This narrow permission join uses the current checked program, not a
+full package review. Dependency and Build occurrences do not grant root terminal
+authority; receiver policy remains a separate boundary.
+
+Compiler input identity combines the build-produced compiler digest with the
+selected toolchain library content. It detects stale accepted inputs, not a
+malicious compiler or host, and does not attest that a person audited the code.
+A compiler identity change requires explicit review before the accepted route
+can be used again. The project still trusts whoever lands the lock.
+
+Native production requires accepted state for its exact target and rejects
+missing acceptance before Build execution. Check-only observation may run without
+a lock, but it neither accepts the package nor creates lock state; its success
+is not permission to produce a native artifact. A malformed or obsolete lock
+does not become an unlocked observation request. Format version 4 requires
+accepted compilation inputs; older versions reject on the ordinary compile route.
+Explicit review/update can recover version 3 pins, targets and decisions as a
+historical baseline. It must freshly review the candidate before publishing a
+version 4 lock; missing compiler identity and bindings are never inferred.
 
 ## Review and publication
 
@@ -49,9 +90,10 @@ identical behavior. A source diff is an audit aid, not a security control.
 
 Missing old source limits code review, not comparison against normalized accepted
 policy. No old-source compiler analysis is needed or performed for comparison.
-Recommend standalone candidate audit. Missing lock means fresh complete
-review; malformed or unsupported locks reject with recovery guidance rather than
-silently becoming an empty acceptance. Locked compilation does not refresh tags
+Recommend standalone candidate audit. In an explicit acceptance workflow,
+missing lock means fresh complete review; malformed or unsupported locks reject
+with recovery guidance rather than silently becoming an empty acceptance.
+Locked compilation does not refresh tags
 or branches. Source-plus-alias changes may be removal/addition without guessed
 replacement pairing.
 
@@ -179,10 +221,11 @@ construction, fetched-source validation, bounds, and separation from downloaded
 code—not host attestation or ambient desktop isolation. Extra compiler/native
 receipts belong to their artifacts or concrete caches, not ordinary lock acceptance.
 
-Native preparation compares fresh findings against the same accepted project
-acceptance projection. Unchanged accepted policy needs no second native approval
-file; unmatched risk-bearing rows use ordinary package review. This does not waive
-compiler proof checks or actual build-execution grants. Ecosystem receiving
+Native preparation consumes the same identity-matched accepted occurrence inputs;
+it does not reconstruct a fresh package review for comparison. Stale or missing
+acceptance directs the user to `omega update`; no second native approval file is
+required. This does not waive compiler proof checks, enforceable terminal
+permissions, or actual build-execution grants. Ecosystem receiving
 policy applies separately at explicit admission/installation, not as a required
 input to ordinary compilation. No receiver policy means no receiver-admission
 claim, rather than a deny-all production gate or inferred execution permission.

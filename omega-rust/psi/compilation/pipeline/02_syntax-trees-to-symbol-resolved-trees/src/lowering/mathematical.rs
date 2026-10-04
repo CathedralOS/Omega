@@ -30,6 +30,7 @@ pub(crate) fn lower_mathematical_definitions(
     syntax: &SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     for handle in syntax.root_mathematical_definition_handles() {
+        let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
         let definition = lower_mathematical_definition(
             lowerer,
             syntax,
@@ -41,6 +42,7 @@ pub(crate) fn lower_mathematical_definitions(
             .roots
             .mathematical_definitions
             .push(definition);
+        inputs.finish(lowerer, SymbolHandle::invalid());
     }
     Ok(())
 }

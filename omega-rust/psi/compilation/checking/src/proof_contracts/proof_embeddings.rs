@@ -53,7 +53,7 @@ pub(crate) fn validate_proof_embeddings(
     let mut runtime_nodes = Vec::new();
     let mut proof_seen = HashSet::default();
     let mut runtime_seen = HashSet::default();
-    for (_, fact) in program.proof_facts.iter() {
+    for (_, fact) in typed_trees::references::program_proof_facts(program) {
         match fact {
             ProofFact::Expression(expression) => {
                 collect_expression_nodes(program, *expression, &mut proof_nodes, &mut proof_seen);

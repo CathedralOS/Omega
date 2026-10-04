@@ -7,6 +7,7 @@ pub(super) use value_expressions::{
 };
 
 pub(super) use assignment::{
+    assign_generic_application_origin_symbols,
     assign_machine_declaration_identity_argument_symbols,
     assign_proposition_family_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,

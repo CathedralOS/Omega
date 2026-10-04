@@ -213,6 +213,7 @@ pub(super) fn project(
         // template requirement binds — the instance carries no own schema.
         let joined = provider_planning::selected_use_plan(
             compilation.program,
+            source::DependencyScope::Product,
             selected_plans,
             application.requirement_symbol,
             actual_use.origin,
@@ -225,6 +226,7 @@ pub(super) fn project(
             (origin != application.requirement_symbol).then(|| {
                 provider_planning::selected_use_plan(
                     compilation.program,
+                    source::DependencyScope::Product,
                     selected_plans,
                     origin,
                     actual_use.origin,

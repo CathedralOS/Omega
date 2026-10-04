@@ -7,6 +7,38 @@ use crate::symbols::lookup::{
 };
 use crate::symbols::targets::resolve_free_machine_entry_state_symbol;
 
+/// An instantiated use and its retained application are separate type rows.
+/// Bind both with the same declaration-source rules before typing validates
+/// their identity. Completed bodies append these rows after header assignment;
+/// the retained prefix must not be rebound under an extension's namespace.
+pub(in crate::symbols) fn assign_generic_application_origin_symbols(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+    frontier: usize,
+) {
+    let type_constraints = &program.tables.types.constraints;
+    let child_type_references = &mut program.tables.declarations.child_type_references;
+    for (_, origin) in program
+        .tables
+        .types
+        .generic_application_origins
+        .iter()
+        .skip(frontier)
+    {
+        for handle in [origin.instance, origin.application] {
+            let mut reference = std::mem::take(child_type_references.get_mut(handle));
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &[],
+                &mut reference,
+            );
+            *child_type_references.get_mut(handle) = reference;
+        }
+    }
+}
+
 pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
@@ -64,23 +96,6 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     let data_members = &mut program.tables.declarations.data_members;
     let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
     let child_type_references = &mut program.tables.declarations.child_type_references;
-    program
-        .tables
-        .types
-        .generic_application_origins
-        .for_each_mut(|_, origin| {
-            for handle in [origin.instance, origin.application] {
-                let mut reference = std::mem::take(child_type_references.get_mut(handle));
-                assign_type_reference_symbol_with_locals_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    &[],
-                    &mut reference,
-                );
-                *child_type_references.get_mut(handle) = reference;
-            }
-        });
     program
         .roots
         .const_declarations
@@ -670,11 +685,23 @@ fn assign_fixed_array_length_symbol(
     local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
     length: &mut symbol_resolved_trees::types::FixedArrayLength,
 ) {
-    let symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
-    else {
-        return;
-    };
-    *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+    match length {
+        symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } => {
+            *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+        }
+        symbol_resolved_trees::types::FixedArrayLength::ConstCall { machine, name } => {
+            // The pending call carries the same source-qualified selection as
+            // an ordinary free call. Later demand and evaluation consume this
+            // identity instead of looking up its diagnostic spelling again.
+            let entry = resolve_free_machine_entry_state_symbol(symbols, name);
+            *machine = if entry.is_valid() {
+                symbols.get(entry).parent
+            } else {
+                SymbolHandle::invalid()
+            };
+        }
+        symbol_resolved_trees::types::FixedArrayLength::Literal(_) => {}
+    }
 }
 
 fn assign_type_parameter_constraint_symbols(

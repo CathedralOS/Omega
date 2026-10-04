@@ -269,6 +269,32 @@ pub(super) fn assignment_destination_origins(
     for local in &evidence.stored {
         inference.record_local(local);
     }
+    // Destination provenance and operand exposure belong to this same write
+    // prefix. Reconstructing a shared-reference transport prefix here rejects
+    // an earlier established exclusive reborrow, even when it cannot replace
+    // the destination binding. Current operand effects must still preserve the
+    // captured slots: neither a complete write frame nor a scalar result alone
+    // proves that the address remains the one recorded before evaluation.
+    if super::stored_origins::expression_exposes_frozen_binding(
+        program,
+        machine,
+        state,
+        assignment.value,
+        &evidence.stored,
+        &evidence.aliases,
+        symbols,
+        &mut inference,
+    ) || super::local_aliases::expression_reborrows_unresolved_reference_binding(
+        program,
+        machine,
+        assignment.value,
+        program.state_parameters(state),
+        &evidence.isolated_locals,
+        &evidence.aliases,
+        &evidence.divergent,
+    ) {
+        return None;
+    }
     let origins = super::alias_origins::stable_alias_initializer_origins(
         program,
         machine,

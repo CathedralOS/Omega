@@ -89,6 +89,7 @@ fn settle_ieee_float_occurrence(
     // identity; the Terminal occurrence carries no selection.
     let Some((provider_plan_index, plan)) = provider_planning::selected_use_plan(
         checked,
+        source::DependencyScope::Product,
         selected.plans(),
         occurrence.requirement_operator,
         operator_use.origin,
@@ -239,6 +240,7 @@ fn settle_integer_occurrence(
     // identity; the Terminal occurrence carries no selection.
     let Some((provider_plan_index, plan)) = provider_planning::selected_use_plan(
         checked,
+        source::DependencyScope::Product,
         selected.plans(),
         occurrence.requirement_operator,
         operator_use.origin,

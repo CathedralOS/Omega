@@ -11,6 +11,7 @@
 //! type system with closed numerics and type identities, evidence, and
 //! inspection snapshots. Contracts, ownership, and proofs are checked later.
 
+pub mod references;
 pub mod typed_trees;
 
 pub use typed_trees::calls::{boundary, dynamic_traits, finite_family, service, signature};

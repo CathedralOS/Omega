@@ -19,7 +19,7 @@ pub(crate) fn validate_fact_call_projections(
 ) -> Vec<ValidatedFactCallProjection> {
     let mut roots = Vec::new();
     let mut proposition_applications = Vec::new();
-    for (_, fact) in program.proof_facts.iter() {
+    for (_, fact) in typed_trees::references::program_proof_facts(program) {
         match fact {
             ProofFact::Expression(expression) => roots.push(*expression),
             ProofFact::Membership(membership) => roots.push(membership.value),

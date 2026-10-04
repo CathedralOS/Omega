@@ -89,7 +89,8 @@ pub fn validate_authored_declaration_selections(
         // A selection recorded inside a target sibling's body was checked for
         // that target and pruned with it; it is not a selection this
         // realization admits.
-        if !typed_trees::visibility::owning_machine_is_retained(program, selected) {
+        let declarations = program.product_declarations();
+        if !typed_trees::visibility::owning_machine_is_retained(declarations, selected) {
             continue;
         }
 
@@ -107,7 +108,7 @@ pub fn validate_authored_declaration_selections(
         let selected_kind = program.symbols.get(selected).kind;
         if typed_trees::visibility::requires_declaration_visibility(selected_kind) {
             let Some(visibility) =
-                typed_trees::visibility::declaration_visibility(program, selected)
+                typed_trees::visibility::declaration_visibility(declarations, selected)
             else {
                 diagnostics.push(
                     Diagnostic::error(format!(

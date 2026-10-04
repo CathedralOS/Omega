@@ -5,8 +5,8 @@ use super::super::{
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, closed_constructor_carrier, collect_statement_expression_handles,
-    concrete_machine_state_handles, constructor_carrier_span, constructor_path_name,
-    expected_instance, selected_case_value, selected_constructor,
+    constructor_carrier_span, constructor_path_name, expected_instance, selected_case_value,
+    selected_constructor, selected_machine_state_handles,
 };
 
 use crate::preparation::generic_data::Instantiation;
@@ -23,9 +23,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    let concrete_states = syntax
-        .root_items()
+    let concrete_states = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| match item {
             Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
             _ => None,
@@ -199,8 +201,9 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) {
-    for state in concrete_machine_state_handles(syntax) {
+    for state in selected_machine_state_handles(syntax, declarations) {
         let state = syntax.items.state(state).clone();
         let statements = syntax.items.statements(state.statements).to_vec();
         for (index, statement) in statements.iter().enumerate() {

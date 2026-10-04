@@ -29,7 +29,7 @@ use remainder::validate_anonymous_remainder;
 pub(in crate::preparation) use templates::collect_type_positions;
 pub(super) use templates::{
     capture_machine_runtime_template_names, collect_data_type_reference_positions,
-    collect_machine_type_reference_positions, collect_type_reference_positions,
+    collect_machine_type_reference_positions, collect_selected_type_reference_positions,
     normalize_generic_template_const_expressions, replace_const_expression_names_from,
     replace_machine_const_expression_names_from,
 };

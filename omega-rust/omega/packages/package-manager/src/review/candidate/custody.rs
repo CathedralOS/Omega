@@ -3,10 +3,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::timings;
-use package_source::ImmutableSourceResolution;
 use package_source::local::operations::verify_package_source_snapshot;
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
 
 pub(crate) fn verify_transitive_source_custody(
     closure: &ResolvedPackageSourceClosure,
@@ -51,64 +48,4 @@ pub(super) fn verify_selected_source_custody(
         })?;
     }
     Ok(())
-}
-
-pub(super) fn dependency_first_package_order(
-    closure: &ResolvedPackageSourceClosure,
-) -> Vec<PackageKey> {
-    fn visit(
-        closure: &ResolvedPackageSourceClosure,
-        key: &PackageKey,
-        visited: &mut BTreeSet<PackageKey>,
-        ordered: &mut Vec<PackageKey>,
-    ) {
-        if !visited.insert(key.clone()) {
-            return;
-        }
-        let mut dependencies = closure
-            .graph()
-            .package(key)
-            .expect("validated closure contains every traversed package")
-            .dependencies()
-            .iter()
-            .map(|dependency| dependency.target().clone())
-            .collect::<Vec<_>>();
-        dependencies.sort();
-        for dependency in dependencies {
-            visit(closure, &dependency, visited, ordered);
-        }
-        ordered.push(key.clone());
-    }
-
-    let mut visited = BTreeSet::new();
-    let mut ordered = Vec::with_capacity(closure.custodies().len());
-    visit(closure, closure.graph().root(), &mut visited, &mut ordered);
-    ordered
-}
-
-pub(super) fn package_build_root(
-    build_root: &Path,
-    key: &PackageKey,
-    resolution: &ImmutableSourceResolution,
-    purpose: crate::declarations::DependencyPurpose,
-) -> PathBuf {
-    // The staging sponsor creates one child of the existing session root.
-    // Encode the occurrence in that child name rather than inventing an
-    // intermediate directory outside the sponsor's creation protocol.
-    build_root.join(format!(
-        "{}-{}-{}",
-        encode_hex(&key.identity().digest()),
-        resolution.content().to_hex(),
-        purpose.name(),
-    ))
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        encoded.push(DIGITS[usize::from(byte >> 4)] as char);
-        encoded.push(DIGITS[usize::from(byte & 0x0f)] as char);
-    }
-    encoded
 }

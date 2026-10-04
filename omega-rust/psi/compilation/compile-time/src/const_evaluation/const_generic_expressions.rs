@@ -208,9 +208,21 @@ pub(crate) fn evaluate(
     }
     let probe =
         crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
-    let resolved = crate::syntax_probes::resolve(probe, sources, bindings)?;
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: probe,
+            sources,
+            top_level_bindings: bindings.to_vec(),
+        },
+    )?;
+    let probe_sources = pending
+        .iter()
+        .map(|(_, expression, _, _)| syntax.expressions.source_span(*expression))
+        .collect::<Vec<_>>();
+    // Names and operator selections need the real declaration context, not
+    // every runtime implementation in the same source frontier. Use the same
+    // body demand as call probes while retaining exact scalar-selection checks.
+    let (typed, _) = crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
 
     for (argument, original, _, public) in pending {
         let reference = syntax.expressions.source_span(original);

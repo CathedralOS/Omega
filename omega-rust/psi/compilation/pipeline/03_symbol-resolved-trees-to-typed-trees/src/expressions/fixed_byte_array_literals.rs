@@ -27,6 +27,22 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
     expression_frontier: usize,
     machine_frontier: usize,
 ) -> Result<(), Diagnostic> {
+    let selected = program
+        .machines()
+        .iter()
+        .skip(machine_frontier)
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    land_exact_fixed_byte_array_literals_for_machines(program, expression_frontier, &selected)
+}
+
+/// Authored completion adds implementation expressions to existing machines,
+/// not a new declaration suffix. Both transitions share destination discovery.
+pub(crate) fn land_exact_fixed_byte_array_literals_for_machines(
+    program: &mut TypedTrees,
+    expression_frontier: usize,
+    selected: &[SymbolHandle],
+) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
 
     // Call-argument destinations resolve their callee state by symbol; one
@@ -95,7 +111,11 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
     }
 
     // Machine/state declarations own the remaining result positions.
-    for machine in program.machines().iter().skip(machine_frontier) {
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| selected.contains(&machine.symbol))
+    {
         for owned in program.machine_owned_data(machine) {
             if owned.initial_value.is_valid() && owned.type_reference.is_valid() {
                 destinations.push((owned.initial_value, owned.type_reference));

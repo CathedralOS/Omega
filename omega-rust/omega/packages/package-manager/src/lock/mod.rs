@@ -1,12 +1,17 @@
-//! Persistent project policy, separate from fresh compiler authorization.
+//! Persistent project consent and its exact accepted compilation inputs.
 //!
 //! Exact target sections retain the immutable source graph, compact exact
-//! acceptance rows, and source-bound historical decisions. Recovery validates
-//! records without old source or compiler execution; it does not publish files
-//! or turn recorded choices into authorization for a changed candidate.
+//! acceptance rows, occurrence-scoped bindings, compiler identity, and historical
+//! decisions. Recovery validates records without source or compiler execution;
+//! the ordinary compilation owner must verify source and compiler identity before
+//! using these inputs. Changed candidates require a new review.
+//! Explicit review also recovers version 3 history without compilation inputs;
+//! that history cannot be published as current acceptance without a fresh review.
 
 mod acceptance;
+mod compilation;
 pub use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence};
+pub use compilation::AcceptedPackageCompilation;
 mod decisions;
 mod error;
 mod limits;
@@ -20,7 +25,7 @@ pub use occurrences::{
     PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
     PackagePurposeCoverage,
 };
-pub const PACKAGE_LOCK_VERSION: u16 = 3;
+pub const PACKAGE_LOCK_VERSION: u16 = 4;
 
 use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
@@ -42,28 +47,66 @@ pub struct PackageLockTarget {
 }
 
 impl PackageLockTarget {
-    /// Validate full policy associations before projecting compact historical intent.
+    /// Accept policies with an explicitly empty semantic binding roster.
+    /// The caller supplies the compiler identity; no current identity is guessed.
     pub fn from_policies(
         source: CanonicalSourceClosureSubject,
         policies: &[(PackageCheckedContext, &PackagePolicyBaseline)],
+        compiler_identity: [u8; 32],
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
-        let occurrences = policies
-            .iter()
-            .map(|(context, policy)| PackagePolicyOccurrence::from_policy(policy, *context))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut accepted = Vec::new();
+        accepted
+            .try_reserve_exact(policies.len())
+            .map_err(|_| Error::AllocationFailed)?;
+        for (context, policy) in policies {
+            accepted.push((*context, *policy, &[][..]));
+        }
+        Self::from_accepted_policies(source, &accepted, compiler_identity, decisions)
+    }
+
+    /// Retain the exact binding inputs of each independently accepted review.
+    pub fn from_accepted_policies(
+        source: CanonicalSourceClosureSubject,
+        policies: &[(
+            PackageCheckedContext,
+            &PackagePolicyBaseline,
+            &[package_compilation::AcceptedSemanticBinding],
+        )],
+        compiler_identity: [u8; 32],
+        decisions: HistoricalPackagePolicyDecisions,
+    ) -> Result<Self, Error> {
+        let mut occurrences = Vec::new();
+        let mut associations = Vec::new();
+        occurrences
+            .try_reserve_exact(policies.len())
+            .map_err(|_| Error::AllocationFailed)?;
+        associations
+            .try_reserve_exact(policies.len())
+            .map_err(|_| Error::AllocationFailed)?;
+        for (context, policy, bindings) in policies {
+            occurrences.push(PackagePolicyOccurrence::from_policy(
+                policy,
+                *context,
+                compiler_identity,
+                bindings,
+            )?);
+            associations.push((*context, *policy));
+        }
         let value = Self::from_occurrences(source, occurrences, decisions)?;
         let limits = PackageLockRecoveryLimits::default();
         self::validation::policy_source_membership(
             &value.source,
-            policies,
+            &associations,
             limits.maximum_owned_bytes,
             limits.maximum_identity_nodes,
         )?;
         Ok(value)
     }
 
-    /// Compose inert compact consent; no compiler facts are recovered from it.
+    /// Compose exact occurrence records, including historical review baselines.
+    /// This does not check current source or compiler identity; publication
+    /// additionally requires compilation inputs on every occurrence.
     pub fn from_occurrences(
         source: CanonicalSourceClosureSubject,
         occurrences: Vec<PackagePolicyOccurrence>,
@@ -118,6 +161,20 @@ impl PackageLockTarget {
                     return Err(Error::OccurrenceCoverage);
                 }
                 occurrence.validate()?;
+                if occurrence
+                    .compilation()
+                    .into_iter()
+                    .flat_map(AcceptedPackageCompilation::semantic_bindings)
+                    .any(|binding| {
+                        !self
+                            .source
+                            .packages()
+                            .iter()
+                            .any(|package| package.key().identity() == binding.package())
+                    })
+                {
+                    return Err(Error::SourceCoverage);
+                }
                 if context.build_execution_profile() != self.execution_profile() {
                     return Err(Error::ExecutionProfileMismatch);
                 }

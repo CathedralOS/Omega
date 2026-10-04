@@ -26,16 +26,27 @@ pub(crate) fn checked_observation_evidence_total(
 }
 
 impl<'program> Evaluator<'program> {
-    /// Record one exact canonical operation in call-start order around the
-    /// selected provider. The placeholder preserves nesting order if argument
-    /// evaluation itself invokes another filesystem operation. A provider
-    /// evaluation halt aborts the entire build, so incomplete placeholders can
-    /// never enter a successful measured result.
     pub(crate) fn try_filesystem_call(
         &mut self,
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
+    ) -> EvalResult<Value> {
+        self.evaluate_filesystem_operation(operation, |evaluator| {
+            evaluator.prepare_filesystem_call(operation, arguments, frame)
+        })
+    }
+
+    /// Record one exact canonical operation in call-start order around the
+    /// selected provider. The placeholder preserves nesting order if argument
+    /// evaluation itself invokes another filesystem operation. Preparation
+    /// includes any explicit activation facet, not just filesystem operands.
+    /// A provider evaluation halt aborts the entire build, so incomplete placeholders can
+    /// never enter a successful measured result.
+    pub(crate) fn evaluate_filesystem_operation(
+        &mut self,
+        operation: FilesystemHostOperation,
+        prepare: impl FnOnce(&mut Self) -> EvalResult<PreparedFilesystemCall>,
     ) -> EvalResult<Value> {
         self.charge_filesystem_operation_attempt()?;
         let attempt_index = self.filesystem_operation_attempts.len();
@@ -51,7 +62,7 @@ impl<'program> Evaluator<'program> {
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
         let mut outcome = (|| {
-            let call = self.prepare_filesystem_call(operation, arguments, frame)?;
+            let call = prepare(self)?;
             call.validate_output_carriers()?;
             let logical_handle_plan = call.logical_handle_plan();
             self.validate_incremental_logical_handle_inputs(attempt_index, &logical_handle_plan)?;

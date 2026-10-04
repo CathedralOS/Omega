@@ -16,6 +16,85 @@ impl ExpressionMarks for HashSet<ExpressionHandle> {
     }
 }
 
+/// Construction-order inventory; no lexical selection is performed here.
+#[derive(Default)]
+struct ExpressionInventory {
+    seen: ConcreteExpressions,
+    handles: Vec<ExpressionHandle>,
+}
+
+impl ExpressionMarks for ExpressionInventory {
+    fn mark(&mut self, expression: ExpressionHandle) -> bool {
+        if !self.seen.mark(expression) {
+            return false;
+        }
+        self.handles.push(expression);
+        true
+    }
+}
+
+pub(crate) fn statement_type_inputs(
+    syntax: &SyntaxTrees,
+    statement: syntax_trees::statement::StatementHandle,
+) -> Vec<syntax_trees::types::TypeReferenceHandle> {
+    let mut inputs = Vec::new();
+    match syntax.statements.statement(statement) {
+        StatementNode::LocalData(local) => inputs.push(local.type_reference),
+        StatementNode::Call(call) => {
+            visit_static_argument_type_inputs(&call.machine_arguments, &mut |reference| {
+                inputs.push(reference)
+            });
+        }
+        _ => {}
+    }
+    let mut expressions = ExpressionInventory::default();
+    collect_statement_expression_handles(syntax, statement, &mut expressions);
+    for expression in expressions.handles {
+        visit_expression_type_inputs(syntax, expression, &mut |reference| inputs.push(reference));
+    }
+    inputs.retain(|reference| reference.is_valid());
+    inputs
+}
+
+pub(in crate::preparation::generic_data) fn visit_expression_type_inputs(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
+) {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Cast(cast) => {
+            visit(cast.target_type);
+            for &argument in syntax
+                .type_references
+                .type_reference_handles(cast.semantic_domain_arguments)
+            {
+                visit(argument);
+            }
+        }
+        ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+            visit(*reference)
+        }
+        ExpressionNode::Call(call) => {
+            visit_static_argument_type_inputs(&call.machine_arguments, visit)
+        }
+        _ => {}
+    }
+}
+
+pub(in crate::preparation::generic_data) fn visit_static_argument_type_inputs(
+    arguments: &[syntax_trees::expression::StaticMachineArgument],
+    visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            visit(argument.type_reference);
+        }
+        if let Some(application) = &argument.application {
+            visit_static_argument_type_inputs(&application.arguments, visit);
+        }
+    }
+}
+
 /// Every expression reachable from a concrete machine body, by arena
 /// position. The walk covers most of the expression arena and every caller
 /// then tests each arena entry, so positions index a dense table instead of
@@ -48,8 +127,15 @@ impl ExpressionMarks for ConcreteExpressions {
 pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
     syntax: &SyntaxTrees,
 ) -> ConcreteExpressions {
+    selected_machine_expression_handles(syntax, syntax.root_item_handles())
+}
+
+pub(in crate::preparation::generic_data) fn selected_machine_expression_handles(
+    syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> ConcreteExpressions {
     let mut handles = ConcreteExpressions::default();
-    for state in concrete_machine_state_handles(syntax) {
+    for state in selected_machine_state_handles(syntax, declarations) {
         let state = syntax.items.state(state);
         for statement in syntax.items.statements(state.statements) {
             collect_statement_expression_handles(syntax, *statement, &mut handles);
@@ -58,8 +144,9 @@ pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
     handles
 }
 
-pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
+pub(in crate::preparation::generic_data) fn selected_machine_state_handles(
     syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) -> Vec<syntax_trees::item::StateHandle> {
     // Generic data names once, instead of a root-item scan per attached
     // machine.
@@ -70,8 +157,9 @@ pub(in crate::preparation::generic_data) fn concrete_machine_state_handles(
             _ => None,
         })
         .collect::<HashSet<&str>>();
-    syntax
-        .root_items()
+    declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| {
             let Item::Machine(machine) = item else {
                 return None;

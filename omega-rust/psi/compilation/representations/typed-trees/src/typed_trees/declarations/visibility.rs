@@ -38,14 +38,10 @@ pub const fn requires_declaration_visibility(kind: SymbolKind) -> bool {
     )
 }
 
-/// Resolve visibility for an independently nameable declaration or for a
-/// genuine nested member which inherits its exact semantic owner's visibility.
-/// Operators are checked before parent traversal because domain-homed operators
-/// own visibility independently of their carrier domain.
 /// Whether the machine that owns `symbol` (the nearest machine ancestor, if
-/// any) still has a declaration record. A symbol under a pruned machine, such
-/// as a field slot of a target sibling checked for another target, belongs to
-/// no declaration of this realization.
+/// any) still has an executable declaration root. A symbol under a pruned
+/// machine, such as a field slot of a target sibling checked for another target,
+/// belongs to no declaration of this realization.
 pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) -> bool {
     let mut current = symbol;
     while current.is_valid() {
@@ -61,64 +57,53 @@ pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) ->
     true
 }
 
+/// Resolve declaration visibility independently of executable root membership.
+/// Authored selections retain exact symbols across private projections, whose
+/// backing arenas still own their declarations. Reading that visibility grants
+/// no callable body or invocation authority. Nested members inherit their exact
+/// owner's visibility; domain-homed operators own visibility independently.
 pub fn declaration_visibility(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<DeclarationVisibility> {
     let kind = program.symbols.get(symbol).kind;
+    macro_rules! retained_visibility {
+        ($table:ident, $kind:literal) => {
+            consistent_visibility(
+                $kind,
+                program
+                    .tables
+                    .$table
+                    .iter()
+                    .filter(|(_, declaration)| declaration.symbol == symbol)
+                    .map(|(_, declaration)| declaration.is_public),
+            )
+        };
+    }
     let direct = match kind {
-        SymbolKind::Data => program
-            .data_definitions()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("data", declaration.is_public)),
-        SymbolKind::Conformance => program
-            .conformances()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("conformance", declaration.is_public)),
-        SymbolKind::Domain => program
-            .domain_definitions()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("domain", declaration.is_public)),
-        SymbolKind::Machine => program
-            .machines()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("machine", declaration.is_public)),
-        SymbolKind::Operator => crate::operator::declaration_by_symbol(program, symbol)
-            .map(|declaration| ("operator", declaration.is_public)),
+        SymbolKind::Data => retained_visibility!(data_definitions, "data"),
+        SymbolKind::Conformance => retained_visibility!(conformances, "conformance"),
+        SymbolKind::Domain => retained_visibility!(domain_definitions, "domain"),
+        SymbolKind::Machine => retained_visibility!(machines, "machine"),
+        SymbolKind::Operator => retained_visibility!(operators, "operator"),
         SymbolKind::Measure => program
-            .measures()
+            .tables
+            .measures
             .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|_| ("measure", false)),
-        SymbolKind::Proposition => program
-            .propositions()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("proposition", declaration.is_public)),
-        SymbolKind::Trait => program
-            .traits()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("trait", declaration.is_public)),
-        SymbolKind::Const => program
-            .const_declarations()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("const", declaration.is_public)),
-        SymbolKind::WireSchema => program
-            .wire_schemas()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-            .map(|declaration| ("wire schema", declaration.is_public)),
+            .any(|(_, declaration)| declaration.symbol == symbol)
+            .then_some(DeclarationVisibility {
+                kind: "measure",
+                is_public: false,
+            }),
+        SymbolKind::Proposition => retained_visibility!(propositions, "proposition"),
+        SymbolKind::Trait => retained_visibility!(traits, "trait"),
+        SymbolKind::Const => retained_visibility!(const_declarations, "const"),
+        SymbolKind::WireSchema => retained_visibility!(wire_schemas, "wire schema"),
         SymbolKind::Field | SymbolKind::Variant | SymbolKind::State => None,
         _ => return None,
     };
-    if let Some((kind, is_public)) = direct {
-        return Some(DeclarationVisibility { kind, is_public });
+    if direct.is_some() {
+        return direct;
     }
 
     if matches!(
@@ -141,4 +126,59 @@ pub fn declaration_visibility(
         }
     }
     None
+}
+
+/// Root projection can append another row for the same declaration. Visibility
+/// is an immutable declaration property, so every retained copy must agree;
+/// conflicting copies are missing evidence, never a choice of the public row.
+fn consistent_visibility(
+    kind: &'static str,
+    mut copies: impl Iterator<Item = bool>,
+) -> Option<DeclarationVisibility> {
+    let is_public = copies.next()?;
+    copies
+        .all(|copy| copy == is_public)
+        .then_some(DeclarationVisibility { kind, is_public })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{consistent_visibility, declaration_visibility, owning_machine_is_retained};
+    use crate::{TypedTrees, machine::Machine};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn projected_machine_visibility_does_not_restore_execution_membership() {
+        for is_public in [false, true] {
+            let mut builder = SymbolTableBuilder::default();
+            let machine = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let state = builder
+                .insert_children(
+                    machine,
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .start();
+            let mut program = TypedTrees::default();
+            program.symbols = builder.finish();
+            let declaration = Machine {
+                symbol: machine,
+                is_public,
+                ..Machine::default()
+            };
+            program.tables.machines.insert(declaration.clone());
+            program.tables.machines.insert(declaration);
+            let visibility = declaration_visibility(&program, state)
+                .expect("the exact backing owner retains visibility");
+            assert_eq!(visibility.kind(), "machine");
+            assert_eq!(visibility.is_public(), is_public);
+            assert!(!owning_machine_is_retained(&program, state));
+        }
+    }
+
+    #[test]
+    fn conflicting_retained_visibility_never_selects_a_public_copy() {
+        assert!(consistent_visibility("machine", [].into_iter()).is_none());
+        assert!(consistent_visibility("machine", [false, true].into_iter()).is_none());
+        assert!(consistent_visibility("machine", [true, false].into_iter()).is_none());
+    }
 }

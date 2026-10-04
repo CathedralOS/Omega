@@ -54,8 +54,11 @@ mod conformance;
 mod labels;
 
 // Orchestration seams, called after a checked tree exists.
+mod build_program;
 mod package_review;
 mod product_pruning;
+
+pub use build_program::{project_build_program, project_selected_program};
 
 pub use checking::{
     CheckingRequest, RepeatedCheckRetention, lower_typed_trees, normalize_open_index_identities,

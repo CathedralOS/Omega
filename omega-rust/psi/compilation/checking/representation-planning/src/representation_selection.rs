@@ -145,6 +145,11 @@ fn close_selection(
     arguments: &[typed_trees::expression::StaticMachineArgument],
     source_span: SourceSpan,
 ) -> Result<OpaqueRepresentationSelection, Diagnostic> {
+    // The operands describe declarations, not host values. Build's executable
+    // roster may omit them, while the frozen frontier retains the complete
+    // conformance and carrier graph. The selecting machine and occurrence
+    // below still belong to the admitted Build operation.
+    let typed = typed.product_declarations();
     let [opaque_argument, conformance_argument] = arguments else {
         return Err(Diagnostic::error(
             "opaque representation selection must retain exactly one opaque data path and one named conformance path",

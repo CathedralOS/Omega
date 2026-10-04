@@ -27,7 +27,7 @@ use package_compilation::IndependentComponentDescription;
 /// profile, and a root whose `Independent` selection reaches no published
 /// description still rejects at the component-closure fence rather than
 /// compiling as a fused edge.
-pub(super) fn publish_checked_component(
+pub(crate) fn publish_checked_component(
     checked: CheckedCompilation,
     profile: proof_admission::AdmissionProfile,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {

@@ -4,7 +4,9 @@ use crate::capture::api::domains::facts::{
     project_definition_contract_fact, semantic_fact_matches_definition_fact,
 };
 use crate::capture::contracts::facts::ContractProjectionContext;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::{
     project_data_field, project_data_properties, review_signature_type_identity_with_binders,
@@ -132,11 +134,9 @@ pub(crate) fn project_public_data(
     require_rederived_data_definition_facts(compilation)?;
     let quotient_formations = validation::validate_quotient_formations(compilation)?;
     let mut rows = Vec::new();
-    for definition in compilation
-        .data_definitions()
-        .iter()
-        .filter(|row| row.is_public)
-    {
+    for definition in compilation.data_definitions().iter().filter(|row| {
+        row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
+    }) {
         let identity = nominal_identity(compilation, definition.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

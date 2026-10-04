@@ -20,6 +20,15 @@ impl<'program> Evaluator<'program> {
                 // only through the Build owner's explicit execution grants.
                 evaluator
             }
+            crate::interpreter::BuildMachineProgram::CheckedClosure {
+                execution,
+                product_declarations,
+            } => {
+                let mut evaluator =
+                    Self::new_build(crate::interpreter::BuildMachineProgram::Checked(execution));
+                evaluator.product_declarations = product_declarations;
+                evaluator
+            }
         }
     }
 
@@ -30,6 +39,7 @@ impl<'program> Evaluator<'program> {
         let step_budget = ambient_step_budget();
         Self {
             program,
+            product_declarations: program,
             checked: None,
             operator_facts: None,
             boundary_adapter_dispatch: &[],
@@ -1003,6 +1013,15 @@ impl<'program> Evaluator<'program> {
 
         loop {
             self.tick()?;
+
+            // Tail transitions can change the machine without another call
+            // frame. Guard each selected body, not just the entry machine.
+            if machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred {
+                return unsupported(format!(
+                    "machine `{}` requires implementation completion before execution",
+                    machine.name.as_str(),
+                ));
+            }
 
             // A bodyless declaration — a `boundary requirement`, boundary or
             // admission-claim machine, or an external `via` leaf — retains no

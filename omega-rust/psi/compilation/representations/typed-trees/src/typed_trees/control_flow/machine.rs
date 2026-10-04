@@ -9,6 +9,15 @@ use symbols::SymbolHandle;
 
 mod references;
 
+/// Whether this declaration's implementation has entered typed storage.
+/// Deferred states retain their real interfaces, not executable empty bodies.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MachineBodyStatus {
+    Deferred,
+    #[default]
+    Complete,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
@@ -39,6 +48,9 @@ pub struct Machine {
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
+    /// Independent from authored body presence and supply mode. Execution and
+    /// proof over the implementation require completed body custody.
+    pub body_status: MachineBodyStatus,
     /// Source structural equations are not yet discharged; execution must reject this machine.
     pub structural_type_equations_pending: bool,
     /// TPR2 (decision 23): the normalized termination plan (published
@@ -139,6 +151,7 @@ impl Default for Machine {
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             target: None,
             body_is_present: true,
+            body_status: MachineBodyStatus::Complete,
             structural_type_equations_pending: false,
             termination_plan: language_semantics::MachineTerminationPlan::default(),
             service_reach_row: language_semantics::ServiceReachRowId::NULL,

@@ -372,8 +372,14 @@ pub(super) fn selected_use_plan<'plans>(
     requirement: symbols::SymbolHandle,
     origin: checked_trees::CheckedValueOrigin,
 ) -> Option<&'plans effects::provider_plan::ProviderPlan> {
-    provider_planning::selected_use_plan(checked, selected_provider_plans, requirement, origin)
-        .map(|(_, plan)| plan)
+    provider_planning::selected_use_plan(
+        checked,
+        source::DependencyScope::Product,
+        selected_provider_plans,
+        requirement,
+        origin,
+    )
+    .map(|(_, plan)| plan)
 }
 
 pub(super) fn resolve_exact_selected_plan<'plans>(

@@ -1003,6 +1003,17 @@ fn builtin_arithmetic_node(
     expression: ExpressionHandle,
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
+    // Anonymous operands have exact rational meaning, not unknown carriers
+    // which visible primitive overloads may select. Establish that meaning
+    // from both operand results and the root's retained authored selections;
+    // no destination lands an intermediate operation. Remainder has no
+    // anonymous meaning and still follows ordinary integer formation.
+    if typed_trees::closed_numeric::has_anonymous_operator_meaning(program, expression)
+        && crate::value_custody::literals::has_anonymous_numeric_results(program, binary.left)
+        && crate::value_custody::literals::has_anonymous_numeric_results(program, binary.right)
+    {
+        return true;
+    }
     let spelling = match binary.operator {
         BinaryOperator::Add => OperatorSpelling::Add,
         BinaryOperator::Subtract => OperatorSpelling::Subtract,

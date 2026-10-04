@@ -546,7 +546,21 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        let target = call.target.as_str();
+        // Build paths are selected by exact toolchain identity; the explicit
+        // facet operand, not a declaration namespace, carries runtime authority.
+        if let Some(value) = self.try_build_path_call(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
+
         // Product selection takes its authority as an ordinary explicit
         // argument, before namespace classification of the selected call.
         if let Some(value) = self.try_build_product_entry_call(
@@ -588,6 +602,7 @@ impl<'program> Evaluator<'program> {
         )? {
             return Ok(value);
         }
+        let target = call.target.as_str();
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
         // here would trap before its exact ordinary target can execute. The
@@ -595,18 +610,6 @@ impl<'program> Evaluator<'program> {
         // fallback below from reading a qualifier as storage or spelling.
         let qualified = self.expression_receiver_is_namespace(call.receiver);
         if !qualified {
-            if let Some(value) = self.try_build_named_input_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_build_root_resolve_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_build_facet_filesystem_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_build_output_include_source_value_call(call, frame)? {
-                return Ok(value);
-            }
             if let Some(value) = self.try_build_log_write_line_value_call(call, frame)? {
                 return Ok(value);
             }

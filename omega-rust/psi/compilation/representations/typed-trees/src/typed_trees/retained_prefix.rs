@@ -25,7 +25,8 @@ impl TypedTrees {
             conformances,
             wire_schemas,
         } = &base.roots;
-        root_start_is_retained(*const_declarations, self.roots.const_declarations)
+        self.excluded_authored_selection_occurrences == base.excluded_authored_selection_occurrences
+            && root_start_is_retained(*const_declarations, self.roots.const_declarations)
             && root_start_is_retained(*data_definitions, self.roots.data_definitions)
             && root_start_is_retained(*domain_definitions, self.roots.domain_definitions)
             && root_start_is_retained(*machines, self.roots.machines)

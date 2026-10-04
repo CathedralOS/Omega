@@ -88,6 +88,16 @@ pub struct TypedTrees {
     /// tag it was cloned from: its content is identical at that moment, and a
     /// later mutation moves the arena lengths a consumer's fingerprint reads.
     pub identity: ProgramIdentity,
+    /// Immutable declaration frontier for designated product operands during
+    /// Build checking and execution. Ordinary declaration/body lookup uses this
+    /// program's roots, never this view. The original frontier retains exact
+    /// symbol and interface handles without granting its bodies execution.
+    pub product_declaration_frontier: Option<std::sync::Arc<TypedTrees>>,
+    /// Sorted exact ledger IDs proven to belong only to projected-away roots.
+    /// The ledger itself remains intact; unknown or orphan IDs are never
+    /// excluded by root projection and still require ordinary finalization.
+    pub excluded_authored_selection_occurrences:
+        Vec<crate::AuthoredDeclarationSelectionOccurrenceId>,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
@@ -359,6 +369,32 @@ impl TypedTreeRoots {
 }
 
 impl TypedTrees {
+    /// Declaration input for designated product-description operations only.
+    /// An ordinary full program already owns that same declaration frontier.
+    pub fn product_declarations(&self) -> &TypedTrees {
+        self.product_declaration_frontier.as_deref().unwrap_or(self)
+    }
+
+    /// Whether an authored occurrence belongs to this checking context.
+    /// A Build view retains descriptor ledger IDs, but does not judge the
+    /// Product-authored declarations those IDs describe.
+    pub fn checks_authored_selection(
+        &self,
+        selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
+    ) -> bool {
+        self.excluded_authored_selection_occurrences
+            .binary_search(&selection.occurrence_id())
+            .is_err()
+            && (self.product_declaration_frontier.is_none()
+                || self
+                    .symbols
+                    .source_file(selection.source_span())
+                    .is_none_or(|file| {
+                        file.origin == source::SourceOrigin::Toolchain
+                            || file.dependency_scope == source::DependencyScope::Build
+                    }))
+    }
+
     pub fn authored_service_reach_rows_for(
         &self,
         owner: symbols::SymbolHandle,
@@ -375,6 +411,8 @@ impl TypedTrees {
     ) -> Self {
         Self {
             identity: ProgramIdentity::default(),
+            product_declaration_frontier: None,
+            excluded_authored_selection_occurrences: Vec::new(),
             roots,
             tables,
             symbols,

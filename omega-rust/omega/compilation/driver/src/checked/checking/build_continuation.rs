@@ -1,4 +1,8 @@
-//! Admit and execute the build machine, then type its generated-source continuation.
+//! Admit and execute Build while retaining pending Product implementations.
+//!
+//! Dependency preparation needs Build's result and declaration descriptions,
+//! not an executable whole-package Product. An actual Product request completes
+//! its loaded module bodies, then types generated sources without replaying Build.
 
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{
@@ -39,8 +43,9 @@ pub(crate) fn evaluate_build_and_continue(
         permit_unsettled_fused_service_fields: _,
     } = child;
     let TypedCompilationFrontier {
-        typing,
-        mut selected_target_machine_declarations,
+        mut typing,
+        pending_bodies,
+        selected_target_machine_declarations,
         build_source_id,
         mut pending_pre_checks,
         source_file_count,
@@ -57,7 +62,8 @@ pub(crate) fn evaluate_build_and_continue(
         build_evaluation::BuildEvaluationRequest {
             pure_build_compilation,
             root_path,
-            typed: typing.typed(),
+            typed: typing.typed_mut(),
+            pre_checks: &mut pending_pre_checks,
             target_machine_declarations: &selected_target_machine_declarations,
             build_source_id,
             sources: &base_sources,
@@ -75,39 +81,23 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    let mut sources = BuildSourceCustody {
+    let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
         generated_source_custody,
         base_source_consumption_commitment,
     };
-    let typed = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
-        &base_sources,
-        package_inputs,
-        &computed_build_config.generated_sources,
-    )? {
-        let (typed, declarations, extension_pre_checks) = continue_generated_sources(
-            typing,
-            &base_sources,
-            extension,
-            selected_target_machine_declarations,
-            package_inputs,
-            timings,
-        )?;
-        selected_target_machine_declarations = declarations;
-        pending_pre_checks.extend(extension_pre_checks);
-        typed
-    } else {
-        typing.into_typed()
-    };
     let admission = BuildAdmission {
         application,
-        selected_build_machine_identity: computed_build_config.selected_machine_identity(&typed)?,
+        selected_build_machine_identity: computed_build_config
+            .selected_machine_identity(typing.typed())?,
         restricted_build_requests,
     };
     Ok((
         BuiltTypedProgram {
-            typed,
+            typing,
+            pending_bodies,
+            base_sources,
             selected_target_machine_declarations,
             pending_pre_checks,
             computed_build_config,
@@ -172,10 +162,10 @@ pub(super) fn lower_typed_frontier(
     selected_target_machine_declarations
         .release_provider_default_declarations(&mut syntax.syntax_trees);
     let build_source_id = syntax.build_source_id;
-    let resolved = timings.record(
+    let mut pending_bodies = timings.record(
         artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
         || {
-            syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::resolve_deferred(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                     syntax: syntax.syntax_trees,
                     sources: Some(syntax.sources),
@@ -184,29 +174,58 @@ pub(super) fn lower_typed_frontier(
             )
         },
     )?;
-    let mut typing_base = timings.record(
+    // Build execution may use its entire admitted declaration context. Product
+    // descriptions keep real pending implementations, not callable empty bodies.
+    loop {
+        let build_bodies = pending_bodies
+            .pending_machines()
+            .filter(|symbol| {
+                pending_bodies
+                    .trees()
+                    .symbols
+                    .symbol_provenance_source_span(*symbol)
+                    .and_then(|span| pending_bodies.trees().symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == source::SourceOrigin::Toolchain
+                            || file.dependency_scope == source::DependencyScope::Build
+                    })
+            })
+            .collect::<Vec<_>>();
+        if build_bodies.is_empty() {
+            break;
+        }
+        pending_bodies = timings
+            .record(
+                artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
+                || pending_bodies.complete_machine_bodies(&build_bodies),
+            )?
+            .into_resolved_frontier();
+        // Body-driven type completion can append attached implementations.
+        // Reapply the same scope selection to those owners, never to Product.
+    }
+    let typing_base = timings.record(
         artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
         || {
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-                resolved,
+                pending_bodies.shared_trees(),
             )
             .map_err(|diagnostic| vec![diagnostic])
         },
     )?;
-    for scope in [
-        source::DependencyScope::Build,
-        source::DependencyScope::Product,
-    ] {
-        selected_target_machine_declarations.admit_provider_default_calls(
-            provider_planning::ProviderPlanningContext::new(typing_base.typed(), scope),
-        )?;
-    }
-    let pending_pre_checks = pre_check
-        .evaluate_or_defer(typing_base.typed_mut())?
-        .into_iter()
-        .collect();
+    selected_target_machine_declarations.admit_provider_default_calls(
+        provider_planning::ProviderPlanningContext::new(
+            typing_base.typed(),
+            source::DependencyScope::Build,
+        ),
+    )?;
+    // Build selects its work from this declaration frontier and settles that
+    // work in the retained arenas. Product implementations are still pending;
+    // evaluating the whole continuation here would demand unrelated layouts
+    // and constants. Successful Build checking leaves only Product work.
+    let pending_pre_checks = vec![pre_check];
     Ok(TypedCompilationFrontier {
         typing: typing_base,
+        pending_bodies,
         selected_target_machine_declarations,
         build_source_id,
         pending_pre_checks,
@@ -217,8 +236,104 @@ pub(super) fn lower_typed_frontier(
     })
 }
 
+/// An actual Product demand consumes its retained Build exactly once and
+/// completes the implementation sources already selected by its module closure.
+/// Generated source is a later stratum, never a reason to rerun authored Build.
+pub(super) fn complete_product_frontend(
+    built: BuiltTypedProgram,
+    sources: &mut BuildSourceCustody,
+    package_inputs: Option<&PackageCompilationInputs>,
+    timings: &mut CompileTimings,
+) -> Result<
+    (
+        typed_trees::TypedTrees,
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
+        Vec<build_time_evaluation::PreCheckEvaluation>,
+        Arc<compilation_products::ComputedBuildConfig>,
+        BuildAdmission,
+    ),
+    Vec<Diagnostic>,
+> {
+    let BuiltTypedProgram {
+        mut typing,
+        pending_bodies,
+        base_sources,
+        mut selected_target_machine_declarations,
+        pending_pre_checks,
+        computed_build_config,
+        admission,
+    } = built;
+    // Build evaluation may have realized concrete data declarations. Admit
+    // their exact generated-symbol suffix before the resolver allocates any
+    // Product body locals, retaining one shared predecessor for both owners.
+    let mut pending_bodies = pending_bodies;
+    loop {
+        pending_bodies = typing.join_generated_symbols(pending_bodies)?;
+        let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
+        if selected.is_empty() {
+            break;
+        }
+        let resolved = timings.record(
+            artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
+            || pending_bodies.complete_machine_bodies(&selected),
+        )?;
+        (typing, pending_bodies) = timings.record(
+            artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
+            || typing.complete_bodies(resolved),
+        )?;
+        // Keep the returned resolver owner: newly synthesized declarations may
+        // carry further bodies, and their typing must use this exact successor.
+    }
+    // Complete authored evaluation before admitting generated source. This is
+    // the first point where Product bodies exist, and the resulting typed base
+    // is the immutable predecessor of every generated cohort.
+    let mut deferred_pre_checks = Vec::new();
+    for pre_check in pending_pre_checks {
+        if let Some(pending) = pre_check.evaluate_or_defer(typing.typed_mut())? {
+            deferred_pre_checks.push(pending);
+        }
+    }
+    let mut pending_pre_checks = deferred_pre_checks;
+    let typed = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
+        &base_sources,
+        package_inputs,
+        &computed_build_config.generated_sources,
+    )? {
+        let (typed, declarations, checks) = continue_generated_sources(
+            typing,
+            &base_sources,
+            extension,
+            selected_target_machine_declarations,
+            package_inputs,
+            timings,
+        )?;
+        selected_target_machine_declarations = declarations;
+        pending_pre_checks.extend(checks);
+        typed
+    } else {
+        typing.into_typed()
+    };
+    // Product implementations have only just become available. Admit their
+    // calls here even when Build emitted no generated-source extension.
+    for scope in [
+        source::DependencyScope::Build,
+        source::DependencyScope::Product,
+    ] {
+        selected_target_machine_declarations.admit_provider_default_calls(
+            provider_planning::ProviderPlanningContext::new(&typed, scope),
+        )?;
+    }
+    Ok((
+        typed,
+        selected_target_machine_declarations,
+        pending_pre_checks,
+        computed_build_config,
+        admission,
+    ))
+}
+
 fn continue_generated_sources(
-    base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    mut base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     base_sources: &Arc<source::SourceMap>,
     extension: package_compilation::source_imports::GeneratedSourceExtension,
     selected_target_machine_declarations:
@@ -235,7 +350,7 @@ fn continue_generated_sources(
 > {
     let (sources, units) = extension.parse(base_sources, timings)?;
     let retained_prefix = base.typed().clone();
-    let resolved_base = base.resolved_base_for_extension();
+    let resolved_base = base.resolved_base_for_extension()?;
     let (mut extension_syntax, pre_checks) =
         build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
             units,
@@ -266,14 +381,6 @@ fn continue_generated_sources(
         artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
         || base.lower_extension(seeded),
     )?;
-    for scope in [
-        source::DependencyScope::Build,
-        source::DependencyScope::Product,
-    ] {
-        selected_target_machine_declarations.admit_provider_default_calls(
-            provider_planning::ProviderPlanningContext::new(&typed, scope),
-        )?;
-    }
     let pending_pre_checks =
         build_time_evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
             pre_checks,

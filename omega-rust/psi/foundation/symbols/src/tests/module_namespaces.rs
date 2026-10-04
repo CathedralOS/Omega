@@ -151,6 +151,90 @@ fn unmoduled_exact_imports_select_their_checked_instance_independent_of_order() 
 }
 
 #[test]
+fn unmoduled_local_owner_precedes_same_package_imported_spelling() {
+    let bindings = [0, 1]
+        .into_iter()
+        .map(|source_ordinal| {
+            SourceScopedTopLevelBinding::module_import(
+                SourceId(source_ordinal),
+                SourceId(2),
+                "sibling",
+                0,
+            )
+        })
+        .collect();
+    let (symbols, declarations, _) = namespace_table([1, 1, 1], bindings);
+    assert_eq!(data_reference(&symbols, 1, "Item"), Some(declarations[1]));
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[2]));
+    assert_eq!(
+        symbols.lookup_signature_free_top_level_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(1),
+            |_| true,
+        ),
+        crate::SymbolLookup::Unique(declarations[1])
+    );
+}
+
+#[test]
+fn unmoduled_package_discovery_keeps_checked_occurrences_separate() {
+    let (ambiguous, _, _) = namespace_table(
+        [1, 1, 1],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(0),
+            "other",
+            0,
+        )],
+    );
+    assert!(matches!(
+        ambiguous.lookup_top_level_by_name_and_kinds_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(0),
+            |_| true,
+        ),
+        crate::SymbolLookup::Ambiguous { .. }
+    ));
+    let (_, _, sources) = namespace_table([1, 1, 1], Vec::new());
+    let mut files = sources.files().cloned().collect::<Vec<_>>();
+    for (ordinal, file) in files.iter_mut().enumerate() {
+        file.origin = SourceOrigin::Toolchain;
+        file.dependency_scope = if ordinal == 2 {
+            source::DependencyScope::Product
+        } else {
+            source::DependencyScope::Build
+        };
+    }
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(Arc::new(SourceMap::from_files(files))),
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(0),
+            "other",
+            0,
+        )],
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [1, 2].into_iter().map(|ordinal| {
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Item",
+                    source_span: reference(ordinal),
+                },
+            )
+        }),
+    ))
+    .collect::<Vec<_>>();
+    let symbols = builder.finish();
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[0]));
+}
+
+#[test]
 fn module_import_selects_namespace_without_importing_its_leaves() {
     let bindings = vec![SourceScopedTopLevelBinding::module_import(
         SourceId(0),

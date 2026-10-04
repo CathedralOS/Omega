@@ -32,10 +32,14 @@ struct Leaf {
 pub(crate) fn validate(
     typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
     for declaration in typed.const_declarations() {
+        if !domain.contains(declaration.symbol) {
+            continue;
+        }
         let reference = declaration.initializer_source_span;
         // Every declaration retains its value root, including literal-only
         // declarations. Missing storage is invalid before deciding whether its
@@ -67,7 +71,8 @@ pub(crate) fn validate(
                         "constant initializer lost its attached selection occurrence",
                     )
                 })?;
-            retained_call |= selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call;
+            retained_call |= selection.kind()
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call;
         }
         let authored_call = if declaration.authored_initializer.is_valid() {
             crate::const_evaluation::const_generic_expressions::initializer_contains_call(
@@ -100,8 +105,9 @@ pub(crate) fn validate(
                     "floating constant result encoding lost its exact declared format",
                 )
             })?;
+            let execution = domain.execution_program(typed);
             validate_anonymous_float(
-                typed,
+                &execution,
                 declaration,
                 destination,
                 authority.clone(),
@@ -183,7 +189,7 @@ pub(crate) fn validate(
     if leaves.is_empty() {
         return Ok(());
     }
-    let mut probe = typed.clone();
+    let mut probe = domain.execution_program(typed);
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
         let original = super::invocations::append_probe(

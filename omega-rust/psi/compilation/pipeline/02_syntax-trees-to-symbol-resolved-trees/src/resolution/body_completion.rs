@@ -1,0 +1,356 @@
+//! Complete selected implementations under one prepared declaration frontier.
+//!
+//! Generated declarations append a new source stratum. Authored bodies instead
+//! complete existing owners: their source and declaration identities must not be
+//! rebuilt or passed off as new roots. This carrier keeps those transitions
+//! separate and retains the actual pending syntax until a consumer demands it.
+
+use super::lowerer::{ConstResolutionMode, Lowerer};
+use crate::constant::initializer_dependencies::{
+    ResolvedMachineBodyDemand, collect_machine_body_demand,
+};
+use crate::lowering::machine::{PendingMachineBody, complete_machine_body};
+use crate::preparation::declaration_selection::ConstantSelection;
+use crate::preparation::machine_equations::{self, SourceLinks};
+use diagnostics::Diagnostic;
+use std::sync::Arc;
+use symbol_resolved_trees::{
+    AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
+    AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees, expression::ExpressionHandle,
+};
+use symbols::SymbolHandle;
+use syntax_trees::SyntaxTrees;
+
+/// Receipt replay needs the original helper closure before a resolved frontier
+/// can publish. Complete that demand on its current owner: constructing a
+/// frontier first would replay receipts against Deferred implementations. This
+/// is dependency ordering, not receipt-based authorization or relaxed replay.
+pub(super) fn complete_initializer_receipt_dependencies(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let roots = lowerer
+        .pending_const_initializers
+        .iter()
+        .map(|initializer| initializer.authored)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        return Ok(());
+    }
+    crate::symbols::assign_constant_expression_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        roots.iter().copied(),
+    );
+    loop {
+        let demand = collect_machine_body_demand(&lowerer.symbol_resolved_trees, &[], &roots)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        if demand.deferred_machines.is_empty() {
+            return Ok(());
+        }
+        for &symbol in &demand.deferred_machines {
+            let pending = lowerer
+                .pending_machine_bodies
+                .iter()
+                .find(|pending| {
+                    lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol == symbol
+                })
+                .cloned()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "initializer receipt dependency has no retained deferred implementation",
+                    )]
+                })?;
+            complete_machine_body(lowerer, syntax, &pending).map_err(|error| vec![error])?;
+        }
+        crate::symbols::assign_body_symbols(lowerer, &demand.deferred_machines)?;
+        lowerer.pending_machine_bodies.retain(|pending| {
+            !demand
+                .deferred_machines
+                .contains(&lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol)
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeferredResolvedFrontier {
+    pub(super) syntax: Arc<SyntaxTrees>,
+    pub(super) trees: Arc<SymbolResolvedTrees>,
+    pub(super) pending: Vec<PendingMachineBody>,
+    pub(super) pending_type_inputs: Vec<(SymbolHandle, syntax_trees::types::TypeReferenceHandle)>,
+    pub(super) selection: ConstantSelection<'static>,
+    pub(super) sources: Option<Arc<source::SourceMap>>,
+    pub(super) bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub(super) hoist_counter: u32,
+    pub(super) const_resolution_mode: ConstResolutionMode,
+    pub(super) structural_type_equations_pending: bool,
+    /// Only template links survive publication. Application links name scratch
+    /// rows and are recorded afresh for each demanded implementation batch.
+    pub(super) equation_sources: Option<SourceLinks>,
+}
+
+impl DeferredResolvedFrontier {
+    /// Transfer probe-only input custody on this exact completed declaration
+    /// roster. Symbol handles remain those consumed by its seeded typed base.
+    pub fn into_pending_type_inputs(
+        self,
+    ) -> Vec<(SymbolHandle, syntax_trees::types::TypeReferenceHandle)> {
+        self.pending_type_inputs
+    }
+
+    pub fn trees(&self) -> &SymbolResolvedTrees {
+        &self.trees
+    }
+
+    /// Share the canonical resolved predecessor with its typed checkpoint.
+    pub fn shared_trees(&self) -> Arc<SymbolResolvedTrees> {
+        Arc::clone(&self.trees)
+    }
+
+    /// Join a later phase's generated allocation suffix before allocating any
+    /// authored body locals. Source declarations and every existing symbol
+    /// remain the exact predecessor; generated rows reserve their own handles.
+    pub fn with_generated_symbols(
+        mut self,
+        predecessor: &SymbolResolvedTrees,
+        symbols: &symbols::SymbolTable,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.trees.as_ref() != predecessor {
+            return Err(vec![Diagnostic::error(
+                "generated symbol join does not match the exact deferred resolved predecessor",
+            )]);
+        }
+        if !symbols.is_generated_extension_of(&predecessor.symbols) {
+            return Err(vec![Diagnostic::error(
+                "generated symbol join changed retained source custody or appended authored symbols",
+            )]);
+        }
+        if self.trees.symbols != *symbols {
+            Arc::make_mut(&mut self.trees).symbols = symbols.clone();
+        }
+        Ok(self)
+    }
+
+    pub fn pending_machines(&self) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.pending
+            .iter()
+            .map(|pending| self.trees.machines[pending.machine_ordinal].symbol)
+    }
+
+    /// Discover exact executable-body demand from resolved machines and
+    /// expressions. Deferred implementations stop traversal and remain owned
+    /// here; complete the reported batch and repeat until none remain before
+    /// admitting the returned machine roster for typing or execution.
+    pub fn body_demand(
+        &self,
+        machine_roots: &[SymbolHandle],
+        expression_roots: &[ExpressionHandle],
+    ) -> Result<ResolvedMachineBodyDemand, Vec<Diagnostic>> {
+        let demand = collect_machine_body_demand(&self.trees, machine_roots, expression_roots)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        for symbol in &demand.deferred_machines {
+            if !self.pending_machines().any(|pending| pending == *symbol) {
+                return Err(vec![Diagnostic::error(
+                    "constant dependency has no retained deferred implementation",
+                )]);
+            }
+        }
+        Ok(demand)
+    }
+
+    /// Completion is transactional. A failed body cannot partly advance the
+    /// retained frontier or change which source its next consumer receives.
+    pub fn complete_machine_bodies(
+        mut self,
+        selected: &[SymbolHandle],
+    ) -> Result<ResolvedBodyCompletion, Vec<Diagnostic>> {
+        let mut pending = Vec::new();
+        for &symbol in selected {
+            if pending.iter().any(|body: &PendingMachineBody| {
+                self.trees.machines[body.machine_ordinal].symbol == symbol
+            }) {
+                continue;
+            }
+            let body = self
+                .pending
+                .iter()
+                .find(|body| self.trees.machines[body.machine_ordinal].symbol == symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "body completion selected a declaration with no pending implementation",
+                    )]
+                })?;
+            pending.push(body.clone());
+        }
+        let predecessor = self.trees.clone();
+        let frontier = predecessor.authored_selection_extension_frontier();
+        let syntax_frontier = self.syntax.root_item_handles().len();
+        if self.equation_sources.is_some() {
+            loop {
+                let mut provisional = self.seed_body_lowerer()?;
+                provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
+                provisional.structural_type_equations_pending = true;
+                append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
+                lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
+                super::finish_resolution(&mut provisional, &self.syntax)?;
+                let selection = provisional.take_constant_selection()?;
+                let links = provisional.equation_sources.take().unwrap_or_default();
+                let before = self.syntax.root_item_handles().len();
+                machine_equations::complete(
+                    Arc::make_mut(&mut self.syntax),
+                    &provisional.symbol_resolved_trees,
+                    &links,
+                    &selection,
+                )?;
+                // A completed argument can synthesize data and attached
+                // machines. Their headers enter ordinary selection before
+                // publication, but their implementations remain deferred.
+                if self.syntax.root_item_handles().len() == before {
+                    break;
+                }
+            }
+        }
+        let mut lowerer = self.seed_body_lowerer()?;
+        append_generated_declarations(&mut lowerer, &self.syntax, syntax_frontier)?;
+        lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
+        super::settle_resolution(&mut lowerer, &self.syntax)?;
+        lowerer
+            .symbol_resolved_trees
+            .append_completed_body_tables(&predecessor, selected);
+        super::finish_resolved_tables(&mut lowerer);
+        let hoist_counter = lowerer.hoist_counter;
+        self.pending.append(&mut lowerer.pending_machine_bodies);
+        self.equation_sources = lowerer.equation_sources.take().map(|mut links| {
+            links.expressions.clear();
+            links.statements.clear();
+            links
+        });
+        self.pending_type_inputs.extend(super::type_inputs::bind(
+            &lowerer.symbol_resolved_trees,
+            &lowerer.pending_type_inputs,
+        )?);
+        let trees = lowerer.into_trees();
+        self.trees = Arc::new(trees);
+        self.hoist_counter = hoist_counter;
+        self.pending
+            .retain(|body| !selected.contains(&self.trees.machines[body.machine_ordinal].symbol));
+        Ok(ResolvedBodyCompletion {
+            successor: self,
+            predecessor,
+            frontier,
+            selected: selected.to_vec(),
+        })
+    }
+
+    fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
+        let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
+        lowerer.seed_resolved_base((*self.trees).clone())?;
+        lowerer.constant_selection = Some(self.selection.clone());
+        lowerer.hoist_counter = self.hoist_counter;
+        lowerer.const_resolution_mode = self.const_resolution_mode;
+        lowerer.structural_type_equations_pending = self.structural_type_equations_pending;
+        lowerer.equation_sources = self.equation_sources.clone();
+        Ok(lowerer)
+    }
+}
+
+fn append_generated_declarations(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    frontier: usize,
+) -> Result<(), Vec<Diagnostic>> {
+    if syntax.root_item_handles().len() == frontier {
+        return Ok(());
+    }
+    lowerer.defer_machine_bodies = true;
+    for &item in syntax.root_item_handles().iter().skip(frontier) {
+        crate::lowering::item::lower_item(lowerer, syntax, item).map_err(|error| vec![error])?;
+    }
+    crate::selection::select_operator_homes(lowerer)?;
+    crate::symbols::assign_declarations(lowerer)
+}
+
+fn lower_selected_bodies(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    pending: &[PendingMachineBody],
+    selected: &[SymbolHandle],
+) -> Result<(), Vec<Diagnostic>> {
+    for body in pending {
+        complete_machine_body(lowerer, syntax, body).map_err(|error| vec![error])?;
+    }
+    crate::symbols::assign_body_symbols(lowerer, selected)
+}
+
+/// Private predecessor/successor pairing. Only the resolver can construct a
+/// completion; later typing rejoins it to its own retained predecessor.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ResolvedBodyCompletion {
+    successor: DeferredResolvedFrontier,
+    predecessor: Arc<SymbolResolvedTrees>,
+    frontier: AuthoredSelectionExtensionFrontier,
+    selected: Vec<SymbolHandle>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RebasedResolvedBodyCompletion {
+    successor: DeferredResolvedFrontier,
+    predecessor: Arc<SymbolResolvedTrees>,
+    selected: Vec<SymbolHandle>,
+}
+
+impl ResolvedBodyCompletion {
+    /// Before a typed checkpoint exists, the completed resolved frontier is
+    /// itself the next owner. Once typing exists, use its completion join.
+    pub fn into_resolved_frontier(self) -> DeferredResolvedFrontier {
+        self.successor
+    }
+
+    pub fn rebase_authored_selections_for_typed_completion(
+        self,
+        destination: &AuthoredDeclarationSelections,
+    ) -> Result<RebasedResolvedBodyCompletion, (Self, AuthoredSelectionExtensionRebaseError)> {
+        let Self {
+            mut successor,
+            predecessor,
+            frontier,
+            selected,
+        } = self;
+        let trees = Arc::unwrap_or_clone(successor.trees);
+        match trees.rebase_authored_selection_extension(frontier, destination) {
+            Ok(trees) => {
+                successor.trees = Arc::new(trees);
+                Ok(RebasedResolvedBodyCompletion {
+                    successor,
+                    predecessor,
+                    selected,
+                })
+            }
+            Err((trees, error)) => {
+                successor.trees = Arc::new(trees);
+                Err((
+                    Self {
+                        successor,
+                        predecessor,
+                        frontier,
+                        selected,
+                    },
+                    error,
+                ))
+            }
+        }
+    }
+}
+
+impl RebasedResolvedBodyCompletion {
+    /// The returned frontier and the typed checkpoint share this exact rebased
+    /// successor. There is no separately advanced raw resolver ledger.
+    pub fn into_typing_completion_parts(
+        self,
+    ) -> (
+        DeferredResolvedFrontier,
+        Arc<SymbolResolvedTrees>,
+        Vec<SymbolHandle>,
+    ) {
+        (self.successor, self.predecessor, self.selected)
+    }
+}

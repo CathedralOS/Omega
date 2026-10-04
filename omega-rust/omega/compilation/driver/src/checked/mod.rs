@@ -21,8 +21,10 @@ pub use artifacts::compile_timings::counters::{
 pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
-    IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    RestrictedBuildGrants, compile_checked, compile_checked_reusing_builds, compile_to_checked,
+    IndependentComponentDiscovery, IndependentComponentSelection, PackageBuildOutcome,
+    PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants,
+    check_prepared_package_build, compile_checked, compile_checked_reusing_builds,
+    compile_to_checked, prepare_package_build,
 };
 pub(crate) use checking::{check_prepared_source, prepare_checked_source};
 pub use optimization_core::{

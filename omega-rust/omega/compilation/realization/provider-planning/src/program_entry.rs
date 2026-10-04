@@ -36,7 +36,7 @@ impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompati
     fn validate_entry(
         &self,
         typed: &TypedTrees,
-        machine_symbol: symbols::SymbolHandle,
+        declaration: checked_interpreter::ProductEntryDeclaration<'_>,
         slot: &str,
     ) -> Result<(), String> {
         let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
@@ -54,29 +54,15 @@ impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompati
         let slot = required.program_entry().ok_or_else(|| {
             format!("root slot `{slot}` does not have a supported ProgramEntry signature")
         })?;
-        let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-            .ok_or_else(|| {
-                "product entry is not a declaration in the admitted program".to_owned()
-            })?;
-        validate_program_entry_source_compatibility(
-            typed,
-            SelectedProgramEntry {
-                machine_name: machine.name.as_str(),
-                machine_symbol,
-                slot,
+        validate_program_entry_source_compatibility(typed, declaration, slot).map_err(
+            |diagnostics| {
+                diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             },
         )
-        .map(|_| ())
-        .map_err(|diagnostics| {
-            diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect::<Vec<_>>()
-                .join("; ")
-        })
     }
 }
 
@@ -200,34 +186,20 @@ pub fn selected_program_entry_machine<'config>(
 ///
 /// Both description issuance and final admission use this decision. It does
 /// not require the provider or layout choices the build is still computing.
-fn validate_program_entry_source_compatibility<'typed>(
-    typed: &'typed TypedTrees,
-    selected: SelectedProgramEntry<'_>,
-) -> Result<
-    (
-        &'typed typed_trees::machine::Machine,
-        &'typed typed_trees::state::State,
-    ),
-    Vec<Diagnostic>,
-> {
-    let machine_name = selected.machine_name;
-    let Some(machine) = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == selected.machine_symbol)
-    else {
-        return Err(vec![Diagnostic::error(format!(
-            "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
-        ))]);
-    };
-    let Some(entry) = typed.machine_states(machine).first() else {
+fn validate_program_entry_source_compatibility(
+    typed: &TypedTrees,
+    declaration: checked_interpreter::ProductEntryDeclaration<'_>,
+    slot: target::ProgramEntrySlotDeclaration,
+) -> Result<(), Vec<Diagnostic>> {
+    let machine_name = declaration.name;
+    let Some(entry) = declaration.entry else {
         return Err(vec![Diagnostic::error(format!(
             "entry machine `{machine_name}` has no executable entry state"
         ))]);
     };
 
     let mut diagnostics = Vec::new();
-    if !typed.machine_type_parameters(machine).is_empty() {
+    if !declaration.type_parameters.is_empty() {
         diagnostics.push(Diagnostic::error(format!(
             "entry machine `{machine_name}` is generic; a root slot must bind one exact machine"
         )));
@@ -238,9 +210,14 @@ fn validate_program_entry_source_compatibility<'typed>(
         )));
     }
 
-    let parameters = typed.state_parameters(entry);
-    let context =
-        provisioned_entry_context(typed, machine, entry).map_err(|diagnostic| vec![diagnostic])?;
+    let parameters = entry.parameters;
+    let context = provisioned_entry_context_from_parameters(
+        typed,
+        machine_name,
+        declaration.attached_data_symbol,
+        parameters,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     if let Some(context) = &context
         && typed_trees_to_checked_trees::data_requires_establishment(typed, context.definition)
     {
@@ -267,7 +244,7 @@ fn validate_program_entry_source_compatibility<'typed>(
                 .is_none()
         })
         .collect::<Vec<_>>();
-    match selected.slot.visible_parameters {
+    match slot.visible_parameters {
         target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
                 "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
@@ -281,7 +258,7 @@ fn validate_program_entry_source_compatibility<'typed>(
         target::ProgramEntryVisibleParameters::ImageAndInitialStorage if visible.len() != 2 => {
             diagnostics.push(Diagnostic::error(format!(
                 "target schema `{:?}` exposes exactly image and initial-storage roots, but `{machine_name}` declares {} visible parameter{}",
-                selected.slot.schema,
+                slot.schema,
                 visible.len(),
                 if visible.len() == 1 { "" } else { "s" },
             )));
@@ -289,11 +266,10 @@ fn validate_program_entry_source_compatibility<'typed>(
         _ => {}
     }
 
-    if selected.slot.visible_parameters
-        == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+    if slot.visible_parameters == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
         && visible.len() == 2
     {
-        match arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement) {
+        match arrival_requirement_contract(typed, slot.semantic_arrival_requirement) {
             Ok(required) if required.parameters.len() == visible.len() => {
                 for (index, (actual, required)) in
                     visible.iter().zip(required.parameters.iter()).enumerate()
@@ -304,8 +280,8 @@ fn validate_program_entry_source_compatibility<'typed>(
                     {
                         diagnostics.push(Diagnostic::error(format!(
                             "target root slot `{}::{}` requires visible parameter {index} ({}) to have exact type `{}`, but entry machine `{machine_name}` declares `{}`",
-                            selected.slot.owner.root_slot_owner_name(),
-                            selected.slot.slot_name,
+                            slot.owner.root_slot_owner_name(),
+                            slot.slot_name,
                             ["image", "initial storage"][index],
                             required.display,
                             typed.display_type_reference_with_constraints(actual.type_reference),
@@ -315,9 +291,9 @@ fn validate_program_entry_source_compatibility<'typed>(
             }
             Ok(required) => diagnostics.push(Diagnostic::error(format!(
                 "target root slot `{}::{}` selects arrival requirement `{}` with {} visible parameters, but its target schema declares {}",
-                selected.slot.owner.root_slot_owner_name(),
-                selected.slot.slot_name,
-                selected.slot.semantic_arrival_requirement,
+                slot.owner.root_slot_owner_name(),
+                slot.slot_name,
+                slot.semantic_arrival_requirement,
                 required.parameters.len(),
                 visible.len(),
             ))),
@@ -328,7 +304,7 @@ fn validate_program_entry_source_compatibility<'typed>(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    Ok((machine, entry))
+    Ok(())
 }
 
 /// Borrowed source coordinates shared by entry selection and service discovery.
@@ -347,27 +323,35 @@ pub fn provisioned_entry_context<'program>(
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
 ) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
-    use typed_trees::types::TypeReferenceNode;
-    let machine_name = machine.name.as_str();
+    provisioned_entry_context_from_parameters(
+        typed,
+        machine.name.as_str(),
+        machine.attached_data_symbol,
+        typed.state_parameters(entry),
+    )
+}
 
-    let mut candidates =
-        typed
-            .state_parameters(entry)
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| {
-                parameter.is_self
-                    || (!parameter.relevance.is_erased()
-                        && typed
-                            .placed_view_plan_for_input_type_reference(parameter.type_reference)
-                            .is_none()
-                        && matches!(
-                            typed
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference { .. }
-                        ))
-            });
+fn provisioned_entry_context_from_parameters<'program>(
+    typed: &'program TypedTrees,
+    machine_name: &str,
+    attached_data_symbol: symbols::SymbolHandle,
+    parameters: &'program [typed_trees::signature::StateParameter],
+) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
+    use typed_trees::types::TypeReferenceNode;
+
+    let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
+        parameter.is_self
+            || (!parameter.relevance.is_erased()
+                && typed
+                    .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                    .is_none()
+                && matches!(
+                    typed
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                ))
+    });
     let Some((source_position, parameter)) = candidates.next() else {
         return Ok(None);
     };
@@ -387,7 +371,7 @@ pub fn provisioned_entry_context<'program>(
                 "entry machine `{machine_name}` context requires an exclusive mutable borrow"
             )));
         }
-        machine.attached_data_symbol
+        attached_data_symbol
     } else {
         let TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,
@@ -438,8 +422,23 @@ pub fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
 ) -> Result<program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
-    let (machine, entry) = validate_program_entry_source_compatibility(typed, selected)?;
     let machine_name = selected.machine_name;
+    // Description issuance only needs an interface. Final admission still
+    // requires the exact selected executable machine and its real entry state.
+    let machine = typed.machines().iter().find(|machine| machine.symbol == selected.machine_symbol)
+        .ok_or_else(|| vec![Diagnostic::error(format!(
+            "build root slot selected entry `{machine_name}` is not a declaration in the admitted program"
+        ))])?;
+    let entry = typed.machine_states(machine).first().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "entry machine `{machine_name}` has no executable entry state"
+        ))]
+    })?;
+    validate_program_entry_source_compatibility(
+        typed,
+        checked_interpreter::ProductEntryDeclaration::from_machine(typed, machine),
+        selected.slot,
+    )?;
     let parameters = typed.state_parameters(entry);
     let context =
         provisioned_entry_context(typed, machine, entry).map_err(|diagnostic| vec![diagnostic])?;

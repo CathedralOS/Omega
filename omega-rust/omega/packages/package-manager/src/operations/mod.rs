@@ -10,6 +10,8 @@
 //! prepares a declaration edit without changing live source. File transactions belong beside
 //! these operations rather than in the command-line binary.
 
+mod accepted_compilation;
+pub(crate) use accepted_compilation::compiler_input_identity;
 mod check_locked_sources;
 mod check_project;
 mod compile_project;

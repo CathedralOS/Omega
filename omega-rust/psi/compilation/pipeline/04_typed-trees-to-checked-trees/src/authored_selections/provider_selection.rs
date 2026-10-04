@@ -83,6 +83,7 @@ pub(crate) fn resolve_product_operand(
     occurrence: source::SourceSpan,
     subject: bool,
 ) -> Option<SymbolHandle> {
+    let program = program.product_declarations();
     if argument.type_reference.is_valid()
         || argument.application.is_some()
         || argument.const_literal.is_some()

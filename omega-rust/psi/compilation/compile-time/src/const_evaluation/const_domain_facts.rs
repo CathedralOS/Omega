@@ -18,6 +18,7 @@
 //! checked body, rebound on a private execution copy so the caller's tree
 //! keeps its authored selection.
 
+use crate::build_time_evaluation::EvaluationDomain;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -42,9 +43,12 @@ struct PendingMembership {
 /// Concrete const-generic instance memberships whose subject already folded
 /// to an integer literal. Only a retained specialization origin identifies an
 /// instance; diagnostic spelling cannot supply that identity.
-fn pending_memberships(typed: &TypedTrees) -> Vec<PendingMembership> {
+fn pending_memberships(typed: &TypedTrees, domain: &EvaluationDomain) -> Vec<PendingMembership> {
     let mut pending = Vec::new();
     for data in typed.data_definitions() {
+        if !domain.contains(data.symbol) {
+            continue;
+        }
         if data.generic_instance.is_none() {
             continue;
         }
@@ -81,19 +85,21 @@ fn pending_memberships(typed: &TypedTrees) -> Vec<PendingMembership> {
 pub(crate) fn pending_memberships_need_operator_selection(
     typed: &TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let pending = pending_memberships(typed);
+    let pending = pending_memberships(typed, domain);
     if pending.is_empty() {
         return Ok(false);
     }
     // Admission and the deferral scan must see the same call closure as the
     // eventual evaluation: this pass executes the unprepared working tree, so
     // the check reads it directly.
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
+    let execution = domain.execution_program(typed);
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&execution);
+    let admission = BuildTimeAdmissionPlan::infer(&execution, selection_authority);
     Ok(pending.iter().any(|pending| {
         membership::domain_facts_need_operator_selection(
-            typed,
+            &execution,
             &admission,
             &facts,
             pending.membership.domain_symbol,
@@ -110,6 +116,7 @@ pub fn evaluate_const_domain_facts(
         typed,
         selection_authority,
         crate::SelectedBuildTimeOperators::default(),
+        &EvaluationDomain::all(),
     )
 }
 
@@ -124,8 +131,9 @@ pub(crate) fn evaluate_selected_domain_facts(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
+    domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    let pending = pending_memberships(typed);
+    let pending = pending_memberships(typed, domain);
     if pending.is_empty() {
         return Ok(());
     }
@@ -142,7 +150,8 @@ pub(crate) fn evaluate_selected_domain_facts(
             selected.operators,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let execution = selected_program.as_ref().unwrap_or(typed);
+    let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
+    let execution = &execution_program;
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority)
         .with_selected_operators(execution, selected.operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;

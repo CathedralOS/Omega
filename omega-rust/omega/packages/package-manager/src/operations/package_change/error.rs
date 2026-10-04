@@ -5,6 +5,7 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum PackageChangeError {
+    CompilerIdentity(String),
     Compilation(CompileResolvedPackageReviewsError),
     Comparison(PackagePolicyChangeError),
     SourceSubject(CanonicalSourceClosureSubjectError),
@@ -17,6 +18,10 @@ pub enum PackageChangeError {
 impl fmt::Display for PackageChangeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CompilerIdentity(error) => write!(
+                formatter,
+                "package review compiler identity failed: {error}"
+            ),
             Self::Compilation(error) => {
                 write!(formatter, "package candidate checking failed: {error}")
             }
@@ -48,7 +53,7 @@ impl std::error::Error for PackageChangeError {
             Self::SourceSubject(error) => Some(error),
             Self::Decisions(error) => Some(error),
             Self::Lock(error) => Some(error),
-            Self::RejectedChanges | Self::AllocationFailed => None,
+            Self::RejectedChanges | Self::AllocationFailed | Self::CompilerIdentity(_) => None,
         }
     }
 }

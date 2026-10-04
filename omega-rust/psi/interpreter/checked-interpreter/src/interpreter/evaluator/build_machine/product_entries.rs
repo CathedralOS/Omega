@@ -133,35 +133,35 @@ impl<'program> Evaluator<'program> {
         // reading of the full spelling.
         let qualified = name.split_once("::");
         let authorized = qualified.and_then(|(alias, _)| {
-            self.program
+            self.product_declarations
                 .symbols
                 .product_dependency_target(occurrence, alias)
         });
         let candidates = match (qualified, authorized) {
             (Some((_, rest)), Some(target)) => self
-                .program
+                .product_declarations
                 .machines()
                 .iter()
                 .filter(|machine| {
                     machine.is_public
                         // The dependency alias qualifies a complete path;
                         // a different module's relative name is not a match.
-                        && self.program.symbols.display_path(machine.symbol, "::") == rest
+                        && self.product_declarations.symbols.display_path(machine.symbol, "::") == rest
                         && self
-                            .program
+                            .product_declarations
                             .symbols
                             .symbol_product_package_identity(machine.symbol)
                             == Some(target)
                 })
                 .collect::<Vec<_>>(),
             _ => self
-                .program
+                .product_declarations
                 .machines()
                 .iter()
                 .filter(|machine| {
                     (match qualified {
                         Some(_) => {
-                            self.program
+                            self.product_declarations
                                 .symbols
                                 .display_path(machine.symbol, "::")
                                 .as_str()
@@ -169,11 +169,11 @@ impl<'program> Evaluator<'program> {
                         }
                         None => machine.name.as_str() == name,
                     }) && self
-                        .program
+                        .product_declarations
                         .symbols
                         .symbol_source_span(machine.symbol)
                         .is_some_and(|span| {
-                            self.program
+                            self.product_declarations
                                 .symbols
                                 .same_product_package_instance(occurrence, span)
                         })
@@ -185,10 +185,10 @@ impl<'program> Evaluator<'program> {
             // qualified query it is the segment after the resolved or
             // unrecognized alias.
             let probe = qualified.map_or(name, |(_, rest)| rest);
-            let message = if self.program.machines().iter().any(|machine| {
+            let message = if self.product_declarations.machines().iter().any(|machine| {
                 machine.name.as_str() == probe
                     || self
-                        .program
+                        .product_declarations
                         .symbols
                         .display_path(machine.symbol, "::")
                         .as_str()
@@ -217,7 +217,9 @@ impl<'program> Evaluator<'program> {
         let mut selected = None;
         let mut rejection = None;
         for candidate in candidates {
-            match compatibility.validate_entry(self.program, candidate.symbol, slot) {
+            let declaration =
+                crate::ProductEntryDeclaration::from_machine(self.product_declarations, candidate);
+            match compatibility.validate_entry(self.product_declarations, declaration, slot) {
                 Ok(()) => {
                     if selected.is_some() {
                         return Err(Halt::Trap(format!(

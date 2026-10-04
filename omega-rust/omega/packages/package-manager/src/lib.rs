@@ -7,6 +7,7 @@
 //! [`operations`] also exposes compiler preparation and read-only inspection.
 
 pub mod admission;
+mod build_session;
 pub mod declarations;
 pub mod lock;
 pub mod operations;

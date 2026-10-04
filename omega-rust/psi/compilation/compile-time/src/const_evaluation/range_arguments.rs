@@ -203,15 +203,20 @@ pub(crate) fn evaluate(
     // Constants retain ordinary value normalization here. Machine equations
     // remain pending because this probe produces their canonical range inputs;
     // the invocation guard prevents executing them, including through wrappers.
-    let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: probe,
-            sources,
-            top_level_bindings: bindings.to_vec(),
-        },
-    )?;
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let probe_sources = probes
+        .iter()
+        .map(|(_, _, bounds)| syntax.expressions.source_span(bounds[0].1))
+        .collect::<Vec<_>>();
+    let frontier =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: probe,
+                sources,
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
+    let (typed, evaluation_domain) =
+        crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
     // A call endpoint is a constant position exactly as a fixed-array length
     // is: run the shared endpoint admission on a working copy so a
     // `u64[0..=limit()]` argument retains the same canonical range a literal
@@ -229,6 +234,7 @@ pub(crate) fn evaluate(
             operators: &[],
             provider_bodies: &[],
         },
+        &evaluation_domain,
     );
     // A whole bound folds only after all authored calls pass static admission.
     // Selective execution may skip some of them; this records admission, not

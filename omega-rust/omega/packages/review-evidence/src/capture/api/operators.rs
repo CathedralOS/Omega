@@ -2,7 +2,9 @@ use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_crash_cause;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, project_contracts};
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
@@ -59,7 +61,10 @@ pub(crate) fn project_public_operators(
             .iter()
             .flat_map(|domain| compilation.domain_operators(domain)),
     );
-    for declaration in operators.filter(|declaration| declaration.is_public) {
+    for declaration in operators.filter(|declaration| {
+        declaration.is_public
+            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
+    }) {
         let coordinate = project_operator_coordinate(compilation, declaration)?;
         if !reviewed_package_owns(&coordinate.identity, package)? {
             continue;

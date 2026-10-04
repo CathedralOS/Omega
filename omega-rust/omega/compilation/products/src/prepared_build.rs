@@ -9,11 +9,13 @@ use artifacts::compile_timings::CompileTimings;
 use package_compilation::{BuildExecutionInputs, BuildSourceCustody};
 use std::sync::Arc;
 
-/// The final typed program and evaluated Build, before selected-execution checking.
-/// Generated-source continuation is complete; this is not yet a checked program.
+/// Evaluated Build and the retained frontend that an actual Product demand
+/// completes. Pending authored bodies and generated sources grant no execution.
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
-    pub typed: typed_trees::TypedTrees,
+    pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
+    pub base_sources: Arc<source::SourceMap>,
     pub selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,

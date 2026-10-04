@@ -35,6 +35,9 @@ pub(crate) mod module_constants;
 mod substitution;
 mod synthesis;
 mod uses;
+mod work_domain;
+
+pub(crate) use uses::statement_type_inputs;
 
 pub(crate) use arguments::{
     DomainHead, closed_argument_identity, domain_application_head, domain_index_telescope,
@@ -54,12 +57,11 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
     canonicalize_selected_const_definition, canonicalize_selected_declaration_value,
     canonicalize_selected_index_expression, capture_machine_runtime_template_names,
     checked_fact_integer, collect_data_type_reference_positions,
-    collect_machine_type_reference_positions, collect_type_reference_positions,
-    consider_generic_spelling, const_expression_contains_name, const_integer_in_envelope,
-    const_integer_type, domain_index_parameters, evaluate_const_argument_expression,
-    generic_const_integer_types, integer_literal_value,
-    normalize_generic_template_const_expressions, prove_const_leaf_domain_constraints,
-    qualified_const_name, replace_const_expression_names_from,
+    collect_machine_type_reference_positions, consider_generic_spelling,
+    const_expression_contains_name, const_integer_in_envelope, const_integer_type,
+    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
+    integer_literal_value, normalize_generic_template_const_expressions,
+    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
     replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
     validate_syntax_integer_range,
 };
@@ -71,7 +73,8 @@ pub(crate) use substitution::{
     closed_name_identity, substitute_member, type_reference_mentions_parameter,
 };
 use synthesis::desugar_generic_data_instances;
-pub(super) use synthesis::desugar_generic_data_instances_with_selection;
+pub(crate) use synthesis::desugar_generic_data_instances_in;
+pub(crate) use work_domain::GenericDataWorkDomain;
 
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.

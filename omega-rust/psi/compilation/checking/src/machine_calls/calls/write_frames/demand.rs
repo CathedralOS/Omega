@@ -463,16 +463,6 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
     ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
-        let StatementNode::Assignment(assignment) = statement else {
-            return None;
-        };
-        if !matches!(
-            self.assignment_write_target(machine, statement)?,
-            AssignmentWriteTarget::LocalBindingReplacement { .. }
-        ) && !self.expression_reference_bindings_are_stable(machine, assignment.value)
-        {
-            return None;
-        }
         super::caller_aliases::assignment_destination_origins(
             self.program,
             machine,

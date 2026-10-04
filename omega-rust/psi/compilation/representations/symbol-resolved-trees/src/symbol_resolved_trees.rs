@@ -789,6 +789,23 @@ impl SymbolResolvedTrees {
         self.tables.types.references = tables.types.references;
     }
 
+    /// Normalize newly completed implementations without moving any retained
+    /// normalized statement, transition target or type-reference row.
+    pub fn append_completed_body_tables(
+        &mut self,
+        predecessor: &Self,
+        completed_machines: &[symbols::SymbolHandle],
+    ) {
+        let tables = tables::SymbolResolvedTreeTables::from_body_completion(
+            self,
+            predecessor,
+            completed_machines,
+        );
+        self.tables.bodies.expressions = tables.bodies.expressions;
+        self.tables.bodies.statements = tables.bodies.statements;
+        self.tables.types.references = tables.types.references;
+    }
+
     pub fn snapshot(&self) -> snapshot::SymbolResolvedTreesSnapshot {
         snapshot::SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(self)
     }

@@ -55,7 +55,9 @@ pub fn publish_reviewed_package_change(
         return Err(Error::Association("build.omg changed during review"));
     }
     let accepted = accepted_lock
-        .map(|text| PackageLock::recover_text(text, PackageLockRecoveryLimits::default()))
+        .map(|text| {
+            PackageLock::recover_review_baseline(text, PackageLockRecoveryLimits::default())
+        })
         .transpose()
         .map_err(Error::Lock)?;
     if reviews.is_empty() || reviews.len() > PackageLockRecoveryLimits::default().maximum_targets {

@@ -210,3 +210,69 @@ fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option
         _ => None,
     }
 }
+
+impl TypedTrees {
+    /// Read a closed array extent through exact declaration substitutions.
+    /// Canonical const atoms and evaluated declarations share identity's
+    /// decoder; expression operands must already be literal or a selected
+    /// const name. This query neither evaluates operators nor admits a binder's
+    /// carrier or constraints. Unknown, cyclic and unrepresentable extents fail.
+    pub fn closed_array_extent(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<usize> {
+        let (mut symbol, mut spelling) = match length {
+            crate::types::FixedArrayLength::Literal(length) => return Some(*length),
+            crate::types::FixedArrayLength::ConstParameter { symbol, name }
+                if symbol.is_valid() =>
+            {
+                (*symbol, name.as_str())
+            }
+            _ => return None,
+        };
+        let mut active = Vec::new();
+        loop {
+            let replacement = substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| symbol.is_valid() && *parameter == symbol);
+            let Some((_, reference)) = replacement else {
+                return usize::try_from(integer(self, symbol, spelling)?).ok();
+            };
+            if active.contains(&symbol)
+                || !self
+                    .type_reference_table
+                    .contains_type_reference(*reference)
+            {
+                return None;
+            }
+            active.push(symbol);
+            match self.type_reference_table.type_reference(*reference) {
+                TypeReferenceNode::Named {
+                    symbol: selected,
+                    name,
+                } => {
+                    symbol = *selected;
+                    spelling = name.as_str();
+                }
+                TypeReferenceNode::ConstExpression(expression) => {
+                    if !self.expression_table.expression_is_valid(*expression) {
+                        return None;
+                    }
+                    match self.expression_table.expression(*expression) {
+                        ExpressionNode::Integer(literal) => {
+                            return usize::try_from(literal.value_u64()?).ok();
+                        }
+                        ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                            symbol = path.symbol;
+                            spelling = "";
+                        }
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            }
+        }
+    }
+}

@@ -25,30 +25,62 @@
 //! differentially), so the result carries TARGET integer semantics, never
 //! host widths.
 
+use crate::build_time_evaluation::EvaluationDomain;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::BuildTimeAdmissionPlan;
 mod checked_occurrences;
 mod receivers;
 
+/// Detached type-arena nodes retain their identity but do not own evaluation
+/// work. Snapshot only lengths reached from the current declaration roster.
+fn pending_array_lengths(
+    typed: &TypedTrees,
+    domain: &EvaluationDomain,
+) -> Vec<(
+    TypeReferenceHandle,
+    symbols::SymbolHandle,
+    String,
+    source::SourceSpan,
+)> {
+    domain
+        .references(typed)
+        .type_references
+        .into_iter()
+        .filter_map(
+            |handle| match typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::FixedArray {
+                    length:
+                        FixedArrayLength::ConstCall {
+                            machine,
+                            name,
+                            source_span,
+                        },
+                    ..
+                } => Some((handle, *machine, name.as_str().to_owned(), *source_span)),
+                _ => None,
+            },
+        )
+        .collect()
+}
+
 pub fn evaluate_const_array_lengths(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let pending: Vec<(TypeReferenceHandle, String, source::SourceSpan)> = typed
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter_map(|(handle, length)| match length {
-            FixedArrayLength::ConstCall { name, source_span } => {
-                Some((handle, name.as_str().to_owned(), *source_span))
-            }
-            _ => None,
-        })
-        .collect();
+    evaluate_const_array_lengths_in(typed, selection_authority, &EvaluationDomain::all())
+}
+
+pub(crate) fn evaluate_const_array_lengths_in(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
+    let pending = pending_array_lengths(typed, domain);
 
     if pending.is_empty() {
         return Ok(());
@@ -57,15 +89,15 @@ pub fn evaluate_const_array_lengths(
     // Admission and execution must see the same closed static applications.
     // Preparing one private graph preserves the caller's generic templates and
     // source-owned type handles; only evaluated lengths are published below.
-    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
 
     let mut diagnostics = Vec::new();
     let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
 
-    for (handle, machine_name, source_span) in &pending {
-        match evaluate_one(execution, &admission, machine_name, *source_span) {
+    for (handle, machine, machine_name, source_span) in &pending {
+        match evaluate_one(execution, &admission, *machine, *source_span) {
             Ok(value) => substitutions.push((*handle, value)),
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -107,34 +139,26 @@ pub struct FoldedArrayLength {
 pub(crate) fn evaluate_independent_lengths(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let pending: Vec<_> = typed
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter_map(|(handle, length)| {
-            let FixedArrayLength::ConstCall { name, source_span } = length else {
-                return None;
-            };
-            Some((handle, name.as_str().to_owned(), *source_span))
-        })
-        .collect();
+    let pending = pending_array_lengths(typed, domain);
     if pending.is_empty() {
         return Ok(false);
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
     let execution = prepared.typed();
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
     let admission = BuildTimeAdmissionPlan::infer(execution, authority);
     let mut deferred = false;
     let mut evaluated = Vec::new();
     let mut diagnostics = Vec::new();
-    for (handle, name, source) in pending {
-        if let Some(root) = execution.realized_machine_named(&name)
+    for (handle, machine, name, source) in pending {
+        if let Some(root) = execution.machine_by_symbol(machine)
             && admission.closure_needs_operator_selection(execution, root.symbol, &facts)
         {
             deferred = true;
         } else {
-            match evaluate_one(execution, &admission, &name, source) {
+            match evaluate_one(execution, &admission, machine, source) {
                 Ok(value) => evaluated.push((handle, value)),
                 Err(reason) => diagnostics.push(Diagnostic::error(format!(
                     "fixed-array length `{}`: const evaluation of `{name}` failed: {reason}",
@@ -159,21 +183,13 @@ pub(crate) fn evaluate_selected_array_lengths(
     typed: &mut TypedTrees,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
+    domain: &EvaluationDomain,
 ) -> Result<Vec<FoldedArrayLength>, Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
         provider_bodies,
     } = selected;
-    let pending: Vec<_> = typed
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter_map(|(handle, length)| {
-            let FixedArrayLength::ConstCall { name, source_span } = length else {
-                return None;
-            };
-            Some((handle, name.as_str().to_owned(), *source_span))
-        })
-        .collect();
+    let pending = pending_array_lengths(typed, domain);
     // Admission and execution must see the same selected realization. When a
     // selected use means an ordinary checked provider body, rebind its
     // occurrence to the exact provider entry state on one private copy: the
@@ -186,17 +202,18 @@ pub(crate) fn evaluate_selected_array_lengths(
             operators,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let execution = selected_program.as_ref().unwrap_or(typed);
+    let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
+    let execution = &execution_program;
     let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let roots = receivers::roots(typed);
+    let roots = receivers::roots_in(typed, domain.work());
     let mut folded = Vec::new();
-    for (type_reference, name, source) in pending {
+    for (type_reference, selected, _, source) in pending {
         let machines: Vec<_> = execution
             .machines()
             .iter()
-            .filter(|machine| machine.name.as_str() == name)
+            .filter(|machine| selected.is_valid() && machine.symbol == selected)
             .collect();
         let [machine] = machines.as_slice() else {
             return Err(vec![Diagnostic::error(
@@ -297,8 +314,13 @@ fn evaluate_exact_invocation(
     machine: &Machine,
     source: source::SourceSpan,
 ) -> Result<usize, String> {
-    if entry_state_parameter_count(typed, machine) != 0 {
-        return Err("array length requires a zero-argument machine".into());
+    let parameter_count = entry_state_parameter_count(typed, machine);
+    if parameter_count > 0 {
+        let machine_name = machine.name.as_str();
+        return Err(format!(
+            "machine `{machine_name}` takes {parameter_count} parameter(s); a const-evaluated \
+             array length must call a zero-argument machine (const arguments are not supported yet)"
+        ));
     }
     let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
         typed,
@@ -307,25 +329,6 @@ fn evaluate_exact_invocation(
         crate::BuildTimeInvocationCustody::Source(source),
     )?;
     let value = decode_integer_result(typed, machine, value)?;
-    value
-        .to_u64()
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| "array length must be nonnegative and fit the compiler range".into())
-}
-
-fn evaluate_one(
-    typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    machine_name: &str,
-    source_span: source::SourceSpan,
-) -> Result<usize, String> {
-    let value = evaluate_zero_argument_machine(
-        typed,
-        admission,
-        machine_name,
-        "array length",
-        Some(crate::BuildTimeInvocationCustody::Source(source_span)),
-    )?;
     if value.is_negative() {
         return Err(format!(
             "the call returned {value}, but an array length must be a non-negative integer"
@@ -335,6 +338,18 @@ fn evaluate_one(
         .to_u64()
         .and_then(|value| usize::try_from(value).ok())
         .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
+}
+
+fn evaluate_one(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    machine: symbols::SymbolHandle,
+    source_span: source::SourceSpan,
+) -> Result<usize, String> {
+    let machine = typed
+        .machine_by_symbol(machine)
+        .ok_or("array length lost its exact selected machine")?;
+    evaluate_exact_invocation(typed, admission, machine, source_span)
 }
 
 pub fn evaluate_zero_argument_machine(

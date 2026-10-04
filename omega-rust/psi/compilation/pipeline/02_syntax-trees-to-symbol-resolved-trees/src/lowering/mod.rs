@@ -33,7 +33,7 @@ pub(crate) fn lower_items(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    for item in syntax.root_items() {
+    for &item in syntax.root_item_handles() {
         item::lower_item(lowerer, syntax, item).map_err(|diagnostic| vec![diagnostic])?;
     }
     Ok(())

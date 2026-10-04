@@ -432,13 +432,15 @@ fn selected_operator_provider_evidence(
 /// The selected ProviderPlan serving one checked use of a boundary operator
 /// or receiver-free top-level requirement, with its index in `plans`.
 /// Checked uses carry no selection: each target joins its own selected plans
-/// here by requirement identity (slot and declaring package), after
+/// here by requirement identity (slot and declaring package) in the caller's
+/// dependency purpose, after
 /// `bind_selected_provider_plan_facts` rejected ambiguous or malformed plans.
 /// A use inside a pruned target-sibling body has no provider, and a checked
 /// adapter never serves a generic template's use (its concrete clones are
 /// served instead).
 pub fn selected_use_plan<'a>(
     checked: &checked_trees::CheckedTrees,
+    scope: source::DependencyScope,
     plans: &'a [ProviderPlan],
     requirement: symbols::SymbolHandle,
     origin: checked_trees::CheckedValueOrigin,
@@ -452,7 +454,11 @@ pub fn selected_use_plan<'a>(
     {
         return None;
     }
-    let (index, plan) = selected_requirement_plan(&checked.typed, plans, requirement)?;
+    let (index, plan) = selected_requirement_plan(
+        crate::ProviderPlanningContext::new(&checked.typed, scope),
+        plans,
+        requirement,
+    )?;
     let is_operator = checked
         .typed
         .operators()
@@ -472,12 +478,16 @@ pub fn selected_use_plan<'a>(
 
 /// The one selected ProviderPlan whose schema binds `requirement` — a boundary
 /// operator's requirement identity or a top-level requirement — in its exact
-/// declaring package, with its index in `plans`.
+/// declaring package and dependency purpose, with its index in `plans`.
 pub fn selected_requirement_plan<'a>(
-    typed: &TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
     plans: &'a [ProviderPlan],
     requirement: symbols::SymbolHandle,
 ) -> Option<(usize, &'a ProviderPlan)> {
+    if !context.contains(requirement) {
+        return None;
+    }
+    let typed = context.typed;
     let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
         .operators()
         .iter()
@@ -503,15 +513,7 @@ pub fn selected_requirement_plan<'a>(
             plans
                 .iter()
                 .enumerate()
-                .filter(|(_, plan)| {
-                    requirement.schema_binds(
-                        crate::ProviderPlanningContext::new(
-                            typed,
-                            source::DependencyScope::Product,
-                        ),
-                        &plan.schema,
-                    )
-                })
+                .filter(|(_, plan)| requirement.schema_binds(context, &plan.schema))
                 .collect()
         }
     };

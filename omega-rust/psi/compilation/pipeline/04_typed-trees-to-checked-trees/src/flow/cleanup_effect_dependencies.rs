@@ -14,7 +14,7 @@ use language_semantics::{MachineSupplyMode, Multiplicity};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 type Substitutions = Vec<(SymbolHandle, TypeReferenceHandle)>;
 
@@ -227,13 +227,11 @@ fn visit(
             element_type,
             length,
         } => {
-            let FixedArrayLength::Literal(length) = length else {
-                return None;
-            };
+            let length = program.closed_array_extent(length, substitutions)?;
             visit_array(
                 program,
                 *element_type,
-                *length,
+                length,
                 substitutions,
                 removed,
                 active,
@@ -527,12 +525,13 @@ fn select_type(
     let (symbol, nested) = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(length),
+            length,
         } => {
+            let length = program.closed_array_extent(length, substitutions)?;
             let PlaceSegment::FixedIndex { index } = path[0] else {
                 return None;
             };
-            return (index < *length)
+            return (index < length)
                 .then(|| select_type(program, *element_type, substitutions, &path[1..]))
                 .flatten();
         }

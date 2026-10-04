@@ -1408,7 +1408,7 @@ fn bind_declaration_semantic_applications(
 ) -> Result<(), Vec<Diagnostic>> {
     let site = SemanticOperandSite::Declaration(invocation_values);
     let mut visited = Vec::new();
-    for (_, fact) in program.proof_facts.iter() {
+    for (_, fact) in typed_trees::references::program_proof_facts(program) {
         let roots: &[ExpressionHandle] = match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 std::slice::from_ref(expression)

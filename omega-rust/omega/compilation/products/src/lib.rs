@@ -34,6 +34,7 @@ mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
+mod package_build;
 mod pcc;
 mod prepared_build;
 mod prepared_source;
@@ -69,6 +70,7 @@ pub use native_artifact::{
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use optimization_core::OptimizationRollbackReceipt;
+pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::{ProductionCompilationSubject, RetainedBuildOutputs};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use prepared_build::{

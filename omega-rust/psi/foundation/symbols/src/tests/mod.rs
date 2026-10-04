@@ -1,6 +1,7 @@
 //! Fixtures shared by the symbol-table tests: entry, console and running
 //! inventory symbol tables built from sourced declarations.
 
+mod generated_extension;
 mod hierarchy;
 mod module_namespaces;
 mod package_scope_separation;

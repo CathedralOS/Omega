@@ -27,13 +27,21 @@ impl Budget {
         )
     }
 
-    fn owned(&mut self, count: usize) -> Result<(), Error> {
+    pub(super) fn owned(&mut self, count: usize) -> Result<(), Error> {
         self.remaining.maximum_owned_bytes = self
             .remaining
             .maximum_owned_bytes
             .checked_sub(count)
             .ok_or(Error::AllocationLimitExceeded)?;
         Ok(())
+    }
+
+    pub(super) fn elements(&mut self, used: usize) -> Result<(), Error> {
+        count(&mut self.remaining.maximum_policy_elements, used)
+    }
+
+    pub(super) fn maximum_elements(&self) -> usize {
+        self.remaining.maximum_policy_elements
     }
 
     pub(super) fn source(&mut self, text: &str) -> Result<CanonicalSourceClosureSubject, Error> {

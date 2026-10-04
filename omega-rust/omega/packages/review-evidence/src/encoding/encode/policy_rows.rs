@@ -2,7 +2,7 @@
 
 use crate::record::{
     PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
-    PackagePolicyRowUsage,
+    PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
 };
 mod assembly;
 mod builder;
@@ -22,7 +22,7 @@ impl PackagePolicyBaseline {
         // fields. Do not repeat unbudgeted association scans before row sizing.
         let limits = limits.bounded();
         let count = assembly::count(self)?;
-        let mut builder = Builder::new(self, count, limits, false)?;
+        let mut builder = Builder::new(self.package, self.target, count, limits, false)?;
         assembly::project(&mut builder, self)?;
         builder.finish()
     }
@@ -33,8 +33,27 @@ impl PackagePolicyBaseline {
         limits: PackagePolicyRowLimits,
     ) -> Result<(Vec<PackagePolicyRow>, PackagePolicyRowUsage), PackageReviewEncodingError> {
         let count = assembly::acceptance_count(self)?;
-        let mut builder = Builder::new(self, count, limits.bounded(), true)?;
+        let mut builder = Builder::new(self.package, self.target, count, limits.bounded(), true)?;
         assembly::project(&mut builder, self)?;
+        builder.finish()
+    }
+}
+
+impl PackagePolicyTerminalPermissions {
+    /// Project only supplied terminal permissions with the same canonical
+    /// meaning and bounded encoding as whole-policy acceptance. Service schemas
+    /// remain checked input, not additional acceptance obligations.
+    pub fn acceptance_rows_with_limits(
+        &self,
+        limits: PackagePolicyRowLimits,
+    ) -> Result<(Vec<PackagePolicyRow>, PackagePolicyRowUsage), PackageReviewEncodingError> {
+        let count = self.services.iter().try_fold(0usize, |count, service| {
+            count
+                .checked_add(service.permissions.len())
+                .ok_or_else(|| rejected("terminal permission row count overflows"))
+        })?;
+        let mut builder = Builder::new(self.package, self.target, count, limits.bounded(), true)?;
+        components::terminal(&mut builder, self)?;
         builder.finish()
     }
 }

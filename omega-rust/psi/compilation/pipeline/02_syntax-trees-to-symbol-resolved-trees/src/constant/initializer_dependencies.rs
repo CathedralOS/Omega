@@ -5,6 +5,7 @@ use source::SourceSpan;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode, MatchPattern},
+    machine::MachineBodyStatus,
 };
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -17,34 +18,43 @@ pub struct ConstInitializerDependencies {
     pub(crate) call_targets: Vec<(SourceSpan, SymbolHandle)>,
 }
 
+/// Exact machine roots and their resolved call dependencies. A deferred body
+/// terminates traversal: complete `deferred_machines` and collect again before
+/// treating `machines` as the complete execution roster. This is body demand,
+/// not permission to execute or evidence of checked call selection.
+#[derive(Debug, Default)]
+pub struct ResolvedMachineBodyDemand {
+    pub machines: Vec<SymbolHandle>,
+    pub deferred_machines: Vec<SymbolHandle>,
+}
+
+pub(crate) fn collect_machine_body_demand(
+    program: &SymbolResolvedTrees,
+    machine_roots: &[SymbolHandle],
+    expression_roots: &[ExpressionHandle],
+) -> Result<ResolvedMachineBodyDemand, String> {
+    let mut collector = Collector {
+        machines: machine_roots.iter().rev().copied().collect(),
+        expressions: expression_roots.iter().rev().copied().collect(),
+        deferred_machines: Some(Vec::new()),
+        ..Collector::new(program)
+    };
+    collector.collect()?;
+    Ok(ResolvedMachineBodyDemand {
+        machines: collector.visited_machines,
+        deferred_machines: collector.deferred_machines.unwrap_or_default(),
+    })
+}
+
 pub(crate) fn collect(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
-        program,
-        dependencies: ConstInitializerDependencies::default(),
         expressions: vec![root],
-        machines: Vec::new(),
-        visited_expressions: Vec::new(),
-        visited_machines: Vec::new(),
-        follow_dependencies: true,
+        ..Collector::new(program)
     };
-    while !collector.expressions.is_empty() || !collector.machines.is_empty() {
-        if let Some(expression) = collector.expressions.pop() {
-            if collector.visited_expressions.contains(&expression) {
-                continue;
-            }
-            collector.visited_expressions.push(expression);
-            collector.expression(expression)?;
-        } else if let Some(machine) = collector.machines.pop() {
-            if collector.visited_machines.contains(&machine) {
-                continue;
-            }
-            collector.visited_machines.push(machine);
-            collector.machine(machine)?;
-        }
-    }
+    collector.collect()?;
     Ok(collector.dependencies)
 }
 
@@ -54,13 +64,9 @@ pub(crate) fn expression_at_source(
     source: SourceSpan,
 ) -> Result<ExpressionHandle, String> {
     let mut collector = Collector {
-        program,
-        dependencies: ConstInitializerDependencies::default(),
         expressions: vec![root],
-        machines: Vec::new(),
-        visited_expressions: Vec::new(),
-        visited_machines: Vec::new(),
         follow_dependencies: false,
+        ..Collector::new(program)
     };
     let mut selected = None;
     while let Some(expression) = collector.expressions.pop() {
@@ -86,10 +92,45 @@ struct Collector<'program> {
     machines: Vec<SymbolHandle>,
     visited_expressions: Vec<ExpressionHandle>,
     visited_machines: Vec<SymbolHandle>,
+    /// Only a retained-body owner can request an incomplete dependency frontier.
+    /// Ordinary initializer collection requires every reached body to exist.
+    deferred_machines: Option<Vec<SymbolHandle>>,
     follow_dependencies: bool,
 }
 
-impl Collector<'_> {
+impl<'program> Collector<'program> {
+    fn new(program: &'program SymbolResolvedTrees) -> Self {
+        Self {
+            program,
+            dependencies: ConstInitializerDependencies::default(),
+            expressions: Vec::new(),
+            machines: Vec::new(),
+            visited_expressions: Vec::new(),
+            visited_machines: Vec::new(),
+            deferred_machines: None,
+            follow_dependencies: true,
+        }
+    }
+
+    fn collect(&mut self) -> Result<(), String> {
+        while !self.expressions.is_empty() || !self.machines.is_empty() {
+            if let Some(expression) = self.expressions.pop() {
+                if self.visited_expressions.contains(&expression) {
+                    continue;
+                }
+                self.visited_expressions.push(expression);
+                self.expression(expression)?;
+            } else if let Some(machine) = self.machines.pop() {
+                if self.visited_machines.contains(&machine) {
+                    continue;
+                }
+                self.visited_machines.push(machine);
+                self.machine(machine)?;
+            }
+        }
+        Ok(())
+    }
+
     fn call(&mut self, target: SymbolHandle, reference: SourceSpan) -> Result<(), String> {
         let symbol = self.program.symbols.get(target);
         if symbol.kind == SymbolKind::Operator {
@@ -123,11 +164,17 @@ impl Collector<'_> {
             {
                 symbol.parent
             }
+            // Body demand is not call admission. A builtin or operand-directed
+            // target has no ordinary implementation at this frontier; typing
+            // supplies its selected dependency before the caller checks and
+            // admits execution. Initializer provenance collection below still
+            // requires an exact ordinary declaration.
+            _ if self.deferred_machines.is_some() => return Ok(()),
             _ => {
-                return Err(
-                    "constant initializer call has no exact ordinary machine declaration"
-                        .to_owned(),
-                );
+                return Err(format!(
+                    "constant initializer call has no exact ordinary machine declaration: selected {:?} at {reference:?}",
+                    symbol.kind,
+                ));
             }
         };
         let declaration = if let Some(source) = self.program.symbols.symbol_source_span(target) {
@@ -351,6 +398,17 @@ impl Collector<'_> {
             .ok_or("constant dependency call lost its machine body")?;
         if machines.next().is_some() {
             return Err("constant dependency machine is ambiguous".to_owned());
+        }
+        if machine.body_status == MachineBodyStatus::Deferred {
+            let Some(deferred) = &mut self.deferred_machines else {
+                return Err(format!(
+                    "constant dependency requires a deferred machine body: `{}` at {:?}",
+                    program.symbols.display_path(symbol, "::"),
+                    program.symbols.symbol_source_span(symbol),
+                ));
+            };
+            deferred.push(symbol);
+            return Ok(());
         }
         let states = program.machine_state_handles(machine.states);
         if states.len() != machine.states.len() {

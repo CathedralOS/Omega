@@ -8,11 +8,13 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
+mod child_batches;
 mod modules;
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration, Symbol, SymbolHandle,
     SymbolKind, SymbolName, SymbolNameRef, SymbolNameStorageKind, SymbolPath,
 };
+use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolTable {
@@ -22,7 +24,7 @@ pub struct SymbolTable {
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
-    supplemental_top_level: Vec<SymbolHandle>,
+    supplemental_children: SupplementalChildren,
     module_symbols: Arena<SymbolHandle>,
     /// Dense `SourceId`-indexed map from a source to its declared module:
     /// a linear scan per lookup would cost `O(#sources)` on every
@@ -343,7 +345,7 @@ impl SymbolTableBuilder {
             sources: self.sources,
             source_scoped_top_level_bindings: self.source_scoped_top_level_bindings,
             root: self.root,
-            supplemental_top_level: Vec::new(),
+            supplemental_children: SupplementalChildren::default(),
             module_symbols: Arena::new(),
             source_module_index: Vec::new(),
             root_names: RootNameIndexCache::default(),
@@ -396,6 +398,134 @@ impl SymbolTableAppender for SymbolTableBuilder {
 impl SymbolTable {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Whether this table retains `base` exactly and appends only generated
+    /// declarations with earlier derivation origins. A later frontend may
+    /// adopt this allocation frontier before minting authored body symbols;
+    /// this does not turn generated declarations into authored source roots.
+    pub fn is_generated_extension_of(&self, base: &Self) -> bool {
+        // Lookup caches are derived from the retained semantic fields. Their
+        // initialization state is not source or allocation custody.
+        let Self {
+            symbols,
+            names,
+            path_members,
+            sources,
+            source_scoped_top_level_bindings,
+            root,
+            supplemental_children,
+            module_symbols,
+            source_module_index,
+            root_names: _,
+            binding_source_index: _,
+            module_path_index: _,
+            module_scope_index: _,
+        } = self;
+        if symbols.len() < base.symbols.len()
+            || !symbols
+                .nodes()
+                .iter()
+                .take(base.symbols.len())
+                .eq(base.symbols.nodes().iter())
+            || names.len() < base.names.len()
+            || !names.iter().take(base.names.len()).eq(base.names.iter())
+            || path_members.len() < base.path_members.len()
+            || !path_members
+                .iter()
+                .take(base.path_members.len())
+                .eq(base.path_members.iter())
+            || sources != &base.sources
+            || source_scoped_top_level_bindings != &base.source_scoped_top_level_bindings
+            || root != &base.root
+            || supplemental_children != &base.supplemental_children
+            || module_symbols != &base.module_symbols
+            || source_module_index != &base.source_module_index
+        {
+            return false;
+        }
+        for (handle, symbol) in symbols.nodes().iter().skip(base.symbols.len()) {
+            // Origins precede their products, so this also rejects cycles and
+            // foreign generations without following an untrusted parent chain.
+            let origin = symbol.generated_from;
+            if !origin.is_valid()
+                || origin.generation() != handle.generation()
+                || origin.arena_index() >= handle.arena_index()
+                || symbols.get(origin).kind == SymbolKind::Unknown
+                || symbol.kind == SymbolKind::Unknown
+                || !names.is_valid(symbol.name)
+                || names.get(symbol.name).source_span().is_some()
+            {
+                return false;
+            }
+            if symbol.parent.is_valid() {
+                let siblings = symbols.get(symbol.parent).children;
+                if symbol.parent.generation() != handle.generation()
+                    || symbol.parent.arena_index() as usize <= base.symbols.len()
+                    || symbol.parent.arena_index() >= handle.arena_index()
+                    || siblings.start().generation() != handle.generation()
+                    || handle
+                        .arena_index()
+                        .checked_sub(siblings.start().arena_index())
+                        .is_none_or(|offset| offset >= siblings.count())
+                {
+                    return false;
+                }
+            }
+            let Some(mut children) = symbols.child_handles(handle) else {
+                return false;
+            };
+            if children.any(|child| {
+                child.arena_index() <= handle.arena_index() || symbols.get(child).parent != handle
+            }) {
+                return false;
+            }
+        }
+        path_members
+            .iter()
+            .skip(base.path_members.len())
+            .all(|(_, symbol)| {
+                symbol.is_valid() && symbols.get(*symbol).kind != SymbolKind::Unknown
+            })
+    }
+
+    /// Append an authored child batch without replacing the parent's original
+    /// children or rebinding any existing handle. Lookup visits the original
+    /// declaration children first, then appended batches in insertion order.
+    /// This is also the route for body locals and synthesized state headers.
+    pub fn append_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        // Validate the full generational handle before indexing its dense slot.
+        let _ = self.get(parent);
+        let mut appended = HandleSpan::empty();
+        for (kind, name) in children {
+            let name = self.names.insert(SymbolName::from_ref_with_sources(
+                name,
+                self.sources.as_deref(),
+            ));
+            let child = self.symbols.insert_supplemental_child(
+                parent,
+                Symbol {
+                    parent,
+                    children: HandleSpan::empty(),
+                    kind,
+                    name,
+                    generated_from: SymbolHandle::invalid(),
+                },
+            );
+            appended.push_contiguous(child);
+        }
+        if appended.is_empty() {
+            return appended;
+        }
+        self.supplemental_children.append(parent, appended);
+        self.root_names.clear();
+        self.module_path_index.clear();
+        self.module_scope_index.clear();
+        appended
     }
 
     #[inline]
@@ -819,17 +949,13 @@ impl SymbolTable {
         if self.get(parent).kind == SymbolKind::Module {
             return Some(SymbolChildHandles {
                 contiguous: None,
-                supplemental: [].iter(),
+                supplemental: self.supplemental_children.children(parent),
                 namespace: self.module_children(parent).into_iter(),
             });
         }
         Some(SymbolChildHandles {
             contiguous: Some(self.symbols.child_handles(parent)?),
-            supplemental: if parent == self.root {
-                self.supplemental_top_level.iter()
-            } else {
-                [].iter()
-            },
+            supplemental: self.supplemental_children.children(parent),
             namespace: Vec::new().into_iter(),
         })
     }
@@ -1524,7 +1650,7 @@ impl SymbolTable {
 
 pub struct SymbolChildHandles<'table> {
     contiguous: Option<HierarchyChildHandles<Symbol>>,
-    supplemental: std::slice::Iter<'table, SymbolHandle>,
+    supplemental: SupplementalChildHandles<'table>,
     namespace: std::vec::IntoIter<SymbolHandle>,
 }
 
@@ -1536,8 +1662,8 @@ impl Iterator for SymbolChildHandles<'_> {
         self.contiguous
             .as_mut()
             .and_then(Iterator::next)
-            .or_else(|| self.supplemental.next().copied())
             .or_else(|| self.namespace.next())
+            .or_else(|| self.supplemental.next())
     }
 
     /// Skip whole parts by length: builtin lookups index the root's children
@@ -1551,13 +1677,13 @@ impl Iterator for SymbolChildHandles<'_> {
             n -= length;
             let _ = contiguous.nth(length);
         }
-        let length = self.supplemental.len();
+        let length = self.namespace.len();
         if n < length {
-            return self.supplemental.nth(n).copied();
+            return self.namespace.nth(n);
         }
         n -= length;
-        let _ = self.supplemental.nth(length);
-        self.namespace.nth(n)
+        let _ = self.namespace.nth(length);
+        self.supplemental.nth(n)
     }
 }
 
@@ -1570,26 +1696,17 @@ impl SymbolTableExtension {
         &mut self,
         declarations: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> Vec<SymbolHandle> {
-        let root = self.table.root;
-        let sources = self.table.sources.as_deref();
-        let names = &mut self.table.names;
-        let symbols = &mut self.table.symbols;
-        let mut inserted = Vec::new();
-        for (kind, name) in declarations {
-            let handle = symbols.insert_supplemental_child(
-                root,
-                Symbol {
-                    parent: root,
-                    children: HandleSpan::empty(),
-                    kind,
-                    name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
-                    generated_from: SymbolHandle::invalid(),
-                },
-            );
-            self.table.supplemental_top_level.push(handle);
-            inserted.push(handle);
-        }
-        inserted
+        SymbolTableBuilder::child_handles(self.table.append_children(self.table.root, declarations))
+            .collect()
+    }
+
+    /// Append beneath an existing declaration while retaining its exact node.
+    pub fn append_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        self.table.append_children(parent, children)
     }
 
     pub fn insert_children<'name>(

@@ -11,6 +11,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
 use typed_trees::statement::StatementNode;
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
@@ -23,7 +24,11 @@ pub(crate) fn validate_conformance_applications(
     let mut diagnostics = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            validate_arguments(program, &call.machine_arguments, &mut diagnostics);
+            validate_call_arguments(
+                program,
+                StaticArgumentCall::Expression(call),
+                &mut diagnostics,
+            );
         }
     }
     for machine in program.machines() {
@@ -37,7 +42,11 @@ pub(crate) fn validate_conformance_applications(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
-                    validate_arguments(program, &call.machine_arguments, &mut diagnostics);
+                    validate_call_arguments(
+                        program,
+                        StaticArgumentCall::Statement(state, call),
+                        &mut diagnostics,
+                    );
                 }
             }
         }
@@ -91,6 +100,18 @@ fn validate_bound_applications(
             validate_arguments(program, &application.arguments, diagnostics);
         }
     }
+}
+
+fn validate_call_arguments(
+    program: &TypedTrees,
+    call: StaticArgumentCall<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let declarations = match crate::authored_selections::static_argument_role(program, call) {
+        StaticArgumentRole::DeclarationDescription => program.product_declarations(),
+        StaticArgumentRole::ValueDependency => program,
+    };
+    validate_arguments(declarations, call.arguments(), diagnostics);
 }
 
 fn validate_arguments(

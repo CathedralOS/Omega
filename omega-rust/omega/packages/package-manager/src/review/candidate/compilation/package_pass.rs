@@ -12,12 +12,13 @@
 //! checked generated-source handoff. Routing into these existing owners keeps
 //! that enforcement in one execution path without making aliases new instances.
 
-use super::session_accounting::verify_build_session_accounting;
+use crate::build_session::{
+    OccurrenceBuildInputs, dependency_first_package_order, package_build_root,
+    reconcile_build_inputs, verify_build_session_accounting,
+};
 use compilation_products::CheckedCompileRequest;
 
-use super::super::custody::{
-    dependency_first_package_order, package_build_root, verify_selected_source_custody,
-};
+use super::super::custody::verify_selected_source_custody;
 use super::super::rows::RetainedReviewRows;
 use super::super::semantic_bindings::{
     SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
@@ -51,7 +52,8 @@ use package_evidence::record::PackagePolicyRowKind;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use super::{CandidateSourcePreparation, PreparedPackageSource};
+use super::CandidateSourcePreparation;
+use crate::build_session::PreparedPackageSource;
 
 pub(super) struct CompiledPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
@@ -704,7 +706,7 @@ impl ClosurePass<'_> {
                     entry,
                     unanswered_inputs,
                     build_snapshot,
-                ))?;
+                )?)?;
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
                 let obligation_ledger_bytes = record.obligation_ledger_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
@@ -884,9 +886,6 @@ impl ClosurePass<'_> {
             _ => None,
         };
         request.retain_prepared_source = true;
-        if request.prepared_source.is_none() {
-            self.preparation.fresh_preparations += 1;
-        }
         let outcome = compiler::compile_checked_reusing_builds(
             request,
             &self.preparation.pure_build_compilation,
@@ -949,7 +948,6 @@ impl ClosurePass<'_> {
                         == TargetEntryDiscovery::Dependencies,
                     ..CheckedCompileRequest::new(entry, Some(target))
                 };
-                self.preparation.fresh_preparations += 1;
                 let outcome = compiler::compile_checked_reusing_builds(
                     request,
                     &self.preparation.pure_build_compilation,
@@ -1192,7 +1190,7 @@ impl ClosurePass<'_> {
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
         {
-            let component_description = super::component_publication::publish_checked_component(
+            let component_description = crate::build_session::publish_checked_component(
                 checked.clone(),
                 proof_admission::AdmissionProfile::default(),
             )
@@ -1204,19 +1202,16 @@ impl ClosurePass<'_> {
                 component_description,
                 policy_canonical_bytes,
                 obligations_bytes,
+            ) && let Some(cache_key) = super::super::review_cache::compiled_review_key(
+                key.identity(),
+                purpose,
+                checked_target,
+                execution_profile,
+                entry,
+                &occurrence_inputs,
+                &build_snapshot,
             ) {
-                cache.store(
-                    &super::super::review_cache::compiled_review_key(
-                        key.identity(),
-                        purpose,
-                        checked_target,
-                        execution_profile,
-                        entry,
-                        &occurrence_inputs,
-                        &build_snapshot,
-                    ),
-                    &record,
-                );
+                cache.store(&cache_key, &record);
             }
         }
         let review_position = self.reviews.len();
@@ -1337,7 +1332,7 @@ fn publish_independent_component_descriptions(
         }
         let description = match component_candidates.get(&(component, purpose)) {
             Some(OccurrenceCompile::Checked(component_checked)) => {
-                super::component_publication::publish_checked_component(
+                crate::build_session::publish_checked_component(
                     component_checked.clone(),
                     proof_admission::AdmissionProfile::default(),
                 )
@@ -1383,95 +1378,4 @@ fn publish_independent_component_descriptions(
                 errors,
             },
         )
-}
-
-struct OccurrenceBuildInputs {
-    incoming: package_compilation::BuildDependencyOccurrence,
-    snapshot: build_evaluation::BuildSnapshotRequest,
-}
-
-/// The spec's scheduling node is package/purpose/profiles, not import alias.
-/// Equal edge assignments can reuse that node; incompatible complete maps
-/// reject before execution rather than granting their union or multiplying
-/// package identity. Product edges propagate their requester's purposes, as
-/// in PackageOccurrenceRoster; build edges always select the build purpose.
-fn reconcile_build_inputs(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    roster: &PackageOccurrenceRoster,
-    request: Option<&build_evaluation::BuildSnapshotRequest>,
-) -> Result<Vec<[Option<OccurrenceBuildInputs>; 2]>, Vec<Diagnostic>> {
-    use build_evaluation::BuildSnapshotRequest;
-    use package_compilation::BuildDependencyOccurrence;
-
-    let graph = target_closure.source_closure().graph();
-    let mut assigned: Vec<[Option<OccurrenceBuildInputs>; 2]> =
-        graph.packages().iter().map(|_| [None, None]).collect();
-    let Some(request) = request else {
-        return Ok(assigned);
-    };
-    for (occurrence, _) in request.dependency_inputs() {
-        let exists = graph.packages().iter().any(|node| {
-            node.source().key().identity() == occurrence.requester()
-                && node.dependencies().iter().any(|edge| {
-                    edge.purpose() == occurrence.purpose()
-                        && edge.alias().as_str() == occurrence.alias()
-                        && edge.target().identity() == occurrence.target()
-                })
-        });
-        if !exists {
-            return Err(vec![Diagnostic::error(format!(
-                "named build inputs are assigned to a dependency occurrence that does not exist: {occurrence:?}"
-            ))]);
-        }
-    }
-    let empty = BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
-    for node in graph.packages() {
-        let requester = node.source().key();
-        for edge in node.dependencies() {
-            let occurrence = BuildDependencyOccurrence::new(
-                requester.identity(),
-                edge.purpose(),
-                edge.alias().as_str(),
-                edge.target().identity(),
-            );
-            let slots = request
-                .dependency_input_slots(&occurrence)
-                .unwrap_or_else(|| empty.inputs());
-            let position = graph
-                .package_position(edge.target())
-                .expect("validated graph edge target");
-            for &requester_purpose in roster
-                .purposes(requester)
-                .expect("closed occurrence roster")
-            {
-                let purpose = if edge.purpose().is_product() {
-                    requester_purpose
-                } else {
-                    DependencyPurpose::Build
-                };
-                let assignment = &mut assigned[position][purpose_slot(purpose)];
-                if let Some(previous) = assignment {
-                    if previous.snapshot.inputs() != slots {
-                        return Err(vec![Diagnostic::error(format!(
-                            "conflicting named build input assignments for shared {:?} activation of `{}`: {:?} and {:?}; assignments must match exactly, including unassigned inputs",
-                            purpose,
-                            edge.target().name().as_str(),
-                            previous.incoming,
-                            occurrence,
-                        ))]);
-                    }
-                } else {
-                    *assignment = Some(OccurrenceBuildInputs {
-                        incoming: occurrence.clone(),
-                        snapshot: empty.clone().with_inputs(
-                            slots
-                                .iter()
-                                .map(|(name, input)| (name.clone(), input.clone())),
-                        )?,
-                    });
-                }
-            }
-        }
-    }
-    Ok(assigned)
 }

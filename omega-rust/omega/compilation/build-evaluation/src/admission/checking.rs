@@ -9,56 +9,47 @@
 //! provider choices. Only comparison execution facts enter the interpreter;
 //! runtime adapter dispatch does not grant Build host-service authority.
 //!
-//! This still checks the whole provisional program. Removing that work requires
-//! a sound Build-closure projection and a separately frozen authored-selection
-//! frontier; selection visibility alone cannot discharge helper contracts.
+//! Product declarations remain a frozen selection view. The complete Build
+//! dependency context goes through ordinary checking, including helper bodies;
+//! a declaration's visibility never substitutes for its contract proof.
 
 use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
 pub(crate) fn prepare_checked_build(
-    typed: &typed_trees::TypedTrees,
+    typed: &mut typed_trees::TypedTrees,
+    pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    entry: symbols::SymbolHandle,
     target_machine_declarations: &provider_planning::target_machines::SelectedTargetMachineDeclarations,
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<PreparedBuildMachineProgram, Vec<Diagnostic>> {
-    // Package build execution can carry filesystem and other boundary
-    // authority. Check the frozen ordinary source graph first; the ordinary
-    // final checked pass repeats this gate after any explicit generated-source
-    // handoff.
-    // Other targets' sibling bodies remain for the settled product check;
-    // the Build activation uses its already-selected execution-profile body.
-    // Its result feeds Build execution, not the later settled check: the settled
-    // program differs (the build may append generated source, target
-    // selection swaps canonical bodies, provider settlement records erasure
-    // authorizations, and const folds land the endpoints only the
-    // preliminary mode tolerates pending), and the settled request closes
-    // those tolerances and carries the specialization rosters this request
-    // leaves empty. Only the exact-input check memo deduplicates it — for a
-    // later pass that arrives at this same frozen graph under this same
-    // request.
-    let mut provisional = typed.clone();
-    typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
-    let mut checked = timings.record(
-        artifacts::compile_timings::TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES,
-        || {
-            let started = std::time::Instant::now();
-            let result = typed_trees_to_checked_trees::lower_typed_trees(
-                provisional,
-                &typed_trees_to_checked_trees::CheckingRequest::preliminary()
-                    .with_declaration_authority(
-                        packages
-                            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                    ),
-            );
-            artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            result
-        },
-    )?;
+    // Pure compiler evaluation settles type-dependent storage before ordinary
+    // ownership and contract checking. Its existing admission floor forbids
+    // service effects and retains exact declaration-selection authority; it
+    // does not grant execution of the Build activation. Every retained helper
+    // body still owes the settled check below before filesystem or other
+    // sponsored Build execution can consume the prepared program.
+    // Settle the owned work in the canonical arenas. Evaluating only a clone
+    // would leave the continuation's Build types unresolved and make Product
+    // repeat their evaluation under unrelated provider selections. Projection
+    // selects work and later the executable judgment; it is not a copyback API.
+    let projection = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
+    let mut pending = Vec::new();
+    for continuation in pre_checks.iter() {
+        let continuation = continuation.project(typed, &projection)?;
+        if let Some(continuation) = continuation.evaluate_or_defer(typed)? {
+            pending.push(continuation);
+        }
+    }
+    if !pending.is_empty() {
+        validation::land_float_literal_destinations(typed);
+    }
+    let provisional = typed_trees_to_checked_trees::project_build_program(typed, entry)?;
     let context = provider_planning::ProviderPlanningContext::new(
-        &checked.typed,
+        &provisional,
         source::DependencyScope::Build,
     );
     let declarations = target_machine_declarations.settle_provider_defaults(context)?;
@@ -82,28 +73,59 @@ pub(crate) fn prepare_checked_build(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let provenance = if candidates.is_empty() && declarations.provider_defaults.is_empty() {
-        Vec::new()
+    let (selected_provider_plan_facts, provenance) =
+        if candidates.is_empty() && declarations.provider_defaults.is_empty() {
+            (effects::SelectedProviderPlanFacts::default(), Vec::new())
+        } else {
+            let profile = execution_profile.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "Build provider planning requires an admitted execution profile",
+                )]
+            })?;
+            let selected = provider_planning::select_derived_provider_plans(
+                &candidates,
+                profile.native_target(),
+                &declarations.provider_defaults,
+                &[],
+            )?;
+            provider_planning::selected_provider_plan_facts(context, &bindings, selected)?
+        };
+    let evaluation = if pending.is_empty() {
+        selected_dispatch::SelectedConstantEvaluation::default()
     } else {
-        let profile = execution_profile.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Build provider planning requires an admitted execution profile",
-            )]
-        })?;
-        let selected = provider_planning::select_derived_provider_plans(
-            &candidates,
-            profile.native_target(),
-            &declarations.provider_defaults,
-            &[],
-        )?;
-        let (_, provenance) =
-            provider_planning::selected_provider_plan_facts(context, &bindings, selected)?;
-        provenance
+        selected_dispatch::SelectedConstantEvaluation::prepare(
+            context,
+            &selected_provider_plan_facts,
+        )?
+        .evaluate_pending(typed, pending)?
     };
+    let mut checked = timings.record(
+        artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
+        || {
+            let started = std::time::Instant::now();
+            let result = typed_trees_to_checked_trees::lower_typed_trees(
+                typed_trees_to_checked_trees::project_build_program(typed, entry)?,
+                &typed_trees_to_checked_trees::CheckingRequest::settled()
+                    .with_declaration_authority(
+                        packages
+                            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                    ),
+            );
+            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+            result
+        },
+    )?;
+    evaluation.validate(&checked, &selected_provider_plan_facts, packages)?;
     selected_dispatch::settle_selected_comparison_execution(
         &mut checked,
         source::DependencyScope::Build,
         &provenance,
     )?;
+    // Only successful checked replay discharges this continuation's Build
+    // work. Product keeps its exact complement, not a second full evaluation.
+    *pre_checks = pre_checks
+        .iter()
+        .map(|continuation| continuation.exclude_projection(typed, &checked.typed))
+        .collect::<Result<_, _>>()?;
     Ok(PreparedBuildMachineProgram::from_checked(checked))
 }

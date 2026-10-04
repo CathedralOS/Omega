@@ -23,7 +23,8 @@ use typed_trees::TypedTrees;
 pub struct BuildEvaluationRequest<'request> {
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
-    pub typed: &'request TypedTrees,
+    pub typed: &'request mut TypedTrees,
+    pub pre_checks: &'request mut Vec<build_time_evaluation::PreCheckEvaluation>,
     pub target_machine_declarations:
         &'request provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub build_source_id: Option<source::SourceId>,
@@ -62,6 +63,7 @@ pub fn evaluate_build(
         pure_build_compilation,
         root_path,
         typed,
+        pre_checks,
         target_machine_declarations,
         build_source_id,
         sources,
@@ -78,7 +80,8 @@ pub fn evaluate_build(
     // Source-owned entry selection requires no interpreter or host resources.
     // A package without an entry has nothing to admit or execute: its ordinary
     // declarations are checked by the final product pass, just once.
-    let selected_machine = select_build_machine(typed, build_source_id)?;
+    let selected_machine =
+        select_build_machine(typed, build_source_id)?.map(|machine| machine.symbol);
     if selected_machine.is_none() && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
@@ -123,6 +126,8 @@ pub fn evaluate_build(
     // bypass it. Admission below consumes this exact checked program.
     let prepared = crate::admission::checking::prepare_checked_build(
         typed,
+        pre_checks,
+        selected_machine,
         target_machine_declarations,
         package_inputs,
         execution_profile,
@@ -142,7 +147,7 @@ pub fn evaluate_build(
     let _captured_scope_release = CapturedBuildScopeRelease(&filesystem_scope);
     let admitted = crate::admit_build_program(
         prepared,
-        selected_machine.symbol,
+        selected_machine,
         &filesystem_scope,
         evaluation_sponsor.as_ref(),
         artifact_only,

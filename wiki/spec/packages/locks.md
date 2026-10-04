@@ -10,12 +10,21 @@ Standalone compiler-policy file handling belongs to
 
 A lock contains source-qualified package keys, explicit root role, exact immutable
 commit/tree/content and member selections, source requests, requester-local alias
-edges, compact normalized acceptance policy, and explicit project decisions.
+edges, compact normalized acceptance policy, exact accepted compilation inputs,
+and explicit project decisions.
 Each package retains exact canonical rows for admission-claim and external-
 realization callables, external executable supplies, dangerous capabilities,
 supplied terminal permissions, and accepted restricted build requests, scoped
 to their reviewed purpose, execution profile, and product target where applicable.
 Every retained row preserves its complete readable meaning, not only a digest.
+
+Each accepted package occurrence also retains a compiler input identity and its
+exact semantic bindings: role, package owner, declaration path, normalized schema
+digest, optional selected-provider-plan digest, and explicit terminal permissions.
+These are inputs to compilation, not a serialized full review or a grant derived
+from a package name. Purpose, checked target, and build execution profile remain
+exact occurrence coordinates; root, dependency, Product, and Build acceptance
+are not interchangeable.
 
 [Assumed binding relationships](../build/assumed_binding_contracts.md) are
 risk-bearing assumption rows: retain the required/supplied contract identities,
@@ -42,9 +51,10 @@ to resolve an arbitrary host path. See
 
 The lock does not retain the complete public API, ordinary checked callables,
 selected-provider tables, representation snapshots, source-semantic dependency
-graphs, or symbolic-demand snapshots. Those findings are reconstructed by fresh
-whole-candidate checking, not by compiling old source. They remain available in
-candidate audit output but are not historical acceptance state.
+graphs, or symbolic-demand snapshots. Explicit review, acceptance, and update
+workflows derive those complete findings from the candidate, not by compiling
+old source. Ordinary compilation uses the accepted binding inputs after identity
+matching and does not reconstruct a full package review.
 
 Alias edges retain explicit build/product purpose. Checked and accepted sections
 also bind the admitted execution profile and requested product target where
@@ -57,6 +67,10 @@ and migration must recheck the edges without inferring permission from imports.
 
 Use bounded deterministic diffable text with explicit outer and acceptance schema
 versions. Loading requires neither an old checkout nor a compiler invocation.
+The outer format is version 4 and requires compilation inputs for every
+occurrence. Older versions, including version 3, reject rather than guessing
+compiler identity or bindings; the compact acceptance child uses policy row
+schema version 3.
 Unknown formats or unrecoverable baseline meaning reject with recovery guidance;
 they never become empty acceptance or an inferred schema migration. Cache paths,
 proof certificates, native artifacts, replay transcripts, audit receipts, and
@@ -66,9 +80,10 @@ the exact framing and resource limits.
 
 Projects normally commit the lock and trust whoever lands it. Recovery checks
 format, graph consistency, and acquired content against pins, not a certificate
-that its author reviewed carefully. Fresh compiler findings still compare against
-retained policy. Regenerating resolutions cannot invent an approval; unchanged
-accepted policy needs no second native acceptance channel.
+that its author reviewed carefully. Explicit review compares fresh findings
+against retained policy. Ordinary compilation trusts current accepted inputs;
+regenerating resolutions cannot invent approval, and native compilation needs
+no second acceptance channel.
 
 ## Source and control state
 
@@ -92,9 +107,25 @@ authorize the current child. Multi-target work sharing follows
 Locked compilation never refreshes a mutable selector. It may acquire missing
 content at the recorded pin when allowed; offline absence leaves the graph
 unchanged. Select a recorded target before acquisition: missing target policy
-fails without network access. Recomputing stale analysis neither upgrades pins
-nor implies an audit. Compare the fresh acceptance projection against retained
-acceptance with exact complete-row equality. Changed risk meaning, source
-replacements, and root-role changes use the ordinary decision workflow;
-rebuildable API or representation changes alone do not require approval.
-Source changes remain visible audit recommendations even with unchanged policy.
+fails without network access.
+
+Per the owner ruling of 2026-10-03, ordinary compilation compares each accepted
+occurrence's source identity and compiler input identity with the lock. This
+includes the local root: source edits are not an exception. A match consumes
+the occurrence's accepted bindings without package-review discovery/bound
+passes. A mismatch rejects, names the package, and directs the user to
+`omega update`; compilation does not audit inline or silently renew acceptance.
+Dependency product checking follows the modules named by the consumer's `use`
+items and their transitive imports, not each dependency's package root.
+
+The compiler input identity binds the compiler's embedded build-input digest and
+the exact selected toolchain library content. It is an invalidation key, not
+evidence of a trusted compiler, host, or audit. Changing it requires explicit
+review even if source pins are unchanged.
+
+During that review, compare complete risk-row meanings rather than only hashes.
+Changed risk meaning, source replacements, and root-role changes follow the
+ordinary decision workflow. Rebuildable API or representation changes alone
+need no new approval decision, but their source changes still require review
+before renewing the accepted source identity. Source changes remain visible
+audit recommendations even when permission meaning is unchanged.

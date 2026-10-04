@@ -1,6 +1,6 @@
 //! Aggregate reconciliation between retained review usage and its sponsor.
 
-use super::super::CompileResolvedPackageReviewsError;
+use crate::review::CompileResolvedPackageReviewsError;
 use checked_interpreter::{BuildEvaluationConsumptionReceipt, BuildEvaluationSponsor};
 
 /// `usages` carries the evaluation usage of every compile this session's
@@ -14,7 +14,7 @@ use checked_interpreter::{BuildEvaluationConsumptionReceipt, BuildEvaluationSpon
 /// verdict no retained review reports — for example a component-closure
 /// rejection the caller answered and compiled again. Their consumption is
 /// real session accounting and reconciles beside the retained usages.
-pub(super) fn verify_build_session_accounting(
+pub(crate) fn verify_build_session_accounting(
     usages: &[Option<build_evaluation::BuildEvaluationUsage>],
     discarded: &[build_evaluation::BuildEvaluationUsage],
     consumed: &[BuildEvaluationConsumptionReceipt],

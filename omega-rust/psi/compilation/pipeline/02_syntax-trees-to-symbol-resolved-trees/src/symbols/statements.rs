@@ -11,6 +11,33 @@ use super::scope::MachineScope;
 pub(super) fn assign_statement_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
+    selected_machines: &[symbols::SymbolHandle],
+) {
+    assign_machine_references(program, symbols, Some(selected_machines), &mut []);
+}
+
+/// Signature value expressions and ranking declarations are needed before any
+/// implementation is selected; no statement or local enters this traversal.
+pub(super) fn assign_machine_signature_reference_symbols(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+) {
+    assign_machine_references(program, symbols, None, &mut []);
+}
+
+pub(super) fn assign_lexical_input_reference_symbols(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+    inputs: &mut [crate::lowering::state::StateLexicalInputs],
+) {
+    assign_machine_references(program, symbols, None, inputs);
+}
+
+fn assign_machine_references(
+    program: &mut SymbolResolvedTrees,
+    symbols: &SymbolTable,
+    selected_bodies: Option<&[symbols::SymbolHandle]>,
+    lexical_inputs: &mut [crate::lowering::state::StateLexicalInputs],
 ) {
     let attached_machines = super::scope::attached_machines(program);
     let SymbolResolvedTrees {
@@ -35,6 +62,9 @@ pub(super) fn assign_statement_reference_symbols(
     let child_type_references = &mut tables.declarations.child_type_references;
     let type_constraints = &tables.types.constraints;
     machines.for_each_mut(|machine| {
+        if selected_bodies.is_some_and(|selected| !selected.contains(&machine.symbol)) {
+            return;
+        }
         let machine_symbol = machine.symbol;
         let machine_type_parameters = machine.type_parameters;
         let data_definition = data_definitions
@@ -109,8 +139,8 @@ pub(super) fn assign_statement_reference_symbols(
                     entry.return_type.clone(),
                 )
             });
-        for state in machine_state_handles.span_or_empty(*states).iter().copied() {
-            let state = machine_states.get_mut(state);
+        for state_handle in machine_state_handles.span_or_empty(*states).iter().copied() {
+            let state = machine_states.get_mut(state_handle);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
             for type_reference in parameters
@@ -127,6 +157,48 @@ pub(super) fn assign_statement_reference_symbols(
                     child_type_references,
                     type_reference,
                 );
+            }
+            if let Some(inputs) = lexical_inputs
+                .iter_mut()
+                .find(|inputs| inputs.machine == machine_symbol && inputs.state == state_handle)
+            {
+                for index in 0..inputs.locals.len() {
+                    let (prior_statements, remaining) = inputs.locals.split_at_mut(index);
+                    let scope = MachineScope {
+                        prior_statements,
+                        ..machine_scope
+                    };
+                    assign_statement_symbols(
+                        &scope,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        type_constraints,
+                        statement_path_members,
+                        &mut remaining[0],
+                        symbols,
+                    );
+                }
+                for (preceding, reference) in &mut inputs.types {
+                    let scope = MachineScope {
+                        prior_statements: &inputs.locals[..*preceding],
+                        ..machine_scope
+                    };
+                    routing::assign_local_type_symbols(
+                        &scope,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        type_constraints,
+                        reference,
+                        symbols,
+                    );
+                }
+            }
+            if selected_bodies.is_none() {
+                continue;
             }
             let statements = state_statements.span_mut_or_empty(state.statements);
             for index in 0..statements.len() {

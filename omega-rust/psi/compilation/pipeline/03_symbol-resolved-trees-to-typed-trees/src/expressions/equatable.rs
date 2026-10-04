@@ -486,7 +486,8 @@ pub(crate) struct EqualityScope {
 }
 
 impl EqualityScope {
-    pub(crate) fn for_state(
+    /// Signature contracts see declared inputs, never implementation locals.
+    pub(crate) fn for_state_interface(
         program: &SymbolResolvedTrees,
         machine: &resolved::machine::Machine,
         state: &resolved::state::State,
@@ -507,6 +508,18 @@ impl EqualityScope {
                 value_types.push((parameter.name.as_str().to_owned(), base));
             }
         }
+        Self {
+            attached_data,
+            value_types,
+        }
+    }
+
+    pub(crate) fn for_state(
+        program: &SymbolResolvedTrees,
+        machine: &resolved::machine::Machine,
+        state: &resolved::state::State,
+    ) -> Self {
+        let mut scope = Self::for_state_interface(program, machine, state);
         for statement in program
             .tables
             .bodies
@@ -516,14 +529,13 @@ impl EqualityScope {
             if let resolved::statement::StatementNode::LocalData(local) = statement
                 && let Some(base) = table_type_base_name(program, local.type_reference)
             {
-                value_types.push((local.name.as_str().to_owned(), base));
+                scope
+                    .value_types
+                    .push((local.name.as_str().to_owned(), base));
             }
         }
 
-        Self {
-            attached_data,
-            value_types,
-        }
+        scope
     }
 
     pub(crate) fn value_type(&self, name: &str) -> Option<&str> {

@@ -30,6 +30,49 @@ impl SymbolResolvedTreeTables {
         symbol_resolved_trees: &mut SymbolResolvedTrees,
     ) -> Self {
         let mut tables = Self::default();
+        tables.append_declaration_tables(
+            symbol_resolved_trees,
+            &crate::SymbolResolvedRoots::default(),
+            &[],
+        );
+        tables
+    }
+
+    /// Retain normalized rows belonging to earlier completed bodies. The
+    /// successor expression table already contains newly resolved body graphs;
+    /// only normalized statements/types are seeded from the predecessor.
+    pub fn from_body_completion(
+        symbol_resolved_trees: &mut SymbolResolvedTrees,
+        predecessor: &SymbolResolvedTrees,
+        completed_machines: &[symbols::SymbolHandle],
+    ) -> Self {
+        let mut tables = Self {
+            bodies: ResolvedBodyTables {
+                expressions: ExpressionTable::default(),
+                statements: predecessor.tables.bodies.statements.clone(),
+            },
+            types: ResolvedTypeTables {
+                references: predecessor.tables.types.references.clone(),
+            },
+        };
+        tables.append_declaration_tables(
+            symbol_resolved_trees,
+            &predecessor.roots,
+            completed_machines,
+        );
+        tables
+    }
+
+    /// The same table insertions serve complete lowering and continuation.
+    /// Root frontiers select new declarations; exact machine identities select
+    /// existing declarations whose implementations have just been completed.
+    fn append_declaration_tables(
+        &mut self,
+        symbol_resolved_trees: &mut SymbolResolvedTrees,
+        frontier: &crate::SymbolResolvedRoots,
+        completed_machines: &[symbols::SymbolHandle],
+    ) {
+        let tables = self;
         let SymbolResolvedTrees {
             roots,
             tables: source_tables,
@@ -54,7 +97,11 @@ impl SymbolResolvedTreeTables {
             ..
         } = &mut source_tables.declarations;
 
-        for data_definition in &roots.data_definitions {
+        for data_definition in roots
+            .data_definitions
+            .iter()
+            .skip(frontier.data_definitions.len())
+        {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
                 data_payload_fields,
@@ -64,7 +111,11 @@ impl SymbolResolvedTreeTables {
             );
         }
 
-        for domain_definition in &roots.domain_definitions {
+        for domain_definition in roots
+            .domain_definitions
+            .iter()
+            .skip(frontier.domain_definitions.len())
+        {
             tables.insert_type_reference(
                 &domain_definition.target_type,
                 child_type_references,
@@ -82,7 +133,7 @@ impl SymbolResolvedTreeTables {
             }
         }
 
-        for proposition in &roots.propositions {
+        for proposition in roots.propositions.iter().skip(frontier.propositions.len()) {
             for binder in proposition_binders.span_or_empty(proposition.binders) {
                 if let crate::proposition::PropositionBinderKind::Const { type_reference } =
                     &binder.kind
@@ -113,7 +164,7 @@ impl SymbolResolvedTreeTables {
             }
         }
 
-        for trait_definition in &roots.traits {
+        for trait_definition in roots.traits.iter().skip(frontier.traits.len()) {
             tables.insert_platform(
                 trait_machine_signatures.span_or_empty(trait_definition.machines),
                 state_parameters,
@@ -123,7 +174,14 @@ impl SymbolResolvedTreeTables {
             );
         }
 
-        for machine in &roots.machines {
+        for (_, machine) in roots
+            .machines
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, machine)| {
+                *ordinal >= frontier.machines.len() || completed_machines.contains(&machine.symbol)
+            })
+        {
             tables.insert_machine_with_state_spans(
                 machine,
                 machine_owned_data,
@@ -138,7 +196,7 @@ impl SymbolResolvedTreeTables {
             );
         }
 
-        for operator in &roots.operators {
+        for operator in roots.operators.iter().skip(frontier.operators.len()) {
             tables.insert_operator(
                 operator,
                 state_parameters,
@@ -148,7 +206,7 @@ impl SymbolResolvedTreeTables {
             );
         }
 
-        for measure in &roots.measures {
+        for measure in roots.measures.iter().skip(frontier.measures.len()) {
             if let Some(parameter) = &measure.parameter {
                 tables.insert_type_reference(
                     &parameter.type_reference,
@@ -166,8 +224,6 @@ impl SymbolResolvedTreeTables {
                 );
             }
         }
-
-        tables
     }
 
     fn insert_operator(

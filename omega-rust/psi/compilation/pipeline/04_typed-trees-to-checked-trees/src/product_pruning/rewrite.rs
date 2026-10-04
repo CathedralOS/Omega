@@ -26,25 +26,23 @@ pub(super) fn apply_pruning(
     apply_fact_pruning(checked, retained, pruned, index);
 }
 
-/// Rebuild the typed declaration arena and every typed sidecar keyed by a
-/// machine so only `retained` machines remain.
-pub(super) fn apply_typed_pruning(
+/// Rebuild machine roots and machine-keyed sidecars. Backing declarations stay
+/// available to exact authored-selection and visibility evidence; only roots
+/// determine which implementations belong to this executable program.
+pub(crate) fn apply_typed_pruning(
     program: &mut TypedTrees,
     retained: &HashSet<SymbolHandle>,
     pruned: &HashSet<SymbolHandle>,
 ) {
-    // Machine declarations: rebuild the arena so `roots.machines` covers
-    // exactly the retained declaration surface in source order.
+    // Append the retained roster without invalidating existing declaration
+    // handles or erasing payloads still named by authored-selection evidence.
     let retained_machines: Vec<Machine> = program
         .machines()
         .iter()
         .filter(|machine| retained.contains(&machine.symbol))
         .cloned()
         .collect();
-    let mut machines = arena::Arena::default();
-    let machine_roots = machines.insert_many(retained_machines);
-    program.tables.machines = machines;
-    program.roots.machines = machine_roots;
+    program.roots.machines = program.tables.machines.insert_many(retained_machines);
 
     // Typed sidecars keyed by a machine identity.
     program
@@ -70,6 +68,54 @@ pub(super) fn apply_typed_pruning(
     program
         .ranking_expression_custody
         .retain(|row| retained.contains(&row.machine));
+}
+
+/// Project sidecars whose exact declaration owner left the root roster.
+/// Unknown/orphan owners are deliberately retained for ordinary validation:
+/// absence is not authorization to discard malformed evidence.
+pub(crate) fn apply_declaration_sidecar_pruning(
+    program: &mut TypedTrees,
+    removed: &HashSet<SymbolHandle>,
+) {
+    let symbols = &program.symbols;
+    let owner_removed = |mut symbol: SymbolHandle| {
+        while symbol.is_valid() {
+            if removed.contains(&symbol) {
+                return true;
+            }
+            symbol = symbols.get(symbol).parent;
+        }
+        false
+    };
+    program
+        .plan_laid_layouts
+        .retain(|row| !owner_removed(row.data_symbol));
+    program
+        .placed_view_plans
+        .retain(|row| !owner_removed(row.data_symbol));
+    program
+        .wire_schema_plans
+        .retain(|row| !owner_removed(row.schema));
+    program
+        .authored_service_reach_rows
+        .retain(|row| !owner_removed(row.owner));
+    program
+        .boundary_calling_plans
+        .retain(|row| !owner_removed(row.requirement_machine));
+    program
+        .fused_service_erasures
+        .retain(|row| !owner_removed(row.requirement));
+    // This roster has no inbound handles; source roles join by declaration
+    // symbols. Wire placement arenas and other referenced backing rows stay.
+    let completions = program
+        .boundary_completion_declarations
+        .iter()
+        .filter(|(_, row)| !owner_removed(row.owner))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut declarations = arena::Arena::default();
+    declarations.insert_many(completions);
+    program.boundary_completion_declarations = declarations;
 }
 
 fn apply_fact_pruning(

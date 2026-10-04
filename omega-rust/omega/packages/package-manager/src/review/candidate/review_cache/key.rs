@@ -12,17 +12,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V2\0";
-
-/// The compiler toolchain stamp folded into every record key. Release builds
-/// stamp their exact version and commit; dev builds stamp the package
-/// version plus `unrecorded` — records remain self-verifying either way.
-pub(super) fn stamp_string() -> String {
-    let version =
-        option_env!("OMEGA_RELEASE_VERSION").unwrap_or(concat!(env!("CARGO_PKG_VERSION"), "-dev"));
-    let commit = option_env!("OMEGA_RELEASE_COMMIT").unwrap_or("unrecorded");
-    format!("{version}|{commit}")
-}
+const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V3\0";
 
 /// The SHA-256 key over everything a persisted review depends on: package
 /// identity, occurrence purpose, the checked context (target plus admitted
@@ -37,6 +27,31 @@ pub(crate) fn compiled_review_key(
     entry: &Path,
     inputs: &PackageCompilationInputs,
     snapshot: &build_evaluation::BuildSnapshotRequest,
+) -> Option<[u8; 32]> {
+    // A cache is optional. Failure to identify exact compiler and injected
+    // library inputs is a miss, never a weaker release/developer-name key.
+    let compiler_identity = crate::operations::compiler_input_identity().ok()?;
+    Some(compiled_review_key_with_identity(
+        package,
+        purpose,
+        checked_target,
+        build_execution_profile,
+        entry,
+        inputs,
+        snapshot,
+        compiler_identity,
+    ))
+}
+
+pub(super) fn compiled_review_key_with_identity(
+    package: PackageKeyIdentity,
+    purpose: DependencyPurpose,
+    checked_target: target::TargetProfile,
+    build_execution_profile: Option<target::TargetProfile>,
+    entry: &Path,
+    inputs: &PackageCompilationInputs,
+    snapshot: &build_evaluation::BuildSnapshotRequest,
+    compiler_identity: [u8; 32],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(RECORD_KEY_DOMAIN);
@@ -51,7 +66,7 @@ pub(crate) fn compiled_review_key(
         None => digest.update([0]),
     }
     hash_framed(&mut digest, entry.as_os_str().as_encoded_bytes());
-    hash_framed(&mut digest, stamp_string().as_bytes());
+    digest.update(compiler_identity);
     digest.update(review_cache_inputs_digest(inputs));
     digest.update(review_cache_snapshot_digest(snapshot));
     digest.finalize().into()

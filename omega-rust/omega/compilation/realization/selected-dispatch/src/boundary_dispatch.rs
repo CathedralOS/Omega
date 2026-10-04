@@ -75,7 +75,23 @@ fn plan_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
     selected_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<checked_trees::CheckedBoundaryAdapterDispatch>, Vec<Diagnostic>> {
-    let typed = &checked.typed;
+    // Review retains checked Build bodies, but this operation realizes only
+    // Product execution. Build's admitted provider context is independent:
+    // requiring its calls to join Product plans would replay the wrong purpose.
+    // Select all Product roots, not a guessed reachable subset or callee names.
+    let context = provider_planning::ProviderPlanningContext::new(
+        &checked.typed,
+        source::DependencyScope::Product,
+    );
+    let product_roots = typed_trees::references::DeclarationSelection::from_symbols(
+        typed_trees::references::collect_program_references(&checked.typed)
+            .declarations
+            .into_iter()
+            .filter(|symbol| context.contains(*symbol)),
+    );
+    let product =
+        typed_trees_to_checked_trees::project_selected_program(&checked.typed, &product_roots);
+    let typed = &product;
     let mut adapters = Vec::new();
     let mut generic_requirements: Vec<GenericBoundaryRequirement> = Vec::new();
     let mut diagnostics = Vec::new();
@@ -557,13 +573,19 @@ fn plan_selected_boundary_adapter_dispatch(
     let parameter_rosters = unit
         .machines
         .iter()
+        .filter(|machine| product_roots.contains(machine.machine))
         .map(|machine| machine.structural_parameters.as_slice())
-        .chain(unit.composed_machines.iter().flat_map(|machine| {
-            machine
-                .states
+        .chain(
+            unit.composed_machines
                 .iter()
-                .map(|state| state.structural_parameters.as_slice())
-        }));
+                .filter(|machine| product_roots.contains(machine.machine))
+                .flat_map(|machine| {
+                    machine
+                        .states
+                        .iter()
+                        .map(|state| state.structural_parameters.as_slice())
+                }),
+        );
     for parameters in parameter_rosters {
         for parameter in parameters {
             let Some(receipt) = &parameter.fused_service_erasure else {

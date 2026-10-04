@@ -16,18 +16,28 @@ use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
-    lower_state_node,
+    lower_state_body, lower_state_node,
 };
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees::machine::{
-    GenericConformanceBound, Machine, MachineStorage, TraitConformance,
+    GenericConformanceBound, Machine, MachineBodyStatus, MachineStorage, TraitConformance,
 };
 use symbol_resolved_trees::state::State;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
+
+/// Prepared syntax bound to the one declaration roster that indexed it.
+/// Compiler-derived machines can rewrite a template's name/attachment; retain
+/// that normalized owner rather than rediscovering it by an authored spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PendingMachineBody {
+    pub(crate) machine_ordinal: usize,
+    source: syntax::item::Machine,
+    states: Vec<(Handle<State>, syntax::item::StateHandle)>,
+}
 
 pub(crate) fn lower_machine_into(
     lowerer: &mut Lowerer,
@@ -64,6 +74,28 @@ pub(crate) fn lower_machine_into(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
         |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states, machine.is_public),
     )?;
+    let body_status = if lowerer.defer_machine_bodies && !machine.bodyless {
+        lowerer.pending_machine_bodies.push(PendingMachineBody {
+            machine_ordinal: lowerer.symbol_resolved_trees.machines.len(),
+            source: machine.clone(),
+            states: lowerer
+                .symbol_resolved_trees
+                .machine_state_handles(states)
+                .iter()
+                .copied()
+                .zip(
+                    syntax_trees
+                        .items
+                        .state_handles(machine.states)
+                        .iter()
+                        .copied(),
+                )
+                .collect(),
+        });
+        MachineBodyStatus::Deferred
+    } else {
+        MachineBodyStatus::Complete
+    };
     lowerer.current_machine_is_boundary = false;
     lowerer.current_machine_root_index = None;
     lowerer.current_machine_name = None;
@@ -225,6 +257,7 @@ pub(crate) fn lower_machine_into(
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         compiler_selection_partition,
+        body_status,
         storage: MachineStorage {
             lifetime_parameters: machine
                 .lifetime_parameters
@@ -248,6 +281,120 @@ pub(crate) fn lower_machine_into(
     });
     lowerer.current_compiler_selection_partition = None;
     Ok(())
+}
+
+/// Lower a selected implementation without recreating its declaration or its
+/// state parameters. Symbols for new locals are appended by the symbol owner.
+pub(crate) fn complete_machine_body(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    pending: &PendingMachineBody,
+) -> Result<(), Diagnostic> {
+    let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
+    with_pending_machine_scope(lowerer, syntax, pending, |lowerer| {
+        for &(state_handle, syntax_state) in &pending.states {
+            let state = lowerer
+                .symbol_resolved_trees
+                .machine_state(state_handle)
+                .clone();
+            let statements = lower_state_body(
+                lowerer,
+                syntax,
+                &state,
+                syntax.items.state(syntax_state).statements,
+            )?;
+            lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .machine_states
+                .get_mut(state_handle)
+                .statements = statements;
+        }
+        lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].body_status =
+            MachineBodyStatus::Complete;
+        Ok(())
+    })?;
+    let owner = lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol;
+    inputs.finish(lowerer, owner);
+    Ok(())
+}
+
+pub(crate) fn lower_pending_lexical_inputs(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+) -> Result<Vec<crate::lowering::state::StateLexicalInputs>, Diagnostic> {
+    let pending = lowerer.pending_machine_bodies.clone();
+    let mut inputs = Vec::new();
+    for body in &pending {
+        with_pending_machine_scope(lowerer, syntax, body, |lowerer| {
+            let machine = lowerer.symbol_resolved_trees.machines[body.machine_ordinal].symbol;
+            for &(state, syntax_state) in &body.states {
+                inputs.push(crate::lowering::state::lower_state_lexical_inputs(
+                    lowerer,
+                    syntax,
+                    machine,
+                    state,
+                    syntax.items.state(syntax_state).statements,
+                )?);
+            }
+            Ok(())
+        })?;
+    }
+    Ok(inputs)
+}
+
+fn with_pending_machine_scope<T>(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    pending: &PendingMachineBody,
+    operation: impl FnOnce(&mut Lowerer) -> Result<T, Diagnostic>,
+) -> Result<T, Diagnostic> {
+    let declaration = lowerer
+        .symbol_resolved_trees
+        .machines
+        .iter()
+        .nth(pending.machine_ordinal)
+        .ok_or_else(|| Diagnostic::error("deferred body lost its indexed machine"))?;
+    if declaration.body_status != MachineBodyStatus::Deferred {
+        return Err(Diagnostic::error(
+            "machine body completion requires a pending implementation",
+        ));
+    }
+    let partition = declaration.compiler_selection_partition;
+    let previous_defer = std::mem::replace(&mut lowerer.defer_machine_bodies, false);
+    let previous_partition =
+        std::mem::replace(&mut lowerer.current_compiler_selection_partition, partition);
+    let previous_boundary = std::mem::replace(
+        &mut lowerer.current_machine_is_boundary,
+        pending.source.boundary,
+    );
+    let previous_root = lowerer
+        .current_machine_root_index
+        .replace(pending.machine_ordinal);
+    let previous_name = lowerer
+        .current_machine_name
+        .replace(pending.source.name.as_str().to_owned());
+    let evidence_names = syntax
+        .items
+        .capability_contracts(pending.source.contracts)
+        .iter()
+        .filter_map(|contract| contract.binding.as_ref())
+        .map(|binding| binding.as_str().to_owned())
+        .collect();
+    let previous_evidence =
+        std::mem::replace(&mut lowerer.current_evidence_term_names, evidence_names);
+    let result = lowerer.with_authored_expression_exposure(
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        operation,
+    );
+    lowerer.defer_machine_bodies = previous_defer;
+    lowerer.current_compiler_selection_partition = previous_partition;
+    lowerer.current_machine_is_boundary = previous_boundary;
+    lowerer.current_machine_root_index = previous_root;
+    lowerer.current_machine_name = previous_name;
+    lowerer.current_evidence_term_names = previous_evidence;
+    result
 }
 
 fn compiler_selection_partition(

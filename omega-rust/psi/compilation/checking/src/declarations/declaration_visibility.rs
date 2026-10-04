@@ -39,7 +39,9 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
     validate_public_conformance_headers(program, diagnostics);
 
     for selection in program.authored_declaration_selections() {
-        if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        if !program.checks_authored_selection(selection)
+            || selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface
+        {
             continue;
         }
         let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
@@ -50,7 +52,8 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         if !typed_trees::visibility::requires_declaration_visibility(symbol_kind) {
             continue;
         }
-        let Some(visibility) = typed_trees::visibility::declaration_visibility(program, symbol)
+        let Some(visibility) =
+            typed_trees::visibility::declaration_visibility(program.product_declarations(), symbol)
         else {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -79,7 +82,9 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         // expose a compiler-sealed proof view, not a package-callable API.
         // Public toolchain float contracts may still cite those exact checked
         // declarations. Authored lookalikes cannot satisfy the recognizer.
-        if !visibility.is_public() && !is_sealed_toolchain_float_projection(program, symbol) {
+        if !visibility.is_public()
+            && !is_sealed_toolchain_float_projection(program.product_declarations(), symbol)
+        {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "public interface selects private {} `{}`",
@@ -126,9 +131,10 @@ fn validate_public_conformance_header_selection(
     {
         return;
     }
-    let Some(visibility) =
-        typed_trees::visibility::declaration_visibility(program, selected_symbol)
-    else {
+    let Some(visibility) = typed_trees::visibility::declaration_visibility(
+        program.product_declarations(),
+        selected_symbol,
+    ) else {
         diagnostics.push(Diagnostic::error(format!(
             "public conformance `{}` selects `{}` without retained declaration visibility",
             program.symbols.display_path(conformance_symbol, "::"),
@@ -241,9 +247,10 @@ fn validate_public_const_data_visibility(
     if program.symbols.get(selected_symbol).kind != SymbolKind::Data {
         return;
     }
-    let Some(data) =
-        crate::program_scope::data_definitions::data_definition_by_symbol(program, selected_symbol)
-    else {
+    let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        program.product_declarations(),
+        selected_symbol,
+    ) else {
         diagnostics.push(Diagnostic::error(format!(
             "public const `{}` selects data `{}` without retained declaration visibility",
             program.symbols.display_path(const_symbol, "::"),

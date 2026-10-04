@@ -276,7 +276,10 @@ pub(crate) fn normalize_array_length(
                 },
             )
         }
-        FixedArrayLength::ConstCall { name, .. } => atom("const-call", name.as_str()),
+        FixedArrayLength::ConstCall { machine, name, .. } => atom(
+            "const-call",
+            &context.name(program, *machine, name.as_str()),
+        ),
     }
 }
 

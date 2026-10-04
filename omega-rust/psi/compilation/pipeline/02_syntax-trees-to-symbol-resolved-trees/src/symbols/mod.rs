@@ -35,7 +35,7 @@ mod type_references;
 
 use contracts::assign_contract_reference_symbols;
 use domain_facts::assign_domain_fact_symbols;
-use statements::assign_statement_reference_symbols;
+use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
 pub(crate) fn normalize_static_module_calls(
@@ -124,12 +124,15 @@ pub(crate) fn normalize_static_module_calls(
             ExpressionNode::Call(call) => call.receiver,
             _ => continue,
         };
-        if let ExpressionNode::Name(original_path) = program
-            .tables
-            .bodies
-            .expressions
-            .expression(original_receiver)
-            .clone()
+        // Declaration indexing can already have normalized this occurrence.
+        // A later body batch must not dereference its now-absent receiver.
+        if original_receiver.is_valid()
+            && let ExpressionNode::Name(original_path) = program
+                .tables
+                .bodies
+                .expressions
+                .expression(original_receiver)
+                .clone()
         {
             let mut prefix = String::new();
             for (offset, member) in receiver.iter().enumerate() {
@@ -346,6 +349,7 @@ pub(crate) fn assign_symbols(
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
+    generic_origin_frontier: usize,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -359,6 +363,11 @@ pub(crate) fn assign_symbols(
     let symbols =
         symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     let diagnostics = assign_top_level_symbols(program, &symbols);
+    type_references::assign_generic_application_origin_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+    );
     assign_type_reference_symbols(program, &symbols);
     type_references::assign_data_type_value_expression_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
@@ -366,7 +375,7 @@ pub(crate) fn assign_symbols(
     measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
-    assign_statement_reference_symbols(program, &symbols);
+    assign_machine_signature_reference_symbols(program, &symbols);
     program.symbols = symbols;
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
@@ -383,6 +392,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     roots: crate::resolution::lowerer::RootWatermarks,
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
+    generic_origin_frontier: usize,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -402,6 +412,11 @@ pub(crate) fn assign_symbols_against_resolved_base(
     );
     let symbols = program.symbols.clone();
     let diagnostics = assign_top_level_symbols(program, &symbols);
+    type_references::assign_generic_application_origin_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+    );
     assign_type_reference_symbols(program, &symbols);
     type_references::assign_data_type_value_expression_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
@@ -409,7 +424,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
-    assign_statement_reference_symbols(program, &symbols);
+    assign_machine_signature_reference_symbols(program, &symbols);
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -467,6 +482,21 @@ pub(crate) use lookup::{
 pub(crate) fn assign(
     lowerer: &mut crate::resolution::lowerer::Lowerer,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    assign_declarations(lowerer)?;
+    let machines = lowerer
+        .symbol_resolved_trees
+        .machines
+        .iter()
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    assign_body_symbols(lowerer, &machines)
+}
+
+/// Allocate and resolve declaration identities before any body-local symbol
+/// batch. Both eager resolution and retained-body completion use this boundary.
+pub(crate) fn assign_declarations(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
         None => assign_symbols(
@@ -475,6 +505,7 @@ pub(crate) fn assign(
             std::mem::take(&mut lowerer.source_scoped_top_level_bindings),
             &lowerer.pending_const_declarations,
             &lowerer.namespace_declarations,
+            lowerer.bound_generic_application_origins,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -489,9 +520,16 @@ pub(crate) fn assign(
                 roots,
                 &lowerer.pending_const_declarations,
                 &lowerer.namespace_declarations,
+                lowerer.bound_generic_application_origins,
             )?;
         }
     }
+    lowerer.bound_generic_application_origins = lowerer
+        .symbol_resolved_trees
+        .tables
+        .types
+        .generic_application_origins
+        .len();
     normalize_static_module_calls(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_static_module_calls,
@@ -502,5 +540,76 @@ pub(crate) fn assign(
         &lowerer.pending_outcome_specific_contracts,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}
+
+/// Complete selected bodies against their existing declaration symbols. New
+/// locals and synthetic state signatures append; retained bodies and headers
+/// never have their symbols reallocated.
+pub(crate) fn assign_body_symbols(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    selected_machines: &[symbols::SymbolHandle],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
+    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    type_references::assign_generic_application_origin_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        lowerer.bound_generic_application_origins,
+    );
+    lowerer.bound_generic_application_origins = lowerer
+        .symbol_resolved_trees
+        .tables
+        .types
+        .generic_application_origins
+        .len();
+    assign_statement_reference_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        selected_machines,
+    );
+    // Synthesized states may introduce contracts after declaration indexing.
+    // This resolves references, not declaration identities or child allocation.
+    assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols);
+    normalize_static_module_calls(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_static_module_calls,
+        &lowerer.pending_static_module_statement_calls,
+    );
+    contracts::finalize_outcome_specific_contract_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_outcome_specific_contracts,
+    )
+    .map_err(|diagnostic| vec![diagnostic])
+}
+
+pub(crate) fn assign_lexical_inputs(
+    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    syntax: &syntax_trees::SyntaxTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut inputs = crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    for input in &mut inputs {
+        let state = lowerer
+            .symbol_resolved_trees
+            .machine_state(input.state)
+            .symbol;
+        symbol_table::append_local_symbols(
+            &mut lowerer.symbol_resolved_trees.symbols,
+            state,
+            &mut input.locals,
+        );
+    }
+    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    statements::assign_lexical_input_reference_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &mut inputs,
+    );
+    normalize_static_module_calls(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_static_module_calls,
+        &lowerer.pending_static_module_statement_calls,
+    );
     Ok(())
 }

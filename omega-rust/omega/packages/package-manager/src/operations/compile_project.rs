@@ -1,18 +1,12 @@
 //! Accepted native production for one already-prepared local project.
 
-use crate::review::SemanticBindingReview;
+use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
 
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::admission::{
-    AcceptedNativeInput, AcceptedNativeRealizationRequest, AcceptedOrdinaryEvidenceError,
-    accept_ordinary_closure_evidence, realize_accepted_native_report,
-};
-use crate::review::{
-    CandidateCompilation, CandidateSourcePreparation, CanonicalPackageReconstructionQuestionLimits,
-    CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
-    ReviewOnlyCapabilityConflictLimits, production_candidate_reusing,
-};
+use crate::build_session::PackageSourcePreparation;
+use crate::declarations::PackageKey;
+use crate::review::CompileResolvedPackageReviewsError;
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
@@ -128,7 +122,11 @@ pub enum CompilePreparedLocalProjectNativeError {
     /// on; reported per target in the multi-target route.
     Prepare(PrepareLocalProjectError),
     Review(CompileResolvedPackageReviewsError),
-    Evidence(AcceptedOrdinaryEvidenceError),
+    MissingAcceptance(PackageKey),
+    Acceptance {
+        package: PackageKey,
+        error: crate::lock::PackageLockError,
+    },
     TrustAdmission(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
 }
@@ -138,14 +136,20 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
         match self {
             Self::Prepare(error) => write!(formatter, "{error}"),
             Self::Review(error) => {
-                write!(formatter, "cannot compile fresh package review: {error}")
+                write!(formatter, "cannot compile accepted package inputs: {error}")
             }
-            Self::Evidence(error) => {
+            Self::MissingAcceptance(package) => {
                 write!(
                     formatter,
-                    "cannot accept fresh package review evidence: {error}"
+                    "package `{}` has no accepted compilation inputs; run omega update before native compilation",
+                    package.name().as_str(),
                 )
             }
+            Self::Acceptance { package, error } => write!(
+                formatter,
+                "accepted package `{}` has inconsistent compilation permissions: {error}; run omega update before native compilation",
+                package.name().as_str(),
+            ),
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust: {diagnostics:?}")
             }
@@ -165,15 +169,13 @@ impl std::error::Error for CompilePreparedLocalProjectNativeError {}
 /// repeating package acquisition or sponsored build execution. The observer must
 /// only compute a private result: native realization can still reject afterward.
 /// Neither the observation nor a successful report replaces the caller's exact
-/// trust-admission settlement before publication or execution.
-/// Check accepted project policy and realize one freshly compiled application.
-/// `observe` sees the checked compilation before realization; a caller with
+/// trust-admission settlement before publication or execution. A caller with
 /// nothing to observe passes `|_| ()`.
 ///
-/// This operation is the production CLI seam. It neither asks project
-/// preparation to infer permissions nor treats decoded policy bytes as
-/// evidence: all acceptance starts again from live resolver custody and the
-/// exact final checked review pass.
+/// This operation is the production CLI seam. It does not ask project
+/// preparation to infer permissions. Source and compiler identities must match
+/// the accepted lock before Build execution; native realization consumes fresh
+/// checked semantics, not reconstructed package-review findings.
 pub fn compile_prepared_local_project_for_native<Observation>(
     request: PreparedLocalProjectNativeRequest,
     observe: impl FnOnce(&compiler::CheckedCompilation) -> Observation,
@@ -205,7 +207,7 @@ pub struct CompiledProjectTargetOutcome<Observation> {
 
 /// Native production for every requested target under one prepared source
 /// union. All targets share the resolved closure and one
-/// [`CandidateSourcePreparation`], so a package's binding-independent parse
+/// source custody, so a package's binding-independent parse
 /// frontier — and any typed frontier whose inputs two targets carry
 /// identically — assembles exactly once for the request. Each target still
 /// produces under `build_dir/<target>`, arms its own accepted checkpoint, and
@@ -226,9 +228,8 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
         receiving_terminal_authority_permission_policy,
         timings,
     } = request;
-    let (_entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let mut preparation =
-        CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings);
+    let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
+    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
     prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
@@ -237,12 +238,14 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
             let result = compile_one_prepared_target(
                 prepared_target,
                 &source_closure,
+                &entry_path,
                 &build_dir,
                 build_snapshot.as_ref(),
                 &accepted_trust_admissions,
                 &optimization_rollback,
                 terminal_authority_policy.clone(),
                 receiving_terminal_authority_permission_policy.clone(),
+                timings,
                 &mut preparation,
                 &mut observe,
             );
@@ -263,76 +266,109 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
 fn compile_one_prepared_target<Observation>(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
+    entry_path: &Path,
     build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     accepted_trust_admissions: &[TrustAdmission],
     optimization_rollback: &OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-    preparation: &mut CandidateSourcePreparation,
+    timings: bool,
+    preparation: &mut PackageSourcePreparation,
     observe: &mut impl FnMut(&compiler::CheckedCompilation) -> Observation,
 ) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
     let target_profile = prepared_target.profile;
+    if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
+        return Err(CompilePreparedLocalProjectNativeError::Review(
+            CompileResolvedPackageReviewsError::InvalidProductionRootRole {
+                package: source_closure.graph().root().clone(),
+                role: source_closure.root_role(),
+            },
+        ));
+    }
     let accepted_target = prepared_target
         .accepted
-        .map_err(CompilePreparedLocalProjectNativeError::Prepare)?;
+        .map_err(CompilePreparedLocalProjectNativeError::Prepare)?
+        .ok_or_else(|| {
+            CompilePreparedLocalProjectNativeError::MissingAcceptance(
+                source_closure.graph().root().clone(),
+            )
+        })?;
     let target_closure = source_closure.for_exact_target(target_profile);
     let target_build_dir = build_dir.join(target_profile.target_name());
-    let checkpoint = accepted_target
-        .as_ref()
-        .map(RestrictedBuildCheckpoint::derive);
-    let candidate = production_candidate_reusing(
-        CandidateCompilation {
-            target_closure: &target_closure,
+    let checked = compile_accepted_project(
+        AcceptedCompilationRequest {
+            closure: &target_closure,
+            accepted: Some(&accepted_target),
+            entry: entry_path,
             build_root: &target_build_dir,
-            root_build_snapshot: build_snapshot,
-            restricted_build_checkpoint: checkpoint.as_ref(),
+            snapshot: build_snapshot,
+            verify: false,
+            timings,
         },
-        SemanticBindingReview::Discover,
         preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-    // Snapshot the ladder before realization as the fallback for report paths
-    // that produce no timing rows of their own.
-    let stage_timings = candidate.checked_root().timings().phases().to_vec();
-    let evidence = accept_ordinary_closure_evidence(
-        &target_closure,
-        candidate.reviews(),
-        CanonicalPackageReconstructionQuestionLimits::default(),
-        ReviewOnlyCapabilityConflictLimits::default(),
-        accepted_target.as_ref(),
+    // Bind the permissions supplied by retained compilation inputs to this
+    // root occurrence's consent before native production can consume them.
+    // This projects only supplied permission meaning, not package review or
+    // provider demand. A sibling package or Build occurrence cannot authorize
+    // this root's Product execution.
+    let root = source_closure.graph().root();
+    let acceptance = accepted_target
+        .occurrences()
+        .iter()
+        .find(|occurrence| {
+            occurrence.acceptance().package() == root.identity()
+                && occurrence.context().purpose().is_product()
+                && occurrence.context().target() == target_profile
+        })
+        .ok_or_else(|| CompilePreparedLocalProjectNativeError::MissingAcceptance(root.clone()))?;
+    let permissions = package_evidence::project_checked_terminal_permission_policy(
+        &checked,
+        target_profile,
+        root.identity(),
     )
-    .map_err(CompilePreparedLocalProjectNativeError::Evidence)?;
-    let trust_settlement = candidate
-        .checked_root()
+    .map_err(CompilePreparedLocalProjectNativeError::Native)?;
+    acceptance
+        .acceptance()
+        .validate_terminal_permissions(&permissions)
+        .map_err(|error| CompilePreparedLocalProjectNativeError::Acceptance {
+            package: root.clone(),
+            error,
+        })?;
+    let trust_settlement = checked
         .admit_trust(accepted_trust_admissions)
         .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
-    let observation = observe(candidate.checked_root());
-    realize_accepted_native_report(
-        AcceptedNativeInput::Reviewed {
-            candidate: Box::new(candidate),
+    let observation = observe(&checked);
+    let product = checked
+        .prepare_product_report(
+            entry_path.to_path_buf(),
+            compiler::RequestedCompileProduct::NativeArtifact,
             optimization_rollback,
-        },
-        AcceptedNativeRealizationRequest {
-            evidence: &evidence,
-            profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy,
-            receiving_terminal_authority_permission_policy,
-            imports: &[],
-        },
-    )
-    .map(|report| {
-        let timings = if report.timings().is_empty() {
-            stage_timings
-        } else {
-            report.timings().to_vec()
-        };
-        (
-            report
-                .with_trust_admission_settlement(trust_settlement)
-                .with_timings(timings),
-            observation,
+            trust_settlement,
         )
-    })
-    .map_err(CompilePreparedLocalProjectNativeError::Native)
+        .map_err(CompilePreparedLocalProjectNativeError::Native)?;
+    let report = match product {
+        compilation_products::CheckedProductReport::Complete(report) => Ok(report),
+        compilation_products::CheckedProductReport::Native(settlement) => {
+            compiler::native::produce_native_report(
+                compilation_products::NativeProductRequest {
+                    root_path: entry_path.to_path_buf(),
+                    terminal_admission_profile: proof_admission::AdmissionProfile::default(),
+                    terminal_authority_policy,
+                    terminal_authority_permission_policy:
+                        receiving_terminal_authority_permission_policy,
+                    optimization_rollback: optimization_rollback.clone(),
+                },
+                checked,
+            )
+            .and_then(|report| settlement.finish(report))
+        }
+        compilation_products::CheckedProductReport::Terminal(_) => Err(vec![Diagnostic::error(
+            "native preparation returned an unexpected Terminal-only request",
+        )]),
+    }
+    .map_err(CompilePreparedLocalProjectNativeError::Native)?;
+    Ok((report, observation))
 }

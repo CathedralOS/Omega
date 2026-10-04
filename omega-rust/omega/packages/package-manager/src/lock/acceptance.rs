@@ -7,7 +7,7 @@ use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
 use package_evidence::record::{
     PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
-    PackagePolicyRowUsage,
+    PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
@@ -19,16 +19,24 @@ use target::TargetProfile;
 pub struct PackagePolicyOccurrence {
     pub(super) acceptance: PackagePolicyAcceptance,
     pub(super) context: super::PackageCheckedContext,
+    // Version 3 records remain usable as review baselines, not compile inputs.
+    pub(super) compilation: Option<super::AcceptedPackageCompilation>,
 }
 
 impl PackagePolicyOccurrence {
     pub fn from_policy(
         policy: &PackagePolicyBaseline,
         context: super::PackageCheckedContext,
+        compiler_identity: [u8; 32],
+        semantic_bindings: &[package_compilation::AcceptedSemanticBinding],
     ) -> Result<Self, PackageLockError> {
         let value = Self {
             acceptance: PackagePolicyAcceptance::from_policy(policy)?,
             context,
+            compilation: Some(super::AcceptedPackageCompilation::new(
+                compiler_identity,
+                semantic_bindings.to_vec(),
+            )?),
         };
         value.validate()?;
         Ok(value)
@@ -39,6 +47,12 @@ impl PackagePolicyOccurrence {
     }
     pub const fn context(&self) -> super::PackageCheckedContext {
         self.context
+    }
+
+    /// Absent only in a version 3 historical review baseline. Fresh review must
+    /// supply these inputs before compilation or publication can use the record.
+    pub const fn compilation(&self) -> Option<&super::AcceptedPackageCompilation> {
+        self.compilation.as_ref()
     }
 
     pub(super) fn validate(&self) -> Result<(), PackageLockError> {
@@ -95,6 +109,38 @@ impl PackagePolicyAcceptance {
     }
     pub fn rows(&self) -> &[PackageAcceptanceRow] {
         &self.rows
+    }
+
+    /// Join freshly checked supplied permissions to this occurrence's exact
+    /// retained consent, without reconstructing any other package-review rows.
+    /// The caller selects the root Product occurrence; dependency and Build
+    /// bindings do not supply root terminal authority.
+    pub fn validate_terminal_permissions(
+        &self,
+        permissions: &PackagePolicyTerminalPermissions,
+    ) -> Result<(), PackageLockError> {
+        let mismatch = || PackageLockError::TerminalPermissionsMismatch {
+            package: self.package,
+        };
+        if permissions.package() != self.package || permissions.target() != self.target {
+            return Err(mismatch());
+        }
+        let (rows, _) = permissions
+            .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
+            .map_err(PackageLockError::Encoding)?;
+        let mut rows: Vec<_> = rows
+            .into_iter()
+            .map(PackageAcceptanceRow::from_row)
+            .collect();
+        rows.sort_unstable_by_key(|row| (row.kind, row.key));
+        let accepted = self
+            .rows
+            .iter()
+            .filter(|row| row.kind == PackagePolicyRowKind::TerminalPermission);
+        if !accepted.eq(rows.iter()) {
+            return Err(mismatch());
+        }
+        Ok(())
     }
     pub(crate) fn into_rows(self) -> Vec<PackageAcceptanceRow> {
         self.rows

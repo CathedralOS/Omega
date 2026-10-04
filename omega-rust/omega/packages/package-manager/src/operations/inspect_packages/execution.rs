@@ -37,7 +37,8 @@ pub(super) fn inspect<Storage: Borrow<SourceResolver>>(
         .as_deref()
         .map(|bytes| {
             let text = std::str::from_utf8(bytes).map_err(failure)?;
-            PackageLock::recover_text(text, PackageLockRecoveryLimits::default()).map_err(failure)
+            PackageLock::recover_review_baseline(text, PackageLockRecoveryLimits::default())
+                .map_err(failure)
         })
         .transpose()?;
     let targets = select_targets(requested_targets, accepted.as_ref())?;
@@ -195,7 +196,7 @@ fn check(
             build_root: &project_root
                 .join("build/package-manager")
                 .join(format!("audit-{}", target.target_name())),
-            root_build_snapshot: root_build_snapshot,
+            root_build_snapshot,
             restricted_build_checkpoint: None,
         },
         SemanticBindingReview::Discover,

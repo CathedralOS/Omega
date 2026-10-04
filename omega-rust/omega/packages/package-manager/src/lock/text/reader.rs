@@ -13,11 +13,34 @@ impl PackageLock {
     /// Recover project records without filesystem access, source acquisition,
     /// compiler execution, or conversion of history into fresh authorization.
     pub fn recover_text(text: &str, limits: PackageLockRecoveryLimits) -> Result<Self, Error> {
+        Self::recover_version(text, limits, HEADER)
+    }
+
+    /// Retain version 3 source pins, target sections and consent for a fresh
+    /// explicit review. Missing compilation inputs stay absent: this route does
+    /// not upgrade historical consent into ordinary compilation authority.
+    pub fn recover_review_baseline(
+        text: &str,
+        limits: PackageLockRecoveryLimits,
+    ) -> Result<Self, Error> {
+        let header = if text.starts_with("omega_lock 3\n") {
+            "omega_lock 3\n"
+        } else {
+            HEADER
+        };
+        Self::recover_version(text, limits, header)
+    }
+
+    fn recover_version(
+        text: &str,
+        limits: PackageLockRecoveryLimits,
+        header: &str,
+    ) -> Result<Self, Error> {
         let limits = limits.bounded();
         if text.len() > limits.maximum_bytes {
             return Err(Error::ByteLimitExceeded);
         }
-        let body = text.strip_prefix(HEADER).ok_or(Error::UnsupportedVersion)?;
+        let body = text.strip_prefix(header).ok_or(Error::UnsupportedVersion)?;
         let mut reader = Reader::new(body);
         let count = reader.count("targets", limits.maximum_targets)?;
         if count == 0 {
@@ -103,9 +126,21 @@ impl PackageLock {
                     package.key().identity(),
                     checked_target,
                 )?;
+                let context = PackageCheckedContext::new(purpose, checked_target, execution);
+                let compilation = if header == HEADER {
+                    Some(super::compilation::read(
+                        reader.section("compilation", MAXIMUM_POLICY_TEXT_BYTES)?,
+                        package.key().identity(),
+                        context,
+                        &mut budget,
+                    )?)
+                } else {
+                    None
+                };
                 occurrences.push(PackagePolicyOccurrence {
                     acceptance,
-                    context: PackageCheckedContext::new(purpose, checked_target, execution),
+                    context,
+                    compilation,
                 });
             }
             let decisions = budget.decisions(

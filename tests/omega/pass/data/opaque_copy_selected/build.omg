@@ -1,8 +1,12 @@
-// The same declaration joins through both dependency scopes. One selected
-// representation must close Copy validation for both checked instances.
+// Both scopes see this declaration. Describing its Product representation does
+// not use Token as a host type or grant Build a Copy receipt.
 use token;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "opaque_copy_selected");
     builder.select_representation<Token, TokenRepresentation>();
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
 }

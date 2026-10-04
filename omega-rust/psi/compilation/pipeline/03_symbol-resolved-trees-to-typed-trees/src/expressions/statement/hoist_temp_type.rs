@@ -1208,7 +1208,7 @@ fn dependent_product_index_interval(
         return None;
     }
     let (a_expr, fb_expr) = {
-        let left_is_field = resolved_symbolic_max_bound(&lowerer.source_trees, product.left)
+        let left_is_field = resolved_symbolic_max_bound(lowerer.source_trees, product.left)
             .is_some_and(|(_, offset)| offset == 0);
         if left_is_field {
             (product.right, product.left)
@@ -1216,7 +1216,7 @@ fn dependent_product_index_interval(
             (product.left, product.right)
         }
     };
-    let (fb, fb_offset) = resolved_symbolic_max_bound(&lowerer.source_trees, fb_expr)?;
+    let (fb, fb_offset) = resolved_symbolic_max_bound(lowerer.source_trees, fb_expr)?;
     if fb_offset != 0 {
         return None;
     }
@@ -1357,7 +1357,7 @@ fn resolved_product_coupling_operand(
     expression: ExpressionHandle,
 ) -> Option<String> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    if let Some((field, 0)) = resolved_symbolic_max_bound(&lowerer.source_trees, expression) {
+    if let Some((field, 0)) = resolved_symbolic_max_bound(lowerer.source_trees, expression) {
         return Some(field);
     }
     let ExpressionNode::Cast(cast) = expressions.expression(expression) else {
@@ -1369,7 +1369,7 @@ fn resolved_product_coupling_operand(
     {
         return None;
     }
-    let (field, 0) = resolved_symbolic_max_bound(&lowerer.source_trees, cast.value)? else {
+    let (field, 0) = resolved_symbolic_max_bound(lowerer.source_trees, cast.value)? else {
         return None;
     };
     let target = lowerer

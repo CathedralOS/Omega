@@ -24,6 +24,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
+    declarations: &[syntax_trees::item::ItemHandle],
 ) {
     let mut signatures = HashMap::<String, Option<Vec<TypeReferenceHandle>>>::new();
     let mut attached_signatures =
@@ -86,8 +87,9 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         }
     }
 
-    let concrete_states = syntax
-        .root_items()
+    let concrete_states = declarations
+        .iter()
+        .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| match item {
             Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
             _ => None,

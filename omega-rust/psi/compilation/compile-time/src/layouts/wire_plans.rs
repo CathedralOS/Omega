@@ -76,6 +76,20 @@ pub fn compute_wire_plans(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     wire_schema_frontier: usize,
 ) -> Result<(), Vec<Diagnostic>> {
+    compute_wire_plans_in(
+        typed,
+        selection_authority,
+        wire_schema_frontier,
+        &crate::build_time_evaluation::EvaluationDomain::all(),
+    )
+}
+
+pub(crate) fn compute_wire_plans_in(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    wire_schema_frontier: usize,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
     // Classify first (immutable walk), then record (mutable): the placement
     // arena and the schema tables cannot be borrowed simultaneously.
     let mut classified = Vec::with_capacity(
@@ -85,6 +99,9 @@ pub fn compute_wire_plans(
             .saturating_sub(wire_schema_frontier),
     );
     for schema in typed.wire_schemas().iter().skip(wire_schema_frontier) {
+        if !domain.contains(schema.symbol) {
+            continue;
+        }
         let mut fields: Vec<(u64, FieldShape)> = Vec::new();
         let mut classifiable = true;
         for member in typed.wire_members(schema.members) {
@@ -126,12 +143,16 @@ pub fn compute_wire_plans(
         classified.push((schema.symbol, schema.name.as_str().to_owned(), fields));
     }
 
-    let policy_exists = typed
+    if classified.is_empty() {
+        return Ok(());
+    }
+    let execution = domain.execution_program(typed);
+    let policy_exists = execution
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
-    let admission =
-        policy_exists.then(|| crate::BuildTimeAdmissionPlan::infer(typed, selection_authority));
+    let admission = policy_exists
+        .then(|| crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority));
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {
@@ -157,7 +178,7 @@ pub fn compute_wire_plans(
             // THE POLICY AUTHORS THE PLAN: evaluate it against the schema's
             // materialized facts and require agreement with the codec walk.
             let authored = evaluate_wire_policy(
-                typed,
+                &execution,
                 admission
                     .as_ref()
                     .expect("a policy admission plan exists with the policy"),

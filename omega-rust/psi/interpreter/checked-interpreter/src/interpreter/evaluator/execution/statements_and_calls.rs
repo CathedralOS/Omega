@@ -544,21 +544,21 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        // Activation facets require a runtime receiver. A declaration called
+        if let Some(value) = self.try_build_path_call(
+            call.target_symbol,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
+        }
+        // Other activation facets still require a runtime receiver. A declaration called
         // `write` or `close` is not a facet merely because its leaf matches;
         // let ordinary selected-target dispatch handle namespace calls below.
         if !self.statement_receiver_is_namespace(call) {
             if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
                 return Ok(value);
-            }
-            if self
-                .try_build_facet_filesystem_statement(call, frame)?
-                .is_some()
-            {
-                return Ok(Value::Unit);
-            }
-            if self.try_build_output_include_source_statement(call, frame)? {
-                return Ok(Value::Unit);
             }
             if self.try_build_log_write_line_statement(call, frame)? {
                 return Ok(Value::Unit);

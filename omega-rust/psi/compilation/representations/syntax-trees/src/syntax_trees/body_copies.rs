@@ -390,6 +390,10 @@ impl SyntaxTrees {
             TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
+        for pending in other.type_references.pending_const_arguments(handle) {
+            self.type_references
+                .retain_pending_const_argument(copied, pending);
+        }
         let origin = other.type_references.generic_application_origin(handle);
         if let TypeReferenceNode::Constrained { constraints, .. } =
             other.type_references.type_reference(handle)

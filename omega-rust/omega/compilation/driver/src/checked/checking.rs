@@ -6,7 +6,8 @@ pub(crate) mod execution_settlement;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
-    IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
+    IndependentComponentDiscovery, IndependentComponentSelection, PackageBuildOutcome,
+    PreparedCheckedSource, PreparedPackageBuild,
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
@@ -125,6 +126,100 @@ pub fn compile_to_checked(
     compile_checked(request).result
 }
 
+/// Execute one dependency Build under the same admission and source custody as
+/// ordinary compilation, retaining its generated handoff and typed continuation.
+/// No final product check or review is performed. A required dependency product
+/// consumes this result through `check_prepared_package_build`, never a replay.
+pub fn prepare_package_build(
+    request: CheckedCompileRequest,
+    owner: Option<&build_evaluation::PureBuildCompilation>,
+) -> PackageBuildOutcome {
+    let owner = owner.cloned();
+    compile_thread::run_on_compile_thread(move || prepare_package_build_worker(request, owner))
+        .unwrap_or_else(|diagnostics| PackageBuildOutcome {
+            result: Err(diagnostics),
+            prepared_source: None,
+            build_accounting: Default::default(),
+        })
+}
+
+fn prepare_package_build_worker(
+    request: CheckedCompileRequest,
+    owner: Option<build_evaluation::PureBuildCompilation>,
+) -> Result<PackageBuildOutcome, Vec<Diagnostic>> {
+    let selected_target =
+        target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
+            .map_err(|diagnostic| vec![diagnostic])?;
+    let inputs = request.package_inputs.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "dependency Build preparation requires package source custody",
+        )]
+    })?;
+    let source = match request.prepared_source {
+        Some(source) => source,
+        None => prepare_checked_source(
+            &request.root_path,
+            Some(inputs.source_inputs()),
+            request.collect_timings,
+        )?,
+    };
+    let child = CheckedExecutionRequest {
+        selected_target_profile: Some(selected_target),
+        build_execution_profile: request
+            .build_execution_profile
+            .or_else(target::TargetProfile::host_if_supported),
+        package_inputs: Some(&inputs),
+        build_dir: request.build_dir.as_deref(),
+        filesystem_sponsor: request.filesystem_sponsor,
+        evaluation_sponsor: request.evaluation_sponsor,
+        build_snapshot: request.build_snapshot,
+        optimization_rollback: request.optimization_rollback.clone(),
+        restricted_build_grants: request.restricted_build_grants,
+        permit_unsettled_fused_service_fields: false,
+    };
+    let prepared_source = request.retain_prepared_source.then(|| source.clone());
+    let prepared = prepare_build_source(&request.root_path, source, child, None, owner.as_ref())?;
+    let build_accounting = prepared.build_accounting.clone();
+    let result = PreparedPackageBuild::seal(
+        request.root_path,
+        selected_target,
+        inputs,
+        request.optimization_rollback,
+        prepared,
+    );
+    let prepared_source = result.as_ref().ok().and(prepared_source);
+    Ok(PackageBuildOutcome {
+        result,
+        prepared_source,
+        build_accounting,
+    })
+}
+
+/// Complete a genuinely requested dependency product using its completed Build.
+/// Source custody is revalidated when checking seals the product; no Build grant
+/// or sponsor is recreated and no authored Build effect executes a second time.
+pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompileOutcome {
+    counters::record_checked_compilation();
+    compile_thread::run_on_compile_thread(move || {
+        let (_root_path, target, inputs, rollback, mut prepared) = build.into_continuation();
+        // The preparation outcome already reported this activation's accounting.
+        prepared.build_accounting = Default::default();
+        Ok(check_completed_build(
+            prepared,
+            Some(target),
+            Some(&inputs),
+            &rollback,
+            false,
+        ))
+    })
+    .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
+        result: Err(diagnostics),
+        prepared_source: None,
+        independent_components: IndependentComponentDiscovery::default(),
+        build_accounting: Default::default(),
+    })
+}
+
 /// The checked request's feed-forward route. Settlement and source-sealing
 /// failures retain completed Build observations beside the rejected outcome.
 fn compile_checked_worker(
@@ -189,12 +284,32 @@ pub(crate) fn check_prepared_source(
     builds: Option<&mut PreparedBuilds>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
-    source.admit_root(root_path)?;
-    child.admit_package_inputs()?;
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let rollback = child.optimization_rollback.clone();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
+
+    let prepared = prepare_build_source(root_path, source, child, builds, pure_build_compilation)?;
+    Ok(check_completed_build(
+        prepared,
+        selected_target_profile,
+        package_inputs,
+        &rollback,
+        permit_unsettled_fused_service_fields,
+    ))
+}
+
+/// Shared admission and Build lifecycle. Both product compilation and a
+/// dependency handoff consume the same completed typed continuation.
+fn prepare_build_source(
+    root_path: &Path,
+    source: PreparedCheckedSource,
+    child: CheckedExecutionRequest<'_>,
+    builds: Option<&mut PreparedBuilds>,
+    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+) -> Result<PreparedBuild, Vec<Diagnostic>> {
+    source.admit_root(root_path)?;
+    child.admit_package_inputs()?;
 
     // Lookup follows custody admission and never executes a stage. Single
     // review activations do not construct an unsponsored Build reuse key.
@@ -202,12 +317,12 @@ pub(crate) fn check_prepared_source(
     let completed = reuse
         .as_mut()
         .and_then(|(inputs, builds)| builds.begin_target(inputs));
-    let prepared = match completed {
+    match completed {
         Some(mut prepared) => {
             prepared.build_accounting = Default::default();
             drop(source);
             drop(child);
-            prepared
+            Ok(prepared)
         }
         None => {
             let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
@@ -230,12 +345,21 @@ pub(crate) fn check_prepared_source(
             if let Some((inputs, builds)) = reuse {
                 builds.retain_completed(inputs, &prepared);
             }
-            prepared
+            Ok(prepared)
         }
-    };
+    }
+}
+
+fn check_completed_build(
+    prepared: PreparedBuild,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    rollback: &crate::OptimizationRollback,
+    permit_unsettled_fused_service_fields: bool,
+) -> CheckedCompileOutcome {
     let PreparedBuild {
         built,
-        build_sources,
+        mut build_sources,
         mut timings,
         build_accounting,
     } = prepared;
@@ -243,9 +367,10 @@ pub(crate) fn check_prepared_source(
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         execution_settlement::check_selected_execution(
             built,
+            &mut build_sources,
             selected_target_profile,
             package_inputs,
-            &rollback,
+            rollback,
             timings,
             permit_unsettled_fused_service_fields,
         )
@@ -253,12 +378,12 @@ pub(crate) fn check_prepared_source(
     let result = result.and_then(|execution| {
         CheckedCompilation::seal(execution, build_sources, package_inputs, timings)
     });
-    Ok(CheckedCompileOutcome {
+    CheckedCompileOutcome {
         prepared_source: None,
         result,
         independent_components,
         build_accounting,
-    })
+    }
 }
 
 /// Record an inclusive stage whose subordinate operations also record timings.

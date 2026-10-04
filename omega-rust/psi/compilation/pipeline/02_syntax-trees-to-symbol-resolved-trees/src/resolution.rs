@@ -13,11 +13,16 @@
 //! the typed continuation rebases; see `continuations`. `lowerer` is the
 //! working state this route drives.
 
+mod body_completion;
 mod continuations;
 pub(crate) mod lowerer;
+pub(crate) mod type_inputs;
 
 use crate::preparation::declaration_selection::ConstantSelection;
 use crate::{constant, lowering, preparation, selection};
+pub use body_completion::{
+    DeferredResolvedFrontier, RebasedResolvedBodyCompletion, ResolvedBodyCompletion,
+};
 pub use continuations::{
     ConstInitializerSelection, RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
 };
@@ -70,14 +75,113 @@ pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Di
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
+/// Index declarations without granting their implementations execution. The
+/// returned owner retains the exact prepared source for subsequent body demand.
+pub fn resolve_deferred(
+    request: ResolutionRequest,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    if preparation::machine_equations::required(&syntax, None) {
+        // Header applications need exact declaration selection, not executable
+        // bodies. Body applications retain their syntax and complete on demand.
+        loop {
+            let mut provisional = Lowerer::new(sources.clone(), bindings.clone());
+            provisional.constant_selection = lowerer.constant_selection.clone();
+            provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
+            provisional.equation_sources = Some(Default::default());
+            index_declarations(&mut provisional, &syntax)?;
+            // Settlement also demands receipt helpers for normalized constants.
+            // Their links belong to this batch just like header applications.
+            finish_resolution(&mut provisional, &syntax)?;
+            let selection = provisional.take_constant_selection()?;
+            let links = provisional.equation_sources.take().unwrap_or_default();
+            let before = syntax.root_item_handles().len();
+            preparation::machine_equations::complete(
+                &mut syntax,
+                &provisional.symbol_resolved_trees,
+                &links,
+                &selection,
+            )?;
+            if syntax.root_item_handles().len() == before {
+                break;
+            }
+        }
+        lowerer.equation_sources = Some(Default::default());
+    }
+    lowerer.structural_type_equations_pending = false;
+    index_deferred(syntax, lowerer, sources, bindings)
+}
+
+/// Normalize numeric-probe declarations while retaining equation obligations
+/// and original implementations. The caller demands bodies by exact owner.
+pub fn resolve_deferred_numeric_probe(
+    request: ResolutionRequest,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    index_deferred(syntax, lowerer, sources, bindings)
+}
+
+fn index_deferred(
+    syntax: SyntaxTrees,
+    mut lowerer: Lowerer,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    index_declarations(&mut lowerer, &syntax)?;
+    finish_resolution(&mut lowerer, &syntax)?;
+    let pending = std::mem::take(&mut lowerer.pending_machine_bodies);
+    let pending_type_inputs =
+        type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
+    let selection = lowerer.take_constant_selection()?;
+    let hoist_counter = lowerer.hoist_counter;
+    let const_resolution_mode = lowerer.const_resolution_mode;
+    let structural_type_equations_pending = lowerer.structural_type_equations_pending;
+    let equation_sources = lowerer.equation_sources.take().map(|mut sources| {
+        sources.expressions.clear();
+        sources.statements.clear();
+        sources
+    });
+    Ok(DeferredResolvedFrontier {
+        syntax: Arc::new(syntax),
+        trees: Arc::new(lowerer.into_trees()),
+        pending,
+        pending_type_inputs,
+        selection,
+        sources,
+        bindings,
+        hoist_counter,
+        const_resolution_mode,
+        structural_type_equations_pending,
+        equation_sources,
+    })
+}
+
+fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    lowerer.defer_machine_bodies = true;
+    lowering::lower_items(lowerer, syntax)?;
+    lowering::mathematical::lower_mathematical_definitions(lowerer, syntax)?;
+    selection::select_operator_homes(lowerer)?;
+    crate::symbols::assign_declarations(lowerer)
+}
+
 /// Resolve raw index expressions in their authored owners through normal
 /// lexical selection. This performs no generic instance synthesis or evaluation;
 /// callers must still admit every selected leaf and checked operator meaning.
+/// Local headers and nested type inputs borrow their original preceding-local
+/// scope; runtime bodies remain Deferred. This is a one-shot selection carrier,
+/// not a continuation whose declaration scratch can be executed or completed.
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
-    drive(lowerer, &syntax).map(|(trees, _)| trees)
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+    index_declarations(&mut lowerer, &syntax)?;
+    crate::symbols::assign_lexical_inputs(&mut lowerer, &syntax)?;
+    finish_resolution(&mut lowerer, &syntax)?;
+    Ok(lowerer.into_trees())
 }
 
 /// Normalize ordinary constants for a numeric probe while retaining machine
@@ -94,12 +198,48 @@ pub fn resolve_numeric_probe(
 /// Computed fixed-integer/Boolean initializers remain authored expression roots
 /// with no canonical encoding. Every operator occurrence remains an obligation
 /// for ordinary typed selection, not an assertion of builtin execution meaning.
+/// Only helpers reached from those roots acquire bodies. Dependency collection
+/// still requires every reached implementation to exist; deferred unrelated
+/// machines cannot affect preparation or become executable through this carrier.
 pub fn prepare_const_initializer_selection(
     request: ResolutionRequest,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
-    let (trees, selection) = drive(lowerer, &syntax)?;
-    let preparation = ConstInitializerSelection { trees, selection };
+    let mut frontier = index_deferred(syntax, lowerer, sources, bindings)?;
+    let initializers = frontier
+        .trees()
+        .const_declarations
+        .iter()
+        .map(|declaration| {
+            if declaration.authored_initializer.is_valid() {
+                declaration.authored_initializer
+            } else {
+                declaration.initializer
+            }
+        })
+        .filter(|initializer| initializer.is_valid())
+        .collect::<Vec<_>>();
+    loop {
+        let demand = frontier.body_demand(&[], &initializers)?;
+        if demand.deferred_machines.is_empty() {
+            break;
+        }
+        frontier = frontier
+            .complete_machine_bodies(&demand.deferred_machines)?
+            .into_resolved_frontier();
+    }
+    let DeferredResolvedFrontier {
+        syntax,
+        trees,
+        selection,
+        ..
+    } = frontier;
+    let preparation = ConstInitializerSelection {
+        trees: Arc::unwrap_or_clone(trees),
+        selection,
+    };
     // The prepared forest, not an unprepared sibling: preparation rewrites
     // domain heads and adds trait default machines, and neither touches a
     // constant's initializer expression or its declaration's source span,
@@ -162,7 +302,7 @@ fn begin_complete(
         preparation::machine_equations::complete(
             &mut syntax,
             &trees,
-            links.unwrap_or_default(),
+            &links.unwrap_or_default(),
             &selection,
         )?;
         lowerer.constant_selection = Some(selection);
@@ -231,19 +371,47 @@ fn drive_recorded(
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
-    lowering::intrinsic_calls::normalize(&mut lowerer)?;
+    finish_resolution(&mut lowerer, syntax)?;
+    let links = lowerer.equation_sources.take();
+    Ok((lowerer.into_trees(), constant_selection, links))
+}
+
+fn finish_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    settle_resolution(lowerer, syntax)?;
+    lowerer.symbol_resolved_trees.rebuild_tables();
+    finish_resolved_tables(lowerer);
+    Ok(())
+}
+
+/// Shared name, obligation and declaration settlement precedes both complete
+/// table normalization and append-only authored implementation completion.
+fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    // Dependency demand follows selected constants as well as direct calls.
+    // Join declaration identities before that traversal, exactly once; leaving
+    // the join inside constant finalization makes a bound name point at an
+    // unbound declaration while its receipt-required helper is being prepared.
+    constant::finalize_const_declarations(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_const_declarations,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    body_completion::complete_initializer_receipt_dependencies(lowerer, syntax)?;
+    lowering::intrinsic_calls::normalize(lowerer)?;
     crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
     // A token-bearing machine attached to a domain gives that domain its
     // denotation role before the selections below classify predicate-only
     // domains; it needs the attached symbols the assignment just settled.
     lowering::machine::mark_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
-    constant::finalize(&mut lowerer)?;
-    selection::finalize_authored_selections(&mut lowerer)?;
-    constant::finalize_operator_obligations(&mut lowerer)?;
-    selection::finalize(&mut lowerer)?;
+    constant::finalize(lowerer)?;
+    selection::finalize_authored_selections(lowerer)?;
+    constant::finalize_operator_obligations(lowerer)?;
+    selection::finalize(lowerer)?;
     lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
+    Ok(())
+}
+
+fn finish_resolved_tables(lowerer: &mut Lowerer) {
+    selection::conformance_blocks::route_inline_member_calls(&mut lowerer.symbol_resolved_trees);
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees);
     crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
-    let links = lowerer.equation_sources.take();
-    Ok((lowerer.into_trees(), constant_selection, links))
 }

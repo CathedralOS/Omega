@@ -20,11 +20,15 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 pub(crate) fn lower_item(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    item: &syntax::item::Item,
+    declaration: syntax::item::ItemHandle,
 ) -> Result<(), Diagnostic> {
+    let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
+    let item = syntax_trees.root_item(declaration);
     lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
         lower_item_with_exposure(lowerer, syntax_trees, item)
-    })
+    })?;
+    inputs.finish(lowerer, symbols::SymbolHandle::invalid());
+    Ok(())
 }
 
 fn lower_item_with_exposure(

@@ -1,12 +1,10 @@
 //! Checked inspection and reporting for one prepared package or application project.
 
+use super::accepted_compilation::{AcceptedCompilationRequest, compile_accepted_project};
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::review::{
-    CandidateCompilation, CandidateSourcePreparation, CompileResolvedPackageReviewsError,
-    RestrictedBuildCheckpoint, compile_candidate_for_check_reusing,
-    compile_resolved_package_candidate_for_check,
-};
+use crate::build_session::PackageSourcePreparation;
+use crate::review::CompileResolvedPackageReviewsError;
 use compiler::{CompileOptions, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
@@ -125,7 +123,7 @@ impl std::error::Error for CheckPreparedLocalProjectError {}
 
 /// Check the exact requested entry after its dependency builds, retaining
 /// generated source and checked semantics for an inspecting consumer. This is
-/// the same candidate pipeline used by check reporting, but stops before trust
+/// the same accepted-input pipeline used by check reporting, but stops before trust
 /// admission or product publication. Inspection may describe unresolved trust;
 /// it cannot use the returned program as evidence of accepted native authority.
 pub fn check_prepared_local_project_for_inspection(
@@ -133,17 +131,32 @@ pub fn check_prepared_local_project_for_inspection(
     build_dir: &Path,
     target_profile: TargetProfile,
 ) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
-    // Inspection issues no grants and consumes no accepted section; the
-    // shared closure already carries the exact sources this profile checks.
-    let (entry_path, source_closure, _targets) = prepared.into_target_review_parts();
-    compile_resolved_package_candidate_for_check(
-        &source_closure.for_exact_target(target_profile),
-        build_dir,
-        &entry_path,
-        None,
-        false,
+    let (entry_path, source_closure, targets) = prepared.into_target_review_parts();
+    let failure = |message: String| CompileResolvedPackageReviewsError::Compilation {
+        package: source_closure.graph().root().clone(),
+        diagnostics: vec![Diagnostic::error(message)],
+    };
+    let target = targets
+        .into_iter()
+        .find(|target| target.profile == target_profile)
+        .ok_or_else(|| failure("inspection target was not prepared".to_owned()))?;
+    let accepted = target
+        .accepted
+        .map_err(|error| failure(error.to_string()))?;
+    // Inspection consumes accepted compilation inputs, but never arms the
+    // lock's restricted-action grants or turns observed trust into admission.
+    compile_accepted_project(
+        AcceptedCompilationRequest {
+            closure: &source_closure.for_exact_target(target_profile),
+            accepted: accepted.as_ref(),
+            entry: &entry_path,
+            build_root: build_dir,
+            snapshot: None,
+            verify: true,
+            timings: false,
+        },
+        &mut PackageSourcePreparation::for_closure(&source_closure),
     )
-    .map(|(checked, _reviews)| checked)
 }
 
 /// One target's check result inside a shared multi-target request. A failing
@@ -180,6 +193,7 @@ pub fn check_prepared_local_project(
     let (entry_path, source_closure, accepted_target) = prepared
         .into_review_parts(target_profile)
         .map_err(CheckPreparedLocalProjectError::Prepare)?;
+    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
     check_one_prepared_target(
         PreparedProjectTarget {
             profile: target_profile,
@@ -191,13 +205,14 @@ pub fn check_prepared_local_project(
         build_snapshot.as_ref(),
         &accepted_trust_admissions,
         verify,
-        &mut CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings),
+        timings,
+        &mut preparation,
     )
 }
 
 /// The same check for every requested target under one prepared source union.
 /// All targets share the prepared project's resolved closure and one
-/// [`CandidateSourcePreparation`], so a package's binding-independent parse
+/// source custody, so a package's binding-independent parse
 /// frontier — and any typed frontier whose inputs two targets carry
 /// identically — assembles exactly once for the request. Each target still
 /// stages into `build_dir/<target>`, arms its own accepted checkpoint, and
@@ -216,8 +231,7 @@ pub fn check_prepared_local_project_for_targets(
         timings,
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let mut preparation =
-        CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings);
+    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
     prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
@@ -231,6 +245,7 @@ pub fn check_prepared_local_project_for_targets(
                 build_snapshot.as_ref(),
                 &accepted_trust_admissions,
                 verify,
+                timings,
                 &mut preparation,
             );
             CheckedProjectTargetOutcome {
@@ -254,30 +269,23 @@ fn check_one_prepared_target(
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     accepted_trust_admissions: &[TrustAdmission],
     verify: bool,
-    preparation: &mut CandidateSourcePreparation,
+    timings: bool,
+    preparation: &mut PackageSourcePreparation,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
     let profile = prepared_target.profile;
     let accepted_target = prepared_target
         .accepted
         .map_err(CheckPreparedLocalProjectError::Prepare)?;
-    // A verify check withholds the accepted target's granted request
-    // meanings: each occurrence still compiles under the retained pins, but
-    // its projected restricted requests stand or fall on this pass alone.
-    let checkpoint = if verify {
-        None
-    } else {
-        accepted_target
-            .as_ref()
-            .map(RestrictedBuildCheckpoint::derive)
-    };
-    let (checked, _reviews) = compile_candidate_for_check_reusing(
-        CandidateCompilation {
-            target_closure: &source_closure.for_exact_target(profile),
+    let checked = compile_accepted_project(
+        AcceptedCompilationRequest {
+            closure: &source_closure.for_exact_target(profile),
+            accepted: accepted_target.as_ref(),
+            entry: entry_path,
             build_root: target_build_dir,
-            root_build_snapshot: build_snapshot,
-            restricted_build_checkpoint: checkpoint.as_ref(),
+            snapshot: build_snapshot,
+            verify,
+            timings,
         },
-        entry_path,
         preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;

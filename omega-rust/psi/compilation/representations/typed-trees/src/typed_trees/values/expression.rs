@@ -81,6 +81,9 @@ pub struct AtomicExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
+    /// Iteration-visible expressions of this program. Backing rows remain at
+    /// their stable handles when a compilation projects a closed body roster.
+    expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
@@ -108,6 +111,7 @@ impl ExpressionTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
         let Self {
             expressions,
+            expression_roots,
             authored_selection_occurrence_ids,
             expression_handles,
             name_path_members,
@@ -118,6 +122,10 @@ impl ExpressionTable {
             authored_selection_occurrences,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                expression_roots,
+                &self.expression_roots,
+            )
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 authored_selection_occurrence_ids,
                 &self.authored_selection_occurrence_ids,
@@ -171,6 +179,7 @@ impl ExpressionTable {
     pub fn revision(&self) -> u64 {
         self.expressions
             .revision()
+            .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
             .wrapping_add(self.expression_handles.revision())
             .wrapping_add(self.name_path_members.revision())
@@ -199,6 +208,7 @@ impl ExpressionTable {
     pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
             expressions: Arena::with_capacity(capacity.expressions),
+            expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
             authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
             authored_selection_occurrence_ids: Arena::with_capacity(
@@ -214,6 +224,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.expressions.reset_retain_capacity();
+        self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
         self.authored_selection_occurrences.clear();
         self.authored_selection_occurrence_ids
@@ -227,6 +238,7 @@ impl ExpressionTable {
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.expressions.insert(expression);
+        self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
         self.authored_selection_occurrences
             .push(HandleSpan::empty());
@@ -471,7 +483,23 @@ impl ExpressionTable {
     }
 
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
-        self.expressions.iter()
+        self.expression_roots
+            .iter()
+            .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
+    }
+
+    /// Project iteration roots without rewriting any expression or inbound
+    /// handle. The caller owns graph closure; newly inserted expressions join
+    /// the resulting roster through the ordinary insertion operation.
+    pub fn retain_expression_roots(&mut self, mut retain: impl FnMut(ExpressionHandle) -> bool) {
+        let retained = self
+            .expression_roots
+            .iter()
+            .map(|(_, handle)| *handle)
+            .filter(|handle| retain(*handle))
+            .collect::<Vec<_>>();
+        self.expression_roots.reset_retain_capacity();
+        self.expression_roots.insert_many(retained);
     }
 
     pub fn expression_is_direct_place_path(&self, handle: ExpressionHandle) -> bool {
@@ -638,11 +666,14 @@ impl ExpressionTable {
     }
 
     pub fn expression_nodes(&self) -> impl Iterator<Item = &ExpressionNode> {
-        self.expressions.iter().map(|(_, node)| node)
+        self.iter_expressions().map(|(_, node)| node)
     }
 
+    /// Semantic iteration follows the current program's expression roster.
+    /// Backing nodes can still belong to retained declaration descriptions;
+    /// their exact handles remain readable without becoming executable roots.
     pub fn expression_entries(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
-        self.expressions.iter()
+        self.iter_expressions()
     }
 
     pub fn copy_capacity(&self) -> ExpressionTableCapacity {

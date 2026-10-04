@@ -7,7 +7,7 @@ use super::super::contracts::facts::{
 };
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::declarations::{
-    nominal_identity, reviewed_package_owns, trait_requirement_identity,
+    is_product_scope_instance, nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::{
     project_type_parameters, project_type_parameters_after,
@@ -37,7 +37,9 @@ pub(crate) fn project_public_traits(
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewTraitShape>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
-    for definition in compilation.traits().iter().filter(|row| row.is_public) {
+    for definition in compilation.traits().iter().filter(|row| {
+        row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
+    }) {
         let identity = nominal_identity(compilation, definition.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;

@@ -12,9 +12,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Exact generated Omega source handed off by one successfully checked package
-/// build. Construction remains compiler-private: carrying this value proves
-/// only that one compiler run produced these bytes, not package admission.
+/// Exact generated Omega source handed off by one admitted package Build.
+/// Construction remains compiler-private: carrying this value proves source
+/// and output custody, not final checking of the generated program or package
+/// admission. Every consumer checks the generated declarations it incorporates.
 /// Clones share the immutable bundle, including paths and dependency metadata;
 /// each consumer still validates its own closure, custody, purpose, effective
 /// target, and build execution profile. Equal product bytes do not establish that the
@@ -38,6 +39,26 @@ struct PackageGeneratedSourceBundleContents {
 impl PackageGeneratedSourceBundle {
     #[doc(hidden)]
     pub fn from_checked(
+        package: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+        target: target::TargetProfile,
+        build_execution_profile: Option<target::TargetProfile>,
+        dependency_closure: PackageDependencyClosure,
+        source_consumption_commitment: PackageSourceConsumptionCommitment,
+        sources: Vec<PackageGeneratedSource>,
+    ) -> Self {
+        Self::from_source_consumption(
+            package,
+            purpose,
+            target,
+            build_execution_profile,
+            dependency_closure,
+            source_consumption_commitment,
+            sources,
+        )
+    }
+
+    pub(crate) fn from_source_consumption(
         package: PackageKeyIdentity,
         purpose: DependencyPurpose,
         target: target::TargetProfile,

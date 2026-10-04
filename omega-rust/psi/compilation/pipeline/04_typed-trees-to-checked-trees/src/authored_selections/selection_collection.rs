@@ -44,7 +44,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
     facts: &CheckFacts,
     resolutions: &mut Vec<CheckedResolution>,
 ) -> Result<(), Diagnostic> {
-    for (fact_handle, fact) in program.proof_facts.iter() {
+    for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
         let typed_trees::domain::ProofFact::Membership(membership) = fact else {
             continue;
         };
@@ -136,7 +136,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
     )>,
 ) -> Result<(), Diagnostic> {
     let mut fact_roots = Vec::new();
-    for (_, fact) in program.proof_facts.iter() {
+    for (_, fact) in typed_trees::references::program_proof_facts(program) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 fact_roots.push(*expression);

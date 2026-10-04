@@ -27,11 +27,11 @@
 //! Entry candidates remain proposals, not admission authority. The graph root
 //! is never cached: its checked compilation is the update's real product.
 //!
-//! The toolchain stamp binds a record to the binary that minted it
-//! (`OMEGA_RELEASE_VERSION`/`OMEGA_RELEASE_COMMIT` at compile time, falling
-//! back to the package version and `unrecorded` for dev builds). A dev build
-//! that changes review semantics without changing the stamp relies on the
-//! record's self-verifying decode; bump `RECORD_VERSION` to invalidate.
+//! The key binds the build-produced compiler identity and the exact injected
+//! toolchain library content, including developer builds. If either identity
+//! cannot be established, no record is loaded or stored. Canonical record
+//! decoding checks structure independently; it is not proof that a different
+//! compiler would issue the same review.
 //!
 //! `key` derives the record key and the provenance digests a record
 //! stores; `record_codec` owns the record byte layout. This module owns the

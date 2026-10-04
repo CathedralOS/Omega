@@ -212,8 +212,9 @@ pub(super) fn lower_fixed_array_length(
                 name: crate::lowerer::name::lower_name(name),
             }
         }
-        resolved::types::FixedArrayLength::ConstCall { name } => {
+        resolved::types::FixedArrayLength::ConstCall { machine, name } => {
             typed::types::FixedArrayLength::ConstCall {
+                machine: *machine,
                 name: crate::lowerer::name::lower_name(name),
                 source_span: name.source_span(),
             }

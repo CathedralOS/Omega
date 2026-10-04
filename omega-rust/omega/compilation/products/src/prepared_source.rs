@@ -12,11 +12,13 @@ use package_compilation::{PackageCompilationInputs, SourceAssemblyInputs};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-/// Complete output of assembly and the typed frontend, before Build admission.
-/// This is a reusable compilation checkpoint, not a new portable program form.
+/// Indexed declarations and completed Build-context bodies before admission.
+/// Product implementations remain pending under their original source custody.
+/// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
     pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pub selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub build_source_id: Option<source::SourceId>,

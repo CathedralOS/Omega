@@ -14,6 +14,35 @@ use crate::symbols::targets::{
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
 use language_semantics::declaration_selection::BuildOperation;
 
+pub(super) fn assign_local_type_symbols(
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    reference: &mut symbol_resolved_trees::types::TypeReference,
+    symbols: &SymbolTable,
+) {
+    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+        symbols,
+        child_type_references,
+        type_constraints,
+        machine.type_parameters,
+        machine.symbol,
+        reference,
+    );
+    crate::symbols::type_references::assign_type_value_expression_symbols(
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expression_table,
+        child_type_references,
+        reference,
+    );
+}
+
 pub(super) fn assign_statement_symbols(
     machine: &MachineScope<'_>,
     parameters: &[symbol_resolved_trees::signature::StateParameter],
@@ -197,22 +226,15 @@ pub(super) fn assign_statement_symbols(
             );
         }
         symbol_resolved_trees::statement::Statement::LocalData(local_data) => {
-            assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                machine.type_parameters,
-                machine.symbol,
-                &mut local_data.type_reference,
-            );
-            crate::symbols::type_references::assign_type_value_expression_symbols(
-                symbols,
+            assign_local_type_symbols(
                 machine,
                 parameters,
                 state_symbol,
                 expression_table,
                 child_type_references,
-                &local_data.type_reference,
+                type_constraints,
+                &mut local_data.type_reference,
+                symbols,
             );
             if local_data.initial_value.is_valid() {
                 assign_statement_expression_symbols(

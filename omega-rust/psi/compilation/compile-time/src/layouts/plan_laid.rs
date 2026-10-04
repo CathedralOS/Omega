@@ -30,6 +30,7 @@ mod layout_installation;
 
 pub use desugaring::desugar_plan_laid_value_types;
 pub use layout_installation::compute_plan_laid_layouts;
+pub(crate) use layout_installation::compute_plan_laid_layouts_in;
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
 /// data definition plus the (policy, schema) pair whose validated plan will

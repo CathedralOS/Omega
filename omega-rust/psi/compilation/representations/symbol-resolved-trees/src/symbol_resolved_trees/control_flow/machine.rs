@@ -8,6 +8,15 @@ use language_core::operator_spelling::OperatorSpelling;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
+/// Frontend completion, distinct from whether source authors a body or which
+/// supply rule it declares. Deferred declarations cannot supply execution.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MachineBodyStatus {
+    Deferred,
+    #[default]
+    Complete,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
@@ -58,6 +67,7 @@ pub struct Machine {
     /// adapters, so downstream review must not reconstruct this distinction
     /// from synthesized state rows.
     pub body_is_present: bool,
+    pub body_status: MachineBodyStatus,
     /// Source structural equations are not yet discharged; execution must reject this machine.
     pub structural_type_equations_pending: bool,
     /// Retained template obligation. Without its syntax equations, a later

@@ -30,6 +30,7 @@ pub struct PackageChangeReview {
     reviews: CompilerIssuedPackageReviewSet,
     changes: PackagePolicyChangeSet,
     target: TargetProfile,
+    compiler_identity: [u8; 32],
 }
 
 impl PackageChangeReview {
@@ -62,6 +63,7 @@ impl PackageChangeReview {
         &self,
         resolution: &PackagePolicyResolution,
     ) -> Result<PackageLockTarget, PackageChangeError> {
+        verify_compiler_identity(self.compiler_identity)?;
         if resolution.comparison() != self.changes.fingerprint() {
             return Err(PackageChangeError::Decisions(
                 crate::lock::HistoricalPackagePolicyError::ResolutionMismatch,
@@ -95,12 +97,21 @@ impl PackageChangeReview {
         for package in source.packages() {
             for purpose in crate::declarations::DependencyPurpose::ALL {
                 if let Some(review) = self.reviews.review_occurrence(package.key(), purpose) {
-                    policies.push((review.checked_context(), review.policy()));
+                    policies.push((
+                        review.checked_context(),
+                        review.policy(),
+                        review.semantic_bindings(),
+                    ));
                 }
             }
         }
-        PackageLockTarget::from_policies(source, &policies, decisions)
-            .map_err(PackageChangeError::Lock)
+        PackageLockTarget::from_accepted_policies(
+            source,
+            &policies,
+            self.compiler_identity,
+            decisions,
+        )
+        .map_err(PackageChangeError::Lock)
     }
 }
 
@@ -149,18 +160,21 @@ pub fn review_package_change_reusing(
             crate::review::PackagePolicyChangeError::TargetMismatch,
         ));
     }
+    let compiler_identity = super::accepted_compilation::compiler_input_identity()
+        .map_err(PackageChangeError::CompilerIdentity)?;
     let target_closure = source_closure.for_exact_target(target);
     let reviews = compile_resolved_package_reviews_reusing(
         CandidateCompilation {
             target_closure: &target_closure,
-            build_root: build_root,
-            root_build_snapshot: root_build_snapshot,
+            build_root,
+            root_build_snapshot,
             restricted_build_checkpoint: None,
         },
         SemanticBindingReview::Discover,
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;
+    verify_compiler_identity(compiler_identity)?;
     let changes = compare_package_policy_changes(
         accepted,
         &reviews,
@@ -173,5 +187,18 @@ pub fn review_package_change_reusing(
         reviews,
         changes,
         target,
+        compiler_identity,
     })
+}
+
+fn verify_compiler_identity(expected: [u8; 32]) -> Result<(), PackageChangeError> {
+    let current = super::accepted_compilation::compiler_input_identity()
+        .map_err(PackageChangeError::CompilerIdentity)?;
+    if current != expected {
+        return Err(PackageChangeError::CompilerIdentity(
+            "compiler or toolchain library inputs changed after review; run omega update again"
+                .into(),
+        ));
+    }
+    Ok(())
 }

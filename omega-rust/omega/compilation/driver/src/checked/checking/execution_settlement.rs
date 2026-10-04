@@ -12,19 +12,25 @@ use selected_dispatch::{
 
 pub(crate) fn check_selected_execution(
     built: BuiltTypedProgram,
+    build_sources: &mut package_compilation::BuildSourceCustody,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     optimization_rollback: &crate::checked::OptimizationRollback,
     timings: &mut CompileTimings,
     permit_unsettled_fused_service_fields: bool,
 ) -> Result<CheckedCompilationInputs, Vec<Diagnostic>> {
-    let BuiltTypedProgram {
+    let (
         mut typed,
         mut selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
         admission,
-    } = built;
+    ) = super::build_continuation::complete_product_frontend(
+        built,
+        build_sources,
+        package_inputs,
+        timings,
+    )?;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = &computed_build_config.config;
     let selected_native_target = selected_target_profile
@@ -89,11 +95,19 @@ pub(crate) fn check_selected_execution(
         provider_selection_target,
         opaque_representation_selections,
     )?;
-    let const_evaluation = SelectedConstantEvaluation::evaluate_pending(
-        &mut typed,
-        &selected_provider_plan_facts,
-        pending_pre_checks,
-    )?;
+    let const_evaluation = if pending_pre_checks.is_empty() {
+        SelectedConstantEvaluation::default()
+    } else {
+        validation::land_float_literal_destinations(&mut typed);
+        SelectedConstantEvaluation::prepare(
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ),
+            &selected_provider_plan_facts,
+        )?
+        .evaluate_pending(&mut typed, pending_pre_checks)?
+    };
     let root_grants = build_config.root_grant_selectors();
     let provider_request = ProviderCheckingRequest {
         native_target: selected_native_target,

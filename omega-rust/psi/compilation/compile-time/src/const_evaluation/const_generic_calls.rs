@@ -1,7 +1,8 @@
 //! Psi pre-resolution bridge for machine calls in const-generic arguments
 //! (`Buffer<table_size()>`). Generic record instances must be synthesized
 //! before the ordinary frontend runs, while the established build-time
-//! evaluator needs typed trees. Build a sanitized probe program, type it,
+//! evaluator needs typed trees. Prepare a retained declaration frontier,
+//! complete only the probe's exact implementation dependencies, type it,
 //! reuse the const-initializer admission gate and scalar evaluator, then
 //! substitute the complete canonical argument before monomorphization.
 //!
@@ -22,68 +23,38 @@
 //! while calls it cannot close keep their authored expression for ordinary
 //! post-typing admission.
 
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::Item;
-use syntax_trees::statement::StatementNode;
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+mod dependencies;
 
 pub fn evaluate_const_generic_calls(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     loop {
-        // Usually all arguments share one frontend preparation. If a helper's
-        // own index is still pending, its body cannot execute on provisional
-        // types. Complete an independently admitted argument, then reprepare
-        // the original body with that real value. Every successful iteration
-        // removes an authored argument; no-progress returns the actual failure.
-        // This reuses the admission gate rather than fabricating helper-local
-        // defaults or maintaining a second syntax-level call dependency graph.
-        let failures = match evaluate_application_group(
-            syntax.clone(),
-            context.clone(),
-            TypeReferenceHandle::invalid(),
-        ) {
-            Ok(evaluated) => return Ok(evaluated),
-            Err(failures) => failures,
-        };
-        let pending = syntax
-            .type_references
-            .const_expression_nodes()
-            .into_iter()
-            .filter(|(_, expression)| contains_call(&syntax, *expression))
-            .map(|(argument, _)| argument)
-            .collect::<Vec<_>>();
-        if pending.len() < 2 {
-            return Err(failures);
-        }
-        let mut progress = None;
-        for argument in pending {
-            if let Ok(evaluated) =
-                evaluate_application_group(syntax.clone(), context.clone(), argument)
-            {
-                progress = Some(evaluated);
-                break;
-            }
-        }
-        let Some(evaluated) = progress else {
-            return Err(failures);
-        };
+        // Readiness precedes admission: a provisional carrier can reveal exact
+        // dependencies but must not supply an executable layout. Every layer
+        // settles original argument handles, so at most N layers can progress.
+        // Provider-waiting leaves (and their dependants) remain authored.
+        let (evaluated, progress) = evaluate_application_group(syntax, context.clone())?;
         syntax = evaluated;
+        if !progress {
+            return Ok(syntax);
+        }
     }
 }
 
 fn evaluate_application_group(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
-    selected_argument: TypeReferenceHandle,
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
+    let mut progress = false;
     let crate::BuildTimeSources {
         sources,
         source_scoped_top_level_bindings,
@@ -101,11 +72,11 @@ fn evaluate_application_group(
     let mut endpoint_leaves = Vec::new();
     collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
     if endpoint_leaves.is_empty() && applications.is_empty() {
-        return Ok(syntax);
+        return Ok((syntax, false));
     }
 
     // A standalone probe cannot supply the caller's lexical bindings. Resolve
-    // those before provisional types remove its body, then rejoin exact
+    // those in their authored lexical owner, then rejoin exact
     // constant and call declarations after typed invocation preparation.
     let mut lexical_selections = Vec::new();
     if !applications.is_empty() {
@@ -173,9 +144,9 @@ fn evaluate_application_group(
     }
 
     // The probe needs the same generic-template normalization as the real
-    // program, but the call results are not known yet. A temporary zero leaf
-    // for each owning const argument lets the frontend type/effect-check the
-    // machine definitions themselves; no probe layout escapes this function.
+    // program, but the call results are not known yet. Provisional leaves let
+    // the frontend discover exact dependencies, never authorize execution with
+    // those layouts. Retained use keys below fence admission until settlement.
     let mut probe = syntax.clone();
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut probe,
@@ -196,10 +167,10 @@ fn evaluate_application_group(
             *type_reference,
             TypeReferenceNode::Named(Identifier::generated(placeholder)),
         );
+        probe
+            .type_references
+            .retain_pending_const_argument_uses(*type_reference);
     }
-    detach_probe_value_producers(&mut probe, &application_destinations);
-    application_destinations
-        .retain(|(argument, ..)| !selected_argument.is_valid() || selected_argument == *argument);
     for (ordinal, (_, expression, destination, _)) in application_destinations.iter().enumerate() {
         crate::const_evaluation::const_generic_expressions::append_probe(
             &mut probe,
@@ -214,25 +185,51 @@ fn evaluate_application_group(
         source_scoped_top_level_bindings,
         None,
     )?;
-    let resolved = crate::syntax_probes::resolve(probe, sources, source_scoped_top_level_bindings)?;
-    let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let probe_references = application_destinations
+        .iter()
+        .map(|(_, expression, ..)| syntax.expressions.source_span(*expression))
+        .collect::<Vec<_>>();
+    let endpoint_references = endpoint_leaves
+        .iter()
+        .map(|(_, source)| *source)
+        .collect::<Vec<_>>();
+    let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: probe,
+            sources,
+            top_level_bindings: source_scoped_top_level_bindings.to_vec(),
+        },
+    )?;
+    let preparation = crate::syntax_probes::prepare_evaluation_inputs(
+        frontier,
+        &probe_references,
+        &endpoint_references,
+        &[],
+    )?;
+    let layer = dependencies::ready_layer(&preparation, &application_destinations, &syntax)?;
     // This pre-resolution probe has no Omega provider plan. Keep authored
     // operator uses intact: visible satisfiers cannot authorize execution.
 
-    if !application_destinations.is_empty() {
+    if !layer.arguments.is_empty() {
         // The appended probe machines are excluded from ordinary checking;
         // their expressions are evaluated by the exact scalar evaluator with
         // checked call admission, matching const-initializer invocations.
-        let references = application_destinations
+        let references = layer
+            .arguments
             .iter()
-            .map(|(_, expression, ..)| syntax.expressions.source_span(*expression))
+            .map(|ordinal| {
+                syntax
+                    .expressions
+                    .source_span(application_destinations[*ordinal].1)
+            })
             .collect::<Vec<_>>();
-        let probe_symbols = typed
+        let probe_symbols = preparation
+            .typed
             .machines()
             .iter()
             .filter(|machine| {
-                typed
+                preparation
+                    .typed
                     .symbols
                     .symbol_source_span(machine.symbol)
                     .is_some_and(|span| references.contains(&span))
@@ -243,14 +240,32 @@ fn evaluate_application_group(
         // length may need the same pending provider selection. No execution
         // is admitted here; independent calls still require checked bodies,
         // and deferred calls retain their ordinary typed continuation.
-        let prepared = crate::PreparedBuildMachineProgram::prepare(&typed)?;
+        let ready_domain = preparation.domain_for_roots(&probe_symbols);
+        let prepared =
+            crate::PreparedBuildMachineProgram::prepare_in(&preparation.typed, &ready_domain)?;
         let execution = prepared.typed();
         let admission =
             crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
         let operators =
             typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+        let independent = probe_symbols
+            .iter()
+            .copied()
+            .filter(|symbol| {
+                !admission.closure_needs_operator_selection(execution, *symbol, &operators)
+            })
+            .collect::<Vec<_>>();
+        // Deferred provider uses are not part of this layer's checking domain.
+        // A dependent application remains authored until its prerequisite is
+        // settled under the later selected-provider continuation.
+        let independent_domain = preparation.domain_for_roots(&independent);
+        let independent_program = crate::PreparedBuildMachineProgram::prepare_in(
+            &preparation.typed,
+            &independent_domain,
+        )?;
         let mut checked_program = None;
-        for (argument, expression, _, public) in &application_destinations {
+        for ordinal in &layer.arguments {
+            let (argument, expression, _, public) = &application_destinations[*ordinal];
             let reference = syntax.expressions.source_span(*expression);
             let failure = |reason: String| {
                 vec![
@@ -272,24 +287,18 @@ fn evaluate_application_group(
             // authored applications whose reachable closure needs selected
             // execution intact: the typed continuation folds them under the
             // exact provider rows Omega settles, as deferred fixed-array
-            // lengths do. The per-argument retry mode must report no
-            // progress for such an application or the driver loop never
-            // terminates.
+            // lengths do. This is explicit external readiness, not a failed
+            // admission interpreted as a dependency signal.
             if admission.closure_needs_operator_selection(execution, machine.symbol, &operators) {
-                if selected_argument.is_valid() {
-                    return Err(failure(
-                        "const-generic application awaits provider selection".to_owned(),
-                    ));
-                }
                 continue;
             }
             let checked = match checked_program {
                 Some(ref checked) => checked,
                 None => checked_program.insert(
                     crate::const_evaluation::const_initializers::CheckedInitializers::prepare(
-                        &prepared,
+                        &independent_program,
                         selection_authority.clone(),
-                        &probe_symbols,
+                        &independent,
                     )?,
                 ),
             };
@@ -335,9 +344,26 @@ fn evaluate_application_group(
                 *argument,
                 TypeReferenceNode::Named(Identifier::generated(folded)),
             );
+            progress = true;
         }
     }
 
+    // Endpoints are input jobs too. Their private execution closure must not
+    // consume any unsettled index; leave blocked leaves authored for the next
+    // layer or the later selected-provider continuation.
+    endpoint_leaves.retain(|(_, source)| {
+        let domain = preparation.domain_for_inputs(&[], &[*source]);
+        !preparation
+            .pending_type_inputs
+            .iter()
+            .any(|(owner, _)| domain.contains(*owner))
+    });
+    let endpoint_sources = endpoint_leaves
+        .iter()
+        .map(|(_, source)| *source)
+        .collect::<Vec<_>>();
+    let evaluation_domain = preparation.domain_for_inputs(&[], &endpoint_sources);
+    let mut typed = preparation.typed;
     if !endpoint_leaves.is_empty() {
         // The probe carries resolved endpoint calls. Fold them through the
         // shared typed evaluator so resolved machine identity, closed argument,
@@ -345,7 +371,15 @@ fn evaluate_application_group(
         // post-typing admission exactly. Only leaves the gate actually closed
         // are written back; an endpoint it leaves authored keeps its original
         // expression and its ordinary post-typing route.
-        crate::evaluate_const_range_endpoints(&mut typed, selection_authority.clone())?;
+        crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
+            &mut typed,
+            selection_authority.clone(),
+            crate::SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &[],
+            },
+            &evaluation_domain,
+        )?;
         for (expression, source_span) in endpoint_leaves {
             let value = typed
                 .expression_table
@@ -369,546 +403,10 @@ fn evaluate_application_group(
             syntax
                 .expressions
                 .replace_expression(expression, ExpressionNode::Integer(literal));
+            progress = true;
         }
     }
-    Ok(syntax)
-}
-
-/// Detach the probe's value producers that sit next to a placeholdered
-/// declared type. `let folded: Buffer<size(4)> = Buffer { values: [..] }`
-/// becomes `Buffer<0>` while its initializer keeps the authored element
-/// count, so the probe's ordinary construction checks would compare shapes
-/// the placeholder invented rather than the program's own. The probe exists
-/// only to evaluate the appended call probes: a state containing a provisional
-/// parameter, local or return type runs body-free with the return declaration dropped (a retained
-/// `-> T` plus an empty body is itself a diagnostic). The authored syntax is
-/// untouched; the real pipeline still checks every initializer and consumer
-/// against the folded destination. Removing only the local initializer would
-/// let provisional identity reach its later consumers during helper checking.
-/// Such an owner cannot itself supply a scalar helper result in this probe;
-/// its real body needs the completed index before invocation admission.
-fn detach_probe_value_producers(
-    probe: &mut SyntaxTrees,
-    application_destinations: &[(
-        TypeReferenceHandle,
-        ExpressionHandle,
-        TypeReferenceHandle,
-        bool,
-    )],
-) {
-    let arguments: Vec<TypeReferenceHandle> = application_destinations
-        .iter()
-        .map(|(argument, ..)| *argument)
-        .collect();
-    if arguments.is_empty() {
-        return;
-    }
-
-    // Pending arguments also hide behind member access: a field declared with
-    // a pending argument makes its whole data carrier pending, and a field
-    // typed by a pending carrier reaches the same provisional leaf through
-    // `outer.inner`. Fold carrier names transitively so a `self.value` read
-    // detaches the same way a pending parameter, local, or return does.
-    let mut pending_data: Vec<String> = Vec::new();
-    loop {
-        let mut discovered = false;
-        for item in probe.root_items() {
-            let Item::Data(definition) = item else {
-                continue;
-            };
-            if pending_data
-                .iter()
-                .any(|name| name == definition.name.as_str())
-            {
-                continue;
-            }
-            let is_pending = probe
-                .items
-                .data_members(definition.members)
-                .iter()
-                .any(|member| {
-                    let syntax_trees::item::DataMember::Field(field) = member else {
-                        return false;
-                    };
-                    type_reference_is_pending(
-                        probe,
-                        field.type_reference,
-                        &arguments,
-                        &pending_data,
-                    )
-                });
-            if is_pending {
-                pending_data.push(definition.name.as_str().to_owned());
-                discovered = true;
-            }
-        }
-        if !discovered {
-            break;
-        }
-    }
-
-    // A state can reach a pending-typed value without declaring one in its own
-    // signature: through a field of the data its machine attaches to, or
-    // through a call to a machine whose signature still carries a pending
-    // argument. A detached machine keeps its name but loses its body, so
-    // callers observing its result see probe artifacts rather than authored
-    // semantics; detach those callers too and iterate to a fixpoint.
-    let mut pending_machines: Vec<String> = Vec::new();
-    let mut detached_states: Vec<syntax_trees::item::StateHandle> = Vec::new();
-    loop {
-        let mut changed = false;
-        let machines: Vec<(
-            Identifier,
-            Option<Identifier>,
-            Vec<syntax_trees::item::StateHandle>,
-        )> = probe
-            .root_items()
-            .filter_map(|item| match item {
-                Item::Machine(machine) => Some((
-                    machine.name.clone(),
-                    machine.attached_data.clone(),
-                    probe.items.state_handles(machine.states).to_vec(),
-                )),
-                _ => None,
-            })
-            .collect();
-        for (name, attached_data, state_handles) in machines {
-            if pending_machines
-                .iter()
-                .any(|pending| pending == name.as_str())
-            {
-                continue;
-            }
-            let owner_pending = attached_data
-                .map(|owner| pending_data.iter().any(|pending| pending == owner.as_str()))
-                .unwrap_or(false);
-            for state_handle in state_handles.iter().copied() {
-                if detached_states.contains(&state_handle) {
-                    continue;
-                }
-                let (parameters, return_type, statements) = {
-                    let state = probe.items.state(state_handle);
-                    (state.parameters, state.return_type, state.statements)
-                };
-                let has_pending_parameter =
-                    probe
-                        .items
-                        .state_parameters(parameters)
-                        .iter()
-                        .any(|parameter| {
-                            type_reference_is_pending(
-                                probe,
-                                probe.items.state_parameter(*parameter).type_reference,
-                                &arguments,
-                                &pending_data,
-                            )
-                        });
-                let has_pending_local =
-                    probe.items.statements(statements).iter().any(|statement| {
-                        let StatementNode::LocalData(local) =
-                            probe.statements.statement(*statement)
-                        else {
-                            return false;
-                        };
-                        type_reference_is_pending(
-                            probe,
-                            local.type_reference,
-                            &arguments,
-                            &pending_data,
-                        )
-                    });
-                let reaches_pending_machine =
-                    probe.items.statements(statements).iter().any(|statement| {
-                        statement_reaches_pending_machine(
-                            probe,
-                            *statement,
-                            &arguments,
-                            &pending_data,
-                            &pending_machines,
-                        )
-                    });
-                if owner_pending
-                    || has_pending_parameter
-                    || has_pending_local
-                    || type_reference_is_pending(probe, return_type, &arguments, &pending_data)
-                    || reaches_pending_machine
-                {
-                    let state = probe.items.state_mut(state_handle);
-                    state.return_type = TypeReferenceHandle::invalid();
-                    state.statements = HandleSpan::empty();
-                    detached_states.push(state_handle);
-                    changed = true;
-                }
-            }
-            if !state_handles.is_empty()
-                && state_handles
-                    .iter()
-                    .all(|handle| detached_states.contains(handle))
-            {
-                pending_machines.push(name.as_str().to_owned());
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-}
-
-/// Whether a type reference's subtree contains one of the given const
-/// argument nodes or names a data definition carrying one, walking the same
-/// shapes position collection walks.
-fn type_reference_is_pending(
-    syntax: &SyntaxTrees,
-    type_reference: TypeReferenceHandle,
-    arguments: &[TypeReferenceHandle],
-    pending_data: &[String],
-) -> bool {
-    if arguments.contains(&type_reference) {
-        return true;
-    }
-    match syntax.type_references.type_reference(type_reference) {
-        TypeReferenceNode::Named(name) => {
-            pending_data.iter().any(|pending| pending == name.as_str())
-        }
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_pending(syntax, *referee, arguments, pending_data)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            if type_reference_is_pending(syntax, *base_type, arguments, pending_data) {
-                return true;
-            }
-            syntax
-                .type_references
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| {
-                    let TypeConstraintNode::Domain(domain) = constraint else {
-                        return false;
-                    };
-                    syntax
-                        .type_references
-                        .type_reference_handles(domain.arguments)
-                        .iter()
-                        .any(|argument| {
-                            type_reference_is_pending(syntax, *argument, arguments, pending_data)
-                        })
-                })
-        }
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            type_reference_is_pending(syntax, *element_type, arguments, pending_data)
-        }
-        TypeReferenceNode::Generic {
-            base_name,
-            arguments: generic_arguments,
-            ..
-        } => {
-            pending_data
-                .iter()
-                .any(|pending| pending == base_name.as_str())
-                || syntax
-                    .type_references
-                    .type_reference_handles(*generic_arguments)
-                    .iter()
-                    .any(|argument| {
-                        type_reference_is_pending(syntax, *argument, arguments, pending_data)
-                    })
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::SelfType
-        | TypeReferenceNode::Unit => false,
-    }
-}
-
-/// Whether a statement observes a pending-typed value: a call into a machine
-/// whose body the probe removed, a pending-typed static operand, or any nested
-/// expression doing either.
-fn statement_reaches_pending_machine(
-    syntax: &SyntaxTrees,
-    statement: syntax_trees::statement::StatementHandle,
-    arguments: &[TypeReferenceHandle],
-    pending_data: &[String],
-    pending_machines: &[String],
-) -> bool {
-    let expression_reaches = |expression: ExpressionHandle| {
-        expression_reaches_pending_machine(
-            syntax,
-            expression,
-            arguments,
-            pending_data,
-            pending_machines,
-        )
-    };
-    match syntax.statements.statement(statement) {
-        StatementNode::Assignment(assignment) => {
-            expression_reaches(assignment.target) || expression_reaches(assignment.value)
-        }
-        StatementNode::Call(call) => {
-            pending_machines
-                .iter()
-                .any(|pending| pending == call.target.as_str())
-                || call.machine_arguments.iter().any(|argument| {
-                    static_machine_argument_is_pending(syntax, argument, arguments, pending_data)
-                })
-                || syntax
-                    .expressions
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_reaches(*argument))
-        }
-        StatementNode::ProofOutputBindingStatement(proof_output) => {
-            expression_reaches(proof_output.call)
-        }
-        StatementNode::AssemblyFact(fact) => expression_reaches(fact.expression),
-        StatementNode::Expression(expression) => expression_reaches(*expression),
-        StatementNode::LocalData(local) => expression_reaches(local.initial_value),
-        StatementNode::RootBinding(binding) => {
-            expression_reaches(binding.receiver)
-                || (binding.implementation_operand.is_valid()
-                    && expression_reaches(binding.implementation_operand))
-        }
-        StatementNode::Transition(_) => false,
-    }
-}
-
-/// Whether an expression subtree invokes a detached machine or names a
-/// pending-typed static operand, walking every value-bearing variant.
-fn expression_reaches_pending_machine(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    arguments: &[TypeReferenceHandle],
-    pending_data: &[String],
-    pending_machines: &[String],
-) -> bool {
-    match syntax.expressions.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            expression_reaches_pending_machine(
-                syntax,
-                atomic.value,
-                arguments,
-                pending_data,
-                pending_machines,
-            ) || (atomic.result.is_valid()
-                && expression_reaches_pending_machine(
-                    syntax,
-                    atomic.result,
-                    arguments,
-                    pending_data,
-                    pending_machines,
-                ))
-        }
-        ExpressionNode::ArrayLiteral(elements) => syntax
-            .expressions
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| {
-                expression_reaches_pending_machine(
-                    syntax,
-                    *element,
-                    arguments,
-                    pending_data,
-                    pending_machines,
-                )
-            }),
-        ExpressionNode::Binary(binary) => {
-            expression_reaches_pending_machine(
-                syntax,
-                binary.left,
-                arguments,
-                pending_data,
-                pending_machines,
-            ) || expression_reaches_pending_machine(
-                syntax,
-                binary.right,
-                arguments,
-                pending_data,
-                pending_machines,
-            )
-        }
-        ExpressionNode::Borrow(borrow) => expression_reaches_pending_machine(
-            syntax,
-            borrow.target,
-            arguments,
-            pending_data,
-            pending_machines,
-        ),
-        ExpressionNode::Call(call) => {
-            pending_machines
-                .iter()
-                .any(|pending| pending == call.target.as_str())
-                || call.machine_arguments.iter().any(|argument| {
-                    static_machine_argument_is_pending(syntax, argument, arguments, pending_data)
-                })
-                || (call.receiver.is_valid()
-                    && expression_reaches_pending_machine(
-                        syntax,
-                        call.receiver,
-                        arguments,
-                        pending_data,
-                        pending_machines,
-                    ))
-                || syntax
-                    .expressions
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| {
-                        expression_reaches_pending_machine(
-                            syntax,
-                            *argument,
-                            arguments,
-                            pending_data,
-                            pending_machines,
-                        )
-                    })
-        }
-        ExpressionNode::Cast(cast) => {
-            type_reference_is_pending(syntax, cast.target_type, arguments, pending_data)
-                || expression_reaches_pending_machine(
-                    syntax,
-                    cast.value,
-                    arguments,
-                    pending_data,
-                    pending_machines,
-                )
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_reaches_pending_machine(
-                syntax,
-                indexed.collection,
-                arguments,
-                pending_data,
-                pending_machines,
-            ) || expression_reaches_pending_machine(
-                syntax,
-                indexed.index,
-                arguments,
-                pending_data,
-                pending_machines,
-            )
-        }
-        ExpressionNode::Match(dispatch) => {
-            expression_reaches_pending_machine(
-                syntax,
-                dispatch.subject,
-                arguments,
-                pending_data,
-                pending_machines,
-            ) || syntax
-                .expressions
-                .match_arms(dispatch.arms)
-                .iter()
-                .any(|arm| {
-                    (matches!(arm.pattern, syntax_trees::expression::MatchPattern::Value(pattern)
-                    if expression_reaches_pending_machine(
-                        syntax,
-                        pattern,
-                        arguments,
-                        pending_data,
-                        pending_machines,
-                    ))) || expression_reaches_pending_machine(
-                        syntax,
-                        arm.value,
-                        arguments,
-                        pending_data,
-                        pending_machines,
-                    )
-                })
-        }
-        ExpressionNode::Member(member) => expression_reaches_pending_machine(
-            syntax,
-            member.receiver,
-            arguments,
-            pending_data,
-            pending_machines,
-        ),
-        ExpressionNode::Membership(membership) => expression_reaches_pending_machine(
-            syntax,
-            membership.value,
-            arguments,
-            pending_data,
-            pending_machines,
-        ),
-        ExpressionNode::Range(range) => {
-            expression_reaches_pending_machine(
-                syntax,
-                range.start,
-                arguments,
-                pending_data,
-                pending_machines,
-            ) || expression_reaches_pending_machine(
-                syntax,
-                range.end,
-                arguments,
-                pending_data,
-                pending_machines,
-            )
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            pending_data
-                .iter()
-                .any(|pending| pending == literal.constructor_name.as_str())
-                || syntax
-                    .expressions
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .any(|field| {
-                        expression_reaches_pending_machine(
-                            syntax,
-                            field.value,
-                            arguments,
-                            pending_data,
-                            pending_machines,
-                        )
-                    })
-        }
-        ExpressionNode::TypeExpression(type_reference)
-        | ExpressionNode::ZeroValue(type_reference) => {
-            type_reference_is_pending(syntax, *type_reference, arguments, pending_data)
-        }
-        ExpressionNode::Unary(unary) => expression_reaches_pending_machine(
-            syntax,
-            unary.operand,
-            arguments,
-            pending_data,
-            pending_machines,
-        ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::SelfValue
-        | ExpressionNode::String(_) => false,
-    }
-}
-
-/// Whether a static call argument still carries a pending const argument or a
-/// pending data name, including nested symbol applications.
-fn static_machine_argument_is_pending(
-    syntax: &SyntaxTrees,
-    argument: &syntax_trees::expression::StaticMachineArgument,
-    arguments: &[TypeReferenceHandle],
-    pending_data: &[String],
-) -> bool {
-    if argument.type_reference.is_valid()
-        && type_reference_is_pending(syntax, argument.type_reference, arguments, pending_data)
-    {
-        return true;
-    }
-    argument
-        .application
-        .as_ref()
-        .map(|application| {
-            application.arguments.iter().any(|nested| {
-                static_machine_argument_is_pending(syntax, nested, arguments, pending_data)
-            })
-        })
-        .unwrap_or(false)
+    Ok((syntax, progress))
 }
 
 /// Every authored call leaf inside declared range endpoints of generic

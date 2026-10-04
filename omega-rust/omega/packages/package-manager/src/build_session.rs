@@ -1,4 +1,18 @@
-use super::CompileResolvedPackageReviewsError;
+//! Private staging and aggregate Build resource grants shared by compile and review.
+
+mod accounting;
+mod component_publication;
+pub(crate) use component_publication::publish_checked_component;
+mod inputs;
+mod order;
+mod preparation;
+pub(crate) use accounting::verify_build_session_accounting;
+pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
+pub(crate) use order::{dependency_first_package_order, package_build_root};
+pub use preparation::PackageSourcePreparation;
+pub(crate) use preparation::PreparedPackageSource;
+
+use crate::review::CompileResolvedPackageReviewsError;
 use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
 };
@@ -7,43 +21,43 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-static REVIEW_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// Deterministic evaluator work granted to one complete package-review
+/// Deterministic evaluator work granted to one complete package
 /// closure. The sibling limits below bound retained compiler resources; none
 /// claims to bound CPU time or process memory.
-const PACKAGE_REVIEW_BUILD_FUEL_CEILING: u64 = 100_000_000;
+const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
 /// Aggregate compiler-owned BuildLog bytes across initial evaluation and
 /// replay for the complete package closure.
-const PACKAGE_REVIEW_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
+const PACKAGE_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
 /// Aggregate canonical filesystem operation attempts across initial evaluation
 /// and replay for the complete package closure.
-const PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
+const PACKAGE_FILESYSTEM_ATTEMPT_CEILING: u64 = 65_536;
 /// Compiler-owned filesystem resources live concurrently across the package
 /// closure. This does not count unrelated host-process descriptors.
-const PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
+const PACKAGE_LIVE_FILESYSTEM_HANDLE_CEILING: u64 = 4_096;
 /// Interpreter semantic storage-cell allocations live concurrently across the
 /// package closure. This is a cell count, not a memory-byte claim.
-const PACKAGE_REVIEW_LIVE_CELL_CEILING: u64 = 1_048_576;
+const PACKAGE_LIVE_CELL_CEILING: u64 = 1_048_576;
 /// Logical bytes held by concurrently live interpreter Text backing buffers.
 /// This is not Vec capacity, allocator overhead, or a process-memory ceiling.
-const PACKAGE_REVIEW_LIVE_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
+const PACKAGE_LIVE_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 /// Aggregate recursive value cells returned by successful initial and replay
 /// evaluations across the closure.
-const PACKAGE_REVIEW_RESULT_CELL_CEILING: u64 = 1_048_576;
+const PACKAGE_RESULT_CELL_CEILING: u64 = 1_048_576;
 /// Aggregate Text payload bytes retained by successful build results.
-const PACKAGE_REVIEW_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
+const PACKAGE_RESULT_TEXT_BYTE_CEILING: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug)]
-pub(super) struct ReviewBuildSession {
+pub(crate) struct PackageBuildSession {
     root: PathBuf,
     filesystem_sponsor: FilesystemSponsor,
     evaluation_sponsor: BuildEvaluationSponsor,
     active: bool,
 }
 
-impl ReviewBuildSession {
-    pub(super) fn create(
+impl PackageBuildSession {
+    pub(crate) fn create(
         build_workspace: &Path,
     ) -> Result<Self, CompileResolvedPackageReviewsError> {
         fs::create_dir_all(build_workspace).map_err(|error| {
@@ -60,9 +74,9 @@ impl ReviewBuildSession {
         })?;
 
         for _ in 0..128 {
-            let sequence = REVIEW_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let sequence = PACKAGE_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let root = canonical_workspace.join(format!(
-                ".omega-package-evidence-{}-{sequence}",
+                ".omega-package-build-{}-{sequence}",
                 std::process::id()
             ));
             match FilesystemSponsor::create_private(&root) {
@@ -74,16 +88,16 @@ impl ReviewBuildSession {
                         }
                     })?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
-                        PACKAGE_REVIEW_BUILD_FUEL_CEILING,
-                        PACKAGE_REVIEW_BUILD_LOG_CEILING,
-                        PACKAGE_REVIEW_FILESYSTEM_ATTEMPT_CEILING,
-                        PACKAGE_REVIEW_LIVE_FILESYSTEM_HANDLE_CEILING,
-                        PACKAGE_REVIEW_LIVE_CELL_CEILING,
-                        PACKAGE_REVIEW_LIVE_TEXT_BYTE_CEILING,
-                        PACKAGE_REVIEW_RESULT_CELL_CEILING,
-                        PACKAGE_REVIEW_RESULT_TEXT_BYTE_CEILING,
+                        PACKAGE_BUILD_FUEL_CEILING,
+                        PACKAGE_BUILD_LOG_CEILING,
+                        PACKAGE_FILESYSTEM_ATTEMPT_CEILING,
+                        PACKAGE_LIVE_FILESYSTEM_HANDLE_CEILING,
+                        PACKAGE_LIVE_CELL_CEILING,
+                        PACKAGE_LIVE_TEXT_BYTE_CEILING,
+                        PACKAGE_RESULT_CELL_CEILING,
+                        PACKAGE_RESULT_TEXT_BYTE_CEILING,
                     )
-                    .expect("package-review build ceilings are nonzero");
+                    .expect("package build ceilings are nonzero");
                     return Ok(Self {
                         root: canonical_root,
                         filesystem_sponsor,
@@ -105,24 +119,24 @@ impl ReviewBuildSession {
             path: canonical_workspace,
             error: io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                "could not reserve a unique package-review build session after 128 attempts",
+                "could not reserve a unique package build session after 128 attempts",
             ),
         })
     }
 
-    pub(super) fn root(&self) -> &Path {
+    pub(crate) fn root(&self) -> &Path {
         &self.root
     }
 
-    pub(super) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
+    pub(crate) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
         &self.filesystem_sponsor
     }
 
-    pub(super) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
+    pub(crate) fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
         &self.evaluation_sponsor
     }
 
-    pub(super) fn dispose<T>(
+    pub(crate) fn dispose<T>(
         mut self,
         result: Result<T, CompileResolvedPackageReviewsError>,
     ) -> Result<T, CompileResolvedPackageReviewsError> {
@@ -140,7 +154,7 @@ impl ReviewBuildSession {
     }
 }
 
-impl Drop for ReviewBuildSession {
+impl Drop for PackageBuildSession {
     fn drop(&mut self) {
         if self.active {
             let _ = self.filesystem_sponsor.dispose_private_staging();

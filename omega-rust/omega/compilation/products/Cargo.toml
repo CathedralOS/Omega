@@ -19,6 +19,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }

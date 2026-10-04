@@ -12,6 +12,9 @@
 //! `compilation_products` owner; this crate only sequences their production.
 
 mod compiler;
+mod identity;
+
+pub use identity::compiler_identity;
 
 pub mod checked;
 pub mod native;
@@ -20,9 +23,11 @@ pub mod terminal;
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PreparedCheckedSource, RestrictedBuildGrants, checked_compilation_call_count, compile_checked,
+    PackageBuildOutcome, PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants,
+    check_prepared_package_build, checked_compilation_call_count, compile_checked,
     compile_checked_reusing_builds, compile_to_checked, preliminary_check_totals,
-    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
+    prepare_package_build, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use crate::native::realize_retained_native_artifact;
 pub use build_evaluation::BuildSnapshotRequest;

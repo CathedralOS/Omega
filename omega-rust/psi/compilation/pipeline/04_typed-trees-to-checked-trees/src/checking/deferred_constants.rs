@@ -4,14 +4,26 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::types::FixedArrayLength;
+use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 pub(super) fn require_evaluated_constants(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let pending_lengths = program
-        .type_reference_table
-        .fixed_array_lengths()
-        .filter_map(|(_, length)| {
-            let FixedArrayLength::ConstCall { name, source_span } = length else {
+    // A declaration projection preserves backing handles for its frozen
+    // descriptors. Only the live judgment's roots own constant obligations;
+    // detached Product types must not turn a settled Build into a whole-package
+    // evaluation demand. Live unresolved calls still reject without exception.
+    let references = typed_trees::references::collect_program_references(program);
+    let pending_lengths = references
+        .type_references
+        .iter()
+        .filter_map(|reference| {
+            let TypeReferenceNode::FixedArray {
+                length:
+                    FixedArrayLength::ConstCall {
+                        name, source_span, ..
+                    },
+                ..
+            } = program.type_reference_table.type_reference(*reference)
+            else {
                 return None;
             };
             Some(
@@ -32,6 +44,7 @@ pub(super) fn require_evaluated_constants(program: &TypedTrees) -> Result<(), Ve
     let pending_endpoints = program
         .pending_const_range_endpoints
         .iter()
+        .filter(|expression| references.expressions.contains(expression))
         .map(|expression| {
             Diagnostic::error("range endpoint has an unresolved build-time evaluation dependency")
                 .with_source_span(program.expression_table.source_span(*expression))

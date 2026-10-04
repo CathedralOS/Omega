@@ -83,6 +83,16 @@ fn paths(
 pub(super) struct Roots(Vec<(Owner, TypeReferenceHandle)>);
 
 pub(super) fn roots(program: &TypedTrees) -> Roots {
+    roots_in(
+        program,
+        &typed_trees::references::DeclarationSelection::all(),
+    )
+}
+
+pub(super) fn roots_in(
+    program: &TypedTrees,
+    domain: &typed_trees::references::DeclarationSelection,
+) -> Roots {
     let mut roots = Vec::new();
     let mut declaration = |parent, symbol, reference| {
         roots.push((
@@ -94,6 +104,9 @@ pub(super) fn roots(program: &TypedTrees) -> Roots {
         ));
     };
     for data in program.data_definitions() {
+        if !domain.contains(data.symbol) {
+            continue;
+        }
         for member in program.data_members(data) {
             let (parent, fields) = match member {
                 DataMember::Field(field) => (data.symbol, std::slice::from_ref(field)),
@@ -107,6 +120,9 @@ pub(super) fn roots(program: &TypedTrees) -> Roots {
         }
     }
     for machine in program.machines() {
+        if !domain.contains(machine.symbol) {
+            continue;
+        }
         for data in program.machine_owned_data(machine) {
             declaration(machine.symbol, data.symbol, data.type_reference);
         }
@@ -122,8 +138,11 @@ pub(super) fn roots(program: &TypedTrees) -> Roots {
             }
         }
     }
-    for domain in program.domain_definitions() {
-        declaration(domain.symbol, domain.symbol, domain.target_type);
+    for definition in program.domain_definitions() {
+        if !domain.contains(definition.symbol) {
+            continue;
+        }
+        declaration(definition.symbol, definition.symbol, definition.target_type);
     }
     for operator in program.operators().iter().chain(
         program
@@ -131,12 +150,18 @@ pub(super) fn roots(program: &TypedTrees) -> Roots {
             .iter()
             .flat_map(|domain| program.domain_operators(domain)),
     ) {
+        if !domain.contains(operator.symbol) {
+            continue;
+        }
         declaration(operator.symbol, operator.symbol, operator.return_type);
         for parameter in program.operator_parameters(operator) {
             declaration(operator.symbol, parameter.symbol, parameter.type_reference);
         }
     }
     for trait_definition in program.traits() {
+        if !domain.contains(trait_definition.symbol) {
+            continue;
+        }
         for signature in program.trait_machine_signatures(trait_definition) {
             declaration(
                 trait_definition.symbol,
@@ -148,8 +173,12 @@ pub(super) fn roots(program: &TypedTrees) -> Roots {
             }
         }
     }
+    let references = typed_trees::references::collect_selected_program_references(program, domain);
     let values = typed_trees_to_checked_trees::derive_pre_flow_value_origins(program);
     for (_, value) in values.values.iter() {
+        if !references.expressions.contains(&value.expression) {
+            continue;
+        }
         if let ExpressionNode::Cast(cast) = program.expression_table.expression(value.expression) {
             let root = (
                 Owner::Cast {

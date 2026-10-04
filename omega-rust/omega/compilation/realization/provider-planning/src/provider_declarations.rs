@@ -153,7 +153,13 @@ pub fn collect_executed_provider_selections(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    collect_provider_selections(context, requests)
+    collect_provider_selections(
+        ProviderPlanningContext::new(
+            typed.product_declarations(),
+            source::DependencyScope::Product,
+        ),
+        requests,
+    )
 }
 
 fn provider_selection_expression_source_span(

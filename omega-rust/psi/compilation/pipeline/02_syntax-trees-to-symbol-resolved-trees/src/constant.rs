@@ -138,9 +138,11 @@ pub fn requires_const_initializer_evaluation(
     false
 }
 
-/// Finalize constant declarations, argument selections, initializer
-/// normalization, substitution, and use-site selections, in that order. The
-/// constant-expression symbol and selection passes run inside because they
+/// Finalize argument selections, initializer normalization, substitution, and
+/// use-site selections after resolution has joined constant declarations. The
+/// declaration join precedes receipt helper demand and must not repeat here:
+/// it also records the declaration's selected carrier and visibility custody.
+/// Constant-expression symbol and selection passes run inside because they
 /// consume only these pending values. A seeded lowerer first renumbers its
 /// pending selections after the base's declarations.
 pub(crate) fn finalize(
@@ -159,8 +161,6 @@ pub(crate) fn finalize(
         }
     }
     let program = &mut lowerer.symbol_resolved_trees;
-    finalize_const_declarations(program, &lowerer.pending_const_declarations)
-        .map_err(|diagnostic| vec![diagnostic])?;
     finalize_const_argument_selections(
         program,
         &lowerer.pending_const_argument_selections,

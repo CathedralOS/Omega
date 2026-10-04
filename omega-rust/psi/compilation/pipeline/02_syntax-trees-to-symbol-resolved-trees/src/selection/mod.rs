@@ -46,7 +46,8 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
 /// Settle every remaining selection once the ledger exists: signature-free
 /// compatibility, machine-parameter requirements, evidence forwardings,
 /// closed conformance rows and their reference selections, establishment
-/// routes, service reaches, and inline member routing over rebuilt tables.
+/// routes and service reaches. Resolution then normalizes the selected table
+/// work and routes inline member calls over those tables.
 pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let compatibility =
         signature_free_requirements::validate_signature_free_requirement_compatibility(
@@ -89,7 +90,5 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
         ),
     }
     .map_err(|diagnostic| vec![diagnostic])?;
-    lowerer.symbol_resolved_trees.rebuild_tables();
-    conformance_blocks::route_inline_member_calls(&mut lowerer.symbol_resolved_trees);
     Ok(())
 }

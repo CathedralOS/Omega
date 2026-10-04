@@ -5,6 +5,88 @@
 //! remain with the Omega coordinator between these two stages.
 
 use std::sync::Arc;
+use typed_trees::references::DeclarationSelection;
+
+/// Work ownership is narrower than executable lookup. Product work excludes
+/// completed Build jobs but still needs shared toolchain declarations. Build
+/// execution instead keeps exactly its admitted roster: a Product descriptor
+/// operand must never promote a Product implementation into callable context.
+#[derive(Clone)]
+pub(crate) struct EvaluationDomain {
+    work: DeclarationSelection,
+    execution: DeclarationSelection,
+    product_frontier: Option<Arc<typed_trees::TypedTrees>>,
+}
+
+impl EvaluationDomain {
+    pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
+        Self {
+            work,
+            execution,
+            product_frontier: None,
+        }
+    }
+
+    pub(crate) fn all() -> Self {
+        Self {
+            work: DeclarationSelection::all(),
+            execution: DeclarationSelection::all(),
+            product_frontier: None,
+        }
+    }
+
+    pub(crate) fn contains(&self, symbol: symbols::SymbolHandle) -> bool {
+        self.work.contains(symbol)
+    }
+
+    /// Pending layout records precede typed layout installation. Resolve their
+    /// producing declaration uniquely before using its work ownership; a name
+    /// alone is not permission to execute another policy.
+    pub(crate) fn contains_data(
+        &self,
+        program: &typed_trees::TypedTrees,
+        name: &str,
+    ) -> Result<bool, Vec<diagnostics::Diagnostic>> {
+        let mut declarations = program
+            .data_definitions()
+            .iter()
+            .filter(|declaration| declaration.name.as_str() == name);
+        let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
+            return Err(vec![diagnostics::Diagnostic::error(format!(
+                "pre-check record `{name}` lost its unique producing data declaration",
+            ))]);
+        };
+        Ok(self.contains(declaration.symbol))
+    }
+
+    pub(crate) fn work(&self) -> &DeclarationSelection {
+        &self.work
+    }
+
+    pub(crate) fn execution_program(
+        &self,
+        original: &typed_trees::TypedTrees,
+    ) -> typed_trees::TypedTrees {
+        let mut program =
+            typed_trees_to_checked_trees::project_selected_program(original, &self.execution);
+        if let Some(frontier) = &self.product_frontier {
+            program.product_declaration_frontier = Some(frontier.clone());
+        }
+        program
+    }
+
+    pub(crate) fn references(
+        &self,
+        program: &typed_trees::TypedTrees,
+    ) -> typed_trees::references::ProgramReferences {
+        typed_trees::references::collect_selected_program_references(program, &self.work)
+    }
+
+    pub(crate) fn include(&mut self, symbol: symbols::SymbolHandle) {
+        self.work.include(symbol);
+        self.execution.include(symbol);
+    }
+}
 
 use crate::{
     BuildTimeSelectionAuthority, FoldedArrayLength, PlacedViewRecord, PlanLaidRecord,
@@ -105,6 +187,7 @@ pub fn evaluate_pre_resolution(
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
+            domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
             placed_view_records,
             plan_laid_records,
@@ -199,6 +282,9 @@ impl PreResolutionEvaluation {
 #[derive(Clone)]
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
+    /// Work roots, never an arena copy: folded types, evidence and fresh
+    /// instances publish in the canonical frontend's original storage.
+    domain: EvaluationDomain,
     wire_schema_frontier: usize,
     placed_view_records: Vec<PlacedViewRecord>,
     plan_laid_records: Vec<PlanLaidRecord>,
@@ -211,29 +297,115 @@ pub struct PreCheckEvaluation {
 }
 
 impl PreCheckEvaluation {
+    /// Retain the work owned by a declaration projection of this typed program.
+    ///
+    /// Syntax elaboration records precede symbol assignment. Join their generated
+    /// names to the original declarations once, then select by exact symbol in
+    /// the projected roster. Absence from the projection is legitimate; absence
+    /// or ambiguity in the producing program is lost custody, never skipped work.
+    /// The original continuation remains available for the completed Product.
+    pub fn project(
+        &self,
+        original: &typed_trees::TypedTrees,
+        projection: &typed_trees::TypedTrees,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let selected = DeclarationSelection::from_program(projection);
+        self.select(
+            original,
+            EvaluationDomain {
+                work: self.domain.work.intersect(&selected),
+                execution: self.domain.execution.intersect(&selected),
+                product_frontier: projection.product_declaration_frontier.clone(),
+            },
+        )
+    }
+
+    /// Retain Product work after a Build projection completed successfully.
+    /// Call only after its independent checking and fold replay succeeded.
+    /// Newly synthesized Build declarations must be present in the completed
+    /// projection, so subtraction carries their exact identities too.
+    pub fn exclude_projection(
+        &self,
+        original: &typed_trees::TypedTrees,
+        completed_projection: &typed_trees::TypedTrees,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        self.select(
+            original,
+            EvaluationDomain {
+                work: self
+                    .domain
+                    .work
+                    .excluding(&DeclarationSelection::from_program(completed_projection)),
+                execution: self.domain.execution.clone(),
+                product_frontier: self.domain.product_frontier.clone(),
+            },
+        )
+    }
+
+    fn select(
+        &self,
+        original: &typed_trees::TypedTrees,
+        domain: EvaluationDomain,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut plan_laid_records = Vec::new();
+        for record in &self.plan_laid_records {
+            if domain.contains_data(original, &record.synthetic_name)? {
+                plan_laid_records.push(record.clone());
+            }
+        }
+        let mut placed_view_records = Vec::new();
+        for record in &self.placed_view_records {
+            if domain.contains_data(original, &record.synthetic_name)? {
+                placed_view_records.push(record.clone());
+            }
+        }
+        // Evaluation mutates the canonical roster, so the checkpoint remains
+        // in canonical coordinates. The root selection independently limits it.
+        original
+            .wire_schemas()
+            .get(..self.wire_schema_frontier)
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "pre-check wire frontier exceeds its producing declarations",
+                )]
+            })?;
+        Ok(Self {
+            domain,
+            wire_schema_frontier: self.wire_schema_frontier,
+            placed_view_records,
+            plan_laid_records,
+            selection_authority: self.selection_authority.clone(),
+            selected_operators: self.selected_operators.clone(),
+            provider_bodies: self.provider_bodies.clone(),
+        })
+    }
+
     /// Keep value-dependent work together until exact boundary execution is
     /// selected. Independent ordinary build inputs retain their early route.
     pub fn evaluate_or_defer(
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(typed, self.selection_authority.clone())?
-            || range_endpoints::pending_endpoint_calls_need_operator_selection(
-                typed,
-                self.selection_authority.clone(),
-            )?
-            || const_domain_facts::pending_memberships_need_operator_selection(
-                typed,
-                self.selection_authority.clone(),
-            )?
-            || const_applications::pending_const_applications_need_operator_selection(
-                typed,
-                self.selection_authority.clone(),
-            )?
-        {
-            range_endpoints::defer_pending_endpoint_calls(typed)?;
-            const_applications::defer_pending_const_applications(typed)?;
-            validation::resolve_dynamic_call_targets(typed)?;
+        if const_lengths::evaluate_independent_lengths(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )? || const_domain_facts::pending_memberships_need_operator_selection(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )? || const_applications::pending_const_applications_need_operator_selection(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )? {
+            range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
+            const_applications::defer_pending_const_applications(typed, &self.domain)?;
+            validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
             return Ok(Some(self));
         }
         self.evaluate(typed)?;
@@ -284,6 +456,7 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
             selected,
+            &self.domain,
         )?;
         self.selected_operators = selected.operators.to_vec();
         self.provider_bodies = selected.provider_bodies.to_vec();
@@ -297,10 +470,14 @@ impl PreCheckEvaluation {
     /// but the language-level evaluation order and selection authority remain
     /// owned by this continuation.
     pub fn evaluate(
-        self,
+        mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        const_lengths::evaluate_const_array_lengths(typed, self.selection_authority.clone())?;
+        const_lengths::evaluate_const_array_lengths_in(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )?;
         range_endpoints::evaluate_selected_range_endpoints(
             typed,
             self.selection_authority.clone(),
@@ -308,6 +485,7 @@ impl PreCheckEvaluation {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
             },
+            &self.domain,
         )?;
         const_domain_facts::evaluate_selected_domain_facts(
             typed,
@@ -316,6 +494,7 @@ impl PreCheckEvaluation {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
             },
+            &self.domain,
         )?;
         const_applications::evaluate_selected_const_applications(
             typed,
@@ -324,22 +503,34 @@ impl PreCheckEvaluation {
                 operators: &self.selected_operators,
                 provider_bodies: &self.provider_bodies,
             },
+            &mut self.domain,
         )?;
-        const_initializers::validate_retained_invocations(typed, self.selection_authority.clone())?;
-        plan_laid::compute_plan_laid_layouts(
+        const_initializers::validate_retained_invocations(
+            typed,
+            self.selection_authority.clone(),
+            &self.domain,
+        )?;
+        plan_laid::compute_plan_laid_layouts_in(
             typed,
             &self.plan_laid_records,
             self.selection_authority.clone(),
+            &self.domain,
         )?;
-        placed_views::validate_placed_view_plans(
+        placed_views::validate_placed_view_plans_in(
             typed,
             &self.placed_view_records,
             self.selection_authority.clone(),
+            &self.domain,
         )?;
-        wire_plans::compute_wire_plans(typed, self.selection_authority, self.wire_schema_frontier)?;
+        wire_plans::compute_wire_plans_in(
+            typed,
+            self.selection_authority,
+            self.wire_schema_frontier,
+            &self.domain,
+        )?;
         // Placed-field accessor targets become available with their evaluated
         // plans. Publish the elaborated program with those calls already bound,
         // including for Build execution before the final checked-tree pass.
-        validation::resolve_dynamic_call_targets(typed)
+        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
     }
 }

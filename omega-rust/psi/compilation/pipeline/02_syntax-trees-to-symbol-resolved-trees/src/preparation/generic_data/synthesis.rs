@@ -14,7 +14,7 @@ use crate::preparation::generic_data::uses::{
     relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
 };
 
-use crate::preparation::generic_data::collect_type_reference_positions;
+use super::work_domain::{GenericDataWorkDomain, SynthesisWork};
 use crate::preparation::generic_data::consider_generic_spelling;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
@@ -73,6 +73,23 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     closed_roots: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
+    desugar_generic_data_instances_in(
+        syntax,
+        warnings,
+        selection,
+        GenericDataWorkDomain::All {
+            additional_type_roots: closed_roots,
+        },
+    )
+}
+
+pub(crate) fn desugar_generic_data_instances_in(
+    syntax: &mut SyntaxTrees,
+    warnings: &mut Vec<Diagnostic>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    domain: GenericDataWorkDomain<'_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let work = SynthesisWork::new(syntax, domain);
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
     let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();
@@ -253,11 +270,8 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
     // substitution -- observes the one canonical shape. Generic template
     // members are open positions whose substituted copies reach the fixpoint
     // below, so they are normalized while the template is still authored.
-    let mut domain_head_positions = collect_type_reference_positions(syntax);
-    for &root in closed_roots {
-        super::collect_type_positions(syntax, root, &mut domain_head_positions, true);
-    }
-    for item in syntax.root_items() {
+    let mut domain_head_positions = work.type_positions(syntax, true);
+    for item in syntax.root_items().filter(|_| work.is_all()) {
         let Item::Data(definition) = item else {
             continue;
         };
@@ -294,6 +308,7 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         &const_values,
         selection,
         warnings,
+        &work,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
 
@@ -346,10 +361,23 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         });
     }
     loop {
-        let mut positions = collect_type_reference_positions(syntax);
-        for &root in closed_roots {
-            super::collect_type_positions(syntax, root, &mut positions, false);
+        // Scoped work cannot normalize an authored template in place. Its
+        // substituted declaration descendants acquire the same normal form
+        // here, before this round inspects their closed applications.
+        if !work.is_all() {
+            let domain_positions = work.type_positions(syntax, true);
+            normalize_domain_head_positions(syntax, selection, &domain_positions);
+            canonicalize_closed_domain_indices(
+                syntax,
+                &const_definitions,
+                &const_values,
+                selection,
+                warnings,
+                &work,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
+        let positions = work.type_positions(syntax, false);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
         for position in positions {
@@ -419,13 +447,19 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         }
     }
 
-    relabel_closed_data_uses_in_constants(syntax, &synthesized, selection);
-    relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection);
-    relabel_closed_data_uses_in_exact_calls_and_returns(syntax, &synthesized, selection);
-    relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection);
-    relabel_unique_closed_sum_paths(syntax, &synthesized, selection);
+    let declarations = work.declarations(syntax);
+    relabel_closed_data_uses_in_constants(syntax, &synthesized, selection, &declarations);
+    relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection, &declarations);
+    relabel_closed_data_uses_in_exact_calls_and_returns(
+        syntax,
+        &synthesized,
+        selection,
+        &declarations,
+    );
+    relabel_closed_sum_memberships_from_local_types(syntax, &synthesized, selection, &declarations);
+    relabel_unique_closed_sum_paths(syntax, &synthesized, selection, &declarations);
 
-    normalize_generic_template_const_expressions(syntax, &const_values, warnings)
+    normalize_generic_template_const_expressions(syntax, &const_values, warnings, &declarations)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }

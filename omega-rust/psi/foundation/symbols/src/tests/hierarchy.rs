@@ -5,6 +5,144 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn appended_lexical_children_preserve_declarations_and_iteration_order() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let machine = builder
+        .insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("main"))])
+        .start();
+    let states = builder.insert_children(
+        machine,
+        [
+            (SymbolKind::State, SymbolNameRef::Static("entry")),
+            (SymbolKind::State, SymbolNameRef::Static("later")),
+        ],
+    );
+    let mut states = SymbolTableBuilder::child_handles(states);
+    let entry = states.next().unwrap();
+    let later = states.next().unwrap();
+    let parameters = builder.insert_children(
+        entry,
+        [
+            (SymbolKind::Parameter, SymbolNameRef::Static("first")),
+            (SymbolKind::Parameter, SymbolNameRef::Static("second")),
+        ],
+    );
+    let mut symbols = builder.finish();
+    let original = symbols.clone();
+    let first_locals = symbols.append_children(
+        entry,
+        [
+            (SymbolKind::Local, SymbolNameRef::Static("alpha")),
+            (SymbolKind::Local, SymbolNameRef::Static("beta")),
+        ],
+    );
+    let sibling_local = symbols
+        .append_children(
+            later,
+            [(SymbolKind::Local, SymbolNameRef::Static("sibling"))],
+        )
+        .start();
+    let last_local = symbols
+        .append_children(entry, [(SymbolKind::Local, SymbolNameRef::Static("gamma"))])
+        .start();
+    let continuation = symbols
+        .append_children(
+            machine,
+            [(SymbolKind::State, SymbolNameRef::Static("continuation"))],
+        )
+        .start();
+    let expected = SymbolTableBuilder::child_handles(parameters)
+        .chain(SymbolTableBuilder::child_handles(first_locals))
+        .chain([last_local])
+        .collect::<Vec<_>>();
+    assert_eq!(
+        symbols.child_handles(entry).unwrap().collect::<Vec<_>>(),
+        expected
+    );
+    for (ordinal, child) in expected.iter().copied().enumerate() {
+        assert_eq!(
+            symbols.child_handles(entry).unwrap().nth(ordinal),
+            Some(child)
+        );
+        assert_eq!(symbols.get(child).parent, entry);
+    }
+    let mut exhausted = symbols.child_handles(entry).unwrap();
+    assert_eq!(exhausted.nth(usize::MAX), None);
+    assert_eq!(exhausted.next(), None);
+    let mut mixed = symbols.child_handles(entry).unwrap();
+    assert_eq!(mixed.next(), Some(expected[0]));
+    assert_eq!(mixed.nth(2), Some(expected[3]));
+    assert_eq!(mixed.next(), Some(expected[4]));
+    assert_eq!(mixed.next(), None);
+    assert_eq!(symbols.find_child_by_name(entry, "gamma"), Some(last_local));
+    assert_eq!(symbols.find_child_by_name(entry, "sibling"), None);
+    assert_eq!(
+        symbols.find_child_by_name(later, "sibling"),
+        Some(sibling_local)
+    );
+    assert_eq!(
+        symbols.find_child_by_name(machine, "continuation"),
+        Some(continuation)
+    );
+    for (handle, _) in original.names().iter() {
+        assert_eq!(symbols.names().get(handle), original.names().get(handle));
+    }
+    assert_eq!(
+        symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(original.symbols().nodes().len())
+            .collect::<Vec<_>>(),
+        original.symbols().nodes().iter().collect::<Vec<_>>()
+    );
+    assert_ne!(symbols, original);
+    let before_empty = symbols.clone();
+    assert!(symbols.append_children(entry, []).is_empty());
+    assert_eq!(symbols, before_empty);
+}
+
+#[test]
+fn supplemental_children_join_generated_extensions_and_invalidate_root_lookup() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let machine = builder
+        .insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("main"))])
+        .start();
+    let mut symbols = builder.finish();
+    assert_eq!(symbols.root_children_named("generated").count(), 0);
+    let local = symbols
+        .append_children(
+            machine,
+            [(SymbolKind::Local, SymbolNameRef::Static("local"))],
+        )
+        .start();
+    let before = symbols.clone();
+    let mut extension = symbols.begin_extension(None, Vec::new());
+    let generated =
+        extension.insert_top_level([(SymbolKind::Machine, SymbolNameRef::Static("generated"))])[0];
+    let synthetic = extension
+        .append_children(
+            machine,
+            [(SymbolKind::State, SymbolNameRef::Static("synthetic"))],
+        )
+        .start();
+    let symbols = extension.finish();
+    assert_eq!(
+        symbols.root_children_named("generated").collect::<Vec<_>>(),
+        [generated]
+    );
+    assert_eq!(
+        symbols.child_handles(machine).unwrap().collect::<Vec<_>>(),
+        [local, synthetic]
+    );
+    assert_eq!(symbols.get(machine), before.get(machine));
+    assert_eq!(symbols.get(local), before.get(local));
+    assert_eq!(symbols.child_handles(root).unwrap().nth(1), Some(generated));
+}
+
+#[test]
 fn authored_extension_appends_without_mutating_base_symbol_identity() {
     let mut sources = SourceMap::default();
     let base_source = sources

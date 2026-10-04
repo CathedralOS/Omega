@@ -1,6 +1,6 @@
 use crate::contracts::invocations::lower_authored_invocations;
 use crate::contracts::proof_facts::lower_proof_facts;
-use crate::declarations::state::lower_state;
+use crate::declarations::state::{complete_state_body, lower_state_declaration};
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::signatures::type_parameters::lower_type_parameters;
@@ -196,6 +196,7 @@ fn lower_machine_contents(
             .as_ref()
             .map(crate::lowerer::name::lower_name),
         body_is_present: machine.body_is_present,
+        body_status: typed::machine::MachineBodyStatus::Deferred,
         structural_type_equations_pending: machine.structural_type_equations_pending,
         // The authored bit and private witness copy here; the final typed
         // normalization attaches subject-bearing schemas and inherited
@@ -221,6 +222,9 @@ fn lower_machine_contents(
         states: arena::HandleSpan::empty(),
     };
 
+    // The public termination interface is declaration data; its private witness
+    // enters only with the implementation.
+    typed_machine.termination_plan.implementation_witness = None;
     typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
 
     if let Some(application) = &machine.attached_data_application {
@@ -239,12 +243,7 @@ fn lower_machine_contents(
                         lowerer,
                         &owned_data.type_reference,
                     )?,
-                    initial_value: owned_data
-                        .initial_value
-                        .is_valid()
-                        .then(|| lower_expression_handle(lowerer, owned_data.initial_value))
-                        .transpose()?
-                        .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
+                    initial_value: typed::expression::ExpressionHandle::invalid(),
                 })
             },
         )?;
@@ -303,12 +302,7 @@ fn lower_machine_contents(
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let via_expression = conformance
-            .via_expression
-            .is_valid()
-            .then(|| lower_expression_handle(lowerer, conformance.via_expression))
-            .transpose()?
-            .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+        let via_expression = typed::expression::ExpressionHandle::invalid();
         lowerer.typed_trees.push_machine_trait_conformance(
             &mut typed_machine,
             typed::machine::TraitConformance {
@@ -371,41 +365,6 @@ fn lower_machine_contents(
             });
     }
 
-    let ranking_subjects = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(machine.ranking_subjects)
-        .iter()
-        .map(|decrease| lower_expression_handle(lowerer, *decrease))
-        .collect::<Result<Vec<_>, _>>()?;
-    let ranking_view_arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(machine.ranking_view_arguments)
-        .iter()
-        .map(|argument| lower_expression_handle(lowerer, *argument))
-        .collect::<Result<Vec<_>, _>>()?;
-    let ranking_range = machine
-        .ranking_range
-        .is_valid()
-        .then(|| lower_expression_handle(lowerer, machine.ranking_range))
-        .transpose()?;
-    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
-    {
-        lowerer.typed_trees.ranking_expression_custody.push(
-            typed::ranking::RankingExpressionCustody {
-                machine: machine.symbol,
-                subjects: ranking_subjects,
-                view_arguments: ranking_view_arguments,
-                rank_range: ranking_range,
-            },
-        );
-    }
-
     let invocation_parameters = lowerer
         .source_trees
         .machine_state_handles(machine.states)
@@ -452,13 +411,15 @@ fn lower_machine_contents(
         .enumerate()
     {
         let state = lowerer.source_trees.machine_state(*state);
-        // The state body's value-typing scope lets `==` lowering find an
-        // operand's data type for structural-equality expansion.
-        lowerer.equality_scope = Some(crate::expressions::equatable::EqualityScope::for_state(
-            lowerer.source_trees,
-            machine,
-            state,
-        ));
+        // Signature equality may use parameter types without inspecting an
+        // implementation that has not been demanded.
+        lowerer.equality_scope = Some(
+            crate::expressions::equatable::EqualityScope::for_state_interface(
+                lowerer.source_trees,
+                machine,
+                state,
+            ),
+        );
         let publishes_entry_signature = machine.is_public
             || matches!(
                 machine.supply_mode,
@@ -471,7 +432,7 @@ fn lower_machine_contents(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
         });
         let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_state(lowerer, machine.attached_data.as_ref(), state)
+            lower_state_declaration(lowerer, state)
         })?;
         lowerer.equality_scope = None;
         lowerer
@@ -489,7 +450,167 @@ fn lower_machine_contents(
     // (unsound) obligation. Params (above) work because their `requires` is checked
     // at CALL sites, which is robust.
 
+    if machine.body_status == resolved::machine::MachineBodyStatus::Complete {
+        complete_machine_body(lowerer, machine, &mut typed_machine)?;
+    }
     Ok(typed_machine)
+}
+
+/// Lower a selected implementation into its retained typed declaration. Eager
+/// lowering and authored completion use this same operation; declaration spans
+/// are never lowered again, and completion alone does not prove the body.
+pub(crate) fn complete_machine_body(
+    lowerer: &mut Lowerer,
+    machine: &resolved::machine::Machine,
+    typed_machine: &mut typed::machine::Machine,
+) -> Result<(), Diagnostic> {
+    let exposure = lowerer.type_reference_exposure.map(|_| {
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    });
+    lowerer.with_type_reference_exposure(exposure, |lowerer| {
+        lower_machine_implementation(lowerer, machine, typed_machine)
+    })
+}
+
+fn lower_machine_implementation(
+    lowerer: &mut Lowerer,
+    machine: &resolved::machine::Machine,
+    typed_machine: &mut typed::machine::Machine,
+) -> Result<(), Diagnostic> {
+    if machine.body_status != resolved::machine::MachineBodyStatus::Complete
+        || typed_machine.body_status != typed::machine::MachineBodyStatus::Deferred
+        || machine.symbol != typed_machine.symbol
+    {
+        return Err(Diagnostic::error(
+            "machine body completion does not match its deferred declaration",
+        ));
+    }
+    let owned = lowerer.source_trees.machine_owned_data(machine.owned_data);
+    if owned.len() != lowerer.typed_trees.machine_owned_data(typed_machine).len() {
+        return Err(Diagnostic::error(
+            "machine body completion changed owned declarations",
+        ));
+    }
+    for (ordinal, source) in owned.iter().enumerate() {
+        let retained = &lowerer.typed_trees.machine_owned_data(typed_machine)[ordinal];
+        if retained.symbol != source.symbol || retained.initial_value.is_valid() {
+            return Err(Diagnostic::error(
+                "machine body completion changed an owned declaration",
+            ));
+        }
+        let initial_value = source
+            .initial_value
+            .is_valid()
+            .then(|| lower_expression_handle(lowerer, source.initial_value))
+            .transpose()?
+            .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+        lowerer
+            .typed_trees
+            .machine_owned_data
+            .span_mut_or_empty(typed_machine.owned_data)[ordinal]
+            .initial_value = initial_value;
+    }
+    let conformances = lowerer
+        .source_trees
+        .machine_trait_conformances(machine.satisfies);
+    if conformances.len()
+        != lowerer
+            .typed_trees
+            .declared_machine_trait_conformances(typed_machine)
+            .len()
+    {
+        return Err(Diagnostic::error(
+            "machine body completion changed conformance declarations",
+        ));
+    }
+    for (ordinal, source) in conformances.iter().enumerate() {
+        let via_expression = source
+            .via_expression
+            .is_valid()
+            .then(|| lower_expression_handle(lowerer, source.via_expression))
+            .transpose()?
+            .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+        lowerer
+            .typed_trees
+            .machine_trait_conformances
+            .span_mut_or_empty(typed_machine.satisfies)[ordinal]
+            .via_expression = via_expression;
+    }
+
+    let ranking_subjects = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.ranking_subjects)
+        .iter()
+        .map(|decrease| lower_expression_handle(lowerer, *decrease))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_view_arguments = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.ranking_view_arguments)
+        .iter()
+        .map(|argument| lower_expression_handle(lowerer, *argument))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ranking_range = machine
+        .ranking_range
+        .is_valid()
+        .then(|| lower_expression_handle(lowerer, machine.ranking_range))
+        .transpose()?;
+    if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
+    {
+        lowerer.typed_trees.ranking_expression_custody.push(
+            typed::ranking::RankingExpressionCustody {
+                machine: machine.symbol,
+                subjects: ranking_subjects,
+                view_arguments: ranking_view_arguments,
+                rank_range: ranking_range,
+            },
+        );
+    }
+
+    let source_states = lowerer.source_trees.machine_state_handles(machine.states);
+    let retained_count = lowerer.typed_trees.machine_states(typed_machine).len();
+    if source_states.len() < retained_count {
+        return Err(Diagnostic::error(
+            "machine body completion removed a state declaration",
+        ));
+    }
+    for (ordinal, source) in source_states.iter().enumerate() {
+        let source = lowerer.source_trees.machine_state(*source);
+        lowerer.equality_scope = Some(
+            crate::expressions::equatable::EqualityScope::for_state_interface(
+                lowerer.source_trees,
+                machine,
+                source,
+            ),
+        );
+        let mut state = if ordinal < retained_count {
+            lowerer.typed_trees.machine_states(typed_machine)[ordinal].clone()
+        } else {
+            // Body normalization may append synthetic continuation states.
+            lower_state_declaration(lowerer, source)?
+        };
+        lowerer.equality_scope = Some(crate::expressions::equatable::EqualityScope::for_state(
+            lowerer.source_trees,
+            machine,
+            source,
+        ));
+        complete_state_body(lowerer, machine.attached_data.as_ref(), source, &mut state)?;
+        lowerer.equality_scope = None;
+        if ordinal < retained_count {
+            lowerer.typed_trees.machine_states_mut(typed_machine)[ordinal] = state;
+        } else {
+            lowerer.typed_trees.push_machine_state(typed_machine, state);
+        }
+    }
+    typed_machine.termination_plan.implementation_witness =
+        machine.termination_plan.implementation_witness.clone();
+    typed_machine.body_status = typed::machine::MachineBodyStatus::Complete;
+    Ok(())
 }
 
 pub(crate) fn settle_satisfied_declarations(

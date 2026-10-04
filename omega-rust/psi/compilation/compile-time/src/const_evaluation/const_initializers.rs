@@ -1,6 +1,7 @@
 //! Declaration values are ready before index normalization asks for them.
 //!
-//! Resolve the authored forest once without substituting pending values. Its
+//! Index the authored declarations without substituting pending values and
+//! complete only the helpers their initializer roots demand. Their
 //! exact source-owned dependencies determine evaluation order, including unused
 //! declarations and references in unselected branches. Then use the same typed
 //! scalar probes as index expressions, one per pending scalar leaf. Aggregate
@@ -301,23 +302,33 @@ pub(crate) fn evaluate(
                 TypeReferenceNode::Named(Identifier::generated(placeholder)),
             );
         }
-        let mut probe_ordinal = 0;
+        let mut probe_sources = Vec::new();
         for ordinal in &ready {
             for leaf in &declarations[*ordinal].leaves {
                 crate::const_evaluation::const_generic_expressions::append_probe(
                     &mut probe,
-                    probe_ordinal,
+                    probe_sources.len(),
                     leaf.expression,
                     leaf.destination,
                 );
-                probe_ordinal += 1;
+                probe_sources.push(syntax.expressions.source_span(leaf.expression));
             }
         }
         let probe =
             crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
-        let resolved = crate::syntax_probes::resolve(probe, sources.clone(), bindings)?;
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .map_err(|error| vec![error])?;
+        let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: probe,
+                sources: sources.clone(),
+                top_level_bindings: bindings.to_vec(),
+            },
+        )?;
+        // Ready values still need real helper implementations and their type,
+        // proof and operator dependencies. Reuse the scalar probe's retained
+        // body demand; unrelated implementations remain with their owners and
+        // never enter the private execution program or its ordinary checks.
+        let (typed, domain) =
+            crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
         let checked = ready
             .iter()
             .any(|ordinal| {
@@ -347,7 +358,7 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let prepared = crate::PreparedBuildMachineProgram::prepare(&typed)?;
+                let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
                 invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &symbols)
             })
             .transpose()?;

@@ -245,6 +245,9 @@ struct VirtualFd {
 
 pub(crate) struct Evaluator<'program> {
     program: &'program TypedTrees,
+    /// Frozen declaration-only input to the designated Build product queries.
+    /// This is never the interpreter's ordinary callable lookup surface.
+    product_declarations: &'program TypedTrees,
     /// Checked normal-edge cleanup custody; absent during typed-only evaluation.
     checked: Option<&'program CheckedTrees>,
     /// Full-program interpretation retains checked named-operator evidence so

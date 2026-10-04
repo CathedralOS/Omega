@@ -420,3 +420,130 @@ pub(super) fn insert_selected_machine_children(
     }
     extension.finish()
 }
+
+/// Append implementation-owned children after the whole declaration cohort
+/// has identities. A later completion uses this same operation with a selected
+/// cohort: existing state/parameter/local handles are never assigned again.
+pub(super) fn append_body_symbols(
+    program: &mut SymbolResolvedTrees,
+    selected_machines: &[symbols::SymbolHandle],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    if selected_machines.iter().any(|selected| {
+        !selected.is_valid()
+            || !program
+                .machines
+                .iter()
+                .any(|machine| machine.symbol == *selected)
+    }) {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "body symbol completion requires an existing machine declaration",
+        )]);
+    }
+    let has_sources = program.symbols.source_files().next().is_some();
+    let mut new_states = Vec::new();
+    let declarations = &mut program.tables.declarations;
+    for machine in program.roots.machines.iter() {
+        if !selected_machines.contains(&machine.symbol) {
+            continue;
+        }
+        for state_handle in declarations
+            .machine_state_handles
+            .span_or_empty(machine.states)
+        {
+            let state = declarations.machine_states.get_mut(*state_handle);
+            if !state.symbol.is_valid() {
+                let inserted = program.symbols.append_children(
+                    machine.symbol,
+                    [symbol_seed(SymbolKind::State, &state.name, has_sources)],
+                );
+                state.symbol = inserted.start();
+                new_states.push((machine.symbol, machine.type_parameters, *state_handle));
+            }
+            let parameters = declarations
+                .state_parameters
+                .span_mut_or_empty(state.parameters);
+            let inserted = program.symbols.append_children(
+                state.symbol,
+                parameters
+                    .iter()
+                    .filter(|parameter| !parameter.symbol.is_valid())
+                    .map(|parameter| {
+                        symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)
+                    }),
+            );
+            for (parameter, symbol) in parameters
+                .iter_mut()
+                .filter(|parameter| !parameter.symbol.is_valid())
+                .zip(SymbolTableBuilder::child_handles(inserted))
+            {
+                parameter.symbol = symbol;
+            }
+            let statements = declarations
+                .state_statements
+                .span_mut_or_empty(state.statements);
+            append_local_symbols(&mut program.symbols, state.symbol, statements);
+        }
+    }
+    // All synthetic headers now exist, including forward state references.
+    // Only their signatures need this assignment; authored headers retain the
+    // exact declarations and type handles established by the first phase.
+    for (machine, type_parameters, state_handle) in new_states {
+        let state = declarations.machine_states.get_mut(state_handle);
+        let type_parameters = declarations
+            .data_type_parameters
+            .span_or_empty(type_parameters);
+        for parameter in declarations
+            .state_parameters
+            .span_mut_or_empty(state.parameters)
+        {
+            super::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                &program.symbols,
+                &mut declarations.child_type_references,
+                &program.tables.types.constraints,
+                type_parameters,
+                machine,
+                &mut parameter.type_reference,
+            );
+        }
+        if let Some(return_type) = &mut state.return_type {
+            super::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                &program.symbols,
+                &mut declarations.child_type_references,
+                &program.tables.types.constraints,
+                type_parameters,
+                machine,
+                return_type,
+            );
+        }
+    }
+    Ok(())
+}
+
+/// The same append-only declaration allocation serves ordinary bodies and
+/// one-shot lexical input preparation. Already indexed locals keep identity.
+pub(super) fn append_local_symbols(
+    symbols: &mut SymbolTable,
+    state: symbols::SymbolHandle,
+    statements: &mut [symbol_resolved_trees::statement::Statement],
+) {
+    use symbol_resolved_trees::statement::Statement;
+    let has_sources = symbols.source_files().next().is_some();
+    let inserted = symbols.append_children(
+        state,
+        statements.iter().filter_map(|statement| match statement {
+            Statement::LocalData(local) if !local.symbol.is_valid() => {
+                Some(symbol_seed(SymbolKind::Local, &local.name, has_sources))
+            }
+            _ => None,
+        }),
+    );
+    let locals = statements
+        .iter_mut()
+        .filter_map(|statement| match statement {
+            Statement::LocalData(local) if !local.symbol.is_valid() => Some(local),
+            _ => None,
+        });
+    for (local, symbol) in locals.zip(SymbolTableBuilder::child_handles(inserted)) {
+        local.symbol = symbol;
+    }
+}

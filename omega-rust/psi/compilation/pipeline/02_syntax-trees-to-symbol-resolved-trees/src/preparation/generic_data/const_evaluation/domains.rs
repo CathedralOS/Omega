@@ -94,6 +94,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
+    work: &super::super::work_domain::SynthesisWork<'_>,
 ) -> Result<(), Diagnostic> {
     let mut families = Vec::<ClosedDomainFamily>::new();
 
@@ -216,10 +217,37 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         });
     }
 
-    let mut applications = syntax
-        .tables
-        .type_references
-        .domain_constraints()
+    let constraints = if work.is_all() {
+        syntax.tables.type_references.domain_constraints()
+    } else {
+        work.type_positions(syntax, true)
+            .into_iter()
+            .flat_map(|reference| {
+                let TypeReferenceNode::Constrained { constraints, .. } =
+                    syntax.type_references.type_reference(reference)
+                else {
+                    return Vec::new();
+                };
+                syntax
+                    .type_references
+                    .constraints(*constraints)
+                    .iter()
+                    .filter_map(|constraint| {
+                        if let syntax_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                        {
+                            Some(domain.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    };
+    let declarations = work.declarations(syntax);
+    let expressions =
+        super::super::uses::selected_machine_expression_handles(syntax, &declarations);
+    let mut applications = constraints
         .into_iter()
         .map(|constraint| {
             (
@@ -229,35 +257,36 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             )
         })
         .collect::<Vec<_>>();
-    applications.extend(
-        syntax
-            .expressions
-            .iter_expressions()
-            .filter_map(|(_, expression)| {
-                let ExpressionNode::Cast(cast) = expression else {
-                    return None;
-                };
-                if cast.semantic_domain.is_empty() {
-                    return None;
+    applications.extend(syntax.expressions.iter_expressions().filter_map(
+        |(handle, expression)| {
+            if !work.is_all() && !work.owns_new_expression(handle) && !expressions.contains(handle)
+            {
+                return None;
+            }
+            let ExpressionNode::Cast(cast) = expression else {
+                return None;
+            };
+            if cast.semantic_domain.is_empty() {
+                return None;
+            }
+            let members = syntax
+                .expressions
+                .identifier_path_members(cast.semantic_domain);
+            let name = members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let mut reference = members.first()?.source_span();
+            for member in members.iter().skip(1) {
+                if member.source_span().source_id != reference.source_id {
+                    break;
                 }
-                let members = syntax
-                    .expressions
-                    .identifier_path_members(cast.semantic_domain);
-                let name = members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                let mut reference = members.first()?.source_span();
-                for member in members.iter().skip(1) {
-                    if member.source_span().source_id != reference.source_id {
-                        break;
-                    }
-                    reference.span.end = member.source_span().span.end;
-                }
-                Some((name, cast.semantic_domain_arguments, reference))
-            }),
-    );
+                reference.span.end = member.source_span().span.end;
+            }
+            Some((name, cast.semantic_domain_arguments, reference))
+        },
+    ));
 
     let concrete_data_positions = collect_data_type_reference_positions(syntax, false);
     for (name, argument_span, reference) in applications {

@@ -369,9 +369,7 @@ defines the complete product bar.
     production with `OperationProofUnavailable(ObligationId(9223372036854775808))`.
     This customer depends on **PCC-CERTIFICATES-DELETED**, after
     **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**; do not extend late certificate
-    search. Its expected native exit remains 70. The public `omega run` route
-    additionally awaits package review; **COMPILE-TRUSTS-ACCEPTED-PACKAGES**
-    owns that separate dependency. Carry exact
+    search. Its expected native exit remains 70. Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.
@@ -1627,49 +1625,6 @@ slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
-- **COMPILE-TRUSTS-ACCEPTED-PACKAGES.** (new-scope) An ordinary compile still
-  re-reviews every package the project already accepted. Owner ruling: review
-  is how new code becomes trusted (install, update, a new dependency); a
-  process that can rewrite accepted sources can also rewrite the lock and the
-  compiler, so compile-time re-review protects nothing.
-  - Today every `omega --check`/`run` goes through
-    `omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs`
-    (`compile_dependency_closure` in
-    `review/candidate/compilation/package_pass.rs`: discovery pass then bound
-    pass). Each dependency compiles whole from its package root and the full
-    review findings are re-derived and compared against the lock.
-  - `source/library/std/main.omg` imports every std module, so
-    `use omega_language_std::console` checks all of std;
-    `tests/omega/pass/borrows/runtime_record_byte_region_loan_exit` spends
-    most of its check time in `stage=package`.
-  - The remaining per-compile review is reached through
-    `omega-rust/omega/packages/package-manager/src/operations/compile_project.rs`
-    `compile_one_prepared_target` → `accept_ordinary_closure_evidence` →
-    `compare_package_policy_changes`; `operations/check_project.rs` builds the
-    reviews and then discards them.
-
-  In one commit:
-  - an ordinary compile compares each occurrence's source identity and the
-    compiler identity with the accepted lock; on a match it skips the review
-    passes, on a mismatch it rejects naming the package and the review command
-    to run (no inline audit);
-  - dependencies compile from the modules the consumer's `use` items name,
-    plus whatever those reach, not from the package root;
-  - the full-package review and the discovery/bound pair run only in the
-    review, accept and update commands;
-  - amend `omega-rust/omega/packages/package-manager/src/lock/README.md`,
-    `omega-rust/omega/packages/package-manager/README.md`,
-    `wiki/spec/packages/review.md`, `wiki/spec/packages/locks.md` ("Compare
-    the fresh acceptance projection ... exact complete-row equality") and
-    `wiki/spec/packages/acceptance.md` ("Native preparation compares fresh
-    findings") to state that compiles trust accepted packages.
-
-  Acceptance: the fixture's `--check` runs no review pass and checks only
-  console's module closure from std; its `stage=package` time drops by at
-  least 10x; a source edit to an accepted path dependency fails the compile
-  with the review instruction; review command output and the check corpus are
-  unchanged.
-
 - **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's exact-input memo
   (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs`)
   still materializes one whole `CheckedTrees` copy
@@ -2096,9 +2051,9 @@ lands alone with its corpus slice unchanged and no fallback path.
   description. Acceptance: no re-encode or re-derive on a cache hit; corpus
   `--filter packages` is unchanged.
 
-- **NATIVE-ADMISSION-EVIDENCE-DELETED.** (new-scope) Depends on
-  **COMPILE-TRUSTS-ACCEPTED-PACKAGES**, which removes per-compile review.
-  Delete what is left of the native-path evidence chain in
+- **NATIVE-ADMISSION-EVIDENCE-DELETED.** (new-scope) Ordinary compilation now
+  consumes accepted package inputs without repeating review. Delete what is
+  left of the native-path evidence chain in
   `omega-rust/omega/packages/package-manager/src/` in one commit:
   - `review/reconstruction/`: its question bytes and fingerprint have no
     reader; `recover` and `matches_resolved_and_reviews` have no non-test
@@ -3961,6 +3916,14 @@ wait for Cathedral's instruction coverage. The interpreter is
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
     Computed payloads cannot establish qualifications; routed constraints need
     establishment even for unused initializers.
+    Bare named array extents also remain open: `const Count: u64 = 8;`
+    followed by `data Storage { bytes: [u8; Count]; }` is kept as
+    `FixedArrayLength::ConstParameter`, then rejected as an unresolved length.
+    `lowering/type_reference.rs` in Psi02 preserves that form;
+    `compile-time/src/const_evaluation/const_lengths.rs` evaluates only calls.
+    Normalize a selected constant declaration with its exact value/source
+    custody while retaining genuine generic parameters and lexical shadowing.
+    Requiring a wrapper machine is not acceptance for this named-value form.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.

@@ -12,14 +12,12 @@ mod semantic_bindings;
 pub(crate) mod validation;
 
 pub(crate) use commitments::{build_observation_commitment, whole_review_commitment};
+#[cfg(test)]
+pub(crate) use compilation::compile_resolved_package_candidate_for_check;
 pub use compilation::{
     CandidateCompilation, CandidateSourcePreparation, SemanticBindingReview,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     compile_resolved_package_reviews_reusing,
-};
-pub(crate) use compilation::{
-    compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
-    production_candidate_reusing,
 };
 pub(crate) use custody::verify_transitive_source_custody;
 pub use error::CompileResolvedPackageReviewsError;

@@ -717,11 +717,15 @@ fn normalized_machine_identity(
 pub(crate) fn refresh_closed_domain_instance_identities(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
+    let references = typed_trees::references::collect_program_references(program);
     let mut constraint_updates = Vec::new();
-    for (_, _, constraints) in program
-        .type_reference_table
-        .constrained_type_reference_sites()
-    {
+    for reference in references.type_references {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            program.type_reference_table.type_reference(reference)
+        else {
+            continue;
+        };
+        let constraints = *constraints;
         for (offset, constraint) in program
             .type_reference_table
             .constraints(constraints)
@@ -771,6 +775,9 @@ pub(crate) fn refresh_closed_domain_instance_identities(
         .expression_table
         .expression_entries()
         .filter_map(|(handle, expression)| {
+            if !references.expressions.contains(&handle) {
+                return None;
+            }
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
@@ -813,7 +820,8 @@ pub(crate) fn refresh_closed_domain_instance_identities(
     }
 
     let mut membership_updates = Vec::new();
-    for (handle, fact) in program.proof_facts.iter() {
+    for handle in references.proof_facts {
+        let fact = program.proof_facts.get(handle);
         let typed_trees::domain::ProofFact::Membership(membership) = fact else {
             continue;
         };

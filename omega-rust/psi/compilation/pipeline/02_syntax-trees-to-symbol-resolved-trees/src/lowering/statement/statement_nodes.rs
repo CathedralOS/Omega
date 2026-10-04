@@ -13,7 +13,6 @@ use crate::lowering::statement::value_call_hoisting::{
     hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
     is_scalar_return_computation,
 };
-use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -325,14 +324,8 @@ pub(crate) fn lower_statement_node(
             Ok(hoisted)
         }
         syntax::statement::StatementNode::LocalData(local_data) => {
-            // Parse-time desugars (destructure lets) mint TYPELESS locals;
-            // the Unit sentinel defers typing to the initializer (the
-            // hoist rule the resolved->typed layer already serves).
-            let type_reference = if local_data.type_reference.is_valid() {
-                lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?
-            } else {
-                TypeReference::Unit
-            };
+            let mut declaration =
+                crate::lowering::state::lower_local_declaration(lowerer, syntax_trees, local_data)?;
             let initial_value = if local_data.initial_value.is_valid() {
                 lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
             } else {
@@ -349,17 +342,8 @@ pub(crate) fn lower_statement_node(
             } else {
                 initial_value
             };
-            hoisted.push(Statement::LocalData(LocalData {
-                symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(&local_data.name),
-                storage: LocalDataStorage {
-                    type_reference,
-                    initial_value,
-                    is_mutable: local_data.is_mutable,
-                    type_is_inferred: !local_data.type_reference.is_valid(),
-                    relevance: local_data.relevance,
-                },
-            }));
+            declaration.initial_value = initial_value;
+            hoisted.push(Statement::LocalData(declaration));
             Ok(hoisted)
         }
         syntax::statement::StatementNode::Transition(transition) => {

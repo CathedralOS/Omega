@@ -12,14 +12,29 @@ pub fn compute_plan_laid_layouts(
     records: &[PlanLaidRecord],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    compute_plan_laid_layouts_in(
+        typed,
+        records,
+        selection_authority,
+        &crate::build_time_evaluation::EvaluationDomain::all(),
+    )
+}
+
+pub(crate) fn compute_plan_laid_layouts_in(
+    typed: &mut TypedTrees,
+    records: &[PlanLaidRecord],
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+) -> Result<(), Vec<Diagnostic>> {
     if records.is_empty() {
         return Ok(());
     }
 
+    let execution = domain.execution_program(typed);
     let mut layouts = Vec::with_capacity(records.len());
     for record in records {
         if let Some(selection_authority) = selection_authority.clone() {
-            let machine = typed
+            let machine = execution
                 .realized_machine_named(&record.policy_machine)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(format!(
@@ -27,11 +42,12 @@ pub fn compute_plan_laid_layouts(
                         record.synthetic_name, record.policy_machine
                     ))]
                 })?;
-            let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
+            let admission =
+                crate::BuildTimeAdmissionPlan::infer(&execution, Some(selection_authority));
             for source in &record.invocation_sources {
                 admission
                     .require_common_floor_for_invocation(
-                        typed,
+                        &execution,
                         machine,
                         crate::BuildTimeInvocationCustody::Source(*source),
                     )
@@ -44,7 +60,7 @@ pub fn compute_plan_laid_layouts(
             }
         }
         let native_report = crate::compute_native_layout_plan(
-            typed,
+            &execution,
             &record.policy_machine,
             &record.schema_data,
             None,

@@ -81,7 +81,7 @@ pub fn execute_package_command(
         .map_err(|_| failure("build.omg is not UTF-8 Omega source"))?;
     let accepted_text = before_lock.as_deref().map(std::str::from_utf8).transpose()
         .map_err(|_| failure("omega.lock is not UTF-8; restore a supported lock or explicitly remove it for fresh graph review"))?;
-    let accepted = accepted_text.map(|text| PackageLock::recover_text(text, PackageLockRecoveryLimits::default())).transpose()
+    let accepted = accepted_text.map(|text| PackageLock::recover_review_baseline(text, PackageLockRecoveryLimits::default())).transpose()
         .map_err(|error| failure(format!("cannot read accepted omega.lock: {error}; restore a compatible lock or explicitly remove it and run omega update for fresh review; no revision was refreshed")))?;
     let resume = matches!(command, PackageCommand::Resume { .. });
     if !resume && pending_file.is_some() {

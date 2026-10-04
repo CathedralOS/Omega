@@ -4,8 +4,9 @@ The [lock specification](../../../../../../wiki/spec/packages/locks.md) owns
 user-visible meaning; this note owns the current codec and recovery API.
 
 `PackageLock` is inert retained project state. It joins immutable source pins,
-compact compiler-normalized acceptance, and historical project decisions without
-retaining an old checkout, compiler session, proof certificate, evaluator
+compact compiler-normalized acceptance, exact accepted compilation inputs, and
+historical project decisions without retaining an old checkout, compiler
+session, proof certificate, evaluator
 receipt, or native replay. It does not write files, resolve selectors, acquire
 sources, certify an audit, or authorize a changed candidate.
 
@@ -17,44 +18,60 @@ and explicit optional build execution profile. Product targets equal the section
 target; Build targets equal its required execution profile. All occurrences in
 one section agree on the execution profile. The derived source roster must match
 these records bijectively; a single acceptance cannot cover two purposes.
-`from_policies` also checks full policy source membership and boundary owners in
-the same exact context before discarding compiler-only associations. Sections are
-strictly sorted by the target's
-canonical semantic identity. Every section has the same root request and role,
+Each occurrence also requires `AcceptedPackageCompilation`: a nonzero SHA-256
+compiler input identity and the exact accepted semantic binding roster. Bindings
+retain role, package owner, declaration path, normalized service-schema digest,
+optional selected-provider-plan digest, and explicit terminal permissions.
+`from_accepted_policies` checks full policy source membership and boundary owners
+before retaining these inputs; `from_policies` requires an explicit compiler
+identity and supplies an empty binding roster. Neither constructor guesses
+permissions or a current compiler identity. Sections are strictly sorted by
+the target's canonical semantic identity. Every section has the same root request and role,
 package identities and immutable resolutions, navigations, authored dependency
-projections, and selected dependency edges. Only target-sensitive baseline and
-decision state may differ. The format lists explicitly supplied targets; it
+projections, and selected dependency edges. Occurrence acceptance, compilation
+inputs, and decision state remain section-specific. The format lists explicitly supplied targets; it
 does not discover a deployment set or establish a support matrix.
 
-For mutable local packages, root `omega.lock` is excluded from source capture:
+For mutable local packages, root `omega.lock` and `omega.admissions` are excluded
+from source capture:
 writing acceptance state cannot change the source pin stored inside that state.
 Nested lock-named source files and exact repository materializations still
 participate in their source identities. The manager reads the accepted lock
-separately, so edits to its retained policy still affect comparison with fresh
-compiler findings even when the source identity is unchanged.
+separately, so edits to retained policy and bindings remain visible even when
+the source identity is unchanged.
 
 Each `PackageAcceptanceRow` retains the complete canonical readable meaning of
 one admission-claim or external-realization callable, external supply, dangerous
-capability, or terminal permission. The coordinate key identifies a row; exact
+capability, terminal permission, or restricted build request. The coordinate key
+identifies a row; exact
 meaning comparison, not digest-only consent, identifies a policy change.
 The manager owns these inert retained records separately from the compiler's
 fresh `PackagePolicyBaseline`. Recovery does not fabricate compiler evidence.
 
 The lock excludes full public API, ordinary checked callables, selected-provider
 tables, representation snapshots, source-semantic dependency graphs, and symbolic
-demands. Fresh whole-candidate checking and audit still produce those findings.
-Acceptance comparison uses the fresh risk projection and needs no old-source
-analysis pass. Source pins, graph edges, root roles, and historical decisions
-remain exact.
+demands. Explicit review, acceptance, and update workflows produce those complete
+findings and compare the fresh risk projection without an old-source analysis
+pass. The small accepted binding roster is a compiler input, not one of these
+review snapshots.
 
-## Version 3 text
+Under the owner ruling of 2026-10-03, ordinary compilation compares every accepted
+occurrence's source and compiler identities, including the root, before using
+its retained bindings. A match skips package-review discovery/bound passes. A
+mismatch rejects with the package name and `omega update`; compilation does not
+perform an inline audit or update acceptance. The compiler input digest joins
+the compiler's embedded build-input identity with the selected toolchain library
+content. It invalidates stale acceptance; it is not compiler, host, or reviewer
+attestation. See [ordinary compilation](../../../../../../wiki/spec/packages/acceptance.md#ordinary-compilation).
+
+## Version 4 text
 
 The outer grammar is line-oriented ASCII. Counts and byte lengths are unsigned
 decimal with no signs or leading zeroes. Target identities come from the trusted
 toolchain catalog. All rows end in LF, and there is no trailing material.
 
 ```text
-omega_lock 3
+omega_lock 4
 targets <count>
 target <canonical target identity>
 source <byte length>
@@ -63,21 +80,23 @@ occurrences <checked occurrence count>
 occurrence <source package index> <product|build> <execution profile|none> <checked target>
 acceptance <byte length>
 <verbatim canonical acceptance text>
+compilation <byte length>
+<verbatim accepted compilation text>
 decisions <byte length>
 <verbatim historical decision text>
 end_target
 end
 ```
 
-Repeat occurrence/acceptance pairs in source-package then purpose order and target
-sections in canonical target order. Child text already includes its final LF; the envelope
-does not insert another separator. Byte lengths delimit children without
+Repeat occurrence/acceptance/compilation groups in source-package then purpose
+order and target sections in canonical target order. Child text already includes
+its final LF; the envelope does not insert another separator. Byte lengths delimit children without
 escaping an entire source graph or policy into an opaque string. Each child
 owner validates its own format. The manager checks the joins and outer framing.
 Acceptance children use:
 
 ```text
-acceptance_schema 2
+acceptance_schema 3
 rows <count>
 row <callable|external_supply|dangerous_capability|terminal_permission|restricted_build_request>
 key <SHA-256 of canonical row coordinate bytes>
@@ -92,9 +111,49 @@ The occurrence's source-package index supplies package identity; its explicit
 checked context supplies target identity. Historical text is not promoted into
 fresh typed analysis.
 
-Only version 3 is accepted. Older package-only or implicit-coverage formats reject;
-recovery never invents role-specific consent. The compact acceptance child schema
-remains unchanged.
+Every occurrence requires this compilation child:
+
+```text
+compiler <64 lowercase hexadecimal digits>
+package <occurrence package identity digest>
+purpose <product|build>
+target <canonical checked target identity>
+execution <canonical execution profile|none>
+bindings <count>
+role <semantic binding role tag>
+owner <binding package identity digest>
+declaration <byte length>
+<declaration path bytes>schema <service schema digest>
+plan <selected provider plan digest|none>
+permissions <count>
+schema <permission service schema digest>
+requirement <byte length>
+<requirement identity bytes>classes <count>
+class <terminal authority class tag>
+end_compilation
+```
+
+Repeat binding groups in the retained roster order, permission groups for each
+binding, and class rows for each permission. Length-framed declaration and
+requirement strings have no inserted LF; the next field starts immediately
+after their counted bytes. Permission requirements and authority classes must
+be strictly ordered without duplicates. Tags use the compilation-input and
+terminal-authority owners' closed wire vocabularies, not unchecked Rust enum
+ordinals. Digests are 32 bytes encoded as 64 lowercase hexadecimal digits;
+the compiler identity cannot be zero. The repeated package/purpose/target/profile
+must match the containing occurrence, and binding owners must belong to the
+source graph. Role/plan combinations and permission/schema associations are
+validated by the existing typed binding constructors. No permission is derived
+from a role or readable name.
+
+Ordinary compilation accepts only outer version 4. Explicit review/update can
+recover version 3 as a historical baseline, preserving its source pins, target
+sections and decisions while freshly reviewing the candidate. Missing compiler
+identity and semantic bindings stay absent: a historical baseline cannot be
+serialized as version 4 or used for ordinary compilation. Publication requires
+freshly reviewed compilation inputs for every retained target. Other old versions
+reject; recovery never invents missing consent or compilation inputs. The
+compact acceptance child schema is version 3, matching the policy row schema.
 
 ## Decision history
 
@@ -143,12 +202,12 @@ retain the existing unsupported-format recovery guidance.
 | Target sections | 32 |
 | Source package rows, across target sections | 16,384 |
 | Authored plus selected dependency-request rows | 262,144 |
-| Policy sequence and recursive entries | 1,048,576 |
+| Policy entries, semantic bindings, permissions, and authority classes | 1,048,576 |
 | Semantic identity traversal nodes | 1,048,576 |
 | Historical decisions | 65,536 |
 
 Child format ceilings also apply: source text is at most 64 MiB, each acceptance
-text at most 32 MiB,
+or compilation text at most 32 MiB,
 and each decision section at most 8 MiB. Source identity/request fields have
 the source owner's 1 MiB hard ceiling. Counts do not reset at target boundaries.
 Version 2 historical decisions require only the retained decision vector;
@@ -160,6 +219,9 @@ Input text and previously owned values remain borrowed and are not charged;
 allocator overhead is excluded. Each child reports its consumed allowance, which
 the lock subtracts before recovering the next child. Outer target and occurrence
 vectors are charged before reservation.
+Compilation decoding also charges its entire text length before copying strings,
+and charges binding, permission, and authority-class vectors before reservation.
+These counts and storage charges share the enclosing lock's remaining budget.
 Occurrence vectors contain at most two entries per source package. Full-policy
 construction additionally bounds source-owner identity traversal; compact
 recovery does not manufacture full policy.

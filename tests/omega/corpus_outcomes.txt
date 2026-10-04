@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.91, "load1_start": 4.73, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 15.71, "load1_start": 5.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -260,8 +260,14 @@ fail/build/duplicate_program_entry_binding rejected 831ms expected @2d8ed253669f
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
 fail/build/elf_interpreter_relative_path rejected 1706ms expected @5ce9755c44a5+wt
 	`build` produced an invalid Build: Build.elf_interpreter.linux_x86_64 is invalid: ELF interpreter plan path is not absolute
+fail/build/helper_contract_context rejected 396ms expected @e65c3365894e+wt
+	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 1019ms expected @2d8ed253669f
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
+fail/build/opaque_descriptor_host_type_use rejected 216ms expected @ae8939e231af+wt
+	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
+fail/build/opaque_descriptor_invalid_carrier rejected 451ms expected @ae8939e231af+wt
+	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
 fail/build/package_local_calling_copy rejected 72ms expected @c3ad5f6e051f+wt
 	duplicate data `SystemVEightbyteClass`
 	duplicate data `ValueClass`
@@ -336,6 +342,8 @@ fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b0
 fail/build/static_machine_parameter_contract_mismatch rejected 71ms expected @2d8ed253669f
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
+fail/build/structural_equation_conflicting_argument rejected 18ms expected @ae8939e231af+wt
+	generic machine `capacity` where equation binds `Capacity` to 8 but its explicit argument is 7
 fail/build/uefi_program_entry_missing_storage_roots rejected 1050ms expected @2d8ed253669f
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 1360ms unexpected @2d8ed253669f
@@ -763,6 +771,8 @@ fail/generics/const_data_argument_requires_value rejected 270ms expected @2d8ed2
 	const parameter `N` of `FixedBuffer` requires an integer literal argument or an in-scope const parameter, got `u64`
 fail/generics/const_data_machine_call_requires_pure rejected 506ms expected @2d8ed253669f
 	const-generic application evaluation failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/generics/const_data_machine_call_runtime_argument rejected 14ms expected @ae8939e231af+wt
+	machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/const_data_where_fact_false rejected 18ms expected @2d8ed253669f
 	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
@@ -810,6 +820,8 @@ fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 251ms expec
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 251ms expected @bf12cd0f89bb+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/callee_integer_at_rhs_exposes_origin rejected 356ms expected @9ac5a3680a7e+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
 fail/layouts/callee_integer_at_write_requires_fit rejected 250ms expected @bf12cd0f89bb+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f
@@ -1467,6 +1479,10 @@ pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
+pass/build/const_index_dependency_order_exit checked 1897ms @ae8939e231af+wt
+pass/build/declaration_domain_context checked 1273ms @e65c3365894e+wt
+pass/build/dependency_declaration_queries checked 1270ms @e65c3365894e+wt
+pass/build/dependency_implementation_closure checked 1898ms @ae8939e231af+wt
 pass/build/described_runner_entry_left_exit checked 1809ms @d7dd90112d31
 pass/build/described_runner_entry_right_exit checked 1476ms @d7dd90112d31
 pass/build/product_description_paths_exit checked 959ms @5d467687f505+wt
@@ -1475,6 +1491,7 @@ pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
 pass/build/same_leaf_runner_entry_left_exit checked 1023ms @d7dd90112d31
 pass/build/same_leaf_runner_entry_right_exit checked 1015ms @d7dd90112d31
+pass/build/selected_const_array_length_exit checked 12131ms @ae8939e231af+wt
 pass/build/uefi_os_handoff_invocation rejected 1774ms @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 3170ms @48d34a64a938+wt
