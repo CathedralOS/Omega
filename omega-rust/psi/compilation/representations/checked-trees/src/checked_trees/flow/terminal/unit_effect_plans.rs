@@ -401,6 +401,27 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// The statement's structural value, excluding intermediate call operands.
+    /// An operand and the local receiving its enclosing call share a statement
+    /// index. Only the latter can identify that declaration's cleanup owner.
+    /// Source correspondence still authenticates the retained occurrence.
+    pub fn statement_structural_result_binding(
+        &self,
+    ) -> Option<&CheckedUnitStructuralResultBindingPlan> {
+        match self {
+            Self::EstablishStructuralValue {
+                operand_source: Some(_),
+                ..
+            }
+            | Self::EstablishScalarArray {
+                source: crate::CheckedArrayConstructionSource::CallArgument { .. },
+                ..
+            } => None,
+            Self::Call(call) if call.coordinate.call_ordinal != 0 => None,
+            _ => self.structural_result_binding(),
+        }
+    }
+
     /// The authored assignment a store-family row writes: a primitive,
     /// projected scalar, whole-sum, byte-sequence or indexed byte field store,
     /// or a byte- or element-view write. One assignment may own several rows

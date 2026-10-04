@@ -275,7 +275,7 @@ fn owner_source(
     }
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let mut matches = state.operations.iter().filter_map(|operation| {
-        let result = operation.structural_result_binding()?;
+        let result = operation.statement_structural_result_binding()?;
         if result.statement_index as usize >= before {
             return None;
         }

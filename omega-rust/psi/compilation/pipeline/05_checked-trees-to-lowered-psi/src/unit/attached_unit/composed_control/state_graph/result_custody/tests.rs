@@ -506,3 +506,156 @@ fn local_disposition_rejoins_each_selected_normal_exit() {
         );
     }
 }
+
+#[test]
+fn computed_case_local_disposal_covers_each_exact_normal_exit() {
+    let checked = crate::front_end::checked_program(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/calls/runtime_computed_case_terminal_payload_result_exit/main.omg"
+    )));
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+        .expect("the constructed counter has one disposal on each selected exit");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("computed case result and per-edge local cleanup verify independently");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("counter local");
+    };
+    let root = facts::PlaceRoot::Symbol(local.symbol);
+    let drops = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == root
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 2);
+    let first_evaluation = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get(drops[0])
+        .evaluation;
+    let disposition = checked
+        .facts
+        .contextual_cleanup
+        .dispositions
+        .iter()
+        .find(|(_, row)| {
+            if row.machine != machine.symbol || row.state != state.symbol || row.root != root {
+                return false;
+            }
+            let StatementNode::Transition(transition) = &checked
+                .statement_table
+                .statements(state.statement_nodes)[row.exit.statement_index]
+            else {
+                return false;
+            };
+            let target = match row.exit.kind {
+                checked_trees::FlowClaimJoinExitKind::TransitionTarget => transition.target,
+                checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
+                    transition.continuation
+                }
+                _ => return false,
+            };
+            first_evaluation == checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
+        })
+        .map(|(handle, _)| handle)
+        .expect("first selected exit disposition");
+    for mutation in 0..6 {
+        let mut forged = checked.clone();
+        match mutation {
+            0 | 4 => {
+                forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(drops[0])
+                    .machine_symbol = Default::default();
+                if mutation == 4 {
+                    forged
+                        .facts
+                        .contextual_cleanup
+                        .dispositions
+                        .get_mut(disposition)
+                        .machine = Default::default();
+                }
+            }
+            1 => {
+                let event = forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get(drops[0])
+                    .clone();
+                forged.facts.flow.ownership.permissions.insert(event);
+            }
+            2 => {
+                forged
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(drops[0])
+                    .evaluation = checked_trees::FlowPermissionEvaluation::Statement;
+            }
+            3 => {
+                forged
+                    .facts
+                    .contextual_cleanup
+                    .dispositions
+                    .get_mut(disposition)
+                    .machine = Default::default();
+            }
+            5 => {
+                let row = forged
+                    .facts
+                    .contextual_cleanup
+                    .dispositions
+                    .get(disposition)
+                    .clone();
+                forged.facts.contextual_cleanup.dispositions.insert(row);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            crate::expression_preparation::source_custody::structural::validate_local_ownership(
+                &forged,
+                machine.symbol,
+                state.symbol,
+                0,
+                local.symbol,
+                local.type_reference,
+                checked.type_multiplicity(local.type_reference),
+                false,
+            )
+            .is_err(),
+            "local ownership must reject selected-exit corruption {mutation} independently of cleanup actions"
+        );
+        assert!(
+            crate::lower_machine(&forged, crate::TerminalMachineSelection::Name("main")).is_err(),
+            "selected-exit corruption {mutation} must not reach Terminal publication"
+        );
+    }
+}

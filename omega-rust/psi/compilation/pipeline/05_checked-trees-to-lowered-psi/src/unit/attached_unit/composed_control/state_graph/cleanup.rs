@@ -163,7 +163,7 @@ fn source(
             let local = evaluation
                 .structural_locals
                 .iter()
-                .find(|local| local.symbol == *symbol)
+                .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
                 .ok_or(LoweringError::Unsupported(
                     "normal cleanup local is not established",
                 ))?;

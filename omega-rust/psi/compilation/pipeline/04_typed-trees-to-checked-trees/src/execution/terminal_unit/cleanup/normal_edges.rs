@@ -237,7 +237,7 @@ fn owner_source(
         {
             return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
         }
-        if let Some(result) = operation.structural_result_binding()
+        if let Some(result) = operation.statement_structural_result_binding()
             && matches!(program.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
                 Some(StatementNode::LocalData(local)) if local.symbol == symbol)
         {

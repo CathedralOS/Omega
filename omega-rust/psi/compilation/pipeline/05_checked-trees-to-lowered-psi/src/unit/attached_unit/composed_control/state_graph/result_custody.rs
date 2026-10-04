@@ -15,6 +15,7 @@ use super::{
     CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::expression_preparation::source_custody::structural::selected_drop_evaluations;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionTargetNode};
 use language_semantics::{
@@ -497,104 +498,6 @@ fn retired_in_body(
 /// Match each selected death to its existing outgoing source coordinate.
 /// Distinct exit lanes may retire the same lexical owner; duplicate deaths on
 /// one lane or a death on a different state/statement are not interchangeable.
-fn selected_drop_evaluations(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::state::State,
-    local: symbols::SymbolHandle,
-) -> Result<Vec<checked_trees::FlowPermissionEvaluation>, LoweringError> {
-    use checked_trees::{FlowClaimJoinExitKind, FlowPermissionEvaluation};
-    let invalid = || LoweringError::Unsupported("Unit graph local cleanup lost its selected exit");
-    let mut flows = checked
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter_map(|(_, flow)| {
-            (flow.machine_symbol == machine && flow.state_symbol == state.symbol).then_some(flow)
-        });
-    let flow = flows.next().ok_or_else(invalid)?;
-    if flows.next().is_some() {
-        return Err(invalid());
-    }
-    let outgoing = checked
-        .facts
-        .flow
-        .control
-        .outgoing
-        .span(flow.outgoing)
-        .ok_or_else(invalid)?;
-    let statements = checked.statement_table.statements(state.statement_nodes);
-    let mut evaluations = Vec::new();
-    for (_, disposition) in
-        checked
-            .facts
-            .contextual_cleanup
-            .dispositions
-            .iter()
-            .filter(|(_, row)| {
-                row.machine == machine
-                    && row.state == state.symbol
-                    && row.source == PermissionEventSource::StateExit
-                    && row.root == facts::PlaceRoot::Symbol(local)
-            })
-    {
-        if disposition.exit.state_symbol != state.symbol
-            || !checked
-                .facts
-                .flow
-                .ownership
-                .segments
-                .span(disposition.path)
-                .ok_or_else(invalid)?
-                .is_empty()
-        {
-            return Err(invalid());
-        }
-        let target = match disposition.exit.kind {
-            FlowClaimJoinExitKind::FinalExpression => Default::default(),
-            FlowClaimJoinExitKind::TransitionTarget
-            | FlowClaimJoinExitKind::TransitionContinuation => {
-                let Some(StatementNode::Transition(transition)) =
-                    statements.get(disposition.exit.statement_index)
-                else {
-                    return Err(invalid());
-                };
-                if disposition.exit.kind == FlowClaimJoinExitKind::TransitionTarget {
-                    transition.target
-                } else {
-                    transition.continuation
-                }
-            }
-            FlowClaimJoinExitKind::CallResult { .. } => return Err(invalid()),
-        };
-        if outgoing
-            .iter()
-            .filter(|exit| {
-                exit.machine_symbol == machine
-                    && exit.state_symbol == state.symbol
-                    && exit.statement_index == disposition.exit.statement_index
-                    && exit.transition_target == target
-            })
-            .count()
-            != 1
-        {
-            return Err(invalid());
-        }
-        let evaluation = if target.is_valid() {
-            FlowPermissionEvaluation::TransitionTarget(target)
-        } else {
-            FlowPermissionEvaluation::Statement
-        };
-        if evaluations.contains(&evaluation) {
-            return Err(invalid());
-        }
-        evaluations.push(evaluation);
-    }
-    Ok(evaluations)
-}
-
 /// Validate the complete disposal roster, not the producer's representation.
 ///
 /// Construction replay and call-source replay independently check result type,

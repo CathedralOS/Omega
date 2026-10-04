@@ -22,6 +22,8 @@ use symbols::SymbolHandle;
 
 pub(crate) mod byte_literals;
 mod dispatch;
+mod local_disposition;
+pub(crate) use local_disposition::selected_drop_evaluations;
 mod owned_places;
 mod record;
 mod slice_view;
@@ -2057,7 +2059,7 @@ pub(crate) fn validate_local_ownership(
         }
     }
     let mut establishments = 0;
-    let mut drops = 0;
+    let mut drops = Vec::new();
     let mut transfers = 0;
     let mut loan_events: Vec<(
         arena::Handle<checked_trees::BorrowLoanFact>,
@@ -2125,7 +2127,10 @@ pub(crate) fn validate_local_ownership(
             PermissionEventKind::AffineDrop
                 if segments.is_empty() && event.source == PermissionEventSource::StateExit =>
             {
-                drops += 1
+                if drops.contains(&event.evaluation) {
+                    return unsupported("structural local duplicates a selected exit drop");
+                }
+                drops.push(event.evaluation)
             }
             PermissionEventKind::Transfer => {
                 // A subtree transfer does not retire its containing local.
@@ -2162,7 +2167,7 @@ pub(crate) fn validate_local_ownership(
                 .any(|transfer| transfer.claim_identity == claim)
         };
         if establishments == 1
-            && drops == 0
+            && drops.is_empty()
             && selected_uses == 0
             && (transfers > 0 || established_claims.iter().all(|claim| discharge(*claim)))
         {
@@ -2170,18 +2175,27 @@ pub(crate) fn validate_local_ownership(
         }
         return unsupported("structural local changed its whole linear ownership provenance");
     }
+    if multiplicity == Multiplicity::Affine && selected_uses == 0 {
+        let expected = selected_drop_evaluations(checked, machine, source, symbol)?;
+        if drops.len() != expected.len()
+            || drops
+                .iter()
+                .any(|evaluation| !expected.contains(evaluation))
+        {
+            return unsupported("structural local lost its exact selected exit drop");
+        }
+    }
     if selected_uses > 1
         || establishments
             != usize::from(multiplicity == Multiplicity::Affine && !selected_destination)
-        || drops > 1
         || (multiplicity == Multiplicity::Affine
-            && drops == 0
+            && drops.is_empty()
             && transfers == 0
             && selected_uses == 0)
-        || (selected_uses != 0 && (drops != 0 || transfers != 0))
+        || (selected_uses != 0 && (!drops.is_empty() || transfers != 0))
         || (multiplicity != Multiplicity::Unrestricted
             && discard_result_on_return
-            && (drops != 1 || transfers != 0))
+            && (drops.is_empty() || transfers != 0))
     {
         return unsupported("structural local lost its exact establishment or final disposition");
     }
