@@ -2348,3 +2348,23 @@ pub(crate) fn shared_slice_view_referent(
         .filter(|view| view.access == language_semantics::ReferenceAccess::Shared)
         .map(|view| view.slice)
 }
+
+/// The type a view-binding `let` declares. Both authored spellings bind the
+/// same slice: `let v: &[u8] = coll[a..b]` names the view directly, while
+/// `let v: u8 = coll[a..b]` names only its element — the binding's declared
+/// type is then the expression's own slice-view result, exactly as the
+/// checker resolved it. A non-view declaration is returned unchanged.
+pub(crate) fn declared_view_binding_type(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    declared: TypeReferenceHandle,
+    initial_value: ExpressionHandle,
+) -> TypeReferenceHandle {
+    if validation::reference_shell(&checked.typed, declared).is_some() {
+        return declared;
+    }
+    validation::expression_result_type_reference(&checked.typed, machine, state, initial_value)
+        .filter(|result| validation::slice_view_shell(&checked.typed, *result, &[]).is_some())
+        .unwrap_or(declared)
+}
