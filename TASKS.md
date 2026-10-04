@@ -1251,22 +1251,22 @@ crash and native exit behavior.
   caller; an internal state target remains a jump.
   - Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/terminal_calls.rs`.
   - State: Unit, scalar, record, qualified-scalar, case-payload, boundary
-    requirement, single-state shared-reference returns, and effectful-guard/operand-order
-    forms execute in both engines.
+    requirement, single-state shared and mutable-reference returns, and
+    effectful-guard/operand-order forms execute in both engines. Ordinary wrappers,
+    mixed call/value arms, and writes through terminal and generic reference
+    results retain the caller's backing storage.
   - Remaining:
-    - finish whole-reference origin transport beyond the admitted single-state
-      shared-reference forms. Nonprimitive `&mut` results still use the private
-      `view_result_loan` walk in `.../terminal_unit/calls/structural_result_call.rs`:
-      ordinary and guarded `&mut Node` identity returns are rejected at
-      `call operation: structural result loan`. Join the shared exact origin
-      substitution with real loan activation/release; multi-state callee origin
-      substitution also remains outside the current single-state query;
+    - finish multi-state callee reference-origin substitution beyond the
+      admitted single-state query, and compose guarded normal reference returns
+      with subsequent crash completion (currently omitted at `transition form`);
     - claim-transferring arm calls.
   - Not this item: `filesystem/dir_walk_wrappers_exit` and
     `samples/cli/systems/note_vault` depend on `Filesystem::create_dir_all`.
 
-  Acceptance: add corpus fixtures for mutable-reference terminal forwarding and
-  a claim-transferring arm call, each executing in both engines. Keep
+  Acceptance: add a claim-transferring arm call executing in both engines. Keep
+  `pass/calls/runtime_guarded_terminal_mutable_reference_result_exit` and
+  `pass/calls/runtime_guarded_terminal_reference_write_exit` at 0 in both engines,
+  including writes through a generic reference helper. Keep
   `pass/calls/runtime_guarded_terminal_reference_result_exit` at 0 in both engines,
   including its ordinary wrapper and mixed call/value arms.
   Keep `fail/calls/terminal_call_result_type_mismatch_rejected`
