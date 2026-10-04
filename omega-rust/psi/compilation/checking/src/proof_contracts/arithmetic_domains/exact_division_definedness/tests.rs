@@ -12,6 +12,83 @@ fn check(source: &str) -> Result<(), String> {
 }
 
 #[test]
+fn exact_division_definedness_checks_aggregate_children_and_projection_receivers() {
+    for source in [
+        "machine compute(divisor: u32) -> [u32; 1] { [42u32 / divisor] }",
+        "data Pair { first: u32; second: u32; }
+         machine compute(divisor: u32) -> Pair { Pair { first: 7u32, second: 42u32 / divisor } }",
+        "data Pair { first: u32; second: u32; }
+         machine compute(divisor: u32) -> u32 { Pair { first: 7u32, second: 42u32 / divisor }.first }",
+        "data Pair { first: u32; second: u32; }
+         machine compute(divisor: u32) -> u32 { Pair { first: 7, second: 42u32 / divisor }.first }",
+        "data Holder { values: [u32; 1]; }
+         machine compute(divisor: u32) -> Holder { Holder { values: [42u32 / divisor] } }",
+        "data Holder { values: [u32; 1]; }
+         machine compute(divisor: u32) -> u64 { Holder { values: [42u32 / divisor] }.values.len }",
+    ] {
+        let error = check(source).expect_err("every evaluated aggregate child must be defined");
+        assert!(error.contains("divisor must be proven nonzero"), "{source}\n{error}");
+    }
+}
+
+#[test]
+fn exact_division_definedness_preserves_aggregate_child_bounds_and_policies() {
+    for source in [
+        "machine compute(divisor: u32) -> [u32; 1] requires divisor != 0 { [42u32 / divisor] }",
+        "data Pair { first: u32; second: u32; }
+         machine compute(divisor: u32) -> Pair requires divisor != 0 {
+             Pair { first: 7u32, second: 42u32 / divisor }
+         }",
+        "machine compute(value: u32 in Wrapping) -> [u32 in Wrapping; 1] { [value + 1] }",
+        "data Pair { first: u32; second: u32; }
+         machine compute(divisor: u32) -> u32 requires divisor != 0 {
+             Pair { first: 7, second: 42u32 / divisor }.first
+         }",
+    ] {
+        assert_eq!(check(source), Ok(()), "{source}");
+    }
+    for (source, diagnostic) in [
+        (
+            "machine compute(value: u32) -> [u32; 1] { [value + 1u32] }",
+            "may overflow",
+        ),
+        (
+            "machine compute(count: u32) -> [u32; 1] { [1u32 >> count] }",
+            "shift count",
+        ),
+    ] {
+        let error = check(source).expect_err("aggregate children owe every formation condition");
+        assert!(error.contains(diagnostic), "{source}\n{error}");
+    }
+}
+
+#[test]
+fn exact_division_definedness_checks_authored_atomic_operands_not_the_update_model() {
+    for operation in [
+        "counter.value.store(42u32 / divisor, NoOrdering);",
+        "let prior: u32 in Wrapping = counter.value.fetch_add(42u32 / divisor, NoOrdering);",
+        "let prior: u32 in Wrapping = counter.value.compare_exchange(0u32, 42u32 / divisor, NoOrdering, NoOrdering);",
+    ] {
+        let source = |requirement| {
+            format!(
+                "data Counter {{ value: AtomicU32; }}
+             machine compute(counter: &Counter, divisor: u32) {requirement} {{ {operation} }}"
+            )
+        };
+        let error = check(&source("")).expect_err("the event's real operand must be defined");
+        assert!(
+            error.contains("divisor must be proven nonzero"),
+            "{operation}\n{error}"
+        );
+        assert_eq!(
+            check(&source("requires divisor != 0")),
+            Ok(()),
+            "{operation}"
+        );
+    }
+}
+
+#[test]
 fn exact_division_definedness_joins_dispatch_values_and_checks_each_arm() {
     let bounded = "machine compute(choose: bool) -> u32 {
         let divisor: u32 = match choose { true -> 3u32, _ -> 7u32 };

@@ -26,6 +26,8 @@ fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed
 	construction of `Slot` field `index`: value 9999 is outside its declared range `0..=15`
 fail/arithmetic/divide_by_zero_rejected rejected 168ms expected @2d8ed253669f
 	anonymous division by zero has no exact numeric value
+fail/arithmetic/exact_aggregate_divisor_unproven rejected 105ms expected @76b36d70b850+wt
+	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_dispatch_divisor_unproven rejected 69ms expected @01974e342562+wt
 	partial exact division in machine `quotient` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/exact_divisor_unproven rejected 121ms expected @d9720a4fa49b+wt

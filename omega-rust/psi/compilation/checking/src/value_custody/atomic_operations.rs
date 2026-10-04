@@ -179,6 +179,36 @@ pub fn atomic_assignment_carrier(
     else {
         return None;
     };
+    let (operation, operands) = atomic_write_operands(program, atomic)?;
+    Some(AtomicCarrierAccess {
+        operation,
+        place: assignment.target,
+        operands,
+        result: atomic.result,
+    })
+}
+
+/// Evaluated source operands, excluding the synthetic resident-update model
+/// and the result destination. Formation checks must use this same decoding as
+/// execution: compare-exchange does not evaluate a subtraction of replacement
+/// and prior, and fetch arithmetic has the sealed atomic operation's policy.
+pub(crate) fn atomic_value_operands(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<Vec<ExpressionHandle>> {
+    if let Some(load) = atomic_load_carrier(program, expression) {
+        return Some(vec![load.place]);
+    }
+    let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    atomic_write_operands(program, atomic).map(|(_, operands)| operands)
+}
+
+fn atomic_write_operands(
+    program: &TypedTrees,
+    atomic: &TableAtomicExpression,
+) -> Option<(AtomicAccessOperation, Vec<ExpressionHandle>)> {
     if !atomic.result_custody.is_valid_for(atomic.ordering)
         || atomic.result_custody.requires_result_destination()
     {
@@ -245,12 +275,7 @@ pub fn atomic_assignment_carrier(
             )
         }
     };
-    Some(AtomicCarrierAccess {
-        operation,
-        place: assignment.target,
-        operands,
-        result: atomic.result,
-    })
+    Some((operation, operands))
 }
 
 /// Whether `expression` is a one-member name spelling the same member as

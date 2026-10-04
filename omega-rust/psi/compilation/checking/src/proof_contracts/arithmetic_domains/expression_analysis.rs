@@ -4,8 +4,11 @@
 //! expression. Declaration checks, flow-state ownership, and total-proposition
 //! formation stay in their dedicated modules.
 //!
-//! [`analyze`] first asks whether the expression already has a value that does
-//! not depend on its structure (`folded_values`), then dispatches on the node:
+//! [`analyze`] checks evaluated children even when their parent is an aggregate,
+//! projection, or a call with a known result. Operators and dispatch own their
+//! contextual operand walks; complete anonymous numeric subtrees keep their
+//! exact mathematical folding. Other nodes check their children before
+//! `folded_values` supplies a result independent of that structure:
 //! operators raise their domain and overflow obligations in `binary` and
 //! `unary`, conversions in `cast`, call results take their declared or
 //! inferred bounds in `call`, `dispatch` checks branches and joins their result
@@ -102,10 +105,50 @@ impl ExpressionWalk<'_> {
     }
 
     fn analyze(&self, expression: ExpressionHandle, diagnostics: &mut Vec<Diagnostic>) -> Analysis {
+        let node = self.program.expression_table.expression(expression);
+        if !matches!(
+            node,
+            ExpressionNode::Binary(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Match(_)
+        ) {
+            // The parent's scalar bound says nothing about the formation of
+            // its evaluated children: a known array length still evaluates its
+            // receiver, and a field projection still constructs every sibling.
+            // These edges do not inherit the enclosing scalar destination.
+            // Field/element/formal landing checks own their respective types;
+            // typed arithmetic retains its operand-selected carrier and policy.
+            let child_walk = self.with_destination(None, ArithmeticDomain::Exact);
+            let mut analyze_child = |child: ExpressionHandle| {
+                if child.is_valid() {
+                    child_walk.analyze(child, diagnostics);
+                }
+            };
+            if matches!(node, ExpressionNode::Atomic(_)) {
+                if let Some(operands) =
+                    crate::value_custody::atomic_operations::atomic_value_operands(
+                        self.program,
+                        expression,
+                    )
+                {
+                    for operand in operands {
+                        analyze_child(operand);
+                    }
+                } else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "invalid atomic operation carrier in {}: cannot identify its evaluated operands",
+                        self.owner,
+                    )));
+                }
+            } else {
+                crate::expression_traversal::children(self.program, node, analyze_child);
+            }
+        }
         if let Some(folded) = folded_values::analyze(self, expression, diagnostics) {
             return folded;
         }
-        match self.program.expression_table.expression(expression) {
+        match node {
             ExpressionNode::Binary(binary) => {
                 binary::analyze(self, expression, binary, diagnostics)
             }
