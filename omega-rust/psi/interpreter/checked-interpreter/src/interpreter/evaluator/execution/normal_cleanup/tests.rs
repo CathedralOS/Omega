@@ -224,7 +224,7 @@ fn composed_structural_return_cleans_only_the_selected_sibling() {
                     EvaluatedArgument::plain(second.clone()),
                 ],
             )
-            .unwrap_or_else(|error| panic!("composed normal cleanup: {error:?}"));
+            .unwrap_or_else(|_| panic!("composed normal cleanup unexpectedly halted"));
         assert!(matches!(result, Some(Value::Struct { .. })));
         assert_eq!(is_ready(&first), flag);
         assert_eq!(is_ready(&second), !flag);
