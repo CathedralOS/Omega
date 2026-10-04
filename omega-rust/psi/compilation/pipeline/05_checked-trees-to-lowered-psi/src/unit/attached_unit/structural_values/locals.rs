@@ -109,7 +109,9 @@ pub(crate) fn bind_local(
     };
     if (local.is_mutable && !represented_owned)
         || !local.symbol.is_valid()
-        || locals.iter().any(|binding| binding.symbol == local.symbol)
+        || locals
+            .iter()
+            .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
         || declared_identity.as_str() != result.type_identity
     {
         return unsupported("structural local differs from its published initializer binding");
@@ -122,7 +124,7 @@ pub(crate) fn bind_local(
     };
     locals.push(
         crate::expression_preparation::bindings::StructuralLocalBinding {
-            symbol: local.symbol,
+            root: facts::PlaceRoot::Symbol(local.symbol),
             structural_type,
             argument: terminal_psi::StructuralArgument {
                 place: declaration.id,

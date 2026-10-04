@@ -198,7 +198,7 @@ impl OperationFrame<'_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .any(|binding| binding.symbol == local.symbol)
+                        .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
                     && !self
                         .evaluation
                         .view_locals
@@ -261,6 +261,30 @@ impl OperationFrame<'_, '_> {
              Some(checked_trees::NominalMachineUseSite::Expression(expression)))
                 if local.initial_value == expression
         );
+        // A computed dispatch owns one anonymous result. Publish its exact
+        // source identity after ordinary result registration; copied payload
+        // receivers then read this home without running their call again.
+        // A nested operand or the selected terminal call shares the statement
+        // but is not the canonical subject producer.
+        let saved_subject = match authored.source_site {
+            Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
+                validation::saved_dispatch_subject(
+                    &self.checked.typed,
+                    source,
+                    coordinate.statement_index as usize,
+                    expression,
+                )
+                .filter(|(statement, subject)| {
+                    *statement == coordinate.statement_index as usize
+                        && *subject == expression
+                        && coordinate.call_ordinal == 0
+                })
+                .map(|(_, subject)| subject)
+            }
+            _ => None,
+        };
+        let place = produced.place;
+        let structural_type = produced.structural_type;
         self.evaluation.establish_structural_result(
             self.checked,
             self.state,
@@ -269,7 +293,30 @@ impl OperationFrame<'_, '_> {
             produced,
             self.structural_types.declarations(),
             self.operations,
-        )
+        )?;
+        if let Some(subject) = saved_subject {
+            let root = facts::PlaceRoot::Expression(subject);
+            if self
+                .evaluation
+                .structural_locals
+                .iter()
+                .any(|binding| binding.root == root)
+            {
+                return unsupported("computed structural subject was established twice");
+            }
+            self.evaluation.structural_locals.push(
+                crate::expression_preparation::bindings::StructuralLocalBinding {
+                    root,
+                    structural_type,
+                    argument: terminal_psi::StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                },
+            );
+        }
+        Ok(())
     }
 
     /// The source-call row every call records beside its operation.

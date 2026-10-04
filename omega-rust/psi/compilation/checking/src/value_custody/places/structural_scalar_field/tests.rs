@@ -1,6 +1,5 @@
 use super::{
-    DataMember, ExpressionHandle, ExpressionNode, SymbolHandle, TypedTrees,
-    local_scalar_record_field,
+    DataMember, ExpressionHandle, ExpressionNode, SymbolHandle, TypedTrees, structural_scalar_field,
 };
 use checked_trees::CheckedUnitStructuralPathSegment;
 use typed_trees::statement::StatementNode;
@@ -24,7 +23,7 @@ fn local_scalar_observation_keeps_neighboring_exclusive_reference_custody() {
              record.count
          }",
     );
-    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
         .expect("observing metadata does not transfer the neighboring reference");
     assert!(field.path.is_empty());
     assert_eq!(field.primitive_type, super::PrimitiveType::U64);
@@ -41,7 +40,7 @@ fn local_field_observes_nested_boolean_beside_array_and_sum_storage() {
              parser.output.accepted
          }",
     );
-    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
         .expect("scalar observation retains the established aggregate owner");
     assert_eq!(
         field.path,
@@ -60,7 +59,7 @@ fn local_field_selects_a_literal_element_of_a_record_array() {
              board.tallies[3 - 1].count
          }",
     );
-    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+    let field = structural_scalar_field(&program, machine, state, 1, expression)
         .expect("a literal element of a local record array is a field path");
     assert_eq!(
         field.path,
@@ -89,7 +88,7 @@ fn local_field_declines_an_element_outside_its_array_or_selected_at_runtime() {
          }",
     ] {
         let (program, machine, state, expression) = typed_source(source);
-        assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+        assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
     }
 }
 
@@ -103,7 +102,7 @@ fn local_field_does_not_relax_linear_owner_custody_for_a_boolean_observation() {
              record.accepted
          }",
     );
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]
@@ -117,7 +116,7 @@ fn local_field_rejects_a_foreign_intermediate_declaration() {
          }",
     );
     let read =
-        local_scalar_record_field(&program, machine, state, 1, expression).expect("nested read");
+        structural_scalar_field(&program, machine, state, 1, expression).expect("nested read");
     assert_eq!(
         read.path,
         [CheckedUnitStructuralPathSegment::Field("child".into())]
@@ -139,7 +138,7 @@ fn local_field_rejects_a_foreign_intermediate_declaration() {
         panic!("carrier")
     };
     member.member_symbol = foreign;
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]
@@ -158,7 +157,7 @@ fn local_field_does_not_use_open_or_invalid_ranges_as_plain_carriers() {
              }}"
         ));
         assert!(
-            local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
+            structural_scalar_field(&program, machine, state, 1, expression).is_none(),
             "{field_type}"
         );
     }
@@ -197,7 +196,7 @@ fn local_field_rejects_foreign_same_spelled_field_identity() {
         panic!("member");
     };
     member.member_symbol = foreign;
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]
@@ -205,22 +204,22 @@ fn local_field_rejects_an_unattributed_member_expression() {
     let (mut program, machine, state, expression) = fixture();
     let detached_node = program.expression_table.expression(expression).clone();
     let detached = program.expression_table.insert(detached_node);
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_some());
-    assert!(local_scalar_record_field(&program, machine, state, 1, detached).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_some());
+    assert!(structural_scalar_field(&program, machine, state, 1, detached).is_none());
 }
 
 #[test]
 fn local_field_rejects_early_and_reordered_declarations() {
     let (mut program, machine, state, expression) = fixture();
-    assert!(local_scalar_record_field(&program, machine, state, 0, expression).is_none());
-    assert!(local_scalar_record_field(&program, machine, state, 2, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 0, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 2, expression).is_none());
     let owner = program.machines()[0].clone();
     let statements = program.machine_states(&owner)[0].statement_nodes;
     program
         .statement_table
         .statements_mut(statements)
         .swap(0, 1);
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]
@@ -235,7 +234,7 @@ fn local_field_observes_mutable_storage_and_rejects_conflicting_receiver_identit
         panic!("local");
     };
     local.is_mutable = true;
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_some());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_some());
     let mut program = original;
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         panic!("member");
@@ -245,7 +244,7 @@ fn local_field_observes_mutable_storage_and_rejects_conflicting_receiver_identit
         panic!("receiver");
     };
     name.head_symbol = machine;
-    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+    assert!(structural_scalar_field(&program, machine, state, 1, expression).is_none());
 }
 
 #[test]
@@ -263,7 +262,7 @@ fn local_field_preserves_float_carriers_and_rejects_addresses() {
              }}"
         ));
         assert_eq!(
-            local_scalar_record_field(&program, machine, state, 1, expression)
+            structural_scalar_field(&program, machine, state, 1, expression)
                 .map(|field| field.primitive_type),
             expected,
             "{field_type} retains its exact supported scalar carrier"
@@ -288,7 +287,7 @@ fn local_field_retains_policy_without_excluding_plain_siblings() {
                      record.child.{member}
                  }}"
             ));
-            let field = local_scalar_record_field(&program, machine, state, 1, expression)
+            let field = structural_scalar_field(&program, machine, state, 1, expression)
                 .unwrap_or_else(|| {
                     panic!("{policy} {member}: policy-only fields keep scalar storage")
                 });
@@ -323,7 +322,7 @@ fn scalar_predicate_local_field_reads_preserve_declared_identity() {
                  record.child.payload
              }}"
         ));
-        let field = local_scalar_record_field(&program, machine, state, 1, expression)
+        let field = structural_scalar_field(&program, machine, state, 1, expression)
             .expect("an established predicate-domain field has scalar storage");
         assert_eq!(field.primitive_type, expected);
         assert_eq!(
@@ -340,7 +339,7 @@ fn scalar_predicate_local_field_reads_preserve_declared_identity() {
             program.type_reference_symbol(field.type_reference),
             record.symbol
         );
-        assert!(local_scalar_record_field(&program, machine, state, 0, expression).is_none());
+        assert!(structural_scalar_field(&program, machine, state, 0, expression).is_none());
     }
 }
 
@@ -370,7 +369,7 @@ fn scalar_predicate_local_field_rejects_unrepresented_domains() {
              }}"
         ));
         assert!(
-            local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
+            structural_scalar_field(&program, machine, state, 1, expression).is_none(),
             "{field_type}: qualifications must have an exact supported storage interpretation"
         );
     }
@@ -392,9 +391,9 @@ fn local_payload_observation_preserves_case_and_statement_identity() {
     let (machine, state, left_statement, left) = payload_argument(&program, 0);
     let (_, _, right_statement, right) = payload_argument(&program, 1);
     assert_ne!(left_statement, right_statement);
-    let left_field = local_scalar_record_field(&program, machine, state, left_statement, left)
+    let left_field = structural_scalar_field(&program, machine, state, left_statement, left)
         .expect("selected left payload");
-    let right_field = local_scalar_record_field(&program, machine, state, right_statement, right)
+    let right_field = structural_scalar_field(&program, machine, state, right_statement, right)
         .expect("selected right payload");
     assert_eq!(
         left_field.path,
@@ -405,14 +404,14 @@ fn local_payload_observation_preserves_case_and_statement_identity() {
         [CheckedUnitStructuralPathSegment::Case("Right".into())]
     );
     assert_ne!(left_field.field, right_field.field);
-    assert_eq!(left_field.local, right_field.local);
+    assert_eq!(left_field.root, right_field.root);
     assert_eq!(left_field.primitive_type, super::PrimitiveType::U64);
-    assert!(local_scalar_record_field(&program, machine, state, right_statement, left).is_none());
+    assert!(structural_scalar_field(&program, machine, state, right_statement, left).is_none());
     let ExpressionNode::Member(member) = program.expression_table.expression_mut(left) else {
         panic!("case-qualified payload projection");
     };
     member.member_symbol = right_field.field;
-    assert!(local_scalar_record_field(&program, machine, state, left_statement, left).is_none());
+    assert!(structural_scalar_field(&program, machine, state, left_statement, left).is_none());
 }
 
 #[test]
@@ -430,7 +429,7 @@ fn local_payload_observation_keeps_nested_record_projection() {
          }",
     );
     let (machine, state, statement, expression) = payload_argument(&program, 0);
-    let field = local_scalar_record_field(&program, machine, state, statement, expression)
+    let field = structural_scalar_field(&program, machine, state, statement, expression)
         .expect("record field beneath the selected payload");
     assert_eq!(
         field.path,
@@ -449,6 +448,97 @@ fn local_payload_observation_keeps_nested_record_projection() {
         item.symbol
     );
     assert_eq!(field.primitive_type, super::PrimitiveType::U64);
+}
+
+#[test]
+fn saved_subject_fields_share_the_producer_without_copying_the_owner() {
+    for properties in ["", "[copy]"] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Choice {properties} {{ case Left(value: u64); case Right(value: u64); }}
+             machine forward(incoming: Choice) -> Choice {{ incoming }}
+             machine finish(value: u64) -> u64 {{ value }}
+             machine observe(incoming: Choice) -> u64 {{
+                 transition forward(incoming) {{
+                     Choice::Left {{ value }} -> finish(value)
+                     Choice::Right {{ value }} -> finish(value)
+                 }}
+             }}"
+        ));
+        let (machine, state, left_statement, left) = payload_argument(&program, 0);
+        let (_, _, right_statement, right) = payload_argument(&program, 1);
+        let left_field = structural_scalar_field(&program, machine, state, left_statement, left)
+            .expect("saved left payload");
+        let right_field = structural_scalar_field(&program, machine, state, right_statement, right)
+            .expect("saved right payload");
+        let facts::PlaceRoot::Expression(subject) = left_field.root else {
+            panic!("an unnamed subject keeps expression identity");
+        };
+        assert_eq!(left_field.root, right_field.root);
+        assert_eq!(left_field.statement_ordinal, left_statement);
+        assert_eq!(right_field.statement_ordinal, left_statement);
+        assert_eq!(
+            right_field.path,
+            [CheckedUnitStructuralPathSegment::Case("Right".into())]
+        );
+        assert_ne!(left_field.field, right_field.field);
+        let owner = program
+            .machine_by_symbol(machine)
+            .expect("observation owner");
+        let authored_state = &program.machine_states(owner)[0];
+        assert_eq!(
+            super::saved_dispatch_subject(
+                &program,
+                authored_state,
+                left_statement as usize,
+                subject
+            ),
+            Some((left_statement as usize, subject))
+        );
+        assert!(structural_scalar_field(&program, machine, state, right_statement, left).is_none());
+    }
+}
+
+#[test]
+fn saved_subject_field_rejects_an_identically_spelled_independent_call() {
+    let mut program = crate::front_end::typed_program(
+        "data Choice [copy] { case Left(value: u64); case Right(value: u64); }
+         machine forward(incoming: Choice) -> Choice { incoming }
+         machine finish(value: u64) -> u64 { value }
+         machine observe(incoming: Choice) -> u64 {
+             let independent: Choice = forward(incoming);
+             transition forward(incoming) {
+                 Choice::Left { value } -> finish(value)
+                 Choice::Right { value } -> finish(value)
+             }
+         }",
+    );
+    let (machine, state, statement, expression) = payload_argument(&program, 0);
+    let field = structural_scalar_field(&program, machine, state, statement, expression)
+        .expect("original saved payload");
+    let facts::PlaceRoot::Expression(subject) = field.root else {
+        panic!("saved subject expression");
+    };
+    let owner = program
+        .machine_by_symbol(machine)
+        .expect("observation owner");
+    let authored_state = &program.machine_states(owner)[0];
+    let StatementNode::LocalData(independent) = &program
+        .statement_table
+        .statements(authored_state.statement_nodes)[0]
+    else {
+        panic!("independent call declaration");
+    };
+    let independent = independent.initial_value;
+    assert!(
+        program
+            .expression_table
+            .expressions_structurally_equal(subject, independent)
+    );
+    let ExpressionNode::Member(member) = program.expression_table.expression_mut(expression) else {
+        panic!("selected payload member");
+    };
+    member.receiver = independent;
+    assert!(structural_scalar_field(&program, machine, state, statement, expression).is_none());
 }
 
 fn payload_argument(

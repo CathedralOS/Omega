@@ -392,7 +392,7 @@ impl Evaluation {
                 || self
                     .structural_locals
                     .iter()
-                    .any(|binding| binding.symbol == local.symbol)
+                    .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
             {
                 return unsupported("structural value repeats or substitutes its local binding");
             }
@@ -405,7 +405,7 @@ impl Evaluation {
             );
             self.structural_locals.push(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
-                    symbol: local.symbol,
+                    root: facts::PlaceRoot::Symbol(local.symbol),
                     structural_type: produced.structural_type(),
                     argument: StructuralArgument {
                         place: produced.place(),

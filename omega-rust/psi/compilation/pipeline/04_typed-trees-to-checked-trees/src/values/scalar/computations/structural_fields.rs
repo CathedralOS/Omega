@@ -1,4 +1,4 @@
-//! Local record observations are leaves in the ordinary evaluation sequence.
+//! Established structural observations are leaves in the ordinary evaluation sequence.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode,
@@ -9,17 +9,17 @@ use checked_trees::{
 };
 
 impl Builder<'_, '_> {
-    pub(super) fn local_scalar_record_field(
+    pub(super) fn structural_scalar_field(
         &self,
         expression: ExpressionHandle,
-    ) -> Option<validation::LocalScalarRecordField> {
+    ) -> Option<validation::StructuralScalarField> {
         if !matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Member(_)
         ) {
             return None;
         }
-        validation::local_scalar_record_field(
+        validation::structural_scalar_field(
             self.program,
             self.machine,
             self.state,
@@ -31,25 +31,34 @@ impl Builder<'_, '_> {
     pub(super) fn structural_field(
         &mut self,
         expression: ExpressionHandle,
-        field: validation::LocalScalarRecordField,
-    ) -> CheckedScalarComputationHandle {
-        self.insert(
-            field.primitive_type,
-            CheckedScalarComputationKind::StructuralField {
-                source_expression: expression,
-                subject: CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol: field.local,
+        field: validation::StructuralScalarField,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let source = match field.root {
+            facts::PlaceRoot::Symbol(symbol) => {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            }
+            facts::PlaceRoot::Expression(expression) => {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+            }
+            _ => return None,
+        };
+        Some(
+            self.insert(
+                field.primitive_type,
+                CheckedScalarComputationKind::StructuralField {
+                    source_expression: expression,
+                    subject: CheckedUnitStructuralArgumentPlan {
+                        source,
+                        path: field.path,
+                        type_identity: self
+                            .program
+                            .normalized_type_identity(field.carrier_type_reference)
+                            .into_string(),
+                        access: CheckedStructuralAccess::SharedBorrow,
                     },
-                    path: field.path,
-                    type_identity: self
-                        .program
-                        .normalized_type_identity(field.carrier_type_reference)
-                        .into_string(),
-                    access: CheckedStructuralAccess::SharedBorrow,
+                    field: field.field,
                 },
-                field: field.field,
-            },
+            ),
         )
     }
 }

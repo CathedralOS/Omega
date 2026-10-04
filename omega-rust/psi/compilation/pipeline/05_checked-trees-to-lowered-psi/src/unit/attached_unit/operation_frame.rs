@@ -941,7 +941,7 @@ impl OperationFrame<'_, '_> {
                         .evaluation
                         .structural_locals
                         .iter()
-                        .find(|local| local.symbol == *symbol)
+                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
                         .map(|local| local.argument.clone())
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",
@@ -2760,7 +2760,7 @@ impl OperationFrame<'_, '_> {
                     .evaluation
                     .structural_locals
                     .iter()
-                    .find(|local| local.symbol == symbol);
+                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol));
                 let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
                     argument,
                     ..

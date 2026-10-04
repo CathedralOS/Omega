@@ -59,6 +59,7 @@ pub(crate) fn validate_computation_calls(
     let mut pending = vec![(root, false, authored_root)];
     let mut active = Vec::new();
     let mut calls = Vec::new();
+    let mut retained_subject_calls = Vec::new();
     // Discriminant-dispatch selection chains pair each link with the authored
     // match's next classifier arm; the DFS walk visits the head link first.
     let mut case_selection_arms: std::collections::HashMap<ExpressionHandle, usize> =
@@ -153,6 +154,42 @@ pub(crate) fn validate_computation_calls(
                     *field,
                     node.primitive_type,
                 )?;
+                if let Some(facts::PlaceRoot::Expression(canonical_subject)) =
+                    subject.structural_storage_root()
+                {
+                    let (_, authored_state) = authored_state(checked, state)?;
+                    let mut receivers = expression_membership(checked, *source_expression, true)?
+                        .into_iter()
+                        .filter(|expression| {
+                            validation::saved_dispatch_subject(
+                                &checked.typed,
+                                authored_state,
+                                statement as usize,
+                                *expression,
+                            )
+                            .is_some_and(|(_, saved)| saved == canonical_subject)
+                        });
+                    let receiver = receivers.next().ok_or(LoweringError::Unsupported(
+                        "computed field lost its retained dispatch subject",
+                    ))?;
+                    if receivers.next().is_some() {
+                        return unsupported("computed field has ambiguous retained subjects");
+                    }
+                    // The parser copies the receiver beneath payload projections.
+                    // These calls belong to the already established subject, not
+                    // to this read. Keep their exact handles separate from calls
+                    // scheduled by this computation so double evaluation rejects
+                    // independently of DFS order or repeated field observations.
+                    for expression in expression_membership(checked, receiver, true)? {
+                        if matches!(
+                            checked.expression_table.expression(expression),
+                            ExpressionNode::Call(_)
+                        ) && !retained_subject_calls.contains(&expression)
+                        {
+                            retained_subject_calls.push(expression);
+                        }
+                    }
+                }
             }
             CheckedScalarComputationKind::CaseMembership {
                 source_expression,
@@ -624,10 +661,17 @@ pub(crate) fn validate_computation_calls(
             }
         }
     }
+    if calls
+        .iter()
+        .any(|call| retained_subject_calls.contains(call))
+    {
+        return unsupported("computed invocation reevaluates a retained dispatch subject");
+    }
     if source_calls.iter().any(|source| {
         source.statement_index == statement as usize
             && executable.contains(&source.authored_expression)
             && !calls.contains(&source.authored_expression)
+            && !retained_subject_calls.contains(&source.authored_expression)
             && !checked
                 .symbols
                 .builtin_function_for_symbol(source.target_symbol)

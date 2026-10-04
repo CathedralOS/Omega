@@ -1,4 +1,9 @@
-//! Exact declaration custody for a scalar observation of local structural storage.
+//! Exact declaration custody for scalar observations of established structural storage.
+//!
+//! Named locals and saved expression results share the same declaration walk.
+//! A saved dispatch subject retains its authored occurrence until execution
+//! planning assigns storage; looking up a field neither executes that subject
+//! nor grants its case membership or ownership. Those remain use-site checks.
 
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
@@ -17,10 +22,10 @@ mod tests;
 /// Source identities only; this does not grant ownership or establish loan
 /// validity. Checked flow and the consuming replay still validate availability.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalScalarRecordField {
-    pub local: SymbolHandle,
-    pub local_statement_ordinal: u32,
-    /// Whole local declaration, before any field projection.
+pub struct StructuralScalarField {
+    pub root: facts::PlaceRoot,
+    pub statement_ordinal: u32,
+    /// Whole storage declaration, before any field projection.
     pub type_reference: TypeReferenceHandle,
     /// Data declaration containing the final scalar field or selected payload.
     pub carrier_type_reference: TypeReferenceHandle,
@@ -33,7 +38,7 @@ pub struct LocalScalarRecordField {
     pub domain: ArithmeticDomain,
 }
 
-/// Resolve a field path below one prior local record declaration. Storage is
+/// Resolve a field path below a prior local or an evaluated dispatch subject. Storage is
 /// observed at this statement, never equated with its initializer: member
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
@@ -43,13 +48,13 @@ pub struct LocalScalarRecordField {
 /// Restrictions stay on the independently reconstructed field declaration;
 /// construction and every store prove them. This query grants no membership:
 /// observing the established field reads its scalar carrier.
-pub fn local_scalar_record_field(
+pub fn structural_scalar_field(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
     expression: ExpressionHandle,
-) -> Option<LocalScalarRecordField> {
+) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
     let mut receiver = expression;
     loop {
@@ -71,7 +76,7 @@ pub fn local_scalar_record_field(
     let Some(Step::Member(leaf)) = steps.first().copied() else {
         return None;
     };
-    let local = local_record(
+    let local = structural_source(
         program,
         machine,
         state,
@@ -152,9 +157,9 @@ pub fn local_scalar_record_field(
     ) {
         return None;
     }
-    Some(LocalScalarRecordField {
-        local: local.local,
-        local_statement_ordinal: local.local_statement_ordinal,
+    Some(StructuralScalarField {
+        root: local.root,
+        statement_ordinal: local.statement_ordinal,
         type_reference: local.type_reference,
         carrier_type_reference: carrier,
         path,
@@ -258,9 +263,9 @@ fn builtin_place_coordinates(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LocalRecordSource {
-    pub local: SymbolHandle,
-    pub local_statement_ordinal: u32,
+struct StructuralSource {
+    pub root: facts::PlaceRoot,
+    pub statement_ordinal: u32,
     pub type_reference: TypeReferenceHandle,
 }
 
@@ -294,14 +299,108 @@ fn expression_at_statement(
     false
 }
 
-fn local_record(
+/// Rejoin a copied dispatch subject to the first arm that evaluates it.
+/// The argument is the receiver expression, not its payload projection.
+/// Identical spelling alone is insufficient: separately authored calls retain
+/// different selection occurrences even when their arguments are identical.
+/// This describes source identity; a consumer must still prove the unique
+/// producing operation completed before reading its established storage.
+pub fn saved_dispatch_subject(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(usize, ExpressionHandle)> {
+    let table = &program.expression_table;
+    if !table.expression_is_valid(expression)
+        || !matches!(table.expression(expression), ExpressionNode::Call(_))
+    {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let statement = statements.get(statement_index)?;
+    if !expression_at_statement(program, statement, expression) {
+        return None;
+    }
+    let same_subject = |subject| {
+        if !matches!(table.expression(subject), ExpressionNode::Call(_))
+            || !table.expressions_structurally_equal(subject, expression)
+        {
+            return false;
+        }
+        let mut occurrences = table.authored_selection_occurrences(subject).peekable();
+        occurrences.peek().is_some()
+            && occurrences.eq(table.authored_selection_occurrences(expression))
+    };
+    if !same_subject(dispatch_case_subject(program, statement)?) {
+        return None;
+    }
+    statements[..=statement_index]
+        .iter()
+        .enumerate()
+        .find_map(|(ordinal, statement)| {
+            let subject = dispatch_case_subject(program, statement)?;
+            same_subject(subject).then_some((ordinal, subject))
+        })
+}
+
+fn dispatch_case_subject(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Option<ExpressionHandle> {
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::statement::TransitionGuardNode;
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    let TransitionGuardNode::When(mut guard) = transition.guard else {
+        return None;
+    };
+    let table = &program.expression_table;
+    for _ in 0..table.expression_count() {
+        let ExpressionNode::Binary(binary) = table.expression(guard) else {
+            return None;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::CaseMembership
+        ) {
+            return None;
+        }
+        if binary.operator == BinaryOperator::Equal {
+            if matches!(table.expression(binary.left), ExpressionNode::Boolean(true)) {
+                guard = binary.right;
+                continue;
+            }
+            if matches!(
+                table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) {
+                guard = binary.left;
+                continue;
+            }
+        }
+        if crate::exact_case_reference_owner(program, binary.right).is_some() {
+            return Some(binary.left);
+        }
+        if binary.operator == BinaryOperator::Equal
+            && crate::exact_case_reference_owner(program, binary.left).is_some()
+        {
+            return Some(binary.right);
+        }
+        return None;
+    }
+    None
+}
+
+fn structural_source(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_ordinal: u32,
     expression: ExpressionHandle,
     receiver_expression: ExpressionHandle,
-) -> Option<LocalRecordSource> {
+) -> Option<StructuralSource> {
     if !machine.is_valid()
         || !state.is_valid()
         || !program.expression_table.expression_is_valid(expression)
@@ -332,64 +431,81 @@ fn local_record(
     ) {
         return None;
     }
-    let ExpressionNode::Name(receiver) = program.expression_table.expression(receiver_expression)
-    else {
-        return None;
-    };
-    if !receiver.symbol.is_valid()
-        || receiver.head_symbol != receiver.symbol
-        || program
-            .expression_table
-            .name_path_members(receiver.members)
-            .len()
-            != 1
-        || program
-            .expression_table
-            .name_path_member_symbols(receiver.member_symbols)
-            != [receiver.symbol]
-    {
+    let (root, ordinal, source_type) =
+        match program.expression_table.expression(receiver_expression) {
+            ExpressionNode::Name(receiver) => {
+                if !receiver.symbol.is_valid()
+                    || receiver.head_symbol != receiver.symbol
+                    || program
+                        .expression_table
+                        .name_path_members(receiver.members)
+                        .len()
+                        != 1
+                    || program
+                        .expression_table
+                        .name_path_member_symbols(receiver.member_symbols)
+                        != [receiver.symbol]
+                {
+                    return None;
+                }
+                let (ordinal, local) = program.state_local_declaration(state, receiver.symbol)?;
+                // A zeroed declaration owns storage even without an initializer.
+                let declared_zeroed = !local.initial_value.is_valid()
+                    && matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(local.type_reference),
+                        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                    )
+                    && crate::zeroed_structural_parts(program, local.type_reference);
+                if ordinal >= statement_ordinal as usize
+                    || !(program
+                        .expression_table
+                        .expression_is_valid(local.initial_value)
+                        || declared_zeroed)
+                {
+                    return None;
+                }
+                (
+                    facts::PlaceRoot::Symbol(local.symbol),
+                    ordinal,
+                    local.type_reference,
+                )
+            }
+            ExpressionNode::Call(_) => {
+                let (ordinal, subject) = saved_dispatch_subject(
+                    program,
+                    state,
+                    statement_ordinal as usize,
+                    receiver_expression,
+                )?;
+                let ExpressionNode::Call(call) = program.expression_table.expression(subject)
+                else {
+                    return None;
+                };
+                let result_type =
+                    crate::machine_calls::calls::resolved_call_result_type(program, call)?;
+                (facts::PlaceRoot::Expression(subject), ordinal, result_type)
+            }
+            _ => return None,
+        };
+    if !matches!(
+        program.type_multiplicity(source_type),
+        Multiplicity::Affine | Multiplicity::Unrestricted
+    ) {
         return None;
     }
-    let (ordinal, local) = program.state_local_declaration(state, receiver.symbol)?;
-    // A declared-but-uninitialized record carries no initializer to
-    // observe; its storage is the zeroed establishment minted at declaration,
-    // which the ledger and the ordered Unit effect independently proved.
-    let declared_zeroed = !local.initial_value.is_valid()
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(local.type_reference),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-        )
-        && crate::zeroed_structural_parts(program, local.type_reference);
-    if ordinal >= statement_ordinal as usize
-        || !(program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-            || declared_zeroed)
-        || !matches!(
-            program.type_multiplicity(local.type_reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-    {
-        return None;
-    }
-    // A borrow local presents its referent's record storage: `view.f` reads
-    // field `f` of `T` out of the borrowed place without moving custody.
-    // The returned `type_reference` stays the referent so downstream carriers
-    // and structural type identities keep naming the record, not `&T`.
-    let carrier = match program
-        .type_reference_table
-        .type_reference(local.type_reference)
-    {
+    // A borrow local observes its referent without moving its reference.
+    // An expression result must already own its home before it can be read.
+    let carrier = match program.type_reference_table.type_reference(source_type) {
         TypeReferenceNode::Reference {
             referee,
             access:
                 language_semantics::ReferenceAccess::Shared
                 | language_semantics::ReferenceAccess::Mutable,
             ..
-        } => *referee,
-        _ => local.type_reference,
+        } if matches!(root, facts::PlaceRoot::Symbol(_)) => *referee,
+        _ => source_type,
     };
     // A scalar observation moves neither its record nor neighboring reference
     // permissions. Establishment and use-site custody are checked separately;
@@ -414,9 +530,9 @@ fn local_record(
     if records.next().is_some() || !program.data_type_parameters(record).is_empty() {
         return None;
     }
-    Some(LocalRecordSource {
-        local: local.symbol,
-        local_statement_ordinal: u32::try_from(ordinal).ok()?,
+    Some(StructuralSource {
+        root,
+        statement_ordinal: u32::try_from(ordinal).ok()?,
         type_reference: carrier,
     })
 }

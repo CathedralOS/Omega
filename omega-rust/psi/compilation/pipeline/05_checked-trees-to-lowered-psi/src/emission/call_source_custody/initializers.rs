@@ -157,6 +157,24 @@ pub(crate) fn validate_structural(
     {
         return unsupported("structural call result disagrees with its declared carrier");
     }
+    // The named arm invocation can follow subject, guard and operand calls
+    // in the same statement. Its exact target occurrence, rather than preorder
+    // zero, identifies the result that completes the enclosing machine.
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    if let Some(StatementNode::Transition(transition)) =
+        statements.get(result.statement_index as usize)
+        && authored.source_site.is_none()
+    {
+        if super::authored::transition_target_at_call(checked, caller_state, coordinate)?
+            != transition.target
+            || !statements[result.statement_index as usize..]
+                .iter()
+                .all(|statement| matches!(statement, StatementNode::Transition(_)))
+        {
+            return unsupported("transition result differs from its authored named target");
+        }
+        return Ok(());
+    }
     if coordinate.call_ordinal != 0 {
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
             authored.source_site
@@ -283,36 +301,6 @@ pub(crate) fn validate_structural(
             )
         {
             return unsupported("dispatch subject result differs from its authored call");
-        }
-        return Ok(());
-    }
-    // A completing transition mints its structural result on the transition
-    // statement itself: `result.statement_index` names the `_ -> Named(..)`
-    // call, not a binding. `locate_source` rejoins the named target's exact
-    // authored signature the same way it does for every call site. Each arm
-    // of an ordered `transition` is its own guarded statement, so a result
-    // in an earlier arm is not the last statement; it must still belong to
-    // the state's trailing transition chain, which completes the machine.
-    if let Some(StatementNode::Transition(_)) = statements.get(result.statement_index as usize) {
-        let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
-        let target =
-            super::authored::target_signature(checked, caller_machine, authored.source_target)?;
-        if machine.symbol != caller_machine
-            || result.statement_index != coordinate.statement_index
-            || !statements[result.statement_index as usize..]
-                .iter()
-                .all(|statement| matches!(statement, StatementNode::Transition(_)))
-            || coordinate.call_ordinal != 0
-            || checked
-                .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
-                    checked,
-                    view_result_carrier(checked, target.return_type).unwrap_or(target.return_type),
-                )?)
-                .as_str()
-                != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
-        {
-            return unsupported("transition result differs from its authored named target");
         }
         return Ok(());
     }

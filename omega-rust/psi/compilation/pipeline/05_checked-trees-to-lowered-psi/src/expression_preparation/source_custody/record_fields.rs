@@ -1,10 +1,7 @@
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
-};
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_source(
@@ -17,20 +14,12 @@ pub(crate) fn validate_source(
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
 ) -> Result<(), LoweringError> {
-    let source = validation::local_scalar_record_field(
-        &checked.typed,
-        machine,
-        state,
-        statement,
-        expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "record read lost its authored local and field",
-    ))?;
-    if subject.source
-        != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: source.local,
-        })
+    let source =
+        validation::structural_scalar_field(&checked.typed, machine, state, statement, expression)
+            .ok_or(LoweringError::Unsupported(
+                "record read lost its authored storage and field",
+            ))?;
+    if subject.structural_storage_root() != Some(source.root)
         || subject.access != CheckedStructuralAccess::SharedBorrow
         || subject.path != source.path
         || subject.type_identity
@@ -40,7 +29,7 @@ pub(crate) fn validate_source(
         || source.field != field
         || source.primitive_type != primitive
     {
-        return unsupported("record read differs from its authored local and field");
+        return unsupported("record read differs from its authored storage and field");
     }
     Ok(())
 }

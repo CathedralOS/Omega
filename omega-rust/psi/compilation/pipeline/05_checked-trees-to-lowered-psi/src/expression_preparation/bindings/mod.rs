@@ -47,14 +47,22 @@ impl LoanAccess {
     }
 }
 
-/// The exact published local carrier stays with its source name and custody.
+/// The exact published carrier stays with its source identity and custody.
 /// A reference result may retain its reference shell even when its argument
 /// access is shared; access alone therefore cannot recover this type.
 #[derive(Clone, Debug)]
 pub(crate) struct StructuralLocalBinding {
-    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) root: facts::PlaceRoot,
     pub(crate) argument: StructuralArgument,
     pub(crate) structural_type: StructuralTypeId,
+}
+
+fn valid_structural_root(root: facts::PlaceRoot) -> bool {
+    match root {
+        facts::PlaceRoot::Symbol(symbol) => symbol.is_valid(),
+        facts::PlaceRoot::Expression(expression) => expression.is_valid(),
+        _ => false,
+    }
 }
 
 #[derive(Clone)]
@@ -96,16 +104,15 @@ impl ScalarBindings {
         symbol: symbols::SymbolHandle,
         place: PlaceId,
     ) -> Result<(), LoweringError> {
-        let position = self
-            .structural_locals
+        self.structural_locals
             .iter()
             .position(
                 |StructuralLocalBinding {
-                     symbol: candidate,
+                     root: candidate,
                      argument,
                      ..
                  }| {
-                    *candidate == symbol
+                    *candidate == facts::PlaceRoot::Symbol(symbol)
                         && argument.place == place
                         && argument.access == StructuralAccess::Owned
                         && argument.path.is_empty()
@@ -114,7 +121,8 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "moved local lost its exact source home",
             ))?;
-        self.structural_locals.remove(position);
+        self.structural_locals
+            .retain(|binding| binding.argument.place != place);
         Ok(())
     }
 
@@ -129,12 +137,12 @@ impl ScalarBindings {
             || self
                 .structural_locals
                 .iter()
-                .any(|local| local.symbol == symbol)
+                .any(|local| local.root == facts::PlaceRoot::Symbol(symbol))
         {
             return unsupported("structural local has invalid or repeated identity");
         }
         self.structural_locals.push(StructuralLocalBinding {
-            symbol,
+            root: facts::PlaceRoot::Symbol(symbol),
             structural_type,
             argument: StructuralArgument {
                 place,
@@ -194,36 +202,46 @@ impl ScalarBindings {
                     || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
                 && source.projected_qualifications.is_empty()
         };
+        let storage_root = argument
+            .structural_storage_root()
+            .or_else(|| match argument.source {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                    root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                    ..
+                }
+                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                    root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                    ..
+                } => Some(facts::PlaceRoot::Symbol(symbol)),
+                _ => None,
+            });
         let place = match argument.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-                root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-                ..
-            }
-            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-                root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-                ..
-            } => {
-                let mut locals = self
-                    .structural_locals
-                    .iter()
-                    .filter(|row| row.symbol == symbol);
+            _ if storage_root.is_some() => {
+                let root = storage_root.ok_or(LoweringError::Unsupported(
+                    "computed borrow lost its storage identity",
+                ))?;
+                let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
                 match locals.next() {
                     Some(source) => {
                         // An owned local lends its whole place; a `&T` local
                         // is itself a shared-borrow join result, so borrowing
                         // through it reuses that same shared custody rather
                         // than fabricating ownership.
-                        if !symbol.is_valid()
+                        if !valid_structural_root(root)
                             || locals.next().is_some()
                             || !supports_borrow(source.argument.access)
                             || !source.argument.path.is_empty()
+                            || self.structural_place_type(source.argument.place)
+                                != Some(source.structural_type)
                         {
                             return unsupported("computed borrow changes its local custody");
                         }
                         source.argument.place
                     }
                     None => {
+                        let facts::PlaceRoot::Symbol(symbol) = root else {
+                            return unsupported("computed borrow lost its established expression");
+                        };
                         let position = parameters
                             .iter()
                             .position(|parameter| parameter.symbol == symbol)
@@ -369,10 +387,15 @@ impl ScalarBindings {
                     || self
                         .structural_locals
                         .iter()
-                        .any(|local| local.symbol == symbol)
+                        .any(|local| local.root == facts::PlaceRoot::Symbol(symbol))
                 {
                     return unsupported("case observation has ambiguous formal custody");
                 }
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                ..
+            } => {
+                return Ok(None);
             }
             _ => return unsupported("case observation has no established source"),
         }
@@ -686,7 +709,7 @@ impl ScalarBindings {
                 let mut candidates = self
                     .structural_locals
                     .iter()
-                    .filter(|local| local.symbol == symbol);
+                    .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
                 let Some(StructuralLocalBinding { argument, .. }) = candidates.next() else {
                     return unsupported("record byte observation lost its live local backing");
                 };
@@ -854,15 +877,17 @@ impl ScalarBindings {
                     access,
                 });
             }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                let mut locals = self
-                    .structural_locals
-                    .iter()
-                    .filter(|row| row.symbol == symbol);
+            _ if argument.structural_storage_root().is_some() => {
+                let root = argument
+                    .structural_storage_root()
+                    .ok_or(LoweringError::Unsupported(
+                        "computed primitive borrow lost its storage identity",
+                    ))?;
+                let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
                 let source = locals.next().ok_or(LoweringError::Unsupported(
                     "computed primitive borrow lost its established local",
                 ))?;
-                if !symbol.is_valid()
+                if !valid_structural_root(root)
                     || locals.next().is_some()
                     || source.argument.access != StructuralAccess::SharedBorrow
                     || !source.argument.path.is_empty()
@@ -929,21 +954,18 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-            argument.source
-        else {
-            return unsupported("copied record requires an established local");
-        };
-        let mut locals = self
-            .structural_locals
-            .iter()
-            .filter(|row| row.symbol == symbol);
+        let root = argument
+            .structural_storage_root()
+            .ok_or(LoweringError::Unsupported(
+                "copied record requires established storage",
+            ))?;
+        let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
         let StructuralLocalBinding {
             argument: source, ..
         } = locals.next().ok_or(LoweringError::Unsupported(
             "copied record lost its established local",
         ))?;
-        if !symbol.is_valid()
+        if !valid_structural_root(root)
             || locals.next().is_some()
             || !argument.path.is_empty()
             || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -960,19 +982,14 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-            argument.source
-        {
-            let mut locals = self
-                .structural_locals
-                .iter()
-                .filter(|row| row.symbol == symbol);
+        if let Some(root) = argument.structural_storage_root() {
+            let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
             let StructuralLocalBinding {
                 argument: source, ..
             } = locals.next().ok_or(LoweringError::Unsupported(
                 "computed owned structural operand lost its established local",
             ))?;
-            if !symbol.is_valid()
+            if !valid_structural_root(root)
                 || locals.next().is_some()
                 || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned

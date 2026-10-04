@@ -74,7 +74,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
-        if let Some(field) = self.local_scalar_record_field(expression) {
+        if let Some(field) = self.structural_scalar_field(expression) {
             if !is_integer(field.primitive_type) {
                 return None;
             }
@@ -82,7 +82,7 @@ impl Builder<'_, '_> {
                 value: parameter(0, field.primitive_type),
                 value_source: ExpressionHandle::invalid(),
                 domain: field.domain,
-                computation: self.structural_field(expression, field),
+                computation: self.structural_field(expression, field)?,
             });
         }
         // The saved operand keeps its bits while the authored cast

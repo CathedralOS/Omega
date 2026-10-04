@@ -863,7 +863,7 @@ pub(crate) fn prepare(
                 })
                 .ok_or(LoweringError::Unsupported("record read field is absent"))?;
             let identity = authored.path_identity();
-            let source = validation::local_scalar_record_field(
+            let source = validation::structural_scalar_field(
                 &checked.typed,
                 root.machine,
                 root.state,
@@ -1266,7 +1266,7 @@ pub(crate) fn type_roots(
             else {
                 continue;
             };
-            let Some(source) = validation::local_scalar_record_field(
+            let Some(source) = validation::structural_scalar_field(
                 &checked.typed,
                 machine,
                 root.state,
