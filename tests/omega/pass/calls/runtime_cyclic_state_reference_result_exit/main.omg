@@ -76,12 +76,28 @@ machine observe_shared(pair: &Pair, second: bool) -> u64 {
     selected.value
 }
 
+machine shared_swap<'storage>(pair: &'storage Pair, swap: bool) -> &'storage Node {
+    transition { _ -> repeat(&pair.left, &pair.right, swap) }
+    state repeat(first: &'storage Node, second: &'storage Node, swap: bool) -> &'storage Node {
+        transition swap {
+            true -> repeat(second, first, false)
+            false -> first
+        }
+    }
+}
+machine observe_swapped(pair: &Pair, swap: bool) -> u64 {
+    let selected: &Node = shared_swap(pair, swap);
+    selected.value
+}
+
 machine main() reaches Console {
     let mut pair: Pair = Pair { left: Node { value: 17 }, right: Node { value: 43 } };
     let right: u64 = observe(&mut pair, true);
     let left: u64 = observe(&mut pair, false);
     let shared_right: u64 = observe_shared(&pair, true);
     let shared_left: u64 = observe_shared(&pair, false);
+    let original: u64 = observe_swapped(&pair, false);
+    let swapped: u64 = observe_swapped(&pair, true);
     change(&mut pair, true, 44);
     change(&mut pair, false, 18);
     let mut outer: Outer = Outer {
@@ -92,6 +108,7 @@ machine main() reaches Console {
     let nested_left: u64 = observe_outer(&mut outer, false);
     transition right == 43 && left == 17
         && shared_right == 43 && shared_left == 17
+        && original == 17 && swapped == 43
         && pair.left.value == 18 && pair.right.value == 44
         && nested_left == 101 && nested_right == 103 && outer.anchor == 91 {
         true -> Console::exit_process(0)
