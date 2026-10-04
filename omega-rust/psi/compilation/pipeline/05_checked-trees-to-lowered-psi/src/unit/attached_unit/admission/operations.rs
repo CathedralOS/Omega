@@ -6,7 +6,7 @@ use super::super::super::{
     unsupported,
 };
 use super::super::bodies::UnitPlans;
-use super::super::{provider_attachments, reference_results, scalar_arrays, structural_calls};
+use super::super::{provider_attachments, reference_results, scalar_arrays};
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
 use symbols::SymbolHandle;
@@ -20,7 +20,7 @@ pub(super) fn validate<'a>(
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
     let caller = super::CallerView::ordinary(machine);
-    for (operation_index, operation) in machine.operations.iter().enumerate() {
+    for operation in &machine.operations {
         provider_attachments::validate_call_source(
             checked,
             machine.machine,
@@ -63,9 +63,7 @@ pub(super) fn validate<'a>(
                     elements,
                 )?;
             }
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
-                structural_calls::validate_cleanup(checked, machine, operation_index)?;
-            }
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
             // A scalar callee joins an ordinary body's closure before
             // admission; a composed catalog selects it from the call.
             CheckedUnitEffectOperationPlan::Call(call)

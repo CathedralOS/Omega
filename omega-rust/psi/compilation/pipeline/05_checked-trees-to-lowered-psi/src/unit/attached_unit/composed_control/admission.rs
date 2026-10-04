@@ -485,7 +485,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 // A displaced field's move-out and restoring store carry no
                 // callee; the replacing call carries its own dependency.
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }

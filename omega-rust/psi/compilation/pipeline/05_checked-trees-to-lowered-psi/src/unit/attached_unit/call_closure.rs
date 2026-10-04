@@ -306,36 +306,8 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
-                // An ordinary call's continuation may retire its argument
-                // owners regardless of the returned value. Boundary calls
-                // retain their distinct structural-result disposal route.
-                let completed_call = operation_index
-                    .checked_sub(1)
-                    .and_then(|previous| machine.operations.get(previous))
-                    .and_then(CheckedUnitEffectOperationPlan::call)
-                    .is_some_and(|call| {
-                        call.coordinate == *coordinate
-                            && matches!(
-                                (call.route(), call.result()),
-                                (CheckedUnitCallRoute::Module { .. }, _)
-                                    | (_, CheckedUnitCallResult::Structural { .. })
-                            )
-                    });
-                if !completed_call
-                    && !super::field_replacement::continues_with_cleanup(
-                        &machine.operations,
-                        operation_index,
-                    )
-                    && !super::field_replacement::continues_array_elements(
-                        &machine.operations,
-                        operation_index,
-                    )
-                {
-                    return unsupported("call cleanup has no immediately preceding completed call");
-                }
-                continue;
-            }
+            // Cleanup placement is a checked plan decision, not another call.
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => continue,
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => continue,
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                 statement_index,

@@ -315,8 +315,8 @@ pub(super) fn plan(
         consume_results(&mut *operations, &operation)?;
         operations.push(operation);
         if result.multiplicity == Multiplicity::Affine {
-            operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                coordinate,
+            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                 affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
@@ -375,8 +375,8 @@ pub(super) fn plan(
                 .filter(|call| call.structural_result().is_some())
                 .map(|call| call.coordinate)
         })?;
-        operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            coordinate,
+        operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
             affine_discards: vec![discard],
         });
     }
@@ -391,15 +391,7 @@ pub(super) fn plan(
             &mut *operations,
         )?;
     } else {
-        append_call_cleanup(
-            program,
-            facts,
-            machine.symbol,
-            state,
-            &mut *operations,
-            statement_index,
-            structural_results,
-        )?;
+        append_call_cleanup(&mut *operations, statement_index, structural_results)?;
     }
     Some(())
 }

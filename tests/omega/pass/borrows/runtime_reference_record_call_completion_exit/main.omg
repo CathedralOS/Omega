@@ -1,0 +1,33 @@
+// Whole cleanup is accounted once on both Unit completion and named successors.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32 [0..=100]; ready: bool; }
+data Message { body: &mut Cell; stamp: i32; }
+data Main { console: Binding<Console>; cell: Cell; }
+
+machine inspect(cell: &Cell) -> i32 { cell.value }
+machine exercise(cell: &mut Cell, stop: bool) {
+    cell.value = 70;
+    let message: Message = Message { body: cell, stamp: 11 };
+    let observed: i32 = inspect(message.body);
+    let stamp: i32 = message.stamp;
+    cell.value = 81;
+    transition stop && observed == 70 && stamp == 11 {
+        true -> {}
+        false -> done(cell)
+    }
+    state done(cell: &mut Cell) { cell.value = 82; }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    exercise(&mut main.cell, true);
+    let completed: i32 [0..=100] = main.cell.value;
+    exercise(&mut main.cell, false);
+    transition completed == 81 && main.cell.value == 82 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

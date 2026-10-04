@@ -3308,6 +3308,44 @@ fn is_reference_node(program: &TypedTrees, reference: TypeReferenceHandle) -> bo
     }
 }
 
+/// First statement entry at which the entire established local can be retired.
+/// A dead reference leaf does not authorize destroying a live scalar sibling.
+/// Missing leaf weakening evidence keeps disposal on the existing exit path.
+pub fn whole_local_release_boundary(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+) -> Option<u32> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let StatementNode::LocalData(local) = statements.get(statement_index as usize)? else {
+        return None;
+    };
+    let loans = local_record_loans(program, facts, machine, state, statement_index)?;
+    if loans.is_empty() || !local.symbol.is_valid() {
+        return None;
+    }
+    let mut boundary = statement_index.checked_add(1)?;
+    for (_, loan) in loans {
+        boundary = boundary.max(release_statement(facts, machine, state.symbol, loan)?);
+    }
+    for (index, statement) in statements
+        .iter()
+        .enumerate()
+        .skip(statement_index as usize + 1)
+    {
+        if crate::value_custody::source_liveness::statement_uses_symbol(
+            program,
+            statement,
+            local.symbol,
+        ) {
+            boundary = boundary.max(u32::try_from(index).ok()?.checked_add(1)?);
+        }
+    }
+    Some(boundary)
+}
+
 pub fn release_statement(
     facts: &CheckFacts,
     machine: SymbolHandle,

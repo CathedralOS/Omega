@@ -435,7 +435,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+            | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();

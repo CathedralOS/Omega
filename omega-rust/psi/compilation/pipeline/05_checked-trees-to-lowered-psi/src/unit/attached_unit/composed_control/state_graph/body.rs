@@ -191,6 +191,16 @@ pub(super) fn validate(
     )?;
     let mut cursor = prefix;
     for (index, operation) in state.operations.iter().enumerate() {
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
+                ..
+            }
+        ) {
+            // Expiry runs before entry and consumes no authored statement.
+            continue;
+        }
         let mut check_structural_binding =
             |result: &checked_trees::CheckedUnitStructuralResultBindingPlan|
              -> Result<(), LoweringError> {
@@ -569,7 +579,7 @@ pub(super) fn validate(
             (
                 CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. },
+                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. },
                 StatementNode::Assignment(assignment),
             ) => validate_displaced_field_replacement(
                 checked, machine, source, state, ordinal, assignment,
@@ -578,7 +588,7 @@ pub(super) fn validate(
             // continuation, regardless of the statement's surface spelling.
             // Operand custody independently rejoins this immediate cleanup.
             (
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. },
+                CheckedUnitEffectOperationPlan::ContinuationCleanup { .. },
                 _,
             ) => {}
             (
@@ -1337,9 +1347,10 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         {
             Some(store.statement_index)
         }
-        CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
-            Some(coordinate.statement_index)
-        }
+        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+            ..
+        } => Some(coordinate.statement_index),
         // A view field's descriptor store is one member store of a record
         // literal's roster, in whichever authored position its member takes.
         CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
@@ -1421,6 +1432,17 @@ fn statement_continuations(
     operations
         .iter()
         .map(|operation| {
+            if matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
+                    ..
+                }
+            ) {
+                // Stage 04 schedules expiry before this entry. Keeping the
+                // current statement unchanged makes cleanup transparent to coverage.
+                return Ok(true);
+            }
             let continued = continued_statement(operation);
             if continued.is_some() && continued == current {
                 return Ok(true);
@@ -1748,8 +1770,8 @@ fn validate_displaced_field_replacement(
         (
             language_semantics::Multiplicity::Affine,
             [
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    coordinate,
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                     affine_discards,
                 },
             ],

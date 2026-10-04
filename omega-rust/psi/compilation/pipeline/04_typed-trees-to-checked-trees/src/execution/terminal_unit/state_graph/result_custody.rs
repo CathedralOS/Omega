@@ -58,8 +58,54 @@ pub(super) fn account(
                 ..
             }
         );
+        // A whole in-sequence cleanup already owns this result's retirement.
+        // Its lexical state-exit disposal permit cannot book a second owner;
+        // moves, returns, and duplicate cleanups still count independently.
+        let (cleanup_discards, retired_whole) = operations[producer_index + 1..]
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    affine_discards, ..
+                } => Some(affine_discards),
+                _ => None,
+            })
+            .flatten()
+            .filter(|discard| {
+                matches!(
+                    discard.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal
+                    } if binding_ordinal == result.binding_ordinal
+                )
+            })
+            .fold((0, false), |(count, retired_whole), discard| {
+                (
+                    count + 1,
+                    retired_whole
+                        || (discard.path.is_empty()
+                            && discard.type_identity == result.type_identity),
+                )
+            });
+        // A partially transferring successor partition must not hide a move
+        // after unconditional retirement merely because it has another exit.
+        if retired_whole
+            && (terminator
+                .successors()
+                .iter()
+                .any(|edge| edge.result_moves(result) != 0)
+                || terminator.return_arms().iter().any(|arm| {
+                    arm.operation_dependencies().any(|operation| {
+                        operation.with_value_calls().any(|operation| {
+                            terminator_call_consumes_result(operation, result.binding_ordinal)
+                        })
+                    })
+                }))
+        {
+            return None;
+        }
         let permits_disposal = |successors: &[&CheckedStructuralControlSuccessorPlan]| {
             !call_operand
+                && !retired_whole
                 && local_results::permits_disposal(
                     program,
                     state,
@@ -365,27 +411,6 @@ pub(super) fn account(
                     && argument.type_identity == result.type_identity
                     && argument.access == CheckedStructuralAccess::Owned
                     && argument.path.is_empty()
-            })
-            .count();
-        // An in-sequence continuation cleanup owns an affine result whose
-        // authored statement discarded it. Count that exact owner as the
-        // consumption alongside terminator disposal and call transfer.
-        let cleanup_discards = operations[producer_index + 1..]
-            .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    affine_discards, ..
-                } => Some(affine_discards),
-                _ => None,
-            })
-            .flatten()
-            .filter(|discard| {
-                matches!(
-                    discard.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal
-                    } if binding_ordinal == result.binding_ordinal
-                )
             })
             .count();
         // A hole-restore stores a whole owned result into borrowed

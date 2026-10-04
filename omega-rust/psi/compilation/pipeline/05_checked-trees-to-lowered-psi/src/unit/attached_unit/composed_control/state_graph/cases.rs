@@ -462,7 +462,6 @@ pub(super) fn validate(
     let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
     let mut consumed_drops = Vec::new();
-    super::result_custody::validate_disposition_roster(checked, owner, source, state)?;
     for event in checked
         .facts
         .flow

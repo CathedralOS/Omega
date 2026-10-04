@@ -5,13 +5,9 @@ use symbols::SymbolHandle;
 mod expressions;
 mod transitions;
 
-use expressions::{
-    expression_uses_local_name, expression_uses_place_symbol, expression_uses_symbol,
-};
-use transitions::{
-    transition_guard_uses_local_name, transition_guard_uses_symbol,
-    transition_target_uses_local_name, transition_target_uses_symbol,
-};
+use expressions::{expression_uses_local_name, expression_uses_place_symbol};
+use transitions::{transition_guard_uses_local_name, transition_target_uses_local_name};
+pub(super) use validation::statement_uses_symbol;
 
 use crate::borrow::tracker::BorrowOwnerSegment;
 
@@ -66,54 +62,6 @@ pub(super) fn statement_uses_local_name(
                         .statement_table
                         .transition_target(transition.continuation),
                     local_name,
-                )
-        }
-    }
-}
-
-pub(super) fn statement_uses_symbol(
-    program: &typed_trees::TypedTrees,
-    statement: &StatementNode,
-    symbol: SymbolHandle,
-) -> bool {
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            expression_uses_symbol(program, binding.receiver, symbol)
-                || (binding.implementation_operand.is_valid()
-                    && expression_uses_symbol(program, binding.implementation_operand, symbol))
-        }
-        StatementNode::AssemblyFact(_) => false,
-        StatementNode::Assignment(assignment) => {
-            expression_uses_symbol(program, assignment.target, symbol)
-                || expression_uses_symbol(program, assignment.value, symbol)
-        }
-        StatementNode::Call(call) => {
-            call.receiver_symbol == symbol
-                || program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_uses_symbol(program, *argument, symbol))
-        }
-        StatementNode::Expression(expression) => {
-            expression_uses_symbol(program, *expression, symbol)
-        }
-        StatementNode::LocalData(local_data) => {
-            expression_uses_symbol(program, local_data.initial_value, symbol)
-        }
-        StatementNode::Transition(transition) => {
-            transition_guard_uses_symbol(program, transition.guard, symbol)
-                || transition_target_uses_symbol(
-                    program,
-                    program.statement_table.transition_target(transition.target),
-                    symbol,
-                )
-                || transition_target_uses_symbol(
-                    program,
-                    program
-                        .statement_table
-                        .transition_target(transition.continuation),
-                    symbol,
                 )
         }
     }

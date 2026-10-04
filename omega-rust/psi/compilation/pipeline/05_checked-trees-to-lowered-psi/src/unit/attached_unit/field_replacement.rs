@@ -230,47 +230,6 @@ pub(super) fn continues_bound_value(
         && moved.type_identity == value.type_identity
 }
 
-/// Whether the cleanup at `index` disposes exactly the displaced value of
-/// the replacement whose store immediately precedes it.
-pub(super) fn continues_with_cleanup(
-    operations: &[CheckedUnitEffectOperationPlan],
-    index: usize,
-) -> bool {
-    let Some(store_index) = index.checked_sub(1) else {
-        return false;
-    };
-    let (
-        Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            coordinate,
-            affine_discards,
-        }),
-        Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
-            statement_index, ..
-        }),
-        Some(CheckedUnitEffectOperationPlan::MoveStructuralField { result: moved, .. }),
-    ) = (
-        operations.get(index),
-        operations.get(store_index),
-        store_index
-            .checked_sub(1)
-            .and_then(|move_index| operations.get(move_index)),
-    )
-    else {
-        return false;
-    };
-    (continues(operations, store_index) || continues_bound_value(operations, store_index))
-        && coordinate.statement_index == *statement_index
-        && coordinate.call_ordinal == 0
-        && moved.multiplicity == Multiplicity::Affine
-        && matches!(affine_discards.as_slice(), [discard]
-        if discard.path.is_empty()
-            && discard.type_identity == moved.type_identity
-            && discard.source
-                == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: moved.binding_ordinal,
-                })
-}
-
 /// The authored statement a member of a field replacement roster names: an
 /// establishment of the statement's own value, a move-out, a store, or the
 /// continuation cleanup of a displaced value.
@@ -287,11 +246,10 @@ fn roster_statement(operation: Option<&CheckedUnitEffectOperationPlan>) -> Optio
         CheckedUnitEffectOperationPlan::StoreStructuralField {
             statement_index, ..
         } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. }
-            if coordinate.call_ordinal == 0 =>
-        {
-            Some(coordinate.statement_index)
-        }
+        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+            ..
+        } if coordinate.call_ordinal == 0 => Some(coordinate.statement_index),
         _ => None,
     }
 }
@@ -360,9 +318,8 @@ pub(super) fn continues_array_elements(
         {
             return false;
         }
-        if let Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            affine_discards,
-            ..
+        if let Some(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            affine_discards, ..
         }) = windows.peek()
         {
             let Some((moved, _)) = moved else {
@@ -620,8 +577,8 @@ pub(crate) fn validate_array_element_replacements(
                     path: Vec::new(),
                     type_identity: produced.type_identity.clone(),
                 };
-                let Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    coordinate,
+                let Some(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                     affine_discards,
                 }) = windows.next()
                 else {

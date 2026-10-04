@@ -275,7 +275,7 @@ fn retired_in_body(
         .operations
         .iter()
         .flat_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 affine_discards, ..
             } => affine_discards
                 .iter()
@@ -665,49 +665,28 @@ pub(super) fn validate_disposition(
     Ok(())
 }
 
-/// Every local exit disposition must belong to a retained result. Parameter
-/// dispositions are checked separately against their entry custody.
-pub(super) fn validate_disposition_roster(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-) -> Result<(), LoweringError> {
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
-    for (_, event) in checked
-        .facts
-        .flow
-        .ownership
-        .permissions
+/// Locals already disposed at a checked statement entry must not be disposed
+/// again at return. Stage 04 owns the lifetime decision; lowering consumes its
+/// result ordinals directly instead of reconstructing source ownership rows.
+pub(super) fn statement_discards(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
+    state
+        .operations
         .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state.state
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
+                affine_discards,
+            } => Some(affine_discards),
+            _ => None,
         })
-    {
-        if checked
-            .state_parameters(source)
-            .iter()
-            .any(|parameter| event.root == facts::PlaceRoot::Symbol(parameter.symbol))
-        {
-            continue;
-        }
-        // Argument constructions share the enclosing local's statement, but
-        // their custody already moved into the call. Rejoin the same live
-        // result roster used by local_discards and edge disposal below.
-        let matching = state.operations.iter().filter_map(result).filter(|result| {
-            !cleanup_discards.contains(&result.binding_ordinal) &&
-            matches!(statements.get(result.statement_index as usize),
-                Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
-        }).count();
-        if matching != 1 {
-            return unsupported("Unit graph edge leaves an unaccounted local disposition");
-        }
-    }
-    Ok(())
+        .flatten()
+        .filter_map(|discard| match discard.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => Some(binding_ordinal),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(super) fn local_discards(

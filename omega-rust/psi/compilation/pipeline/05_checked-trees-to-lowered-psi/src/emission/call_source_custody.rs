@@ -197,7 +197,7 @@ pub(crate) fn validate_store_and_initializer_calls(
             if *discard_result_on_return
                 || (result.multiplicity == language_semantics::Multiplicity::Affine
                     && !matches!(plan.operations.get(operation_index + 1),
-                        Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, .. })
+                        Some(CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary: checked_trees::CheckedUnitCleanupBoundary::Call(cleanup), .. })
                             if *cleanup == coordinate))
             {
                 return unsupported(

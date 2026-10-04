@@ -894,11 +894,31 @@ pub(crate) fn validate_usage(
                 }
             }
         }
-        if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            coordinate,
+        if let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary,
             affine_discards,
         } = operation
         {
+            if matches!(
+                boundary,
+                checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. }
+            ) {
+                let source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    };
+                if !affine_discards
+                    .iter()
+                    .any(|discard| discard.source == source)
+                {
+                    continue;
+                }
+                disposed = true;
+                continue;
+            }
+            let checked_trees::CheckedUnitCleanupBoundary::Call(coordinate) = boundary else {
+                return unsupported("cleanup has no supported semantic boundary");
+            };
             let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             };
@@ -951,34 +971,11 @@ pub(crate) fn validate_usage(
                 }
                 continue;
             }
-            let (_, state) = crate::expression_preparation::source_custody::authored_state(
-                checked,
-                caller.state,
-            )?;
-            let reference_record_end = validation::reference_result_custody::local_record_loans(
-                &checked.typed,
-                &checked.facts,
-                caller.machine,
-                state,
-                result.statement_index,
-            )
-            .is_some_and(|loans| {
-                !loans.is_empty()
-                    && loans.iter().all(|(_, loan)| {
-                        validation::reference_result_custody::release_statement(
-                            &checked.facts,
-                            caller.machine,
-                            caller.state,
-                            *loan,
-                        ) == coordinate.statement_index.checked_add(1)
-                    })
-            });
             if consumed
                 || disposed
                 || producer.discard
-                || (!reference_record_end
-                    && (producer.coordinate.call_ordinal == 0
-                        || producer.coordinate.statement_index != coordinate.statement_index))
+                || producer.coordinate.call_ordinal == 0
+                || producer.coordinate.statement_index != coordinate.statement_index
                 || operation_index <= producer.operation_index
                 || if projected_paths.is_empty() {
                     let mut owned_discards = affine_discards
@@ -1109,7 +1106,7 @@ pub(crate) fn validate_usage(
                 && (producer.discard
                     || call.is_boundary()
                     || !matches!(operations.get(operation_index + 1),
-                        Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, affine_discards })
+                        Some(CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary: checked_trees::CheckedUnitCleanupBoundary::Call(cleanup), affine_discards })
                             if *cleanup == coordinate
                                 && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1))
             {

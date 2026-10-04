@@ -1249,7 +1249,7 @@ impl MachineEmission<'_> {
         // call's dying results before the next operation evaluates any.
         if matches!(
             operation,
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
         ) {
             let source_value_count = self.scalar_result_values.len();
             return self.emit_through_frame(operation, source_value_count);
@@ -1333,7 +1333,7 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
                 self.establish_trivial_affine_local(operation)?
             }
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit return is not the final checked operation");
             }

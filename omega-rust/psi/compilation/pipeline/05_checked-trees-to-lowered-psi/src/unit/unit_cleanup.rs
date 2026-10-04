@@ -28,9 +28,7 @@ mod custody;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
-pub(crate) use partial::{
-    checked_partial_affine_residuals, validate_anonymous_partial_permissions,
-};
+pub(crate) use partial::checked_partial_affine_residuals;
 
 /// Lower a nominal affine Unit cleanup machine. One route serves any number
 /// of structural parameters: each root owns exactly one cleanup action, and

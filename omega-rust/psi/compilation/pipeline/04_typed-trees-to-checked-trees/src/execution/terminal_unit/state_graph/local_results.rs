@@ -99,6 +99,8 @@ fn validate(
             ) || validation::has_owned_or_shared_view_contents(
                 program,
                 local.type_reference,
+            ) || validation::reference_result_custody::is_reference_record(
+                program, local.type_reference,
             )) || type_graph_requires_nominal_drop(program, local.type_reference)))
     {
         return None;

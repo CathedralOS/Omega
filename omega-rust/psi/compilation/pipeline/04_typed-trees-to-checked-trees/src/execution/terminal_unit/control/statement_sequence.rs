@@ -16,8 +16,7 @@
 use super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    PermissionProvenance,
+    CheckedUnitStructuralArgumentSourcePlan, PermissionProvenance,
 };
 use super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -849,7 +848,7 @@ pub(in crate::execution::terminal_unit) fn build(
         let statement_index = u32::try_from(index).ok()?;
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
-        append_reference_releases(program, facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
+        append_reference_releases(program, facts, machine.symbol, state.symbol, statement_index, &structural_results, &mut operations)?;
         // A fact-only citation emits no runtime call or work; its flow row
         // is retired (`execution::citation_erasure`), so it plans nothing.
         if validation::is_fact_only_citation(program, statement) {
@@ -1329,17 +1328,24 @@ fn scalar_computation_local_at(
     ))
 }
 
+/// End captured reference custody at entry to the next authored statement.
+/// Whole carriers use ordinary affine edge disposal, which retires every leaf;
+/// singular results retain their explicit release. Reverse production order
+/// closes descendants before earlier parent carriers at a shared boundary.
+#[allow(clippy::too_many_arguments)]
 fn append_reference_releases(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: u32,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
+    let authored_state = program.state_by_symbol(state)?;
     let mut pending = Vec::new();
-    for operation in operations.iter() {
-        // Only an ordinary structural call carries a custody record.
+    let mut retired = Vec::new();
+    for operation in operations.iter().rev() {
         if let Some(call) = operation.call()
             && let Some(custody) = call.structural_custody()
             && let Some(result) = call.structural_result()
@@ -1356,7 +1362,82 @@ fn append_reference_releases(
                     statement_index, binding_ordinal: result.binding_ordinal, loan,
                 });
             }
+            continue;
         }
+        let Some((result, true)) = operation.discardable_structural_result() else {
+            continue;
+        };
+        if result.multiplicity != Multiplicity::Affine || result.statement_index >= statement_index
+        {
+            continue;
+        }
+        let Some(StatementNode::LocalData(local)) = program
+            .statement_table
+            .statements(authored_state.statement_nodes)
+            .get(result.statement_index as usize)
+        else {
+            continue;
+        };
+        // Anonymous operands can share their enclosing local's statement and
+        // type. Only the binding registered to that local owns its loan roster.
+        if !results.iter().any(|(binding, root)| {
+            binding == result && *root == facts::PlaceRoot::Symbol(local.symbol)
+        }) {
+            continue;
+        }
+        // A moved subtree keeps the root's disposal debt until its exact
+        // complement is retired. An initializer loan roster cannot authorize
+        // whole disposal of that partial ownership frontier.
+        if operations.iter().any(|operation| {
+            operation.with_value_calls().any(|operation| {
+                operation.call_structural_arguments().iter().any(|argument| {
+                    argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                        && argument.access == CheckedStructuralAccess::Owned
+                })
+            }) || matches!(operation, CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+                if value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal))
+        }) {
+            continue;
+        }
+        // A replacement creates a different captured occurrence. This roster
+        // describes the initializer, so leave a replaced home to its existing
+        // replacement/exit custody until that occurrence is represented here.
+        if facts.borrow.loans.iter().any(|(_, loan)| {
+            loan.owner_symbol == local.symbol
+                && loan.statement_index != result.statement_index as usize
+                && loan.statement_index < statement_index as usize
+        }) {
+            continue;
+        }
+        if validation::reference_result_custody::whole_local_release_boundary(
+            program,
+            facts,
+            machine,
+            authored_state,
+            result.statement_index,
+        ) != Some(statement_index)
+        {
+            continue;
+        }
+        retired.push(result.binding_ordinal);
+        pending.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
+            affine_discards: vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: result.type_identity.clone(),
+            }],
+        });
+    }
+    for binding in retired {
+        let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
+            operation
+                .discardable_structural_result_mut()
+                .filter(|(result, _)| result.binding_ordinal == binding)
+        })?;
+        *discard_on_return = false;
     }
     operations.extend(pending);
     Some(())
@@ -1429,12 +1510,7 @@ fn append_exit_reference_releases(
     Some(())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn append_call_cleanup(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     statement_index: u32,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -1453,37 +1529,12 @@ fn append_call_cleanup(
     let structural_arguments = &call.structural_arguments;
     let mut discards = Vec::new();
     for (result, root) in results.iter().rev() {
-        let reference_record = matches!(root, facts::PlaceRoot::Symbol(_))
-            && super::super::reference_results::local_record_loans(
-                program,
-                facts,
-                machine,
-                state,
-                result.statement_index,
-            )
-            .is_some_and(|loans| {
-                !loans.is_empty()
-                    && loans.iter().all(|(_, loan)| {
-                        super::super::reference_results::release_statement(
-                            facts,
-                            machine,
-                            state.symbol,
-                            *loan,
-                        ) == statement_index.checked_add(1)
-                    })
-            })
-            && structural_arguments.iter().any(|argument| {
+        if !matches!(root, facts::PlaceRoot::Expression(_))
+            || result.statement_index != statement_index
+            || !structural_arguments.iter().any(|argument| {
                 argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                    && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
-            });
-        if !reference_record
-            && (!matches!(root, facts::PlaceRoot::Expression(_))
-                || result.statement_index != statement_index
-                || !structural_arguments.iter().any(|argument| {
-                    argument.source_structural_result_binding_ordinal()
-                        == Some(result.binding_ordinal)
-                        && argument.access == CheckedStructuralAccess::SharedBorrow
-                }))
+                    && argument.access == CheckedStructuralAccess::SharedBorrow
+            })
         {
             continue;
         }
@@ -1515,8 +1566,8 @@ fn append_call_cleanup(
         }
         *discard_result_on_return = false;
     }
-    operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-        coordinate,
+    operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
         affine_discards: discards,
     });
     Some(())

@@ -72,6 +72,7 @@ pub use value_custody::scalar_case_constructor::{
     structural_case_constructor, substituted_member_reference,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
+pub use value_custody::source_liveness::statement_uses_symbol;
 pub use value_custody::storage_contents::{
     has_borrowed_storage_contents, has_cleanup_owned_contents, has_linear_owned_contents,
     has_owned_or_shared_view_contents, has_owned_or_shared_view_fields, has_plain_owned_contents,

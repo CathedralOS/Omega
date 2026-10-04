@@ -552,9 +552,10 @@ fn replacement_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u
         CheckedUnitEffectOperationPlan::StoreStructuralField {
             statement_index, ..
         } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
-            Some(coordinate.statement_index)
-        }
+        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+            ..
+        } => Some(coordinate.statement_index),
         _ => operation.call().map(|call| call.coordinate.statement_index),
     }
 }
@@ -1251,4 +1252,3 @@ pub(crate) fn member_identity(
             })
     })
 }
-

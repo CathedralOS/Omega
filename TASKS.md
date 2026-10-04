@@ -1216,25 +1216,32 @@ crash and native exit behavior.
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
   - State: bounded scalar and Boolean reads retain exact loan backing through
-    direct and helper-returned reference arrays. Shared, mutable, nested shared
-    and forwarded helper results exit 70 in native and checked-interpreter
-    execution. Every normal return contributes its backing; local escape,
-    live-backing writes and overlapping mutable results reject. Distinct shared
-    result leaves may observe the same backing without duplicating a moved
-    carrier identity.
-    Remaining: statement-boundary aggregate loan retirement. A caller that
-    reads both slots of `collect(&mut main.cells) -> [&mut Cell; 2]`, then writes
-    `main.cells.second.value = 81` after the array's last use, passes source
-    borrowing but rejects at Terminal reference custody (`operation accesses
-    suspended referent`). Both constructed and returned aggregates retain
-    disposal until state exit. Generalize the checked cleanup edge to any
-    authenticated last-use statement, preserving complete captured-loan
-    weakening and independent result-custody replay; singular `ReleaseReference`
-    cannot retire an aggregate. Reuse the existing whole-owner edge disposal
-    under stage 05 `operation_frame::call_continuation_cleanup`, removing its
-    preceding-call restriction rather than adding an array-only release route.
-    Next acceptance is exit 70 after both reads and the backing write, with all
-    existing reference controls preserved.
+    direct and helper-returned reference arrays. Whole reference aggregates now
+    retire at their checked last-use statement, restoring backing before later
+    writes. Constructed and returned mutable arrays, shared arrays whose leaves
+    alias one backing, and records with a later-read scalar sibling exit 70 in
+    native and checked-interpreter execution. Named transitions and Unit
+    completion account for the same earlier cleanup without disposing twice.
+    On macOS arm64, `omega run --both
+    tests/omega/pass/borrows/runtime_returned_reference_array_restoration_exit/main.omg`
+    reads both returned slots, writes the backing value to 81 and exits 70;
+    the constructed, shared-cohort and record-call fixtures retain that oracle.
+    Stage 04 joins complete captured-loan weakening with whole-local liveness;
+    stage 05 emits the ordinary affine cleanup edge from that plan. The old
+    preceding-call restriction and its redundant source revalidation are gone.
+    Remaining: retire an individual stored reference while a disjoint scalar
+    sibling remains live. In `runtime_reference_record_call_payload_restoration_exit`,
+    moving `main.cell.value = 81` before `let stamp = message.stamp` passes source
+    borrowing but rejects at Terminal `InvalidReferenceCustody` (`operation
+    accesses suspended referent`). Whole-owner disposal must wait for the stamp;
+    descriptor retirement must instead update the projected ownership frontier
+    and leave exact residual cleanup. Existing `MoveStructuralField` opens a
+    storage-repair obligation and cannot stand in for descriptor retirement.
+    Next acceptance is exit 70 with that earlier backing write, preserving
+    shared cohorts, child loans and projected-transfer controls. Direct scalar
+    observations through a stored record reference (`message.body.value`) also
+    remain a separate stage 05 projection gap (`record read requires a record
+    namespace`) in `scalar_graph/scalar_computations/fields.rs`.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

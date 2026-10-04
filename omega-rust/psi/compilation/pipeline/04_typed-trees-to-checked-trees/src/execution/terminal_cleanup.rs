@@ -1043,7 +1043,10 @@ pub(super) fn state_exit_result_locals(
             || !(validation::has_plain_owned_contents_with_represented_constraints(
                 program,
                 local.type_reference,
-            ) || validation::has_owned_or_shared_view_contents(program, local.type_reference))
+            ) || validation::has_owned_or_shared_view_contents(program, local.type_reference)
+                // Stored reference leaves own descriptors, not their backing.
+                // Their exact loan roster supports the same whole disposal.
+                || validation::reference_result_custody::is_reference_record(program, local.type_reference))
             || super::terminal_unit::types::type_graph_requires_nominal_drop(
                 program,
                 local.type_reference,

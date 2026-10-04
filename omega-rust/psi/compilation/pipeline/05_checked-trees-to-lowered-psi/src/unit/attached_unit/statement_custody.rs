@@ -113,7 +113,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
             Some(write.statement_index)
         }
-        CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
         | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
         | CheckedUnitEffectOperationPlan::Complete { .. } => None,
     }

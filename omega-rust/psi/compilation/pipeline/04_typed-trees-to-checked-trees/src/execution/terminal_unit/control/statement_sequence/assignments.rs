@@ -238,11 +238,13 @@ pub(super) fn plan(
         if let Some(discard) = replacement.displaced_discard {
             // The displaced value dies on this statement's
             // continuation, as it does after a replacing call.
-            operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                coordinate: checked_trees::CheckedUnitCallCoordinate {
-                    statement_index,
-                    call_ordinal: 0,
-                },
+            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
+                    checked_trees::CheckedUnitCallCoordinate {
+                        statement_index,
+                        call_ordinal: 0,
+                    },
+                ),
                 affine_discards: vec![discard],
             });
         }
@@ -278,11 +280,13 @@ pub(super) fn plan(
             consume_results(&mut *operations, &replacement.store)?;
             operations.push(replacement.store);
             if let Some(discard) = replacement.displaced_discard {
-                operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    coordinate: checked_trees::CheckedUnitCallCoordinate {
-                        statement_index,
-                        call_ordinal: 0,
-                    },
+                operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
+                        checked_trees::CheckedUnitCallCoordinate {
+                            statement_index,
+                            call_ordinal: 0,
+                        },
+                    ),
                     affine_discards: vec![discard],
                 });
             }
@@ -515,11 +519,13 @@ fn element_replacements(
         consume_results(&mut *operations, &replacement.store)?;
         operations.push(replacement.store);
         if let Some(discard) = replacement.displaced_discard {
-            operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                coordinate: checked_trees::CheckedUnitCallCoordinate {
-                    statement_index,
-                    call_ordinal: 0,
-                },
+            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
+                    checked_trees::CheckedUnitCallCoordinate {
+                        statement_index,
+                        call_ordinal: 0,
+                    },
+                ),
                 affine_discards: vec![discard],
             });
         }

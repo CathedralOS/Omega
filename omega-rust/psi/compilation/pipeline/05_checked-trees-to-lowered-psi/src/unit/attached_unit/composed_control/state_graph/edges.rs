@@ -1498,7 +1498,6 @@ fn validate_cleanup(
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
     let owner = super::owner(checked, state.state)?;
-    result_custody::validate_disposition_roster(checked, owner, source, state)?;
     result_custody::local_discards(checked, owner, source, state, Some(edge))?;
     let cleanup = checked
         .facts
@@ -1653,6 +1652,7 @@ pub(super) fn return_discards(
     } else {
         Vec::new()
     };
+    let early_discards = result_custody::statement_discards(state);
     let mut drops = Vec::new();
     for event in checked
         .facts
@@ -1664,7 +1664,8 @@ pub(super) fn return_discards(
         ))?
     {
         if state.operations.iter().filter_map(result_custody::result).any(|result| {
-            local_discards.contains(&result.binding_ordinal)
+            (local_discards.contains(&result.binding_ordinal)
+                || early_discards.contains(&result.binding_ordinal))
                 && matches!(checked.statement_table.statements(source.statement_nodes).get(result.statement_index as usize),
                     Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
         }) {

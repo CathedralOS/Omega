@@ -441,6 +441,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             machine.symbol,
             state.symbol,
             u32::try_from(statement_index).ok()?,
+            &structural_results,
             &mut operations,
         )?;
     }

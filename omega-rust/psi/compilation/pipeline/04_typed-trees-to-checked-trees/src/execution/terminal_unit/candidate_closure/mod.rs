@@ -245,7 +245,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
             if !closure.retained[caller_index] {
@@ -400,7 +400,7 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     // The paired boundary call carries the callee dependency;
                     // its cleanup continuation only disposes the discarded result.
-                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
+                    | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
                     _ => closure.drop_candidate(
                         caller_index,
                         CheckedUnitPlanOmissionStage::ComposedVocabulary,

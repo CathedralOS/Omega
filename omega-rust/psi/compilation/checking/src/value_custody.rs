@@ -25,6 +25,7 @@ pub(crate) mod record_local_disposition;
 pub(crate) mod reference_shells;
 pub(crate) mod scalar_case_constructor;
 pub(crate) mod scalar_representation_range;
+pub(crate) mod source_liveness;
 pub(crate) mod storage_contents;
 pub(crate) mod struct_literals;
 pub(crate) mod transition_operand_moves;

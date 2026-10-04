@@ -1,18 +1,4 @@
-use super::expressions::{expression_uses_local_name, expression_uses_symbol};
-use symbols::SymbolHandle;
-
-pub(super) fn transition_guard_uses_symbol(
-    program: &typed_trees::TypedTrees,
-    guard: typed_trees::statement::TransitionGuardNode,
-    symbol: SymbolHandle,
-) -> bool {
-    match guard {
-        typed_trees::statement::TransitionGuardNode::Always => false,
-        typed_trees::statement::TransitionGuardNode::When(expression) => {
-            expression_uses_symbol(program, expression, symbol)
-        }
-    }
-}
+use super::expressions::expression_uses_local_name;
 
 pub(super) fn transition_guard_uses_local_name(
     program: &typed_trees::TypedTrees,
@@ -24,30 +10,6 @@ pub(super) fn transition_guard_uses_local_name(
         typed_trees::statement::TransitionGuardNode::When(expression) => {
             expression_uses_local_name(program, expression, local_name)
         }
-    }
-}
-
-pub(super) fn transition_target_uses_symbol(
-    program: &typed_trees::TypedTrees,
-    target: &typed_trees::statement::TransitionTargetNode,
-    symbol: SymbolHandle,
-) -> bool {
-    match target {
-        typed_trees::statement::TransitionTargetNode::Named {
-            path, arguments, ..
-        } => {
-            path.head_symbol == symbol
-                || path.symbol == symbol
-                || program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .iter()
-                    .any(|argument| expression_uses_symbol(program, *argument, symbol))
-        }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            expression_uses_symbol(program, *expression, symbol)
-        }
-        typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 

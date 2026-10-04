@@ -629,7 +629,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
@@ -715,9 +715,9 @@ impl OperationFrame<'_, '_> {
                 destination,
                 value,
             } => self.store_structural_field(*statement_index, destination, value),
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 affine_discards, ..
-            } => self.call_continuation_cleanup(affine_discards),
+            } => self.continuation_cleanup(affine_discards),
             CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
                 self.establish_byte_sequence(operation)
             }
@@ -2949,9 +2949,9 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Commit the dying affine results on a completed call's normal
-    /// continuation while its evaluated scalar bindings stay live.
-    fn call_continuation_cleanup(
+    /// Commit dying affine results at the checked continuation boundary
+    /// while evaluated scalar bindings remain live.
+    fn continuation_cleanup(
         &mut self,
         affine_discards: &[checked_trees::CheckedUnitPartialAffineDiscardPlan],
     ) -> Result<(), LoweringError> {
@@ -2962,7 +2962,7 @@ impl OperationFrame<'_, '_> {
                 binding_ordinal,
             } = discard.source
             else {
-                return unsupported("call continuation cleanup requires a result binding");
+                return unsupported("continuation cleanup requires a result binding");
             };
             let place = self
                 .results

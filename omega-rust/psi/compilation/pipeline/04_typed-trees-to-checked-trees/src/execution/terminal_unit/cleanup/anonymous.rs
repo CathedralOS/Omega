@@ -457,8 +457,8 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         *discard_on_return = false;
     }
     // Keep even an empty complement: it records the exact dying continuation.
-    operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-        coordinate,
+    operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
         affine_discards,
     });
     Some(())

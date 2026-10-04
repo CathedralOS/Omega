@@ -120,8 +120,8 @@ pub(super) fn admit(
             // between the producer -- the statement's call, or the
             // establishment of a construction replacing a field -- and the
             // discard that retires a displaced binding.
-            CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                coordinate,
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                 affine_discards,
             }
                 if affine_discards.iter().all(|discard| {
@@ -158,6 +158,45 @@ pub(super) fn admit(
                         }
                         _ => false,
                     }) => {}
+            // Statement entry retires an earlier whole carrier without
+            // consuming the following statement. Statement planning has joined
+            // the complete loan roster and whole-local liveness at this boundary.
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary:
+                    checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
+                affine_discards,
+            } if statements.get(*statement_index as usize).is_some()
+                && !affine_discards.is_empty()
+                && affine_discards.iter().all(|discard| {
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } = discard.source
+                    else {
+                        return false;
+                    };
+                    let mut producers = operations[..operation_index]
+                        .iter()
+                        .filter_map(|operation| {
+                            let result = operation.statement_structural_result_binding()?;
+                            (result.binding_ordinal == binding_ordinal)
+                                .then_some((operation, result))
+                        });
+                    let Some((producer, result)) = producers.next() else {
+                        return false;
+                    };
+                    producers.next().is_none()
+                        && discard.path.is_empty()
+                        && discard.type_identity == result.type_identity
+                        && result.multiplicity == language_semantics::Multiplicity::Affine
+                        && result.statement_index < *statement_index
+                        && matches!(
+                            statements.get(result.statement_index as usize),
+                            Some(StatementNode::LocalData(_))
+                        )
+                        && producer
+                            .discardable_structural_result()
+                            .is_some_and(|(_, discard_on_return)| !discard_on_return)
+                }) => {}
             _ => {
                 // Name the operation family whose custody the selected
                 // edges cannot yet carry; admitted families never reach
@@ -181,7 +220,7 @@ pub(super) fn admit(
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                         "state graph: operation custody: discarded structural result"
                     }
-                    CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
+                    CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {
                         "state graph: operation custody: continuation cleanup owner"
                     }
                     CheckedUnitEffectOperationPlan::EstablishReference { .. }

@@ -23,6 +23,15 @@ use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
+/// Cleanup either follows one evaluated call/replacement occurrence or precedes
+/// an authored statement whose entry ends the captured loans. Statement entry
+/// does not consume that statement; its ordinary operations still follow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedUnitCleanupBoundary {
+    Call(CheckedUnitCallCoordinate),
+    StatementEntry { statement_index: u32 },
+}
+
 /// Source-handle-free plans for the first general structural/Unit terminal
 /// slice. These rows are assembled only after ownership and carry checking
 /// have recorded their authoritative facts.
@@ -180,10 +189,11 @@ pub enum CheckedUnitEffectOperationPlan {
         primitive_type: PrimitiveType,
         value: CheckedCallScalarArgument,
     },
-    /// Normal edge after the named call completes. Cleanup belongs to this
-    /// continuation, not the caller's final return or a synthetic source call.
-    CallContinuationCleanup {
-        coordinate: CheckedUnitCallCoordinate,
+    /// Retire affine owners at their authenticated semantic boundary.
+    /// Calls and statement entry share edge disposal, while retaining the
+    /// distinct source evidence needed to authenticate their lifetimes.
+    ContinuationCleanup {
+        boundary: CheckedUnitCleanupBoundary,
         affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
     },
     EstablishTrivialAffineLocal {

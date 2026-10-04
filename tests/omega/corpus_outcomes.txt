@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 3.09, "load1_start": 3.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.06, "load1_start": 4.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -231,6 +231,8 @@ fail/borrows/reference_array_result_live_source_write rejected 1362ms expected @
 	statement 8 mutates `main.cells.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/reference_array_result_local_escape rejected 1407ms expected @6ba9c43af356+wt
 	machine `collect` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+fail/borrows/reference_array_shared_cohort_live_source_write rejected 339ms expected @b5d8c6882a8b+wt
+	statement 2 mutates `source.second.value` while local borrow `messages` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_carrier_store_while_shared rejected 210ms expected @f41cc6938f06+wt
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
@@ -1472,6 +1474,7 @@ pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms @3fa817733
 pass/borrows/runtime_carrier_reference_reselection_exit checked 2946ms @056c1343fac1+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d47+wt
+pass/borrows/runtime_constructed_reference_array_restoration_exit checked 1487ms @b5d8c6882a8b+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms @cfe60a3a242
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
@@ -1485,10 +1488,14 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 2200ms @
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms @056c1343fac1+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms @15c77983aab0+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
+pass/borrows/runtime_reference_record_call_completion_exit checked 1503ms @b5d8c6882a8b+wt
+pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1477ms @b5d8c6882a8b+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 2600ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3295ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms @6ba9c43af356+wt
+pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms @b5d8c6882a8b+wt
+pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_state_boolean_reference_exit checked 3855ms @3fa817733300+wt
