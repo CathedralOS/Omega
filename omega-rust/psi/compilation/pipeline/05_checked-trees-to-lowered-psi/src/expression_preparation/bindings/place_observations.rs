@@ -139,6 +139,9 @@ pub(crate) struct PlaceObservationCapture {
 
 #[derive(Clone)]
 pub(crate) enum ObservationKind {
+    /// Ordinary declared structural storage; only its captured coordinates
+    /// need private homes. Field observations retain their checked paths.
+    Structural,
     ByteRecord {
         overlay: ByteOverlaySource,
         layout: validation::RecastScalarLayout,

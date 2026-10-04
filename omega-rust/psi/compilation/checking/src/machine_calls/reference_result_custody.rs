@@ -3308,9 +3308,11 @@ fn is_reference_node(program: &TypedTrees, reference: TypeReferenceHandle) -> bo
     }
 }
 
-/// First statement entry at which the entire established local can be retired.
+/// Earliest statement entry permitted by this local's own uses and loans.
 /// A dead reference leaf does not authorize destroying a live scalar sibling.
 /// Missing leaf weakening evidence keeps disposal on the existing exit path.
+/// The execution scheduler must also retire holders borrowing this local's
+/// storage before using this boundary to dispose of its whole value.
 pub fn whole_local_release_boundary(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -3344,6 +3346,38 @@ pub fn whole_local_release_boundary(
         }
     }
     Some(boundary)
+}
+
+/// Loans that keep some part of a local's storage borrowed in this state.
+/// The loan root identifies backing storage; `source_owner_symbol` instead
+/// records transfer provenance and does not keep the former holder alive.
+/// Consumers join each formation occurrence to its actual emitted holder and
+/// retirement, rather than treating a leaf's lexical weakening as disposal.
+pub fn local_storage_loans(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: SymbolHandle,
+) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
+    let mut states = facts.borrow.states.iter().filter_map(|(_, candidate)| {
+        (candidate.machine_symbol == machine && candidate.state_symbol == state)
+            .then_some(candidate)
+    });
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    Some(
+        facts
+            .borrow
+            .loans
+            .iter()
+            .filter_map(|(handle, loan)| {
+                (facts.borrow.state_owns_loan(borrowing, handle) && loan.root_symbol == root)
+                    .then_some(handle)
+            })
+            .collect(),
+    )
 }
 
 pub fn release_statement(

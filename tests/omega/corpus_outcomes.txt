@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.28, "load1_start": 8.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.72, "load1_start": 2.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -244,6 +244,8 @@ fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 799ms expect
 	argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/stored_reference_live_source_write rejected 143ms expected @efc0f5f0f7a9+wt
 	statement 1 mutates `cell.value` while local borrow `envelope` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/stored_reference_payload_live_source_write rejected 531ms expected @681c48c0cebc+wt
+	statement 4 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 1353ms expected @c5d32a00863
 	state `read_through_helper` receives `main` as mutable more than once
 	state `read_after` receives `main` as mutable more than once
@@ -1483,6 +1485,7 @@ pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 2144ms @f935383e1d47+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms @3fa817733300+wt
+pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 1563ms @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 2946ms @056c1343fac1+wt
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms @f935383e1d47+wt
@@ -1499,15 +1502,19 @@ pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 1520ms @1
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 2200ms @e477ee0294de+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms @056c1343fac1+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms @15c77983aab0+wt
+pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 1757ms @681c48c0cebc+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
+pass/borrows/runtime_reference_record_array_field_read_exit checked 1602ms @681c48c0cebc+wt
 pass/borrows/runtime_reference_record_call_completion_exit checked 1503ms @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1477ms @b5d8c6882a8b+wt
+pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 1277ms @681c48c0cebc+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 2600ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3295ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms @b5d8c6882a8b+wt
+pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 1604ms @681c48c0cebc+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_state_boolean_reference_exit checked 3855ms @3fa817733300+wt

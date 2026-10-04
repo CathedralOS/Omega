@@ -176,9 +176,6 @@ pub(crate) struct Binding {
     /// The checked coordinate of the loan's one non-literal index segment,
     /// when the captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
-    /// The index selector's integer primitive, retained so `Parameter`/`Local`
-    /// coordinate reads reconstruct with their declared type.
-    selector_primitive: Option<typed_trees::types::PrimitiveType>,
     /// `true` when the runtime index steps through an element view (live
     /// extent); `false` for a fixed array (literal extent on the type).
     view_container: bool,
@@ -289,10 +286,7 @@ pub(crate) fn prepare_place_observations(
             };
             let observation = if let Some(primitive) = loan.primitive {
                 ObservationKind::Primitive(primitive)
-            } else {
-                let Some(overlay) = loan.byte_overlay else {
-                    return Ok(None);
-                };
+            } else if let Some(overlay) = loan.byte_overlay {
                 if loan.view_container || !loan.element_suffix.is_empty() {
                     return Ok(None);
                 }
@@ -302,6 +296,8 @@ pub(crate) fn prepare_place_observations(
                     return unsupported("record byte observation has no normalized scalar layout");
                 };
                 ObservationKind::ByteRecord { overlay, layout }
+            } else {
+                ObservationKind::Structural
             };
             Ok(Some(PlaceObservationCapture {
                 coordinate: None,
@@ -1029,7 +1025,6 @@ pub(crate) fn prepare(
                 mut path,
                 mut declaration,
                 runtime_index,
-                selector_primitive,
                 view_container,
                 element_suffix,
             ) = match loan {
@@ -1046,7 +1041,6 @@ pub(crate) fn prepare(
                             "record read's loaned carrier type is absent",
                         ))?,
                     subject.runtime_index,
-                    subject.selector_primitive,
                     subject.view_container,
                     subject.element_suffix,
                 ),
@@ -1068,7 +1062,6 @@ pub(crate) fn prepare(
                         Vec::new(),
                         Vec::new(),
                         declaration,
-                        None,
                         None,
                         false,
                         Vec::new(),
@@ -1254,7 +1247,6 @@ pub(crate) fn prepare(
                 carrier_path,
                 path,
                 runtime_index,
-                selector_primitive,
                 view_container,
                 element_path,
                 bounded_leaf,
@@ -1539,58 +1531,28 @@ fn observe(
     {
         return unsupported("record view carrier change needs a static source leaf");
     }
-    if let Some(selector) = binding.runtime_index.clone() {
+    if binding.runtime_index.is_some() {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            binding.subject.source
+        else {
+            return unsupported("record observation lost its captured loan identity");
+        };
+        let index = bindings.observation_coordinate(symbol)?;
         if let Some(overlay) = &binding.byte_overlay {
             if binding.view_container {
                 return unsupported("record byte overlay requires fixed-array backing");
             }
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-                binding.subject.source
-            else {
-                return unsupported("record byte overlay lost its captured loan identity");
-            };
             return byte_overlay_read(
                 source,
                 &binding.carrier_path,
-                bindings.observation_coordinate(symbol)?,
+                index,
                 overlay.offset,
                 overlay.stored_type,
                 binding.scalar_type,
             );
         }
-        // The canonical read path has no runtime segment: the loan's element
-        // read takes the same runtime vocabulary a direct `cells[i].leaf`
-        // observation spells, with the selector lowered through the shared
-        // scalar rosters.
-        let index = match selector {
-            checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-                bindings.expression(&checked_trees::CheckedScalarExpression::Parameter {
-                    position: position as usize,
-                    primitive_type: binding.selector_primitive.ok_or(
-                        LoweringError::Unsupported(
-                            "record loan's index selector lost its primitive",
-                        ),
-                    )?,
-                })?
-            }
-            checked_trees::CheckedRuntimeIndex::Local { position } => {
-                bindings.expression(&checked_trees::CheckedScalarExpression::Local {
-                    position: position as usize,
-                    primitive_type: binding.selector_primitive.ok_or(
-                        LoweringError::Unsupported(
-                            "record loan's index selector lost its primitive",
-                        ),
-                    )?,
-                })?
-            }
-            checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                bindings.runtime_index_field(&field)?
-            }
-            checked_trees::CheckedRuntimeIndex::AssignmentIndex { .. } => {
-                return unsupported("record loan's index is not an assignment selector");
-            }
-        };
-        let index = crate::expression_preparation::prepare_expression::exact_u64_index(index)?;
+        // The loan freezes its selector at formation. Re-evaluating a field
+        // selector here would silently retarget the reference after a write.
         let scalar_type = binding.scalar_type;
         return Ok(if binding.view_container {
             if !binding.carrier_path.is_empty() || binding.bounded_leaf {

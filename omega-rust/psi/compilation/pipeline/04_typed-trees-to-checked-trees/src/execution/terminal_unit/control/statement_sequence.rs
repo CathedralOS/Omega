@@ -1409,14 +1409,91 @@ fn append_reference_releases(
         }) {
             continue;
         }
-        if validation::reference_result_custody::whole_local_release_boundary(
+        let Some(boundary) = validation::reference_result_custody::whole_local_release_boundary(
             program,
             facts,
             machine,
             authored_state,
             result.statement_index,
-        ) != Some(statement_index)
-        {
+        ) else {
+            continue;
+        };
+        if boundary > statement_index {
+            continue;
+        }
+        // Lexically expired leaves can remain stored in a live aggregate.
+        // Retire their actual holders before the storage they borrow. The
+        // reverse producer walk makes pending cleanups available to older
+        // owners here, so the same join also orders transitive dependencies.
+        // A deferred owner is retried after its earliest permitted boundary.
+        let storage_loans = validation::reference_result_custody::local_storage_loans(
+            facts,
+            machine,
+            state,
+            local.symbol,
+        )?;
+        if storage_loans.into_iter().any(|handle| {
+            let loan = facts.borrow.loans.get(handle);
+            if loan.statement_index >= statement_index as usize {
+                return false;
+            }
+            let mut holders = results.iter().filter(|(holder, root)| {
+                *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
+                    && holder.statement_index as usize == loan.statement_index
+            });
+            let Some((holder, _)) = holders.next() else {
+                // A checked place alias with no established value or emitted
+                // result has no stored descriptor to dispose. Its own checked
+                // weakening ends the storage dependency. Unknown aggregate or
+                // replacement occurrences cannot borrow that alias rule.
+                let Some((ordinal, alias)) =
+                    program.state_local_declaration(authored_state, loan.owner_symbol)
+                else {
+                    return true;
+                };
+                let unmaterialized_alias = ordinal == loan.statement_index
+                    && facts.borrow.loan_owner_path(loan).is_empty()
+                    && validation::reference_result_custody::shared_place_borrowed_parts(
+                        program,
+                        alias.type_reference,
+                    )
+                    .is_some()
+                    && !results.iter().any(|(_, root)| {
+                        *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
+                    })
+                    && u32::try_from(ordinal).ok().is_some_and(|ordinal| {
+                        facts.values.structural_values.root_for_expression(
+                            state,
+                            ordinal,
+                            alias.initial_value,
+                        ).is_none()
+                    });
+                return !(unmaterialized_alias
+                    && validation::reference_result_custody::release_boundary(
+                        program, facts, machine, state, handle,
+                    )
+                    .is_some_and(|boundary| boundary <= statement_index));
+            };
+            if holders.next().is_some() {
+                return true;
+            }
+            !operations.iter().chain(&pending).any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ReleaseReference {
+                    binding_ordinal,
+                    loan: released,
+                    ..
+                } => *binding_ordinal == holder.binding_ordinal && *released == handle,
+                CheckedUnitEffectOperationPlan::ContinuationCleanup { affine_discards, .. } => {
+                    affine_discards.iter().any(|discard| {
+                        discard.path.is_empty()
+                            && matches!(discard.source,
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                                    if binding_ordinal == holder.binding_ordinal)
+                    })
+                }
+                _ => false,
+            })
+        }) {
             continue;
         }
         retired.push(result.binding_ordinal);
