@@ -432,9 +432,10 @@ pass/expressions/runtime_indexed_float_record_fields_exit built 3331ms exit:70 @
 pass/expressions/runtime_numeric_cast_exit built 3007ms exit:70 @2d8ed253669f+wt
 pass/expressions/runtime_widened_comparison_exit built 1053ms exit:70 @2d8ed253669f+wt
 pass/expressions/scalar_match_boundary_composition_exit built 3438ms exit:70 @2d8ed253669f+wt
-pass/filesystem/cross_linux_value_syscalls checked 8502ms @2d8ed253669f+wt
-pass/filesystem/dir_walk_wrappers_exit rejected 8871ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at local construction at `outer calls: statement shape`
+pass/filesystem/cross_linux_value_syscalls rejected 4527ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
+pass/filesystem/dir_walk_wrappers_exit rejected 5974ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/native_canonicalize rejected 671ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close built 805ms @9baafc0ace88
@@ -456,25 +457,27 @@ pass/filesystem/native_metadata_nlink rejected 1733ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_read_dir_iter rejected 1285ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_wrapper_write_all_result rejected 8688ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::write_all`), which was itself omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
+pass/filesystem/native_wrapper_write_all_result rejected 9072ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/runtime_local_host_result_dispatch_exit rejected 787ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/windows_canonicalize_exit rejected 9089ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::write_all`), which was itself omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
+pass/filesystem/windows_canonicalize_exit rejected 5397ms @5737de9116a
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/filesystem/windows_raw_breadth_exit rejected 813ms @2d8ed253669f+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 1023ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
-pass/filesystem/windows_wrapper_results_exit rejected 9326ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::write_all`), which was itself omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/filesystem/wrapper_lock_metadata_exit rejected 496ms @2d8ed253669f+wt
-	state `metadata` expects 2 argument(s), got 1
-	state `lock_shared` expects 2 argument(s), got 1
+pass/filesystem/windows_wrapper_results_exit rejected 5587ms @5737de9116a
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
+pass/filesystem/wrapper_lock_metadata_exit rejected 5465ms @5737de9116a
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 	state `try_lock` expects 2 argument(s), got 1
 	state `try_lock_shared` expects 2 argument(s), got 1
-pass/filesystem/wrapper_open_with_exit rejected 166109ms @34627c25182b
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/wrapper_open_with_exit rejected 7679ms @5737de9116a
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+	IntegerAt call in Filesystem::read_all requires every performed value to fit its physical storage: performed write has unknown destination origins
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 3202ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 3041ms @2d8ed253669f+wt
