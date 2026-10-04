@@ -129,6 +129,7 @@ def source_files(root):
                 if name.endswith(".rs"):
                     files.append(
                         os.path.relpath(os.path.join(directory, name), root)
+                        .replace(os.sep, "/")
                     )
     return files
 
