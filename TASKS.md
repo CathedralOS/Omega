@@ -801,16 +801,21 @@ defines the complete product bar.
     gitlink.
 
   Compiler-side frontier:
-  - Fresh integration on macOS ARM64 at Omega `6ba9c43af356`, published
-    application `b166d0f`: `python3.13 samples/apps/squalr/tools/verify.py check
-    --target linux_x86_64 --omega <omega-binary>` rejects its version-3 lock.
-    With that lock temporarily set aside, `omega update --project
-    samples/apps/squalr/squalr-tests --target linux_x86_64` rejects retired
-    receiver-style Build dependency calls. The original lock was restored.
-    Migrate application Build and machine calls under **STATIC-MACHINE-MIGRATION**,
-    then perform ordinary package review; never restore implicit receivers,
-    manufacture approval, or transplant another checkout's lock. Application
-    write access still returns HTTP 403; keep the gitlink unchanged.
+  - macOS ARM64 integration at Omega candidate `8b9cb8dcc9a`, published
+    application `43d56a7`: the ordinary check command rejects the version-3
+    lock. Local application checkpoint `ffee88a796f1` migrates 105 Build calls
+    in 28 files and pins std to published Omega `944ee0efb38f`; layout retains
+    17 packages and 37 internal edges. With the historical lock preserved,
+    `omega update --project samples/apps/squalr/squalr-tests --target
+    linux_x86_64` now reaches source checking and rejects `&self` at
+    `squalr-engine-api/src/commands/command_invocation.omg:53`. The lock was
+    restored exactly. Continue machine/state declaration and call migration
+    under **STATIC-MACHINE-MIGRATION**, then perform fresh ordinary review;
+    never enable implicit receivers or transplant approvals. The candidate is
+    retained in `.codex/worktrees/squalr-build/samples/apps/squalr` and is not
+    published: `git push --dry-run origin HEAD:refs/heads/main` still receives
+    HTTP 403 for the configured identity. Repository write access is required
+    before updating the gitlink. Source checking is not native acceptance.
   - The explicit-parameter form of `ProcessInfo::set_name` now checks and
     executes on macOS ARM64: `pass/slices/runtime_guarded_view_copy_cycle_exit`
     exits 70, checking copied bytes, untouched tail, zero limit, and input
