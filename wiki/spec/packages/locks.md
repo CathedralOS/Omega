@@ -118,6 +118,13 @@ passes. A mismatch rejects, names the package, and directs the user to
 Dependency product checking follows the modules named by the consumer's `use`
 items and their transitive imports, not each dependency's package root.
 
+An absent lock permits development compilation through the same checked
+package route, including native production and `omega run`. It supplies no
+accepted semantic bindings, restricted-build grants or receiver permissions,
+and does not initiate review or create a lock. Dependencies that need those
+inputs still require explicit acceptance. An unreadable lock, a missing target
+section or stale accepted inputs never falls back to this unlocked behavior.
+
 The compiler input identity binds the compiler's embedded build-input digest and
 the exact selected toolchain library content. It is an invalidation key, not
 evidence of a trusted compiler, host, or audit. Changing it requires explicit

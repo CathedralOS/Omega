@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Exercise unlocked native compilation through the shipped CLI.
+
+Run with `python3 tools/tests/test_development_run.py --omega <binary>`.
+Uses the existing recursive-call corpus program without changing its source.
+Project mutations stay in temporary copies; no repository lock is accepted.
+"""
+
+import argparse
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+FIXTURE = REPOSITORY / "tests/omega/pass/calls/machine_self_call_recursion_compile"
+HOST_TARGETS = {
+    ("Darwin", "arm64"): "macos_arm64",
+    ("Linux", "x86_64"): "linux_x86_64",
+    ("Linux", "aarch64"): "linux_arm64",
+    ("Windows", "AMD64"): "windows_x86_64",
+}
+
+
+class DevelopmentRun(unittest.TestCase):
+    omega = None
+    target: str
+
+    @classmethod
+    def setUpClass(cls):
+        if cls.omega is None:
+            raise unittest.SkipTest("invoke this CLI integration test with --omega <binary>")
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory(prefix="omega-development-run-")
+        self.addCleanup(directory.cleanup)
+        self.project = Path(directory.name)
+        for name in ("main.omg", "build.omg"):
+            shutil.copyfile(FIXTURE / name, self.project / name)
+        self.environment = dict(os.environ, OMEGA_LIBRARY_ROOT=str(REPOSITORY / "source/library"))
+
+    def invoke(self, *arguments):
+        return subprocess.run(
+            [str(self.omega), *map(str, arguments)],
+            cwd=self.project,
+            env=self.environment,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    def assert_exit(self, result, expected):
+        self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+
+    def accept_project(self):
+        result = self.invoke("update", "--project", self.project, "--target", self.target, "--offline")
+        self.assert_exit(result, 0)
+        self.assertTrue((self.project / "omega.lock").is_file(), result.stdout + result.stderr)
+
+    def test_unlocked_run_executes_without_creating_acceptance(self):
+        result = self.invoke("run", "main.omg")
+        self.assert_exit(result, 0)
+        self.assertIn("native exit 0", result.stdout + result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse((self.project / "omega.admissions").exists())
+        self.assertFalse((self.project / "build/package-manager").exists())
+
+    def test_unlocked_compile_uses_the_same_native_route(self):
+        result = self.invoke("--build-dir", self.project / "output", "--target", self.target, "main.omg")
+        self.assert_exit(result, 0)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_unreadable_lock_is_not_an_unlocked_project(self):
+        lock = self.project / "omega.lock"
+        lock.write_bytes(b"not an omega lock\n")
+        result = self.invoke("run", "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("cannot prepare accepted omega.lock", result.stdout + result.stderr)
+        self.assertEqual(lock.read_bytes(), b"not an omega lock\n")
+
+    def test_dependency_binding_is_not_accepted_by_development_run(self):
+        fixture = REPOSITORY / "tests/omega/pass/text/runtime_number_to_decimal_exit"
+        shutil.copyfile(fixture / "main.omg", self.project / "main.omg")
+        build = (fixture / "build.omg").read_text(encoding="utf-8")
+        build = build.replace("../../../../../source/library/std", (REPOSITORY / "source/library/std").as_posix())
+        with (self.project / "build.omg").open("w", encoding="utf-8", newline="\n") as source:
+            source.write(build)
+        result = self.invoke("run", "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("accepted package-owned", result.stdout + result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+
+    def test_current_lock_still_runs(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        result = self.invoke("run", "main.omg")
+        self.assert_exit(result, 0)
+        self.assertIn("native exit 0", result.stdout + result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+
+    def test_source_edit_does_not_fall_back_to_development(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        with (self.project / "main.omg").open("a", encoding="utf-8", newline="\n") as source:
+            source.write("\n// A source edit requires explicit review of this locked project.\n")
+        result = self.invoke("run", "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("omega update", result.stdout + result.stderr)
+        self.assertNotIn("native exit", result.stdout + result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+
+    def test_missing_target_does_not_fall_back_to_development(self):
+        self.accept_project()
+        other_target = "linux_x86_64" if self.target != "linux_x86_64" else "macos_arm64"
+        result = self.invoke("run", "--target", other_target, "main.omg")
+        self.assert_exit(result, 200)
+        self.assertIn("cannot prepare accepted omega.lock", result.stdout + result.stderr)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--omega", type=Path, required=True)
+    arguments, remaining = parser.parse_known_args()
+    DevelopmentRun.omega = arguments.omega.resolve(strict=True)
+    DevelopmentRun.target = HOST_TARGETS.get((platform.system(), platform.machine()))
+    if DevelopmentRun.target is None:
+        parser.error("this host has no supported native execution target")
+    unittest.main(argv=[__file__, *remaining])

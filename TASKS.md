@@ -2607,6 +2607,16 @@ lands alone with its corpus slice unchanged and no fallback path.
   dependency's boundary claim compiles once that claim is accepted in
   `omega.lock` and rejects with a review instruction when it is not.
 
+  Unlocked native compilation uses the ordinary checked package route without
+  inventing acceptance. On macOS ARM64, `omega run
+  tests/omega/pass/calls/machine_self_call_recursion_compile/main.omg` exits 0
+  without a lock; `python3 tools/tests/test_development_run.py --omega <binary>`
+  covers native compile/run, current and invalid locks, stale source, missing
+  target sections and an unreviewed dependency binding. The latter still
+  prevents unlocked `pass/text/runtime_number_to_decimal_exit` from running:
+  its package-owned physical entry contract needs explicit acceptance. The
+  admissions-file deletion and lock-row settlement above remain unfinished.
+
 - **TRUST-REPORT-DELETED.** (new-scope)
   `omega-rust/omega/compilation/realization/trust-model/src/admission_settlement.rs::reconstruct_trust_settlement`
   builds a `TrustReport` (`trust-model/src/trust_report/`) on every compile,
