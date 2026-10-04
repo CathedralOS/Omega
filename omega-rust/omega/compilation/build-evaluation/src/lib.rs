@@ -77,8 +77,6 @@ mod admitted_build_program;
 mod build_evaluation;
 mod completed_pure_build;
 mod execution;
-#[cfg(test)]
-mod tests;
 
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;

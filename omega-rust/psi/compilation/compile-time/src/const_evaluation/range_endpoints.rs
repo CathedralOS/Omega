@@ -738,12 +738,3 @@ fn append_signature_bounds(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod selection_tests;
-
-#[cfg(test)]
-mod integer_type_tests;

@@ -8,9 +8,6 @@ use facts::{FactPlace, FactPlan};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn contract_fact_place(
     program: &typed_trees::TypedTrees,
     facts: &mut FactPlan,

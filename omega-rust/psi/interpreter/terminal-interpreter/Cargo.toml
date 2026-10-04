@@ -18,5 +18,3 @@ terminal-verifier = { path = "../../compilation/representations/terminal-psi/ver
 terminal-semantics = { path = "../../compilation/representations/terminal-psi/semantics" }
 proof-admission = { path = "../../compilation/proof/admission" }
 
-[dev-dependencies]
-terminal-fixed-fuel = { path = "../../compilation/representations/terminal-psi/fuel/certification" }

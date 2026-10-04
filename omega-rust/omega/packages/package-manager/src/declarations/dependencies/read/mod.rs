@@ -25,9 +25,6 @@ pub use build_declarations::DependencyPurpose;
 pub(crate) use extraction::extract_scoped_from_source;
 pub(crate) use projection::validate_static_dependency_source;
 
-#[cfg(test)]
-mod tests;
-
 /// Package selection inside one acquired repository source.
 ///
 /// Selection is request custody, not source or package identity. Omitting the

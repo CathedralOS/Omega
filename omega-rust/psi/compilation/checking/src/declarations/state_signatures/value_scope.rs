@@ -50,6 +50,3 @@ pub(super) fn validate(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

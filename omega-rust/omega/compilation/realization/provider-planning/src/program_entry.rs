@@ -1087,9 +1087,3 @@ fn arrival_requirement_contract(
             .then(|| typed.normalized_type_identity(signature.return_type)),
     })
 }
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod static_context_tests;

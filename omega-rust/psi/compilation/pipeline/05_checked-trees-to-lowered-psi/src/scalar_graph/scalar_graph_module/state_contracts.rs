@@ -13,9 +13,6 @@ use super::{
 use semantic_vocabulary::{BlockId, MachineId};
 use terminal_psi::{ScalarBlockInvariant, ScalarBlockInvariantArrival};
 
-#[cfg(test)]
-mod tests;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     states: &[PreparedStateRequirements],

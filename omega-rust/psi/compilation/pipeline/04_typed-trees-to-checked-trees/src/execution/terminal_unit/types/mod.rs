@@ -19,12 +19,6 @@ use typed_trees::type_identity::TypeIdentityRequest;
 mod scalar_fields;
 pub(super) use scalar_fields::retain_scalar_field;
 
-#[cfg(test)]
-mod partial_affine_ownership_tests;
-
-#[cfg(test)]
-mod arithmetic_policy_array_tests;
-
 pub(super) use validation::has_plain_owned_contents;
 
 mod affine_discards;

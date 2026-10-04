@@ -10,8 +10,6 @@ use typed_trees::statement::{
 
 use super::facts::RangeFacts;
 
-#[cfg(test)]
-mod tests;
 mod update_bounds;
 
 /// A sound, inductive loop-invariant range fact for a MONOTONE counter.

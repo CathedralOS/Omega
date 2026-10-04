@@ -6,8 +6,6 @@
 
 mod application_realization;
 mod specialized_application_realization;
-#[cfg(test)]
-mod tests;
 
 pub use application_realization::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,

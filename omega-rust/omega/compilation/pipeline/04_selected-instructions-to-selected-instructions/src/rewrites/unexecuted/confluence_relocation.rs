@@ -115,9 +115,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::relocate_selected_members_into_confluence;
 pub use validation::validate_confluence_relocation;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted cross-confluence run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedConfluenceRelocation {

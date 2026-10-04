@@ -153,17 +153,6 @@ fn render_operations(operations: &[Operation]) -> String {
     }
     generated.push_str("}\n\nimpl FilesystemHostOperation {\n");
 
-    writeln!(
-        generated,
-        "    #[cfg(test)]\n    pub(in crate::interpreter::evaluator) const ALL: [Self; {}] = [",
-        operations.len()
-    )
-    .unwrap();
-    for operation in operations {
-        writeln!(generated, "        Self::{},", operation.variant).unwrap();
-    }
-    generated.push_str("    ];\n\n");
-
     generated.push_str(
         "    pub(in crate::interpreter::evaluator) fn from_canonical_name(name: &str) -> Option<Self> {\n        Some(match name {\n",
     );

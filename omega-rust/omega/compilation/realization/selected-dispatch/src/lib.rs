@@ -10,8 +10,6 @@
 mod boundary_dispatch;
 mod compiler_intrinsic;
 mod constant_evaluation;
-#[cfg(test)]
-mod core_service_fixture;
 mod execution_settlement;
 mod intrinsic_review;
 mod provider_checking;

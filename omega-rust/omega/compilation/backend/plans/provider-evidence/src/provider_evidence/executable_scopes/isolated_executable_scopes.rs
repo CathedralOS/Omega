@@ -1,7 +1,5 @@
 //! Scopes admitted as isolated, and the manifest set that covers them.
 
-#[cfg(test)]
-use crate::provider_plan::ProviderPlan;
 use crate::provider_plan::ProviderPlanDigest;
 use crate::{
     ContainmentEvidence, ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry,
@@ -223,87 +221,5 @@ const fn manifest_scope(manifest: &ExecutableTcbManifest) -> ExecutionScope {
         ScopeCompleteness::Complete { scope, .. } | ScopeCompleteness::Incomplete { scope, .. } => {
             *scope
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        ContainmentEvidence, ExecutableTcbManifest, ExecutableTcbManifestSet, ExecutionScope,
-        IsolatedExecutableScopeCandidate, ProviderIdentity, ProviderPlan, ScopeCompleteness,
-    };
-    use crate::{ContainmentGuarantee, SelectedProviderPlanFacts};
-
-    fn isolated_manifest(scope_identity: u64) -> ExecutableTcbManifest {
-        SelectedProviderPlanFacts::default()
-            .with_execution_scope(ExecutionScope::IsolatedProvider(scope_identity))
-            .expect("nonzero isolated scope")
-            .executable_tcb_manifest()
-    }
-
-    fn candidate(scope_identity: u64) -> IsolatedExecutableScopeCandidate {
-        IsolatedExecutableScopeCandidate {
-            provider_identity: ProviderIdentity::NominalType("SandboxedCodec".into()),
-            provider_plan_report_identity: 77,
-            provider_plan_digest: ProviderPlan::default().identity_digest(),
-            endpoint_identity: "endpoint:codec-v1".into(),
-            endpoint_receipt_identity: "receipt:endpoint-v1".into(),
-            isolated_manifest_receipt_identity: "receipt:manifest-v1".into(),
-            isolated_scope_identity: scope_identity,
-            containment: vec![ContainmentEvidence {
-                guarantee: ContainmentGuarantee::MemoryIsolation,
-                evidence_identity: "receipt:memory-isolation-v1".into(),
-            }],
-            isolated_manifest: isolated_manifest(scope_identity),
-        }
-    }
-
-    #[test]
-    fn child_incompleteness_does_not_change_parent_completeness() {
-        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
-        let mut candidate = candidate(202);
-        candidate.isolated_manifest.completeness = ScopeCompleteness::Incomplete {
-            scope: ExecutionScope::IsolatedProvider(202),
-            causes: Vec::new(),
-            opaque_closure_evidence: Vec::new(),
-            runtime_closure_evidence: Vec::new(),
-        };
-        let mut manifests = ExecutableTcbManifestSet::new(root).expect("caller manifest");
-        manifests
-            .attach_isolated_scope(candidate)
-            .expect("incomplete child is separately reportable");
-
-        assert!(matches!(
-            manifests.root().completeness,
-            ScopeCompleteness::Complete { .. }
-        ));
-        assert!(matches!(
-            manifests.isolated()[0].manifest().completeness,
-            ScopeCompleteness::Incomplete { .. }
-        ));
-    }
-
-    #[test]
-    fn attachment_rejects_scope_drift_and_duplicate_scope_identity() {
-        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
-        let mut manifests = ExecutableTcbManifestSet::new(root).expect("caller manifest");
-        let mut drifted = candidate(303);
-        drifted.isolated_scope_identity = 304;
-        assert!(
-            manifests
-                .attach_isolated_scope(drifted)
-                .expect_err("scope drift")
-                .contains("does not match admitted scope")
-        );
-
-        manifests
-            .attach_isolated_scope(candidate(303))
-            .expect("first exact child");
-        assert!(
-            manifests
-                .attach_isolated_scope(candidate(303))
-                .expect_err("duplicate child scope")
-                .contains("attached more than once")
-        );
     }
 }

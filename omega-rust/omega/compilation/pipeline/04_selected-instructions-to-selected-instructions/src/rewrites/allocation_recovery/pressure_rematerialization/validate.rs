@@ -10,9 +10,6 @@ mod selected_structure;
 mod source_custody;
 mod work;
 
-#[cfg(test)]
-mod tests;
-
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,

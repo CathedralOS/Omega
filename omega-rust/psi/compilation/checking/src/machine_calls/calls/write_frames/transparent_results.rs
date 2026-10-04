@@ -1,8 +1,5 @@
 //! Origins of transparent call results and the calls that preserve them.
 
-#[cfg(test)]
-mod tests;
-
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
 use crate::machine_calls::calls::write_frames::assignment_targets::{

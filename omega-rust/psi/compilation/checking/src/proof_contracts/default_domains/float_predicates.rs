@@ -314,6 +314,3 @@ fn declared_field<'program>(
         (field.symbol == path.symbol).then_some(field)
     })
 }
-
-#[cfg(test)]
-mod tests;

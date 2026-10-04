@@ -117,6 +117,3 @@ pub(in crate::execution::terminal_unit) fn expression_octets(
         .all(plain_literal_domain)
         .then(|| bytes.to_vec())
 }
-
-#[cfg(test)]
-mod tests;

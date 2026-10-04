@@ -5,16 +5,10 @@ pub(crate) mod compute;
 pub(crate) mod edge_values;
 pub(crate) mod validate;
 
-#[cfg(test)]
-pub(crate) mod tests;
-
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_liveness;
-
-#[cfg(test)]
-pub(crate) use compute::FUNCTION_COMPUTATIONS as LIVENESS_FUNCTION_COMPUTATIONS;
 
 /// Compute and independently replay bounded selected-CFG liveness facts.
 /// The result grants no interval, allocation, emission, or publication

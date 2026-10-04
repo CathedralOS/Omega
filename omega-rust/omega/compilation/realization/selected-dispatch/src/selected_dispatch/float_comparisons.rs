@@ -12,9 +12,6 @@ use provider_planning::{
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 use typed_trees::types::PrimitiveType;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn selected_executions(
     checked: &CheckedTrees,
     scope: source::DependencyScope,

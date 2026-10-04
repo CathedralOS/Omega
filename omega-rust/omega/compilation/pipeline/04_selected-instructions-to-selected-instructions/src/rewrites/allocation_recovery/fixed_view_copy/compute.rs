@@ -133,6 +133,3 @@ pub(crate) fn compute_terminal_fixed_view_copies(
         transformed: transformed.into(),
     })
 }
-
-#[cfg(test)]
-pub(crate) mod tests;

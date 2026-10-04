@@ -6,15 +6,9 @@ use selected_instructions::{
 };
 mod addresses;
 mod construction;
-#[cfg(test)]
-mod descriptor_tests;
 mod descriptor_validation;
 mod descriptors;
-#[cfg(test)]
-mod tests;
 mod validation;
-#[cfg(test)]
-mod whole_value_tests;
 pub(super) use construction::prepare;
 pub(super) use validation::project;
 

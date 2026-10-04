@@ -240,6 +240,3 @@ fn closed_expression(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

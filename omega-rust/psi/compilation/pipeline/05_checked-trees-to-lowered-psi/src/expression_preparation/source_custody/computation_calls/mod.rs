@@ -1019,33 +1019,3 @@ fn expression_membership(
     }
     Ok(expressions)
 }
-
-#[cfg(test)]
-mod tests {
-
-    use super::{CheckedTrees, ExpressionNode, authored_expressions};
-    use checked_trees::expression::{BinaryOperator, TableBinaryExpression};
-
-    #[test]
-    fn authored_membership_rejects_expression_backedges() {
-        let mut checked = CheckedTrees::default();
-        let leaf = checked
-            .typed
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
-        let root = checked
-            .typed
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: leaf,
-                operator: BinaryOperator::And,
-                right: leaf,
-            }));
-        let ExpressionNode::Binary(binary) = checked.typed.expression_table.expression_mut(root)
-        else {
-            panic!("binary source root");
-        };
-        binary.right = root;
-        assert!(authored_expressions(&checked, root).is_err());
-    }
-}

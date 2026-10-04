@@ -524,6 +524,3 @@ fn scalar_representation_set_implies(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {}

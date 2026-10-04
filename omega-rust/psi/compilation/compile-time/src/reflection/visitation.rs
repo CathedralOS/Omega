@@ -423,6 +423,3 @@ fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
     }
     if hash == 0 { 1 } else { hash }
 }
-
-#[cfg(test)]
-mod tests;

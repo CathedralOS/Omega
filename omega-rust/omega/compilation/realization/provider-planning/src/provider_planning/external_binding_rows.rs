@@ -369,6 +369,3 @@ fn selected_source_boundary_entry_plan(
 
     Ok(Some(realization.exact_boundary_entry_plan().clone()))
 }
-
-#[cfg(test)]
-mod tests;

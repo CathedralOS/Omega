@@ -533,19 +533,6 @@ pub(super) fn seeded_extension_shape_is_supported(
             })
 }
 
-#[cfg(test)]
-pub(super) fn plain_data_extension_shape_is_supported(
-    source: &SymbolResolvedTrees,
-    data_frontier: usize,
-) -> bool {
-    seeded_extension_shape_is_supported(
-        source,
-        data_frontier,
-        source.machines.len(),
-        source.traits.len(),
-    )
-}
-
 fn exact_extension_trait_definition(
     source: &SymbolResolvedTrees,
     data_frontier: usize,

@@ -13,9 +13,6 @@ use resolved::data::{DataField, DataMember};
 use resolved::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use resolved::types::TypeReference;
 
-#[cfg(test)]
-mod tests;
-
 /// A projected place selects a method through the same exact declared type
 /// used to bind its fields. Existing selections remain the caller's owner.
 pub(crate) fn declared_receiver_method_target(

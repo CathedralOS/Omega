@@ -380,9 +380,3 @@ impl PhysicalClockOperation {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod read_tests;

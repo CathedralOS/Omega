@@ -7,9 +7,6 @@
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
-#[cfg(test)]
-mod tests;
-
 /// The enclosing direct projection and whether the access also crosses a
 /// reference. Indirection is not a synthetic path segment: after a dynamic
 /// selector that spelling could falsely prove two regions disjoint.

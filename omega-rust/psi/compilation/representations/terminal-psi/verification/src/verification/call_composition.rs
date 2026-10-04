@@ -31,9 +31,6 @@ use super::substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn compose_call_operation(
     module: &TerminalModule,
     machine: &TerminalMachine,

@@ -54,9 +54,6 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// One Terminal-carried consequence of a declared `where` fact standing on
 /// storage one parameter reaches.
 #[derive(Debug, Clone, PartialEq)]

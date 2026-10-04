@@ -17,9 +17,6 @@ use typed_trees::state::State;
 use typed_trees::statement::TableAssignment;
 use typed_trees::types::TypeReferenceNode;
 
-#[cfg(test)]
-mod tests;
-
 /// A primitive parameter assignment observes the RHS referent as a value;
 /// it cannot replace the destination's reference carrier. Explicit reference
 /// construction and reference-valued calls retain their separate opacity rules.

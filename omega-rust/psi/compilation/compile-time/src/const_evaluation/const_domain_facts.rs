@@ -251,6 +251,3 @@ pub(crate) fn evaluate_selected_domain_facts(
         .for_each_mut(|_, data| data.zero_gated &= !ungated.contains(&data.symbol));
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

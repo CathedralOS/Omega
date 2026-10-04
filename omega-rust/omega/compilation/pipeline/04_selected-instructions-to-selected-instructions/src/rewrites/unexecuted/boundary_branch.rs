@@ -76,9 +76,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::fold_selected_boundary_branch;
 pub use validation::validate_boundary_branch_fold;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted boundary-decided conditional-branch fold with its replay
 /// receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

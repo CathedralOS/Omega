@@ -192,6 +192,3 @@ fn validate_receiver_eligibility(
 }
 
 pub use service_establishment::validate_for_artifact_and_selected_plans as validate_fused_program_entry_establishments;
-
-#[cfg(test)]
-mod tests;

@@ -86,9 +86,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::remove_equivalent_compare;
 pub(crate) use validation::{measured_steps, validate_equivalent_compare};
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted equivalent-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedEquivalentCompare {

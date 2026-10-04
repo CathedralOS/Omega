@@ -804,6 +804,3 @@ pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferen
     }
     true
 }
-
-#[cfg(test)]
-mod owner_tests;

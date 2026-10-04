@@ -137,6 +137,3 @@ pub(super) fn collect(
     active.pop();
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

@@ -773,6 +773,3 @@ impl RationalInterval {
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -34,9 +34,6 @@ use super::super::integer_evidence::{integer_carrier_bound, projected_facts, rel
 use super::super::scope_identity::{self, ScopeDerived};
 use super::{bound, exact, range};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,

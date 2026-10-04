@@ -626,6 +626,3 @@ fn append_tree(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

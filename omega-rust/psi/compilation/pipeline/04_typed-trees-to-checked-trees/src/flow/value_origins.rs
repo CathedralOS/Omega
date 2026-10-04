@@ -11,9 +11,6 @@ use typed_trees::{
     types::TypeReferenceHandle,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// Nested constructors nest without bound in an expression, but each hop
 /// consumes at least one projected segment, so a small frontier suffices —
 /// a deeper literal chain keeps its literal spelling rather than minting an

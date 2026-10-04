@@ -419,31 +419,6 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
     }
 }
 
-#[cfg(test)]
-pub(super) fn index_expressions_may_overlap(
-    program: &typed_trees::TypedTrees,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-
-    index_expressions_may_overlap_with_selectors(
-        program,
-        left,
-        SelectorLocation {
-            side: BorrowCompatibilityPlaceSide::Forming,
-            segment_index: 0,
-        },
-        right,
-        SelectorLocation {
-            side: BorrowCompatibilityPlaceSide::Active,
-            segment_index: 0,
-        },
-        &mut selectors,
-        &mut None,
-    )
-}
-
 /// Whether two `Index` segment expressions may select the same element.
 ///
 /// Both expressions are evaluated to their normalized extent inside the
@@ -922,6 +897,3 @@ pub(super) fn normalized_bound(
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

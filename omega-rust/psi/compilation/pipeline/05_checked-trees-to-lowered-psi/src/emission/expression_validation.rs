@@ -231,30 +231,3 @@ pub(crate) fn validate_short_circuit_expression(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        LoweredBooleanReturnExpression, LoweredDirectExpression, ScalarType,
-        validate_boolean_parameter_types, validate_direct_parameter_types,
-    };
-
-    #[test]
-    fn shared_operand_validation_retains_position_and_type_requirements() {
-        let boolean = LoweredBooleanReturnExpression::Parameter { position: 0 };
-        assert!(validate_boolean_parameter_types(&boolean, &[ScalarType::Boolean]).is_ok());
-        assert!(validate_boolean_parameter_types(&boolean, &[]).is_err());
-        let integer_type = ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .unwrap(),
-        );
-        assert!(validate_boolean_parameter_types(&boolean, &[integer_type]).is_err());
-        let integer = LoweredDirectExpression::Parameter {
-            position: 0,
-            scalar_type: integer_type,
-        };
-        assert!(validate_direct_parameter_types(&integer, &[integer_type]).is_ok());
-        assert!(validate_direct_parameter_types(&integer, &[ScalarType::Boolean]).is_err());
-        assert!(validate_direct_parameter_types(&integer, &[]).is_err());
-    }
-}

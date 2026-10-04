@@ -461,26 +461,6 @@ fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegmen
     }
 }
 
-#[cfg(test)]
-pub(super) fn place_segments_may_overlap(
-    program: &typed_trees::TypedTrees,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
-) -> bool {
-    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    place_segments_may_overlap_evaluated(program, left, right, &mut selectors, &mut None)
-}
-
-#[cfg(test)]
-fn place_segments_containment(
-    program: &typed_trees::TypedTrees,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
-) -> CapturedPlaceContainment {
-    let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    place_segments_containment_evaluated(program, left, right, &mut selectors, &mut None)
-}
-
 /// Runs the disjointness and containment judgments inside one selector
 /// session so every normalized bound either judgment consumed is recorded in
 /// the same snapshot. Containment only runs when the segments may overlap:
@@ -695,6 +675,3 @@ fn place_segment_pair_may_overlap<'p>(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

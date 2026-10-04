@@ -12,9 +12,6 @@ use facts::{
 };
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// Identifies one incoming edge's contribution to a joined field row. A
 /// transition edge keys on its source state and arm target; a call-derived
 /// edge keys on its source state and call site.

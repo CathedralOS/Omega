@@ -6,8 +6,6 @@ use super::super::facts::RangeFacts;
 
 mod remainder_bounds;
 
-#[cfg(test)]
-mod tests;
 
 /// Seeds every fact a freshly bound name inherits from its value: the captured
 /// integer-place identity, the ensured call result bounds, and the source

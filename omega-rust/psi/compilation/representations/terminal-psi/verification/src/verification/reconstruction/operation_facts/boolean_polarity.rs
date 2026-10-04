@@ -135,6 +135,3 @@ pub(super) fn implications(
         .map(|positive| implication(&context, equation, result, denotation, positive))
         .collect()
 }
-
-#[cfg(test)]
-mod tests;

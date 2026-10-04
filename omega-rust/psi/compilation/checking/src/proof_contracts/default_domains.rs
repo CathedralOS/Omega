@@ -25,8 +25,6 @@ mod place_queries;
 mod standing_requirements;
 mod state_flow;
 mod symbolic_values;
-#[cfg(test)]
-mod tests;
 mod where_fact_intervals;
 
 pub(crate) use float_predicates::float_field_literal_bound_meaning;

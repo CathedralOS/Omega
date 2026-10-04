@@ -31,8 +31,6 @@ mod formation_collection;
 mod legacy_candidates;
 mod relation_plan;
 mod terminal_bridge;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use equivalence_selection::exact_relation_application_matches;
 pub(crate) use legacy_candidates::{

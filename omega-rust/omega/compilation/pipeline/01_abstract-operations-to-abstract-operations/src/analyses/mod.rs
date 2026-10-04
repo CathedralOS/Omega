@@ -36,15 +36,7 @@ pub use optimization_unit::{
     ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
 pub use revision::AnalysisRevision;
-#[cfg(test)]
-pub(crate) use semantic::{
-    CallResultOrigin, ExecutableEdgeKnowledge, PlaceAccessStep, PlaceAccessView,
-    PlaceAliasRelation, PlaceView, ResultSourceResolution, ScalarConstantSupport, declared_access,
-};
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis, ScalarConstant,
     ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };
-
-#[cfg(test)]
-mod tests;

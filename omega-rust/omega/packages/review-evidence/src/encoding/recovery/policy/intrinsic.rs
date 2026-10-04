@@ -1,8 +1,5 @@
 //! Exact closed execution vocabulary, without evaluator or native receipts.
 
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};

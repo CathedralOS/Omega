@@ -14,8 +14,6 @@
 mod binding_digests;
 mod binding_evaluation;
 mod binding_values;
-#[cfg(test)]
-mod tests;
 
 use crate::ProviderPlanningContext;
 use crate::evaluated_via_bindings::binding_digests::at;
@@ -30,8 +28,6 @@ use source::SourceSpan;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use target::TargetProfile;
-#[cfg(test)]
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 const MATERIALIZER_SCHEMA_VERSION: u32 = 1;

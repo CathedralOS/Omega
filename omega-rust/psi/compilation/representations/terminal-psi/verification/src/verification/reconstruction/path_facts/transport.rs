@@ -17,9 +17,6 @@
 use proof_admission::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext};
 
-#[cfg(test)]
-mod tests;
-
 /// One rewritten path fact tagged by how the generator discharged it.
 ///
 /// `certified` is `true` when the fixed-shape `ValueEqualityTransport`

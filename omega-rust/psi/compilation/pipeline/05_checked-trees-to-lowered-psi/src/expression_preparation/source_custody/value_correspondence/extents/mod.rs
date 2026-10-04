@@ -5,8 +5,6 @@ use super::{
     LoweringError,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
-#[cfg(test)]
-mod tests;
 
 impl Context<'_> {
     /// A raw array's extent belongs to its type, but evaluating its receiver

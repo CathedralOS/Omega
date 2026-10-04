@@ -22,14 +22,9 @@ use crate::declarations::dependencies::read::{
 };
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::source::PackageSourceCustody;
-#[cfg(test)]
-pub(crate) use resolution::resolve_package_source_closure;
 pub(crate) use resolution::resolve_package_source_closure_with_indexed_limits;
 pub(crate) use resolution::resolve_package_source_closure_with_limits;
 use std::fmt;
-
-#[cfg(test)]
-mod tests;
 
 /// One exact requester-local edge in a root-to-dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]

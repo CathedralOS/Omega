@@ -10,8 +10,6 @@ pub(crate) struct DependencyRequestPaths<'closure> {
     closure: &'closure ResolvedPackageSourceClosure,
     root_position: usize,
     predecessors: Vec<Option<(usize, usize)>>,
-    #[cfg(test)]
-    pub(super) traversed_edges: usize,
 }
 
 impl<'closure> DependencyRequestPaths<'closure> {
@@ -25,17 +23,11 @@ impl<'closure> DependencyRequestPaths<'closure> {
         let mut pending = Vec::with_capacity(graph.packages().len());
         pending.push(root_position);
         let mut next = 0;
-        #[cfg(test)]
-        let mut traversed_edges = 0;
         'traverse: while next < pending.len() {
             let requester_position = pending[next];
             next += 1;
             let requester = &graph.packages()[requester_position];
             for (edge_position, dependency) in requester.dependencies().iter().enumerate() {
-                #[cfg(test)]
-                {
-                    traversed_edges += 1;
-                }
                 let target_position = graph.package_position(dependency.target())?;
                 if target_position == root_position || predecessors[target_position].is_some() {
                     continue;
@@ -51,8 +43,6 @@ impl<'closure> DependencyRequestPaths<'closure> {
             closure,
             root_position,
             predecessors,
-            #[cfg(test)]
-            traversed_edges,
         })
     }
 

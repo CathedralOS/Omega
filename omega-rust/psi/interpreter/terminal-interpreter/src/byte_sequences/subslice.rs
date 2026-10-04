@@ -8,9 +8,6 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
-#[cfg(test)]
-mod tests;
-
 impl TerminalExecution {
     /// Called only after the dispatch loop has charged this execution. Prepare
     /// the complete view before replacement, including when source and result

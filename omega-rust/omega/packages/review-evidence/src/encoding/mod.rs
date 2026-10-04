@@ -19,13 +19,6 @@ pub(crate) use encode::rows::{
 };
 pub use recovery::PackagePolicyTextRecoveryLimits;
 
-#[cfg(test)]
-pub(crate) fn assert_external_policy_text(
-    value: &crate::record::PackagePolicyExternalExecutableSupply,
-) {
-    encode::text_test_support::component(encode::text_test_support::Component::External(value));
-}
-
 pub use recovery::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
 };

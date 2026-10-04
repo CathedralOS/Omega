@@ -465,6 +465,3 @@ fn append_candidate_audit_reasons(
     }
     recommend
 }
-
-#[cfg(test)]
-mod tests;

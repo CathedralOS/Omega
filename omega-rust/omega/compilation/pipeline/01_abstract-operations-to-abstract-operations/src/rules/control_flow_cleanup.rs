@@ -27,9 +27,6 @@ pub use path_qualified_empty_block_thread::PathQualifiedEmptyBlockThreadRule;
 pub use shared_jump_fusion::SharedJumpFusionRule;
 pub use unreachable_private_machine_prune::UnreachablePrivateMachinePruneRule;
 
-#[cfg(test)]
-pub(super) use unreachable_private_machine_prune::rule_unreachable_private_machine_complement;
-
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
     vec![

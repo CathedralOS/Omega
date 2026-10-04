@@ -22,8 +22,6 @@ use crate::values::{
 };
 
 mod entry;
-#[cfg(test)]
-mod tests;
 
 /// Explicit host contents of one relevant scalar field of a structural entry input.
 /// `argument_index` is the dense structural position; `path` resolves from that

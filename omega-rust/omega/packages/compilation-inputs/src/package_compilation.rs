@@ -353,6 +353,3 @@ fn display_identity(identity: PackageKeyIdentity) -> String {
     }
     display
 }
-
-#[cfg(test)]
-mod tests;

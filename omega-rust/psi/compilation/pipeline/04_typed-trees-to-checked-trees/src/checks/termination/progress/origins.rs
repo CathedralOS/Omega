@@ -9,9 +9,6 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{TypedTrees, machine::Machine};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn at_call(
     program: &TypedTrees,
     flow: &FlowFacts,

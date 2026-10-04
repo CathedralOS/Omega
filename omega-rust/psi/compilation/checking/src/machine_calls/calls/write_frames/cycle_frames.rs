@@ -210,8 +210,6 @@ fn build_cycle_frame_equation<'program>(
     machine_symbols: &MachineSymbols<'program>,
     outer_inference: &FrameInference,
 ) -> Option<CycleFrameEquation<'program>> {
-    #[cfg(test)]
-    super::CYCLE_EQUATIONS.with(|equations| equations.set(equations.get() + 1));
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
@@ -686,6 +684,3 @@ pub(crate) fn summarize_transition_target_written_paths(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

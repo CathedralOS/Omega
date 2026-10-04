@@ -373,6 +373,3 @@ pub(crate) fn type_constraint_snapshot(
 pub(crate) fn path_snapshot(path: &[Identifier]) -> Vec<String> {
     path.iter().map(ToString::to_string).collect()
 }
-
-#[cfg(test)]
-mod termination_vocabulary_tests {}

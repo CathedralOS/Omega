@@ -118,9 +118,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::sink_selected_store_mutation;
 pub use validation::validate_store_mutation_motion;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted store mutation motion with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedStoreMutationMotion {

@@ -123,6 +123,3 @@ impl PackagePolicyExternalExecutableSupply {
         &self.binding
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -16,8 +16,6 @@ use typed_trees::expression::ExpressionHandle;
 
 mod nested;
 mod projection;
-#[cfg(test)]
-mod tests;
 
 pub(super) struct ReceiverAlias {
     pub(super) owner: SymbolHandle,

@@ -64,11 +64,3 @@ pub(crate) fn ranked_coverage(machine: &TerminalMachine) -> RankedCoverage {
     }
     coverage
 }
-
-#[cfg(test)]
-mod tests {
-    //! Coverage inventory legs: an unranked machine covers nothing, a
-    //! `Natural` row covers exactly its member blocks and named values, and
-    //! member uses collect scalar identities used inside member contents —
-    //! operation operands and terminator positions — and nowhere else.
-}

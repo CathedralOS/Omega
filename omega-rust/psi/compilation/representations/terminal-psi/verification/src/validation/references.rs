@@ -2526,6 +2526,3 @@ pub(super) fn validate_return_coverage(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod array_tests;

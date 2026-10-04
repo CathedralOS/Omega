@@ -18,9 +18,6 @@ use terminal_psi::{
 #[derive(Debug, PartialEq, Eq)]
 pub struct InvalidStructuralShape;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn reconstruct(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

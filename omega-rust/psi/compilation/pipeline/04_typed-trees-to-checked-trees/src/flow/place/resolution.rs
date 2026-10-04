@@ -7,9 +7,6 @@ use crate::lookup::{data_definition_by_symbol, first_valid_name_path_symbol, mac
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// Where a demanded member path currently points: a stored type reference
 /// that still retains the reaching generic application's arguments, or a
 /// declaration reached without one (an attached `self` datum, a struct

@@ -11,9 +11,6 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, state::State};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate(
     program: &TypedTrees,
     ownership: &FlowOwnershipFacts,

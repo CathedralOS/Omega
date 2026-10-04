@@ -1255,6 +1255,3 @@ pub use authored::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set,
     authored_behavior_exclusion_set_in,
 };
-
-#[cfg(test)]
-mod tests;

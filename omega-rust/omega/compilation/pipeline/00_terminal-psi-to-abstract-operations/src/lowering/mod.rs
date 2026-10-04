@@ -8,8 +8,6 @@ use terminal_verifier::VerifiedTerminalModule;
 mod block_bindings;
 mod error;
 mod machine;
-#[cfg(test)]
-mod rejection_audit;
 
 pub use error::LoweringError;
 

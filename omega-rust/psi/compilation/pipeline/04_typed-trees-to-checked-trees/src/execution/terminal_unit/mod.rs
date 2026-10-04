@@ -209,19 +209,6 @@ pub(crate) struct ScalarCalleePlans<'plans> {
     pub(crate) structural_returns: &'plans CheckedStructuralScalarReturnPlans,
 }
 
-/// Build the first general structural/Unit terminal plan after ownership and
-/// carry checking have recorded their authoritative facts. Unsupported shapes
-/// are omitted as a closed unit; callers therefore cannot accidentally lower a
-/// root whose transitive helper or boundary settlement was only partly known.
-#[cfg(test)]
-pub(crate) fn build_checked_unit_effect_plans(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-) -> CheckedUnitEffectPlans {
-    build_checked_unit_effect_plans_with_call_frames(program, facts, scalar_callees, None)
-}
-
 pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     program: &TypedTrees,
     facts: &CheckFacts,

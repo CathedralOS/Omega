@@ -32,24 +32,3 @@ pub(super) fn reserve_retained_obligation_ledger_bytes(
         .checked_add(additional)
         .filter(|total| *total <= MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, reserve_retained_obligation_ledger_bytes};
-
-    #[test]
-    fn retained_obligation_ledger_budget_is_aggregate_and_overflow_safe() {
-        assert_eq!(
-            reserve_retained_obligation_ledger_bytes(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES - 1, 1,),
-            Some(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES)
-        );
-        assert_eq!(
-            reserve_retained_obligation_ledger_bytes(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, 1,),
-            None
-        );
-        assert_eq!(
-            reserve_retained_obligation_ledger_bytes(usize::MAX, 1),
-            None
-        );
-    }
-}

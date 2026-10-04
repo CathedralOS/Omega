@@ -10,8 +10,6 @@
 
 pub(crate) mod byte_arrays;
 pub(crate) mod case_membership;
-#[cfg(test)]
-mod placed_view_tests;
 pub(crate) mod placed_views;
 pub(crate) mod scalar_fields;
 

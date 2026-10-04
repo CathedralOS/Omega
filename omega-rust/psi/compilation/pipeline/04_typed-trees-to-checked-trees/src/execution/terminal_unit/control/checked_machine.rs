@@ -21,27 +21,6 @@ use crate::execution::terminal_unit::{
     TypedTrees,
 };
 
-/// Test convenience: the traced builder without a trace.
-#[cfg(test)]
-pub(crate) fn build_checked_machine(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<CheckedUnitEffectMachinePlan> {
-    build_checked_machine_traced(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        call_frames,
-        &LocalConstructionTrace::default(),
-    )
-}
-
 /// `build_checked_machine` with a trace of where construction stopped.
 /// Borrowed `self` is retained exactly when the body's own reads, published
 /// crash predicates, or scalar-computation receiver contract demand it;

@@ -1124,6 +1124,3 @@ fn require_bound_assumption(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

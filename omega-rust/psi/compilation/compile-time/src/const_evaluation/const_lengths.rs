@@ -428,6 +428,3 @@ fn entry_state<'a>(
         .find(|state| state.name.as_str() == leaf)
         .or_else(|| states.first())
 }
-
-#[cfg(test)]
-mod tests;

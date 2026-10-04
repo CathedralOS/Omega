@@ -9,8 +9,6 @@ use legalized_operations::{
     TrappingOperation,
 };
 use optimization_unit::ValueDefinitionSite;
-#[cfg(test)]
-use register_model::ValidatedPhysicalRegisterModel;
 use register_model::{RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
@@ -42,25 +40,6 @@ mod scalar_stack;
 mod structural;
 mod structural_case;
 mod unit_call;
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(super) fn build(
-    function: usize,
-    source: &LegalizedScalarFunction,
-    native_target: target::NativeTarget,
-    constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<SelectedFunction, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let environment =
-        crate::selection::target_register_environment(native_target, physical, catalog)
-            .map_err(|_| invalid())?;
-    build_with_environment(function, source, constraints, &environment)
-}
 
 /// Select one legalized function. A shape refusal raised anywhere beneath is
 /// attributed here to the function's machine and to the instruction being

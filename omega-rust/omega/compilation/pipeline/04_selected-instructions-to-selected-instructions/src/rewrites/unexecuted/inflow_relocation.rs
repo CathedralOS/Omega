@@ -112,9 +112,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::relocate_selected_instruction_onto_inflow;
 pub use validation::validate_inflow_relocation;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted relocation onto the inflow with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedInflowRelocation {

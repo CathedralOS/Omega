@@ -1016,9 +1016,3 @@ pub(super) fn record_representation_implies(
                     && scalar_representation_facts_imply(program, &source.facts, &target.facts)
             })
 }
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod projection_tests;

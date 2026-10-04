@@ -64,8 +64,6 @@ mod known_ranges;
 mod lower_bounds;
 mod selected;
 pub(in crate::checks) use selected::ranges_seam_owns;
-#[cfg(test)]
-mod tests;
 
 /// A successful element judgment is distinct from a valid range window and
 /// from syntax delegated to another checker. Silence is not bounds evidence.

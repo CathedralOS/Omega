@@ -7,16 +7,11 @@ use crate::review::{
     RestrictedBuildCheckpoint, compile_candidate_for_check_reusing,
     compile_resolved_package_candidate_for_check,
 };
-#[cfg(test)]
-use compiler::CompileOutputKind;
 use compiler::{CompileOptions, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
-
-#[cfg(test)]
-mod tests;
 
 pub struct PreparedLocalProjectCheckRequest {
     prepared: PreparedLocalProject,

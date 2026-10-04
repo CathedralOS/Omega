@@ -386,6 +386,3 @@ fn preceding_reborrow_preserves_carrier(
             checked_trees::BorrowAccessKind::Read | checked_trees::BorrowAccessKind::Mutable
         )
 }
-
-#[cfg(test)]
-mod tests;

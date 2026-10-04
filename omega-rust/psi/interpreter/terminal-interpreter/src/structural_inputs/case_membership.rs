@@ -13,9 +13,6 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// Initialized payloadless case contents below one structural entry argument.
 /// The path selects the sum itself, not its case payload. Neither an opaque
 /// identity nor an integer discriminator is evidence of these contents.

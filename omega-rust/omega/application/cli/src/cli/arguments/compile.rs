@@ -3,9 +3,6 @@ use compiler::OptimizationRollback;
 use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
 use std::path::PathBuf;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) struct CompileArguments {
     pub(crate) accept_admissions: bool,
     pub(crate) build_dir: Option<PathBuf>,

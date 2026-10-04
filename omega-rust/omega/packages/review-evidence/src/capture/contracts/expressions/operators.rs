@@ -110,22 +110,3 @@ pub(crate) const fn project_contract_unary_operator(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::capture::contracts::expressions::operators::project_contract_binary_operator;
-    use crate::record::PackageReviewContractBinaryOperator;
-
-    #[test]
-    fn nominal_tag_observation_cannot_be_reviewed_as_value_equality() {
-        use typed_trees::expression::BinaryOperator;
-        assert_eq!(
-            project_contract_binary_operator(BinaryOperator::CaseMembership),
-            None
-        );
-        assert_eq!(
-            project_contract_binary_operator(BinaryOperator::Equal),
-            Some(PackageReviewContractBinaryOperator::Equal)
-        );
-    }
-}

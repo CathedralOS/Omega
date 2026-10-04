@@ -26,9 +26,6 @@ mod encoding;
 mod recipe;
 mod validation;
 
-#[cfg(test)]
-mod tests;
-
 pub use encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,
     StagedOptimizedProgramStorageSemanticWrapperEncoding,

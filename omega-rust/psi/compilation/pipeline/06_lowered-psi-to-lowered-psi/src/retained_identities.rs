@@ -11,5 +11,3 @@
 
 pub(crate) mod proof_values;
 pub(crate) mod ranked_coverage;
-#[cfg(test)]
-mod tests;

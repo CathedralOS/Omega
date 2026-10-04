@@ -28,8 +28,6 @@ pub(in crate::encoding::recovery) mod terminal_permissions;
 pub(in crate::encoding::recovery) mod text;
 
 pub use text::PackagePolicyTextRecoveryLimits;
-#[cfg(test)]
-pub(in crate::encoding) use text::framing::binary as decode_policy_text_scalars;
 
 use PackagePolicyRecoveryError as Error;
 pub use policy_recovery_accounting::{

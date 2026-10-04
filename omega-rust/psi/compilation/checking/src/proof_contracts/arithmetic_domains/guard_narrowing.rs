@@ -26,9 +26,6 @@ mod parameter_bounds;
 pub(crate) use arrivals::occurrence_value_environment;
 pub use arrivals::{arrival_integer_expression_bounds, occurrence_integer_expression_bounds};
 
-#[cfg(test)]
-mod tests;
-
 // Sibling Requires readers must recover the comparison from the same exact
 // expression whose declaration occurrence is checked by the meaning owner.
 pub(super) fn has_builtin_ordering(

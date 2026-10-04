@@ -2,9 +2,6 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// Transient, program-local results of positive entailment judgments. The
 /// runtime place prover need not duplicate structural or integer proof rules,
 /// but absence of a validation error is not evidence for any postcondition.

@@ -9,32 +9,8 @@ use super::errors::ResolveGitPackageClosureError;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
 };
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 use package_source::{GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolver};
 use std::collections::BTreeMap;
-#[cfg(test)]
-use std::path::Path;
-
-/// Resolve one repository-root Git package and its complete Path/Git closure.
-///
-/// The exact validated root request is retained independently from normalized
-/// lineage and immutable commit/tree/content identity. A Git root that is a
-/// multi-package workspace remains ambiguous until the explicit package
-/// selector design is implemented.
-#[cfg(test)]
-pub(crate) fn resolve_git_package_closure_from_hardened_base(
-    request: &GitSourceRequest,
-    cache_dir: impl AsRef<Path>,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
-        .map_err(|error| {
-            ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-        })?;
-    resolve_git_package_closure(request, &storage, source_limits, closure_limits)
-}
 
 fn resolve_git_package_closure_from_lanes(
     storage: &SourceResolver,

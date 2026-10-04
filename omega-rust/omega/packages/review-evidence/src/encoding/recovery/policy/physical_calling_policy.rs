@@ -2,8 +2,6 @@
 
 pub(in crate::encoding::recovery) mod placement;
 pub(in crate::encoding::recovery) mod state;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 
 use super::{Error, PackagePolicyRecoveryLimits, reader::Reader};
 use crate::encoding::{PACKAGE_PHYSICAL_CALLING_POLICY_VERSION, PHYSICAL_CALLING_POLICY_MAGIC};

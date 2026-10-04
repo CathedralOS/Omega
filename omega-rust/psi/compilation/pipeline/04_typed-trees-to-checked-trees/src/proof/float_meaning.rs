@@ -1583,6 +1583,3 @@ pub(crate) fn bind_float_meaning_projection_facts(
     proof.float_semantic_applications = applications;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

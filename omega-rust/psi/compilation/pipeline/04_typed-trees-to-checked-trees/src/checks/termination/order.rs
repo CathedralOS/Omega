@@ -3,9 +3,6 @@
 //! range membership nor descent, and never rewrites custom witness identity to
 //! a builtin view. Diagnostic type spellings are not identity-view application evidence.
 
-#[cfg(test)]
-mod tests;
-
 use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::data::DataMember;

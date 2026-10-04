@@ -93,9 +93,6 @@ pub(crate) fn encode(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatalog, CodecError> {
     Ok(ScalarQualificationCatalog {
         domains: decode_counted(reader, |reader| {

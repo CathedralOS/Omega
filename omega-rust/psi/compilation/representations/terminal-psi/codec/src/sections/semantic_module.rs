@@ -10,8 +10,6 @@ pub(crate) mod block_wire;
 pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
-#[cfg(test)]
-mod current_format_tests;
 pub(crate) mod dynamic_dispatch_wire;
 pub(crate) mod integer_math_term_wire;
 pub(crate) mod machine_wire;
@@ -27,8 +25,6 @@ pub(crate) mod reach_application_wire;
 pub(crate) mod scalar_qualification_wire;
 pub(crate) mod scalar_term_wire;
 pub(crate) mod scalar_wire;
-#[cfg(test)]
-mod structural_block_wire_tests;
 pub(crate) mod structural_field_wire;
 pub(crate) mod structural_place_wire;
 pub(crate) mod structural_result_wire;

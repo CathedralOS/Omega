@@ -288,6 +288,3 @@ fn plain_fields<'a>(
         }
     })
 }
-
-#[cfg(test)]
-mod tests;

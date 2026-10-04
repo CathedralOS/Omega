@@ -22,8 +22,6 @@ mod prepared_transactions;
 mod private_staging;
 mod snapshots;
 mod sponsor_errors;
-#[cfg(test)]
-mod tests;
 
 pub use prepared_transactions::{
     PreparedFilesystemMutation, PreparedFilesystemOpen, PreparedFilesystemWrite,

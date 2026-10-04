@@ -341,9 +341,6 @@ mod value_custody;
 
 // The front-end pipeline the tests run, shared with the `suite` integration
 // target that includes the same file; see its module documentation.
-#[cfg(test)]
-#[path = "../tests/support/front_end.rs"]
-mod front_end;
 pub use frozen_program::{
     FrozenProgramScope, enter_frozen_program_scope, proof_only_classification,
 };

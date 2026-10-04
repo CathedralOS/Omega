@@ -23,15 +23,6 @@ impl PackageSourceMaterialization {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn synthetic(content: SourceContentDigest) -> Self {
-        Self {
-            content,
-            file_count: 0,
-            byte_count: 0,
-        }
-    }
-
     pub const fn content(&self) -> &SourceContentDigest {
         &self.content
     }

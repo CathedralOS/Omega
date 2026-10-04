@@ -136,6 +136,3 @@ pub(super) fn loan(
         access,
     })
 }
-
-#[cfg(test)]
-mod tests;

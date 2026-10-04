@@ -1,14 +1,5 @@
 //! Bounded receipt-free permissions, preserving complete service schemas.
 
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod budgets;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod generics;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) use tests::fixture as row_fixture;
-
 use super::{
     Error, PackagePolicyRecoveryLimits,
     identity::{nominal, package},

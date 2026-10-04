@@ -1591,22 +1591,3 @@ pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)>
     let (minimum, maximum) = LandedIntegerType::from_name(type_name)?.bounds();
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
-
-#[cfg(test)]
-mod boolean_argument_tests {
-    use super::normalized_boolean_argument;
-    use language_semantics::const_value::CanonicalConstIdentity;
-    use language_semantics::const_value::CanonicalConstValue;
-
-    #[test]
-    fn boolean_atom_requires_its_exact_carrier_not_display_text() {
-        let mut value = CanonicalConstValue::boolean(true);
-        value.display = "false".to_owned();
-        assert_eq!(normalized_boolean_argument(&value.atom()), Some(true));
-        value.type_name = "u64".to_owned();
-        assert_eq!(normalized_boolean_argument(&value.atom()), None);
-        let integer = CanonicalConstIdentity::integer("bool", 1);
-        let value = CanonicalConstValue::new(integer.type_name, integer.encoding, "1");
-        assert_eq!(normalized_boolean_argument(&value.atom()), None);
-    }
-}

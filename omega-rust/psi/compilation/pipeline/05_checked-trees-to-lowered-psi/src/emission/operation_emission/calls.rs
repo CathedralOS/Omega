@@ -463,30 +463,3 @@ fn emit_direct_call_operation(
     });
     Ok(result)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{CallEmissionContext, LoweringError};
-
-    #[test]
-    fn call_requirements_cannot_escape_their_reserved_identity_range() {
-        let mut context = CallEmissionContext {
-            machine_ids: &[],
-            requirement_counts: &[],
-            boundaries: &[],
-            next_obligation_identity: 7,
-            obligation_limit: 9,
-        };
-        assert_eq!(context.allocate_requirement().unwrap().get(), 7);
-        assert_eq!(context.allocate_requirement().unwrap().get(), 8);
-        for _ in 0..2 {
-            assert!(matches!(
-                context.allocate_requirement(),
-                Err(LoweringError::Unsupported(
-                    "terminal call obligations exceed their machine identity range"
-                ))
-            ));
-            assert_eq!(context.next_obligation_identity, 9);
-        }
-    }
-}

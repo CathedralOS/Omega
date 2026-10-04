@@ -18,8 +18,6 @@ use checked_trees::{
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use lowered_psi::LoweredPsi;
 use proof_admission::{EvidenceRoute, PrimitiveJudgment};
-#[cfg(test)]
-use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::{
     BlockId, ClaimId, IeeeFloatFormat, IntegerValue, MachineId, PlaceId, Proposition,
     QualifiedScalarType, ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind,

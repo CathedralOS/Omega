@@ -15,7 +15,3 @@ pub(crate) use identity::{
 };
 pub(crate) use properties::project_data_properties;
 pub(crate) use validation::missing_exact_toolchain_type_owner;
-#[cfg(test)]
-pub(crate) use validation::{
-    validate_package_type_identity_input, validate_package_type_identity_input_inner,
-};

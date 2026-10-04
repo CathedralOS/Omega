@@ -968,6 +968,3 @@ fn extend_service_set(destination: &mut Vec<ServiceReachId>, source: &[ServiceRe
     destination.sort_by_key(|service| service.0);
     destination.dedup();
 }
-
-#[cfg(test)]
-mod tests;

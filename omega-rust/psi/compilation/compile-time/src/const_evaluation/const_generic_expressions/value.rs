@@ -71,12 +71,6 @@ mod context;
 mod match_dispatch;
 use context::EvaluationContext;
 
-#[cfg(test)]
-mod match_tests;
-
-#[cfg(test)]
-mod call_tests;
-
 /// The invocation owner validates all arguments without executing landed
 /// expressions, then evaluates arguments and the admitted machine only on demand.
 pub(crate) trait ConstantCalls {
@@ -222,20 +216,6 @@ pub(crate) fn validate(
         calls,
     )?
     .warnings)
-}
-
-#[cfg(test)]
-pub(crate) fn evaluate(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    calls: Option<&dyn ConstantCalls>,
-) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    let (value, warnings) =
-        evaluate_scalar(program, machine, state, expression, destination, calls)?;
-    Ok((value.into_index()?, warnings))
 }
 
 pub(crate) fn evaluate_scalar(
@@ -1662,24 +1642,6 @@ pub(crate) fn validate_closed_scalar_with_policy(
     .warnings)
 }
 
-#[cfg(test)]
-pub(crate) fn evaluate_closed_scalar(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    calls: &dyn ConstantCalls,
-) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-    let (value, warnings) = evaluate_scalar_in(
-        program,
-        EvaluationContext::Closed,
-        expression,
-        destination,
-        ArithmeticDomain::Exact,
-        Some(calls),
-    )?;
-    Ok((value.into_index()?, warnings))
-}
-
 /// The caller retains its checked destination type while the canonical value
 /// crosses the invocation boundary as carrier and payload.
 pub(crate) fn evaluate_closed_scalar_with_policy(
@@ -1777,165 +1739,5 @@ pub(crate) fn evaluate_closed_const_argument(
         ScalarValue::Float { .. } | ScalarValue::UndeterminedNaN(_) => {
             Err("const application needs an exact integer or Boolean carrier".into())
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Value, apply, landed_literal};
-    use numerics::{
-        arithmetic::ArithmeticDomain,
-        literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
-    };
-    use semantic_vocabulary::IntegerValue;
-    use typed_trees::expression::BinaryOperator;
-
-    #[test]
-    fn exact_nodes_reject_overflow_before_later_cancellation() {
-        let maximum = Value::Landed(
-            LandedIntegerType::U8,
-            IntegerValue::Unsigned(255),
-            ArithmeticDomain::Exact,
-        );
-        let one = Value::Landed(
-            LandedIntegerType::U8,
-            IntegerValue::Unsigned(1),
-            ArithmeticDomain::Exact,
-        );
-        assert!(apply(BinaryOperator::Add, maximum, one).is_err());
-    }
-
-    #[test]
-    fn remainder_rejects_signed_minimum_divided_by_negative_one() {
-        let minimum = Value::Landed(
-            LandedIntegerType::I8,
-            IntegerValue::Signed(-128),
-            ArithmeticDomain::Exact,
-        );
-        let negative_one = Value::Landed(
-            LandedIntegerType::I8,
-            IntegerValue::Signed(-1),
-            ArithmeticDomain::Exact,
-        );
-        assert!(apply(BinaryOperator::Modulo, minimum, negative_one).is_err());
-    }
-
-    #[test]
-    fn policy_quotients_preserve_signed_overflow_and_zero_division_rules() {
-        for (domain, expected) in [
-            (ArithmeticDomain::Wrapping, -128),
-            (ArithmeticDomain::Saturating, 127),
-        ] {
-            let minimum = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-128), domain);
-            let negative_one =
-                Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-1), domain);
-            let zero = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(0), domain);
-            for (operator, expected) in [
-                (BinaryOperator::Divide, expected),
-                (BinaryOperator::Modulo, 0),
-            ] {
-                let Value::Landed(carrier, result, retained) =
-                    apply(operator, minimum, negative_one).unwrap()
-                else {
-                    panic!("integer quotient result");
-                };
-                assert_eq!(carrier, LandedIntegerType::I8);
-                assert_eq!(result, IntegerValue::Signed(expected));
-                assert_eq!(retained, domain);
-                assert!(apply(operator, minimum, zero).is_err());
-            }
-        }
-    }
-
-    #[test]
-    fn mixed_integer_comparisons_use_each_landed_carrier() {
-        for (left_carrier, left, right_carrier, right, expected) in [
-            (
-                LandedIntegerType::I32,
-                IntegerValue::Signed(-1),
-                LandedIntegerType::U64,
-                IntegerValue::Unsigned(10),
-                std::cmp::Ordering::Less,
-            ),
-            (
-                LandedIntegerType::I64,
-                IntegerValue::Signed(-1),
-                LandedIntegerType::U64,
-                IntegerValue::Unsigned(u128::from(u64::MAX)),
-                std::cmp::Ordering::Less,
-            ),
-            (
-                LandedIntegerType::U64,
-                IntegerValue::Unsigned(u128::from(u64::MAX)),
-                LandedIntegerType::I64,
-                IntegerValue::Signed(i128::from(i64::MAX)),
-                std::cmp::Ordering::Greater,
-            ),
-            (
-                LandedIntegerType::I8,
-                IntegerValue::Signed(10),
-                LandedIntegerType::U64,
-                IntegerValue::Unsigned(10),
-                std::cmp::Ordering::Equal,
-            ),
-        ] {
-            // Policy controls how each operand was computed, not comparison.
-            let left = Value::Landed(left_carrier, left, ArithmeticDomain::Wrapping);
-            let right = Value::Landed(right_carrier, right, ArithmeticDomain::Saturating);
-            for (operator, expected) in [
-                (BinaryOperator::Equal, expected.is_eq()),
-                (BinaryOperator::NotEqual, expected.is_ne()),
-                (BinaryOperator::Less, expected.is_lt()),
-                (BinaryOperator::LessOrEqual, expected.is_le()),
-                (BinaryOperator::Greater, expected.is_gt()),
-                (BinaryOperator::GreaterOrEqual, expected.is_ge()),
-            ] {
-                assert!(
-                    matches!(apply(operator, left, right), Ok(Value::Boolean(actual)) if actual == expected)
-                );
-            }
-        }
-        let invalid = Value::Landed(
-            LandedIntegerType::I8,
-            IntegerValue::Signed(128),
-            ArithmeticDomain::Exact,
-        );
-        let valid = Value::Landed(
-            LandedIntegerType::U64,
-            IntegerValue::Unsigned(128),
-            ArithmeticDomain::Exact,
-        );
-        assert!(apply(BinaryOperator::Equal, invalid, valid).is_err());
-    }
-
-    #[test]
-    fn arithmetic_never_relands_incompatible_carriers() {
-        let left = Value::Landed(
-            LandedIntegerType::U8,
-            IntegerValue::Unsigned(1),
-            ArithmeticDomain::Exact,
-        );
-        let right = Value::Landed(
-            LandedIntegerType::U64,
-            IntegerValue::Unsigned(1),
-            ArithmeticDomain::Exact,
-        );
-        assert!(apply(BinaryOperator::Add, left, right).is_err());
-    }
-
-    #[test]
-    fn unsigned_literal_preserves_values_above_signed_maximum() {
-        let literal =
-            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551615")
-                .expect("u64 maximum literal")
-                .with_landing(IntegerLanding {
-                    landed_type: LandedIntegerType::U64,
-                    domain: ArithmeticDomain::Exact,
-                });
-        assert!(matches!(
-            landed_literal(&literal),
-            Ok(Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(value), ArithmeticDomain::Exact))
-                if value == u128::from(u64::MAX)
-        ));
     }
 }

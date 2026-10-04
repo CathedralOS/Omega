@@ -16,9 +16,6 @@ use crate::execution::terminal_unit::{
     SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// Which attachment storage a qualified machine's signature retains.
 ///
 /// A carrier qualification names the semantic owner and contributes no

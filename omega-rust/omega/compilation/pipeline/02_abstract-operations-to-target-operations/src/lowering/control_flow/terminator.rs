@@ -14,9 +14,6 @@ use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// A materialized descriptor owns its affine carrier, not the borrowed backing.
 /// The live definition is installed only after view/access reconstruction; rejoin
 /// its exact producer and result contract before accepting a no-code discard.

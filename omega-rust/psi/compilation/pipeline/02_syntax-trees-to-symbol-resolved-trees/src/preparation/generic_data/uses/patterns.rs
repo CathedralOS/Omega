@@ -309,9 +309,6 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
     path
 }
 
-#[cfg(test)]
-mod tests {}
-
 #[derive(Clone)]
 pub(in crate::preparation::generic_data) enum SumPathExpressionKind {
     Name,

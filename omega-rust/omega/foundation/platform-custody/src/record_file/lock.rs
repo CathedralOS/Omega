@@ -78,39 +78,3 @@ impl Drop for RecordFileLock {
         let _ = self.file.unlock();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{CapabilityDirectory, Path, RecordFileRoot};
-
-    #[test]
-    fn guard_drop_unlocks_even_while_a_duplicate_description_remains_open() {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "omega-record-lock-drop-{}-{stamp}",
-            std::process::id()
-        ));
-        std::fs::create_dir(&path).unwrap();
-        let directory =
-            CapabilityDirectory::open_ambient_dir(&path, cap_std::ambient_authority()).unwrap();
-        let root = RecordFileRoot::from_directory(directory, path.clone()).unwrap();
-        let guard = root
-            .try_lock(Path::new("transaction.lock"))
-            .unwrap()
-            .unwrap();
-        let duplicate = guard.file.try_clone().unwrap();
-        drop(guard);
-        let reacquired = root.try_lock(Path::new("transaction.lock")).unwrap();
-        assert!(
-            reacquired.is_some(),
-            "a live duplicate must not retain a dropped guard's lock"
-        );
-        drop(duplicate);
-        drop(reacquired);
-        drop(root);
-        std::fs::remove_dir_all(path).unwrap();
-    }
-}

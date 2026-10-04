@@ -55,21 +55,6 @@ use contracts::{
 };
 use obligations::lower_proof_obligation;
 
-#[cfg(test)]
-pub(crate) fn build_proof_facts(
-    program: &typed_trees::TypedTrees,
-    proof_plan: &proof::obligations::ProofPlan,
-    borrow: &BorrowFacts,
-) -> ProofFacts {
-    build_proof_facts_with_operators(
-        program,
-        proof_plan,
-        borrow,
-        &CheckedOperatorFacts::default(),
-    )
-    .expect("test fixture programs elaborate or are refused before fact construction")
-}
-
 pub(crate) fn build_proof_facts_with_operators(
     program: &typed_trees::TypedTrees,
     proof_plan: &proof::obligations::ProofPlan,

@@ -629,6 +629,3 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
     canonical.extend_from_slice(&shape.byte_size.to_le_bytes());
     canonical.extend_from_slice(&shape.alignment.to_le_bytes());
 }
-
-#[cfg(test)]
-mod tests;

@@ -22,6 +22,3 @@ pub use package_manager::{
 // The unit tests compile real packages on several threads; mimalloc's
 // per-thread heaps avoid the system allocator's zone locks. Test-only: the
 // product keeps the system allocator.
-#[cfg(test)]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

@@ -96,9 +96,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::relocate_selected_instruction_out_of_arm;
 pub use validation::validate_arm_relocation;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted relocation out of the branch arm with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedArmRelocation {

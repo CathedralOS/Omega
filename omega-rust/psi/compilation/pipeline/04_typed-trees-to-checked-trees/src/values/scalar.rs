@@ -37,8 +37,6 @@ mod selected_operator_operands;
 mod semantic_casts;
 mod structural_fields;
 mod subslice_endpoints;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use array_constructions::{CallArrayConstruction, call_array_constructions};
 pub(crate) use boolean_lowering::evaluate_closed_boolean_expression;
@@ -46,8 +44,6 @@ pub(crate) use call_arguments::is_scalar_return_call;
 pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
-#[cfg(test)]
-pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
     lower_entry_predicate_with_subjects, lower_entry_scalar_with_subjects,

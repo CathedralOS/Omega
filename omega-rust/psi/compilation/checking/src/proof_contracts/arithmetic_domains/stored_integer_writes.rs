@@ -18,8 +18,6 @@ mod recast_history;
 mod source_geometry;
 pub use source_geometry::stored_integer_source_may_require_fit;
 
-#[cfg(test)]
-mod tests;
 
 /// Discharge against the pre-store environment. The returned width belongs to
 /// this exact destination/value occurrence; it is not a changed semantic type.

@@ -45,22 +45,6 @@ fn representation_specialization_rule_registrations() -> Vec<catalog::BuiltInRul
     registrations
 }
 
-#[cfg(test)]
-pub(crate) use case_membership_specialization::CaseMembershipSpecializationRule;
-#[cfg(test)]
-pub(crate) use field_value_specialization::FieldValueSpecializationRule;
-#[cfg(test)]
-use node_elision::node_elision_accounting;
-#[cfg(test)]
-pub(crate) use sparse_conditional_constant_propagation::{
-    IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
-};
-#[cfg(test)]
-pub(crate) use state_specialization::StateArgumentSpecializationRule;
-
-#[cfg(test)]
-pub(crate) mod tests;
-
 use optimization::PsiOptimizationSelections;
 #[cfg(any(test, feature = "test-support"))]
 use optimization_core::OptimizationSelections;
@@ -131,73 +115,8 @@ impl PsiPassStep {
         }
     }
 }
-#[cfg(test)]
-pub(crate) use control_flow_cleanup::{
-    AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,
-    NonAdjacentBlockMergeRule, SharedJumpFusionRule,
-};
-#[cfg(test)]
-pub(crate) use control_flow_cleanup::{
-    PathQualifiedEmptyBlockThreadRule, UnreachablePrivateMachinePruneRule,
-};
-#[cfg(test)]
-pub(crate) use copy_propagation::RedundantBlockParameterRule;
-#[cfg(test)]
-pub(crate) use dead_scalar_elimination::{
-    DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
-};
-#[cfg(test)]
-pub(crate) use global_value_numbering::{
-    BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
-    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
-    WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
-    WrappingShiftZeroCountIdentityRule,
-};
-#[cfg(test)]
-pub(crate) use global_value_numbering::{
-    DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
-    DominatorTotalScalarGvnRule, PhiTranslatedObligationFreeScalarGvnRule,
-    PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
-    PhiTranslatedProofCertifiedScalarGvnRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
-    SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
-};
-#[cfg(test)]
-pub(crate) use proof_check_elision::{
-    LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
-    LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
-    LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
-    LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
-    LiveProofCertifiedIntegerDivideByOneEliminationRule,
-    LiveProofCertifiedIntegerIdentityEliminationRule,
-    LiveProofCertifiedIntegerRemainderByOneEliminationRule,
-    LiveProofCertifiedIntegerSelfDivideEliminationRule,
-    LiveProofCertifiedIntegerSelfRemainderEliminationRule,
-    LiveProofCertifiedIntegerZeroDividendEliminationRule,
-    LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
-    ProofCertifiedDeadScalarEliminationRule,
-};
 #[cfg(any(test, feature = "test-support"))]
 pub use sparse_conditional_constant_propagation::WrappingIntegerAddConstantsRule;
-#[cfg(test)]
-pub(crate) use sparse_conditional_constant_propagation::{
-    BooleanEqualConstantsRule, BooleanNotConstantsRule, ExactIntegerAddConstantsRule,
-    ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
-    ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
-    ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
-    ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
-    IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
-    IntegerEqualConstantRangeRule, IntegerEqualConstantsRule, IntegerEqualRangeConstantRule,
-    IntegerEqualRangeRangeRule, IntegerLessOrEqualConstantRangeRule,
-    IntegerLessOrEqualConstantsRule, IntegerLessOrEqualRangeConstantRule,
-    IntegerLessOrEqualRangeRangeRule, IntegerLessThanConstantRangeRule,
-    IntegerLessThanConstantsRule, IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule,
-    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
-    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
-    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
-    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
-    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
-};
 
 #[cfg(any(test, feature = "test-support"))]
 pub fn built_in_psi_registry(
@@ -221,17 +140,6 @@ pub(crate) fn built_in_psi_registry_for_selections(
     Ok(registries
         .pop()
         .unwrap_or_else(|| OrderedRuleRegistry::new(Vec::new()).expect("empty registry is valid")))
-}
-
-/// Resolve exact selections in canonical catalog order. Registry-only shape:
-/// session-level steps are not expressible here, so the relocation selection
-/// rejects; the scheduled-step resolver is `built_in_psi_steps_for_selections`.
-#[cfg(test)]
-pub(crate) fn built_in_psi_registries(
-    selections: &OptimizationSelections,
-) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
-    let projection = selections.project_psi();
-    built_in_psi_registries_for_selections(projection.selections())
 }
 
 /// Resolve exact Psi-owned selections in canonical catalog order.

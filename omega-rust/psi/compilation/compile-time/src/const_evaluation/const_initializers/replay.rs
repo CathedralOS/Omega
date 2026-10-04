@@ -1144,9 +1144,6 @@ fn pair(
     Ok(())
 }
 
-#[cfg(test)]
-mod noncall_float_replay;
-
 fn decode_scalar(
     value: crate::const_evaluation::const_generic_expressions::value::ScalarValue,
 ) -> Result<DecodedCanonicalConstValue, String> {

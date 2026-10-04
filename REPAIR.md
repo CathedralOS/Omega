@@ -124,8 +124,7 @@ exists; admission declines or omits without diagnostic), not new-capability:
 - "Repaired" means the item's program runs at current HEAD, witnessed by
   its command. A red test that went green names what changed in the
   compiler to make it pass.
-- Baseline rows in `wiki/drafts/measurements/known_baseline_failures.md` are
-  the work queue; a row closes when its program runs, or when the harness
-  that measured it is gone and the row is re-measured against what exists.
+- Red tests are owned by board items, not a baseline ledger; a red test is
+  fixed or deleted by its owning item.
 - All landings through `tools/landing.py`; check
   `python tools/claims.py status` before touching shared paths.

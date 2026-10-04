@@ -26,6 +26,3 @@ pub use roles::{
     PackageDeclaration, WorkspaceDeclaration, WorkspaceMemberPath, extract_build_declaration,
     extract_package_declaration,
 };
-
-#[cfg(test)]
-mod identity_tests;

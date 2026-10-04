@@ -1,12 +1,8 @@
 //! Omega reconstructs executable scalar-order inputs; the shared solver owns
 //! all-path comparison transport and captured-value stability.
-#[cfg(test)]
-use super::borrowed_regions::Position;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId, Proposition, ScalarType, ValueId};
-#[cfg(test)]
-use semantic_vocabulary::{IntegerSign, IntegerType};
 use std::collections::BTreeMap;
 use terminal_semantics::scalar_ordering::{Binding, Edge, Effect, ScalarOrdering, Step};
 
@@ -194,34 +190,6 @@ impl RangeRelations {
     pub(super) fn ordering(&self) -> &ScalarOrdering {
         &self.0
     }
-
-    #[cfg(test)]
-    pub(super) fn proves_less_than(
-        &self,
-        position: Position,
-        left: ValueId,
-        right: ValueId,
-    ) -> bool {
-        self.0.proves_less_than(position, left, right)
-    }
-    #[cfg(test)]
-    pub(super) fn proves_less_or_equal(
-        &self,
-        position: Position,
-        left: ValueId,
-        right: ValueId,
-    ) -> bool {
-        self.0.proves_less_or_equal(position, left, right)
-    }
-    #[cfg(test)]
-    pub(super) fn values_unchanged_since(
-        &self,
-        birth: Position,
-        current: Position,
-        values: &[ValueId],
-    ) -> bool {
-        self.0.values_unchanged_since(birth, current, values)
-    }
 }
 /// Instantiate only current, statically named scalar return contracts. The
 /// common contract projection rejects unbound leaves and unsupported clauses;
@@ -311,7 +279,3 @@ fn call_guarantees(
             .collect(),
     )
 }
-
-#[cfg(test)]
-#[path = "range_relations/tests.rs"]
-mod tests;

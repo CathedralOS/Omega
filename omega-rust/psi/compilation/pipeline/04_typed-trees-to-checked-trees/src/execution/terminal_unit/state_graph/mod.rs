@@ -42,9 +42,6 @@ pub(super) mod returns;
 mod terminal_calls;
 mod terminator;
 
-#[cfg(test)]
-mod tests;
-
 /// A composed graph's state roster: the dispatch machine's states followed by
 /// every foreign machine whose entry an arm can reach. Each entry pairs the
 /// state with its owning machine — signatures, entry claims, and every
@@ -129,27 +126,6 @@ fn fused_target_index(
     fused
         .iter()
         .position(|(_, state)| state.symbol == entry.symbol)
-}
-
-/// Test convenience: the traced builder without a trace.
-#[cfg(test)]
-pub(super) fn build(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<CheckedComposedUnitControlMachinePlan> {
-    build_traced(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        call_frames,
-        &control::LocalConstructionTrace::default(),
-    )
 }
 
 /// `build` with a trace of the phase, state, and statement where the general

@@ -13,9 +13,6 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 fn binder<'program>(
     program: &TypedTrees,
     parameters: &'program [TypeParameter],

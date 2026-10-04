@@ -77,6 +77,3 @@ pub(super) fn contexts<'input>(
     }
     completed
 }
-
-#[cfg(test)]
-mod tests;

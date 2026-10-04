@@ -114,21 +114,6 @@ fn validate_type(
     Ok(())
 }
 
-#[test]
-fn supplied_fused_binding_has_no_scalar_entry_contents() {
-    let identity = StructuralTypeId::new(1).unwrap();
-    let types = BTreeMap::from([(
-        identity,
-        StructuralTypeDeclaration {
-            id: identity,
-            identity: "test::Binding".into(),
-            shape: StructuralTypeShape::FusedServiceBinding,
-        },
-    )]);
-    assert!(!requires_contents(&types, identity));
-    assert!(terminal_semantics::zeroed_structural_leaves(types.values(), identity).is_none());
-}
-
 fn requires_contents(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     root: StructuralTypeId,

@@ -371,11 +371,3 @@ pub(crate) fn enforce_symbolic_range(
         )));
     }
 }
-
-#[cfg(test)]
-mod bracketed_ownership_probes {
-    //! `enforce_declared_return_range` owns the BRACKETED spelling. Once a
-    //! declared domain also yields an interval, this check had to be told
-    //! which one it speaks for, or it reported a `[a..=b]` the program never
-    //! wrote and pre-empted the domain check that names the real predicate.
-}

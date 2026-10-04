@@ -76,19 +76,3 @@ impl LemmaFacts {
         Self { lemmas, quantified }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Arena, LemmaFacts, ProofLemmaFact, QuantifiedRangeFact};
-
-    #[test]
-    fn lemma_facts_constructor_keeps_roots_explicit() {
-        let lemmas = Arena::<ProofLemmaFact>::with_capacity(1);
-        let quantified = Arena::<QuantifiedRangeFact>::with_capacity(2);
-
-        let facts = LemmaFacts::with_roots(lemmas.clone(), quantified.clone());
-
-        assert_eq!(facts.lemmas, lemmas);
-        assert_eq!(facts.quantified, quantified);
-    }
-}

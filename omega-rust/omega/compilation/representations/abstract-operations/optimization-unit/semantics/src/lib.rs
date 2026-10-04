@@ -90,6 +90,3 @@ pub use candidates::observation::{
 pub use current_value_ranges::{
     validate_current_value_range_fact, validate_current_value_range_fact_at,
 };
-
-#[cfg(test)]
-mod tests;

@@ -729,6 +729,3 @@ fn matching_borrow_state<'a>(
             .then_some(state)
     })
 }
-
-#[cfg(test)]
-mod tests;

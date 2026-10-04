@@ -18,8 +18,6 @@
 mod graph_construction;
 mod graph_replay;
 mod schema_nodes;
-#[cfg(test)]
-mod tests;
 
 pub use graph_construction::construct_semantic_schema_graph;
 pub(crate) use graph_construction::{describe_field, exact_symbol_identity, resolve_subject};

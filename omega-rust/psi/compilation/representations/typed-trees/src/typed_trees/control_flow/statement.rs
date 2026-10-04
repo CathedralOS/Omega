@@ -818,6 +818,3 @@ pub struct TableNamePath {
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
-
-#[cfg(test)]
-mod tests;

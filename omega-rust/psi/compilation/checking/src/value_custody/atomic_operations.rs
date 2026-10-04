@@ -301,6 +301,3 @@ fn same_result_name(
     };
     matches!((member(expression), member(result)), (Some(left), Some(right)) if left == right)
 }
-
-#[cfg(test)]
-mod tests;

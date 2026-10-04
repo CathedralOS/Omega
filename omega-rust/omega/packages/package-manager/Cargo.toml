@@ -47,12 +47,3 @@ cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
-[dev-dependencies]
-bounded-process = { path = "../../foundation/bounded-process" }
-build-evaluation = { path = "../../compilation/build-evaluation" }
-mimalloc = { version = "0.1", default-features = false }
-package-source = { path = "../source-acquisition", features = ["test-fixtures"] }
-
-[[test]]
-name = "suite"
-path = "tests/suite.rs"

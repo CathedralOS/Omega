@@ -13,14 +13,6 @@ use selected_instructions::{
 mod control;
 mod flow;
 
-#[cfg(test)]
-pub(crate) use flow::BLOCK_VISITS;
-
-#[cfg(test)]
-std::thread_local! {
-    pub(crate) static FUNCTION_COMPUTATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 pub(crate) fn compute_terminal_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
 ) -> Result<LivenessPlan, LivenessError> {
@@ -88,8 +80,6 @@ pub(crate) fn compute_function(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<FunctionLiveness, LivenessError> {
-    #[cfg(test)]
-    FUNCTION_COMPUTATIONS.set(FUNCTION_COMPUTATIONS.get() + 1);
     reject_unsupported_constraints(function_index, function)?;
     super::edge_values::validate_transports(function_index, function)?;
     let flow = flow::FunctionFlow::compute(function_index, function)?;

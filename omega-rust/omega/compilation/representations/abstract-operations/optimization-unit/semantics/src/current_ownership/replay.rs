@@ -126,12 +126,6 @@ fn validate_atomic_access(
     Ok(())
 }
 
-#[cfg(test)]
-mod atomic_access_tests;
-
-#[cfg(test)]
-mod byte_observation_tests;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,

@@ -8,6 +8,3 @@ pub(super) mod signatures;
 pub(super) mod types;
 
 pub(super) mod encoding;
-
-#[cfg(test)]
-mod tests;

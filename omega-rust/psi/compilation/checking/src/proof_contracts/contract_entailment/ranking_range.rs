@@ -39,9 +39,6 @@ pub(crate) use calls::{
     prove_ranking_range_call_entry,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// The scalar rank produced by an independently selected ranking view.
 #[derive(Clone, Copy)]
 pub enum RankingRangeMeasure {

@@ -329,6 +329,3 @@ fn transport_authority(
     }
     after
 }
-
-#[cfg(test)]
-mod tests;

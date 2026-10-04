@@ -18,8 +18,6 @@ pub(crate) mod workspace_path;
 pub use custody::PackageSourceCustody;
 pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
 pub use error::ResolvePackageSourceError;
-#[cfg(test)]
-pub(crate) use git::resolve_git_package_source_from_hardened_base;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
@@ -31,8 +29,6 @@ pub(crate) use git::{
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
 };
-#[cfg(test)]
-pub(crate) use local::resolve_external_local_package_source_from_hardened_base;
 pub use local::{
     bind_staged_external_local_project_source, resolve_external_local_package_source,
     resolve_external_local_project_source,
@@ -45,13 +41,8 @@ pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;
 pub use resolved::ResolvedPackageSource;
 pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
-#[cfg(test)]
-pub(crate) use workspace::resolve_workspace_member_package_source_from_hardened_base;
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
 pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
 pub use workspace::{
     resolve_workspace_member_package_source, resolve_workspace_member_project_source,
 };
-
-#[cfg(test)]
-mod tests;

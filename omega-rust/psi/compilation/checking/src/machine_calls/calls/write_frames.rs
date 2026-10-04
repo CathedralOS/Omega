@@ -57,9 +57,6 @@ mod type_instantiation;
 mod value_expressions;
 mod wire_codecs;
 
-#[cfg(test)]
-mod static_call_ceiling_tests;
-
 pub use alias_bindings::state_reference_parameter_binding_is_stable;
 pub(crate) use boundary_calls::{boundary_trait_call_signature, boundary_trait_signature};
 pub(crate) use call_targets::free_machine_entry_state;
@@ -106,12 +103,6 @@ use state_paths::normalize_state_relative_path;
 use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
 use type_capabilities::{type_may_carry_write, type_reference_is_reference};
-
-#[cfg(test)]
-thread_local! {
-    static PREFIX_WALKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    static CYCLE_EQUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
 
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and

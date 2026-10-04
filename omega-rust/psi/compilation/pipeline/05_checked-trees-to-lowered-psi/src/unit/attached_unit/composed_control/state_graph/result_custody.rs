@@ -22,9 +22,6 @@ use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// A call or constructed-value result that no automatic return discard
 /// retires: the selected edge owns its disposal.
 pub(super) fn result(

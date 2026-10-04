@@ -1569,6 +1569,3 @@ pub(super) fn expected(
     }
     Some(expected)
 }
-
-#[cfg(test)]
-mod tests;

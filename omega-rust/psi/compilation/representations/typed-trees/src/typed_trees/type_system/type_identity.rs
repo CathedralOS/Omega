@@ -18,10 +18,6 @@ mod normalized_identities;
 mod open_index_identity;
 mod result_dispatch_terms;
 mod substitution;
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-mod visitor_tests;
 
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,

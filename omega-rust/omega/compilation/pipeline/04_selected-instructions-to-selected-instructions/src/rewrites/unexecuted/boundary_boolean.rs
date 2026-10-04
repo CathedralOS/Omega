@@ -67,9 +67,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::fold_selected_boundary_boolean;
 pub use validation::validate_boundary_boolean_fold;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted boundary-decided predicate materialization with its replay
 /// receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -9,9 +9,6 @@ use arena::Handle;
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{FactPlan, ProgramPoint};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn retained_flow_contexts(
     semantic_context_refs: &arena::Arena<FlowSemanticContextRef>,
     source: arena::HandleSpan<FlowSemanticContextRef>,

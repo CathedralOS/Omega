@@ -10,8 +10,6 @@ use typed_trees::types::TypeReferenceNode;
 use typed_trees::{TypedTrees, machine::Machine, statement::StatementNode};
 
 mod result_candidates;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use result_candidates::{
     call_result_sources, reference_expression_storage_places,

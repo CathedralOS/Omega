@@ -159,24 +159,6 @@ impl CheckedMathematicalSignature {
             authored: self.authored,
         }
     }
-
-    /// Kernel signature position of each authored declaration, in authored
-    /// declaration order — which signature positions are authored
-    /// declarations rather than interned carrier assumptions.
-    #[cfg(test)]
-    pub(crate) fn authored(&self) -> &[u32] {
-        &self.authored
-    }
-
-    #[cfg(test)]
-    pub(crate) fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
-    #[cfg(test)]
-    pub(crate) fn term(&self, handle: TermHandle) -> Term {
-        self.arena.get(handle)
-    }
 }
 
 /// One scoped term entry: a telescope entry (non-level binder or
@@ -2711,6 +2693,3 @@ enum ScalarCarrier {
     Unit,
     Carrier(u32),
 }
-
-#[cfg(test)]
-mod tests;

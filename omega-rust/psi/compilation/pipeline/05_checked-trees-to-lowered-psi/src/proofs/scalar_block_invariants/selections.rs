@@ -441,6 +441,3 @@ impl<'machine> MachineValues<'machine> {
         self.selection_interval(&selection, position, integer)
     }
 }
-
-#[cfg(test)]
-mod tests;

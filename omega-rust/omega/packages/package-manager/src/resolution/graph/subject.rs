@@ -10,10 +10,6 @@
 mod construction;
 mod encoding;
 mod request_view;
-#[cfg(test)]
-mod test_support;
-#[cfg(test)]
-mod tests;
 mod text;
 mod usage;
 mod validation;

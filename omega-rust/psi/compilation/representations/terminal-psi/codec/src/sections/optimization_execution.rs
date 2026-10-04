@@ -337,6 +337,3 @@ impl std::fmt::Display for PsiOptimizationExecutionRecordDecodeError {
 impl std::error::Error for PsiOptimizationExecutionRecordError {}
 impl std::error::Error for PsiOptimizationExecutionRecordBuildError {}
 impl std::error::Error for PsiOptimizationExecutionRecordDecodeError {}
-
-#[cfg(test)]
-mod tests {}

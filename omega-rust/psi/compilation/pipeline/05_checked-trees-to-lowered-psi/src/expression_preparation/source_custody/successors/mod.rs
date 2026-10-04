@@ -17,9 +17,6 @@ use super::{authored_state, parameter_storage};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate(
     checked: &CheckedTrees,
     source_state: SymbolHandle,

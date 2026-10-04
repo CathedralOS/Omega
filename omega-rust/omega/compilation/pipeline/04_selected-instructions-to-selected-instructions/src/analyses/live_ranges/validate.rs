@@ -54,8 +54,6 @@ fn revalidate_liveness_custody(
     selected: &impl ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
 ) -> Result<(), LiveRangeError> {
-    #[cfg(test)]
-    super::LIVENESS_REPLAYS.set(super::LIVENESS_REPLAYS.get() + 1);
     let replayed = validate_liveness(selected, liveness.plan().clone())
         .map_err(LiveRangeError::LivenessRevalidation)?;
     if replayed.receipt() != liveness.receipt() {

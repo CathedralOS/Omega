@@ -336,6 +336,3 @@ pub(super) fn lower(
         _ => unreachable!("call router is exhaustive"),
     })
 }
-
-#[cfg(test)]
-mod tests {}

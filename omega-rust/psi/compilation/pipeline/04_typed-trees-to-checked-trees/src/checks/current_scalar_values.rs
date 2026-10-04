@@ -17,9 +17,6 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Clone)]
 struct Binding {
     symbol: SymbolHandle,

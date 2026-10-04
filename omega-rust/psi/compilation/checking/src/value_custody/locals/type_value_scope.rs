@@ -53,6 +53,3 @@ impl StateValueScope<'_, '_> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

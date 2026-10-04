@@ -8,8 +8,6 @@
 //! the entrance except through the shared `Lowerer`.
 
 pub(crate) mod conformance;
-#[cfg(test)]
-mod conformance_tests;
 pub(crate) mod data;
 pub(crate) mod domain;
 pub(crate) mod machine;

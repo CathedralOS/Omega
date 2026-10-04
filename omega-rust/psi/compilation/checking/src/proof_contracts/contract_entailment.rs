@@ -75,8 +75,6 @@
 //! `structural_case_arms.rs` recognizes guarded structural case arms and
 //! `self_induction.rs` intakes self-induction hypotheses.
 
-#[cfg(test)]
-mod argument_tests;
 mod arithmetic_judgment;
 mod call_requirements;
 mod citations;
@@ -84,12 +82,8 @@ mod const_ranges;
 mod exit_coverage;
 mod inductive_judgment;
 mod law_conformance;
-#[cfg(test)]
-mod outcome_tests;
 mod proof_edges;
 mod proof_integer;
-#[cfg(test)]
-mod proof_view_tests;
 mod quotient_congruence;
 mod ranking_range;
 mod refuted_requires;

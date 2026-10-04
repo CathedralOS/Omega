@@ -46,9 +46,6 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, ConstInitializerNormalization, Item, ItemHandle};
 use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 mod invocations;
 mod materialize;
 mod replay;

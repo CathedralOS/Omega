@@ -216,5 +216,3 @@ pub(crate) fn operand_observations_agree(
     })
 }
 
-#[cfg(test)]
-mod tests;

@@ -8,9 +8,6 @@ use typed_trees::signature::StateParameter;
 
 use crate::flow::CanonicalPlace;
 
-#[cfg(test)]
-mod tests;
-
 /// None leaves unrelated computed-value proof paths unchanged. A recognized
 /// place requirement returns Some(false) on mismatch and cannot use labels.
 pub(super) fn proves(

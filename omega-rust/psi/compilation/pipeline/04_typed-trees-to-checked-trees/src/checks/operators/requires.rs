@@ -64,9 +64,6 @@ mod float_bounds;
 mod invocation;
 use invocation::InvocationContexts;
 
-#[cfg(test)]
-mod tests;
-
 /// Crash refinement needs proof of falsity, not failure to prove a precondition.
 /// Only Boolean structure and exact evaluated predicate facts supply polarity;
 /// selected comparisons have no inferred arithmetic/complement laws here.

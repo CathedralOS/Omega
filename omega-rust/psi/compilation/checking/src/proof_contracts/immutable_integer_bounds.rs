@@ -196,18 +196,6 @@ pub struct ImmutableIntegerBoundSum {
     pub offset: i64,
 }
 
-/// Immutable integer boundary normalization preserves either an exact literal,
-/// one immutable binding's identity, or one resolved immutable symbol leaf.
-///
-/// A constant offset requires Exact arithmetic on the immediate operand because
-/// exact-domain `+`/`-` is a proof obligation discharged before checking
-/// (decision 17, `arithmetic_domains.rs`); with the selector already passing
-/// slice-range validation, its runtime value is the mathematical
-/// `symbol + offset`. Wrapping, Saturating, and Trapping operands may wrap or
-/// clamp and therefore remain unknown.
-#[cfg(test)]
-mod tests;
-
 enum LocalLookup<'program> {
     Missing,
     Found(&'program TableLocalData),

@@ -402,18 +402,6 @@ fn replay_function(
     })
 }
 
-#[cfg(test)]
-pub(crate) fn replay_function_for_test(
-    function: usize,
-    legality: &register_homes::FunctionAllocationLegality,
-    ranges: &selected_instructions::FunctionLiveRanges,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> Result<(FunctionSpillChoices, OptimizationWorkUsage), SpillChoiceError> {
-    let mut work = ReplayWork::default();
-    let choices = replay_function(function, legality, ranges, physical, &mut work)?;
-    Ok((choices, work.finish()))
-}
-
 fn replay_common(
     function: usize,
     register: &register_homes::VirtualRegisterAllocationLegality,

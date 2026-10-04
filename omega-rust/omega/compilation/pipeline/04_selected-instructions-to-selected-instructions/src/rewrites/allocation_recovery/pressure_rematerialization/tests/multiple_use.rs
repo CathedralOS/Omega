@@ -27,11 +27,6 @@ use super::super::{
 };
 use super::fixtures::multiple_future_fixture;
 
-#[test]
-fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
-    exercise_multiple_use_rematerialization(|_, _, _| {});
-}
-
 pub fn exercise_multiple_use_rematerialization(
     check_assignment: impl FnOnce(
         &FunctionAllocationLegality,

@@ -25,5 +25,3 @@ typed-trees = { path = "../../../../psi/compilation/representations/typed-trees"
 typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 sha2 = "0.10.9"
 
-[dev-dependencies]
-target = { path = "../../backend/target" }

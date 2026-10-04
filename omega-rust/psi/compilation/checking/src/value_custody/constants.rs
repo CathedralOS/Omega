@@ -13,9 +13,6 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn validate_constants(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for declaration in program.const_declarations() {
         if !eligible(program, declaration.declared_type, &mut Vec::new()) {

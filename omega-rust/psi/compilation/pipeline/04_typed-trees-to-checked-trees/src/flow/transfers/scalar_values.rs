@@ -18,9 +18,6 @@ use calls::capture_call;
 use captured::{CapturedValue, LiveValues};
 use conversions::{selected_call, selected_operand};
 
-#[cfg(test)]
-mod call_tests;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_statement(
     program: &typed_trees::TypedTrees,

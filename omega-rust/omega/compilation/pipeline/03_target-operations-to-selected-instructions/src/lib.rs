@@ -35,12 +35,6 @@ pub use selection::{
     select_instructions, selected_instruction_plan_identity, validate_selected_instructions,
 };
 
-#[cfg(test)]
-mod tests;
-
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
-#[cfg(test)]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

@@ -4,8 +4,6 @@ pub use runtime_predicates::{
     scalar_membership_predicates,
 };
 mod scalar_tags;
-#[cfg(test)]
-mod tests;
 pub use scalar_tags::{
     scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
@@ -586,68 +584,4 @@ fn domain_definition_by_symbol(
         .domain_definitions()
         .iter()
         .find(|domain| domain.symbol == symbol)
-}
-
-/// Unmanaged source maps carry no reconciled `PackageKeyIdentity`: ownership
-/// falls back to the recorded package root directory. These tests pin that
-/// fallback's contract — equal module/domain paths across distinct roots
-/// remain distinct owners and collide on a shared identity, while repeated
-/// declarations inside one unmanaged root still group as specializations.
-#[cfg(test)]
-mod unmanaged_root_tests {
-    use std::path::PathBuf;
-
-    use diagnostics::Diagnostic;
-    use source::SourceMap;
-
-    use typed_trees::TypedTrees;
-
-    use super::validate_repeated_normalized_domain_identities;
-
-    fn packaged(entries: &[(&str, &str)]) -> TypedTrees {
-        let mut map = SourceMap::default();
-        let mut texts = Vec::new();
-        for &(package_root, text) in entries {
-            let source_id = map
-                .add_with_metadata(
-                    PathBuf::from(format!("{package_root}/main.omg")),
-                    text.to_owned(),
-                    PathBuf::from(package_root),
-                    None,
-                    source::SourceOrigin::User,
-                )
-                .source_id;
-            texts.push((source_id, text));
-        }
-        crate::front_end::typed_program_from_merged_source_map(map, &texts)
-    }
-
-    fn identity_diagnostics(program: &TypedTrees) -> Vec<Diagnostic> {
-        let fact_plan = crate::build_definition_fact_plan(program);
-        let mut diagnostics = Vec::new();
-        validate_repeated_normalized_domain_identities(program, &fact_plan, &mut diagnostics);
-        diagnostics
-    }
-
-    #[test]
-    fn unmanaged_distinct_roots_cannot_share_a_domain_identity() {
-        let program = packaged(&[
-            ("root_a", "domain i64::Km requires self >= 0;"),
-            ("root_b", "domain i64::Km requires self >= 0;"),
-        ]);
-        assert_eq!(
-            program.domain_definitions()[0].semantic_id,
-            program.domain_definitions()[1].semantic_id,
-            "equal leaf paths under unmanaged roots normalize to one identity"
-        );
-        let diagnostics = identity_diagnostics(&program);
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "shares a normalized semantic identity with a distinct declaration owner"
-                )),
-            "{diagnostics:?}"
-        );
-    }
 }

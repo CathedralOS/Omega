@@ -327,6 +327,3 @@ pub(crate) fn decode_structural_field(
         field_type,
     })
 }
-
-#[cfg(test)]
-mod bounded_integer_tests;

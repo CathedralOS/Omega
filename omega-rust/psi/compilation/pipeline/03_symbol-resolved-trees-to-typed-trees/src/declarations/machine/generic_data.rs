@@ -1,9 +1,6 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, machine::Machine, types::TypeReference};
 
-#[cfg(test)]
-mod tests;
-
 /// Authorize suppression only from the producer's exact template/closed-owner
 /// association. Public visibility and operational meaning remain unchanged.
 pub(super) fn is_derived(

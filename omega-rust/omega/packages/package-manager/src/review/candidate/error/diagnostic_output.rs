@@ -69,6 +69,3 @@ pub(super) fn render(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

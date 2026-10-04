@@ -69,6 +69,3 @@ pub(crate) fn derive_wire_schema(lowerer: &mut Lowerer, definition: &DataDefinit
         members,
     });
 }
-
-#[cfg(test)]
-mod tests {}

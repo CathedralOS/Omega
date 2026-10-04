@@ -90,6 +90,3 @@ pub(in super::super) fn prove_disjunction(
         },
     })
 }
-
-#[cfg(test)]
-mod tests {}

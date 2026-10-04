@@ -14,42 +14,11 @@ use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
 };
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{ExternalSourceContext, SourceLineage};
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-
-/// Resolve one explicitly selected non-workspace local package and its complete
-/// Path/Git closure.
-///
-/// Every local package is snapshotted before its declaration or dependency rows
-/// are consumed. Its lineage binds the canonical absolute path to the supplied
-/// consuming context, so relative and absolute Path rows may cross directory
-/// boundaries without pretending to be portable workspace dependencies. No
-/// parent workspace or lock is discovered from the ambient filesystem.
-#[cfg(test)]
-pub(crate) fn resolve_external_local_package_closure_from_hardened_base(
-    live_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    cache_dir: impl AsRef<Path>,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
-        .map_err(|error| {
-            ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-        })?;
-    resolve_external_local_package_closure(
-        live_root,
-        source_context,
-        &storage,
-        source_limits,
-        closure_limits,
-    )
-}
 
 /// Resolve an external-local package closure beneath private resolver storage.
 pub fn resolve_external_local_package_closure(

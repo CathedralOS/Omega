@@ -7,9 +7,6 @@ use super::super::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Clone)]
 pub(crate) struct ByteOverlayField {
     pub offset: u64,

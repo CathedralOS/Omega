@@ -12,9 +12,6 @@ use typed_trees::TypedTrees;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Temporary closed type arguments keep nested instantiations in their lexical
 /// environment. Reusing a declaration's parameter symbol must not capture an
 /// outer instantiation's argument or turn a stored reference into owned data.

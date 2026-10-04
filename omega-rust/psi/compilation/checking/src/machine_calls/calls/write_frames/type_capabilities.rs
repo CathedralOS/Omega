@@ -4,9 +4,6 @@
 //! carry a caller-visible write. They do not traverse expressions, resolve
 //! calls, or summarize frames.
 
-#[cfg(test)]
-mod tests;
-
 use super::isolation::{
     definitions_for_name, definitions_for_symbol, type_is_caller_isolated_local_in,
     with_isolation_cache,

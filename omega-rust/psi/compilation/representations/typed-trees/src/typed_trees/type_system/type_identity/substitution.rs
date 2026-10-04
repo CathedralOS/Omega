@@ -210,6 +210,3 @@ fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

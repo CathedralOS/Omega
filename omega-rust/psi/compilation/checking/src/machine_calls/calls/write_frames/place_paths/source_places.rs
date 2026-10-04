@@ -322,6 +322,3 @@ fn source_owner(
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

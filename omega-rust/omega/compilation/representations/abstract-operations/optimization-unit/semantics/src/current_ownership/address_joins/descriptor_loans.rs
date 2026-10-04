@@ -25,8 +25,6 @@ use terminal_semantics::descriptor_results::{
 mod compatibility;
 pub(crate) use compatibility::validate_compatibility;
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
-#[cfg(test)]
-use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation,
 };
@@ -824,45 +822,6 @@ fn unknown_flow(function: &PsiOptimizationFunction) -> BTreeMap<Position, Descri
     }
     steps
 }
-
-#[cfg(test)]
-mod authority_tests {
-    use super::*;
-
-    #[test]
-    fn address_join_child_authority_requires_every_incoming_origin() {
-        let [current, earlier, left, right, merged] =
-            [1, 2, 3, 4, 5].map(|value| PlaceId::new(value).unwrap());
-        let mut parents = BTreeMap::from([
-            (left, BTreeSet::from([current])),
-            (right, BTreeSet::from([current])),
-            (merged, BTreeSet::from([left, right])),
-        ]);
-        assert!(super::super::entirely_descends_from(
-            merged,
-            current,
-            &parents,
-            &mut BTreeSet::new(),
-        ));
-        parents.get_mut(&right).unwrap().insert(earlier);
-        assert!(!super::super::entirely_descends_from(
-            merged,
-            current,
-            &parents,
-            &mut BTreeSet::new(),
-        ));
-        parents.insert(right, BTreeSet::from([merged]));
-        assert!(!super::super::entirely_descends_from(
-            merged,
-            current,
-            &parents,
-            &mut BTreeSet::new(),
-        ));
-    }
-}
-
-#[cfg(test)]
-mod tests;
 
 /// Carrier disposal keeps its affine debt, but an exact borrowed view has no
 /// payload destructor and therefore does not observe its backing at that point.

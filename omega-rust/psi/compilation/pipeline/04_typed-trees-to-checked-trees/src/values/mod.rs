@@ -70,8 +70,6 @@ pub(crate) fn mutable_scalar_parameter_type(
     .then_some(primitive)
 }
 
-#[cfg(test)]
-pub(crate) use scalar::build_checked_scalar_computation_plans;
 pub(crate) use scalar::{
     CallArrayConstruction, build_checked_scalar_expression_plans,
     build_checked_value_computation_plans, call_array_constructions,

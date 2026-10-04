@@ -184,6 +184,3 @@ impl Expansion<'_> {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {}

@@ -13,8 +13,6 @@ mod policy;
 mod review;
 mod source;
 
-#[cfg(test)]
-pub(in crate::encoding) use policy::decode_policy_text_scalars;
 pub use policy::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
     PackagePolicyTextRecoveryLimits,

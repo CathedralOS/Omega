@@ -7,9 +7,6 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn review_type_identity_with_binders(
     compilation: &PackageReviewInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,

@@ -83,22 +83,6 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     bytes.slice(&unit.functions, encode_function);
 }
 
-#[cfg(test)]
-pub(crate) fn collect_unit_canonical_bytes(unit: &PsiOptimizationUnit) -> Vec<u8> {
-    let mut bytes = CanonicalBytes::collect();
-    encode_unit(&mut bytes, unit);
-    bytes.finish()
-}
-
-#[cfg(test)]
-pub(crate) fn collect_structural_domain_catalog_bytes(
-    domains: &[StructuralDomainDeclaration],
-) -> Vec<u8> {
-    let mut bytes = CanonicalBytes::collect();
-    encode_structural_domain_catalog(&mut bytes, domains);
-    bytes.finish()
-}
-
 fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {
     bytes.id(service.id);
     bytes.string(&service.identity);

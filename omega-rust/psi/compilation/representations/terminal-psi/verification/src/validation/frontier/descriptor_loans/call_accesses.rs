@@ -32,13 +32,6 @@ pub(super) struct CallAccesses {
 }
 
 impl CallAccesses {
-    #[cfg(test)]
-    pub(super) fn new(module: &TerminalModule) -> Self {
-        let graph = terminal_semantics::descriptor_results::terminal_graph(module);
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
-        Self::new_in(module, &mut analysis)
-    }
-
     pub(super) fn new_in(module: &TerminalModule, analysis: &mut DescriptorAnalysis<'_>) -> Self {
         let mut result = Self::default();
         for machine in &module.machines {
@@ -330,6 +323,3 @@ pub(super) fn argument_storage_closed(
     }
     crate::validation::record::plain_type(module, selected.id)
 }
-
-#[cfg(test)]
-mod tests;

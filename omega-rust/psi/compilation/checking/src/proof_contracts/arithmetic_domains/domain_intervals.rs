@@ -305,6 +305,3 @@ fn closed_index_bindings(
         })
         .collect()
 }
-
-#[cfg(test)]
-mod tests;

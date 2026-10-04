@@ -1,14 +1,8 @@
 //! One bounded decoder for the complete inert calling-policy graph.
 
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod budgets;
 pub(in crate::encoding::recovery) mod callbacks;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod malformed;
 pub(in crate::encoding::recovery) mod opaque;
 pub(in crate::encoding::recovery) mod shapes;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 
 use super::identity::{nominal, type_identity};
 use super::{Error, PackagePolicyRecoveryLimits, reader::Reader};

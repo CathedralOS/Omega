@@ -285,6 +285,3 @@ pub(super) fn record_view_type_is_fact_free(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {}

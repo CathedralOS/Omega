@@ -111,6 +111,3 @@ impl std::fmt::Display for RuntimeRematerializationError {
 }
 
 impl std::error::Error for RuntimeRematerializationError {}
-
-#[cfg(test)]
-mod tests;

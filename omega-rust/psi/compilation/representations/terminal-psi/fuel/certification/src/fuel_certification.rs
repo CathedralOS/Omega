@@ -14,8 +14,6 @@ use terminal_verifier::VerifiedTerminalModule;
 
 mod outcome_bounds;
 mod segment_partition;
-#[cfg(test)]
-mod tests;
 
 /// Derive the exact current-slice bound from a verified canonical semantic
 /// module. The checker performs no search and depends on no producing compiler

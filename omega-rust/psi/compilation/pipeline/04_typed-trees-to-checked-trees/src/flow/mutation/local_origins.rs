@@ -25,30 +25,6 @@ use symbols::SymbolHandle;
 mod coordinates;
 pub(crate) use coordinates::origin_place;
 
-/// Facts can be expressed through any live reference to the written storage.
-/// Transport the shared prefix origins into this representation; do not infer
-/// bindings here or change the access routes used by borrow authorization.
-#[cfg(test)]
-pub(crate) fn close_storage_places_over_aliases(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    places: Vec<CanonicalPlace>,
-) -> Option<Vec<CanonicalPlace>> {
-    if places.is_empty() {
-        return Some(places);
-    }
-    close_storage_places_over_aliases_with_resolver(
-        program,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        places,
-        validation::CallFrameResolver::new(program).as_ref(),
-    )
-}
-
 pub(crate) fn close_storage_places_over_aliases_with_resolver(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
@@ -432,6 +408,3 @@ pub(crate) fn place_from_origin_path(
     }
     Some(place)
 }
-
-#[cfg(test)]
-mod tests;

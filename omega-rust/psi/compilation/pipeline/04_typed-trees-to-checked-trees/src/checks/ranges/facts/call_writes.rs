@@ -5,9 +5,6 @@ use crate::flow::CanonicalPlace;
 use crate::semantic::calls::CallSite;
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
-#[cfg(test)]
-mod tests;
-
 /// Immutable owner-local call identity, borrowed across incoming passes and branches.
 pub(in crate::checks::ranges) struct RangeCallContext<'program> {
     machine: &'program Machine,

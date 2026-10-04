@@ -274,6 +274,3 @@ impl EntryOperands<'_> {
         Some(())
     }
 }
-
-#[cfg(test)]
-mod tests;

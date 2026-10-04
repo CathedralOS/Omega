@@ -32,9 +32,3 @@ typed-trees = { path = "../../../../psi/compilation/representations/typed-trees"
 typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../../../../psi/compilation/checking" }
 
-[dev-dependencies]
-facts = { path = "../../../../psi/compilation/representations/checked-trees/facts" }
-source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }

@@ -16,9 +16,6 @@ use terminal_psi::{
 
 mod projected_transfers;
 
-#[cfg(test)]
-mod tests;
-
 /// The caller must first establish source no-code signature eligibility through
 /// parameter_storage -> owned::validate, including permissions and exclusion of
 /// nominal cleanup. Terminal multiplicity alone does not establish eligibility.

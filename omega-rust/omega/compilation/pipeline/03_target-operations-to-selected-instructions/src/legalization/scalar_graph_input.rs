@@ -229,9 +229,6 @@ pub(crate) fn exact_cast_has_native_carriers(source: IntegerType, target: Intege
         && source.can_exact_cast_to(target)
 }
 
-#[cfg(test)]
-mod admission_vocabulary_tests;
-
 pub(super) fn i32_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).expect("I32")
 }

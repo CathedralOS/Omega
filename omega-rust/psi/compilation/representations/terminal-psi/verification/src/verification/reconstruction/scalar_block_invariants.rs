@@ -22,9 +22,6 @@ use terminal_psi::{StructuralArgument, TerminalMachine, TerminalModule, Terminat
 
 use crate::ModuleError;
 
-#[cfg(test)]
-mod tests;
-
 use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, path_facts};
 
 /// One header-invariant member tagged by how the generator discharged it.

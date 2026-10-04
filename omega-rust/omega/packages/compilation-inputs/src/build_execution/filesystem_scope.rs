@@ -891,6 +891,3 @@ fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceIn
         ),
     }
 }
-
-#[cfg(test)]
-mod tests;

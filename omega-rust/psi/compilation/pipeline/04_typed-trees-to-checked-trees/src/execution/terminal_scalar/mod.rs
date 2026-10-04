@@ -127,29 +127,6 @@ mod ranking;
 mod state_contracts;
 mod successors;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(crate) fn build_checked_scalar_graph_plans(
-    program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    structural_values: &checked_trees::CheckedStructuralValuePlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> CheckedScalarGraphPlans {
-    build_checked_scalar_graph_plans_with_call_frames(
-        program,
-        expressions,
-        computations,
-        structural_values,
-        proof_terms,
-        None,
-        operators,
-    )
-}
-
 pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
@@ -230,29 +207,6 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         guarded_tails,
         declined,
     }
-}
-
-/// Finalize discovered bodies only after ownership checking supplies the ledger.
-#[cfg(test)]
-pub(crate) fn finalize_checked_scalar_graph_plans(
-    program: &TypedTrees,
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    ownership: &checked_trees::FlowOwnershipFacts,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    plans: &mut CheckedScalarGraphPlans,
-    proof_terms: &checked_trees::CheckedProofTerms,
-    operators: &checked_trees::CheckedOperatorFacts,
-) {
-    finalize_checked_scalar_graph_plans_with_call_frames(
-        program,
-        expressions,
-        ownership,
-        computations,
-        plans,
-        proof_terms,
-        None,
-        operators,
-    )
 }
 
 pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(

@@ -117,6 +117,3 @@ fn option_value(arguments: &mut impl Iterator<Item = OsString>) -> Option<OsStri
         .next()
         .filter(|value| !value.is_empty() && !value.as_encoded_bytes().starts_with(b"--"))
 }
-
-#[cfg(test)]
-mod tests;

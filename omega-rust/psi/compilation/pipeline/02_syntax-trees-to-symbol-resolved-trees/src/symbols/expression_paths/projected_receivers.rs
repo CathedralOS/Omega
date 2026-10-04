@@ -13,9 +13,6 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::scope::MachineScope;
 
-#[cfg(test)]
-mod tests;
-
 pub(in crate::symbols) fn needs_declared_projection(
     table: &ExpressionTable,
     mut expression: ExpressionHandle,

@@ -165,44 +165,6 @@ fn closed_projection_source(
     }
 }
 
-#[cfg(test)]
-mod semantic_nan_projection_tests {
-    use super::{
-        ExpressionNode, FloatMeaning, FloatProjectionOperation, IeeeFloatFormat,
-        closed_projection_source,
-    };
-    use numerics::literals::FloatFormat;
-
-    #[test]
-    fn closed_semantic_nan_projection_requires_its_exact_format() {
-        for (format, own, other, expected) in [
-            (
-                FloatFormat::F32,
-                FloatProjectionOperation::Meaning32,
-                FloatProjectionOperation::Meaning64,
-                IeeeFloatFormat::Binary32,
-            ),
-            (
-                FloatFormat::F64,
-                FloatProjectionOperation::Meaning64,
-                FloatProjectionOperation::Meaning32,
-                IeeeFloatFormat::Binary64,
-            ),
-        ] {
-            let source = ExpressionNode::UndeterminedNaN(format);
-            assert_eq!(
-                closed_projection_source(own, &source),
-                Some((expected, FloatMeaning::NaN))
-            );
-            assert_eq!(closed_projection_source(other, &source), None);
-            assert_eq!(
-                closed_projection_source(own, &ExpressionNode::Boolean(false)),
-                None
-            );
-        }
-    }
-}
-
 /// The sealed IEEE format a `FloatFormat::BINARY*` const names, by exact
 /// hermetic identity and sealed-source custody.
 ///

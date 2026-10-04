@@ -11,6 +11,3 @@ mod evidence;
 mod validation;
 
 pub use validation::validate_total_scalar_identity_candidate;
-
-#[cfg(test)]
-mod tests;

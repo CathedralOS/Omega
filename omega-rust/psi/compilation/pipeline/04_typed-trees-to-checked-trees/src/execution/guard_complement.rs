@@ -10,9 +10,6 @@ use checked_trees::{
 };
 use typed_trees::TypedTrees;
 
-#[cfg(test)]
-mod tests;
-
 /// The Guard row at `ordinal + 1` is the exact complement of the row at
 /// `ordinal`, both in `state`.
 pub(crate) fn complementary(

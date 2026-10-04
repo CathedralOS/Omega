@@ -699,6 +699,3 @@ pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<Restricte
 fn cursor_count(cursor: &mut Cursor) -> Option<usize> {
     usize::try_from(cursor.u64()?).ok()
 }
-
-#[cfg(test)]
-mod tests;

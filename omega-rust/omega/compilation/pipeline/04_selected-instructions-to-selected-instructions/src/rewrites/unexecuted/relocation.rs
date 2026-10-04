@@ -55,9 +55,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::relocate_selected_member_run;
 pub use validation::validate_member_run_relocation;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted member-run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedMemberRunRelocation {

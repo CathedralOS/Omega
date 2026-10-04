@@ -494,21 +494,6 @@ struct ReplayedMachineSpecializationIdentity {
     commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
 }
 
-/// Independently replay the authoritative commitment of one retained machine
-/// specialization from its exact typed custody and checked contract plans;
-/// the test-side control against the producer's own commitment.
-#[cfg(test)]
-pub(crate) fn recompute_machine_specialization_commitment(
-    program: &TypedTrees,
-    contracts: &checked_trees::MachineContractPlans,
-    specialization: &typed_trees::typed_trees::MachineSpecialization,
-) -> Result<typed_trees::typed_trees::MachineSpecializationCommitment, Diagnostic> {
-    let operational = validation::infer_operational_may(program);
-    validation::validate_static_machine_call_contracts(program, &operational)?;
-    replay_machine_specialization_identity(program, contracts, specialization, &operational)
-        .map(|replay| replay.commitment)
-}
-
 fn replay_machine_specialization_identity(
     program: &TypedTrees,
     contracts: &checked_trees::MachineContractPlans,

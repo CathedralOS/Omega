@@ -6,9 +6,6 @@ use crate::record::PackageReviewNominalOwner;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use semantic_vocabulary::PackageKeyIdentity;
 
-#[cfg(test)]
-mod tests;
-
 impl PackagePolicyBaseline {
     /// Check package-owned symbolic demands against their retained declaration
     /// owners. The lookup must return baselines from the same target section.

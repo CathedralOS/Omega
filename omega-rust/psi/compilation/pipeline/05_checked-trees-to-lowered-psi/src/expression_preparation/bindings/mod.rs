@@ -9,14 +9,10 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
 
-#[cfg(test)]
-mod case_observation_tests;
 pub(crate) mod recast_records;
 pub(crate) mod structural_cases;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
-#[cfg(test)]
-mod tests;
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 

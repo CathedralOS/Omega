@@ -51,20 +51,3 @@ pub(super) fn reserve(current: usize, additional: usize) -> Option<usize> {
         .checked_add(additional)
         .filter(|total| *total <= MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES, reserve};
-
-    #[test]
-    fn canonical_policy_budget_is_aggregate_exact_and_overflow_safe() {
-        let ceiling = MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES;
-        assert_eq!(reserve(0, ceiling), Some(ceiling));
-        assert_eq!(reserve(ceiling - 1, 1), Some(ceiling));
-        assert_eq!(reserve(ceiling, 0), Some(ceiling));
-        assert_eq!(reserve(ceiling, 1), None);
-        assert_eq!(reserve(0, ceiling + 1), None);
-        assert_eq!(reserve(usize::MAX, 1), None);
-        assert_eq!(reserve(1, usize::MAX), None);
-    }
-}

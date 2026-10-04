@@ -61,26 +61,6 @@ impl Conflicts {
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
-
-    #[cfg(test)]
-    pub(super) fn from_rows(constrained: &[DomainPair], views: &[ViewConflict]) -> Self {
-        let mut conflicting = BTreeMap::<DomainView, Vec<DomainView>>::new();
-        for &(left_domain, left_view, right_domain, right_view) in views {
-            conflicting
-                .entry((left_domain, left_view))
-                .or_default()
-                .push((right_domain, right_view));
-            conflicting
-                .entry((right_domain, right_view))
-                .or_default()
-                .push((left_domain, left_view));
-        }
-        Self {
-            constrained: constrained.iter().copied().collect(),
-            views: views.iter().copied().collect(),
-            conflicting,
-        }
-    }
 }
 
 pub(super) fn build(

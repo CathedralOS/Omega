@@ -4,8 +4,6 @@
 //! their exact association with the calling signature and ordered demands.
 
 mod validation;
-#[cfg(test)]
-pub(super) use validation::signature_fixture;
 pub(super) use validation::validate;
 
 use super::{BoundaryNativeParameter, BoundaryNativeParameterOrigin};

@@ -207,6 +207,3 @@ impl CompileReportSettlement {
 fn diagnostics(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(message)]
 }
-
-#[cfg(test)]
-mod tests;

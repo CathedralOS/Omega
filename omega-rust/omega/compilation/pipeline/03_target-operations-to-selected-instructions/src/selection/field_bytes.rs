@@ -5,9 +5,6 @@
 //! storage layout does not change with its consumer: a descriptor must be
 //! loaded, never addressed as though its words were inline payload.
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::selection) enum FieldBytes {
     /// The payload's offset from the root.

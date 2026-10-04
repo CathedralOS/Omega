@@ -362,6 +362,3 @@ fn encode_propositions(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {}

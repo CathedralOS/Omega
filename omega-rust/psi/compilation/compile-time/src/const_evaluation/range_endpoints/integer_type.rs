@@ -170,13 +170,6 @@ impl IntegerPosition {
         })
     }
 
-    /// Whether this position carries declared domain qualifications that need
-    /// the admission plan to prove membership.
-    #[cfg(test)]
-    pub(super) fn has_domains(&self) -> bool {
-        !self.domains.is_empty()
-    }
-
     /// `program` and `admission` are the prepared execution program and the
     /// plan inferred over it: domain facts may invoke admitted machines.
     pub(super) fn require_value(

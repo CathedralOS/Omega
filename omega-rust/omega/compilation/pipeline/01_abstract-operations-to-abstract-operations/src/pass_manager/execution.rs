@@ -222,33 +222,6 @@ type OptimizationRunOutput = (
     PsiTransformationLedger,
 );
 
-#[cfg(test)]
-pub(super) fn run_unit(
-    unit: PsiOptimizationUnit,
-    registry: &OrderedRuleRegistry,
-    budget: OptimizationWorkBudget,
-) -> Result<OptimizationRunOutput, OptimizationRunError> {
-    run_unit_inner(unit, registry, budget, None)
-}
-
-#[cfg(test)]
-pub(super) fn run_unit_inner(
-    unit: PsiOptimizationUnit,
-    registry: &OrderedRuleRegistry,
-    budget: OptimizationWorkBudget,
-    external_replay: Option<&mut ExternalDecisionReplayCursor<'_>>,
-) -> Result<OptimizationRunOutput, OptimizationRunError> {
-    let step = PsiPassStep::RewriteRegistry(registry.clone());
-    run_unit_inner_with_retention(
-        unit,
-        registry,
-        &step,
-        budget,
-        external_replay,
-        &mut Vec::new(),
-    )
-}
-
 fn run_unit_inner_with_retention(
     mut unit: PsiOptimizationUnit,
     registry: &OrderedRuleRegistry,

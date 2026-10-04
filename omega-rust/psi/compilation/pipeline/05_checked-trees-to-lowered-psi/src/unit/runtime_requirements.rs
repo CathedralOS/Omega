@@ -22,9 +22,6 @@ mod source;
 pub(crate) use source::validate_graph_parameter_ranges;
 pub(crate) use source::{validate_runtime_memberships, validate_scalar_source};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn lower_structural_runtime_requirement(
     expression: &CheckedBooleanExpression,
     scalar_parameters: &[ValueDeclaration],

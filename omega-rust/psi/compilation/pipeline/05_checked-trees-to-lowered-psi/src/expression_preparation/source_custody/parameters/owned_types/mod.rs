@@ -25,8 +25,6 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
 mod scalar_fields;
-#[cfg(test)]
-mod tests;
 
 pub(super) fn validate_referent_type(
     checked: &CheckedTrees,

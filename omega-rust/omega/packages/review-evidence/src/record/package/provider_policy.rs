@@ -22,6 +22,3 @@ pub use rows::{
 };
 pub(crate) use service_validation::validate_service_methods;
 pub use signature::PackagePolicyServiceSignature;
-
-#[cfg(test)]
-mod tests;

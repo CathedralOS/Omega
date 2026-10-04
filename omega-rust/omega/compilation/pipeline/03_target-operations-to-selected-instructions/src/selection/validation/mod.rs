@@ -9,8 +9,6 @@ mod integrity;
 mod ordinary_roster;
 mod roots;
 pub(super) mod scalar_graph;
-#[cfg(test)]
-mod structural_case_tests;
 pub(in crate::selection) mod value_transport;
 
 use super::identity::receipt;

@@ -17,9 +17,6 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<SourceMap>>,

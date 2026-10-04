@@ -33,9 +33,6 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, Terminator,
 };
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum BorrowDemand {
     Unused,

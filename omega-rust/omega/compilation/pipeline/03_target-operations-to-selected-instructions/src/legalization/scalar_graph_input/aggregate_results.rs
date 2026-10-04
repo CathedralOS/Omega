@@ -9,8 +9,6 @@ use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
-#[cfg(test)]
-mod arrival_tests;
 pub(super) mod borrowed_arguments;
 mod owned_arguments;
 pub(super) use owned_arguments::{node_site, precedes};

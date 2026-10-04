@@ -64,10 +64,6 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
-    #[cfg(test)]
-    pub(super) built_state_value_inputs: Vec<SymbolHandle>,
-    #[cfg(test)]
-    pub(super) state_value_inputs_changed_after_build: bool,
     pub(super) new_state_field_input_height: usize,
     /// Per (state, carrier field) byte-class evidence of this pass's element
     /// stores, intersected across the state's stores: the greatest claim the
@@ -255,10 +251,6 @@ impl<'plans> FlowBuildContext<'plans> {
             call_frames,
             state_value_inputs: Vec::new(),
             dirty_state_value_inputs: Vec::new(),
-            #[cfg(test)]
-            built_state_value_inputs: Vec::new(),
-            #[cfg(test)]
-            state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
             element_store_potentials: Vec::new(),
             call_sites: HashMap::default(),
@@ -638,11 +630,6 @@ impl<'plans> FlowBuildContext<'plans> {
         discard_output_arena(&mut self.control.exit_parameter_origins);
         discard_output_arena(&mut self.control.states);
         self.new_state_field_input_height = 0;
-        #[cfg(test)]
-        {
-            self.built_state_value_inputs.clear();
-            self.state_value_inputs_changed_after_build = false;
-        }
     }
 }
 

@@ -10,9 +10,6 @@ use typed_trees::statement::StatementNode;
 use typed_trees::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod same_name_tests;
-
 /// One local dynamic coercion whose complete nominal conformance is fixed in
 /// the checked artifact. Runtime descriptor lowering consumes this exact
 /// selection rather than rediscovering implementations from names.

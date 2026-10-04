@@ -343,6 +343,3 @@ impl PreCheckEvaluation {
         validation::resolve_dynamic_call_targets(typed)
     }
 }
-
-#[cfg(test)]
-mod tests;

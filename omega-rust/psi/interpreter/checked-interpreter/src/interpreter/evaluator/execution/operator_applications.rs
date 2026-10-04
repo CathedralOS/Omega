@@ -63,9 +63,6 @@ use checked_trees::CheckedArithmeticPolicyAdapter;
 use language_semantics::{ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode};
 use typed_trees::operator::OperatorDefinition;
 
-#[cfg(test)]
-mod tests;
-
 /// The requirement a call names, with the signature view its meaning and
 /// realizations are read from. `symbol` is the operator symbol, or the
 /// requirement machine's own symbol for a token-bearing requirement.

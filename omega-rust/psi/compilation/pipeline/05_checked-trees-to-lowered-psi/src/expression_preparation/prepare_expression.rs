@@ -1172,23 +1172,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     }
 }
 
-#[cfg(test)]
-pub(crate) fn lower_checked_boolean_expression(
-    expression: &CheckedBooleanExpression,
-) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    lower_checked_boolean_expression_with_parameters(
-        expression,
-        &[],
-        &Default::default(),
-        &[],
-        &[],
-        &std::collections::BTreeMap::new(),
-        &[],
-        &[],
-        None,
-    )
-}
-
 fn lower_checked_boolean_expression_with_parameters(
     expression: &CheckedBooleanExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],

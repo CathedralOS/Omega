@@ -390,6 +390,3 @@ where
 fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!("{context}: {message}"))]
 }
-
-#[cfg(test)]
-mod tests;

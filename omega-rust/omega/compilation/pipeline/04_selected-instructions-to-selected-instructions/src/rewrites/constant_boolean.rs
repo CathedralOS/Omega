@@ -100,9 +100,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_constant_boolean;
 pub(crate) use validation::{measured_steps, surface_sizes, validate_constant_boolean_fold};
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted constant condition materialization with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedConstantBoolean {

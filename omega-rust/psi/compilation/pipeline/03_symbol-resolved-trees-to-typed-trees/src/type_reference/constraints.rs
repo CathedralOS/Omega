@@ -250,6 +250,3 @@ pub(crate) fn classify_domain_constraint_subject(
     }
     DomainConstraintSubject::Declared
 }
-
-#[cfg(test)]
-mod tests {}

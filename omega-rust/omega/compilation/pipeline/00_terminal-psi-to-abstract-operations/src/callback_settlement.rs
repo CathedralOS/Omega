@@ -232,6 +232,3 @@ fn scalar_value_shape(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

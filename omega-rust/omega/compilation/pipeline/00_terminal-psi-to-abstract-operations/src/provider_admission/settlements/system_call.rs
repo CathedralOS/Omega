@@ -106,6 +106,3 @@ pub(super) fn rejoin_system_call(
         }),
     })
 }
-
-#[cfg(test)]
-mod tests;

@@ -15,9 +15,6 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
-#[cfg(test)]
-mod tests;
-
 // Structural readers resolve symbols, locals, owners and parameter lists by
 // rescanning whole program rosters per occurrence. The maps below collect
 // each roster once per program snapshot: machine symbol -> every position

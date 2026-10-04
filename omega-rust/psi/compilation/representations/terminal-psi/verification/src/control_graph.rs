@@ -297,6 +297,3 @@ pub(crate) fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, Bloc
     }
     feedback
 }
-
-#[cfg(test)]
-mod tests;

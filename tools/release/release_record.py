@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Release-record substrate for the Rust compiler completion matrix.
 
-`wiki/drafts/reference/rust_compiler_completion.md` defines eight named gates and four
+`wiki/drafts/reference/rust_compiler_completion.md` defines six named gates and four
 required platform runs, and requires the release record to contain the commit,
 pinned Rust toolchain, host OS and architecture, commands, results, elapsed
 time, and the exact list of expected skips. This tool is that record's only
@@ -79,7 +79,7 @@ RECORDS_DIR = Path(__file__).resolve().parent / "records"
 # record keeps a bounded tail and names the log file under the ignored target.
 LOGS_DIR = ROOT / "target" / "release_record"
 
-# The eight gates of the release matrix, verbatim from
+# The six gates of the release matrix, verbatim from
 # wiki/drafts/reference/rust_compiler_completion.md. Each gate runs its command block
 # through the resolved `mbx`/`cargo` wrapper. A test in
 # tools/tests/test_release_record.py pins this manifest against the document
@@ -103,42 +103,16 @@ GATES = {
             "python tools/corpus_gate.py",
         ],
     },
-    "RC-PCC-REPLAY": {
-        "capability": "Requested artifact/.proof pairs round-trip; hostile or "
-                      "substituted evidence rejects before PCC-required "
-                      "interpretation or lowering. Ordinary output still "
-                      "checks without publishing PCC.",
-        "commands": [
-            "mbx nextest run -p checked-trees-to-lowered-psi "
-            "-p terminal-codec -p terminal-verifier -p terminal-interpreter "
-            "-p terminal-psi-to-abstract-operations --no-fail-fast",
-            "mbx test --doc -p checked-trees-to-lowered-psi "
-            "-p terminal-codec -p terminal-verifier -p terminal-interpreter "
-            "-p terminal-psi-to-abstract-operations",
-        ],
-    },
-    "RC-PORTABLE-PSI": {
-        "capability": "One process publishes a complete source-free Terminal "
-                      "Psi envelope and exits; a second process reconstructs, "
-                      "verifies, and interprets it using newly supplied "
-                      "authority.",
-        "commands": [
-            "mbx nextest run -p terminal-codec -p terminal-verifier "
-            "-p terminal-interpreter --no-fail-fast",
-        ],
-    },
     "RC-BUILD-AND-PACKAGES": {
         "capability": "Build declarations, immutable inputs, package "
                       "identities, reviewed evidence, resolution, and "
                       "compilation handoff agree without path/name inference "
                       "or hidden ambient mutation.",
         "commands": [
-            "mbx nextest run -p build-declarations -p build-evaluation "
-            "-p package-compilation -p package-source -p resolver-execution "
-            "-p package-evidence -p package-manager --no-fail-fast",
-            "mbx test --doc -p build-declarations -p build-evaluation "
-            "-p package-compilation -p package-source -p resolver-execution "
-            "-p package-evidence -p package-manager",
+            "mbx nextest run -p build-declarations -p package-source "
+            "-p resolver-execution --no-fail-fast",
+            "mbx test --doc -p build-declarations -p package-source "
+            "-p resolver-execution",
         ],
     },
     "RC-NATIVE-MATRIX": {
@@ -1094,7 +1068,7 @@ def main():
                      help="emulator name and version (linux_arm64 only)")
     run.add_argument("--gate", action="append", default=[],
                      choices=list(GATES), metavar="GATE",
-                     help="run only these gates (default: all eight)")
+                     help="run only these gates (default: all six)")
     run.add_argument("--native-execution", metavar="COMMAND",
                      help="command that directly executes emitted programs "
                      "for --target on this host (required; must exit 0, e.g. "

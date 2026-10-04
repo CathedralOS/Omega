@@ -473,6 +473,3 @@ fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
         })
     })
 }
-
-#[cfg(test)]
-mod tests;

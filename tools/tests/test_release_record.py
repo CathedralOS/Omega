@@ -186,11 +186,11 @@ class ManifestPinsContract(unittest.TestCase):
                     command),
             )
 
-    def test_eight_named_gates(self):
+    def test_six_named_gates(self):
         self.assertEqual(
-            ["RC-REPOSITORY", "RC-SOURCE-SEMANTICS", "RC-PCC-REPLAY",
-             "RC-PORTABLE-PSI", "RC-BUILD-AND-PACKAGES", "RC-NATIVE-MATRIX",
-             "RC-DIAGNOSTICS", "RC-REPRESENTATIVE-PROGRAMS"],
+            ["RC-REPOSITORY", "RC-SOURCE-SEMANTICS", "RC-BUILD-AND-PACKAGES",
+             "RC-NATIVE-MATRIX", "RC-DIAGNOSTICS",
+             "RC-REPRESENTATIVE-PROGRAMS"],
             list(release_record.GATES))
 
     def test_four_required_platform_runs(self):
@@ -342,9 +342,10 @@ class Validator(unittest.TestCase):
 
     def test_rejects_empty_test_run(self):
         record = minimal_record()
-        record["gates"][3]["commands"][0]["output_tail"] = (
+        record["gates"][2]["commands"][0]["output_tail"] = (
             "     Summary [   0.001s] 0 tests run: 0 passed, 0 skipped\n")
-        self.assert_invalid(record, "RC-PORTABLE-PSI status pass contradicts")
+        self.assert_invalid(
+            record, "RC-BUILD-AND-PACKAGES status pass contradicts")
 
     def test_rejects_interrupted_run_without_summary(self):
         record = minimal_record()
@@ -358,7 +359,8 @@ class Validator(unittest.TestCase):
         record["gates"][2]["commands"][1]["output_tail"] = (
             "test result: ok. 2 passed; 0 failed; 0 ignored; "
             "0 measured; 4 filtered out; finished in 0.10s\n")
-        self.assert_invalid(record, "RC-PCC-REPLAY status pass contradicts")
+        self.assert_invalid(
+            record, "RC-BUILD-AND-PACKAGES status pass contradicts")
 
     def test_rejects_pass_under_filtering_environment(self):
         record = minimal_record()
@@ -650,37 +652,37 @@ class IncompleteCommandRecords(unittest.TestCase):
 class ExpectedSkipReconciliation(unittest.TestCase):
     def skipping_record(self):
         record = minimal_record()
-        row = record["gates"][3]["commands"][0]
+        row = record["gates"][2]["commands"][0]
         row["skipped_tests"] = 1
-        row["skipped_names"] = ["terminal-codec host::only"]
+        row["skipped_names"] = ["package-source host::only"]
         return record
 
     def test_undeclared_skip_keeps_the_gate_open(self):
         record = self.skipping_record()
-        record["unlisted_skips"] = ["terminal-codec host::only"]
+        record["unlisted_skips"] = ["package-source host::only"]
         with self.assertRaises(ValueError) as caught:
             release_record.validate_record(record, "fixture.json")
-        self.assertIn("RC-PORTABLE-PSI status pass contradicts",
+        self.assertIn("RC-BUILD-AND-PACKAGES status pass contradicts",
                       str(caught.exception))
-        record["gates"][3]["status"] = "open"
-        record["closure"]["open_rows"].insert(0, "RC-PORTABLE-PSI")
+        record["gates"][2]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-BUILD-AND-PACKAGES")
         release_record.validate_record(record, "fixture.json")
 
     def test_skip_declared_for_the_same_gate_passes(self):
         record = self.skipping_record()
         record["expected_skips"] = [{
-            "gate": "RC-PORTABLE-PSI", "test": "terminal-codec host::only",
+            "gate": "RC-BUILD-AND-PACKAGES", "test": "package-source host::only",
             "reason": "irrelevant to this runner"}]
         release_record.validate_record(record, "fixture.json")
 
     def test_skip_declared_for_another_gate_is_unlisted(self):
         record = self.skipping_record()
         record["expected_skips"] = [{
-            "gate": "RC-REPOSITORY", "test": "terminal-codec host::only",
+            "gate": "RC-REPOSITORY", "test": "package-source host::only",
             "reason": "irrelevant to this runner"}]
-        record["unlisted_skips"] = ["terminal-codec host::only"]
-        record["gates"][3]["status"] = "open"
-        record["closure"]["open_rows"].insert(0, "RC-PORTABLE-PSI")
+        record["unlisted_skips"] = ["package-source host::only"]
+        record["gates"][2]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-BUILD-AND-PACKAGES")
         with self.assertRaises(ValueError) as caught:
             release_record.validate_record(record, "fixture.json")
         # RC-REPOSITORY observed no skip, so its declaration is stale.
@@ -689,7 +691,7 @@ class ExpectedSkipReconciliation(unittest.TestCase):
     def test_rejects_declared_skip_when_the_gate_skipped_nothing(self):
         record = minimal_record()
         record["expected_skips"] = [{
-            "gate": "RC-PCC-REPLAY", "test": "pkg::never_skipped",
+            "gate": "RC-DIAGNOSTICS", "test": "pkg::never_skipped",
             "reason": "irrelevant to this runner"}]
         with self.assertRaises(ValueError) as caught:
             release_record.validate_record(record, "fixture.json")
@@ -698,11 +700,11 @@ class ExpectedSkipReconciliation(unittest.TestCase):
     def test_rejects_declared_skip_for_a_gate_not_run(self):
         record = minimal_record()
         record["gates"] = [gate for gate in record["gates"]
-                           if gate["name"] != "RC-PCC-REPLAY"]
-        record["closure"]["open_rows"].insert(0, "RC-PCC-REPLAY")
+                           if gate["name"] != "RC-DIAGNOSTICS"]
+        record["closure"]["open_rows"].insert(0, "RC-DIAGNOSTICS")
         release_record.validate_record(record, "fixture.json")
         record["expected_skips"] = [{
-            "gate": "RC-PCC-REPLAY", "test": "pkg::x", "reason": "because"}]
+            "gate": "RC-DIAGNOSTICS", "test": "pkg::x", "reason": "because"}]
         with self.assertRaises(ValueError) as caught:
             release_record.validate_record(record, "fixture.json")
         self.assertIn("did not run", str(caught.exception))
@@ -822,11 +824,11 @@ class Closure(unittest.TestCase):
 
     def test_gate_no_lane_ran_keeps_closure_open(self):
         names = [name for name in release_record.GATES
-                 if name != "RC-PCC-REPLAY"]
+                 if name != "RC-DIAGNOSTICS"]
         closure = self.close([lane_record(lane, names)
                               for lane in LANE_HOSTS])
         self.assertEqual("open", closure["status"])
-        self.assertEqual(["RC-PCC-REPLAY"], closure["unrun_gates"])
+        self.assertEqual(["RC-DIAGNOSTICS"], closure["unrun_gates"])
         self.assertEqual({lane: [] for lane in LANE_HOSTS},
                          closure["open_rows"])
 

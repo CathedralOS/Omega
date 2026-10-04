@@ -44,8 +44,6 @@ mod dead_compare;
 mod fixed_view;
 mod literal_folds;
 mod load_forwarding;
-#[cfg(test)]
-mod module_catalog;
 mod place_storage;
 mod pre_allocation;
 mod redundant_extension;

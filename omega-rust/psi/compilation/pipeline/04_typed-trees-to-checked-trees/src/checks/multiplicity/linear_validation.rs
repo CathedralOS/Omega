@@ -35,21 +35,6 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
-#[cfg(test)]
-pub(crate) fn validate_linear_permission_events(
-    program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let call_frames = validation::CallFrameResolver::new(program);
-    let incoming_guards =
-        crate::checks::ranges::incoming_guards::IncomingGuardIndexCache::default();
-    validate_linear_permission_events_with_incoming_guards(
-        program,
-        facts,
-        incoming_guards.index(program, call_frames.as_ref()),
-    )
-}
-
 pub(crate) fn validate_linear_permission_events_with_incoming_guards(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,

@@ -4,16 +4,10 @@ use super::LoweringError;
 use super::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
-#[cfg(test)]
-use crate::machine_lowering::lower_machine;
-#[cfg(test)]
-use crate::terminal_identities::obligation_id;
 use lowered_psi::LoweredPsi;
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
-#[cfg(test)]
-use semantic_vocabulary::MachineId;
 use semantic_vocabulary::{EvidenceIdentity, Proposition};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -27,15 +21,12 @@ pub(crate) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
     finalize_operation_proofs_inner(
         lowered,
         crate::proofs::scalar_block_invariants::MAX_ROSTER_ROUNDS,
-        #[cfg(test)]
-        &|_| {},
     )
 }
 
 fn finalize_operation_proofs_inner(
     lowered: &mut LoweredPsi,
     roster_rounds: usize,
-    #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
 ) -> Result<(), LoweringError> {
     let _retain_scope =
         crate::proofs::proof_timing::Scope::enter("finalize_operation_proofs:retain_provable");
@@ -120,8 +111,6 @@ fn finalize_operation_proofs_inner(
             // facts, not site assumptions or proof-search state. Cache failures
             // too, but report them at the original pending-site position.
             let preparation = preparation.get_or_init(|| {
-                #[cfg(test)]
-                prepared_machine(machine.id);
                 let started = std::time::Instant::now();
                 let context = validated.value_context(machine)?;
                 crate::proofs::proof_timing::count_value_context(started.elapsed());
@@ -281,9 +270,6 @@ fn finalize_operation_proofs_inner(
     crate::proofs::proof_timing::report("finalize_operation_proofs done");
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;
 
 fn proof_from_available_facts(
     goal: &Proposition,

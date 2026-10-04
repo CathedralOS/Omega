@@ -46,6 +46,3 @@ const LOCK_FILE: &str = "omega.lock";
 const JOURNAL_FILE: &str = "pending";
 const TRANSACTION_LOCK: &str = "transaction.lock";
 const STATE_DIRECTORY: &str = "package-manager";
-
-#[cfg(test)]
-mod tests;

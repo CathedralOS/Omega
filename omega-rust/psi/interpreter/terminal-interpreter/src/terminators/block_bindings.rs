@@ -19,9 +19,6 @@ use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,

@@ -30,6 +30,3 @@ syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to
 typed-trees = { path = "../representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
 
-[dev-dependencies]
-source-files-to-tokens = { path = "../pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../pipeline/01_tokens-to-syntax-trees" }

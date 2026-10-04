@@ -7,14 +7,6 @@ pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity
     )
 }
 
-/// The v21 validator identity, kept as a test control against the current one.
-#[cfg(test)]
-pub(crate) fn legalization_validator_identity_v21_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v21",
-    )
-}
-
 /// Opaque custody of the canonical target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,

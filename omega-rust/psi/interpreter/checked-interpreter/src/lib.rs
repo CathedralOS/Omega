@@ -93,9 +93,6 @@
 
 // The interpreter tests' front-end pipelines, one file shared with the `suite`
 // integration target; see its module documentation.
-#[cfg(test)]
-#[path = "../tests/support/front_end.rs"]
-mod front_end;
 
 mod virtual_clock;
 pub use virtual_clock::{

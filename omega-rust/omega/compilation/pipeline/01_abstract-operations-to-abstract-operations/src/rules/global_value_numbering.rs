@@ -56,12 +56,6 @@ pub use wrapping_multiply_zero_annihilation::WrappingMultiplyZeroAnnihilationRul
 pub use wrapping_neutral_arithmetic_identity::WrappingNeutralArithmeticIdentityRule;
 pub use wrapping_shift_zero_count_identity::WrappingShiftZeroCountIdentityRule;
 
-#[cfg(test)]
-pub(super) use expression_keys::{
-    compatible_policy_scalar_leader, compatible_policy_scalar_redundant,
-    proof_certified_scalar_expression,
-};
-
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
     vec![

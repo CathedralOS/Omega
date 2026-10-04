@@ -323,6 +323,3 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         return_unit: keys.return_unit,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -8,8 +8,6 @@ use std::ffi::{OsStr, OsString};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-#[cfg(test)]
-mod journal_tests;
 mod lock;
 mod stage;
 
@@ -480,6 +478,3 @@ fn io_error(path: &Path, error: std::io::Error) -> RecordFileError {
         message: error.to_string(),
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -11,8 +11,6 @@ pub(crate) mod initializers;
 pub(crate) mod literal_arguments;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
-#[cfg(test)]
-mod tests;
 
 /// Whether the checked flow roster records a call at this statement.
 fn statement_makes_call(

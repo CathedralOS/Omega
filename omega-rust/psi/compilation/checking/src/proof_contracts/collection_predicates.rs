@@ -717,6 +717,3 @@ fn holds_on_every_fork(
     }
     true
 }
-
-#[cfg(test)]
-mod tests;

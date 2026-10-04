@@ -12,9 +12,6 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
-#[cfg(test)]
-mod tests;
-
 /// Find a retained subject carrier or an already-typed value-pattern peer.
 /// Anonymous patterns never choose a default width.
 pub fn match_subject_primitive_type(

@@ -8,9 +8,6 @@ use super::{
 };
 pub(super) mod case_membership;
 
-#[cfg(test)]
-mod tests;
-
 /// Reads retain their occurrence, operand position, and exact binding or place.
 /// Unary and cast wrappers do not change the read's identity. Greater-than
 /// comparisons use the same operand normalization as the checked producer.

@@ -95,6 +95,3 @@ use abstract_operations::AbstractOperation as O;
 pub(crate) mod accounting;
 mod admission;
 pub(crate) mod propose;
-
-#[cfg(test)]
-mod tests;

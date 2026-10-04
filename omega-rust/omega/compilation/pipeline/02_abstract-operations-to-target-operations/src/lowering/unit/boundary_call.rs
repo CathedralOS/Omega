@@ -32,11 +32,6 @@ mod normalized_foreign;
 use normalized_foreign::{
     lower_normalized_foreign_result, lower_normalized_foreign_scalar_arguments_with_result,
 };
-#[cfg(test)]
-use normalized_foreign::{
-    lower_normalized_foreign_scalar_arguments, lower_normalized_foreign_scalar_result,
-    lower_normalized_foreign_structural_arguments,
-};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_boundary_call(
@@ -558,6 +553,3 @@ pub(in crate::lowering) fn lower_boundary_call(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

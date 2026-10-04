@@ -771,6 +771,3 @@ fn non_authoritative_sum_materialization_report_fingerprint(
     hash_bytes(&mut hash, bytes);
     if hash == 0 { 1 } else { hash }
 }
-
-#[cfg(test)]
-mod tests;

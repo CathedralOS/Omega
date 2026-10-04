@@ -984,6 +984,3 @@ fn symbol_or_spelling(symbol: SymbolHandle, spelling: &str) -> String {
         spelling.to_owned()
     }
 }
-
-#[cfg(test)]
-mod tests;

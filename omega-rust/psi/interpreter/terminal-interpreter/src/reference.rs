@@ -441,6 +441,3 @@ fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bo
             )
         )
 }
-
-#[cfg(test)]
-mod tests;

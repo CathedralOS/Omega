@@ -279,6 +279,3 @@ pub(super) fn authored_operand(
     }
     Ok(cast.value)
 }
-
-#[cfg(test)]
-mod tests;

@@ -6,9 +6,6 @@ use super::{
 use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Default)]
 pub(crate) struct TransitionValueEnvironments {
     targets: Vec<(TransitionTargetHandle, Vec<ValueEnvironment>)>,

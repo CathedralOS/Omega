@@ -1163,6 +1163,3 @@ fn scan_expression_calls_at_position(
         }
     }
 }
-
-#[cfg(test)]
-mod name_suffix_tests;

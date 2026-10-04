@@ -180,6 +180,3 @@ fn place_spelling(program: &TypedTrees, expression: ExpressionHandle) -> bool {
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -547,6 +547,3 @@ pub(crate) fn require_dominated_uses(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

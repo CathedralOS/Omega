@@ -102,6 +102,3 @@ pub use sections::semantic_module::{
     encode_crash_route_buckets, encode_module, encode_structural_type_declaration,
     semantic_fingerprint, terminal_psi_identity,
 };
-
-#[cfg(test)]
-mod tests;

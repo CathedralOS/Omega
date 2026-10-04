@@ -35,15 +35,6 @@ pub(crate) struct StateMutationSummaryCache {
     states: std::sync::OnceLock<Vec<StateMutationSummary>>,
 }
 
-#[cfg(test)]
-thread_local! {
-    static SUMMARY_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    static SUMMARY_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-#[cfg(test)]
-impl StateMutationSummaryCache {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StateMutationSummary {
     state_symbol: SymbolHandle,
@@ -190,8 +181,6 @@ fn build_state_mutation_summaries(
     borrow: &BorrowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StateMutationSummary> {
-    #[cfg(test)]
-    SUMMARY_BUILDS.set(SUMMARY_BUILDS.get() + 1);
     let mut states = Vec::new();
     let mut inferred_completeness = Vec::new();
     let mut owned_frames = None;
@@ -285,8 +274,6 @@ fn propagate_state_mutation_summaries(
             if !states[caller_index].complete {
                 continue;
             }
-            #[cfg(test)]
-            SUMMARY_VISITS.set(SUMMARY_VISITS.get() + 1);
             let caller_symbol = states[caller_index].state_symbol;
             let Some((caller_state, caller_machine)) = owners[caller_index] else {
                 continue;

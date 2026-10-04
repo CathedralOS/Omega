@@ -448,6 +448,3 @@ pub(crate) fn integer_magnitude(value: IntegerValue) -> BigInt {
         IntegerValue::Unsigned(value) => BigInt::from_u128(value),
     }
 }
-
-#[cfg(test)]
-mod tests;

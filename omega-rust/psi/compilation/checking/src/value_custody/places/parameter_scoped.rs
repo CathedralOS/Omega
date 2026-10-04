@@ -9,9 +9,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn parameter_scoped_type_reference(
     program: &TypedTrees,
     parameters: &[StateParameter],

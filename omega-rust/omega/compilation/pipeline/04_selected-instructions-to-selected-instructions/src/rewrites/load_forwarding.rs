@@ -86,9 +86,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::forward_selected_stored_load;
 pub use validation::validate_stored_load_forwarding;
 
-#[cfg(test)]
-pub(super) mod tests;
-
 /// An accepted store-to-load forwarding with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedStoredLoadForwarding {

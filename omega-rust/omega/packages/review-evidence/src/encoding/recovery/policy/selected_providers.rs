@@ -7,26 +7,10 @@ use crate::record::{
     PackageReviewSelectedInstallationReach,
 };
 pub(in crate::encoding::recovery) mod authority;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod authority_tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod binding_tests;
 pub(in crate::encoding::recovery) mod bindings;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod budgets;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod fixtures;
-#[cfg(test)]
-pub(in crate::encoding::recovery) use fixtures::complete as row_fixture;
-#[cfg(test)]
-pub(in crate::encoding::recovery) use fixtures::method as service_method_fixture;
 pub(in crate::encoding::recovery) mod service;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod service_tests;
 pub(in crate::encoding::recovery) mod signature;
 pub(in crate::encoding::recovery) use service::method as service_method;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,

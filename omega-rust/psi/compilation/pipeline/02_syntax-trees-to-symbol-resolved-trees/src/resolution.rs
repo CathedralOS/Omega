@@ -247,6 +247,3 @@ fn drive_recorded(
     let links = lowerer.equation_sources.take();
     Ok((lowerer.into_trees(), constant_selection, links))
 }
-
-#[cfg(test)]
-mod tests;

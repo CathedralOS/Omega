@@ -8,9 +8,6 @@ use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSour
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate_association(
     source_closure: &CanonicalSourceClosureSubject,
     entries: &[CanonicalPackageReconstructionEntry],

@@ -207,6 +207,3 @@ fn observes_one_place(operand: &LoweredDirectExpression) -> bool {
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -18,9 +18,6 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-#[cfg(test)]
-mod tests;
-
 /// N3 rung 1: the structural mini-judge for contract conjuncts over
 /// proof-only data. Term language (bounded by today's contract grammar --
 /// struct literals do not parse in fact position, so payload-carrying

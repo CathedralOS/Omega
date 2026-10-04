@@ -20,11 +20,3 @@ lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }
 
-[dev-dependencies]
-terminal-production = { path = "../../../../omega/compilation/driver/terminal-production" }
-checked-trees-to-lowered-psi = { path = "../05_checked-trees-to-lowered-psi" }
-source-files-to-tokens = { path = "../00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
-typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }

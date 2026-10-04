@@ -700,6 +700,3 @@ fn names_are_unambiguous(
     }
     true
 }
-
-#[cfg(test)]
-mod tests;

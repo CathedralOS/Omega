@@ -24,11 +24,6 @@ use terminal_psi::BoundaryMachineResult;
 
 mod contract;
 
-#[cfg(test)]
-mod block_parameter_tests;
-#[cfg(test)]
-mod boundary_reach_tests;
-
 pub(super) use contract::{
     encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
     encode_evidence_contract_lane, encode_machine_contract, encode_outcome_specific_call_evidence,

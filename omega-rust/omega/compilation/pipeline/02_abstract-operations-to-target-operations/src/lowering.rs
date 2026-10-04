@@ -25,15 +25,6 @@ use target_operations::TargetOperationPlan;
 use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::lower_to_target_operations_with_settlements_and_installation;
 
-#[cfg(test)]
-pub(crate) use coordination::{
-    lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
-    native_callbacks::{
-        bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
-        validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
-    },
-};
-
 /// The admitted settlements a target lowering consumes beyond the plan and
 /// its target. A source-free plan carries none; every roster is fail-closed.
 pub struct TargetLoweringRequest<'a> {

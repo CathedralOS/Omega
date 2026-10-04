@@ -132,24 +132,3 @@ fn required_review_input_bytes(triage: &str, patches: &[PackageSourcePatch]) -> 
     }
     required.saturating_add("end_review_input\n".len())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{REVIEW_INPUT_SCHEMA, required_review_input_bytes};
-
-    #[test]
-    fn combined_render_size_accounting_rejects_without_truncating() {
-        let triage = "OMEGA_PACKAGE_SOURCE_TRIAGE_V1\n";
-        let required = required_review_input_bytes(triage, &[]);
-        assert!(required > triage.len());
-        assert_eq!(
-            required,
-            REVIEW_INPUT_SCHEMA.len()
-                + "triage_begin\n".len()
-                + triage.len()
-                + "triage_end\nsource_patch_count \n".len()
-                + 1
-                + "end_review_input\n".len()
-        );
-    }
-}

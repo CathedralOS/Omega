@@ -65,14 +65,6 @@ impl PsiPassCatalogEntry {
             }
         }
     }
-
-    #[cfg(test)]
-    fn registrations(self) -> Vec<BuiltInRuleRegistration> {
-        match self.payload {
-            PsiPassCatalogPayload::RuleCatalog(rule_catalog) => rule_catalog(),
-            PsiPassCatalogPayload::LoopInvariantScalarMotion => Vec::new(),
-        }
-    }
 }
 
 /// The single built-in Psi enable/disable and ordering table. The relocation
@@ -149,18 +141,6 @@ impl BuiltInRuleRegistration {
             rule: Arc::new(rule),
         }
     }
-}
-
-#[cfg(test)]
-pub(crate) fn built_in_rule_registrations(
-    optimization: PsiOptimization,
-) -> Vec<BuiltInRuleRegistration> {
-    PSI_PASS_CATALOG
-        .iter()
-        .copied()
-        .find(|descriptor| descriptor.optimization() == optimization)
-        .map(PsiPassCatalogEntry::registrations)
-        .unwrap_or_default()
 }
 
 pub(crate) fn assemble_built_in_registry(

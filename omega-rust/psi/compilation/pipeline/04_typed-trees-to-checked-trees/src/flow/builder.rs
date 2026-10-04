@@ -17,38 +17,6 @@ use crate::flow::build_state_flow_fact;
 use checked_trees::{BorrowFacts, DomainFacts, FlowFacts, ProofFacts};
 use facts::{FactPlan, ProgramPoint};
 
-#[cfg(test)]
-pub(super) mod tests;
-#[cfg(test)]
-mod whole_pass_reference;
-
-#[cfg(test)]
-pub(crate) fn build_flow_facts(
-    program: &typed_trees::TypedTrees,
-    borrow: &BorrowFacts,
-    proof: &ProofFacts,
-    semantic: &mut FactPlan,
-    domains: &DomainFacts,
-    operational: &flow_effects::OperationalPlan,
-) -> FlowFacts {
-    let service_reaches = validation::infer_service_reaches(program, operational);
-    let state_mutation_summary_cache = StateMutationSummaryCache::default();
-    build_flow_facts_with_service_reaches(
-        program,
-        borrow,
-        proof,
-        semantic,
-        domains,
-        operational,
-        &service_reaches,
-        &Default::default(),
-        &Default::default(),
-        &[],
-        &state_mutation_summary_cache,
-        None,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_flow_facts_with_service_reaches(
     program: &typed_trees::TypedTrees,
@@ -64,21 +32,6 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
-    #[cfg(test)]
-    if tests::WHOLE_PASS_REFERENCE.get() {
-        return whole_pass_reference::build_whole_pass_reference(
-            program,
-            borrow,
-            proof,
-            semantic,
-            domains,
-            operational,
-            service_reaches,
-            scalar_expressions,
-            operators,
-            exact_integer_casts,
-        );
-    }
     let baseline = semantic.clone();
     // Declaration contexts do not change during flow. Retain their handles
     // once, in typed-machine order, instead of rediscovering Global/Machine
@@ -133,10 +86,6 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
-        #[cfg(test)]
-        if pass >= tests::SWEEP_LIMIT.get() {
-            break;
-        }
         if pass != 0 {
             build.discard_output();
             semantic.clone_from(&baseline);

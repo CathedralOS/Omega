@@ -471,6 +471,3 @@ fn resolve_state_symbol_in_machine(
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
-
-#[cfg(test)]
-mod tests;

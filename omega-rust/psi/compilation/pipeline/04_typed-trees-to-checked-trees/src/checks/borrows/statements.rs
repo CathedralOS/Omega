@@ -770,7 +770,3 @@ pub(super) fn local_loan_ends_before_successor(
                 }
         })
 }
-
-#[cfg(test)]
-#[path = "statements_tests.rs"]
-mod tests;

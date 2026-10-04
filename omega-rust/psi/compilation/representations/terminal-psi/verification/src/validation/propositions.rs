@@ -13,28 +13,6 @@ pub(crate) fn proposition_observes_places(proposition: &Proposition, places: &[P
         .any(|root| places.contains(&root))
 }
 
-/// One checked field write names an exact canonical path beneath its root.
-/// Disjoint sibling paths cannot observe the replacement, so their facts stay
-/// current; only observations that cover or enter the written path expire.
-/// Observations without an exact canonical path (content projections keep
-/// name-spelled segments) still forget the complete root.
-#[cfg(test)]
-pub(crate) fn proposition_observes_write(
-    proposition: &Proposition,
-    root: PlaceId,
-    written: &[CanonicalStructuralPathSegment],
-) -> bool {
-    proposition_observation_sites(proposition)
-        .into_iter()
-        .any(|(site_root, site_path)| {
-            site_root == root
-                && match site_path {
-                    None => true,
-                    Some(path) => path.starts_with(written) || written.starts_with(&path),
-                }
-        })
-}
-
 /// `Some` projects the exact canonical leaf path; `None` is a whole-root
 /// observation whose finer structure this judgment cannot yet name.
 pub(crate) type ObservationSite = (PlaceId, Option<Vec<CanonicalStructuralPathSegment>>);

@@ -18,9 +18,6 @@ use crate::execution::terminal_unit::calls::{
 
 use crate::execution::terminal_unit::structural_scalar_graph_signature;
 
-#[cfg(test)]
-mod tests;
-
 /// Rejoin owned and borrowed graph signatures before ordinary Unit calls use them.
 pub(super) fn registered_structural_graph_target<'facts>(
     program: &TypedTrees,

@@ -13,11 +13,6 @@ use selected_instructions::{SelectedFunction, SelectedValueTransport, VirtualReg
 
 use super::{LivenessError, block_instructions, control};
 
-#[cfg(test)]
-std::thread_local! {
-    pub(crate) static BLOCK_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 #[derive(Default)]
 pub(super) struct BlockFlow {
     pub(super) virtual_entry: BTreeSet<VirtualRegisterId>,
@@ -152,8 +147,6 @@ impl FunctionFlow {
         let mut pending = vec![true; function.blocks.len()];
         let mut work = (0..function.blocks.len()).rev().collect::<VecDeque<_>>();
         while let Some(block_index) = work.pop_front() {
-            #[cfg(test)]
-            BLOCK_VISITS.set(BLOCK_VISITS.get() + 1);
             pending[block_index] = false;
             let mut virtual_exit = BTreeSet::new();
             let mut unit_exit = BTreeSet::new();

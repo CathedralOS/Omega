@@ -30,9 +30,6 @@ mod reference;
 
 pub(in crate::execution::terminal_unit) use reference::receiver_argument as reference_result_receiver_argument;
 
-#[cfg(test)]
-mod tests;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &TypedTrees,

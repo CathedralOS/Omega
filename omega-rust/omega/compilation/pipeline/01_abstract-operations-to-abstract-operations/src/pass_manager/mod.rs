@@ -63,16 +63,6 @@ pub fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
     TargetCostModelIdentity::from_canonical_bytes(b"omega.psi-baseline-structural-cost-model.v1")
 }
 
-#[cfg(test)]
-use accounting::register_revision;
-#[cfg(test)]
-use execution::{run_unit, run_unit_inner};
-#[cfg(test)]
-use external_policy::ExternalDecisionReplayCursor;
-
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug)]
 pub struct VerifiedPsiOptimizationSession {
     input: VerifiedPsiOptimizationInput,

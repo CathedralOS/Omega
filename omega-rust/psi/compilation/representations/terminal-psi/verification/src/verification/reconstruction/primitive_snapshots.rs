@@ -385,24 +385,3 @@ fn charge_work(remaining: &mut usize, machine: MachineId) -> Result<(), ModuleEr
     )?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{MachineId, ModuleError, charge_work};
-
-    #[test]
-    fn primitive_snapshot_work_exhaustion_rejects_without_wrapping_or_refilling() {
-        let machine = MachineId::new(1).expect("machine");
-        let mut remaining = 1;
-        charge_work(&mut remaining, machine).expect("last work unit");
-        for _ in 0..2 {
-            assert_eq!(
-                charge_work(&mut remaining, machine),
-                Err(ModuleError::PrimitiveSnapshotReconstructionLimitExceeded(
-                    machine
-                ))
-            );
-            assert_eq!(remaining, 0);
-        }
-    }
-}

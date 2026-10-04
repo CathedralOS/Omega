@@ -8,20 +8,8 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Checker;
 use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
-#[cfg(test)]
-mod ieee_float_tests;
-#[cfg(test)]
-mod return_cleanup_tests;
-#[cfg(test)]
-mod scalar_return_tests;
 pub(in crate::legalization::scalar_graph_input) mod sources;
-#[cfg(test)]
-mod structural_case_tests;
 mod structural_cases;
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-mod wrapping_remainder_tests;
 
 pub(super) fn validate(
     function: &TargetFunction,

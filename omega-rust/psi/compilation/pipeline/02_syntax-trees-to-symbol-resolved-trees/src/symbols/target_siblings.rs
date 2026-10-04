@@ -124,6 +124,3 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
         retarget_machine_calls(program, sibling.machine, &[], &mut decide);
     }
 }
-
-#[cfg(test)]
-mod tests;

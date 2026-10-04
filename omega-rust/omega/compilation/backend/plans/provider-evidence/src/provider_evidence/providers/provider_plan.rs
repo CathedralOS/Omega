@@ -19,8 +19,6 @@
 mod digest_encoder;
 mod evaluated_bindings;
 mod service_schemas;
-#[cfg(test)]
-mod tests;
 
 pub use evaluated_bindings::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,

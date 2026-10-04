@@ -9,8 +9,6 @@ use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod sources;
-#[cfg(test)]
-mod tests;
 pub(crate) use sources::PlaceIntegerBounds;
 
 pub(crate) trait IntegerBoundsSource {

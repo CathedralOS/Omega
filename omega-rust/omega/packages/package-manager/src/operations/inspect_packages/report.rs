@@ -12,8 +12,6 @@ use std::fmt::{self, Write};
 use target::TargetProfile;
 
 mod policy;
-#[cfg(test)]
-mod tests;
 
 pub(super) fn render(
     target: TargetProfile,

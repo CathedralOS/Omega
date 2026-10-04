@@ -14,18 +14,3 @@ pub(crate) fn authored_workspace_member_path(
     WorkspaceMemberPath::parse(source_path.as_str())
         .expect("source-relative paths satisfy authored workspace path invariants")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{WorkspaceMemberPath, authored_workspace_member_path, source_relative_path};
-
-    #[test]
-    fn boundary_conversion_preserves_canonical_path_bytes() {
-        let authored = WorkspaceMemberPath::parse("packages/arithmetic-kernels").unwrap();
-        let source = source_relative_path(&authored);
-        let recovered = authored_workspace_member_path(&source);
-
-        assert_eq!(source.as_str(), authored.as_str());
-        assert_eq!(recovered, authored);
-    }
-}

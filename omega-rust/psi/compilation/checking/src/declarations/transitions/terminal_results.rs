@@ -15,9 +15,6 @@
 //! traits, arrays and references keep their own type checks, so this rule
 //! never reports a pairing it cannot name.
 
-#[cfg(test)]
-mod tests;
-
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;

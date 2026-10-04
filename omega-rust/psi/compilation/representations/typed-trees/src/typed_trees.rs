@@ -20,8 +20,6 @@ pub mod inspection;
 pub mod names;
 mod placed_plans;
 pub(crate) mod retained_prefix;
-#[cfg(test)]
-mod tests;
 mod trait_and_machine_tables;
 mod type_reference_queries;
 pub mod type_system;

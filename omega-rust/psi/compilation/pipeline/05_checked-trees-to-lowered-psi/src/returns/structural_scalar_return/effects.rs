@@ -350,9 +350,6 @@ pub(super) fn validate(
     Ok(true)
 }
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn emit(
     plan: &CheckedStructuralScalarReturnMachinePlan,
     parameters: &[StructuralParameterDeclaration],

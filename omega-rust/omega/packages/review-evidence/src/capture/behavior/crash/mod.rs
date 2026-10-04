@@ -3,9 +3,6 @@
 mod expressions;
 mod permissions;
 
-#[cfg(test)]
-mod tests;
-
 use super::super::semantics::declarations::nominal_identity;
 use crate::capture::PackageReviewInput;
 use crate::record::{

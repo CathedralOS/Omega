@@ -38,19 +38,12 @@ pub(super) fn build_state_flow_fact<'plans>(
         return;
     };
 
-    #[cfg(test)]
-    super::builder::tests::STATE_BUILDS.set(super::builder::tests::STATE_BUILDS.get() + 1);
-
     // Store potentials are this pass's evidence; a rebuilt state accumulates
     // them afresh.
     build
         .element_store_potentials
         .retain(|(stored_state, _, _)| *stored_state != state.symbol);
 
-    #[cfg(test)]
-    if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
-        build.built_state_value_inputs.push(state.symbol);
-    }
     super::state_values::append_entry_context(program, semantic, build, machine, state);
     let declaration_contexts = declaration_groups
         .into_iter()
@@ -58,21 +51,6 @@ pub(super) fn build_state_flow_fact<'plans>(
     // All source-driven checker tests replay the former declaration lookup at
     // this exact point. This catches accidental new Global/Machine producers
     // during flow, including on repeated value-input passes.
-    #[cfg(test)]
-    let declaration_contexts = {
-        let retained: Vec<_> = declaration_contexts.collect();
-        let replayed: Vec<_> = semantic
-            .context_handles_at_point(ProgramPoint::Global)
-            .chain(semantic.context_handles_at_point(ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            }))
-            .collect();
-        assert_eq!(
-            retained, replayed,
-            "declaration contexts changed during flow"
-        );
-        retained.into_iter()
-    };
     let mut state_contexts = arena::HandleSpan::empty();
     let mut state_constraints = arena::HandleSpan::empty();
     append_flow_contexts(

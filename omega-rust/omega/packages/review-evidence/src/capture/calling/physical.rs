@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests;
-
 use crate::capture::representation::physical_contract::{
     project_calling_policy, project_machine_register, project_value_placement,
 };

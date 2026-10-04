@@ -23,9 +23,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
-#[cfg(test)]
-mod tests;
-
 /// What one scoped binding stands for: a resolved binder symbol, an exact
 /// member occurrence, or the synthetic `result` name for the returned value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

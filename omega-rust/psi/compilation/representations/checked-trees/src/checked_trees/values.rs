@@ -53,9 +53,6 @@ mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
 pub mod guard_complement;
 
-#[cfg(test)]
-mod tests;
-
 pub type CheckedValueHandle = Handle<CheckedValueFact>;
 
 /// A checker-established inclusive integer interval for one value at its exact

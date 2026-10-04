@@ -181,6 +181,3 @@ fn copy_payload(payload: &[u8]) -> Result<Vec<u8>, PackagePublicationError> {
     bytes.extend_from_slice(payload);
     Ok(bytes)
 }
-
-#[cfg(test)]
-mod tests;

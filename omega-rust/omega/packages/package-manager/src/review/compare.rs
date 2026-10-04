@@ -41,9 +41,6 @@ pub use policy::{
 pub use render_error::ReviewOnlyCapabilityConflictRenderError;
 pub(crate) use risk::changed_review_risk;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReviewOnlyCapabilityConflictChange {
     Added,

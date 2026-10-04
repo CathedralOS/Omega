@@ -18,32 +18,7 @@ pub(super) mod review;
 pub(super) mod rows;
 mod selected_providers;
 mod terminal_permissions;
-#[cfg(test)]
-pub(in crate::encoding) mod text_test_support;
 mod values;
-
-#[cfg(test)]
-pub(super) use baseline::policy as encode_baseline_policy;
-
-#[cfg(test)]
-pub(super) use public_api::machine_contract as encode_policy_machine_contract;
-#[cfg(test)]
-pub(super) use public_api::public_api as encode_public_api;
-
-#[cfg(test)]
-pub(super) use values::declarations::{
-    encode_const_shape, encode_operator_shape, encode_proposition_shape,
-};
-
-#[cfg(test)]
-pub(super) use values::crashes::{encode_boolean_expression, encode_scalar_expression};
-
-#[cfg(test)]
-pub(super) use callable_policy::encode_callable as encode_policy_callable;
-#[cfg(test)]
-pub(super) use values::expressions::{encode_contract_expression, encode_contract_static_argument};
-#[cfg(test)]
-pub(super) use values::providers::encode_compiler_intrinsic_execution;
 
 pub use policy_rows::restricted_build_request_acceptance_text;
 

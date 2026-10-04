@@ -18,12 +18,6 @@ use terminal_psi::{
     Block, TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
 };
 
-#[cfg(test)]
-thread_local! {
-    pub(super) static IDENTITIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    pub(super) static PREPARATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// Module facts and lazily requested identity belong to this exact invocation.
 /// Lazy identity preserves rejection order and permits unsealed empty rosters.
 pub(super) struct PreparedFuelModule<'module> {
@@ -36,8 +30,6 @@ pub(super) struct PreparedFuelModule<'module> {
 
 impl<'module> PreparedFuelModule<'module> {
     pub(super) fn new(module: &'module TerminalModule) -> Self {
-        #[cfg(test)]
-        PREPARATIONS.with(|count| count.set(count.get() + 1));
         Self {
             module,
             terminal_psi: std::cell::OnceCell::new(),
@@ -53,11 +45,7 @@ impl<'module> PreparedFuelModule<'module> {
 
     pub(super) fn identity(&self) -> Result<TerminalPsiIdentity, FixedFuelError> {
         self.terminal_psi
-            .get_or_init(|| {
-                #[cfg(test)]
-                IDENTITIES.with(|count| count.set(count.get() + 1));
-                terminal_psi_identity(self.module)
-            })
+            .get_or_init(|| terminal_psi_identity(self.module))
             .clone()
             .map_err(FixedFuelError::SemanticIdentity)
     }

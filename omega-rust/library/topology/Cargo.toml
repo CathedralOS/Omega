@@ -16,15 +16,3 @@ terminal-psi = { path = "../../psi/compilation/representations/terminal-psi" }
 [target.'cfg(unix)'.dependencies]
 bounded-process = { path = "../../omega/foundation/bounded-process" }
 
-[dev-dependencies]
-compiler = { path = "../../omega/compilation/driver" }
-compilation-products = { path = "../../omega/compilation/products" }
-component-description = { path = "../../omega/compilation/backend/artifacts/component-description", features = ["test-support"] }
-libc = "0.2.186"
-mutation-matrix = { path = "../../psi/foundation/mutation-matrix", features = ["test-support"] }
-package-manager = { path = "../../omega/packages/package-manager" }
-package-source = { path = "../../omega/packages/source-acquisition" }
-proof-admission = { path = "../../psi/compilation/proof/admission" }
-semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
-target = { path = "../../omega/compilation/backend/target" }
-terminal-psi-to-abstract-operations = { path = "../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations" }

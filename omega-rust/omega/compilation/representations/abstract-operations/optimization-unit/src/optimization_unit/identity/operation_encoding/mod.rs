@@ -9,13 +9,9 @@ mod atomic;
 mod calls_and_effects;
 mod control;
 mod ieee_float;
-#[cfg(test)]
-mod integer_policy_tags_tests;
 mod scalar;
 mod scalar_shapes;
 mod structural;
-#[cfg(test)]
-mod structural_scalar_field_read_tags_tests;
 
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;

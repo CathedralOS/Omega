@@ -5,8 +5,6 @@ pub(super) mod declarations;
 mod signatures;
 use super::{PackageReviewEncodingError, encoder::Encoder};
 pub(in crate::encoding) use declarations::conformance_shape;
-#[cfg(test)]
-pub(in crate::encoding) use signatures::machine_contract;
 pub(super) use signatures::type_parameter;
 
 pub(in crate::encoding) fn public_api(

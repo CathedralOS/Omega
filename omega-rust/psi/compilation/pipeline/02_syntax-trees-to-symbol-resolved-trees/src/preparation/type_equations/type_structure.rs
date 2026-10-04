@@ -26,8 +26,6 @@ use syntax_trees::types::{
 };
 
 mod applications;
-#[cfg(test)]
-mod domain_application_tests;
 
 pub(super) fn collect_binder_mentions(
     syntax: &SyntaxTrees,

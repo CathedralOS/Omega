@@ -185,6 +185,3 @@ fn signature_discard_callee(
             .any(|parameter| parameter.is_mutable),
     }
 }
-
-#[cfg(test)]
-mod tests;

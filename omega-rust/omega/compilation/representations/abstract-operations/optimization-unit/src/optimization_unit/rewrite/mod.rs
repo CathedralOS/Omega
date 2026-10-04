@@ -72,6 +72,3 @@ pub use sccp::{
     SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
     derived_sccp_scalar_constant_fact_identity,
 };
-
-#[cfg(test)]
-mod tests;

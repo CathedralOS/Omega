@@ -43,21 +43,6 @@ pub(crate) mod native_callbacks;
 mod projected_qualifications;
 mod settlement_roster;
 
-#[cfg(test)]
-pub(crate) fn lower_to_target_operations_with_settlements(
-    plan: &AbstractOperationPlan,
-    target: NativeTarget,
-    settlement_bindings: &[BoundarySettlementBinding],
-) -> Result<TargetOperationPlan, LoweringError> {
-    lower_to_target_operations_with_settlements_and_installation(
-        plan,
-        target,
-        settlement_bindings,
-        None,
-        &[],
-    )
-}
-
 pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     plan: &AbstractOperationPlan,
     target: NativeTarget,

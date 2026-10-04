@@ -59,17 +59,9 @@ mod const_arguments;
 mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod const_values;
-#[cfg(test)]
-mod membership_tests;
 mod range_arguments;
 mod result_locals;
-#[cfg(test)]
-mod runtime_value_tests;
 mod saved_calls;
-#[cfg(test)]
-mod static_call_contract_tests;
-#[cfg(test)]
-mod storage_tests;
 
 /// Authored metadata shared by all candidate applications in a round.
 #[derive(Clone)]

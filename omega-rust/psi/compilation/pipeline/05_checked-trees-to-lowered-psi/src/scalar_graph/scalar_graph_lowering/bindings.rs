@@ -17,9 +17,6 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
-#[cfg(test)]
-mod erased_parameters_tests;
-
 pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,
     pub(super) scalar_bindings: storage::ScalarBindings,

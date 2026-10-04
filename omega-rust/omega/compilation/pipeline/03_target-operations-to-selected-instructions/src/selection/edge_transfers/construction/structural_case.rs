@@ -12,8 +12,6 @@ use selected_instructions::{
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
-#[cfg(test)]
-mod tests;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prepare(

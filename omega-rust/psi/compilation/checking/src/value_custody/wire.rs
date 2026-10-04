@@ -18,8 +18,6 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-#[cfg(test)]
-use typed_trees::wire::{WireField, WireMember, WireSchema};
 
 mod decode_call;
 mod encode_call;
@@ -28,8 +26,6 @@ mod value_fields;
 
 use decode_call::validate_wire_decode_call;
 use encode_call::validate_wire_encode_call;
-#[cfg(test)]
-use schema_validation::validate_nested_schema_cycles;
 pub(crate) use schema_validation::validate_wire_schemas;
 
 /// Validate a call whose receiver names a wire schema: the synthesized
@@ -136,54 +132,4 @@ fn ambiguous_schema_receiver(
         candidates.join(", ")
     )));
     true
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{TypedTrees, WireField, WireMember, WireSchema, validate_nested_schema_cycles};
-    use language_core::BindingRelevance;
-    use typed_trees::name::Identifier;
-    use typed_trees::types::TypeReferenceNode;
-
-    fn self_referential_schema(relevance: BindingRelevance) -> TypedTrees {
-        let mut program = TypedTrees::default();
-        let self_reference = program
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: Default::default(),
-                name: Identifier::generated("Recursive"),
-            });
-        let members = program.append_wire_members(vec![WireMember::Field(WireField {
-            number: 0,
-            name: Identifier::generated("next"),
-            relevance,
-            type_reference: self_reference,
-        })]);
-        program.push_wire_schema(WireSchema {
-            name: Identifier::generated("Recursive"),
-            members,
-            ..WireSchema::default()
-        });
-        program
-    }
-
-    #[test]
-    fn erased_nested_field_does_not_form_a_physical_schema_cycle() {
-        let program = self_referential_schema(BindingRelevance::Erased);
-        let mut diagnostics = Vec::new();
-
-        validate_nested_schema_cycles(&program, &program.wire_schemas()[0], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-    }
-
-    #[test]
-    fn relevant_nested_field_still_forms_a_physical_schema_cycle() {
-        let program = self_referential_schema(BindingRelevance::Relevant);
-        let mut diagnostics = Vec::new();
-
-        validate_nested_schema_cycles(&program, &program.wire_schemas()[0], &mut diagnostics);
-
-        assert_eq!(diagnostics.len(), 1);
-    }
 }

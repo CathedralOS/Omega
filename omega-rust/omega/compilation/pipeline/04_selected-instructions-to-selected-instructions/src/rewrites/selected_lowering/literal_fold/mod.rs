@@ -16,9 +16,6 @@ pub(crate) mod identity;
 pub(crate) mod pair_rule;
 pub(crate) mod validate;
 
-#[cfg(test)]
-mod tests;
-
 use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};

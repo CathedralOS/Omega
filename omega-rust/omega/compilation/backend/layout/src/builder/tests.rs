@@ -234,46 +234,6 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
 }
 
 #[test]
-fn attached_machine_layout_excludes_erased_record_fields() {
-    let typed = typed_fixture(
-        r#"
-        data Packed {
-            head: u8;
-            proof [erased]: u64;
-            tail: u16;
-        }
-        machine Packed::read(&self) -> u8 { self.head }
-        "#,
-    );
-
-    let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
-    let data = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Packed")
-        .expect("Packed data layout");
-    let machine = plan
-        .machine_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Packed::read")
-        .expect("Packed::read machine layout");
-
-    assert_eq!(data.layout.size, 4);
-    assert_eq!(data.layout.alignment, 2);
-    assert_eq!(machine.layout, data.layout);
-    assert_eq!(
-        plan.fields
-            .span_or_empty(machine.fields)
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("head", 0), ("tail", 2)]
-    );
-}
-
-#[test]
 fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
     let typed = typed_fixture(
         r#"

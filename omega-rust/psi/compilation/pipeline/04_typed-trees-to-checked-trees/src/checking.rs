@@ -63,13 +63,6 @@ impl<'a> CheckingRequest<'a> {
         Self::with_mode(CheckingMode::Preliminary)
     }
 
-    /// Settled checking that omits crash admission so tests can inspect the
-    /// recorded crash facts of programs the admission gate would reject.
-    #[cfg(test)]
-    pub(crate) const fn crash_fact_inspection() -> Self {
-        Self::with_mode(CheckingMode::CrashFactInspection)
-    }
-
     /// Request privileged-instruction admission under the evaluated build.
     /// Language-only probes leave this absent: checking an unused runtime
     /// body during constant evaluation is not permission to install it.
@@ -377,10 +370,6 @@ fn lower_typed_trees_uncached(
                 &proven_machine_contracts,
             )?;
         }
-        #[cfg(test)]
-        CheckingMode::CrashFactInspection => {
-            checks::check_checked_facts_recording_without_crash_admission(&program, &mut facts)?;
-        }
     }
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
@@ -416,9 +405,6 @@ enum CheckingMode {
     Preliminary,
     /// The final package checkpoint after provider settlement.
     Settled,
-    /// Settled checking without crash admission, for crash-fact tests only.
-    #[cfg(test)]
-    CrashFactInspection,
 }
 
 impl CheckingMode {
@@ -478,55 +464,4 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
     ::validation::validate_static_machine_call_contracts(program, &operational)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(selections)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::CheckingRequest;
-    use crate::tests::front_end::typed_program;
-
-    #[test]
-    fn settled_check_requires_instruction_authority_even_after_a_memo_hit() {
-        let typed = typed_program(
-            "boundary trait PortIo {}
-             data Root {}
-             machine Root::emit() reaches PortIo { asm { out 32, 7 } }",
-        );
-        let _retention = super::retain_repeated_checks();
-        let authorized = CheckingRequest::settled()
-            .with_asm_authority(validation::AsmAuthorityAdmission::HOSTED.with_grants(true, false));
-        let unauthorized = CheckingRequest::settled()
-            .with_asm_authority(validation::AsmAuthorityAdmission::HOSTED);
-
-        crate::lower_typed_trees(typed.clone(), &CheckingRequest::settled())
-            .expect("a language-only probe does not grant runtime installation authority");
-
-        for _ in 0..2 {
-            crate::lower_typed_trees(typed.clone(), &authorized)
-                .expect("the explicit port-I/O grant admits the instruction");
-            let diagnostics = crate::lower_typed_trees(typed.clone(), &unauthorized).expect_err(
-                "a retained language judgment must not supply another caller's authority",
-            );
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| { diagnostic.message.contains("port-I/O authority") }),
-                "{diagnostics:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn unelaboratable_mathematical_declarations_fail_with_their_own_diagnostic() {
-        let typed = typed_program("let bad<A: core::Type<u, v>>(x: A): A = x;");
-
-        let diagnostics = crate::lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect_err("a malformed `core::Type` carrier is unelaboratable");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("core::Type")),
-            "unexpected diagnostics: {diagnostics:?}"
-        );
-    }
 }

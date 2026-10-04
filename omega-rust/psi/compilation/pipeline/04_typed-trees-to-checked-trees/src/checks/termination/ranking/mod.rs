@@ -37,8 +37,6 @@ mod slice;
 mod struct_view;
 mod write_preservation;
 
-#[cfg(test)]
-pub(crate) use entry_requirements::proves_ranked_entry_requirement;
 pub(crate) use entry_requirements::proves_ranked_entry_requirement_with_call_frames;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -119,18 +117,6 @@ pub(crate) struct ProvenNatCountdownEdge {
     pub(crate) statement_ordinal: u32,
     pub(crate) source_rank_parameter_position: u32,
     pub(crate) target_rank_parameter_position: u32,
-}
-
-/// Project the existing Nat-descending judgment into exact first-slice SCC
-/// evidence. `Some([])` means acyclic. `None` means a cycle exists but is not
-/// the single-state, directly guarded unsigned countdown admitted by this
-/// checked-plan milestone.
-#[cfg(test)]
-pub(crate) fn proven_nat_countdown_sccs(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<Vec<ProvenNatCountdownScc>> {
-    proven_nat_countdown_sccs_with_call_frames(program, machine, None)
 }
 
 pub(crate) fn proven_nat_countdown_sccs_with_call_frames(

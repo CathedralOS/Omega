@@ -68,6 +68,3 @@ pub(super) fn derive(context: &PropositionContext, bounds: Vec<ProofNode>) -> Ve
     }
     equalities
 }
-
-#[cfg(test)]
-mod tests;

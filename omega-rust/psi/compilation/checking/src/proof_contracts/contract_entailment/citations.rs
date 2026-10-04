@@ -847,6 +847,3 @@ pub(crate) fn instantiated_fact_established(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {}

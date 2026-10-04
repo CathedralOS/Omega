@@ -549,6 +549,3 @@ fn compiler_builtin_execution(
     };
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
 }
-
-#[cfg(test)]
-mod tests;

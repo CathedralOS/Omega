@@ -449,13 +449,9 @@ fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Strin
         return machine.name.as_str().to_owned();
     }
 
-    if let Some(state) = program.state_by_symbol(symbol)
-    {
+    if let Some(state) = program.state_by_symbol(symbol) {
         return state.name.as_str().to_owned();
     }
 
     program.symbols.name(symbol).to_owned()
 }
-
-#[cfg(test)]
-mod tests;

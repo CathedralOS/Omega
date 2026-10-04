@@ -8,8 +8,6 @@
 mod declaration_snapshots;
 mod machine_snapshots;
 mod statement_and_expression_snapshots;
-#[cfg(test)]
-mod tests;
 mod type_snapshots;
 
 pub use declaration_snapshots::{

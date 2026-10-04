@@ -180,17 +180,6 @@ fn replay_function(
     })
 }
 
-#[cfg(test)]
-pub(crate) fn replay_function_for_test(
-    function: usize,
-    selected: &selected_instructions::SelectedFunction,
-    ranges: &selected_instructions::FunctionLiveRanges,
-    legality: &register_homes::FunctionAllocationLegality,
-    choices: &register_homes::FunctionSpillChoices,
-) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
-    replay_function(function, selected, ranges, legality, choices)
-}
-
 fn replay_role(
     function: usize,
     choice: &register_homes::SpillChoice,

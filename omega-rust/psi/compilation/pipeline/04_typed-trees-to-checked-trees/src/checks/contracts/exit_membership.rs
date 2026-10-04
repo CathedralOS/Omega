@@ -246,6 +246,3 @@ fn reconstruct<'program>(
     )
     .ok()
 }
-
-#[cfg(test)]
-mod mutable_tests;

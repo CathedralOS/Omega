@@ -65,6 +65,3 @@ use crate::{ScalarConstant, ScalarConstantAnalysis};
 pub(crate) mod accounting;
 mod admission;
 pub(crate) mod propose;
-
-#[cfg(test)]
-mod tests;

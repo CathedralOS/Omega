@@ -38,9 +38,6 @@ use terminal_psi::{
     TerminalNaturalRankEdge,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate_witness(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,

@@ -134,8 +134,6 @@ Dated cost and failure evidence, superseded by a later run.
 - [Graph cost-model study](measurements/graph_cost_model_study.md): inventory of the existing
   candidate seams and what a ranking measurement must show; delete once a
   measured corpus answers the question or the policy question closes.
-- [Known baseline failures](measurements/known_baseline_failures.md): attribution evidence
-  for failures that reproduce without a task diff; delete when no row survives.
 - [Package-review hotspot attribution](measurements/package_review_hotspot_attribution.md):
   where `omega audit packages` time actually goes; delete once the arena and
   symbol-lookup hotspots are repaired or boarded.

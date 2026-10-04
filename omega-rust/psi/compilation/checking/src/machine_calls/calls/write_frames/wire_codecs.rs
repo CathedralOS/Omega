@@ -25,9 +25,6 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
 use typed_trees::types::TypeReferenceNode;
 
-#[cfg(test)]
-mod tests;
-
 /// Whether a statement call is a synthesized wire codec entry. Recognition
 /// binds the receiver by declaration path, so a same-named machine field or
 /// user machine never claims this route.

@@ -251,23 +251,6 @@ fn run_verdict_searches(
     });
 }
 
-#[cfg(test)]
-mod authored_row_tests;
-#[cfg(test)]
-mod tests;
-
-/// Run optional inference under the production provisions, returning the
-/// capacities that declined so a later unmet obligation can name the
-/// resource that refused instead of reading as a disproof. Only tests call
-/// this spelling: production reaches the same pass through finalization
-/// with the explicit provision.
-#[cfg(test)]
-pub(crate) fn retain_provable(
-    lowered: &mut LoweredPsi,
-) -> Result<ProofSearchDeclines, LoweringError> {
-    retain_provable_bounded(lowered, MAX_ROSTER_ROUNDS)
-}
-
 /// The same pass under an explicit roster-round provision: the ledger a
 /// caller gets back records every named capacity the pass declined against.
 pub(crate) fn retain_provable_bounded(

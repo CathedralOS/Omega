@@ -9,9 +9,6 @@ use crate::expression::ExpressionHandle;
 use crate::state::State;
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// Reusable scratch for inspecting successive states without retaining a
 /// previous program's references. Results contain explicit call and named
 /// transition target symbols once each, in first-encounter order.

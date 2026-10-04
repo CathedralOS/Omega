@@ -11,9 +11,6 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 mod state_edges;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn prove(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,

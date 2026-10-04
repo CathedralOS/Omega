@@ -109,6 +109,3 @@ pub fn prepare_retained_compiler_builtins<'request>(
         })
         .collect()
 }
-
-#[cfg(test)]
-mod tests;

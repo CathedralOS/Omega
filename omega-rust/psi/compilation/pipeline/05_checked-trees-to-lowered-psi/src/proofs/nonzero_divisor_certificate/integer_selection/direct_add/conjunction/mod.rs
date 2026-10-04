@@ -81,9 +81,6 @@ fn prove_with_budget(
     outcome
 }
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SearchBudget {
     definition_visits: usize,

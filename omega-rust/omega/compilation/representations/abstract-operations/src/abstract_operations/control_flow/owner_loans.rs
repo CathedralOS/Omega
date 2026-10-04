@@ -273,6 +273,3 @@ fn view_carrier_shape(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -106,8 +106,6 @@ fn account_executed_check(mode: CheckingMode) {
     let counter = match mode {
         CheckingMode::Preliminary => &EXECUTED_PRELIMINARY_CHECKS,
         CheckingMode::Settled => &EXECUTED_SETTLED_CHECKS,
-        #[cfg(test)]
-        CheckingMode::CrashFactInspection => &EXECUTED_SETTLED_CHECKS,
     };
     counter.fetch_add(1, Ordering::Relaxed);
 }

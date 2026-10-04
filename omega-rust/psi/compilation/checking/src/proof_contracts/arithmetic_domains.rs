@@ -50,8 +50,6 @@ mod range_constraints;
 mod return_ranges;
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::occurrence_value_environment;
-#[cfg(test)]
-mod tests;
 mod total_specification;
 mod unsigned_representability;
 mod value_environment;

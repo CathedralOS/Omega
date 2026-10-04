@@ -28,11 +28,6 @@ impl ReviewOnlySourceConsumptionCommitment {
     pub const fn digest(self) -> [u8; 32] {
         self.0
     }
-
-    #[cfg(test)]
-    pub(crate) const fn for_test_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
 }
 
 impl From<PackageSourceConsumptionCommitment> for ReviewOnlySourceConsumptionCommitment {

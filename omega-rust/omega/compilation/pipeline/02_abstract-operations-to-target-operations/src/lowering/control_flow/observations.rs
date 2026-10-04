@@ -18,8 +18,6 @@ use target_operations::{
     ScalarAbiValue, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
     TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
-#[cfg(test)]
-mod tests;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(

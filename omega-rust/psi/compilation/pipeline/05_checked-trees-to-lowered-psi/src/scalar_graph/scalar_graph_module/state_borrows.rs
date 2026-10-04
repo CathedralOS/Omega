@@ -135,6 +135,3 @@ fn successors(terminator: &Terminator) -> Vec<BlockId> {
         | Terminator::Crash { .. } => Vec::new(),
     }
 }
-
-#[cfg(test)]
-mod tests;

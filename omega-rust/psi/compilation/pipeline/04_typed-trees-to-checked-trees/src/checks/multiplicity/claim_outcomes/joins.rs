@@ -28,9 +28,6 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExitFrontier {
     exits: Vec<FlowClaimJoinExit>,

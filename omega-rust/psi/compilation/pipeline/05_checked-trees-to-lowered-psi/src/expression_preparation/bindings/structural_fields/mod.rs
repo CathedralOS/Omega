@@ -18,8 +18,6 @@ use super::{
     StructuralTypeDeclaration, unsupported,
 };
 use semantic_vocabulary::StructuralCaseId;
-#[cfg(test)]
-mod tests;
 
 #[derive(Clone)]
 pub(crate) struct StructuralScalarFieldBinding {

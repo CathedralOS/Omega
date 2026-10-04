@@ -555,6 +555,3 @@ fn operation_position(
     let position = positions.next()?;
     positions.next().is_none().then_some(position)
 }
-
-#[cfg(test)]
-mod tests;

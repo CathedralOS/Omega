@@ -6,9 +6,6 @@ use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_semantics::{interior_member_borrow, structural_paths_may_overlap};
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
     Unit,

@@ -6,11 +6,6 @@
 //! distinction explicit avoids traversing successor graphs for local alias
 //! queries without publishing truncated effects as complete evidence.
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-use super::PREFIX_WALKS;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
     rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
@@ -124,11 +119,6 @@ pub(crate) fn summarize_complete_state_written_paths(
 pub(crate) struct StateWritePrefix {
     written: Vec<String>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
-    /// The single-statement `Assignment` query's target. Production reads
-    /// every assignment from `walk_state_assignments`; the query remains as
-    /// the tests' independent route to compare it against.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) assignment: Option<AssignmentWriteTarget>,
 }
 
 /// What an `Assignment` query returns for one statement: the direct target
@@ -171,7 +161,7 @@ pub(crate) fn walk_state_assignments(
     assignments
 }
 
-pub(crate) enum StateWriteQuery<'statement> {
+pub(crate) enum StateWriteQuery {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
     ReferenceResult,
@@ -182,10 +172,6 @@ pub(crate) enum StateWriteQuery<'statement> {
     StatementPrefixes {
         include_shared: bool,
     },
-    /// Stop at one assignment and return its target; see
-    /// `StateWritePrefix::assignment`.
-    #[cfg_attr(not(test), allow(dead_code))]
-    Assignment(&'statement StatementNode),
 }
 
 /// A per-statement snapshot of the non-shared prefix walk's alias/stored
@@ -358,7 +344,7 @@ pub(crate) fn walk_state_write_prefix(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    query: Option<StateWriteQuery<'_>>,
+    query: Option<StateWriteQuery>,
 ) -> Option<StateWritePrefix> {
     inference.with_local_scope(|inference| {
         walk_state_write_prefix_inner(
@@ -373,7 +359,7 @@ fn walk_state_write_prefix_inner(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    query: Option<StateWriteQuery<'_>>,
+    query: Option<StateWriteQuery>,
     mut collect: Option<&mut StatementPrefixCollection<'_>>,
     mut assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
 ) -> Option<StateWritePrefix> {
@@ -382,8 +368,6 @@ fn walk_state_write_prefix_inner(
     ) {
         return None;
     }
-    #[cfg(test)]
-    PREFIX_WALKS.with(|walks| walks.set(walks.get() + 1));
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
@@ -456,9 +440,8 @@ fn walk_state_write_prefix_inner(
             // a complete summary. Full-body and assignment queries still walk it.
             return None;
         }
-        let mut queried_assignment = matches!(query,
-            Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement))
-            || (assignments.is_some() && matches!(statement, StatementNode::Assignment(_)));
+        let mut queried_assignment =
+            assignments.is_some() && matches!(statement, StatementNode::Assignment(_));
         if queried_assignment
             && local_alias_origins.is_empty()
             && stored.is_empty()
@@ -480,14 +463,7 @@ fn walk_state_write_prefix_inner(
                 inference,
             );
             let Some(record) = assignments.as_deref_mut() else {
-                if exposes_frozen_binding {
-                    return None;
-                }
-                return Some(StateWritePrefix {
-                    written,
-                    stored,
-                    assignment: Some(AssignmentWriteTarget::Storage { paths: vec![path] }),
-                });
+                unreachable!("assignments are recorded only into a roster")
             };
             if !exposes_frozen_binding {
                 // The accumulators are empty on this route.
@@ -692,11 +668,7 @@ fn walk_state_write_prefix_inner(
                             let target =
                                 AssignmentWriteTarget::LocalBindingReplacement { path: relative };
                             let Some(record) = assignments.as_deref_mut() else {
-                                return Some(StateWritePrefix {
-                                    written,
-                                    stored,
-                                    assignment: Some(target),
-                                });
+                                unreachable!("assignments are recorded only into a roster")
                             };
                             record.push((
                                 statement_index,
@@ -755,11 +727,7 @@ fn walk_state_write_prefix_inner(
                         }
                         if queried_assignment {
                             let Some(record) = assignments.as_deref_mut() else {
-                                return Some(StateWritePrefix {
-                                    written,
-                                    stored,
-                                    assignment: Some(AssignmentWriteTarget::Storage { paths }),
-                                });
+                                unreachable!("assignments are recorded only into a roster")
                             };
                             record.push((
                                 statement_index,
@@ -928,11 +896,7 @@ fn walk_state_write_prefix_inner(
                             path: relative.to_owned(),
                         };
                         let Some(record) = assignments.as_deref_mut() else {
-                            return Some(StateWritePrefix {
-                                written,
-                                stored,
-                                assignment: Some(target),
-                            });
+                            unreachable!("assignments are recorded only into a roster")
                         };
                         record.push((
                             statement_index,
@@ -961,11 +925,7 @@ fn walk_state_write_prefix_inner(
                 let paths = expand_write_path(&relative, &local_alias_origins, &stored)?;
                 if queried_assignment {
                     let Some(record) = assignments.as_deref_mut() else {
-                        return Some(StateWritePrefix {
-                            written,
-                            stored,
-                            assignment: Some(AssignmentWriteTarget::Storage { paths }),
-                        });
+                        unreachable!("assignments are recorded only into a roster")
                     };
                     record.push((
                         statement_index,
@@ -1325,9 +1285,5 @@ fn walk_state_write_prefix_inner(
                     | StateWriteQuery::StoredReferenceTransfer
             )
         ))
-    .then_some(StateWritePrefix {
-        written,
-        stored,
-        assignment: None,
-    })
+    .then_some(StateWritePrefix { written, stored })
 }

@@ -48,30 +48,6 @@ mod normal_return;
 mod slice_view;
 mod structural_fields;
 mod structural_values;
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(crate) fn build_checked_scalar_computation_plans(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    flow: &FlowFacts,
-    borrow: &checked_trees::BorrowFacts,
-    proof: &ProofFacts,
-    pure: &CheckedScalarExpressionPlans,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> CheckedScalarComputationPlans {
-    build_checked_value_computation_plans(
-        program,
-        operators,
-        flow,
-        borrow,
-        proof,
-        pure,
-        exact_integer_casts,
-    )
-    .0
-}
 
 pub(crate) fn build_checked_value_computation_plans(
     program: &TypedTrees,

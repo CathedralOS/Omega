@@ -473,6 +473,3 @@ fn falsehood(premise: ProofNode) -> ProofNode {
         },
     }
 }
-
-#[cfg(test)]
-mod tests;

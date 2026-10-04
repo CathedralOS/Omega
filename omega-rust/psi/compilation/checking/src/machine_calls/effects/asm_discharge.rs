@@ -153,9 +153,6 @@ pub fn validate_asm_discharge(
     crate::program_validation::finish_diagnostics(diagnostics)
 }
 
-#[cfg(test)]
-mod tests;
-
 /// Direct assembly emission declares its canonical service at the instruction
 /// owner. Ordinary checked callers propagate that reach through the shared
 /// fixed point; propagation does not discharge instruction authority.

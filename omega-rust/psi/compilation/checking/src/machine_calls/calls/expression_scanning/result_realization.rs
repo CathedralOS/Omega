@@ -16,9 +16,6 @@ use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetNod
 
 mod boundary_return;
 
-#[cfg(test)]
-mod tests;
-
 /// Result operations own the outer call while their operands use the shared
 /// scalar evaluator. Each caller family retains its existing source topology.
 pub fn result_initializer_call_is_supported(

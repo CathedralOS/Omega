@@ -18,9 +18,6 @@ use checked_trees::{
 };
 use terminal_psi::StructuralTypeShape;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) struct ScalarLoopPlan {
     pub entry: ScalarLoopEntry,
     pub rank: Option<checked_trees::CheckedStructuralRankedSccPlan>,

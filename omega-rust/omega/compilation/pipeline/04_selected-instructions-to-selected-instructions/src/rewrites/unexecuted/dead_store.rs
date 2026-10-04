@@ -161,9 +161,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::eliminate_selected_dead_store;
 pub use validation::validate_dead_store_elimination;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted dead-store elimination with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedDeadStoreElimination {

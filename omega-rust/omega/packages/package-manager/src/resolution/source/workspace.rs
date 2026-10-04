@@ -1,8 +1,6 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -11,31 +9,6 @@ use package_source::{
 };
 use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::{Path, PathBuf};
-
-/// Snapshot one workspace member and bind it to the workspace root's source
-/// lineage plus its normalized member-relative path.
-///
-/// The live member is derived only as `live_workspace_root/member_path`; the
-/// caller does not supply a second spelling to reconcile. It must remain a
-/// strict descendant of the canonical workspace root. Only that member is
-/// passed to local snapshot custody.
-#[cfg(test)]
-pub fn resolve_workspace_member_package_source_from_hardened_base(
-    workspace_root_source: &SourceLineage,
-    member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_workspace_member_package_source(
-        workspace_root_source,
-        member_path,
-        live_workspace_root,
-        &storage,
-        limits,
-    )
-}
 
 pub(crate) fn resolve_workspace_member_package_source_in_lane(
     workspace_root_source: &SourceLineage,

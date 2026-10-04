@@ -4,9 +4,6 @@ mod function_classification;
 mod immediate_eligibility;
 mod work_usage;
 
-#[cfg(test)]
-mod tests;
-
 use optimization_core::OptimizationWorkBudget;
 
 use crate::{

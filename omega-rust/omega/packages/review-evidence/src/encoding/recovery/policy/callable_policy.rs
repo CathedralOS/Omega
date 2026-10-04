@@ -8,12 +8,6 @@ use crate::record::{
 };
 pub(in crate::encoding::recovery) mod behavior;
 pub(in crate::encoding::recovery) use behavior::{crash_route, termination};
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod budgets;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod signatures;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,

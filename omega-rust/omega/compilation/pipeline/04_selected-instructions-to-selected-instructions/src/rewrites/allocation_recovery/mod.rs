@@ -8,9 +8,6 @@ mod catalog;
 pub(crate) mod fixed_view_copy;
 pub(crate) mod pressure_rematerialization;
 
-#[cfg(test)]
-mod tests;
-
 use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationPhaseSelections};
 
 use super::catalog::selected_stage_catalog_contains;

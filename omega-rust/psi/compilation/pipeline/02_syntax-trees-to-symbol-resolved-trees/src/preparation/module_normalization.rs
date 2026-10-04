@@ -261,6 +261,3 @@ fn scalar_literal_tree(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

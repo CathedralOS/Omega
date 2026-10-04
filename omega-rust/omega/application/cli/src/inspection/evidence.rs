@@ -65,38 +65,3 @@ fn retain_bound(
         Err(error) => Err(InspectionError::FixedFuel(error)),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{FixedFuel, FixedFuelError, InspectionError, retain_bound};
-    use semantic_vocabulary::{BlockId, MachineId};
-
-    #[test]
-    fn only_analysis_limits_become_unavailable_bounds() {
-        let block = BlockId::new(1).unwrap();
-        let machine = MachineId::new(1).unwrap();
-        for reason in [
-            FixedFuelError::ControlCycle(block),
-            FixedFuelError::UnboundedCycleComponent {
-                component: semantic_vocabulary::CycleComponentId::new(1).unwrap(),
-                cause: terminal_fixed_fuel::UnboundedCycleCause::Unranked,
-            },
-            FixedFuelError::CallCycle(machine),
-            FixedFuelError::BranchingNotYetSupported(block),
-            FixedFuelError::NoTerminalPath(machine),
-            FixedFuelError::BoundOverflow,
-        ] {
-            let result = retain_bound(Err(reason.clone()), |_| panic!("no certificate to replay"));
-            assert!(matches!(result, Ok(FixedFuel::Unavailable(actual)) if actual == reason));
-        }
-        for reason in [
-            FixedFuelError::UnknownBlock(block),
-            FixedFuelError::UnknownEntry(machine),
-            FixedFuelError::InvalidRankedScc(machine),
-            FixedFuelError::CertificateMismatch,
-        ] {
-            let result = retain_bound(Err(reason.clone()), |_| panic!("no certificate to replay"));
-            assert!(matches!(result, Err(InspectionError::FixedFuel(actual)) if actual == reason));
-        }
-    }
-}

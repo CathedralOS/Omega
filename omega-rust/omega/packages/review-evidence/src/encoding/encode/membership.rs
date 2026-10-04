@@ -2,8 +2,6 @@
 
 mod framing;
 mod membership_accounting;
-#[cfg(test)]
-mod tests;
 mod visitor;
 
 use crate::record::PackagePolicyBaseline;

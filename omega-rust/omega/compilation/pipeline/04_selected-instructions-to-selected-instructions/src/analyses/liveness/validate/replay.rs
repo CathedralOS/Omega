@@ -17,11 +17,6 @@ use selected_instructions::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
-std::thread_local! {
-    pub(super) static BLOCK_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 pub(super) fn replay_function(
     function_index: usize,
     function: &SelectedFunction,
@@ -49,8 +44,6 @@ pub(super) fn replay_function(
     loop {
         let old = (v_in.clone(), v_out.clone(), u_in.clone(), u_out.clone());
         for (block_ordinal, block) in function.blocks.iter().enumerate().rev() {
-            #[cfg(test)]
-            BLOCK_VISITS.set(BLOCK_VISITS.get() + 1);
             let targets = &transports.blocks[block_ordinal];
             let mut vo = BTreeSet::new();
             for edge in targets {

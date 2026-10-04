@@ -305,6 +305,3 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

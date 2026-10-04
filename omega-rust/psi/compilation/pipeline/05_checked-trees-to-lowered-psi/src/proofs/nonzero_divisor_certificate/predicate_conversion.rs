@@ -89,6 +89,3 @@ pub(super) fn prove(
         }
     })
 }
-
-#[cfg(test)]
-mod tests {}

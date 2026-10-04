@@ -521,6 +521,3 @@ fn checked_boolean_scalar_term_from_lowered(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

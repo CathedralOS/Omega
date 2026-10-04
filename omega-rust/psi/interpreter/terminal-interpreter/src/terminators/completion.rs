@@ -222,5 +222,3 @@ impl TerminalExecution {
     }
 }
 
-#[cfg(test)]
-mod tests;

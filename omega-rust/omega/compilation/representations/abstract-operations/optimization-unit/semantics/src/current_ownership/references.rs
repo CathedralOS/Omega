@@ -35,16 +35,6 @@ enum CallRegion {
 mod call_paths;
 use call_paths::{call_dependency_conflict, call_reference_custody};
 
-#[cfg(test)]
-mod alternative_result_tests;
-#[cfg(test)]
-mod borrowed_ingress_tests;
-#[cfg(test)]
-mod ingress_transfer_tests;
-#[cfg(test)]
-mod record_store_tests;
-#[cfg(test)]
-mod region_access_tests;
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {

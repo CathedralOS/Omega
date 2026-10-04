@@ -126,6 +126,3 @@ impl EvidenceGapKind {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

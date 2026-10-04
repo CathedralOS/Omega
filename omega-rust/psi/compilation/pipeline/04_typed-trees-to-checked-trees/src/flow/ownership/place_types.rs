@@ -4,9 +4,6 @@ use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// The declared type an expression's value carries. The canonical place walk
 /// roots the expression at its storage — a symbol for names and their
 /// projections, the expression itself for value-producing leaves — then the

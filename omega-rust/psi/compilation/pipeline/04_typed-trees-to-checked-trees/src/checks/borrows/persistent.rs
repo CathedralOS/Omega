@@ -812,9 +812,6 @@ fn retain_static_paths_across_call_frame(
     true
 }
 
-#[cfg(test)]
-mod tests;
-
 fn static_path_frame_aliases(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,

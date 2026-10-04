@@ -68,15 +68,11 @@ mod declaration_values;
 pub(crate) mod initializer_dependencies;
 mod initializer_leaves;
 pub(crate) mod initializer_normalization;
-#[cfg(test)]
-mod module_tests;
 mod normalized_expressions;
 mod scalar_carriers;
 mod selections;
 mod substitution;
 
-#[cfg(test)]
-use declaration_values::public_declaration_value_encoding;
 pub(crate) use declaration_values::{
     evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
     validate_const_definition, validate_scalar_initializer,

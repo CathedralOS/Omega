@@ -1,17 +1,6 @@
 //! Bounded, source-independent recovery of complete representation policy.
 
 pub(in crate::encoding::recovery) mod availability;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod budgets;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod fixtures;
-#[cfg(test)]
-pub(in crate::encoding::recovery) use fixtures::complete as row_fixture;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod group_tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits, calling_application, conformance,

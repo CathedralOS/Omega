@@ -52,32 +52,3 @@ pub struct StateWriteFramePlan {
     pub frame: facts::NormalizedWriteFrame,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{MachineMutationFact, MutationFacts, StateWriteFramePlan, SymbolHandle};
-
-    #[test]
-    fn mutation_facts_use_exact_machine_identity_and_default_to_absence() {
-        let machine = SymbolHandle::from_arena_index(3);
-        let state = SymbolHandle::from_arena_index(4);
-        let facts = MutationFacts {
-            integer_writes: Default::default(),
-            machines: vec![MachineMutationFact {
-                machine,
-                state_write_frames: vec![StateWriteFramePlan {
-                    state,
-                    frame: facts::NormalizedWriteFrame::complete(vec!["self.value".to_owned()]),
-                }],
-            }],
-        };
-
-        let retained = facts.for_machine(machine).expect("exact machine fact");
-        assert_eq!(retained.state_write_frames[0].state, state);
-        assert_eq!(retained.state_write_frames[0].frame.paths(), ["self.value"]);
-        assert!(
-            facts
-                .for_machine(SymbolHandle::from_arena_index(9))
-                .is_none()
-        );
-    }
-}

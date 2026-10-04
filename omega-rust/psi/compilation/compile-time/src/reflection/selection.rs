@@ -29,8 +29,6 @@ mod requirement_resolution;
 mod scoped_members;
 mod selection_receiver;
 mod snapshots;
-#[cfg(test)]
-mod tests;
 
 pub use scoped_members::{MemberKind, MemberSelectionKey};
 pub(crate) use scoped_members::{ScopedMember, expected_members, project};

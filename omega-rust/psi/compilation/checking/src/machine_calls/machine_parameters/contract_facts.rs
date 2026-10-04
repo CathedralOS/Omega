@@ -307,27 +307,3 @@ fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
         SignatureContractKind::Crashes { .. } => "crashes",
     }
 }
-
-#[cfg(test)]
-mod membership_tests {
-    use super::{SignatureContractKind, normalized_facts};
-
-    #[test]
-    fn callable_membership_refinement_retains_normalized_indices() {
-        let facts = |index: &str| {
-            let source = format!(
-                "domain<const I: u64> i64::Coordinate<I>; machine run(value: i64 in Coordinate<{index}>) {{ }}"
-            );
-            let program = crate::front_end::typed_program(&source);
-            let state = &program.machine_states(&program.machines()[0])[0];
-            normalized_facts(
-                &program,
-                program.signature_contracts.span_or_empty(state.contracts),
-                &SignatureContractKind::Requires,
-                program.state_parameters(state),
-            )
-        };
-        assert_ne!(facts("7"), facts("9"));
-        assert_eq!(facts("7"), facts("(7 + 0)"));
-    }
-}

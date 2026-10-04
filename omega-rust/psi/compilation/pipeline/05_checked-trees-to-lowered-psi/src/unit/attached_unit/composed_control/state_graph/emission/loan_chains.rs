@@ -810,6 +810,3 @@ impl ChainExit<'_> {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

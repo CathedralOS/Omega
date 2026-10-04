@@ -9,8 +9,6 @@ use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use validation::{CallFrameResolver, LocalWriteSource};
 
-#[cfg(test)]
-mod tests;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 fn reference_type(

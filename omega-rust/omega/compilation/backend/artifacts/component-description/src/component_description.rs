@@ -1724,6 +1724,3 @@ pub fn description_semantic_fingerprint(
 ) -> Result<SemanticFingerprint, DescribeError> {
     Ok(description_subject(description)?.program_fingerprint)
 }
-
-#[cfg(test)]
-mod tests;

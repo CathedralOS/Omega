@@ -79,9 +79,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::relocate_selected_commuting_members;
 pub use validation::validate_commuting_relocation;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted commuting run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedCommutingRelocation {

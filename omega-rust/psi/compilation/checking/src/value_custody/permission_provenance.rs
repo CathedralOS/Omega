@@ -4,9 +4,6 @@ use language_semantics::PermissionProvenance;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Calls, records and arrays retain a common existing operand origin. Operands
 /// without an origin do not contribute; differing origins yield no common one.
 /// The caller resolves live places and decides how a missing origin establishes

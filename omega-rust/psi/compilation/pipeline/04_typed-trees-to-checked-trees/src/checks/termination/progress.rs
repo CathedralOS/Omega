@@ -12,8 +12,6 @@ mod lineage;
 mod machine_summaries;
 mod origins;
 mod qualification_correspondences;
-#[cfg(test)]
-mod tests;
 
 use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
 use diagnostics::Diagnostic;

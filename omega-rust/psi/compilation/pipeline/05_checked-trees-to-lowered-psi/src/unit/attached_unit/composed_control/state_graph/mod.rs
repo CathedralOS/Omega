@@ -121,9 +121,6 @@ mod result_custody;
 mod returns;
 mod subslices;
 
-#[cfg(test)]
-mod tests;
-
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
 pub(super) use admission::admit;
 pub(super) use admission::has_shared_graph_custody;

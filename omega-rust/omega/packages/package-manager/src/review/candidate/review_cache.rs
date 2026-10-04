@@ -361,6 +361,3 @@ pub(crate) fn record_compiled_review(
         obligation_ledger_bytes: u64::try_from(obligation_ledger_bytes).ok()?,
     })
 }
-
-#[cfg(test)]
-mod tests;

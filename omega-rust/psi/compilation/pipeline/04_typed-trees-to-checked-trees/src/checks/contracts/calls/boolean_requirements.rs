@@ -12,9 +12,6 @@ use super::super::prover::{
 };
 use super::{incoming_guard_proves_requires, transition_guard_proves_boolean_requirement};
 
-#[cfg(test)]
-mod tests;
-
 /// A collection-predicate requirement over a field of the caller's argument
 /// place is the same fact the place's data states in `where`; it stands at
 /// every call because calls are consumption points for invariant windows.

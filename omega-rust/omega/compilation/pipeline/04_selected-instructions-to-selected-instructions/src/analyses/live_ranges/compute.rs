@@ -28,11 +28,6 @@ use fragments::{
 };
 use function::compute_function;
 
-#[cfg(test)]
-std::thread_local! {
-    pub(crate) static REUSED_FUNCTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
@@ -54,9 +49,6 @@ pub(crate) fn compute_terminal_live_ranges(
         functions,
     })
 }
-
-#[cfg(test)]
-mod tests;
 
 pub(crate) fn compute_terminal_live_ranges_reusing(
     previous: &impl crate::ValidatedSelectedAnalysis,
@@ -92,8 +84,6 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
                 && previous_liveness.plan().functions.get(function_index) == Some(live)
                 && let Some(facts) = prior.functions.get(function_index)
             {
-                #[cfg(test)]
-                REUSED_FUNCTIONS.set(REUSED_FUNCTIONS.get() + 1);
                 return Ok(facts.clone());
             }
             compute_function(function_index, function, live)

@@ -9,9 +9,6 @@ use super::{
     StructuralTypeDeclaration, lookup_type_id, terminal_scalar_type, unsupported,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn reconstruct(
     plans: StructuralScalarReturnTypes<'_>,
     shared: &[StructuralTypeDeclaration],

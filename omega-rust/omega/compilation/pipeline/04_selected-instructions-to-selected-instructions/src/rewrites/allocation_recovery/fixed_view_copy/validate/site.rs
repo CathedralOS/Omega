@@ -10,9 +10,6 @@ use selected_instructions::{SelectedInstructionId, VirtualRegisterId, VirtualReg
 use crate::{FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError};
 use selected_instructions::VirtualFixedConstraintSite;
 
-#[cfg(test)]
-mod tests;
-
 /// Rebuild the copy sequence the producer admits for the selected site
 /// policy and apply it to `output_function`; every premise is re-derived from
 /// the source function and the authenticated boundary rows.

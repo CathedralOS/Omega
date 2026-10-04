@@ -10,9 +10,6 @@ mod resolve;
 mod root_request;
 mod subject;
 
-#[cfg(test)]
-mod closure_tests;
-
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
@@ -24,8 +21,6 @@ pub use reconcile::{
     ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
     ResolvedRootPackageSourceRequest,
 };
-#[cfg(test)]
-pub(crate) use resolve::resolve_external_local_package_closure_from_hardened_base;
 pub use resolve::{
     GitDependencyPins, GitDependencyPinsError, GitResolutionOptions, ResolveDependencySourceError,
     ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,

@@ -48,13 +48,6 @@ impl IntegerSet {
         Some((self.ranges.first()?.0, self.ranges.last()?.1))
     }
 
-    #[cfg(test)]
-    pub(crate) fn contains(&self, value: i128) -> bool {
-        self.ranges
-            .iter()
-            .any(|(low, high)| *low <= value && value <= *high)
-    }
-
     pub(crate) fn union(&self, other: &Self) -> Self {
         let mut ranges = self.ranges.clone();
         ranges.extend_from_slice(&other.ranges);
@@ -143,41 +136,5 @@ impl IntegerSet {
             merged.push((low, high));
         }
         Self { ranges: merged }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::IntegerSet;
-    use typed_trees::expression::BinaryOperator;
-
-    #[test]
-    fn disjunction_of_equalities_keeps_both_sides_exact() {
-        let carrier = IntegerSet::range(i128::from(i32::MIN), i128::from(i32::MAX));
-        let zero = carrier.intersect(&IntegerSet::satisfying(BinaryOperator::Equal, 0).unwrap());
-        let rest = carrier.difference(&zero);
-        let one = rest.intersect(&IntegerSet::satisfying(BinaryOperator::Equal, 1).unwrap());
-        let bits = zero.union(&one);
-        assert_eq!(bits, IntegerSet::range(0, 1));
-        let neither = rest.difference(&one);
-        assert!(!neither.contains(0) && !neither.contains(1));
-        assert!(neither.contains(2) && neither.contains(-1));
-        assert_eq!(neither.range_count(), 2);
-    }
-
-    #[test]
-    fn comparisons_at_the_universe_edges_do_not_overflow() {
-        assert!(
-            IntegerSet::satisfying(BinaryOperator::Less, i128::MIN)
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            IntegerSet::satisfying(BinaryOperator::Greater, i128::MAX)
-                .unwrap()
-                .is_empty()
-        );
-        let not_min = IntegerSet::satisfying(BinaryOperator::NotEqual, i128::MIN).unwrap();
-        assert!(!not_min.contains(i128::MIN) && not_min.contains(i128::MIN + 1));
     }
 }

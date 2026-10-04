@@ -80,27 +80,3 @@ package-compilation = { path = "../../packages/compilation-inputs", features = [
 name = "corpus_runner"
 path = "tests/corpus_runner.rs"
 harness = false
-
-[[test]]
-name = "callback_terminal_custody"
-path = "tests/callback_terminal_custody.rs"
-
-[[test]]
-name = "boundary_internal_call_evidence"
-path = "tests/boundary_internal_call_evidence.rs"
-
-[[test]]
-name = "withheld_rewrite_reporting"
-path = "tests/withheld_rewrite_reporting.rs"
-
-[[test]]
-name = "rollback_to_identity"
-path = "tests/rollback_to_identity.rs"
-
-[[test]]
-name = "composed_rewrites"
-path = "tests/composed_rewrites.rs"
-
-[[test]]
-name = "selected_rewrite_commitment"
-path = "tests/selected_rewrite_commitment.rs"

@@ -7,9 +7,6 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn build_contract_call_facts(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,

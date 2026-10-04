@@ -4,9 +4,6 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {

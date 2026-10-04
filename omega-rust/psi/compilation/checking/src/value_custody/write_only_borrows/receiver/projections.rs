@@ -8,8 +8,6 @@ use super::{
     DataDefinition, Diagnostic, ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot,
     bare_field, write_only_record,
 };
-#[cfg(test)]
-mod tests;
 
 /// How far a non-observing projected address may descend through fixed-array
 /// elements. `MembersOnly` serves content-independent record-field places:

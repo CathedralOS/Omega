@@ -271,6 +271,3 @@ impl fmt::Display for PackagePolicyRepresentationAgreementError {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

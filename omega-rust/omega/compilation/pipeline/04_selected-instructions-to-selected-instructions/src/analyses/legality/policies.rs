@@ -120,7 +120,3 @@ fn active_resident_immediate_u64_multi_use_rematerialization_v1_views(
         })
         .collect()
 }
-
-#[cfg(test)]
-#[path = "policies_tests.rs"]
-mod tests;

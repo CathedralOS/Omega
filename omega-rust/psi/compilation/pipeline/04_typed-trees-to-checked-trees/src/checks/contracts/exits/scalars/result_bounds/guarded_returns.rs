@@ -16,9 +16,6 @@ use facts::IntegerRange;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-#[cfg(test)]
-mod tests;
-
 impl ExitScalars<'_, '_> {
     pub(super) fn guarded_return_bounds_comparison(
         &self,

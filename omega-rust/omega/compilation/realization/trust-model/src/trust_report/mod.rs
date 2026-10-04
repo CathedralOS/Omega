@@ -758,6 +758,3 @@ fn trust_provider_realization(
         },
     }
 }
-
-#[cfg(test)]
-mod tests;

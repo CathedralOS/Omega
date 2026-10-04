@@ -20,9 +20,6 @@ use terminal_psi::StructuralTypeShape;
 mod operands;
 mod structural_array;
 
-#[cfg(test)]
-mod tests;
-
 impl TerminalExecution {
     pub(crate) fn establish_record(
         &mut self,

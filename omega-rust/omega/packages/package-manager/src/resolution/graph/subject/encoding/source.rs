@@ -298,30 +298,3 @@ fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
         package_source::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        Decoder, Encoder, GitCommitId, GitTreeId, ImmutableSourceResolution, decode_resolution,
-        encode_resolution,
-    };
-
-    #[test]
-    fn canonical_git_resolution_rejects_content_not_derived_from_its_tree() {
-        let resolution = ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(&"01".repeat(20)).unwrap(),
-            GitTreeId::parse_hex(&"02".repeat(20)).unwrap(),
-        )
-        .unwrap();
-        let mut encoder = Encoder::new();
-        encode_resolution(&mut encoder, &resolution).unwrap();
-        let mut encoded = encoder.finish();
-
-        let mut decoder = Decoder::new(&encoded);
-        assert_eq!(decode_resolution(&mut decoder).unwrap(), resolution);
-        decoder.finish().unwrap();
-
-        *encoded.last_mut().unwrap() ^= 1;
-        assert!(decode_resolution(&mut Decoder::new(&encoded)).is_err());
-    }
-}

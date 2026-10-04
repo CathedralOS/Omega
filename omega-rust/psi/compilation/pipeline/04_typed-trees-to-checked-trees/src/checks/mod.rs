@@ -72,40 +72,6 @@ pub(crate) use multiplicity::{
 pub(crate) use ranges::enter_root_currency_scope;
 pub(crate) use ranges::incoming_guards::IncomingGuardIndexCache;
 
-#[cfg(test)]
-pub(crate) use multiplicity::validate_linear_permission_events;
-
-#[cfg(test)]
-pub(crate) fn check_checked_facts(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut scratch = facts.clone();
-    check_checked_facts_recording(program, &mut scratch)
-}
-
-/// Complete a legacy unit fixture that was assembled below the checked-tree
-/// construction boundary, then run the ordinary independent validator.
-/// Production checked trees never use this helper.
-#[cfg(test)]
-pub(crate) fn check_unretained_borrow_fixture_facts(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut scratch = facts.clone();
-    borrows::initialize_checked_direct_borrow_resources(
-        program,
-        &mut scratch,
-        &crate::flow::StateMutationSummaryCache::default(),
-    )?;
-    borrows::initialize_checked_borrow_call_certificates(
-        program,
-        &mut scratch,
-        &IncomingGuardIndexCache::default(),
-    );
-    check_checked_facts_recording(program, &mut scratch)
-}
-
 pub(crate) fn initialize_checked_direct_borrow_resources(
     program: &typed_trees::TypedTrees,
     facts: &mut checked_trees::CheckFacts,
@@ -148,21 +114,6 @@ pub fn replay_checked_borrow_certificates(
     )
 }
 
-#[cfg(test)]
-pub(crate) fn check_checked_facts_recording(
-    program: &typed_trees::TypedTrees,
-    facts: &mut checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    check_checked_facts_recording_with_crash_admission(
-        program,
-        facts,
-        true,
-        &crate::flow::StateMutationSummaryCache::default(),
-        &IncomingGuardIndexCache::default(),
-        &[],
-    )
-}
-
 /// Check-stage entry for callers that already retain the pass's shared
 /// mutation summary table. The summaries depend only on the immutable typed
 /// program and the borrow facts, so the same table answers fact construction,
@@ -181,21 +132,6 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         mutation_summaries,
         guard_index,
         proven_machine_contracts,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn check_checked_facts_recording_without_crash_admission(
-    program: &typed_trees::TypedTrees,
-    facts: &mut checked_trees::CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    check_checked_facts_recording_with_crash_admission(
-        program,
-        facts,
-        false,
-        &crate::flow::StateMutationSummaryCache::default(),
-        &IncomingGuardIndexCache::default(),
-        &[],
     )
 }
 

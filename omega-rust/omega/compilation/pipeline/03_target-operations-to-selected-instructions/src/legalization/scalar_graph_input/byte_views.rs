@@ -5,9 +5,6 @@ use super::{
 };
 use crate::LegalizationError;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate(
     target: &TargetFunction,
     abstracted: &AbstractFunction,

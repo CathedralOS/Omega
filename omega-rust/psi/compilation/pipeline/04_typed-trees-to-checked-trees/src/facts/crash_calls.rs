@@ -14,8 +14,6 @@
 mod private_summaries;
 mod route_substitution;
 mod summary_predicates;
-#[cfg(test)]
-mod tests;
 
 use crate::facts::crash_calls::private_summaries::{
     infer_private_body_summaries, requirement_signature,

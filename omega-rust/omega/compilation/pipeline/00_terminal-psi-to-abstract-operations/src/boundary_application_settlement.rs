@@ -10,9 +10,6 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
-#[cfg(test)]
-mod tests;
-
 /// Evidence needed to settle boundary applications for one selected target.
 /// No compiler coordinator or mutable checking context is retained.
 pub struct BoundaryApplicationSettlement<'input> {

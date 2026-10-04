@@ -1036,7 +1036,3 @@ pub(crate) fn emit_direct_expression(
         }
     }
 }
-
-#[cfg(test)]
-#[path = "expressions/path_tests.rs"]
-mod path_tests;

@@ -11,9 +11,6 @@ use checked_trees::{
     CheckedUnitPlanOmissionStage,
 };
 
-#[cfg(test)]
-mod tests;
-
 struct CandidateClosure {
     // Symbols are sparse across the complete program; candidate ordinals are
     // dense and private to this invocation. Only initially unique live entries

@@ -117,33 +117,3 @@ fn encode_contract_static_argument_body(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Encoder, PackageReviewContractStaticArgument, encode_contract_static_argument};
-
-    fn encoded(argument: PackageReviewContractStaticArgument) -> Vec<u8> {
-        let mut encoder = Encoder::bounded(16);
-        encode_contract_static_argument(&mut encoder, &argument)
-            .expect("encode contract static argument");
-        encoder.finish().expect("bounded static-argument bytes")
-    }
-
-    #[test]
-    fn boolean_static_arguments_have_a_distinct_closed_tag_and_value_byte() {
-        assert_eq!(
-            encoded(PackageReviewContractStaticArgument::ConstBoolean(false)),
-            [7, 0]
-        );
-        assert_eq!(
-            encoded(PackageReviewContractStaticArgument::ConstBoolean(true)),
-            [7, 1]
-        );
-        assert_ne!(
-            encoded(PackageReviewContractStaticArgument::ConstBoolean(true)),
-            encoded(PackageReviewContractStaticArgument::ConstInteger(
-                "1".to_owned()
-            ))
-        );
-    }
-}

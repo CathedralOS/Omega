@@ -78,8 +78,6 @@ impl OperatorCandidateTemplates {
         if selected.is_empty() {
             return None;
         }
-        #[cfg(test)]
-        tests::record_preparation();
         // Infer against the complete authored graph before saved-call replay
         // can redirect a call to an instance owned only by the live program.
         let operational = validation::infer_operational_may(program);
@@ -178,8 +176,6 @@ pub(crate) fn specialize_operator_candidates(
         }
         // Replay and type imports mutate this request's graph. Keep that
         // working copy separate from the immutable authority and other requests.
-        #[cfg(test)]
-        tests::record_working_copy();
         let mut source = templates.clone();
         saved_calls::replay(&mut source, program, &template_machine);
         let mut concrete = Vec::<(SpecializationKey, Candidate)>::new();
@@ -357,9 +353,6 @@ fn materialized_application(
     }
     has_materialized_specialization(program, machine.symbol, requirement, &key)
 }
-
-#[cfg(test)]
-mod tests;
 
 fn copy_application_types(
     program: &TypedTrees,

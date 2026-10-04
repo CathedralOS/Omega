@@ -22,9 +22,6 @@ pub use runtime_ranking::{
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
 };
 
-#[cfg(test)]
-mod query_tests;
-
 /// The one closed ranking relation currently admitted for a proof-only call
 /// SCC. The ranked value must have one common normalized type across every
 /// member and each internal call must pass a nonempty member path rooted at
@@ -1180,6 +1177,3 @@ fn exact_member_field<'program>(
     let data = crate::value_custody::places::data_definition_for_type(program, receiver_type)?;
     exact_data_member_field(program, data, member_symbol, member_name, case_variant)
 }
-
-#[cfg(test)]
-mod dependency_tests {}

@@ -1117,9 +1117,6 @@ fn place_machine_symbol(
     None
 }
 
-#[cfg(test)]
-mod tests;
-
 /// A call's formal-to-actual environment is simultaneous: the replacement
 /// already belongs to the caller, including when caller and callee coincide.
 pub(super) fn substituted_required_reference<'bindings>(

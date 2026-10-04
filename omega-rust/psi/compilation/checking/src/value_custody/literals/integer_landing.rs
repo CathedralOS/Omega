@@ -23,9 +23,6 @@ mod destinations;
 pub(crate) use destinations::anonymous_integer_landing_warnings;
 pub(super) use destinations::append_destination_literals;
 
-#[cfg(test)]
-mod tests;
-
 /// Render a wholly anonymous numeric expression at its first fixed-integer
 /// destination. The caller owns operator-selection evidence. No named value,
 /// cast, call, prior landing, or target-semantic observation is evaluated here.

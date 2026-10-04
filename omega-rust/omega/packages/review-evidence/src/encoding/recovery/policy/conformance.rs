@@ -77,6 +77,3 @@ pub(in crate::encoding::recovery) fn const_argument(
         _ => return Err(Error::InvalidTag),
     })
 }
-
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;

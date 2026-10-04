@@ -12,8 +12,6 @@ use crate::layouts::materialization::const_record_with_nested_sum_materializable
     child_materializations_match_for_replay, record_sum_paths_reports_match_for_replay,
     recursive_level_materialization_report_fingerprint,
 };
-#[cfg(test)]
-mod tests;
 
 /// Complete value-sensitive custody for one recursive record level: the
 /// retained recursive report beside the level's authored-order child

@@ -17,9 +17,6 @@ pub(crate) use call_custody::DependencyValue;
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
-#[cfg(test)]
-mod tests;
-
 use std::sync::Arc;
 
 use arena::HandleSpan;

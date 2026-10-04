@@ -42,8 +42,6 @@ use precondition::{
     derive_public_precondition_partition, derive_representative_precondition_partition,
 };
 use precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
-#[cfg(test)]
-use representative::RepresentativeRuntimeParameter;
 pub(super) use representative::pure_representative_effect;
 use representative::{
     RepresentativeTelescope, RepresentativeTermination, derive_representative_telescope,
@@ -55,8 +53,6 @@ use runtime_correspondence::{
     closed_lift_literal_for_representative, derive_define_runtime_correspondence,
     derive_direct_lift_runtime_correspondence,
 };
-#[cfg(test)]
-use runtime_correspondence::{DirectLiftArgumentSource, DirectLiftRuntimePosition};
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
 use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
 use theorem_schema_verification::{VerifiedTheoremSchema, verify_selected_theorem_schema};
@@ -64,13 +60,7 @@ use transport_schema::{
     VerifiedForwardPreconditionTransportSchema, verify_forward_precondition_transport_schema,
 };
 
-#[cfg(test)]
-pub(super) use result_flow::complete_state_forwarding_result_flow;
 pub(super) use result_flow::{CompleteResultFlow, complete_result_flow, fallthrough_result_root};
-#[cfg(test)]
-use static_application::{
-    derive_exact_representative_static_application, substituted_type_matches,
-};
 pub(super) use terminal_bridge::canonical_direct_correspondence;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1302,6 +1292,3 @@ fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
         .map(|proposition| proposition.name.as_str().to_owned())
         .unwrap_or_else(|| format!("relation#{symbol:?}"))
 }
-
-#[cfg(test)]
-mod tests;

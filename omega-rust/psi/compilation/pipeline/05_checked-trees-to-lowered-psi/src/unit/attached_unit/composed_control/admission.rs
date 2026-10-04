@@ -19,9 +19,6 @@ use super::super::{
 use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
     plan: &checked_trees::CheckedDynamicScalarCallPlan,

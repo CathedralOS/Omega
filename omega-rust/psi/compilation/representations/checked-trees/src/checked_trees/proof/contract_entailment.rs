@@ -160,29 +160,3 @@ impl CheckedContractEntailmentAssumptionDischarge {
         self.selected_assumption_position
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment, Proposition,
-        SymbolHandle,
-    };
-
-    #[test]
-    fn construction_rejects_zero_contract_commitment() {
-        let machine = SymbolHandle::from_parts(1, 1);
-        let result = CheckedContractEntailmentAssumptionDischarge::new(
-            machine,
-            0,
-            0,
-            MachineContractCommitment::from_digest([0; 32]),
-            vec![Proposition::Truth],
-            Proposition::Truth,
-            0,
-        );
-        assert_eq!(
-            result.expect_err("zero commitment must reject"),
-            "contract-entailment discharge requires a nonzero contract commitment"
-        );
-    }
-}

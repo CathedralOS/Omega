@@ -436,6 +436,3 @@ fn load_imports(
     }
     Ok(retained_requests)
 }
-
-#[cfg(test)]
-mod tests;

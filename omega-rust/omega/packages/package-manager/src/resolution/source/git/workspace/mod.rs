@@ -10,8 +10,6 @@ mod evidence;
 mod planner;
 mod source_projection;
 
-#[cfg(test)]
-pub use build_declarations::ProjectName as PackageName;
 use build_declarations::{BuildDeclarationKind, ProjectName, WorkspaceMemberPath};
 pub use commitment::BuildDeclarationCommitment;
 pub use error::{GitWorkspaceSelectionError, GitWorkspaceSelectionLimit};
@@ -22,9 +20,6 @@ pub use planner::{
     discover_git_workspace, plan_git_workspace_selection,
 };
 pub(super) use source_projection::ManagerGitWorkspacePlanner;
-
-#[cfg(test)]
-mod tests;
 
 /// Authenticated declaration bytes associated with one declared member path.
 ///

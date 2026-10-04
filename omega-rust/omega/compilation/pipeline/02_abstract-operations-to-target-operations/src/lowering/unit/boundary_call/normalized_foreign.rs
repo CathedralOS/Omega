@@ -6,8 +6,6 @@ use super::super::super::structural_layout::{
     borrowed_view_field_offset, byte_sequence_shape, resolve_structural_projection_path,
     structural_parameter_shape, structural_shape,
 };
-#[cfg(test)]
-use super::KnownUnitInteger;
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     NativeTarget, OperationId, PlaceId, StructuralTypeId, StructuralTypeLookup,
@@ -15,8 +13,6 @@ use super::{
     ValueLocation, ValueShape,
 };
 use calling_conventions::ValueClass;
-#[cfg(test)]
-use semantic_vocabulary::BlockId;
 use semantic_vocabulary::MachineId;
 use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
@@ -572,48 +568,6 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
             },
         )
         .collect()
-}
-
-#[cfg(test)]
-pub(super) fn lower_normalized_foreign_scalar_arguments(
-    boundary: BoundaryMachineId,
-    declaration: &terminal_psi::BoundaryMachineDeclaration,
-    arguments: &[ValueId],
-    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
-    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
-) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
-    let scalar_homes = BTreeMap::new();
-    let booleans = BTreeMap::new();
-    let ieee_float_constants = BTreeMap::new();
-    let scalar_block_parameters = BTreeMap::new();
-    lower_normalized_foreign_scalar_arguments_with_result(
-        boundary,
-        declaration,
-        &AbstractFunction {
-            machine: MachineId::new(1).unwrap(),
-            attachment: None,
-            entry: BlockId::new(1).unwrap(),
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: abstract_operations::AbstractFunctionResult::Unit,
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            block_entries: Vec::new(),
-            operations: Vec::new(),
-        },
-        arguments,
-        boundary_entry_plan,
-        &ScalarSources {
-            integers: scalar_values,
-            scalar_homes: &scalar_homes,
-            booleans: &booleans,
-            ieee_float_constants: &ieee_float_constants,
-            scalar_block_parameters: &scalar_block_parameters,
-        },
-        None,
-        &[],
-        &[],
-    )
 }
 
 /// Rejoin normal completion to its semantic result and physical storage.

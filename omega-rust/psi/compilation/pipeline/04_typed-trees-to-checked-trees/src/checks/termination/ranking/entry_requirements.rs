@@ -7,15 +7,6 @@ use crate::checks::termination::ranking::OrderResolution;
 use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::ranges;
 
-#[cfg(test)]
-pub(crate) fn proves_ranked_entry_requirement(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    goal: ExpressionHandle,
-) -> bool {
-    prove(program, machine, goal, None).unwrap_or(false)
-}
-
 pub(crate) fn proves_ranked_entry_requirement_with_call_frames(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,

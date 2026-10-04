@@ -53,29 +53,3 @@ impl PackageSourceInspection {
         report
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::PackageSourceInspection;
-
-    #[test]
-    fn inspection_text_has_no_broker_transfer_placeholders() {
-        let inspection = PackageSourceInspection {
-            source_kind: "git".to_owned(),
-            locator: "https://github.com/cathedralos/arithmetic-kernels.git".to_owned(),
-            transport_profile: Some("https".to_owned()),
-            requested_rev: Some("refs/heads/main".to_owned()),
-            resolved_commit: Some("commit".to_owned()),
-            resolved_tree: Some("tree".to_owned()),
-            content_identity: "content".to_owned(),
-            file_count: 3,
-            byte_count: 512,
-        };
-
-        let report = inspection.to_text();
-        assert!(!report.contains("broker transfer ceiling:"));
-        assert!(!report.contains("broker uploaded bytes:"));
-        assert!(!report.contains("broker downloaded bytes:"));
-        assert!(!report.contains("network transfer"));
-    }
-}

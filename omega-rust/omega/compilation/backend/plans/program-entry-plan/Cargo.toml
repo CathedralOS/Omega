@@ -35,7 +35,3 @@ symbols = { path = "../../../../../psi/foundation/symbols" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
 sha2 = "0.10.9"
 
-[dev-dependencies]
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
-arena = { path = "../../../../../psi/foundation/arena" }
-checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }

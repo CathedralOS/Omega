@@ -22,8 +22,6 @@ pub use native::{
     NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,
     RetainedNativeRealizationRequest,
 };
-#[cfg(test)]
-mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {

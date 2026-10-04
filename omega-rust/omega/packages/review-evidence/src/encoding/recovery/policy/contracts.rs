@@ -15,9 +15,6 @@ use crate::record::{
     PackageReviewResultCaseIdentity,
 };
 
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-
 pub(in crate::encoding::recovery) fn callable_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableContract, Error> {

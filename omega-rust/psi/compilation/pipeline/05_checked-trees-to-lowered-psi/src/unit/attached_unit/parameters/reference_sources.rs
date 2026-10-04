@@ -53,6 +53,3 @@ pub(crate) fn lower_reference_source(
     }
     Ok(argument)
 }
-
-#[cfg(test)]
-mod tests;

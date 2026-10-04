@@ -9,9 +9,6 @@ use crate::proof_contracts::arithmetic_domains::place_paths::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
-mod tests;
-
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the
 /// overflow proof discharge `self.v = 10; self.v += 5` (v is known to be 10, so

@@ -8,14 +8,7 @@
 mod logical_handle_plans;
 mod prepared_calls;
 mod prepared_outputs;
-#[cfg(test)]
-mod tests;
 
-#[cfg(test)]
-pub(crate) use logical_handle_plans::{
-    FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
-    PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandleRetirement,
-};
 pub(crate) use logical_handle_plans::{
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
 };

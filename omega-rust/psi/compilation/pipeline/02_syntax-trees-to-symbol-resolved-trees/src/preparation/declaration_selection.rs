@@ -1004,6 +1004,3 @@ pub(crate) fn has_deferred_const_argument(
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {}

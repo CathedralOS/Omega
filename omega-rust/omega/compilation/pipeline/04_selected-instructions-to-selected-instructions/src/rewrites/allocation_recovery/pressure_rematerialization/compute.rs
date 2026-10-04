@@ -24,8 +24,6 @@ use crate::{
 };
 
 pub(crate) use function_plans::build_functions;
-#[cfg(test)]
-pub(super) use work::{ensure_budget, required_usage};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAnalysis>(

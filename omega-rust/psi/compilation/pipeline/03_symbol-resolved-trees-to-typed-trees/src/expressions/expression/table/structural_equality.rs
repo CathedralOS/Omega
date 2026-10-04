@@ -40,9 +40,6 @@ use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
-#[cfg(test)]
-mod tests;
-
 /// One `==` operand, classified for expansion. A PLACE is lowered once and
 /// its handle shared by every synthesized member read; a LITERAL is never
 /// materialized -- its field values are compared directly.

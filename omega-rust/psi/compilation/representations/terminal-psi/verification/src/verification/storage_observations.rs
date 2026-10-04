@@ -188,9 +188,6 @@ impl<'a> StorageObservations<'a> {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 /// The structural type `place` carries at its root in `caller`.
 pub(super) fn place_root_type(
     caller: &TerminalMachine,

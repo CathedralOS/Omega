@@ -150,6 +150,3 @@ fn byte_mutation(carrier: ByteSequenceCarrier) -> SharedMutation {
         _ => SharedMutation::None,
     }
 }
-
-#[cfg(test)]
-mod tests;

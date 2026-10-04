@@ -475,6 +475,3 @@ fn compiler_intrinsic_execution_identity(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

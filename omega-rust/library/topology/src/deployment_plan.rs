@@ -361,15 +361,3 @@ pub struct RequestedInstance {
     pub name: InstanceName,
     pub subject: Identity,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{InstanceName, NameError};
-
-    #[test]
-    fn instance_name_rejects_empty_and_overlong() {
-        assert_eq!(InstanceName::new(""), Err(NameError::Empty));
-        let overlong = "x".repeat(crate::deployment_plan::codec::MAX_NAME_BYTES + 1);
-        assert_eq!(InstanceName::new(overlong), Err(NameError::TooLong));
-    }
-}

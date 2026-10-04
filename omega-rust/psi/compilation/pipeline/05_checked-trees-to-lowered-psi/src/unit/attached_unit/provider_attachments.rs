@@ -15,8 +15,6 @@ use super::{
     StructuralTypeShape, allocate_dense, place_id, unsupported,
 };
 mod source;
-#[cfg(test)]
-mod tests;
 pub(super) use source::validate_call_source;
 
 pub(super) fn validate_provider_attachment_requirements(

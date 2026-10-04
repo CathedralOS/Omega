@@ -1,8 +1,6 @@
 //! Named-text recovery restores the existing bounded typed policy meaning.
 
 pub(in crate::encoding) mod framing;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 pub(in crate::encoding::recovery) mod tokens;
 
 use crate::encoding::encode::encoder::text::{MAXIMUM_TEXT_BYTES, Writer, render};

@@ -60,6 +60,3 @@ pub(super) fn append(
     typed.target_machine_families.extend(families);
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

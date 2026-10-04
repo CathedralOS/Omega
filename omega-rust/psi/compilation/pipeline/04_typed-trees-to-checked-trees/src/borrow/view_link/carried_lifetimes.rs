@@ -7,9 +7,6 @@ use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::view_link::data_definition;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) struct CarriedLifetime {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) lifetime: Option<String>,

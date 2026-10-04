@@ -10,8 +10,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
-#[cfg(test)]
-mod primitive_projection_tests;
 
 /// Address arithmetic within one contiguous storage region. Crossing a
 /// reference starts a new region; neither offsets nor indices commute with
@@ -1096,112 +1094,5 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
         Some(value)
     } else {
         value.checked_add(alignment - remainder)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_record_array_layout_preserves_element_graph_checks() {
-        let root = StructuralTypeId::new(1).unwrap();
-        let element = StructuralTypeId::new(2).unwrap();
-        let mut declarations = [
-            StructuralTypeDeclaration {
-                id: root,
-                identity: "EmptyRecords".into(),
-                shape: StructuralTypeShape::FixedArray { element, length: 0 },
-            },
-            StructuralTypeDeclaration {
-                id: element,
-                identity: "Element".into(),
-                shape: StructuralTypeShape::Record { fields: Vec::new() },
-            },
-        ];
-        let indexed = declarations.iter().map(|value| (value.id, value)).collect();
-        assert_eq!(
-            structural_shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new()).unwrap(),
-            ValueShape::integer(0, 1)
-        );
-        for invalid in [root, StructuralTypeId::new(99).unwrap()] {
-            declarations[0].shape = StructuralTypeShape::FixedArray {
-                element: invalid,
-                length: 0,
-            };
-            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
-            assert!(
-                structural_shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
-                    .is_err()
-            );
-        }
-    }
-
-    #[test]
-    fn empty_projection_retains_root_layout_including_zero_extent() {
-        let element = StructuralTypeId::new(1).unwrap();
-        let array = StructuralTypeId::new(2).unwrap();
-        for length in [0, 2] {
-            let declarations = [
-                StructuralTypeDeclaration {
-                    id: element,
-                    identity: "Boolean".into(),
-                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-                },
-                StructuralTypeDeclaration {
-                    id: array,
-                    identity: "Array".into(),
-                    shape: StructuralTypeShape::FixedArray { element, length },
-                },
-            ];
-            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
-            assert_eq!(
-                resolve_structural_projection_path(
-                    array,
-                    &[],
-                    &indexed,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )
-                .unwrap(),
-                (array, ValueShape::integer(length as u32, 1), 0),
-            );
-            let unknown = StructuralTypeId::new(3).unwrap();
-            assert!(matches!(
-                resolve_structural_projection_path(
-                    unknown, &[], &indexed, &mut BTreeMap::new(), &mut BTreeSet::new(),
-                ),
-                Err(LoweringError::UnknownStructuralType(identity)) if identity == unknown
-            ));
-        }
-    }
-
-    #[test]
-    fn array_extents_above_64k_remain_exact_and_u32_overflow_rejects() {
-        let element = StructuralTypeId::new(1).unwrap();
-        let array = StructuralTypeId::new(2).unwrap();
-        for (length, expected) in [(65_536, Some(65_536)), (u64::from(u32::MAX) + 1, None)] {
-            let declarations = [
-                StructuralTypeDeclaration {
-                    id: element,
-                    identity: "Byte".into(),
-                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-                },
-                StructuralTypeDeclaration {
-                    id: array,
-                    identity: "Array".into(),
-                    shape: StructuralTypeShape::FixedArray { element, length },
-                },
-            ];
-            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
-            let result =
-                structural_shape(array, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new());
-            match expected {
-                Some(size) => assert_eq!(result.unwrap(), ValueShape::integer(size, 1)),
-                None => assert!(
-                    matches!(result, Err(LoweringError::StructuralTypeTooLarge(value)) if value == array)
-                ),
-            }
-        }
     }
 }

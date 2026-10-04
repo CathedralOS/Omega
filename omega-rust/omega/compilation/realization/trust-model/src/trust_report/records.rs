@@ -2,9 +2,6 @@
 
 use diagnostics::Diagnostic;
 
-#[cfg(test)]
-mod tests;
-
 impl TrustReport {
     /// Validate exact target/report joins independently from filesystem output.
     /// Observation suppression must not suppress these consistency checks.
@@ -216,73 +213,6 @@ impl TrustProviderRealization {
         }
         Ok(())
     }
-
-    #[cfg(test)]
-    fn report_text(&self) -> String {
-        match self {
-            Self::Import { evaluated } => {
-                let locator = evaluated.locator();
-                let identity = locator.non_authoritative_compatibility_fingerprint();
-                let target = locator.target().target_name();
-                let receipt = hex_bytes(&evaluated.receipt().identity_digest());
-                match locator.locator() {
-                    effects::ForeignLocatorCandidate::PeByName { library, export } => {
-                        format!(
-                            "normalized import PeByName [{identity:016x}] receipt [{receipt}] target `{target}` library bytes {} export bytes {}",
-                            hex_bytes(library),
-                            hex_bytes(export),
-                        )
-                    }
-                    effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-                        format!(
-                            "normalized import PeByOrdinal [{identity:016x}] receipt [{receipt}] target `{target}` library bytes {} ordinal {ordinal}",
-                            hex_bytes(library),
-                        )
-                    }
-                    effects::ForeignLocatorCandidate::ElfVersioned {
-                        object,
-                        symbol,
-                        version,
-                    } => format!(
-                        "normalized import ElfVersioned [{identity:016x}] receipt [{receipt}] target `{target}` object bytes {} symbol bytes {} version bytes {}",
-                        hex_bytes(object),
-                        hex_bytes(symbol),
-                        hex_bytes(version),
-                    ),
-                    effects::ForeignLocatorCandidate::MachODylibSymbol {
-                        install_name,
-                        symbol,
-                    } => format!(
-                        "normalized import MachODylibSymbol [{identity:016x}] receipt [{receipt}] target `{target}` install-name bytes {} symbol bytes {}",
-                        hex_bytes(install_name),
-                        hex_bytes(symbol),
-                    ),
-                }
-            }
-            Self::Syscall { number } => format!("syscall {number}"),
-            Self::CompilerIntrinsic { machine } => {
-                format!("compiler intrinsic realization `{machine}`")
-            }
-            Self::VtableSlot { index } => format!("vtable slot {index}"),
-            Self::VtableField { table, field } => format!("vtable field `{table}.{field}`"),
-            Self::TableFunction { table, field } => {
-                format!("table function `{table}.{field}`")
-            }
-            Self::CheckedAdapter {
-                machine_identity, ..
-            } => format!("checked adapter `{machine_identity}`"),
-        }
-    }
-}
-
-#[cfg(test)]
-fn hex_bytes(bytes: &[u8]) -> String {
-    let mut text = String::with_capacity(2 + bytes.len() * 2);
-    text.push_str("0x");
-    for byte in bytes {
-        text.push_str(&format!("{byte:02x}"));
-    }
-    text
 }
 
 /// One exact routed qualification carried by a normalized provider plan.

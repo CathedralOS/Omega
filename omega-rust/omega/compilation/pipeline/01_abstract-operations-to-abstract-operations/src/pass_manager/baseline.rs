@@ -14,6 +14,3 @@ pub(super) fn choose_baseline(candidates: &[ValidatedCandidateSummary]) -> Basel
             |candidate| BaselineDecisionOutcome::Choose(candidate.candidate),
         )
 }
-
-#[cfg(test)]
-mod tests {}

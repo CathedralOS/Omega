@@ -270,6 +270,3 @@ fn exact_operation<'program>(
     };
     Ok(*machine)
 }
-
-#[cfg(test)]
-mod tests;

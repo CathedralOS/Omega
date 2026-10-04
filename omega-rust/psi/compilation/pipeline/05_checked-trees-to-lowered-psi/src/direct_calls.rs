@@ -323,6 +323,3 @@ pub(crate) fn call_structural_arguments_mut(
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

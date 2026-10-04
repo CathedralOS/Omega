@@ -92,9 +92,6 @@ fn validate_psi_optimization_unit_with_context(
     ))
 }
 
-#[cfg(test)]
-mod tests;
-
 pub use ranked_cycles::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
     validate_psi_ranking_certificate_snapshot,

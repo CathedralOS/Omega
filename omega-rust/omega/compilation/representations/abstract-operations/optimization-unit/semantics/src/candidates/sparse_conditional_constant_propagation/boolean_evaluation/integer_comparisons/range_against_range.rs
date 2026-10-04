@@ -2,14 +2,6 @@
 
 mod semantics;
 
-#[cfg(test)]
-pub(crate) use semantics::ValidatedIntegerRangePairComparisonKind;
-#[cfg(test)]
-pub(crate) use semantics::{
-    classify as independently_validated_integer_range_pair_comparison_kind,
-    evaluate as independently_evaluate_integer_range_pair_comparison,
-};
-
 use optimization_core::{AnalysisKind, OptimizationSafetyClass, ValueRangeFactIdentity};
 use optimization_unit::{
     NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,

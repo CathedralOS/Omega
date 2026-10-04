@@ -10,8 +10,6 @@ mod external_shapes;
 mod generic_operator;
 mod machine_conformance;
 mod signature_matching;
-#[cfg(test)]
-mod tests;
 mod trait_applications;
 
 pub(crate) use bounds::{

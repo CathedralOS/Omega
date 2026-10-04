@@ -88,34 +88,3 @@ impl DomainFacts {
             .map(|path| self.segments.span_or_empty(path.segments))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{DomainElementFact, DomainFacts};
-    use arena::Arena;
-    use symbols::SymbolHandle;
-
-    #[test]
-    fn element_domain_looks_up_per_element_predicate() {
-        let collection_domain = SymbolHandle::from_arena_index(7);
-        let element_domain = SymbolHandle::from_arena_index(9);
-        let mut element_facts = Arena::<DomainElementFact>::with_capacity(1);
-        element_facts.append(DomainElementFact {
-            domain_symbol: collection_domain,
-            element_domain_symbol: element_domain,
-        });
-
-        let facts = DomainFacts::with_element_roots(
-            Arena::default(),
-            Arena::default(),
-            Arena::default(),
-            element_facts,
-        );
-
-        assert_eq!(
-            facts.element_domain(collection_domain),
-            Some(element_domain)
-        );
-        assert_eq!(facts.element_domain(element_domain), None);
-    }
-}

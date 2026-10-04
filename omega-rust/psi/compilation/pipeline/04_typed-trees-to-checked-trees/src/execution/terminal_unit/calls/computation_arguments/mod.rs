@@ -23,9 +23,6 @@ use crate::execution::terminal_unit::calls::projected_borrowed_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_identity};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn structural_computation_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,

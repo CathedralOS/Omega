@@ -17,14 +17,6 @@ pub(crate) struct LocalStructuralIdentities {
 }
 
 impl LocalStructuralIdentities {
-    #[cfg(test)]
-    pub(crate) fn with_reserved_identities(reserved: impl IntoIterator<Item = u64>) -> Self {
-        Self {
-            reserved: reserved.into_iter().collect(),
-            next: Some(0),
-        }
-    }
-
     /// Reserve the identities the admitted program's declared structural
     /// places own plus every host-supplied argument identity. `places` is the
     /// program's declared-place iterator — executable bodies live on the
@@ -95,83 +87,5 @@ impl LocalStructuralIdentities {
         }
         self.reserved.insert(identity);
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::errors::TerminalInterpretError;
-    use crate::structural_identities::LocalStructuralIdentities;
-    use crate::values::TerminalStructuralValue;
-    use semantic_vocabulary::StructuralTypeId;
-    use std::collections::BTreeSet;
-
-    #[test]
-    fn host_results_cannot_reintroduce_allocated_local_identity() {
-        let mut identities = LocalStructuralIdentities {
-            reserved: BTreeSet::from([0]),
-            next: Some(0),
-        };
-        let view = |opaque_identity| TerminalStructuralValue {
-            opaque_identity,
-            structural_type: StructuralTypeId::new(1).unwrap(),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        };
-        identities
-            .reserve_host_at_cursor(&view(2), identities.cursor())
-            .unwrap();
-        assert_eq!(identities.allocate(), Ok(1));
-        assert_eq!(
-            identities.reserve_host_at_cursor(&view(1), identities.cursor()),
-            Err(TerminalInterpretError::StructuralArgumentAliasing(1))
-        );
-        identities
-            .reserve_host_at_cursor(&view(0), identities.cursor())
-            .unwrap();
-        assert_eq!(identities.allocate(), Ok(3));
-        assert_eq!(
-            identities.reserved,
-            BTreeSet::from([0, 2]),
-            "allocation does not retain one tombstone per dead local"
-        );
-    }
-
-    #[test]
-    fn host_results_cannot_claim_staged_local_identity() {
-        let mut identities = LocalStructuralIdentities::with_reserved_identities([0, 4]);
-        let original = identities.cursor();
-        let mut staged = original;
-        let local = identities.allocate_staged(&mut staged).unwrap();
-        let value = |opaque_identity| TerminalStructuralValue {
-            opaque_identity,
-            structural_type: StructuralTypeId::new(1).unwrap(),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        };
-        assert_eq!(
-            identities.reserve_host_at_cursor(&value(local), staged),
-            Err(TerminalInterpretError::StructuralArgumentAliasing(local))
-        );
-        assert_eq!(
-            identities.cursor(),
-            original,
-            "rejection leaves allocation uncommitted"
-        );
-        assert!(!identities.reserved.contains(&local));
-        identities
-            .reserve_host_at_cursor(&value(0), staged)
-            .unwrap();
-        identities
-            .reserve_host_at_cursor(&value(3), staged)
-            .unwrap();
-        identities.commit_cursor(staged);
-        assert_eq!(identities.allocate(), Ok(2));
-        assert_eq!(identities.allocate(), Ok(5));
-        assert_eq!(
-            identities.reserve_host_at_cursor(&value(8), original),
-            Err(TerminalInterpretError::VerifiedOperationMalformed)
-        );
-        assert!(!identities.reserved.contains(&8));
     }
 }

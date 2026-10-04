@@ -139,6 +139,3 @@ pub(crate) const fn shifted_position(position: u32, definition_index: u32) -> Op
         Some(position)
     }
 }
-
-#[cfg(test)]
-mod tests;

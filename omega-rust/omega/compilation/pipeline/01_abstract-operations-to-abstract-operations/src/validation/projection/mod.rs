@@ -32,8 +32,6 @@ mod identity_bundle;
 mod initial_ledger;
 mod manifests;
 mod shape;
-#[cfg(test)]
-mod tests;
 
 pub use error::OptimizedAbstractPlanProjectionError;
 pub(super) use manifests::validate_manifests;

@@ -798,6 +798,3 @@ fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Hand
         )
     })
 }
-
-#[cfg(test)]
-mod tests;

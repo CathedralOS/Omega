@@ -54,24 +54,13 @@ pub(crate) use graph::{
     machine_adjacency, named_transition_target_state_index, strongly_connected_components,
 };
 pub(crate) use ranking::proven_fused_nat_countdown_sccs_with_call_frames;
-#[cfg(test)]
-pub(crate) use ranking::proven_nat_countdown_sccs;
 pub(crate) use ranking::proven_nat_countdown_sccs_with_call_frames;
 pub(crate) use ranking::proven_slice_length_ranks_with_call_frames;
 pub(crate) use ranking::proven_state_natural_ranks_with_call_frames;
-#[cfg(test)]
-pub(crate) use ranking::proves_ranked_entry_requirement;
 pub(crate) use ranking::proves_ranked_entry_requirement_with_call_frames;
 
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;
-
-#[cfg(test)]
-pub(crate) fn check_machine_termination(
-    program: &typed_trees::TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    check_machine_termination_with_call_frames(program, None)
-}
 
 pub(crate) fn check_machine_termination_with_call_frames(
     program: &typed_trees::TypedTrees,

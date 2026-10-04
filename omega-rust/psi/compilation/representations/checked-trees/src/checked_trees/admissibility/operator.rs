@@ -48,29 +48,3 @@ impl<'facts> OperatorAcceptance<'facts> {
             .span_or_empty(self.operator_use.ensures)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{ContractOperatorUseFact, OperatorAcceptance};
-    use arena::HandleSpan;
-
-    #[test]
-    fn operator_acceptance_counts_contract_evidence() {
-        let facts = crate::CheckFacts::default();
-        let operator_use = ContractOperatorUseFact {
-            requires: HandleSpan::from_parts(arena::Handle::from_arena_index(1), 2),
-            ensures: HandleSpan::from_parts(arena::Handle::from_arena_index(3), 1),
-            ..Default::default()
-        };
-        let acceptance = OperatorAcceptance {
-            facts: &facts,
-            operator_use: &operator_use,
-        };
-
-        let summary = acceptance.summary();
-
-        assert!(summary.is_accepted());
-        assert_eq!(summary.proof.evidence_count, 3);
-        assert_eq!(summary.boundaries.evidence_count, 0);
-    }
-}

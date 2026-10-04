@@ -19,8 +19,6 @@ mod computation_arguments;
 mod parameter_argument_paths;
 mod reference_forwarding;
 mod result_arguments;
-#[cfg(test)]
-mod scalar_argument_tests;
 mod service_forward;
 mod signatures;
 mod structural_arguments;

@@ -69,9 +69,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_address;
 pub(crate) use validation::{measured_steps, validate_address_fold};
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted address fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAddressFold {

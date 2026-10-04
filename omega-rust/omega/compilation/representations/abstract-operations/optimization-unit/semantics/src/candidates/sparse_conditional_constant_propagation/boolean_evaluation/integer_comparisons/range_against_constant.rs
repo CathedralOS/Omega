@@ -3,11 +3,6 @@
 mod semantics;
 
 pub(crate) use semantics::ValidatedIntegerRangeComparisonKind;
-#[cfg(test)]
-pub(crate) use semantics::{
-    classify as independently_validated_integer_range_comparison_kind,
-    evaluate as independently_evaluate_integer_range_comparison,
-};
 
 use optimization_core::{
     AnalysisKind, OptimizationSafetyClass, ScalarConstantFactIdentity, ValueRangeFactIdentity,

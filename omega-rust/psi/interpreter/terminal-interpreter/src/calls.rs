@@ -8,8 +8,6 @@
 
 pub(crate) mod frames;
 pub(crate) mod scalar_case_arguments;
-#[cfg(test)]
-mod scalar_provider_call_tests;
 
 use crate::custody::{
     bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,

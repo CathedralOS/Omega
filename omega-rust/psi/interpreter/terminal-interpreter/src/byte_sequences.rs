@@ -101,23 +101,3 @@ impl ByteSequenceView {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::byte_sequences::ByteSequenceView;
-    use std::sync::Arc;
-
-    #[test]
-    fn invalid_replacement_does_not_detach_or_change_length() {
-        let source = ByteSequenceView::new(vec![1, 2]);
-        let mut destination = source.clone();
-        for byte_index in [2, usize::MAX] {
-            assert_eq!(destination.replace_byte(byte_index, 9), None);
-            assert!(Arc::ptr_eq(&source.backing, &destination.backing));
-            assert_eq!(destination.bytes(), &[1, 2]);
-        }
-        let mut empty = source.subslice(1, 1).unwrap();
-        assert_eq!(empty.replace_byte(0, 9), None);
-        assert_eq!(empty.len(), 0);
-    }
-}

@@ -14,10 +14,6 @@ mod observation;
 mod operation_rewrite;
 mod validation;
 
-#[cfg(test)]
-pub(crate) use observation::{
-    normalize_redundant_parameter_observation_input, unchanged_outside_redundant_parameter_region,
-};
 pub(crate) use operation_rewrite::rewrite_block_parameter_operation;
 
 /// Independently validate and apply one redundant block-parameter rewrite.

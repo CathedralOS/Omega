@@ -306,19 +306,3 @@ fn shared_integer_runtime_inputs(
         | CheckedScalarExpression::Boolean(_) => None,
     }
 }
-
-#[cfg(test)]
-pub(crate) fn shared_integer_runtime_parameter_positions_for_test(
-    expression: &CheckedScalarExpression,
-    scalar_parameter_count: usize,
-) -> Option<Vec<usize>> {
-    shared_integer_runtime_inputs(expression, scalar_parameter_count).map(|inputs| {
-        inputs
-            .into_iter()
-            .filter_map(|input| match input {
-                SharedBooleanRuntimeInput::IntegerScalar(position) => Some(position),
-                _ => None,
-            })
-            .collect()
-    })
-}

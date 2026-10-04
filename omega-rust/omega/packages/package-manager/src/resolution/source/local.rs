@@ -1,6 +1,4 @@
 mod recovery;
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 pub(crate) use recovery::recover_cached_external_local_source;
 
 use super::projection::project_package_build;
@@ -49,20 +47,6 @@ pub fn bind_staged_external_local_project_source(
     })();
     stage.verify_live_source_unchanged()?;
     result
-}
-
-/// Snapshot a non-workspace local development source and bind its canonical
-/// path to an explicit consuming context. Such lineage is intentionally
-/// non-portable and cannot impersonate a workspace or network source.
-#[cfg(test)]
-pub fn resolve_external_local_package_source_from_hardened_base(
-    source_root: impl AsRef<Path>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-    source_context: ExternalSourceContext,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_external_local_package_source(source_root, &storage, limits, source_context)
 }
 
 /// Resolve a local project root selected for execution.

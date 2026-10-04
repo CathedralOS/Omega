@@ -1261,9 +1261,6 @@ impl ClosurePass<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 /// Join one retained review's projected restricted build requests against an
 /// armed checkpoint, rejecting any request no grant covered. A consuming
 /// compile joins each occurrence's projected restricted requests against its

@@ -9,9 +9,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Resolve the declared type of an already-retained statement receiver path.
 /// Statement-position calls preserve name members even when their synthesized
 /// accessor target symbols are intentionally absent from authored provenance.

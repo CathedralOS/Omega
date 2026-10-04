@@ -28,8 +28,6 @@ pub(super) struct ReplayCandidates<'input> {
     physical: &'input ValidatedPhysicalRegisterModel,
     reservations: &'input ValidatedRegisterReservationProfile,
     rows: BTreeMap<(RegisterClassId, SelectedBlockId, LiveRangePoint), GeneralCandidates>,
-    #[cfg(test)]
-    uncached: bool,
 }
 
 impl<'input> ReplayCandidates<'input> {
@@ -43,20 +41,6 @@ impl<'input> ReplayCandidates<'input> {
             physical,
             reservations,
             rows: BTreeMap::new(),
-            #[cfg(test)]
-            uncached: false,
-        }
-    }
-
-    #[cfg(test)]
-    pub(super) fn uncached(
-        function: &'input FunctionLiveRanges,
-        physical: &'input ValidatedPhysicalRegisterModel,
-        reservations: &'input ValidatedRegisterReservationProfile,
-    ) -> Self {
-        Self {
-            uncached: true,
-            ..Self::new(function, physical, reservations)
         }
     }
 
@@ -82,10 +66,6 @@ impl<'input> ReplayCandidates<'input> {
         };
         // The test oracle executes the original occupancy/view scan at every
         // occurrence; it never reads or populates retained candidate rows.
-        #[cfg(test)]
-        if self.uncached {
-            return Cow::Owned(derive());
-        }
         Cow::Borrowed(
             self.rows
                 .entry((class.id, block, point))

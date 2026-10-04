@@ -11,9 +11,6 @@ use super::context;
 
 pub(crate) struct ExternalDecisionReplayCursor<'log> {
     points: &'log [ExternalDecisionPoint],
-    #[cfg(test)]
-    pub(super) next: usize,
-    #[cfg(not(test))]
     next: usize,
 }
 
@@ -84,10 +81,5 @@ impl<'log> ExternalDecisionReplayCursor<'log> {
                 remaining,
             })
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) const fn consumed_points(&self) -> usize {
-        self.next
     }
 }

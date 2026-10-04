@@ -188,6 +188,3 @@ pub(crate) fn validate_float_semantic_operation_bindings(
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

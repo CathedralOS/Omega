@@ -31,8 +31,3 @@ terminal-codec = { path = "../../../../psi/compilation/representations/terminal-
 terminal-verifier = { path = "../../../../psi/compilation/representations/terminal-psi/verification" }
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 
-[dev-dependencies]
-mimalloc = { version = "0.1", default-features = false }
-installation-evidence = { path = "../../backend/runtime/installation-evidence" }
-isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
-task-plans = { path = "../../backend/runtime/task-plans" }

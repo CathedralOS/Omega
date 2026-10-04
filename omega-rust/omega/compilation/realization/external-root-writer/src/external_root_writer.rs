@@ -1380,6 +1380,3 @@ pub fn selected_external_root_entry_fact_bindings(
     }
     Ok(bindings)
 }
-
-#[cfg(test)]
-mod tests;

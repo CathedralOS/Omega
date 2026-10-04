@@ -37,6 +37,3 @@ pub use validation::{
 // Receiving stages reconstruct ABI classes from their own declaration inputs,
 // using the same boundary classification rather than a second type roster.
 pub use validation::structural_shapes::{InvalidStructuralShape, classified_boundary_shape};
-
-#[cfg(test)]
-mod tests;

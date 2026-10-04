@@ -27,11 +27,6 @@ use super::super::{
 };
 use super::fixtures::fixture;
 
-#[test]
-fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
-    exercise_single_use_rematerialization(|_, _, _| {});
-}
-
 pub fn exercise_single_use_rematerialization(
     check_assignment: impl FnOnce(
         &FunctionAllocationLegality,

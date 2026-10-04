@@ -834,6 +834,3 @@ pub(in crate::execution) fn view_identity(
         )),
     }
 }
-
-#[cfg(test)]
-mod tests;

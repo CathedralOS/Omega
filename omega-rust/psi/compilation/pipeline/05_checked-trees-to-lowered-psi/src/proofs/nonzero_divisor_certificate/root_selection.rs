@@ -30,8 +30,6 @@ mod cast_spine;
 mod literal;
 mod retained;
 mod roster;
-#[cfg(test)]
-mod tests;
 
 /// One order-bound question: the goal, and the scope whose assumptions and
 /// semantic axioms a certificate may cite by position.

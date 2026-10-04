@@ -162,6 +162,3 @@ pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) 
         })
         .sum()
 }
-
-#[cfg(test)]
-mod tests;

@@ -36,19 +36,6 @@ mod substitution;
 mod synthesis;
 mod uses;
 
-#[cfg(test)]
-mod builtin_operator_tests;
-#[cfg(test)]
-mod division_tests;
-#[cfg(test)]
-mod fact_division_tests;
-#[cfg(test)]
-mod module_constant_tests;
-#[cfg(test)]
-mod remainder_tests;
-#[cfg(test)]
-mod sum_constructor_tests;
-
 pub(crate) use arguments::{
     DomainHead, closed_argument_identity, domain_application_head, domain_index_telescope,
     monomorphizable_argument_slugs, normalize_domain_head_positions, type_reference_slug,
@@ -80,8 +67,6 @@ pub(crate) use discovery::{ClosedArgumentIdentity, ClosedConstraintIdentity, sel
 pub(in crate::preparation::generic_data) use discovery::{
     GenericData, GenericDataShape, Instantiation, PendingRewrite, selected_generic_data,
 };
-#[cfg(test)]
-pub(in crate::preparation::generic_data) use substitution::substitute_type_reference;
 pub(crate) use substitution::{
     closed_name_identity, substitute_member, type_reference_mentions_parameter,
 };

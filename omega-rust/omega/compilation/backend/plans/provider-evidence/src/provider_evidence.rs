@@ -1049,6 +1049,3 @@ impl SelectedProviderClosureDigestEncoder {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -47,8 +47,6 @@ mod destination;
 mod frame;
 mod primitive;
 mod selectors;
-#[cfg(test)]
-mod tests;
 mod value;
 mod view_field_store;
 mod view_stores;
@@ -252,31 +250,6 @@ pub(super) fn build_byte_call_result_store(
     )?)
     .ok()?;
     matches!(store, CheckedUnitEffectOperationPlan::ByteSequenceStore(_)).then_some(store)
-}
-
-/// Test convenience: the traced builder without a trace.
-#[cfg(test)]
-pub(super) fn build_structural_scalar_field_store_sequence(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_start: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    build_structural_scalar_field_store_sequence_traced(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        scalar_parameters,
-        statement_start,
-        call_frames,
-        &LocalConstructionTrace::default(),
-    )
 }
 
 /// The scalar coordinate one carrier-path runtime index names at this

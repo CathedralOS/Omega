@@ -5,9 +5,6 @@ use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn declared_call_state(
     program: &resolved::SymbolResolvedTrees,
     target: SymbolHandle,

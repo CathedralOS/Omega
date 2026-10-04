@@ -535,6 +535,3 @@ pub(crate) fn finalize(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

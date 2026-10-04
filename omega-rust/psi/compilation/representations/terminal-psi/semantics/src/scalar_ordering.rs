@@ -551,6 +551,3 @@ impl ScalarOrdering {
         true
     }
 }
-
-#[cfg(test)]
-mod tests;

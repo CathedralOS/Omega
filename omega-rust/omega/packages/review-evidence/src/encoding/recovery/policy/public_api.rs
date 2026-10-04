@@ -7,11 +7,6 @@ pub(in crate::encoding::recovery) mod traits;
 pub(in crate::encoding::recovery) use signatures::type_parameter;
 pub(in crate::encoding::recovery) use traits::conformance_shape;
 
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) use tests::fixture as row_fixture;
-
 use super::{Error, declarations, reader::Reader};
 use crate::record::PackagePolicyPublicApi;
 

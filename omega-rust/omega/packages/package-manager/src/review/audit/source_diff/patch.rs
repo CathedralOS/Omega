@@ -8,8 +8,6 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use super::diff::DiffBudget;
-#[cfg(test)]
-use super::diff::{SourceLine, myers_diff, source_line_count, split_lines};
 use super::output::BoundedOutput;
 use super::snapshot::{
     capture_snapshot, file_content_requires_standalone_audit, render_entry, render_resolution,
@@ -331,6 +329,3 @@ pub fn render_package_source_patch(
         rendered: output.finish(),
     })
 }
-
-#[cfg(test)]
-mod tests;

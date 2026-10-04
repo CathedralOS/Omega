@@ -19,9 +19,6 @@ use checked_trees::FlowSemanticContextRef;
 use facts::{FactContextHandle, FactPayload, FactPlan, ScalarValue};
 use typed_trees::TypedTrees;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Default)]
 struct PreparedContext {
     context: FactContextHandle,
@@ -35,10 +32,6 @@ pub(super) struct AssignmentObservations {
     // former occupant. Empty observations are prepared too, avoiding rescans of
     // the many declaration contexts which carry no assignment values.
     contexts: Vec<PreparedContext>,
-    #[cfg(test)]
-    prepared_contexts: usize,
-    #[cfg(test)]
-    visited_facts: usize,
 }
 
 impl AssignmentObservations {
@@ -71,11 +64,6 @@ impl AssignmentObservations {
                     prepared.observations =
                         prepare_assignment_observations(program, semantic, context);
                     prepared.context = handle;
-                    #[cfg(test)]
-                    {
-                        self.prepared_contexts += 1;
-                        self.visited_facts += semantic.context_view(context).facts().count();
-                    }
                 }
             }
         }

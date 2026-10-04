@@ -5,8 +5,6 @@ use crate::interpreter::evaluator::{
     primitive_is_unsigned64, trap, unsupported, wrap_to_width,
 };
 use symbols::BuiltinFunction;
-#[cfg(test)]
-mod sequence_equality_tests;
 
 fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {
     let element = element.borrow();

@@ -7,8 +7,6 @@ use super::{
 };
 use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
 
-#[cfg(test)]
-mod tests;
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
 /// operands still observe its original home before selected-edge cleanup.

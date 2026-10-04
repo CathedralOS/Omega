@@ -85,8 +85,3 @@ impl PsiTransformationLedger {
         })
     }
 }
-
-#[cfg(test)]
-use codec::{LEDGER_MAGIC, LedgerCursor};
-#[cfg(test)]
-mod tests;

@@ -7,8 +7,6 @@ use crate::record::{
 };
 pub(in crate::encoding::recovery) mod scalars;
 pub(in crate::encoding::recovery) mod tags;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
 
 use super::{Error, reader::Reader};
 use scalars::scalar_expression;

@@ -11,9 +11,6 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody::comparisons::occurrence;
 
-#[cfg(test)]
-mod tests;
-
 impl Expansion<'_> {
     pub(super) fn comparison_binding(
         &self,

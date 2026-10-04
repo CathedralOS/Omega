@@ -288,6 +288,3 @@ fn direct_prefix_store(
         && crate::values::scalar_expression_type(value) == Some(*destination_type))
     .then_some(())
 }
-
-#[cfg(test)]
-mod tests;

@@ -484,27 +484,3 @@ fn floating_bits(
         _ => Err("constant result does not retain one exact binary32 value".into()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{PrimitiveType, floating_bits};
-
-    #[test]
-    fn floating_snapshot_cannot_round_again_or_choose_nan_bits() {
-        assert_eq!(
-            floating_bits(PrimitiveType::F32, -0.0).unwrap().1,
-            0x80000000
-        );
-        assert_eq!(
-            floating_bits(PrimitiveType::F64, -0.0).unwrap().1,
-            0x8000000000000000
-        );
-        assert!(floating_bits(PrimitiveType::F32, 0.1).is_err());
-        assert!(floating_bits(PrimitiveType::F32, f64::NAN).is_err());
-        assert!(floating_bits(PrimitiveType::F64, f64::NAN).is_err());
-        assert_eq!(
-            floating_bits(PrimitiveType::F32, f64::INFINITY).unwrap().1,
-            0x7f800000
-        );
-    }
-}

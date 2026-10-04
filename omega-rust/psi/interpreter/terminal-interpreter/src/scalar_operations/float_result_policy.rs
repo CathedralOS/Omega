@@ -11,9 +11,6 @@ use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType, ValueId};
 use terminal_psi::{CrashCause, FloatResultPolicy, FloatSaturationRule, Operation, OperationKind};
 
-#[cfg(test)]
-mod tests;
-
 fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     match value {
         IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),

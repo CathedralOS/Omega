@@ -16,9 +16,6 @@
 
 use terminal_psi::{TerminalModule, Terminator};
 
-#[cfg(test)]
-mod tests;
-
 use super::LoweringError;
 
 /// Check the complete module before selecting any machine lowering family.

@@ -34,9 +34,6 @@ mod indexes;
 mod premises;
 mod segments;
 
-#[cfg(test)]
-mod unresolved_identities;
-
 pub(super) use self::indexes::CompatibilityReplayDrift;
 use self::indexes::SelectorSessionClosure;
 pub(super) use self::premises::append_call_premises;

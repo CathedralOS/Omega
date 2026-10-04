@@ -489,6 +489,3 @@ fn named_type_declares_property(
             _ => false,
         })
 }
-
-#[cfg(test)]
-mod tests;

@@ -20,11 +20,6 @@ use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-#[cfg(test)]
-mod index_term_tests;
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone)]
 struct IndexedInstance {
     family: SymbolHandle,

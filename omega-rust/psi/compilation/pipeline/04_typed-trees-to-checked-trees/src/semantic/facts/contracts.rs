@@ -12,8 +12,6 @@ use facts::{
 use typed_trees::proposition::PropositionLabels;
 mod payload;
 mod places;
-#[cfg(test)]
-mod tests;
 pub(crate) use places::contract_fact_place;
 
 use payload::semantic_contract_payload;

@@ -1161,8 +1161,3 @@ impl ProgramLocalRootEpochLeaseReleaseError {
         self.lease
     }
 }
-
-#[cfg(test)]
-mod custody;
-#[cfg(test)]
-mod tests;

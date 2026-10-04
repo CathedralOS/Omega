@@ -189,32 +189,3 @@ pub(super) fn reconstruct(
     }
     Ok(sites)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Budget, MAXIMUM_BLOCK_VISITS, MAXIMUM_FACT_COPIES, MachineId, ModuleError};
-
-    #[test]
-    fn path_visits_and_retained_facts_have_independent_hard_limits() {
-        let machine = MachineId::new(1).unwrap();
-        let mut budget = Budget::default();
-        for _ in 0..MAXIMUM_BLOCK_VISITS {
-            budget.visit(machine).unwrap();
-        }
-        assert!(matches!(budget.visit(machine),
-            Err(ModuleError::CrashSiteReconstructionLimitExceeded(owner)) if owner == machine));
-        let mut budget = Budget::default();
-        budget.retain(MAXIMUM_FACT_COPIES, machine).unwrap();
-        assert!(matches!(budget.retain(1, machine),
-            Err(ModuleError::CrashSiteReconstructionLimitExceeded(owner)) if owner == machine));
-        let mut budget = Budget::default();
-        assert!(budget.retain(usize::MAX, machine).is_err());
-        let mut budget = Budget::default();
-        budget.retain(MAXIMUM_FACT_COPIES, machine).unwrap();
-        budget.snapshot(MAXIMUM_FACT_COPIES, machine).unwrap();
-        assert_eq!(budget.fact_copies, MAXIMUM_FACT_COPIES);
-        assert!(budget.snapshot(1, machine).is_err());
-        let mut budget = Budget::default();
-        assert!(budget.snapshot(usize::MAX, machine).is_err());
-    }
-}

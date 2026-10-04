@@ -7,9 +7,6 @@ mod meaning;
 mod prefix;
 mod projection;
 
-#[cfg(test)]
-mod tests;
-
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};

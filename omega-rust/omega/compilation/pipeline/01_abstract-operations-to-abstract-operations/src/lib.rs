@@ -29,10 +29,6 @@ mod state_specialization;
 pub mod validation;
 
 pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
-#[cfg(test)]
-pub(crate) use abstract_optimization::{replay_psi_pipeline, run_psi_pipeline};
-#[cfg(test)]
-pub(crate) use publication::publish_optimization_run;
 pub use publication::{OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan};
 
 pub(crate) use analyses::{AnalysisManager, AnalysisProduct, ScalarConstant, compute_analysis};
@@ -62,18 +58,11 @@ pub(crate) use pass_manager::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, baseline_psi_cost_model_identity,
 };
 pub use ranked_rewrites::LoopInvariantScalarMotionError;
-#[cfg(test)]
-pub(crate) use ranked_rewrites::{
-    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
-    validate_loop_invariant_scalar_motion,
-};
 pub(crate) use rules::PsiPassStep;
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError,
 };
-#[cfg(test)]
-pub(crate) use rules::{WrappingIntegerAddConstantsRule, built_in_psi_registry};
 
 /// The analyses, ranked rewrites, rule catalog, and pipeline runs exposed to
 /// harnesses outside the crate, such as the `psi_optimization_allocations`

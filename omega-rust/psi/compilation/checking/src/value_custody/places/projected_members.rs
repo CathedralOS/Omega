@@ -8,9 +8,6 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn contains_case_projection(
     program: &TypedTrees,
     mut expression: ExpressionHandle,

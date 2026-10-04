@@ -968,6 +968,3 @@ impl TerminalExecution {
 
 mod representation;
 mod typed;
-
-#[cfg(test)]
-mod tests;

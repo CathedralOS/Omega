@@ -5,9 +5,6 @@ use super::{FlowFacts, ProgressPremise, ProgressSubject};
 mod places;
 mod transfers;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ParameterLineage {
     Unseen,

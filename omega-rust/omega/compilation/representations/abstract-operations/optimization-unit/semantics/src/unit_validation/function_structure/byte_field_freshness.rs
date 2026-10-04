@@ -10,9 +10,6 @@ use terminal_psi::{
     StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

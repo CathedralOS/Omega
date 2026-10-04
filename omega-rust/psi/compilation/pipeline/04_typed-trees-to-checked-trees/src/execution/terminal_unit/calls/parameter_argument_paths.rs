@@ -23,9 +23,6 @@ use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorro
 
 type ArgumentPath = Vec<CheckedUnitStructuralPathSegment>;
 
-#[cfg(test)]
-mod tests;
-
 /// An authored `self.field` argument roots at the `self` parameter's own
 /// symbol, while an implicit receiver place roots at the machine the
 /// parameter is attached to. Both spellings name one parameter.

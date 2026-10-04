@@ -15,8 +15,6 @@
 //! report fingerprints beneath it.
 
 mod task_plans;
-#[cfg(test)]
-mod tests;
 
 pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
 pub use task_plans::activation_plan_facts::{

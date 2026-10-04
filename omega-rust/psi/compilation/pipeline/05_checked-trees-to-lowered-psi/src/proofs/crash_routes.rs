@@ -8,13 +8,9 @@
 //! propositions and `scalar_terms.rs` lowers checked scalar terms.
 
 mod argument_prefix;
-#[cfg(test)]
-mod boolean_connective_tests;
 mod crash_predicates;
 mod scalar_terms;
 pub(super) mod structural_arithmetic;
-#[cfg(test)]
-mod structural_boolean_tests;
 mod structural_members;
 mod structural_route_buckets;
 

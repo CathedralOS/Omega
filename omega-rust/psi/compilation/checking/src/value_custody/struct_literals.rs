@@ -32,9 +32,6 @@ mod field_obligations;
 mod guard_bounds;
 mod window_elements;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) use window_elements::validate_array_window_elements;
 
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};

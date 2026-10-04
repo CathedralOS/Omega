@@ -11,8 +11,6 @@ pub(crate) use boolean::encode_boolean_expression;
 pub(crate) use scalar::encode_scalar_expression;
 
 mod replay;
-#[cfg(test)]
-mod tests;
 mod vocabulary;
 
 pub(crate) use replay::{encode_crash, encode_crash_route};

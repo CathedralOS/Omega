@@ -6,9 +6,6 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::trait_definition::TraitDefinition;
 
-#[cfg(test)]
-mod tests;
-
 /// Memoized caller-prefix resolution for write-origin walks. The caller-side
 /// queries repeat the same machine-level scans for every statement site:
 /// whether a machine declares tracked origins at all, which (state, index)

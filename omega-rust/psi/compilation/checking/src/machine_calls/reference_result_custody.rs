@@ -15,9 +15,6 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 mod primitive_locals;
 pub use primitive_locals::primitive_local_source;
 
-#[cfg(test)]
-mod tests;
-
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
 // allocation. These are private production limits, not reference semantics;

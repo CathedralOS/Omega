@@ -6,8 +6,6 @@ use super::{
 use crate::proof_contracts::contract_entailment::stand_downs::{
     record_all_expression_stand_downs, record_expression_stand_down,
 };
-#[cfg(test)]
-mod tests;
 
 /// One recognized transition arm of an inductive machine body.
 struct TransitionArm {

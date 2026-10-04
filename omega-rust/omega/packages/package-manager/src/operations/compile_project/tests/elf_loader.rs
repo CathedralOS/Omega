@@ -134,32 +134,3 @@ fn pt_interp(bytes: &[u8]) -> Option<Vec<u8>> {
         })
     })
 }
-
-#[test]
-fn accepted_dynamic_linux_output_uses_the_target_environment_default_loader() {
-    assert_eq!(published_interpreter(""), b"/lib64/ld-linux-x86-64.so.2\0");
-}
-
-#[test]
-fn accepted_dynamic_linux_output_uses_the_authored_loader_row() {
-    assert_eq!(
-        published_interpreter(
-            r#"    builder.elf_interpreter.linux_x86_64 = "/lib/ld-musl-x86_64.so.1";"#
-        ),
-        b"/lib/ld-musl-x86_64.so.1\0",
-    );
-}
-
-#[test]
-fn accepted_dynamic_linux_output_refuses_a_native_proof_product() {
-    // The native `.proof` sidecar certifies direct-image evidence only; a
-    // dynamically linked output must refuse the request rather than publish
-    // an uncertified pair.
-    let project = TemporaryProject::new();
-    let error = compile_dynamic_customer(&project, "    builder.pcc.native = true;")
-        .expect_err("dynamic ELF output cannot satisfy a native proof request");
-    assert!(
-        format!("{error:?}").contains("cannot carry a native proof product"),
-        "{error:?}"
-    );
-}

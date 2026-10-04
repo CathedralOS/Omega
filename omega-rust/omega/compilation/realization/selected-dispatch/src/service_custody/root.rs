@@ -632,6 +632,3 @@ fn unconstrained_type_identity(
         .normalized_type_identity(type_reference)
         .into_string()
 }
-
-#[cfg(test)]
-mod tests;

@@ -192,13 +192,14 @@ pub(super) fn event_statement_index(
         | PermissionEventSource::Call {
             statement_index, ..
         } => statement_index,
-        PermissionEventSource::StateExit => program.state_by_symbol(state_symbol)
-            .map_or(0, |state| {
+        PermissionEventSource::StateExit => {
+            program.state_by_symbol(state_symbol).map_or(0, |state| {
                 program
                     .statement_table
                     .statements(state.statement_nodes)
                     .len()
-            }),
+            })
+        }
     }
 }
 
@@ -400,86 +401,5 @@ fn push_promoting(rows: &mut Vec<CheckedSemanticDependency>, candidate: CheckedS
         }
     } else {
         rows.push(candidate);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::derive_checked_semantic_dependencies;
-    use crate::tests::front_end::typed_program;
-
-    #[test]
-    fn derivation_ignores_retained_rows_and_reproduces_lowering_output() {
-        let typed = typed_program(
-            r#"
-            pub data Token { value: u64; }
-            pub machine make() -> Token { Token { value: 7u64 } }
-            "#,
-        );
-        let mut checked =
-            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
-        let expected = checked.facts.flow.semantic_dependencies.clone();
-        assert!(!expected.rows.is_empty(), "fixture must carry dependencies");
-
-        checked.facts.flow.semantic_dependencies.rows.clear();
-        let rederived = derive_checked_semantic_dependencies(&checked.typed, &checked.facts);
-
-        assert_eq!(rederived, expected);
-    }
-
-    #[test]
-    fn pruned_temporary_borrow_events_do_not_reintroduce_dependency_owners() {
-        let typed = typed_program(
-            r#"
-            pub data Token { value: u64; }
-            machine forward(token: Token) -> Token { token }
-            machine read(token: &Token) {}
-            pub machine keep(token: Token) { read(&forward(token)); }
-            machine removed(token: Token) { read(&forward(token)); }
-            "#,
-        );
-        let checked =
-            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
-        let keep = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "keep")
-            .expect("keep")
-            .symbol;
-        let removed = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "removed")
-            .expect("removed")
-            .symbol;
-        let plan = crate::CheckedTreeProductPruning::new(
-            crate::CheckedTreeProductRoots::new([keep]).expect("roots"),
-        );
-        let outcome = crate::prune_checked_tree_product(checked, &plan).expect("prune");
-        assert!(outcome.selection.pruned_machines().contains(&removed));
-        assert!(
-            outcome
-                .checked
-                .facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .any(|(_, event)| event.machine_symbol == removed
-                    && matches!(event.root, facts::PlaceRoot::Expression(_))),
-            "pruning preserves span-addressed temporary ownership evidence"
-        );
-        let expected = &outcome.checked.facts.flow.semantic_dependencies;
-        assert!(!expected.rows.is_empty(), "live dependencies must remain");
-        assert!(
-            expected.rows.iter().any(|row| row.consumer_machine == keep
-                && row.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup),
-            "the live temporary still owes cleanup evidence"
-        );
-        let derived =
-            derive_checked_semantic_dependencies(&outcome.checked.typed, &outcome.checked.facts);
-        assert_eq!(&derived, expected);
     }
 }

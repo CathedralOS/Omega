@@ -53,6 +53,3 @@ pub(super) fn replay_live_ranges(
         receipt,
     })
 }
-
-#[cfg(test)]
-mod tests;

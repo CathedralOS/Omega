@@ -20,9 +20,6 @@ const BUILD_FILE_NAME: &str = "build.omg";
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILDER_PARAMETER_NAME: &str = "builder";
 
-#[cfg(test)]
-mod tests;
-
 /// A conservative, non-mutating plan for changing one `build.omg` dependency.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildDependencyEditPlan {

@@ -374,55 +374,6 @@ fn replay_register(
     })
 }
 
-#[cfg(test)]
-pub(crate) fn replay_register_for_test(
-    function_index: usize,
-    function: &selected_instructions::FunctionLiveRanges,
-    register: &VirtualLiveRange,
-    availability: &ValidatedAllocatorAvailability,
-    physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
-) -> Result<VirtualRegisterAllocationLegality, AllocationLegalityError> {
-    let mut candidates = ReplayCandidates::uncached(function, physical, reservations);
-    replay_register(
-        function_index,
-        function,
-        register,
-        availability,
-        physical,
-        &mut candidates,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn replay_function_for_test(
-    function_index: usize,
-    function: &selected_instructions::FunctionLiveRanges,
-    availability: &ValidatedAllocatorAvailability,
-    physical: &ValidatedPhysicalRegisterModel,
-    reservations: &ValidatedRegisterReservationProfile,
-) -> Result<register_homes::FunctionAllocationLegality, AllocationLegalityError> {
-    let mut candidates = ReplayCandidates::new(function, physical, reservations);
-    let virtual_registers = function
-        .virtual_registers
-        .iter()
-        .map(|register| {
-            replay_register(
-                function_index,
-                function,
-                register,
-                availability,
-                physical,
-                &mut candidates,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(register_homes::FunctionAllocationLegality {
-        machine: function.machine,
-        virtual_registers,
-    })
-}
-
 fn validate_canonical(
     function_index: usize,
     register: &VirtualRegisterAllocationLegality,

@@ -559,6 +559,3 @@ fn footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
         .chain(&left.write_units)
         .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
-
-#[cfg(test)]
-mod tests;

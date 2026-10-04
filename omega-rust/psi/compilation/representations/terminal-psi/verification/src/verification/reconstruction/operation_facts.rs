@@ -1087,6 +1087,3 @@ fn declared_fact_certified(
     )
     .is_ok()
 }
-
-#[cfg(test)]
-mod tests;

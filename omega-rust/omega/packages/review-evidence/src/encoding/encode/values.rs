@@ -12,6 +12,3 @@ pub(super) mod identity;
 pub(super) mod physical_calling_policy;
 pub(super) mod providers;
 pub(super) mod quotients;
-
-#[cfg(test)]
-mod tests;

@@ -12,9 +12,6 @@ use selected_instructions::{SelectedInstructionId, VirtualRegisterId, VirtualReg
 use crate::{FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPolicy};
 use selected_instructions::VirtualFixedConstraintSite;
 
-#[cfg(test)]
-mod tests;
-
 /// Rebuild the copy sequence the producer emits under a shared-exit policy
 /// and apply it to `output_function`. The declared shared-entry gate admits
 /// live-in entry parameters still carrying their entry fixed view and

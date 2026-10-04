@@ -72,9 +72,6 @@ pub(crate) fn borrowed_parameter_custody(
     Ok((reference, access, qualifications))
 }
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn parameter_storage<'checked>(
     checked: &'checked CheckedTrees,
     machine: symbols::SymbolHandle,

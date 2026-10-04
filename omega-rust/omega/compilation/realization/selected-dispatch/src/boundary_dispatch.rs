@@ -11,8 +11,6 @@
 mod adapter_rows;
 pub(crate) mod boundary_fields;
 mod signature_families;
-#[cfg(test)]
-mod tests;
 
 use crate::boundary_dispatch::adapter_rows::{
     AdapterRow, GenericBoundaryRequirement, ResolvedAdapterRow, resolve_selected_adapter_row,

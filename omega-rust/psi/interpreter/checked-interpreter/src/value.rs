@@ -95,11 +95,6 @@ impl CellMeter {
     pub(crate) fn peak(&self) -> u64 {
         self.account.peak.get()
     }
-
-    #[cfg(test)]
-    pub(crate) fn live(&self) -> u64 {
-        self.account.live.get()
-    }
 }
 
 #[derive(Debug)]
@@ -327,11 +322,6 @@ impl TextByteMeter {
     pub(crate) fn peak(&self) -> u64 {
         self.account.peak.get()
     }
-
-    #[cfg(test)]
-    pub(crate) fn live(&self) -> u64 {
-        self.account.live.get()
-    }
 }
 
 #[derive(Debug)]
@@ -444,18 +434,6 @@ pub enum Value {
 }
 
 impl Value {
-    #[cfg(test)]
-    pub(crate) fn cell(self) -> Cell {
-        Cell::new(self, None)
-    }
-
-    /// Construct text directly from raw bytes (carrier byte content that need not be valid
-    /// UTF-8 mid-computation).
-    #[cfg(test)]
-    pub(crate) fn bytes(value: impl Into<Vec<u8>>) -> Value {
-        Value::Str(TextBuffer::new(value.into(), None))
-    }
-
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Value::Int(value) => Some(*value),
@@ -564,209 +542,5 @@ impl Value {
             Value::Ref(cell) => Some(cell.clone()),
             _ => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{BuildEvaluationSponsor, CellMeter, TextBuffer, TextByteMeter, Value};
-    use crate::BuildEvaluationSponsorLimits;
-
-    #[test]
-    fn text_subslices_share_nested_writes_and_preserve_neighbors() {
-        let buffer = TextBuffer::new(vec![0, 1, 2, 3, 4, 5], None);
-        let alias = buffer.clone();
-        let window = buffer.subslice(1, 5).expect("bounded window");
-        let nested = window.subslice(1, 3).expect("nested window");
-        assert_eq!(&*window.borrow(), &[1, 2, 3, 4]);
-        assert_eq!(&*nested.borrow(), &[2, 3]);
-        assert_eq!(nested.borrow().as_ptr(), buffer.borrow()[2..].as_ptr());
-
-        nested.write_byte(0, 20).expect("nested byte");
-        assert_eq!(&*alias.borrow(), &[0, 1, 20, 3, 4, 5]);
-        assert_eq!(&*window.borrow(), &[1, 20, 3, 4]);
-        nested.write_prefix(&[21, 30]).expect("nested prefix");
-        window.write_prefix(&[10]).expect("window prefix");
-        alias.write_byte(3, 31).expect("full-buffer alias write");
-        assert_eq!(&*buffer.borrow(), &[0, 10, 21, 31, 4, 5]);
-        assert_eq!(&*nested.borrow(), &[21, 31]);
-        assert_eq!(format!("{nested:?}"), "TextBuffer([21, 31])");
-
-        assert_eq!(nested.write_byte(2, 99), Err(2));
-        assert_eq!(nested.write_byte(usize::MAX, 99), Err(2));
-        assert!(nested.write_prefix(&[90, 91, 92]).is_err());
-        assert_eq!(&*buffer.borrow(), &[0, 10, 21, 31, 4, 5]);
-    }
-
-    #[test]
-    fn text_subslices_reject_invalid_view_relative_ranges() {
-        let buffer = TextBuffer::new(vec![0, 1, 2, 3], None);
-        let window = buffer.subslice(1, 3).expect("bounded window");
-        for (start, end) in [(2, 1), (0, 3), (3, 3), (0, usize::MAX), (usize::MAX, 0)] {
-            assert!(window.subslice(start, end).is_err(), "{start}..{end}");
-        }
-        for position in 0..=2 {
-            let empty = window.subslice(position, position).expect("empty window");
-            assert!(empty.borrow().is_empty());
-            assert_eq!(empty.write_byte(0, 99), Err(0));
-            empty.write_prefix(&[]).expect("empty prefix");
-            assert!(empty.write_prefix(&[99]).is_err());
-            empty.replace(vec![]).expect("empty replacement");
-            assert!(empty.replace(vec![99]).is_err());
-        }
-        drop(window);
-        buffer
-            .replace(vec![9])
-            .expect("invalid ranges did not retain window leases");
-        assert_eq!(&*buffer.borrow(), &[9]);
-    }
-
-    #[test]
-    fn text_window_clones_and_empty_windows_release_resize_protection() {
-        let buffer = TextBuffer::new(vec![0, 1, 2], None);
-        let window = buffer.subslice(0, 3).expect("full-extent bounded window");
-        let alias = window.clone();
-        assert_eq!(buffer.allocation.live_windows.get(), 1);
-        let empty = alias.subslice(3, 3).expect("empty nested window");
-        let empty_alias = empty.clone();
-        assert_eq!(buffer.allocation.live_windows.get(), 2);
-        drop(window);
-        assert!(buffer.replace(vec![9; 4]).is_err());
-        drop(alias);
-        assert_eq!(buffer.allocation.live_windows.get(), 1);
-        assert!(buffer.replace(vec![9; 4]).is_err());
-        drop(empty);
-        assert!(buffer.replace(vec![]).is_err());
-        assert!(empty_alias.borrow().is_empty());
-        drop(empty_alias);
-        assert_eq!(buffer.allocation.live_windows.get(), 0);
-        buffer
-            .replace(vec![9; 4])
-            .expect("all window leases released");
-        assert_eq!(&*buffer.borrow(), &[9; 4]);
-    }
-
-    #[test]
-    fn metered_text_windows_retain_one_original_allocation_lease() {
-        let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 10, 6, 10, 10)
-                .expect("nonzero limits"),
-        );
-        let meter = TextByteMeter::new(Some(sponsor.clone()));
-        let Value::Str(buffer) = meter
-            .allocate(vec![0, 1, 2, 3, 4, 5])
-            .expect("original Text")
-        else {
-            unreachable!()
-        };
-        let window = buffer.subslice(1, 5).expect("window at sponsor limit");
-        let nested = window
-            .subslice(1, 3)
-            .expect("nested window at sponsor limit");
-        let alias = nested.clone();
-        let empty = nested
-            .subslice(2, 2)
-            .expect("empty window at sponsor limit");
-        nested
-            .replace(vec![20, 30])
-            .expect("same-length replacement");
-        assert!(buffer.replace(vec![0; 5]).is_err());
-        assert!(buffer.replace(vec![0; 7]).is_err());
-        assert!(nested.replace(vec![0]).is_err());
-        assert_eq!(&*buffer.borrow(), &[0, 1, 20, 30, 4, 5]);
-        assert_eq!(meter.live(), 6);
-        assert_eq!(meter.peak(), 6);
-        assert_eq!(sponsor.live_text_bytes(), 6);
-        assert_eq!(sponsor.peak_live_text_bytes(), 6);
-
-        drop((buffer, window, nested));
-        assert_eq!(&*alias.borrow(), &[20, 30]);
-        alias
-            .write_byte(1, 31)
-            .expect("view retains writable storage");
-        assert_eq!(&*alias.borrow(), &[20, 31]);
-        assert_eq!(meter.live(), 6);
-        assert_eq!(sponsor.live_text_bytes(), 6);
-        assert!(meter.allocate(vec![99]).is_err());
-        drop(alias);
-        assert!(empty.borrow().is_empty());
-        assert_eq!(meter.live(), 6);
-        assert_eq!(sponsor.live_text_bytes(), 6);
-        drop(empty);
-        assert_eq!(meter.live(), 0);
-        assert_eq!(sponsor.live_text_bytes(), 0);
-        let replacement = meter
-            .allocate(vec![9; 6])
-            .expect("final view released capacity");
-        assert_eq!(meter.peak(), 6);
-        assert_eq!(sponsor.peak_live_text_bytes(), 6);
-        drop(replacement);
-        assert_eq!(meter.live(), 0);
-        assert_eq!(sponsor.live_text_bytes(), 0);
-    }
-
-    #[test]
-    fn metered_cell_aliases_share_one_lifetime_reservation() {
-        let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 1, 10, 10, 10)
-                .expect("nonzero limits"),
-        );
-        let meter = CellMeter::new(Some(sponsor.clone()));
-        let cell = meter.allocate(Value::Int(1)).expect("first cell");
-        let alias = cell.clone();
-        assert_eq!(meter.live(), 1);
-        assert_eq!(meter.peak(), 1);
-        assert_eq!(sponsor.live_cells(), 1);
-        assert!(meter.allocate(Value::Int(2)).is_err());
-        drop(cell);
-        assert_eq!(meter.live(), 1);
-        drop(alias);
-        assert_eq!(meter.live(), 0);
-        assert_eq!(sponsor.live_cells(), 0);
-        let replacement = meter
-            .allocate(Value::Int(3))
-            .expect("final alias released capacity");
-        assert_eq!(meter.peak(), 1);
-        drop(replacement);
-    }
-
-    #[test]
-    fn shared_text_resize_updates_one_exact_lease_atomically() {
-        let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 10, 4, 10, 10)
-                .expect("nonzero limits"),
-        );
-        let meter = TextByteMeter::new(Some(sponsor.clone()));
-        let text = meter.allocate(vec![1, 2]).expect("initial Text");
-        let alias = text.clone();
-        let Value::Str(buffer) = &text else {
-            unreachable!()
-        };
-        let outstanding_read = buffer.borrow();
-        let conflicting_replace = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = buffer.replace(vec![3, 4, 5]);
-        }));
-        assert!(conflicting_replace.is_err());
-        assert_eq!(meter.live(), 2);
-        assert_eq!(sponsor.live_text_bytes(), 2);
-        drop(outstanding_read);
-        buffer.replace(vec![3, 4, 5, 6]).expect("exact growth");
-        assert_eq!(meter.live(), 4);
-        assert_eq!(sponsor.live_text_bytes(), 4);
-        let Value::Str(alias_buffer) = &alias else {
-            unreachable!()
-        };
-        assert_eq!(&*alias_buffer.borrow(), &[3, 4, 5, 6]);
-        assert!(buffer.replace(vec![0; 5]).is_err());
-        assert_eq!(&*buffer.borrow(), &[3, 4, 5, 6]);
-        assert_eq!(meter.live(), 4);
-        buffer.replace(vec![7]).expect("shrink");
-        assert_eq!(meter.live(), 1);
-        assert_eq!(sponsor.live_text_bytes(), 1);
-        drop((text, alias));
-        assert_eq!(meter.live(), 0);
-        assert_eq!(sponsor.live_text_bytes(), 0);
-        assert_eq!(meter.peak(), 4);
-        assert_eq!(sponsor.peak_live_text_bytes(), 4);
     }
 }

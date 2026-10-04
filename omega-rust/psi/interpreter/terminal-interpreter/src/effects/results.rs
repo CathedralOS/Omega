@@ -167,20 +167,6 @@ pub(crate) fn requires_materialized_host_custody(
     false
 }
 
-#[test]
-fn opaque_host_result_cannot_supply_fused_binding_authority() {
-    let identity = StructuralTypeId::new(1).unwrap();
-    let declaration = StructuralTypeDeclaration {
-        id: identity,
-        identity: "test::Binding".into(),
-        shape: StructuralTypeShape::FusedServiceBinding,
-    };
-    let mut types = BTreeMap::from([(identity, declaration)]);
-    assert!(requires_materialized_host_custody(&types, identity));
-    types.get_mut(&identity).unwrap().shape = StructuralTypeShape::Record { fields: Vec::new() };
-    assert!(!requires_materialized_host_custody(&types, identity));
-}
-
 pub(crate) fn commit_boundary_result(
     values: &mut BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,

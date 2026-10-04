@@ -19,9 +19,6 @@ pub(super) mod fields;
 pub(in crate::flow) mod qualifications;
 pub(super) use arguments::capture_argument;
 
-#[cfg(test)]
-mod tests;
-
 /// A missing row is unreachable. A present unknown value must
 /// participate in the incoming meet; it is never an omitted predecessor.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -164,13 +161,6 @@ fn join(
             field.seed_delivery(source);
         }
         build.state_value_inputs.push(incoming);
-    }
-    #[cfg(test)]
-    if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
-        if changed && build.built_state_value_inputs.contains(&state) {
-            build.state_value_inputs_changed_after_build = true;
-        }
-        return;
     }
     if changed && !build.dirty_state_value_inputs.contains(&state) {
         build.dirty_state_value_inputs.push(state);

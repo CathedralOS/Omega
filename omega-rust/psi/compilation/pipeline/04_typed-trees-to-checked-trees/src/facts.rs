@@ -18,14 +18,10 @@ pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
 mod crash_calls;
 mod crash_entry_values;
-#[cfg(test)]
-pub(crate) use crash_entry_values::entry_parameter_place;
 pub(crate) use crash_entry_values::{
     entry_boolean_predicate, entry_parameter_place_before_statement,
 };
 mod crash_plan_facts;
-#[cfg(test)]
-mod declaration_requirement_tests;
 mod dynamic_conformance;
 pub(crate) mod field_domain;
 pub(crate) mod index_compatibility;
@@ -38,8 +34,6 @@ pub(crate) mod qualification_evidence;
 mod qualification_facts;
 mod requirement_call_specializations;
 pub(crate) mod review_sources;
-#[cfg(test)]
-mod scalar_contract_tests;
 
 pub(crate) use canonical_encoding::{domain_is_vacuous, encode_contract_set_canonical};
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};

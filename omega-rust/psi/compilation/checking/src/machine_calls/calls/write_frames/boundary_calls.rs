@@ -38,9 +38,6 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Recognition is deliberately broader than signature selection: even an
 /// invalid prefix or ambiguous member on a cached trait receiver must not
 /// regain a complete frame through the signature-free fallback.

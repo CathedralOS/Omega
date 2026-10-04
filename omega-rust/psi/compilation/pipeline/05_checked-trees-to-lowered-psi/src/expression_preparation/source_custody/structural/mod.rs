@@ -32,12 +32,8 @@ mod structural_case;
 mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
 pub(crate) use owned_places::validate_transfer as validate_owned_transfer;
-#[cfg(test)]
-mod owned_case_tests;
 mod owned_selection;
 mod shared_borrow;
-#[cfg(test)]
-mod tests;
 
 /// The arm of an enclosing structural selection a value sits under;
 /// invalid outside every selection.

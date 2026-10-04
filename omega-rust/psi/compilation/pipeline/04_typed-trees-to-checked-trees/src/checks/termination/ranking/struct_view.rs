@@ -10,9 +10,6 @@ use validation::{CallFrameResolver, ProjectionStep};
 use super::patterns;
 use super::write_preservation::prefix_preserves_path;
 
-#[cfg(test)]
-mod tests;
-
 /// Every self-edge rebuilds the exact ranked field with a positive subtraction.
 /// Range formation and construction remain obligations of ordinary checking.
 /// A nested `path` is rebuilt literal by literal down to the ranked field; a

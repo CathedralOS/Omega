@@ -272,36 +272,6 @@ impl AdmittedTerminalProgram {
         }
         self.boundary_machines.get(&slot)
     }
-
-    #[cfg(test)]
-    /// Shared content for unit tests that build execution state by hand
-    /// instead of admitting an artifact. The placeholder identity is never
-    /// compared because these constructions carry no provider installation.
-    pub(crate) fn for_test(
-        machines: BTreeMap<MachineId, ExecutableMachine>,
-        structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
-    ) -> Self {
-        let entry = machines
-            .keys()
-            .next()
-            .copied()
-            .unwrap_or_else(|| MachineId::new(1).unwrap());
-        Self {
-            identity: TerminalPsiIdentity {
-                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
-                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0; 32]),
-            },
-            catalogs: TerminalModule::for_entry(entry),
-            machines,
-            structural_types,
-            boundary_machines: BTreeMap::new(),
-            provider_candidates: BTreeSet::new(),
-            dynamic_scalar_calls: BTreeMap::new(),
-            dynamic_descriptor_templates: BTreeMap::new(),
-            dynamic_selection_templates: BTreeMap::new(),
-            dynamic_descriptor_arguments: BTreeMap::new(),
-        }
-    }
 }
 
 /// One admitted Terminal-Psi program: decoded, verified, immutable and

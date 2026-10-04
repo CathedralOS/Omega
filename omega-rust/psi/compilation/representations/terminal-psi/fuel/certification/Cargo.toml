@@ -15,5 +15,3 @@ terminal-codec = { path = "../../codec" }
 terminal-fuel = { path = ".." }
 terminal-verifier = { path = "../../verification" }
 
-[dev-dependencies]
-proof-admission = { path = "../../../../proof/admission" }

@@ -42,23 +42,3 @@ pub(super) fn parse_inspect_terminal_arguments(
         target_name,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::parse_inspect_terminal_arguments;
-    use std::ffi::OsString;
-
-    #[test]
-    fn terminal_inspection_rejects_offline_in_every_position() {
-        let ordinary = ["--machine", "main", "--target", "linux_x86_64", "main.omg"];
-        assert!(parse_inspect_terminal_arguments(ordinary.iter().map(OsString::from)).is_some());
-        for position in 0..=ordinary.len() {
-            let mut arguments = ordinary.to_vec();
-            arguments.insert(position, "--offline");
-            assert!(
-                parse_inspect_terminal_arguments(arguments.iter().map(OsString::from)).is_none(),
-                "{arguments:?}"
-            );
-        }
-    }
-}

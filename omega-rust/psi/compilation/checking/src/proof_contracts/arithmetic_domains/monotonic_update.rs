@@ -6,9 +6,6 @@ use super::{
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use numerics::integer_policy::{IntegerPolicyPrimitive, IntegerResultLaw, integer_policy_bridge};
 
-#[cfg(test)]
-mod tests;
-
 /// Transfer independently established bounds across `value + positive`,
 /// `positive + value`, or `value - positive` when the actual builtin operation
 /// preserves the corresponding non-strict order on normal completion.

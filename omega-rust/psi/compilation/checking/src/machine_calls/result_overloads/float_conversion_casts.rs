@@ -58,9 +58,6 @@ use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
-#[cfg(test)]
-mod tests;
-
 /// One cast to rewrite, selected before the expression table is mutated.
 struct ConversionCastBinding {
     cast: ExpressionHandle,

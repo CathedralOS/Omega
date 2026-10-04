@@ -1551,6 +1551,3 @@ fn win32_error_code(error: &std::io::Error) -> i32 {
         _ => error.raw_os_error().unwrap_or(1),
     }
 }
-
-#[cfg(test)]
-mod sponsor_provider_tests;

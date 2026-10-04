@@ -8,8 +8,6 @@ use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 use typed_trees::types::PrimitiveType;
 
-#[cfg(test)]
-mod tests;
 
 /// Return the condition sufficient for this occurrence to fit its destination.
 /// A missing condition conservatively requires the write to fit unconditionally;

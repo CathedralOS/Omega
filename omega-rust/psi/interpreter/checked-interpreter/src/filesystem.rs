@@ -9,8 +9,6 @@
 //! outputs and `operation_attempts.rs` operation attempts, outcomes and
 //! service bindings.
 
-#[cfg(test)]
-mod canonical_filesystem_metadata_tests;
 mod canonical_metadata;
 mod grants;
 mod logical_handles;

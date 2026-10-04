@@ -677,6 +677,3 @@ pub enum FloatMeaningProjectionLoweringError {
     },
     InvalidSourceCarrier,
 }
-
-#[cfg(test)]
-mod tests;

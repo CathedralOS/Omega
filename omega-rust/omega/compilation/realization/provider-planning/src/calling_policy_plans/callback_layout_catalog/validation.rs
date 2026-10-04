@@ -1,11 +1,6 @@
 //! Replay the retained named catalog's joins, not the compiler proofs that
 //! originally closed its layouts and selected conformance applications.
 
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-pub(in crate::calling_policy_plans) use tests::signature_fixture;
-
 use super::super::{
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };

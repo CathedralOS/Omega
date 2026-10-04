@@ -24,9 +24,6 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRange> {
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !super::entailment_covers_all_exits(program, machine)

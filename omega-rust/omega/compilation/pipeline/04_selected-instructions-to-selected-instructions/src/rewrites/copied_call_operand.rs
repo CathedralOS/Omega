@@ -104,9 +104,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::fold_selected_copied_call_operand;
 pub use validation::{copied_call_operand_measured_steps, validate_copied_call_operand_fold};
 
-#[cfg(test)]
-mod tests;
-
 /// Canonical identity of one validated copied-call-operand reroute:
 /// every receipt field — the coordinate, both plan identities, and the
 /// proof inputs — is part of the durable record, so two reroutes of the

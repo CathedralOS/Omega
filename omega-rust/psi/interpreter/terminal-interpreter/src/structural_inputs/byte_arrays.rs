@@ -204,21 +204,6 @@ impl TerminalExecution {
             .map(ByteSequenceView::bytes)
     }
 
-    #[cfg(test)]
-    pub(crate) fn prepare_array_view_argument(
-        &self,
-        parameter: &StructuralParameterDeclaration,
-        argument: &StructuralArgument,
-    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
-    {
-        self.prepare_array_view_argument_staged(
-            parameter,
-            argument,
-            &mut self.local_structural_identities.cursor(),
-            &mut BTreeMap::new(),
-        )
-    }
-
     /// Both array arguments and local descriptor establishments pin the same
     /// payload home. The cursor is committed only after the caller validates
     /// the complete operation; no byte payload is copied into another store.

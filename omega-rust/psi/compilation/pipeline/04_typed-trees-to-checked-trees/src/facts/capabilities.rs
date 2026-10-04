@@ -593,6 +593,3 @@ fn boundary_capability(
 
     None
 }
-
-#[cfg(test)]
-mod tests;

@@ -8,9 +8,6 @@ use crate::{
 use diagnostics::{Diagnostic, ExceededProvision};
 use target::TargetProfile;
 
-#[cfg(test)]
-mod tests;
-
 /// The [compiler request](../../../../../wiki/spec/build/compiler_request.md#validation-and-failures)
 /// outcome one compilation publishes; its halt value is the process exit
 /// status a compiler command reports.

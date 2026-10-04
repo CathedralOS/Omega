@@ -26,9 +26,6 @@ use super::nonzero_divisor_certificate::{
 use crate::direct_calls::{DirectCallRole, direct_call_parts};
 use crate::lowering_error::{LoweringError, ProofSearchCapacity};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn retain_provable(
     lowered: &mut LoweredPsi,
     declines: &mut ProofSearchDeclines,

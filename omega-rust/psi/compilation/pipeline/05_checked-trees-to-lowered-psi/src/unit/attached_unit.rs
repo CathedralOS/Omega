@@ -112,8 +112,6 @@ use call_closure::{
 pub(crate) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
 };
-#[cfg(test)]
-pub(crate) use catalog::collect_contract_services;
 use catalog::require_valid_service_row;
 pub(crate) use catalog::{
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
@@ -126,8 +124,6 @@ pub(crate) use composed_control::dynamic_result::{
 };
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
-#[cfg(test)]
-pub(crate) use parameters::lower_contract_service_ceiling;
 pub(crate) use parameters::{
     checked_scalar_source_parameters, literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,

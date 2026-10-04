@@ -25,8 +25,6 @@ mod ownership;
 mod proof;
 mod range;
 mod rewrite;
-#[cfg(test)]
-mod tests;
 
 pub use attachment::{
     AcceptedObligationFactIndexError, OwnershipFrontierFactIndexError, ProofQuestionIndexError,

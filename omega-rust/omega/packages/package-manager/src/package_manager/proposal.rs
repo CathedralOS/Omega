@@ -15,8 +15,6 @@
 //! start again. Decoding input intent never supplies capture or review evidence.
 
 mod framing;
-#[cfg(test)]
-mod tests;
 
 use super::PackageCommandKind;
 use crate::resolution::graph::{

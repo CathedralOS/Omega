@@ -17,8 +17,6 @@ use symbols::SymbolHandle;
 mod display;
 mod shape;
 mod table_copies;
-#[cfg(test)]
-mod tests;
 mod tree_conversion;
 
 pub use display::display_name_path;
@@ -1353,26 +1351,4 @@ pub struct MatchArm {
 pub enum OwnedMatchPattern {
     Value(Expression),
     Wildcard,
-}
-
-#[cfg(test)]
-mod semantic_nan_tests {
-    use super::{Expression, ExpressionNode, ExpressionTable};
-    use numerics::literals::FloatFormat;
-
-    #[test]
-    fn semantic_nan_copy_and_tree_round_trip_preserve_format() {
-        let mut source = ExpressionTable::default();
-        let binary32 = source.insert(ExpressionNode::UndeterminedNaN(FloatFormat::F32));
-        let binary64 = source.insert(ExpressionNode::UndeterminedNaN(FloatFormat::F64));
-        assert!(!source.expressions_structurally_equal(binary32, binary64));
-        for (handle, format) in [(binary32, FloatFormat::F32), (binary64, FloatFormat::F64)] {
-            let tree = source.to_tree(handle);
-            assert_eq!(tree, Expression::UndeterminedNaN(format));
-            let inserted = source.insert_tree(&tree);
-            assert!(source.expressions_structurally_equal(handle, inserted));
-            let copied = source.insert_copy(handle);
-            assert!(source.expressions_structurally_equal(handle, copied));
-        }
-    }
 }

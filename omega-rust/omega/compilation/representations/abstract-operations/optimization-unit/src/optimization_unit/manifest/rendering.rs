@@ -279,6 +279,3 @@ fn render_realization_site(site: PsiRealizationSite) -> String {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

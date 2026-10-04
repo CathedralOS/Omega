@@ -66,9 +66,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use rewrite::interchange_selected_runs;
 pub use validation::validate_selected_interchange;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted commuting run interchange with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedInterchange {

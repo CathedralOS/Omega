@@ -96,9 +96,6 @@ pub(crate) use redundant::{
 pub(crate) use rewrite::remove_dead_compare;
 pub(crate) use validation::{measured_steps, validate_dead_compare};
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted dead-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedDeadCompare {

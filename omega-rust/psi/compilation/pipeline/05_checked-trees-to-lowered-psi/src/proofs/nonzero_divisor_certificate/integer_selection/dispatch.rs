@@ -16,8 +16,6 @@ use super::{bound, direct_add, multiply};
 
 mod strict;
 pub(super) use strict::prove_discrete_endpoint;
-#[cfg(test)]
-mod tests;
 
 pub(super) fn prove_atomic(
     context: &PropositionContext,

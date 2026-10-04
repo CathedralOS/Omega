@@ -24,8 +24,6 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 mod result_realization;
-#[cfg(test)]
-mod selected_attached_tests;
 mod target_resolution;
 mod traversal;
 

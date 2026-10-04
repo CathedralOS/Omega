@@ -18,14 +18,6 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_live_ranges;
 
-#[cfg(test)]
-pub(crate) use compute::REUSED_FUNCTIONS as LIVE_RANGE_REUSED_FUNCTIONS;
-
-#[cfg(test)]
-std::thread_local! {
-    pub(crate) static LIVENESS_REPLAYS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// Derive block-local live-range fragments and virtual-register interference
 /// from an exact selected CFG and validated liveness facts.
 pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(

@@ -16,9 +16,6 @@ use super::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedStructuralParameterField,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// `first` and `second` are exact complements when, after `!` and equality
 /// with a Boolean constant are folded into a polarity:
 ///

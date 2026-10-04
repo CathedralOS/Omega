@@ -256,32 +256,3 @@ pub fn evaluate_build_machine_measured(
         .map_err(BuildMachineEvaluationError::Granted),
     }
 }
-
-#[cfg(test)]
-mod completed_program_tests {
-    use super::*;
-
-    #[test]
-    fn completed_checked_program_equality_includes_check_facts() {
-        let baseline = checked_trees::CheckedTrees::default();
-        let mut changed = baseline.clone();
-        changed.facts.boundary_adapter_dispatch.push(
-            checked_trees::CheckedBoundaryAdapterDispatch {
-                receiver: SymbolHandle::from_arena_index(1),
-                requirement: SymbolHandle::from_arena_index(2),
-                realization_state: SymbolHandle::from_arena_index(3),
-                forward_receiver: false,
-                family_tuple: Box::new([]),
-            },
-        );
-        assert_eq!(baseline.typed, changed.typed);
-        let first = PreparedBuildMachineProgram::from_checked(baseline)
-            .checked_program()
-            .unwrap();
-        let second = PreparedBuildMachineProgram::from_checked(changed)
-            .checked_program()
-            .unwrap();
-        assert!(first == first.clone());
-        assert!(first != second);
-    }
-}

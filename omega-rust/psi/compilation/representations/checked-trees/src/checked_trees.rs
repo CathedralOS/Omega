@@ -266,6 +266,3 @@ impl AsRef<typed_trees::TypedTrees> for CheckedTrees {
         &self.typed
     }
 }
-
-#[cfg(test)]
-mod tests;

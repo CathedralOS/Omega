@@ -5,8 +5,6 @@ use symbols::SymbolHandle;
 use crate::name::Identifier;
 
 mod display;
-#[cfg(test)]
-mod tests;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 

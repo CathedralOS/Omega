@@ -8,8 +8,6 @@ use super::workspace::{
 };
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 use package_source::git::resolution::{
     resolve_git_source_from_pin_in_lane, resolve_git_workspace_member_from_pin_in_lanes,
 };
@@ -18,16 +16,6 @@ use package_source::{
     GitAcquisitionPin, GitSourceRequest, GitWorkspaceDeclarationLimits,
     GitWorkspaceProjectionError, LocalSourceLimits, ResolvedGitSource, SourceResolver,
 };
-
-#[cfg(test)]
-pub fn resolve_git_package_source_from_hardened_base(
-    request: &GitSourceRequest,
-    cache_dir: impl AsRef<std::path::Path>,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())?;
-    resolve_git_package_source(request, &storage, limits)
-}
 
 fn resolve_git_root_package_source_in_lane(
     resolver: &SourceResolver,

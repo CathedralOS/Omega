@@ -76,9 +76,6 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub use replay::validate_projected_access_fold;
 pub use rewrite::fold_selected_projected_access;
 
-#[cfg(test)]
-mod tests;
-
 /// An accepted projected-access fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedProjectedAccess {

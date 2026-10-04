@@ -1,8 +1,6 @@
 //! Exact service-schema permissions, not exercised authority or admission.
 
 mod generics;
-#[cfg(test)]
-pub(crate) use generics::write_service_parameter_identity;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
 use crate::record::{

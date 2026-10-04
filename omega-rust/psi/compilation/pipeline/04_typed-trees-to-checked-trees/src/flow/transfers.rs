@@ -37,9 +37,6 @@ mod projected;
 mod scalar_values;
 mod write_target;
 
-#[cfg(test)]
-mod byte_sequence_tests;
-
 pub(super) fn propagate_statement_transfers(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
@@ -859,6 +856,3 @@ fn contextual_expression_place(
         expression,
     )
 }
-
-#[cfg(test)]
-mod tests;

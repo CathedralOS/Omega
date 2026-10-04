@@ -12,9 +12,6 @@ use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
-#[cfg(test)]
-mod tests;
-
 fn exclusive_access(access: StructuralAccess) -> bool {
     matches!(
         access,

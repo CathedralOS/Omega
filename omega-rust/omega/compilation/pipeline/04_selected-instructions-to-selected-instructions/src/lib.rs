@@ -142,9 +142,6 @@ pub use selected_instructions::{
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
-#[cfg(test)]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub use rewrites::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,

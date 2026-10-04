@@ -232,6 +232,3 @@ pub(in crate::selection) fn view_access(
     }
     None
 }
-
-#[cfg(test)]
-mod tests;

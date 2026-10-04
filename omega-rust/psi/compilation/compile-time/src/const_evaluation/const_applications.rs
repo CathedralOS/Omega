@@ -1051,6 +1051,3 @@ fn collect_calls(typed: &TypedTrees, root: ExpressionHandle) -> Vec<ExpressionHa
     }
     calls
 }
-
-#[cfg(test)]
-mod tests;

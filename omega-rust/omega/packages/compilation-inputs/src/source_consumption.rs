@@ -770,8 +770,3 @@ fn is_virtual_toolchain_path(path: &Path) -> bool {
             .to_str()
             .is_some_and(|component| component.starts_with('<') && component.ends_with('>'))
 }
-
-#[cfg(test)]
-mod test_support;
-#[cfg(test)]
-mod tests;

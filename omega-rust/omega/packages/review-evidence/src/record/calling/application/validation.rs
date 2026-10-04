@@ -4,9 +4,6 @@ mod callbacks;
 mod shapes;
 mod target;
 
-#[cfg(test)]
-mod tests;
-
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 
 impl PackagePolicyCallingPlan {

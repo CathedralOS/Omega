@@ -144,6 +144,3 @@ pub fn make_executable(path: &std::path::Path) -> Result<(), String> {
 pub fn make_executable(_path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

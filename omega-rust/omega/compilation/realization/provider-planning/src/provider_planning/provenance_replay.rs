@@ -13,16 +13,12 @@ mod plan_derivation;
 mod requirement_identities;
 mod specialization_rows;
 
-#[cfg(test)]
-pub(crate) use adapter_conformance::exact_canonical_provider_schema;
 pub(crate) use adapter_conformance::{
     exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
 };
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
 pub use candidate_validation::validate_derived_provider_plan_candidates;
 pub(crate) use candidate_validation::validate_derived_provider_plan_provenance;
-#[cfg(test)]
-pub(crate) use candidate_validation::validate_provider_plan_candidates;
 pub(crate) use requirement_identities::{
     exact_satisfied_requirement_identity, satisfied_row_requirement,
 };

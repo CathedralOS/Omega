@@ -26,9 +26,6 @@ mod apply;
 mod propose;
 mod validate;
 
-#[cfg(test)]
-pub(crate) mod tests;
-
 /// Propose every unique-preheader cyclic component that still retains admissible
 /// loop-invariant scalar nodes inside its member blocks: scalar-constant
 /// leaves, invariant place observations, byte observations, pure-callee

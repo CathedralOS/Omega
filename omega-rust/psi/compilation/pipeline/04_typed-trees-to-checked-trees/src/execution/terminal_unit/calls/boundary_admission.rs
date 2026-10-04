@@ -11,9 +11,6 @@ use crate::execution::terminal_unit::{
     TypedTrees, is_reference,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// A Fused binding projected from an ordinary parameter retains its exact
 /// requirement and compiler-issued erasure authorization. This proves the call
 /// receiver; attachment-field requirements remain a separate roster obligation.

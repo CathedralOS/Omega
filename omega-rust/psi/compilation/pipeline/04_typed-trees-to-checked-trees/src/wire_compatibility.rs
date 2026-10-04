@@ -15,8 +15,6 @@ mod demands;
 mod migration;
 mod observations;
 mod schemas;
-#[cfg(test)]
-mod tests;
 
 use language_semantics::wire::WireCompatibilityDemand;
 use observations::{WireCase, WireDemandVerdict, WireFact, WireField, WireShape};

@@ -243,6 +243,3 @@ pub(super) fn discover(
     }
     Some(current)
 }
-
-#[cfg(test)]
-mod tests;

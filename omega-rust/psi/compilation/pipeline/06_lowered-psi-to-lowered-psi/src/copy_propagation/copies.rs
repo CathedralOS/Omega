@@ -261,6 +261,3 @@ fn drop_positions(arguments: &mut Vec<ValueId>, removed: Option<&Vec<usize>>) {
         retained
     });
 }
-
-#[cfg(test)]
-mod tests;

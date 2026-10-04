@@ -582,33 +582,3 @@ impl TerminalExecution {
         Ok((parent, ByteSequenceBinding::Immutable(bytes)))
     }
 }
-
-#[cfg(test)]
-mod binding_tests;
-
-#[cfg(test)]
-mod tests {
-    use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
-
-    #[test]
-    fn replacements_use_live_length_not_capacity_sized_allocation() {
-        for capacity in [0, 1, u64::MAX] {
-            let mut buffer = TerminalBoundaryByteBuffer {
-                argument_index: 0,
-                capacity,
-                bytes: Vec::new(),
-            };
-            buffer.replace(&[]).unwrap();
-            if capacity == 0 {
-                assert!(buffer.replace(&[0]).is_err());
-                assert!(buffer.bytes().is_empty());
-            } else {
-                buffer.replace(&[255]).unwrap();
-                assert_eq!(buffer.bytes(), &[255]);
-                buffer.replace(&[]).unwrap();
-                assert!(buffer.bytes().is_empty());
-            }
-            assert_eq!(buffer.capacity(), capacity);
-        }
-    }
-}

@@ -52,14 +52,6 @@ pub enum PlaceAccessStep {
 }
 
 impl PlaceAccessStep {
-    #[cfg(test)]
-    fn is_runtime_index(&self) -> bool {
-        matches!(
-            self,
-            Self::Runtime(StructuralPathSegment::RuntimeIndex { .. })
-        )
-    }
-
     fn is_referent(&self) -> bool {
         matches!(self, Self::Runtime(StructuralPathSegment::Referent))
     }
@@ -86,19 +78,6 @@ pub struct ParameterAccessSurface {
     pub declared: StructuralAccess,
     pub reads: Vec<Vec<PlaceAccessStep>>,
     pub writes: Vec<Vec<PlaceAccessStep>>,
-}
-
-#[cfg(test)]
-impl ParameterAccessSurface {
-    /// Whether the body may observe any storage beneath this parameter.
-    pub fn is_read(&self) -> bool {
-        !self.reads.is_empty()
-    }
-
-    /// Whether the body may mutate any storage beneath this parameter.
-    pub fn is_written(&self) -> bool {
-        !self.writes.is_empty()
-    }
 }
 
 /// One declared result reference leaf's resolved ingress, in the callee's
@@ -166,81 +145,6 @@ pub struct PlaceAccessSummaryAnalysis {
     pub functions: Vec<FunctionPlaceAccessSummary>,
 }
 
-/// One structural argument's observed access projected into caller storage.
-///
-/// The whole call-site query surface below is staged for the proof-bound
-/// inlining rewrite that consumes it (INTERPROCEDURAL-SUMMARIES): it is
-/// exercised by this crate's analysis tests and stays `cfg(test)` until a
-/// production proposal reads it.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObservedArgumentAccess {
-    /// Index of the argument inside the call's `structural_arguments` row.
-    pub position: u32,
-    /// Caller-side views the call may read through this argument: the
-    /// callee's observed parameter paths composed beneath the argument's own
-    /// path. Empty means the callee provably does not observe the lane.
-    pub reads: Vec<PlaceAccessView>,
-    /// Caller-side views the call may write through this argument.
-    pub writes: Vec<PlaceAccessView>,
-    /// `false` when the callee signature declares no parameter at this
-    /// position, leaving the argument's declared `access` as the only bound.
-    pub signature_bound: bool,
-}
-
-/// A whole call's observed caller-visible access.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallAccessSummary {
-    /// One row per `structural_arguments` entry, in argument order.
-    pub arguments: Vec<ObservedArgumentAccess>,
-    /// One row per `reference_sources` entry on the callee's declared
-    /// structural result — where each returned reference leaf may point,
-    /// projected into caller storage where it crosses the argument lane.
-    /// Empty for scalar and unit results.
-    pub result_references: Vec<CallResultReference>,
-    /// Storage outside the argument lane the callee may read, in the
-    /// callee's namespace (`owner` is the declaring machine).
-    pub external_reads: Vec<PlaceAccessView>,
-    /// Storage outside the argument lane the callee may write.
-    pub external_writes: Vec<PlaceAccessView>,
-    /// `true` when the callee's external surface is a lower bound — the call
-    /// may touch storage the unit cannot enumerate.
-    pub unsummarized_targets: bool,
-}
-
-/// One returned reference leaf's caller-projected ingress.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallResultReference {
-    /// Path inside the returned root where this reference leaf lands.
-    pub result_path: Vec<StructuralPathSegment>,
-    /// Every origin the callee resolved for this leaf, projected into the
-    /// caller's namespace where the resolution crosses the argument lane.
-    pub origins: Vec<CallResultOrigin>,
-}
-
-/// Where one caller-visible result-reference origin lives.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CallResultOrigin {
-    /// Caller storage lent through the call's argument row: the returned
-    /// reference may alias this view.
-    Argument(PlaceAccessView),
-    /// Storage outside the argument lane, in the callee's namespace
-    /// (`owner` is the callee machine).
-    CalleeExternal(PlaceAccessView),
-    /// A callee parameter lane the call's `structural_arguments` row does not
-    /// cover — kept callee-spelled because no caller view exists for it.
-    /// Reachable only where the call itself fails admission.
-    UncoveredParameter {
-        position: u32,
-        path: Vec<PlaceAccessStep>,
-    },
-    /// Callee-owned storage the caller never observes through this call.
-    CalleeInternal,
-}
-
 /// The access a declared [`StructuralAccess`] authorizes: `(reads, writes)`.
 /// This is the complete bound applied to argument lanes whose callee the
 /// unit cannot observe. `Owned` counts as both — consumption observes the
@@ -251,127 +155,6 @@ pub fn declared_access(access: StructuralAccess) -> (bool, bool) {
         StructuralAccess::MutableBorrow => (true, true),
         StructuralAccess::WriteOnlyBorrow => (false, true),
         StructuralAccess::Owned => (true, true),
-    }
-}
-
-#[cfg(test)]
-impl PlaceAccessSummaryAnalysis {
-    pub fn function(&self, machine: MachineId) -> Option<&FunctionPlaceAccessSummary> {
-        self.functions
-            .binary_search_by_key(&machine, |function| function.machine)
-            .ok()
-            .map(|index| &self.functions[index])
-    }
-
-    /// The observed caller-visible access of one static in-unit call,
-    /// projected through its `structural_arguments` into `caller` storage.
-    /// `None` means the unit carries no body for `callee`: each argument's
-    /// declared `access` — see [`declared_access`] — is then the complete
-    /// bound on its lane.
-    pub fn call_accesses(
-        &self,
-        caller: MachineId,
-        callee: MachineId,
-        structural_arguments: &[StructuralArgument],
-    ) -> Option<CallAccessSummary> {
-        let summary = self.function(callee)?;
-        let mut arguments = Vec::with_capacity(structural_arguments.len());
-        for (index, argument) in structural_arguments.iter().enumerate() {
-            let position = u32::try_from(index).expect("structural argument index is u32");
-            let prefix = runtime_prefix(&argument.path);
-            let Some(surface) = summary
-                .parameters
-                .iter()
-                .find(|surface| surface.position == position)
-            else {
-                arguments.push(ObservedArgumentAccess {
-                    position,
-                    reads: Vec::new(),
-                    writes: Vec::new(),
-                    signature_bound: false,
-                });
-                continue;
-            };
-            let project = |paths: &[Vec<PlaceAccessStep>]| {
-                paths
-                    .iter()
-                    .map(|path| PlaceAccessView {
-                        owner: caller,
-                        root: argument.place,
-                        path: prefix
-                            .iter()
-                            .cloned()
-                            .chain(portable_path(path).iter().cloned())
-                            .collect(),
-                    })
-                    .collect()
-            };
-            arguments.push(ObservedArgumentAccess {
-                position,
-                reads: project(&surface.reads),
-                writes: project(&surface.writes),
-                signature_bound: true,
-            });
-        }
-        let result_references = summary
-            .result_sources
-            .iter()
-            .map(|source| CallResultReference {
-                result_path: source.result_path.clone(),
-                origins: source
-                    .origins
-                    .iter()
-                    .map(|origin| match origin {
-                        ResultSourceResolution::Parameter { position, path } => {
-                            let index =
-                                usize::try_from(*position).expect("parameter position is usize");
-                            match structural_arguments.get(index) {
-                                Some(argument) => CallResultOrigin::Argument(PlaceAccessView {
-                                    owner: caller,
-                                    root: argument.place,
-                                    path: runtime_prefix(&argument.path)
-                                        .iter()
-                                        .cloned()
-                                        .chain(portable_path(path).iter().cloned())
-                                        .collect(),
-                                }),
-                                None => CallResultOrigin::UncoveredParameter {
-                                    position: *position,
-                                    path: path.clone(),
-                                },
-                            }
-                        }
-                        ResultSourceResolution::External { root, path } => {
-                            CallResultOrigin::CalleeExternal(PlaceAccessView {
-                                owner: callee,
-                                root: *root,
-                                path: path.clone(),
-                            })
-                        }
-                        ResultSourceResolution::Internal => CallResultOrigin::CalleeInternal,
-                    })
-                    .collect(),
-            })
-            .collect();
-        Some(CallAccessSummary {
-            arguments,
-            result_references,
-            external_reads: summary.external_reads.clone(),
-            external_writes: summary.external_writes.clone(),
-            unsummarized_targets: summary.unsummarized_targets,
-        })
-    }
-}
-
-/// The callee-local prefix of a path that a caller can name. A
-/// `RuntimeIndex` segment quotes a callee-side scalar value, so a path
-/// carrying one truncates just before it — a bound the caller's own operand
-/// identity can express.
-#[cfg(test)]
-fn portable_path(path: &[PlaceAccessStep]) -> &[PlaceAccessStep] {
-    match path.iter().position(PlaceAccessStep::is_runtime_index) {
-        Some(index) => &path[..index],
-        None => path,
     }
 }
 

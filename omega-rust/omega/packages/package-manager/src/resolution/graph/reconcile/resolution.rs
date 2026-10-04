@@ -34,29 +34,6 @@ struct ObservedCustody {
     origins: Vec<CustodyOrigin>,
 }
 
-/// Resolve every projected source request before returning a package graph.
-///
-/// Transport and requester-relative path interpretation remain entirely in
-/// `resolve_dependency`. The callback receives the requester's exact custody
-/// and one projected request and must return custody derived from a concrete
-/// `ResolvedPackageSource<S>` adapter result.
-#[cfg(test)]
-pub(crate) fn resolve_package_source_closure<E, F>(
-    root_request: PackageRootSourceRequest,
-    root: PackageSourceCustody,
-    resolve_dependency: F,
-) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
-where
-    F: FnMut(&PackageSourceCustody, &DependencySourceRequest) -> Result<PackageSourceCustody, E>,
-{
-    resolve_package_source_closure_with_limits(
-        root_request,
-        root,
-        PackageSourceClosureLimits::default(),
-        resolve_dependency,
-    )
-}
-
 /// Resolve a complete source closure under caller-selected ceilings no looser
 /// than the authority the caller is prepared to spend on hostile graph input.
 pub(crate) fn resolve_package_source_closure_with_limits<E, F>(

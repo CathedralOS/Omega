@@ -32,13 +32,9 @@ use crate::values::{
     TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
     TerminalStructuralValue,
 };
-#[cfg(test)]
-use semantic_vocabulary::StructuralTypeId;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
-#[cfg(test)]
-use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::{
     Block, EntryClaim, NominalAffineCleanup, OperationKind, StructuralAffineDiscard,
     StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
@@ -232,30 +228,6 @@ impl CompletedReturn {
 }
 
 impl TerminalExecution {
-    /// Admit a freshly verified module and start its first execution. Unit
-    /// tests that construct `TerminalModule`s by hand enter through here;
-    /// the public starts admit through `TerminalProgram` instead.
-    #[cfg(test)]
-    pub(crate) fn start_verified_module(
-        module: terminal_psi::TerminalModule,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
-        structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
-        placed_view_establishments: &[TerminalPlacedViewEstablishment],
-        installation: Option<&AdmittedProviderInstallation>,
-    ) -> Result<Self, TerminalInterpretError> {
-        Self::start_with_program(
-            std::sync::Arc::new(crate::program::AdmittedTerminalProgram::admit(module)?),
-            scalar_arguments,
-            structural_arguments,
-            structural_scalar_field_arguments,
-            structural_primitive_value_arguments,
-            placed_view_establishments,
-            installation,
-        )
-    }
-
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
     /// data — no decode or verification repeats here.
@@ -378,55 +350,6 @@ impl TerminalExecution {
     /// The committed result once the entry invocation has produced one.
     pub(crate) fn result(&self) -> Option<&TerminalExecutionResult> {
         self.result.as_ref()
-    }
-
-    /// Test hook: apply one corruption to a structural type in both retained
-    /// copies — the lookup map the interpreter loop reads and the slim
-    /// catalog module placed-view validation consults. Only sound while this
-    /// execution is the program's sole owner.
-    #[cfg(test)]
-    pub(crate) fn mutate_structural_type(
-        &mut self,
-        id: StructuralTypeId,
-        mutation: impl Fn(&mut StructuralTypeDeclaration),
-    ) {
-        let program =
-            std::sync::Arc::get_mut(&mut self.program).expect("test mutates before sharing");
-        let mut matched = false;
-        if let Some(declaration) = program.structural_types.get_mut(&id) {
-            mutation(declaration);
-            matched = true;
-        }
-        if let Some(declaration) = program
-            .catalogs
-            .structural_types
-            .iter_mut()
-            .find(|declaration| declaration.id == id)
-        {
-            mutation(declaration);
-            matched = true;
-        }
-        assert!(matched, "mutate_structural_type: unknown structural type");
-    }
-
-    /// Test hook: insert or replace one structural type in both retained
-    /// copies — the lookup map and the slim catalog module. Only sound while
-    /// this execution is the program's sole owner.
-    #[cfg(test)]
-    pub(crate) fn insert_structural_type(&mut self, declaration: StructuralTypeDeclaration) {
-        let program =
-            std::sync::Arc::get_mut(&mut self.program).expect("test mutates before sharing");
-        if let Some(existing) = program
-            .catalogs
-            .structural_types
-            .iter_mut()
-            .find(|existing| existing.id == declaration.id)
-        {
-            *existing = declaration.clone();
-        } else {
-            program.catalogs.structural_types.push(declaration.clone());
-        }
-        program.structural_types.insert(declaration.id, declaration);
     }
 
     /// The root-authorized assumed binding contracts admitted with this

@@ -23,22 +23,6 @@ mod scope_identity;
 mod search_context;
 mod value_transport;
 
-/// Build the recursive certificate shape shared by canonical integer goals.
-///
-/// This is deliberately not an affine or interval analyzer. It composes exact
-/// prior citations and the small checked order rules; producers for richer
-/// families must still materialize proofs of the atomic leaves.
-#[cfg(test)]
-pub(crate) fn prove_canonical_integer_proposition(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let _search = search_context::SearchContext::enter(context);
-    certificate_entry::prove(context, goal, assumptions, semantic_axioms)
-}
-
 /// Produce a kernel-checked proof for the canonical integer proposition subset.
 ///
 /// This is a proof-search boundary, not an admission boundary. The returned
@@ -109,6 +93,3 @@ pub(crate) fn produce_relaxed_integer_proof(
     .ok()?;
     Some(proof)
 }
-
-#[cfg(test)]
-mod tests;

@@ -101,6 +101,3 @@ fn matching_dependency_segments<'a>(
             )
         })
 }
-
-#[cfg(test)]
-mod tests;

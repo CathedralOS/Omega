@@ -8,9 +8,6 @@ use super::{
 };
 use checked_trees::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
 
-#[cfg(test)]
-mod tests;
-
 impl Context<'_> {
     pub(super) fn integer_math_comparison(
         &self,

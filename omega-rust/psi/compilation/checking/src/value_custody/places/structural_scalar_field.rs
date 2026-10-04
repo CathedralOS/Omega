@@ -18,9 +18,6 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// Source identities only; this does not grant ownership or establish loan
 /// validity. Checked flow and the consuming replay still validate availability.
 #[derive(Debug, Clone, PartialEq, Eq)]

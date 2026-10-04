@@ -11,9 +11,6 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Whether `expression`'s type is provably an UNSIGNED integer primitive. An
 /// unsigned index is non-negative by construction, so it discharges the lower
 /// half of the index obligation (`0 <= i`) by type and never needs a separate

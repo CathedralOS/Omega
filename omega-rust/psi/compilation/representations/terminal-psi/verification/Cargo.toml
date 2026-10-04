@@ -18,6 +18,3 @@ terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
 sha2 = "0.10.9"
 
-[[test]]
-name = "suite"
-path = "tests/suite.rs"

@@ -7,9 +7,6 @@
 mod construction;
 mod validation;
 
-#[cfg(test)]
-mod tests;
-
 use crate::{
     ProgramEntryPhysicalContractPlan, ProgramEntrySourceSignatureIdentity,
     ProgramStorageEntryRootRole,

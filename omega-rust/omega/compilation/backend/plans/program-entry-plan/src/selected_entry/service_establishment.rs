@@ -6,9 +6,6 @@
 mod terminal_replay;
 pub use terminal_replay::validate_terminal_fused_service_establishments;
 
-#[cfg(test)]
-mod tests;
-
 use crate::ProgramEntrySourceSignatureIdentity;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 

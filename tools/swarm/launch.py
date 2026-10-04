@@ -713,8 +713,7 @@ def local_host_block():
         return (
             "You are on Intel macOS (x86_64). `TargetProfile::host()` has no "
             "macos_x86_64 profile: host-profiled tests panic with "
-            "`unsupported host profile for Omega native planning`. See "
-            "wiki/drafts/measurements/known_baseline_failures.md. Route omega invocations "
+            "`unsupported host profile for Omega native planning`. Route omega invocations "
             "through `--target linux_x86_64` (or another declared target) and "
             "report native-host coverage as unavailable, never as passing.")
     if system == "Darwin":

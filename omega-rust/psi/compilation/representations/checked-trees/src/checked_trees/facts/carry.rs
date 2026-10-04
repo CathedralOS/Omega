@@ -8,9 +8,6 @@ use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, C
 use std::borrow::Cow;
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CarryFacts {
     /// One entry per data declaration, in declaration order.

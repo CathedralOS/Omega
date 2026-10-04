@@ -8,8 +8,6 @@ mod behavior;
 mod data;
 mod declarations;
 pub(in crate::record) mod signatures;
-#[cfg(test)]
-mod tests;
 
 use crate::record::package::callable_policy::validation::{
     signature::{self as shared, *},

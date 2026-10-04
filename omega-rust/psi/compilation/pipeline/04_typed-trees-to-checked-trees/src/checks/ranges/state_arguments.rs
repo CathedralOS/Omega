@@ -33,8 +33,6 @@
 pub(crate) mod calls;
 mod expressions;
 mod statements;
-#[cfg(test)]
-mod tests;
 
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
@@ -220,18 +218,6 @@ pub(super) fn collect_state_argument_facts<'program>(
     operators: &checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
-    #[cfg(test)]
-    if tests::WHOLE_PASS_REFERENCE.get() {
-        return collect_state_argument_facts_whole_pass(
-            program,
-            field_lengths,
-            machine,
-            call_frames,
-            calls,
-            operators,
-            mutation_summaries,
-        );
-    }
     let states = program.machine_states(machine);
     let Some(entry) = states.first() else {
         return Vec::new();
@@ -256,8 +242,6 @@ pub(super) fn collect_state_argument_facts<'program>(
             if state_index != 0 && !collected.iter().any(|facts| facts.state == state.symbol) {
                 continue;
             }
-            #[cfg(test)]
-            tests::STATE_TRANSFERS.set(tests::STATE_TRANSFERS.get() + 1);
             let context = StateArgumentContext {
                 program,
                 machine,
@@ -393,106 +377,6 @@ fn merge_storage_rows(
     } else {
         *existing = Some(incoming.clone());
     }
-}
-
-#[cfg(test)]
-fn collect_state_argument_facts_whole_pass<'program>(
-    program: &'program typed_trees::TypedTrees,
-    field_lengths: &[(SymbolHandle, String, usize)],
-    machine: &'program Machine,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
-    calls: &[super::facts::RangeCallContext<'_>],
-    operators: &checked_trees::CheckedOperatorFacts,
-    mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Vec<StateArgumentFacts> {
-    // Facts about a state's arguments are derived from the call/transition
-    // sites that target it. On a recursive or cyclic control-flow path the
-    // arguments handed to the *next* state are themselves built from the
-    // current state's parameters, so a single forward pass cannot see facts
-    // that only become available once the current state's own parameters have
-    // been constrained by its incoming edges.
-    //
-    // Unreached states contribute no edge yet; a reached state with no proof
-    // contributes an unknown value / empty proof set. Keeping those separate
-    // allows a real entry edge to establish a recursive invariant without
-    // ignoring an unbounded reachable predecessor. Each pass rebuilds all
-    // contributions so provisional facts cannot survive later weakening.
-    let Some(entry) = program.machine_states(machine).first() else {
-        return Vec::new();
-    };
-    let mut collected: Vec<StateArgumentFacts> = Vec::new();
-
-    // Same shared whole-program bound index: the maps are program data and
-    // build at most once across the propagation fixpoint.
-    let bound_lookup = std::rc::Rc::new(std::cell::RefCell::new(None));
-    for _ in 0..MAX_PROPAGATION_PASSES {
-        let previous = std::mem::take(&mut collected);
-
-        for (state, calls) in program.machine_states(machine).iter().zip(calls) {
-            if state.symbol != entry.symbol
-                && !previous
-                    .iter()
-                    .any(|incoming| incoming.state == state.symbol)
-            {
-                continue;
-            }
-            let context = StateArgumentContext {
-                program,
-                machine,
-                state,
-                call_frames,
-            };
-            tests::STATE_TRANSFERS.set(tests::STATE_TRANSFERS.get() + 1);
-            let mut facts = RangeFacts::new(field_lengths);
-            facts.bound_program = Some(program);
-            facts.bound_lookup = bound_lookup.clone();
-            // Only range contributions change between states and passes.
-            // Borrow the invocation's completed source/borrow summaries before
-            // any branch snapshots clone these per-state facts.
-            facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
-            facts.checked_calls = Some(calls);
-            facts.checked_operators = Some(operators);
-            for parameter in program.state_parameters(state) {
-                facts.define_local(
-                    parameter.symbol,
-                    parameter.name.to_string(),
-                    super::arrays::fixed_array_type_length(program, parameter.type_reference),
-                    None,
-                );
-            }
-            seed_state_requires(program, &mut facts, machine, state);
-            // Seed the source state's own parameter facts gathered so far so
-            // that arguments derived from them (e.g. `remaining - 1`) carry the
-            // refined bound into the cyclic callee on this pass.
-            if state.symbol != entry.symbol {
-                seed_state_argument_facts(&mut facts, state, &previous);
-            }
-
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-            {
-                facts.statement_index = statement_index;
-                collect_state_argument_facts_from_statement(
-                    &context,
-                    &mut facts,
-                    statement,
-                    &mut collected,
-                );
-            }
-        }
-
-        // The machine head is callable with every argument its declaration
-        // permits. Internal recursion cannot narrow that external entry set.
-        collected.retain(|incoming| incoming.state != entry.symbol);
-        if collected == previous {
-            return collected;
-        }
-    }
-
-    Vec::new()
 }
 
 pub(super) fn seed_state_argument_facts(

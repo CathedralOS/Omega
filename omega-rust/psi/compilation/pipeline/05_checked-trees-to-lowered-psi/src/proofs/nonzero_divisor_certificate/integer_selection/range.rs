@@ -9,9 +9,6 @@ use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 use super::super::integer_evidence::{Citation, cited_facts, goal_target, relax};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,

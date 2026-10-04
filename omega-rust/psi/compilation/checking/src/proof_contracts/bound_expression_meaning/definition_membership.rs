@@ -246,6 +246,3 @@ fn checked_field<'program>(
         && program.symbols.name(field.symbol) == field.name.as_str())
     .then_some(field)
 }
-
-#[cfg(test)]
-mod tests;

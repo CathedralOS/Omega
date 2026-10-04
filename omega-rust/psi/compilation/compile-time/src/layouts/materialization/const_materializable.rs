@@ -704,6 +704,3 @@ pub(super) fn hash_byte(hash: &mut u64, value: u8) {
     *hash ^= u64::from(value);
     *hash = hash.wrapping_mul(0x100000001b3);
 }
-
-#[cfg(test)]
-mod tests;

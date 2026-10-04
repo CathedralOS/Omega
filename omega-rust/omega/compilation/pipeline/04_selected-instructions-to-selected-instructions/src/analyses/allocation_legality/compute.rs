@@ -6,9 +6,6 @@ mod function;
 mod live_points;
 mod view_candidates;
 
-#[cfg(test)]
-mod tests;
-
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
@@ -20,11 +17,6 @@ use crate::{
     ValidatedLiveRanges,
 };
 use register_homes::AllocationLegalityPlan;
-
-#[cfg(test)]
-std::thread_local! {
-    pub(crate) static REUSED_FUNCTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
 
 pub(crate) fn compute_terminal_allocation_legality(
     ranges: &ValidatedLiveRanges,
@@ -80,8 +72,6 @@ pub(crate) fn compute_terminal_allocation_legality(
                 && prior_ranges.plan().functions.get(function_index) == Some(live_ranges)
                 && let Some(function) = prior_legality.plan().functions.get(function_index)
             {
-                #[cfg(test)]
-                REUSED_FUNCTIONS.set(REUSED_FUNCTIONS.get() + 1);
                 return Ok(function.clone());
             }
             function::compute(

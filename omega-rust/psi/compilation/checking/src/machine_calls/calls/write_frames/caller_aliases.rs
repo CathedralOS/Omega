@@ -448,32 +448,6 @@ pub(super) fn local_write_origins_before_statement(
     Some(origins)
 }
 
-#[cfg(test)]
-fn close_caller_aliases(
-    program: &TypedTrees,
-    machine: &Machine,
-    symbols: &TopLevelSymbols<'_>,
-    site: CallerWriteSite<'_>,
-    written: Vec<String>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
-    >,
-) -> Option<Vec<String>> {
-    if written.is_empty() {
-        return Some(written);
-    }
-    let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
-    close_over_origins(
-        written,
-        &evidence.aliases,
-        &evidence.divergent,
-        &evidence.stored,
-    )
-}
-
-#[cfg(test)]
-mod tests;
-
 /// Alias maps a boundary resolve consults when it spells call-argument
 /// origins: the enclosing state's parameters, the prefix's established
 /// single-origin bindings and divergent referent sets, and its stored

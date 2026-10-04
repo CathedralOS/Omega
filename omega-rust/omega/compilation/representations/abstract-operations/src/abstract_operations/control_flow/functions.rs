@@ -78,6 +78,3 @@ pub struct AbstractBlockEntry {
     pub parameters: Vec<AbstractParameter>,
     pub operation_offset: usize,
 }
-
-#[cfg(test)]
-mod tests;

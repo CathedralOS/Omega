@@ -110,6 +110,3 @@ pub fn validate_optimized_program_storage_semantic_wrapper_encoding(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

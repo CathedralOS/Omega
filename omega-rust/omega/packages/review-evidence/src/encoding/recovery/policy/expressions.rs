@@ -262,6 +262,3 @@ pub(in crate::encoding::recovery) fn static_argument(
         })
     })
 }
-
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;

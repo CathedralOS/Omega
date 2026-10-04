@@ -12,6 +12,4 @@ pub(crate) use applications::{
 };
 pub(crate) use carry::encode_carry_policy;
 pub(crate) use intrinsics::encode_compiler_intrinsic_execution;
-#[cfg(test)]
-pub(crate) use review::encode_provider_row;
 pub(crate) use review::{encode_provider, encode_provider_family};

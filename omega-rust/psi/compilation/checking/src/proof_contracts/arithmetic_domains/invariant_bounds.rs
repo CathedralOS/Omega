@@ -838,6 +838,3 @@ fn requires_interval(
     }
     interval
 }
-
-#[cfg(test)]
-mod tests;

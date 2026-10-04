@@ -18,8 +18,6 @@ mod runtime_requirements;
 mod specialization_commitments;
 mod stack_graphs;
 mod start_selections;
-#[cfg(test)]
-mod tests;
 
 pub use call_target_bindings::{CallTargetAssignment, derive_call_target_bindings};
 

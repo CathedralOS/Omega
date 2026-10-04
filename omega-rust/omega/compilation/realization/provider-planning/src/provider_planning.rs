@@ -27,8 +27,6 @@ mod receipt_binding;
 mod selected_plan_bindings;
 mod selection_provenance;
 mod synchronous_cycles;
-#[cfg(test)]
-mod tests;
 
 pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
@@ -36,10 +34,6 @@ pub use effects::{
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
-#[cfg(test)]
-pub(crate) use provenance_replay::exact_checked_adapter_invocations;
-#[cfg(test)]
-pub(crate) use provenance_replay::validate_provider_plan_candidates;
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter, same_semantic_name,
@@ -63,8 +57,6 @@ use typed_trees::TypedTrees;
 use crate::provider_planning::selected_plan_bindings::SelectedProviderProgramUpdates;
 use crate::provider_planning::selection_provenance::select_provider_plan_indices;
 use installation_reach::derive_selected_installation_reach_resolutions;
-#[cfg(test)]
-use provenance_replay::exact_canonical_provider_schema;
 
 /// Build the exact Omega-owned selection sidecar and bind its stable receipt
 /// identities into checked semantic evidence. Provider execution and

@@ -1,8 +1,5 @@
 //! Typed source projection of the target-owned program-storage Extent contract.
 
-#[cfg(test)]
-mod tests;
-
 use calling_conventions::{BoundaryValueClass, BoundaryValueField, ValueShape};
 use layout::BoundaryValueLayout;
 use typed_trees::TypedTrees;

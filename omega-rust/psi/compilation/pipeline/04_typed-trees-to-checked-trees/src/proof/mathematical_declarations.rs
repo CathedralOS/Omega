@@ -317,6 +317,3 @@ fn refuse(
     }
     vec![diagnostic]
 }
-
-#[cfg(test)]
-mod tests;

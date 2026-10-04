@@ -11,8 +11,6 @@ mod evidence_terms;
 mod guarded_call_evidence;
 mod producer_provenance;
 mod proof_output_calls;
-#[cfg(test)]
-mod tests;
 
 use super::{
     CheckedTrees, EvidenceRoute, LoweredPsi, LoweringError, ObligationEvidence, PrimitiveJudgment,

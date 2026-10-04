@@ -357,7 +357,3 @@ fn validate_field(
     }
     unsupported("service field argument has no field receipt")
 }
-
-#[cfg(test)]
-#[path = "service_forward_tests.rs"]
-mod tests;

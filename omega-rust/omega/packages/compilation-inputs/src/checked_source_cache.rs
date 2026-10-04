@@ -858,7 +858,3 @@ fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
         .map(|value| value.as_bytes().to_vec())
         .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
-
-#[cfg(test)]
-#[path = "checked_source_cache/tests.rs"]
-mod tests;

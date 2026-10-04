@@ -8,9 +8,6 @@ use language_semantics::declaration_selection::{CollectionMeasure, CollectionVie
 use symbols::BuiltinFunction;
 mod match_dispatch;
 
-#[cfg(test)]
-mod case_membership_tests;
-
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn eval_expression(
         &mut self,

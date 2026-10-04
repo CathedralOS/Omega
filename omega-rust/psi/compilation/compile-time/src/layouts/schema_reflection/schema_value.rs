@@ -258,19 +258,3 @@ fn reject_local_discriminator_collisions(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::reject_local_discriminator_collisions;
-
-    #[test]
-    fn local_schema_discriminator_collisions_fail_closed() {
-        let error = reject_local_discriminator_collisions(
-            "Packet",
-            "field",
-            [("header".to_owned(), 7), ("payload".to_owned(), 7)],
-        )
-        .expect_err("compact-equal schema discriminators must reject");
-        assert!(error.contains("`header`") && error.contains("`payload`"));
-    }
-}

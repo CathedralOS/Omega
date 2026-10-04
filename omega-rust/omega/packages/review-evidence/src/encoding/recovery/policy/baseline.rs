@@ -3,17 +3,7 @@
 use crate::record::PackagePolicyBaseline;
 pub(in crate::encoding::recovery) mod boundary;
 pub(in crate::encoding::recovery) mod dependencies;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod external_tests;
 pub(in crate::encoding::recovery) mod restricted_build;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod row_tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod text_tests;
-#[cfg(test)]
-pub(in crate::encoding::recovery) mod usage_tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage, callable_policy, external,

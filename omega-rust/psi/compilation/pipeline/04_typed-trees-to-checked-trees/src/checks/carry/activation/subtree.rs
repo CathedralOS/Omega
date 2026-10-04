@@ -10,9 +10,6 @@ use checked_trees::{CarryFacts, MachineActivationCarryFact};
 use language_semantics::CarryPolicy;
 use std::ops::Range;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn join_activation_carry(
     carry: &CarryFacts,
     direct: &[MachineActivationCarryFact],

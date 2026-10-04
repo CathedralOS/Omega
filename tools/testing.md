@@ -34,13 +34,19 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 A crate's own tests run by package and name filter:
 
 ```bash
-mbx nextest run -p terminal-verifier boundary_requires
+mbx nextest run -p isa-x86_64 encode
 ```
 
-The `compiler` crate has no Rust test targets besides `corpus_runner`. Its
-behavior is tested end to end: a fixture under `tests/omega/{pass,fail,run}` is
-the test, and the corpus gate below runs it. Add a fixture, not a Rust test
-file; see `omega-rust/omega/compilation/driver/tests/README.md`.
+Language behavior is tested end to end: a fixture under
+`tests/omega/{pass,fail,run}` is the test, and the corpus gate below runs it.
+Add a fixture, not a Rust test. A Rust test belongs only to a unit with no
+Omega source input — an encoder, a table, a graph algorithm, the proof
+kernel — and never pins a compiler-internal custody, replay or forgery
+check. The front-end, checking, lowering, Terminal, optimizer, realization
+and package crates carry no behavior tests; do not add them back. A test that
+scans a crate's own sources as an architecture guard is the one exception. The `compiler`
+crate's only test target is `corpus_runner`; see
+`omega-rust/omega/compilation/driver/tests/README.md`.
 
 ## Corpus outcome gate
 

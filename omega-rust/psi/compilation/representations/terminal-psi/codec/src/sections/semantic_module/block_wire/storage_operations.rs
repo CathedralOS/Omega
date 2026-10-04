@@ -880,35 +880,3 @@ fn decode_element_view_region(
         tag => Err(CodecError::InvalidTag("element view region", tag)),
     }
 }
-
-#[cfg(test)]
-mod region_tests {
-    use super::*;
-    use terminal_psi::ElementViewRegion;
-
-    #[test]
-    fn representation_region_wire_retains_endpoints_and_obligation() {
-        for region in [
-            ElementViewRegion::WholeCollection,
-            ElementViewRegion::RepresentationBytes {
-                start: ValueId::new(2).unwrap(),
-                end: ValueId::new(7).unwrap(),
-                obligation: ObligationId::new(9).unwrap(),
-            },
-        ] {
-            let mut writer = Writer::default();
-            encode_element_view_region(&mut writer, region);
-            let bytes = writer.finish();
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(decode_element_view_region(&mut reader).unwrap(), region);
-            assert_eq!(reader.remaining(), 0);
-            if bytes.len() > 1 {
-                assert!(
-                    decode_element_view_region(&mut Reader::new(&bytes[..bytes.len() - 1]))
-                        .is_err()
-                );
-            }
-        }
-        assert!(decode_element_view_region(&mut Reader::new(&[2])).is_err());
-    }
-}

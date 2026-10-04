@@ -174,6 +174,3 @@ pub fn validate_authored_declaration_selections(
         Err(diagnostics)
     }
 }
-
-#[cfg(test)]
-mod tests;

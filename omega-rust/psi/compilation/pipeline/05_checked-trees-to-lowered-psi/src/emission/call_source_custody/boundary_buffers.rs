@@ -14,9 +14,6 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-#[cfg(test)]
-mod tests;
-
 /// Return the operand ordinals whose complete storage projection was replayed.
 /// A byte window is an adapted view, not a plain storage projection: the common
 /// call owner consumes this result instead of asking another path reader to

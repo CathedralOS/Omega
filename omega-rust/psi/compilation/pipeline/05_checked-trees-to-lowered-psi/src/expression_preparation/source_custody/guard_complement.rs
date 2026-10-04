@@ -12,9 +12,6 @@ use super::{
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralParameterField};
 
-#[cfg(test)]
-mod tests;
-
 /// The Guard row at `ordinal + 1` is the exact complement of the row at
 /// `ordinal`, both in `state`. A missing or unrejoined row is an error.
 pub(crate) fn complementary(

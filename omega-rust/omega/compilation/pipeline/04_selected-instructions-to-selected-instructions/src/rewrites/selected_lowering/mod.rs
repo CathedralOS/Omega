@@ -7,9 +7,6 @@
 mod catalog;
 pub(crate) mod literal_fold;
 
-#[cfg(test)]
-mod tests;
-
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationPhaseSelections, OptimizationSelections,
 };

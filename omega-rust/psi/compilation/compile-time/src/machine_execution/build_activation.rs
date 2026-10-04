@@ -7,9 +7,6 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-#[cfg(test)]
-mod tests;
-
 /// Admit the compiler-issued Build before any build effects execute.
 ///
 /// Recognition alone grants nothing: the same operation checks the exact

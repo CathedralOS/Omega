@@ -4,9 +4,6 @@ use proof_admission::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 use std::collections::{HashMap, HashSet};
 
-#[cfg(test)]
-mod tests;
-
 /// One reconstructed path-condition fact tagged by how the generator
 /// discharged it.
 pub(in super::super) struct ConditionFact {

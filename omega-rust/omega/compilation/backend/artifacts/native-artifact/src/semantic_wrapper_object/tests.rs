@@ -38,7 +38,6 @@ use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 mod manifest_mutation_matrix;
-mod object_mutation_matrix;
 
 fn template() -> ValidatedX86_64SemanticUnitWrapperTemplate {
     encode_x86_64_semantic_unit_wrapper_template(

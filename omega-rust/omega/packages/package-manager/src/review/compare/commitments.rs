@@ -109,15 +109,6 @@ pub(super) fn derive_candidate_closure_identity<C: PackageReviewEvidence>(
     Ok((commitment, source_closure.fingerprint().clone()))
 }
 
-#[cfg(test)]
-pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    candidate_reviews: &[&C],
-) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
-    derive_candidate_closure_identity(target_closure, candidate_reviews)
-        .map(|(commitment, _)| commitment)
-}
-
 pub(super) fn derive_candidate_graph_commitment<C: PackageReviewEvidence>(
     closure: &ResolvedPackageClosure,
     source_closure: Option<&[u8]>,

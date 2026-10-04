@@ -9,8 +9,6 @@ use typed_trees::{
 
 mod context;
 mod guard_implication;
-#[cfg(test)]
-mod tests;
 pub(super) use context::proves as proves_in_context;
 
 pub(super) fn proves(

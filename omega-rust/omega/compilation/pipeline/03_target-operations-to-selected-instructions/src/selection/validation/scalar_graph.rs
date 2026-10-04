@@ -44,11 +44,6 @@ mod structural;
 mod structural_case;
 mod unit_call;
 
-#[cfg(test)]
-mod raw_input_tests;
-#[cfg(test)]
-pub(in crate::selection) use raw_input_tests::validate;
-
 pub(in crate::selection) fn validate_with_environment(
     function: usize,
     source: &LegalizedScalarFunction,

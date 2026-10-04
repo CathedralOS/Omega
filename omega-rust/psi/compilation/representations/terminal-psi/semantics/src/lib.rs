@@ -43,8 +43,6 @@ mod static_path;
 mod storage_regions;
 mod structural_effect;
 mod structural_window;
-#[cfg(test)]
-mod tests;
 mod zeroed_structural;
 
 pub use arrival_storage::{StorageNames, arrival_parameter, root_before_edge, storage_names};

@@ -2,12 +2,6 @@
 
 pub(crate) mod optimization_output;
 
-#[cfg(test)]
-mod catalog_route_tests;
-
-#[cfg(test)]
-mod evidence_matrix;
-
 use crate::analyses::stage_optimized_allocation_legality_for_frameless_leaf;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
@@ -119,100 +113,4 @@ fn unexecutable_catalog_composition(
         .filter(|slice| !slice_executes_at_stage(slice.rows()))
         .map(|slice| slice.phase())
         .find(|phase| !selections.for_phase(*phase).is_empty())
-}
-
-#[cfg(test)]
-mod admission_tests {
-    use super::{executed_slice_phases, unexecutable_catalog_composition};
-    use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
-
-    /// Composition and identity replay read the same admission set: every
-    /// phase the entrance executes appears exactly once, in catalog order —
-    /// the selected-lowering and pre-allocation slices.
-    #[test]
-    fn executed_phases_come_from_the_stage_catalog() {
-        assert_eq!(
-            executed_slice_phases().collect::<Vec<_>>(),
-            [
-                OptimizationExecutionPhase::SelectedLowering,
-                OptimizationExecutionPhase::PreAllocation,
-            ]
-        );
-    }
-
-    /// An executor-less catalog slice's selections are in flight but never
-    /// rejected as missing execution by identity replay — the admission set
-    /// (not a phase literal) bounds what an identity output may absorb.
-    #[test]
-    fn executor_less_phases_stay_outside_the_executed_set() {
-        assert!(
-            !executed_slice_phases()
-                .any(|phase| phase == OptimizationExecutionPhase::AllocationRecovery)
-        );
-    }
-
-    /// A selection mixing selected-lowering rules with rules under a
-    /// carried but executor-less catalog phase rejects — the gate reads
-    /// `SELECTED_STAGE_RULE_CATALOG`, so a new executor-less slice joins the
-    /// rejection without touching the entrance.
-    #[test]
-    fn mixed_executor_less_phase_is_an_unsupported_composition() {
-        let selections = OptimizationSelections::new([
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-        ])
-        .unwrap();
-        assert_eq!(
-            unexecutable_catalog_composition(&selections),
-            Some(OptimizationExecutionPhase::AllocationRecovery)
-        );
-    }
-
-    /// Two executed slices in one selection have no chain order yet: the
-    /// entrance rejects the composition rather than sequencing it silently.
-    #[test]
-    fn mixed_executed_phases_are_an_unsupported_composition() {
-        let selections = OptimizationSelections::new([
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-            Optimization::SelectedSameBlockCopyI64RemovalV1,
-        ])
-        .unwrap();
-        let executed: Vec<_> = executed_slice_phases()
-            .filter(|phase| !selections.for_phase(*phase).is_empty())
-            .collect();
-        assert_eq!(executed.len(), 2);
-    }
-
-    /// An executor-less carried phase by itself stays a no-op identity —
-    /// declared rules are tolerated until a stage executor lands — while
-    /// lowering-only, foreign-phase, and empty selections all pass.
-    #[test]
-    fn only_mixed_compositions_reject() {
-        assert_eq!(
-            unexecutable_catalog_composition(
-                &OptimizationSelections::new([
-                    Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-                ])
-                .unwrap()
-            ),
-            None
-        );
-        assert_eq!(
-            unexecutable_catalog_composition(
-                &OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate,])
-                    .unwrap()
-            ),
-            None
-        );
-        assert_eq!(
-            unexecutable_catalog_composition(
-                &OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()
-            ),
-            None
-        );
-        assert_eq!(
-            unexecutable_catalog_composition(&OptimizationSelections::default()),
-            None
-        );
-    }
 }

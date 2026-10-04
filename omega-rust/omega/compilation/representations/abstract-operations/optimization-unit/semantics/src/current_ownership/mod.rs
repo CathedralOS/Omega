@@ -41,47 +41,6 @@ pub(crate) use block_parameters::parameter_establishment_order;
 use continuation::apply_edge_partial_affine_discards;
 pub(crate) use continuation::valid_partial_continuation_complement;
 
-#[cfg(test)]
-pub(super) fn validate_current_ownership_frontier(
-    function: &PsiOptimizationFunction,
-    blocks: &BTreeMap<BlockId, &OptimizationBlock>,
-    successors: &BTreeMap<BlockId, Vec<BlockId>>,
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-    boundary_machines: &BTreeMap<
-        semantic_vocabulary::BoundaryMachineId,
-        &BoundaryMachineDeclaration,
-    >,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    call_accesses: &CallAccesses,
-) -> Result<(), OptimizationUnitValidationError> {
-    let requirements = validate_current_ownership_frontier_collecting(
-        function,
-        blocks,
-        successors,
-        functions,
-        boundary_machines,
-        structural_types,
-        call_accesses,
-    )?;
-    if let Some(row) = requirements.first() {
-        let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
-            source, ..
-        } = &row.demand
-        else {
-            unreachable!("derived storage demand");
-        };
-        return Err(
-            OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                machine: function.machine,
-                block: row.position.0,
-                node: row.position.1,
-                place: *source,
-            },
-        );
-    }
-    Ok(())
-}
-
 pub(super) fn validate_current_ownership_frontier_collecting(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,

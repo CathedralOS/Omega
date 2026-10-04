@@ -12,8 +12,6 @@ mod derived_bytes;
 mod outer_layouts;
 mod replay_matching;
 mod report_fingerprints;
-#[cfg(test)]
-mod tests;
 mod validated_materializations;
 
 pub(crate) use derived_bytes::{EncodedOuterField, prepare_sum_array_field};

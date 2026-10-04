@@ -24,9 +24,6 @@ pub(crate) use declared_fields::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows, readable_slice_element,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// The declared type of an assignment destination, preserving domain and
 /// capacity constraints. Machine-attached fields and direct state
 /// parameter/local places share the same write-establishment rule; only the

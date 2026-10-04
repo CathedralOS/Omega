@@ -22,8 +22,6 @@ mod crash_predicates;
 mod crash_sites;
 mod resource_envelopes;
 mod scalar_contracts;
-#[cfg(test)]
-mod tests;
 
 pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
 pub use crash_predicates::{

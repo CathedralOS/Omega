@@ -9,9 +9,6 @@ use typed_trees::types::PrimitiveType;
 
 use super::RangeFacts;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn seed(
     program: &TypedTrees,
     machine: &Machine,

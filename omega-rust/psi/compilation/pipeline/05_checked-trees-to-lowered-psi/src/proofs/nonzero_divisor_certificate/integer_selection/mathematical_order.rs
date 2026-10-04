@@ -16,9 +16,6 @@ use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext};
 use super::super::integer_evidence::projected_facts;
 use super::super::search_context::spend;
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,

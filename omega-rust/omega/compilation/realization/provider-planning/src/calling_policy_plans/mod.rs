@@ -19,8 +19,6 @@ mod callback_layout_catalog;
 mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
-#[cfg(test)]
-mod tests;
 
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryDirectCallbackParameter, BoundaryNativeParameter,

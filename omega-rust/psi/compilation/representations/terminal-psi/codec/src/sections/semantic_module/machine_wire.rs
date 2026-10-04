@@ -34,9 +34,6 @@ use crate::sections::semantic_module::wire::{
     decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn encode_machine(
     writer: &mut Writer,
     machine: &TerminalMachine,

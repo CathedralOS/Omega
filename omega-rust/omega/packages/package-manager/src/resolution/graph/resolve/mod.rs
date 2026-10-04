@@ -34,27 +34,3 @@ pub use workspace::{
     resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
     resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
 };
-
-#[cfg(test)]
-pub(crate) use external_local::resolve_external_local_package_closure_from_hardened_base;
-#[cfg(test)]
-pub(crate) use git::{git_root_request_matches, resolve_git_package_closure_from_hardened_base};
-#[cfg(test)]
-pub(crate) use workspace::{
-    resolve_workspace_package_closure_from_hardened_base,
-    resolve_workspace_package_closure_in_context_from_hardened_base,
-};
-
-#[cfg(test)]
-use super::reconcile::{
-    PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
-};
-#[cfg(test)]
-use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
-#[cfg(test)]
-use package_source::{GitSourceRequest, LocalSourceLimits, SourceResolver};
-#[cfg(test)]
-use std::path::{Path, PathBuf};
-
-#[cfg(test)]
-mod tests;

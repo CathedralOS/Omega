@@ -732,6 +732,3 @@ fn static_type_argument_matches(
         | TypeReferenceNode::Unit => false,
     }
 }
-
-#[cfg(test)]
-mod tests;

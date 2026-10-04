@@ -475,8 +475,6 @@ fn refuse_unrepresentable_discard(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests;
 
 /// Whole and scalar results share the same ordered residual disposal. A
 /// nominal owner cannot be partially moved before its whole-value hook.

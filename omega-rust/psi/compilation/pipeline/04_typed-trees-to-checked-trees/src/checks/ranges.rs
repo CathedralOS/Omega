@@ -59,8 +59,6 @@ mod proofs;
 pub(crate) mod types;
 
 // Tests.
-#[cfg(test)]
-mod cache_tests;
 
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;

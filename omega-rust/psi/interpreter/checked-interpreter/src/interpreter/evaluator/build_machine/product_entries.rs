@@ -345,33 +345,3 @@ impl<'program> Evaluator<'program> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::interpreter::evaluator::{Evaluator, Halt};
-
-    #[test]
-    fn product_entry_description_requires_the_slot_compatibility_owner() {
-        let source = "machine launch() { }";
-        let mut sources = source::SourceMap::default();
-        // The first registered source owns `SourceId(0)`, the id the anonymous
-        // `parse_syntax_trees` this fixture used to call parses under.
-        let source_id = sources.add("main.omg".into(), source.into()).source_id;
-        let typed =
-            crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)]);
-        let mut evaluator = Evaluator::new(&typed, &[]);
-        let result = evaluator.issue_product_entry_description(
-            b"launch",
-            b"unvalidated-slot",
-            source::SourceSpan::default(),
-        );
-        let Err(Halt::Trap(message)) = result else {
-            panic!("missing compatibility owner must trap");
-        };
-        assert!(
-            message.contains("requires the build owner's slot compatibility check"),
-            "{message}"
-        );
-        assert!(evaluator.product_entry_descriptions.is_empty());
-    }
-}

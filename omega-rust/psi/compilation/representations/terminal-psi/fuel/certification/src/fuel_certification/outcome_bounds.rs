@@ -13,11 +13,6 @@ use terminal_psi::{
     TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
 };
 
-#[cfg(test)]
-thread_local! {
-    pub(super) static MACHINE_DERIVATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 pub(super) fn derive_maximum_entry_bound(
     module: &TerminalModule,
     machine: MachineId,
@@ -199,8 +194,6 @@ pub(super) fn maximum_machine_outcomes(
     if !active_machines.insert(machine) {
         return Err(FixedFuelError::CallCycle(machine));
     }
-    #[cfg(test)]
-    MACHINE_DERIVATIONS.with(|count| count.set(count.get() + 1));
     let machine_semantics = machines
         .get(&machine)
         .copied()

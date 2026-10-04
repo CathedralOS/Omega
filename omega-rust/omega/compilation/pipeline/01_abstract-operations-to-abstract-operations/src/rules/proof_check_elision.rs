@@ -29,9 +29,6 @@ pub use signed_remainder_by_negative_one::LiveProofCertifiedSignedIntegerRemaind
 pub use zero_dividend::LiveProofCertifiedIntegerZeroDividendEliminationRule;
 pub use zero_value_shift::LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
 
-#[cfg(test)]
-pub(super) use identity_rewrite::{integer_one, integer_zero};
-
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
     vec![

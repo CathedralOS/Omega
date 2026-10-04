@@ -22,6 +22,3 @@ pub(super) fn refine_default_domain_zero(program: &mut TypedTrees) {
             .zero_gated = false;
     }
 }
-
-#[cfg(test)]
-mod tests;

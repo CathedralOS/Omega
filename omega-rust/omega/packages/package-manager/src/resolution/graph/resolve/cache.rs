@@ -1,5 +1,3 @@
-#[cfg(test)]
-use super::git_pins::GitDependencyPins;
 use super::git_pins::{GitResolutionOptions, pin_error};
 use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
@@ -76,17 +74,6 @@ impl<'a> GitAcquisitionCache<'a> {
             pins: Vec::new(),
             selected: Vec::new(),
         }
-    }
-
-    #[cfg(test)]
-    pub(super) fn preserving(resolver: &'a SourceResolver, pins: GitDependencyPins<'a>) -> Self {
-        Self::with_options(
-            resolver,
-            GitResolutionOptions {
-                pins: Some(pins),
-                ..GitResolutionOptions::default()
-            },
-        )
     }
 
     pub(super) fn resolve_selected(
@@ -220,11 +207,6 @@ impl<'a> GitAcquisitionCache<'a> {
         }
         self.selected.push((request.clone(), resolved.clone()));
         Ok(resolved)
-    }
-
-    #[cfg(test)]
-    pub(super) fn acquisition_count(&self) -> usize {
-        self.pins.len()
     }
 }
 

@@ -19,19 +19,11 @@ pub use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
 pub use ownership_frontiers::OwnershipFrontierAnalysis;
 
 pub use place_access_summaries::PlaceAccessSummaryAnalysis;
-#[cfg(test)]
-pub(crate) use place_access_summaries::{
-    CallResultOrigin, PlaceAccessStep, PlaceAccessView, ResultSourceResolution, declared_access,
-};
 
 pub use place_aliases::PlaceAliasesAnalysis;
-#[cfg(test)]
-pub(crate) use place_aliases::{PlaceAliasRelation, PlaceView};
 pub use sparse_conditional_constants::{
     ExecutableEdgeAnalysis, ScalarConstant, ScalarConstantAnalysis,
 };
-#[cfg(test)]
-pub(crate) use sparse_conditional_constants::{ExecutableEdgeKnowledge, ScalarConstantSupport};
 
 pub use use_definitions::UseDefinitionAnalysis;
 pub use value_liveness::ValueLivenessAnalysis;
@@ -169,6 +161,3 @@ pub(super) fn semantically_reachable_blocks(
     }
     reachable
 }
-
-#[cfg(test)]
-mod residual_edge_tests {}

@@ -7,11 +7,6 @@ use crate::interpreter::evaluator::{
 use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::TransitionExit;
 
-#[cfg(test)]
-mod crash_tests;
-#[cfg(test)]
-mod terminal_call_tests;
-
 /// Whether a call target is a build declaration the build-config pass
 /// harvests statically, which evaluation serves as a no-op so the build
 /// machine runs through it: the CH10 root grant marker

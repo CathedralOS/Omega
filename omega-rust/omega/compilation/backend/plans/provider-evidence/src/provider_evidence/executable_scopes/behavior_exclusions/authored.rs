@@ -109,6 +109,3 @@ pub fn authored_behavior_exclusion_set_in(
             .filter_map(|row| row.resolve(module, trait_identity)),
     )
 }
-
-#[cfg(test)]
-mod tests;

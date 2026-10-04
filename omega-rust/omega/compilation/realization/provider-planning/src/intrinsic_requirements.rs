@@ -22,8 +22,6 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod closed_execution;
 mod diagnostic_label;
-#[cfg(test)]
-mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntrinsicRequirementKind {

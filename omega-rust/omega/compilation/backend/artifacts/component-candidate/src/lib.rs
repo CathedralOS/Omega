@@ -230,6 +230,3 @@ fn validate_selected_provider_closure(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

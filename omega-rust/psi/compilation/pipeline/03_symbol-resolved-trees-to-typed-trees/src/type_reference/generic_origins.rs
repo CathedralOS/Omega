@@ -11,9 +11,6 @@ use arena::{Handle, HandleSpan};
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 
-#[cfg(test)]
-mod tests;
-
 /// Complete the range equality deferred by structural type construction.
 /// Reuse the retained source roster rather than adding a second obligation IR.
 pub(crate) fn validate_range_arguments(
@@ -37,17 +34,12 @@ pub(crate) fn validate_range_arguments(
     let mut definitions = source
         .data_definitions
         .iter()
-        .inspect(|_| {
-            #[cfg(test)]
-            tests::DEFINITION_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
-        })
+        .inspect(|_| {})
         .collect::<Vec<_>>();
     definitions.sort_by_key(|definition| symbol_key(definition.symbol));
     let mut origins = Vec::new();
     let mut malformed_origin = false;
     for (_, origin) in source.tables.types.generic_application_origins.iter() {
-        #[cfg(test)]
-        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
         let references = &source.tables.declarations.child_type_references;
         if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
             malformed_origin = true;
@@ -220,8 +212,6 @@ pub(super) fn application<'source>(
             .cloned()
             .unwrap_or_default()
     }) {
-        #[cfg(test)]
-        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
         let origin = source.tables.types.generic_application_origins.get(handle);
         let references = &source.tables.declarations.child_type_references;
         let instance = references.get(origin.instance);
@@ -294,8 +284,6 @@ fn application_scanned<'source>(
     let mut selected = None;
     let mut selected_definition = None;
     for (_, origin) in source.tables.types.generic_application_origins.iter() {
-        #[cfg(test)]
-        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
         let references = &source.tables.declarations.child_type_references;
         if !references.is_valid(origin.instance) || !references.is_valid(origin.application) {
             return Err(mismatch(name));
@@ -315,10 +303,7 @@ fn application_scanned<'source>(
                 let mut definitions = source
                     .data_definitions
                     .iter()
-                    .inspect(|_| {
-                        #[cfg(test)]
-                        tests::DEFINITION_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
-                    })
+                    .inspect(|_| {})
                     .filter(|data| data.symbol == symbol);
                 let definition = definitions.next().ok_or_else(|| mismatch(name))?;
                 if definitions.next().is_some() {
@@ -356,8 +341,6 @@ fn validate_origin<'source>(
     definition: &'source resolved::data::DataDefinition,
     selected: Option<&TypeReference>,
 ) -> Result<&'source TypeReference, Diagnostic> {
-    #[cfg(test)]
-    tests::ORIGIN_VALIDATIONS.with(|count| count.set(count.get() + 1));
     let references = &source.tables.declarations.child_type_references;
     let lifetimes = match references.get(origin.instance) {
         TypeReference::Named { .. } => &[][..],

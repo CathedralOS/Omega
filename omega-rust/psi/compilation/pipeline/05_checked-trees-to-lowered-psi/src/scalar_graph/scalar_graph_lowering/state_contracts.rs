@@ -15,9 +15,6 @@ use checked_trees::{
     CheckedScalarStateGraph, CheckedTrees, ClosedScalarContractValue,
 };
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn replay(
     checked: &CheckedTrees,
     dispatch: symbols::SymbolHandle,

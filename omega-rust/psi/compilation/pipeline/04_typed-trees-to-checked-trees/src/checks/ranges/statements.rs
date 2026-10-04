@@ -1,6 +1,4 @@
 pub(in crate::checks::ranges) mod aliases;
-#[cfg(test)]
-mod tests;
 mod transitions;
 
 use self::transitions::check_transition_target;

@@ -12,9 +12,6 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-#[cfg(test)]
-mod tests;
-
 /// Select a scalar field through ordinary, fully explicit closed record
 /// constructors, optionally nested in constant arrays. An array root retains
 /// its complete declaration type; no runtime place is created.

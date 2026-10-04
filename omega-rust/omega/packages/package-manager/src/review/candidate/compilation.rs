@@ -9,8 +9,6 @@ mod package_pass;
 mod policy;
 mod session;
 mod session_accounting;
-#[cfg(test)]
-mod tests;
 
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};
 use super::{
@@ -96,12 +94,6 @@ impl CandidateSourcePreparation {
             self.slots = empty_slots(package_count);
             self.pure_build_compilation = Default::default();
         }
-    }
-
-    /// Fresh source preparations performed through this store.
-    #[cfg(test)]
-    fn fresh_preparation_count(&self) -> usize {
-        self.fresh_preparations
     }
 }
 

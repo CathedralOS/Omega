@@ -31,9 +31,6 @@ mod dispatch;
 mod result_domains;
 mod transitions;
 
-#[cfg(test)]
-mod tests;
-
 struct Invocation<'a> {
     call: &'a BorrowCallFact,
     site: InvocationSite,

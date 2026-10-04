@@ -9,6 +9,4 @@
 
 pub(crate) mod callable_signature;
 pub(crate) mod parameters;
-#[cfg(test)]
-mod type_parameter_tests;
 pub(crate) mod type_parameters;

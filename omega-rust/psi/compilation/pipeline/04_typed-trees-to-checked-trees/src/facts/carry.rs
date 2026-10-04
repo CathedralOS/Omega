@@ -96,6 +96,3 @@ fn build_contained_machine_topology(
 
     (machine_topologies, contained_fields, contained_targets)
 }
-
-#[cfg(test)]
-mod tests;

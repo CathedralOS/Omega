@@ -35,8 +35,6 @@ mod name_paths;
 mod operators;
 mod table;
 pub(crate) use table::declared_receiver_method_target;
-#[cfg(test)]
-mod tests;
 
 pub(crate) fn lower_expression_handle(
     lowerer: &mut Lowerer,

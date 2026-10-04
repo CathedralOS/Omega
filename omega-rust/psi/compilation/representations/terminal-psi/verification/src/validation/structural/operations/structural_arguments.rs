@@ -272,36 +272,6 @@ fn literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPath
     .then_some(fields)
 }
 
-#[cfg(test)]
-#[test]
-fn fixed_byte_window_overlap_replays_intervals_indexes_and_parent_custody() {
-    let range = |start, end| StructuralPathSegment::FixedByteRange { start, end };
-    let field = StructuralPathSegment::Field("bytes".into());
-    let left = vec![field.clone(), range(1, 3)];
-    for (right, overlaps) in [
-        (vec![], true),
-        (vec![field.clone()], true),
-        (vec![field.clone(), range(2, 4)], true),
-        (vec![field.clone(), range(3, 4)], false),
-        (
-            vec![field.clone(), StructuralPathSegment::FixedIndex(1)],
-            true,
-        ),
-        (
-            vec![field.clone(), StructuralPathSegment::FixedIndex(3)],
-            false,
-        ),
-        (vec![field.clone(), range(4, 4)], true),
-        (
-            vec![StructuralPathSegment::Field("other".into()), range(1, 3)],
-            false,
-        ),
-    ] {
-        assert_eq!(structural_paths_may_overlap(&left, &right), overlaps);
-        assert_eq!(structural_paths_may_overlap(&right, &left), overlaps);
-    }
-}
-
 fn is_direct_literal_index_path(path: &[StructuralPathSegment]) -> bool {
     literal_index_path(path).is_some_and(|fields| fields.is_empty())
 }

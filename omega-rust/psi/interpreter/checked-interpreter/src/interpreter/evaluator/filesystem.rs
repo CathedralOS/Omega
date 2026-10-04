@@ -15,6 +15,4 @@ pub(super) mod preparation;
 /// `Evaluator` internals (the fs argument/buffer helpers) without widening
 /// their visibility outside the interpreter owner.
 pub(in crate::interpreter) mod real;
-#[cfg(test)]
-mod tests;
 mod virtual_filesystem;

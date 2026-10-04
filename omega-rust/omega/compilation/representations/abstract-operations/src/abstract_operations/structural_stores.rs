@@ -115,37 +115,3 @@ impl StructuralWindowRoot {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::StructuralScalarStoreDestination;
-    use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
-
-    #[test]
-    fn owned_block_arrival_reports_its_declaration_and_no_loan() {
-        let parameter = StructuralParameterDeclaration {
-            place: PlaceId::new(11).unwrap(),
-            position: 0,
-            is_self: false,
-            structural_type: StructuralTypeId::new(12).unwrap(),
-            multiplicity: StructuralMultiplicity::Affine,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        };
-        let arrival = StructuralScalarStoreDestination::OwnedBlockParameter {
-            block: BlockId::new(3).unwrap(),
-            parameter: parameter.clone(),
-        };
-        assert_eq!(arrival.place(), parameter.place);
-        assert_eq!(arrival.structural_type(), parameter.structural_type);
-        assert_eq!(arrival.multiplicity(), parameter.multiplicity);
-        // The arrival writes with its own authority, never a loan's.
-        assert_eq!(arrival.parameter(), None);
-        assert_ne!(
-            arrival,
-            StructuralScalarStoreDestination::Parameter(parameter)
-        );
-    }
-}

@@ -20,8 +20,6 @@ mod provider_policy;
 mod providers;
 mod source;
 mod terminal_permissions;
-#[cfg(test)]
-pub(crate) use terminal_permissions::write_service_parameter_identity;
 
 pub use terminal_permissions::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,

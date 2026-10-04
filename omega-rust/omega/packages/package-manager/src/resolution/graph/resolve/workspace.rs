@@ -10,8 +10,6 @@ use super::cache::{
 use super::dependencies::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::source::ResolvePackageSourceError;
-#[cfg(test)]
-use package_source::PrimaryGitChoices;
 use package_source::{
     ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,
@@ -19,34 +17,6 @@ use package_source::{
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-/// Resolve one explicit workspace member and its complete Path/Git closure.
-///
-/// No parent-directory discovery occurs. Path requests are interpreted only
-/// inside the explicit root or an immutable Git snapshot registered while
-/// resolving this closure; an escape rejects before filesystem access.
-#[cfg(test)]
-pub(crate) fn resolve_workspace_package_closure_from_hardened_base(
-    workspace_root_source: &SourceLineage,
-    root_member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    cache_dir: impl AsRef<Path>,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
-        .map_err(|error| {
-            ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-        })?;
-    resolve_workspace_package_closure(
-        workspace_root_source,
-        root_member_path,
-        live_workspace_root,
-        &storage,
-        source_limits,
-        closure_limits,
-    )
-}
 
 /// Resolve a workspace closure beneath the manager-owned private source root.
 pub fn resolve_workspace_package_closure(
@@ -107,37 +77,6 @@ pub fn resolve_workspace_project_closure(
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
     result
-}
-
-/// Resolve an explicit workspace closure while allowing a Path request that
-/// leaves that live workspace to become a context-bound external-local source.
-///
-/// The supplied context is identity, not ambient authority: no lock or parent
-/// workspace is discovered. Path requests originating in fetched Git snapshots
-/// remain confined to those immutable snapshots.
-#[cfg(test)]
-pub(crate) fn resolve_workspace_package_closure_in_context_from_hardened_base(
-    workspace_root_source: &SourceLineage,
-    root_member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    cache_dir: impl AsRef<Path>,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    let storage = SourceResolver::for_hardened_base(cache_dir, PrimaryGitChoices::default())
-        .map_err(|error| {
-            ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-        })?;
-    resolve_workspace_package_closure_in_context(
-        workspace_root_source,
-        root_member_path,
-        live_workspace_root,
-        source_context,
-        &storage,
-        source_limits,
-        closure_limits,
-    )
 }
 
 /// Resolve a context-enabled workspace closure beneath private resolver storage.

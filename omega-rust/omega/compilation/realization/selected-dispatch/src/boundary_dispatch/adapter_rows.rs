@@ -62,20 +62,6 @@ pub(crate) enum ResolvedAdapterRow {
     GenericRequirement(GenericBoundaryRequirement),
 }
 
-#[cfg(test)]
-impl ResolvedAdapterRow {
-    #[cfg(test)]
-    pub(crate) fn expect_adapter(self) -> AdapterRow {
-        match self {
-            Self::Adapter(row) => row,
-            Self::GenericRequirement(requirement) => panic!(
-                "requirement `{}` is dynamically ineligible, not an exact adapter",
-                requirement.requirement_identity
-            ),
-        }
-    }
-}
-
 /// What one selected checked-adapter row's schema resolves to before tuple
 /// coverage is consulted: either a top-level `boundary requirement`'s single
 /// slot, or the exact signature on the requirement-owning boundary trait.

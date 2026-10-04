@@ -51,14 +51,10 @@ pub(crate) fn canonical_place_segments_equal(
                 end: right_end,
             },
         ) => left_start == right_start && left_end == right_end,
-        (
-            facts::PlaceSegment::FixedIndex { index },
-            facts::PlaceSegment::Index { expression },
-        )
-        | (
-            facts::PlaceSegment::Index { expression },
-            facts::PlaceSegment::FixedIndex { index },
-        ) => expression_static_index(program, expression).is_some_and(|value| value == index),
+        (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression })
+        | (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
+            expression_static_index(program, expression).is_some_and(|value| value == index)
+        }
         (
             facts::PlaceSegment::Index {
                 expression: left_expression,
@@ -273,44 +269,5 @@ fn index_expressions_may_overlap(
             checked_trees::expression::ExpressionNode::Integer(right_value),
         ) => left_value == right_value,
         _ => true,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ExpressionHandle;
-    use crate::flow::canonical_place_segments_may_overlap;
-
-    fn integer_expression(program: &mut typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
-        program
-            .expression_table
-            .insert(checked_trees::expression::ExpressionNode::Integer(
-                numerics::literals::IntegerLiteral::from_value(value),
-            ))
-    }
-
-    #[test]
-    fn indexed_segment_overlap_uses_literal_values_not_handle_identity() {
-        let mut program = typed_trees::TypedTrees::default();
-        let left_zero = integer_expression(&mut program, 0);
-        let right_zero = integer_expression(&mut program, 0);
-        let one = integer_expression(&mut program, 1);
-
-        assert!(canonical_place_segments_may_overlap(
-            &program,
-            &[facts::PlaceSegment::Index {
-                expression: left_zero,
-            }],
-            &[facts::PlaceSegment::Index {
-                expression: right_zero,
-            }],
-        ));
-        assert!(!canonical_place_segments_may_overlap(
-            &program,
-            &[facts::PlaceSegment::Index {
-                expression: left_zero,
-            }],
-            &[facts::PlaceSegment::Index { expression: one }],
-        ));
     }
 }

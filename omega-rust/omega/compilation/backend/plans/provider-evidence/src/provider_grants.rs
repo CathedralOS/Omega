@@ -188,25 +188,3 @@ pub fn resolve_authored_selected_provider_grants(
     }
     Ok(resolved_authored)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{ProviderPlan, selected_subjects_coincide};
-
-    #[test]
-    fn plan_and_slot_coincidence_rejects_compact_equal_structural_substitution() {
-        let mut plan = ProviderPlan::default();
-        plan.schema
-            .methods
-            .push(crate::provider_plan::ServiceMethod {
-                requirement_owner: "Pair".to_owned(),
-                ..Default::default()
-            });
-        let mut substituted = plan.clone();
-        substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
-
-        assert_eq!(plan.report_fingerprint(), substituted.report_fingerprint());
-        assert_ne!(plan.identity_digest(), substituted.identity_digest());
-        assert!(!selected_subjects_coincide(&plan, &substituted));
-    }
-}

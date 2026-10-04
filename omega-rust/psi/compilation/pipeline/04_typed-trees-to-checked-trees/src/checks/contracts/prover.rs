@@ -42,8 +42,6 @@ pub(in crate::checks) mod call_guarantees;
 mod current_boolean;
 mod field_actuals;
 pub(crate) use current_boolean::boolean_value_at_place;
-#[cfg(test)]
-mod tests;
 
 use self::booleans::{
     semantic_context_proves_boolean_expression,

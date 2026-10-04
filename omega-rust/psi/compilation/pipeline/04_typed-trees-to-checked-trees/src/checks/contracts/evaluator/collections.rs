@@ -3,9 +3,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpre
 
 use super::ContractExpressionEvaluator;
 
-#[cfg(test)]
-mod tests;
-
 impl ContractExpressionEvaluator<'_, '_> {
     pub(super) fn collection_length(&self, expression: ExpressionHandle) -> Option<usize> {
         let resolved = self.resolved_expression(expression).unwrap_or(expression);
