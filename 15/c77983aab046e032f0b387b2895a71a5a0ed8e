@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: corrective restamp — 1ec82c399c2's rejection was a stale corpus_runner artifact (9e28c99 predated rejoin lands); fresh runner 3a73fc89 probes built exit:11, matching z5
+ticket: 72a42770af783995bfae693b2de3b946
+published_utc: 2026-10-04T14:10:07.775713+00:00
