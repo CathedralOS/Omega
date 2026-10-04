@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.1, "load1_start": 5.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 6.14, "load1_start": 6.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1147,6 +1147,7 @@ pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
+pass/termination/runtime_saved_rank_cycle_exit built 1732ms exit:0 @68fba6a896c8+wt
 pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt
 pass/termination/runtime_stored_exclusive_endpoint_exit built 1525ms exit:0 @82ec69a91ceb+wt
 pass/termination/stored_reference_endpoint_arrivals checked 195ms

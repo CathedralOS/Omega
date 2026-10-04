@@ -907,9 +907,15 @@ defines the complete product bar.
   Linux; Windows rejected), `pass/termination/runtime_named_state_remainder_endpoint_exit`
   and `pass/termination/rank_endpoint_borrows_recovery` (exit 0).
 
-  - Recursive-component checks still reject local names in `meanings::builtin`;
-    extend them to saved values with exact binding-time identity and
-    write/exposure invalidation, as ordinary callee requirements already do.
+  Saved scalar observations and named-state arrival requirements now compose:
+  `omega run tests/omega/pass/termination/runtime_saved_rank_cycle_exit/main.omg`
+  exits 0 on macOS ARM64 (base `68fba6a896c` rejected the recursive call).
+  The call-component judgment consumes the current state's requirements,
+  protects their carriers from prefix writes, and leaves unrelated writes
+  executable. Unproved arrivals and stale requirements reject; machine-entry
+  requirements are not imported at internal arrivals.
+
+  Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,
     reusing nested carriers, moved scalar/slice/record copies and produced rank
     facts; a same-typed or merely decreasing copy is not the ranked value.

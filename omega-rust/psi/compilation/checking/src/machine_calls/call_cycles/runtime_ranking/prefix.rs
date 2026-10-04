@@ -14,6 +14,7 @@ use super::projection::{RankOrder, RankProjection};
 /// `premises` names the member's entry premise carriers (`None` when its
 /// witness resolves none, which rejects every store); `entry_parameters` is
 /// this state's discovered telescope, one entry role per non-self formal;
+/// `arrival_premises` names the current-state carriers read by its own requires;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
 pub(super) fn preserves_rank(
@@ -23,6 +24,7 @@ pub(super) fn preserves_rank(
     rank: &RankProjection,
     premises: Option<&[SymbolHandle]>,
     entry_parameters: &[SymbolHandle],
+    arrival_premises: &[SymbolHandle],
     conserved_endpoints: bool,
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
@@ -58,7 +60,7 @@ pub(super) fn preserves_rank(
     // may be stored to, because no hypothesis reads its arrival value; the
     // actual it feeds into the call is read live. Translate exact owned
     // declarations to the caller-relative frame vocabulary only here.
-    let protected = program
+    let mut protected = program
         .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -76,6 +78,15 @@ pub(super) fn preserves_rank(
         })
         .map(|(parameter, _)| parameter.name.as_str())
         .collect::<Vec<_>>();
+    // A state's own hypotheses need no machine-entry role. Protect their
+    // carriers directly, including a receiver excluded from that telescope.
+    for parameter in program.state_parameters(state) {
+        if arrival_premises.contains(&parameter.symbol)
+            && !protected.contains(&parameter.name.as_str())
+        {
+            protected.push(parameter.name.as_str());
+        }
+    }
     let disjoint = |frame: NormalizedWriteFrame| {
         frame.into_complete_paths().is_some_and(|paths| {
             protected
