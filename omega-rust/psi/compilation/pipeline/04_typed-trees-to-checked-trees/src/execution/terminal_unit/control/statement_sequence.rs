@@ -1367,9 +1367,11 @@ fn append_reference_releases(
 // one past the last ordinary statement). The completion still needs the
 // `ReleaseReference` op so the result-binding cleanup sees the disposal.
 fn append_exit_reference_releases(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
+    returned: Option<&CheckedUnitStructuralReturnPlan>,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let mut pending = Vec::new();
@@ -1381,6 +1383,32 @@ fn append_exit_reference_releases(
             && custody.reference_loan.is_valid()
         {
             let loan = custody.reference_loan;
+            // Completion transfers this exact carrier and its retained ingress
+            // rather than releasing it before the return. Earlier weakening
+            // still belongs to statement scheduling; only a loan live through
+            // this state's final statement can cross its result boundary.
+            if returned.is_some_and(|returned| {
+                matches!(returned.source,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+                        if binding_ordinal == result.binding_ordinal)
+                    && returned.type_identity == result.type_identity
+                    && returned.multiplicity == result.multiplicity
+                    && !returned.reference_sources.is_empty()
+            }) {
+                let authored = program.state_by_symbol(state)?;
+                let boundary = super::super::reference_results::release_boundary(
+                    program, facts, machine, state, loan,
+                )?;
+                if (boundary as usize)
+                    < program
+                        .statement_table
+                        .statements(authored.statement_nodes)
+                        .len()
+                {
+                    return None;
+                }
+                continue;
+            }
             let boundary =
                 super::super::reference_results::release_statement(facts, machine, state, loan)?;
             if !operations.iter().any(|operation| {

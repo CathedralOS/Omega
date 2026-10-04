@@ -16,10 +16,10 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle, TypedTrees,
-    append_exit_reference_releases, append_reference_releases, base_type_identity,
-    consume_value_places, parameter_qualifications, retain_selected_sources,
-    returned_byte_sequence_literal, returned_mutable_view, returned_named_view, returned_parameter,
-    returned_reference_leaf, returned_subslice, structural_operands,
+    append_exit_reference_releases, append_reference_releases, consume_value_places,
+    parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
+    returned_mutable_view, returned_named_view, returned_parameter, returned_reference_leaf,
+    returned_subslice, structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
@@ -145,9 +145,17 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     });
     let mut structural_result = if let Some(binding) = returned_local {
         trace.phase("statement sequence: structural result: returned local");
-        if Some(binding.type_identity.as_str())
-            != base_type_identity(program, state.return_type, binders).as_deref()
-            || binding.multiplicity != program.type_multiplicity(state.return_type)
+        // A returned local transports the same materialized carrier as an
+        // ordinary call result. Peeling the reference shell here compares its
+        // referent storage against the returned permission carrier.
+        let expected = super::super::call_results::checked_structural_result_type(
+            program,
+            shapes,
+            state.return_type,
+            binders,
+        )?;
+        if binding.type_identity != expected.type_identity
+            || binding.multiplicity != expected.multiplicity
         {
             return None;
         }
@@ -495,7 +503,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
-    append_exit_reference_releases(facts, machine.symbol, state.symbol, &mut operations)?;
+    append_exit_reference_releases(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        structural_result.as_ref(),
+        &mut operations,
+    )?;
     trace.phase("statement sequence: call count agreement");
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
