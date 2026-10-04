@@ -98,7 +98,7 @@ pub(super) fn validate(
         return unsupported("Unit graph scalar prefix lost an initializer");
     }
     let mut immutable_ordinal = 0;
-    for (ordinal, (binding, value)) in state
+    for (ordinal, (binding, _)) in state
         .bindings
         .iter()
         .zip(&state.binding_initializers)
@@ -109,7 +109,7 @@ pub(super) fn validate(
         {
             return unsupported("Unit graph scalar prefix reordered or replaced a binding");
         }
-        let (source, retained) = checked
+        let (source, _) = checked
             .facts
             .values
             .scalar_expressions
@@ -121,11 +121,6 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "Unit graph scalar prefix has no exact checked expression",
             ))?;
-        if retained != value {
-            return unsupported(
-                "Unit graph scalar initializer disagrees with its checked expression",
-            );
-        }
         if let CheckedScalarBindingDestination::StorageInitialize { symbol }
         | CheckedScalarBindingDestination::StorageAssign { symbol } = binding.destination
             && source.destination != symbol

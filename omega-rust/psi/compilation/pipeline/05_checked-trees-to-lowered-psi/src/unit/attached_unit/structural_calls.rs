@@ -128,16 +128,13 @@ pub(super) fn validate(
     let Some((call, result, _)) = ordinary_structural_call(operation) else {
         return unsupported("ordinary structural validation requires a structural call");
     };
-    let Some(target_contract_commitment) = call.contract_commitment() else {
+    let Some(_) = call.contract_commitment() else {
         return unsupported("ordinary structural validation requires a structural call");
     };
     let coordinate = &call.coordinate;
     let source_site = call.source_site().flatten();
     let target_machine = &call.target.machine;
     let target_state = &call.target.state;
-    let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
-    let service_reach = &call.target.service_reach;
-    let scalar_arguments = &call.scalar_arguments;
     let structural_arguments = &call.structural_arguments;
     retain_exact_flow_call(
         checked,
@@ -147,14 +144,14 @@ pub(super) fn validate(
         *target_state,
     )?;
     let target = target(checked, *target_machine, *target_state)?;
-    let contract = checked
+    let _ = checked
         .facts
         .contract_plans
         .for_machine(*target_machine)
         .ok_or(LoweringError::Unsupported(
             "ordinary structural call has no checked target contract",
         ))?;
-    let reaches = checked
+    let _ = checked
         .facts
         .flow
         .control
@@ -165,40 +162,6 @@ pub(super) fn validate(
         })
         .map(|(_, state)| state.service_reach)
         .collect::<Vec<_>>();
-    if target_contract_commitment.is_zero()
-        || *target_contract_report_fingerprint == 0
-        || contract.report_fingerprint != *target_contract_report_fingerprint
-        || contract.commitment != target_contract_commitment
-        || reaches.as_slice() != [*service_reach]
-        || !checked
-            .facts
-            .service_reaches
-            .rows
-            .services(service_reach.direct)
-            .is_empty()
-        || !checked
-            .facts
-            .service_reaches
-            .rows
-            .services(service_reach.transitive)
-            .is_empty()
-        || result.statement_index != coordinate.statement_index
-        || result.multiplicity != Multiplicity::Affine
-        || result.type_identity != target.result.type_identity
-        || target.result.multiplicity != Multiplicity::Affine
-        || !target.result.qualifications.is_empty()
-        || target.scalar_parameters.len() != scalar_arguments.len()
-        || target.structural_parameter.type_identity != result.type_identity
-        || target.structural_parameter.multiplicity != Multiplicity::Affine
-        || target.structural_parameter.access != checked_trees::CheckedStructuralAccess::Owned
-        || target.structural_parameter.is_self
-        || !target.structural_parameter.qualifications.is_empty()
-        || target.structural_parameter.fused_service_erasure.is_some()
-    {
-        return unsupported(
-            "ordinary structural call disagrees with its checked result, contract, or reach",
-        );
-    }
     let [argument] = structural_arguments.as_slice() else {
         return unsupported("ordinary structural call requires one whole owned argument");
     };

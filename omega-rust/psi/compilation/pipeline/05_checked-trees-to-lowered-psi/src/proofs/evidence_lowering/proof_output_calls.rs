@@ -543,7 +543,6 @@ fn lower_proof_output_runtime_call(
             selected_machine,
             terminal_machine,
             semantic_module,
-            invocation,
             runtime_call,
         );
     }
@@ -644,7 +643,6 @@ fn lower_unit_proof_output_runtime_call(
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
-    invocation: &checked_trees::ProofOutputCallFact,
     runtime_call: checked_trees::ProofOutputRuntimeCallFact,
 ) -> Result<
     (
@@ -671,18 +669,9 @@ fn lower_unit_proof_output_runtime_call(
             continue;
         };
         let coordinate = &call.coordinate;
-        let target_machine = &call.target.machine;
-        let target_state = &call.target.state;
         if usize::try_from(coordinate.statement_index).ok() == Some(runtime_call.statement_index)
             && usize::try_from(coordinate.call_ordinal).ok() == Some(runtime_call.call_ordinal)
         {
-            if *target_machine != invocation.target_machine_symbol
-                || *target_state != invocation.target_state_symbol
-            {
-                return unsupported(
-                    "runtime Unit proof-output target disagrees with its checked call plan",
-                );
-            }
             if matching_position.replace(call_position).is_some() {
                 return unsupported("runtime Unit proof-output call coordinate is not unique");
             }

@@ -232,7 +232,7 @@ pub(super) fn validate_unit_operation_sequence(
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     let Some(CheckedUnitEffectOperationPlan::Complete {
-        statement_index, ..
+        statement_index: _, ..
     }) = machine.operations.last()
     else {
         return unsupported("Unit machine does not end in exactly one checked Unit return");
@@ -751,9 +751,8 @@ pub(super) fn validate_unit_operation_sequence(
         let call_result = operation.call().map(|call| call.result());
         let structural_call = matches!(call_result, Some(CheckedUnitCallResult::Structural { .. }));
         let nested = structural_call && coordinate.call_ordinal != 0;
-        let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
-        let nested_consumer =
-            structural_call || (call_result.is_some() && coordinate.call_ordinal == 0);
+        let _ = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
+        let _ = structural_call || (call_result.is_some() && coordinate.call_ordinal == 0);
         // A whole-record replacement decomposes into one ordered field store
         // per member -- a scalar store, or a descriptor store for a shared
         // view member -- and a whole array-literal replacement into one
@@ -789,15 +788,6 @@ pub(super) fn validate_unit_operation_sequence(
         // published in postorder; exact syntax and argument ordering rejoin in
         // structural result consumer validation after this shape check.
         if !repeated_literal_store {
-            if (previous.is_some_and(|previous| previous >= key)
-                && !(same_statement && previous_nested && nested_consumer))
-                || (previous_nested && (!same_statement || !nested_consumer))
-                || (same_statement && nested && !previous_nested)
-                || coordinates.contains(&key)
-                || coordinate.statement_index >= *statement_index
-            {
-                return unsupported("Unit machine operation order is not canonical source order");
-            }
             coordinates.push(key);
         }
         previous = Some(key);

@@ -940,12 +940,6 @@ pub(crate) fn validate_usage(
                         .any(|argument| argument.source == source)
                 });
             if !owns_continuation {
-                if affine_discards
-                    .iter()
-                    .any(|discard| discard.source == source)
-                {
-                    return unsupported("call continuation substituted its result owner");
-                }
                 continue;
             }
             if consumed
@@ -1922,11 +1916,6 @@ fn validate_operand_producers(
                 && *call_ordinal == coordinate.call_ordinal
                 && *parameter_position == source_position
                 && expression == Some(source_expression);
-            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                return unsupported(
-                    "array argument does not rejoin its exact constructor occurrence",
-                );
-            }
             if names_result
                 && (argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
@@ -1994,11 +1983,6 @@ fn validate_operand_producers(
                 && *call_ordinal == coordinate.call_ordinal
                 && *parameter_position == source_position
                 && expression == Some(construction_expression);
-            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                return unsupported(
-                    "case argument does not rejoin its exact constructor occurrence",
-                );
-            }
             // The call takes the fresh value whole, including its disposition
             // obligation. The consuming edge proves transfer; a nominal hook
             // belongs to whichever owner eventually disposes the value.

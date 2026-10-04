@@ -299,7 +299,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
         checked: &CheckedTrees,
         qualifications: &PreparedScalarQualifications,
         contract_mode: ScalarContractMode,
-        source: symbols::SymbolHandle,
         structural_parameters: &[StructuralParameterDeclaration],
         primitive_locals: &[crate::scalar_graph::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
         structural_types: &[StructuralTypeDeclaration],
@@ -310,9 +309,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 "scalar operation bodies require shared Unit assembly before scalar preparation",
             ),
             Self::Graph(graph) => {
-                if source != graph.machine {
-                    return unsupported("scalar graph preparation substituted its source owner");
-                }
                 let prepared =
                     crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_in_namespace(
                         checked,

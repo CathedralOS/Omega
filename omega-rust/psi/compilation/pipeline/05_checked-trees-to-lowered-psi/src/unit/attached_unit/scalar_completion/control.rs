@@ -136,11 +136,6 @@ fn conditional(
     let Some(StatementNode::Transition(guard)) = tail.first() else {
         return unsupported("ordered scalar completion has no authored guard");
     };
-    if guard.exit != TransitionExit::Ordinary
-        || !matches!(guard.guard, TransitionGuardNode::When(_))
-    {
-        return unsupported("ordered scalar completion substituted its guard exit");
-    }
     let CheckedScalarBranchDestination::Return {
         is_continuation, ..
     } = when_false

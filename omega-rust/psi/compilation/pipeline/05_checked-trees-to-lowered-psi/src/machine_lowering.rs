@@ -149,10 +149,6 @@ fn retain_nominal_cleanup_roles(
                 .iter()
                 .map(|declaration| (declaration.identity.as_str(), declaration.id)),
         )?;
-        if machine.nominal_cleanup_subject.is_some() && machine.nominal_cleanup_subject != expected
-        {
-            return unsupported("machine substituted its owner-designated cleanup role");
-        }
         // Nominal ownership survives elision of an unused hook argument; it
         // does not manufacture an implicit receiver or storage declaration.
         machine.attachment = machine.attachment.or(expected);

@@ -26,10 +26,7 @@ pub(crate) fn validate(
     borrow_call: &BorrowCallFact,
     access_position: Option<usize>,
 ) -> Result<usize, LoweringError> {
-    let (target_referent, target_access) = primitive_reference(checked, target_type)?;
-    if argument.access != target_access {
-        return unsupported("computed primitive argument substituted its formal access");
-    }
+    let (_, target_access) = primitive_reference(checked, target_type)?;
     let declared_access = match target_access {
         CheckedStructuralAccess::SharedBorrow => ReferenceAccess::Shared,
         CheckedStructuralAccess::MutableBorrow => ReferenceAccess::Mutable,
@@ -75,18 +72,6 @@ pub(crate) fn validate(
             return unsupported("computed primitive argument lacks an authored exclusive borrow");
         }
         validate_direct_forwarding(checked, state, statement, borrowed.place.root)?;
-    }
-    let source_referent = borrowed.carrier;
-    if checked.primitive_type_reference(source_referent)
-        != checked.primitive_type_reference(target_referent)
-        || checked.normalized_type_identity(source_referent)
-            != checked.normalized_type_identity(validation::peel_declared_constraints(
-                &checked.typed,
-                target_referent,
-            ))
-        || checked.normalized_type_identity(source_referent).as_str() != argument.type_identity
-    {
-        return unsupported("computed primitive argument substituted its declared referent type");
     }
     // The shared source join retained the complete declaration and projection.
     // Qualifications remain on the formal and the established source field;

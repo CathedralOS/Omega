@@ -462,9 +462,6 @@ impl Preparation<'_> {
                         self.bindings,
                         &self.prefix,
                     )?;
-                    if target.field_type.scalar_type() != Some(result_type.scalar_type) {
-                        return unsupported("scalar record field substituted its carrier");
-                    }
                     let role = CheckedScalarExpressionRole::RecordField {
                         expression: node.expression,
                         field_ordinal: u32::try_from(ordinal).map_err(|_| {

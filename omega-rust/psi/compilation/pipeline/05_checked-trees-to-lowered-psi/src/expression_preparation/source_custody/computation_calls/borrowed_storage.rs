@@ -5,7 +5,7 @@ use crate::emission::call_source_custody::projected_receivers::ReceiverSource;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::state::State;
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
     CheckedTrees, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -13,7 +13,6 @@ use language_core::ReferenceAccess;
 
 pub(super) struct Source {
     pub(super) place: ReceiverSource,
-    pub(super) carrier: TypeReferenceHandle,
 }
 
 pub(super) fn source(
@@ -53,19 +52,10 @@ pub(super) fn source(
         }
         _ => return unsupported("borrowed operand has no supported source owner"),
     };
-    let root = source.root;
     let whole_source = source.path.is_empty();
     let parameters = checked.state_parameters(state);
     let reference = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
-            if symbol != root
-                || !source.path.is_empty()
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == symbol)
-            {
-                return unsupported("primitive operand substituted its local storage");
-            }
             let local = super::preceding_local(
                 checked,
                 state,
@@ -85,13 +75,6 @@ pub(super) fn source(
         }
 
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            if symbol != root
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == symbol)
-            {
-                return unsupported("borrowed operand substituted its local owner");
-            }
             let local = super::preceding_local(
                 checked,
                 state,
@@ -132,12 +115,6 @@ pub(super) fn source(
                 parameter_index,
                 "borrowed operand lost its structural parameter",
             )?;
-            if source.is_const
-                || source.symbol != root
-                || !super::parameter_binding_is_unique(checked, state, root)
-            {
-                return unsupported("borrowed operand substituted its source parameter");
-            }
             let reference = match checked.type_reference_table.type_reference(
                 validation::peel_declared_constraints(&checked.typed, source.type_reference),
             ) {
@@ -228,13 +205,7 @@ pub(super) fn source(
     {
         projected_path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
-    if projected_path != argument.path {
-        return unsupported("borrowed operand substituted its projected referent path");
-    }
-    Ok(Source {
-        place: source,
-        carrier,
-    })
+    Ok(Source { place: source })
 }
 
 fn compatible_access(source: ReferenceAccess, target: ReferenceAccess) -> bool {

@@ -89,29 +89,6 @@ fn structural_parameter_at<'a>(
         .ok_or(LoweringError::Unsupported(missing))
 }
 
-/// Whether `symbol` binds exactly one parameter of `state` and no authored
-/// local of `state` rebinds it, so an authored name of `symbol` can only mean
-/// that parameter.
-fn parameter_binding_is_unique(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    checked
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.symbol == symbol)
-        .count()
-        == 1
-        && !checked
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)
-            })
-}
-
 /// The one authored local of `state` that binds `symbol`, declared before
 /// statement `before` with an initializer or authenticated default storage.
 /// `missing` is the lane's

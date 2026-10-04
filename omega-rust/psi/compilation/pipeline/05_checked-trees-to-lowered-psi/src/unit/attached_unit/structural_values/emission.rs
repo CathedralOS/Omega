@@ -1493,9 +1493,6 @@ impl Emission<'_, '_, '_> {
             // independently derives the live set from the actual incoming edge.
             expected_claims.to_vec()
         };
-        if source_claims != expected_claims {
-            return unsupported("owned move substituted its source claim identities");
-        }
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {

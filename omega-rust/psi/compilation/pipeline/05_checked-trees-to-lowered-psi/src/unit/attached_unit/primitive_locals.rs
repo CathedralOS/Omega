@@ -92,7 +92,7 @@ fn validate_establishment(
     let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
         statement_index,
         symbol,
-        type_identity,
+        type_identity: _,
         primitive_type,
         value,
     } = operation
@@ -105,25 +105,11 @@ fn validate_establishment(
             "primitive local statement ordinal exhausted",
         ))?;
     let local = declaration(checked, state, *symbol, next)?;
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    if !matches!(checked.statement_table.statements(authored.statement_nodes).get(*statement_index as usize),
-        Some(StatementNode::LocalData(actual)) if actual.symbol == *symbol)
-        || checked.primitive_type_reference(local.type_reference) != Some(*primitive_type)
-        || checked
-            .typed
-            .normalized_type_identity(validation::peel_arithmetic_policy(
-                &checked.typed,
-                local.type_reference,
-            ))
-            .into_string()
-            != *type_identity
-    {
-        return unsupported("primitive local substituted its authored type or declaration");
-    }
+    let (_, _) = crate::declarations::state_declaration(checked, state)?;
     let role = CheckedScalarExpressionRole::StorageInitializer;
     match value {
-        CheckedCallScalarArgument::Pure(value) => {
-            let (binding, expression) = checked
+        CheckedCallScalarArgument::Pure(_) => {
+            let (_, _) = checked
                 .facts
                 .values
                 .scalar_expressions
@@ -131,12 +117,6 @@ fn validate_establishment(
                 .ok_or(LoweringError::Unsupported(
                     "primitive local lost its exact initializer",
                 ))?;
-            if binding.expression != local.initial_value
-                || binding.destination != *symbol
-                || expression != value
-            {
-                return unsupported("primitive local substituted its initializer");
-            }
         }
         CheckedCallScalarArgument::Computation(handle) => {
             let computations = &checked.facts.values.scalar_computations;

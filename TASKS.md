@@ -1638,11 +1638,16 @@ check corpus and the native corpus unchanged on the slices it names.
   it receives:
   - `.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission/`
     and `admission.rs`;
-  - `unit/attached_unit/domain_replay.rs` and `statement_custody.rs`;
+  - `unit/attached_unit/statement_custody.rs`;
   - `unit/dynamic_composed_unit/plan_validation.rs`;
   - every refusal whose message asserts a stage 04 invariant ("disagrees
     with its checked …", "omits or duplicates", "declared more than once",
-    "not canonical source order", "substituted", "rejoin").
+    "not canonical source order", "substituted", "rejoin"). The standalone
+    `if <pure condition> { return unsupported(..) }` forms are gone; 50 remain
+    in 29 files as lookup refusals (`ok_or(..)?`), `let … else` patterns or
+    conditions with effects, each needing its value traced before removal.
+    The same pattern with "drifted", "changed its" and "differs from its"
+    covers about 380 more.
 
   A plan that violates an invariant is a stage 04 bug, found by the corpus.
   Refusals for genuinely unsupported constructs stay until the route items

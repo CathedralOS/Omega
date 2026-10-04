@@ -239,7 +239,6 @@ pub(super) fn prepare<'checked>(
                 } else {
                     ScalarContractMode::ClosedRuntimeValue
                 },
-                source,
                 parameters,
                 locals,
                 structural_types,

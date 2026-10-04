@@ -54,7 +54,6 @@ mod call_closure;
 pub(crate) mod call_parameters;
 pub(crate) mod catalog;
 mod claims;
-mod domain_replay;
 mod entry_requirements;
 mod providers;
 mod scalar_callees;

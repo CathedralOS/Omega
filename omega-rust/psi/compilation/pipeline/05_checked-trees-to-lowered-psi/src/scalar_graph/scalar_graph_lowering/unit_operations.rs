@@ -228,20 +228,16 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit call disagrees with its exact target custody");
     }
-    let flow_call =
-        crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
-            checked,
-            machine,
-            state.state,
-            *coordinate,
-            *target_state,
-        )?;
+    let _ = crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
+        checked,
+        machine,
+        state.state,
+        *coordinate,
+        *target_state,
+    )?;
     let authored = crate::call_sites::locate(checked, state.state, *coordinate)?;
     let (_, caller_state) = crate::declarations::state_declaration(checked, state.state)?;
     let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
-    if flow_call.has_receiver || flow_call.service_reach != *service_reach {
-        return unsupported("effect call substituted its captured source call metadata");
-    }
     if !checked
         .facts
         .service_reaches
@@ -264,12 +260,6 @@ pub(super) fn prepare(
         *coordinate,
         authored.source_target,
     )?;
-    if borrow.has_receiver != flow_call.has_receiver
-        || borrow.receiver_symbol != flow_call.receiver_symbol
-        || borrow.accesses != flow_call.accesses
-    {
-        return unsupported("scalar Unit operation substituted its captured borrow call rows");
-    }
     let authored_arguments = &authored.explicit_arguments;
     let access_positions =
         crate::expression_preparation::source_custody::computation_calls::rejoin_call_accesses(

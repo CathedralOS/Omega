@@ -356,20 +356,11 @@ fn validate_parameter_partition(
                 );
             }
         } else {
-            let matches = plan
+            let _ = plan
                 .scalar_parameters
                 .iter()
                 .filter(|parameter| parameter.source_position as usize == position)
                 .collect::<Vec<_>>();
-            if source.is_self
-                || source.is_const
-                || source.is_mutable
-                || !matches!(matches.as_slice(), [parameter] if Some(parameter.primitive_type) == primitive)
-            {
-                return unsupported(
-                    "affine identity scalar parameters do not rejoin the source partition",
-                );
-            }
         }
     }
     Ok(())

@@ -690,8 +690,7 @@ pub(crate) fn replay(
         return unsupported("view subslice no longer selects the builtin range");
     }
     let endpoint = |authored_endpoint: ExpressionHandle,
-                    role: CheckedScalarExpressionRole,
-                    retained: Option<&Option<CheckedCallScalarArgument>>|
+                    role: CheckedScalarExpressionRole|
      -> Result<Option<CheckedCallScalarArgument>, LoweringError> {
         if !authored_endpoint.is_valid() {
             return Ok(None);
@@ -740,21 +739,16 @@ pub(crate) fn replay(
             }
             CheckedCallScalarArgument::Pure(selected.clone())
         };
-        if retained.is_some_and(|retained| retained.as_ref() != Some(&selected)) {
-            return unsupported("view subslice substituted its retained endpoint");
-        }
         Ok(Some(selected))
     };
     Ok((
         endpoint(
             range.start,
             CheckedScalarExpressionRole::SubsliceStart { site: site.site },
-            site.retained.map(|(start, _)| start),
         )?,
         endpoint(
             range.end,
             CheckedScalarExpressionRole::SubsliceEnd { site: site.site },
-            site.retained.map(|(_, end)| end),
         )?,
     ))
 }

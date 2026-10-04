@@ -3,8 +3,8 @@
 //! skipping an explicit erasure followed by reintroduction. Only casts whose
 //! operand is independently known to be bare may be peeled as payload wrappers.
 use super::{
-    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, parameter_binding_is_unique,
-    preceding_local, structural_parameter_at, unsupported,
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, preceding_local,
+    structural_parameter_at, unsupported,
 };
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;

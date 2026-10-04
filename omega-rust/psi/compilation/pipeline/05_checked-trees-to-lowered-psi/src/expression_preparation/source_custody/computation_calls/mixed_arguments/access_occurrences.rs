@@ -150,23 +150,23 @@ pub(crate) fn replay(
     };
     // Only the exact terminal occurrence observes payloads already extracted
     // by dispatch. Nested calls on the same statement keep their own schedule.
-    let dispatch_extraction = if matches!(
-        checked
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .get(statement as usize),
-        Some(checked_trees::statement::StatementNode::Transition(_))
-    )
-        && named_transition_call(checked, state, statement, call.call_ordinal)
-    {
-        validation::DispatchExtraction::of_transition_arm(
-            &checked.typed,
-            source_state,
-            statement as usize,
-        )
-    } else {
-        validation::DispatchExtraction::default()
-    };
+    let dispatch_extraction =
+        if matches!(
+            checked
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .get(statement as usize),
+            Some(checked_trees::statement::StatementNode::Transition(_))
+        ) && named_transition_call(checked, state, statement, call.call_ordinal)
+        {
+            validation::DispatchExtraction::of_transition_arm(
+                &checked.typed,
+                source_state,
+                statement as usize,
+            )
+        } else {
+            validation::DispatchExtraction::default()
+        };
     let mut positions = Vec::with_capacity(arguments.len());
     let selected_access = |argument, formal| {
         // A range computes a new descriptor. It is observed in source order,
@@ -295,7 +295,7 @@ pub(crate) fn replay(
             let mut children = Vec::new();
             let mut argument_children = Vec::new();
             let mut receiver = None;
-            let (named, kind) = if let Some((target, kind)) = loan {
+            let (named, _) = if let Some((target, kind)) = loan {
                 // Place evaluation already replayed a temporary's producer and
                 // its operands. A computed result has no named capture row;
                 // result custody independently owns the temporary's live loan.
@@ -506,7 +506,7 @@ pub(crate) fn replay(
                 // unlike a projection from an ordinary parameter. Reuse the
                 // source rejoin instead of guessing capture identity from the
                 // spelling of the final Name/Member chain.
-                let captured = if matches!(table.expression(named), ExpressionNode::Indexed(indexed)
+                let _ = if matches!(table.expression(named), ExpressionNode::Indexed(indexed)
                     if matches!(table.expression(indexed.index), ExpressionNode::Range(_)))
                 {
                     crate::expression_preparation::source_custody::view_ranges::captured_range(
@@ -521,21 +521,9 @@ pub(crate) fn replay(
                         named,
                     )?
                 };
-                let row = rows.get(position).ok_or(LoweringError::Unsupported(
+                let _ = rows.get(position).ok_or(LoweringError::Unsupported(
                     "computed shared borrow omits an authored observation",
                 ))?;
-                if !captured.root_symbol.is_valid()
-                    || row.root_symbol != captured.root_symbol
-                    || row.kind != kind
-                    || borrow
-                        .access_segments
-                        .span(row.segments)
-                        .is_none_or(|path| path != captured.segments)
-                {
-                    return unsupported(
-                        "computed shared borrow substituted or reordered an observation",
-                    );
-                }
                 // Saved dispatch payloads finish before target access 0; other
                 // scalar copies finish here. Loans retain their call lifetime.
                 if direct {

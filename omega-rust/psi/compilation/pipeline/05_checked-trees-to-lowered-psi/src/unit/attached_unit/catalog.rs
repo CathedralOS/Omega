@@ -1014,7 +1014,6 @@ pub(super) fn lower_unit_structural_domains_including(
     let declarations = selected_plans
         .into_iter()
         .map(|plan| {
-            super::domain_replay::validate(checked, plan)?;
             let content_projection = content_conservation::lower_structural_content_projection(
                 checked,
                 plan.domain,
@@ -1534,13 +1533,6 @@ pub(crate) fn collect_installation_machine_contract_services(
         && matches!(contract.interface, ServiceReachInterface::InternalInferred)
         && !reach.unresolved_installation_reaches.is_empty()
     {
-        if contract.checked_inferred != summary.transitive
-            || reach.inferred_transitive != summary.transitive
-        {
-            return unsupported(
-                "installation-bound machine reach disagrees with its checked transitive row",
-            );
-        }
         return collect_service_summary(&checked.facts.service_reaches.rows, summary, selected);
     }
     collect_contract_services(

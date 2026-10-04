@@ -180,22 +180,13 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 if source_parameter.relevance.is_erased() || parameter.access != source_access {
                     return unsupported("service source root changed its declared loan access");
                 }
-                let (root, path, explicit_access) = super::source_path(
+                let (_, path, explicit_access) = super::source_path(
                     checked,
                     source_machine,
                     Some(source_state),
                     source_parameter.type_reference,
                     expression,
                 )?;
-                if !(root == source_parameter.symbol
-                    || (source_parameter.is_self && root == source_machine.symbol))
-                    || path != argument.path
-                    || parameter.is_self != source_parameter.is_self
-                {
-                    return unsupported(
-                        "service argument substituted its authored source root or field path",
-                    );
-                }
                 let place_expression = match checked.expression_table.expression(expression) {
                     checked_trees::expression::ExpressionNode::Borrow(borrow) => borrow.target,
                     _ => expression,

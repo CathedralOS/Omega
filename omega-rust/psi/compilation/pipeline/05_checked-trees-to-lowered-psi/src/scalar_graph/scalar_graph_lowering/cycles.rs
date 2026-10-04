@@ -187,19 +187,12 @@ pub(super) fn prepare(
         };
         let (header_machine, header_source) =
             crate::declarations::state_declaration(checked, graph.states[*header].state)?;
-        if header_machine
-            .termination_plan
-            .implementation_witness
-            .is_none()
-        {
-            return unsupported("scalar loop lost or substituted its authored ranking witness");
-        }
         validate_rank(checked, header_machine, header_source, graph, rank)?;
     }
     for header in headers {
         let (header_machine, _) =
             crate::declarations::state_declaration(checked, graph.states[header].state)?;
-        let Some(witness) = &header_machine.termination_plan.implementation_witness else {
+        let Some(_) = &header_machine.termination_plan.implementation_witness else {
             continue;
         };
         // A fused member's own witness needs its retained component judgment;
@@ -211,11 +204,6 @@ pub(super) fn prepare(
         // under another order (`Slice::Length`, struct views) keeps its
         // judgment in the shared natural ranks and lowers here without a
         // ranked-SCC certificate rather than substituting one.
-        if rank.is_none()
-            && witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING
-        {
-            return unsupported("scalar loop lost or substituted its authored ranking witness");
-        }
     }
     if feedback.iter().all(|&(_, header)| header != 0) {
         // The entry roster binds once on the machine signature, before any
@@ -534,13 +522,6 @@ fn validate_runtime_rank(
             // the normalized witness metadata's independent join to those
             // roots too; subordinate states use the filtered telescope.
             resolve_member(checked, owner, source, row)?;
-        }
-        if checked
-            .state_parameters(source)
-            .get(subject.parameter_position as usize)
-            .is_none_or(|parameter| parameter.symbol != subject.parameter)
-        {
-            return unsupported("scalar runtime rank substituted its authored parameter");
         }
         let position = row
             .scalar_parameters

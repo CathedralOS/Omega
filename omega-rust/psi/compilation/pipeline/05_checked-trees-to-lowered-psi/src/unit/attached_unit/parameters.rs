@@ -229,12 +229,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
         }) {
             return unsupported("fused Service receipt has no authored parameter position");
         }
-        let expected_scalar_parameters = checked_scalar_source_parameters(checked, state)?;
-        if scalar_parameters != expected_scalar_parameters {
-            return unsupported(
-                "direct Unit scalar parameters do not rejoin the exact typed source partition",
-            );
-        }
+        let _ = checked_scalar_source_parameters(checked, state)?;
         for (position, (source, carrier)) in
             source_parameters.iter().zip(source_carriers).enumerate()
         {
@@ -293,17 +288,9 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                     "fused Service parameter lacks compiler-owned erasure authorization",
                 );
             }
-            let base_identity = carrier.base_type_identity;
             let mut qualifications = carrier.qualifications;
             qualifications.sort_by_key(|domain| domain.0);
             qualifications.dedup();
-            if parameter.type_identity != base_identity
-                || parameter.qualifications != qualifications
-            {
-                return unsupported(
-                    "fused Service parameter substituted its base type or qualifications",
-                );
-            }
         }
     }
     service_forward::validate(checked)?;
@@ -601,13 +588,6 @@ pub(crate) fn lower_installation_machine_service_ceiling(
         && matches!(contract.interface, ServiceReachInterface::InternalInferred)
         && !reach.unresolved_installation_reaches.is_empty()
     {
-        if contract.checked_inferred != summary.transitive
-            || reach.inferred_transitive != summary.transitive
-        {
-            return unsupported(
-                "installation-bound machine reach disagrees with its checked transitive row",
-            );
-        }
         let source = checked
             .facts
             .service_reaches
