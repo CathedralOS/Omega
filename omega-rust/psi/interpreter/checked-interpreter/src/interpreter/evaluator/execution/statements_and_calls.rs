@@ -491,6 +491,21 @@ impl<'program> Evaluator<'program> {
         if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
             return Ok(value);
         }
+        // Discarding an entry description still performs the exact query;
+        // its explicit facet cannot be bypassed by namespace classification.
+        if self
+            .try_build_product_entry_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                call.source_span,
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
         // Activation facets require a runtime receiver. A declaration called
         // `write` or `close` is not a facet merely because its leaf matches;
         // let ordinary selected-target dispatch handle namespace calls below.
@@ -508,9 +523,6 @@ impl<'program> Evaluator<'program> {
                 return Ok(Value::Unit);
             }
             if self.try_build_log_write_line_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_build_product_entry_statement(call, frame)? {
                 return Ok(Value::Unit);
             }
             if self.try_build_product_schema_statement(call, frame)? {

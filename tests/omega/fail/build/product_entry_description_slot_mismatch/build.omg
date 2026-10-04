@@ -9,5 +9,5 @@ machine build(builder: &mut Build) {
 }
 
 machine describe(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    builder.product.entry("launch", slot)
+    BuildProduct::entry(&builder.product, "launch", slot)
 }

@@ -1,4 +1,4 @@
-//! Compiler-owned product-entry descriptions (`Build.product.entry`).
+//! Compiler-owned product-entry descriptions (`BuildProduct::entry`).
 //!
 //! The query is a designated compiler operation, not an ordinary call: it
 //! resolves one exact product machine under the query occurrence's lexical
@@ -25,105 +25,35 @@ pub(in crate::interpreter::evaluator) const PRODUCT_FACET_TYPE: &str = "$OmegaBu
 const PRODUCT_ENTRY_DESCRIPTION_TYPE: &str = "$OmegaBuildProductEntry";
 
 impl<'program> Evaluator<'program> {
-    /// `builder.product.entry(path, slot)` as a value-position call: resolve
-    /// `path` under the CALL's lexical package scope and return an opaque
-    /// description marker.
-    pub(in crate::interpreter::evaluator) fn try_build_product_entry_value_call(
+    /// Execute the exact compiler operation with its explicit activation facet.
+    /// Declaration namespaces never provide runtime selection authority.
+    pub(in crate::interpreter::evaluator) fn try_build_product_entry_call(
         &mut self,
-        handle: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        occurrence: source::SourceSpan,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "entry" || !call.receiver.is_valid() {
+        if !target.is_valid() || !self.exact_build_facet_method("BuildProduct", "entry", target) {
             return Ok(None);
         }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let is_facet = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
-        );
-        if !is_facet {
-            // An authored `BuildProduct` value can select the toolchain
-            // machine through member resolution, but only the compiler-issued
-            // facet may carry selection authority into a description.
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("BuildProduct", "entry", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product entry selection requires the compiler-issued Build.product facet"
-                        .to_owned(),
-                ));
-            }
-            return Ok(None);
-        }
-        if !self.exact_build_facet_method("BuildProduct", "entry", call.target_symbol) {
+        let [facet, path, slot] = arguments else {
             return Err(Halt::Trap(
-                "product entry selection did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        let occurrence = self.program.expression_table.source_span(handle);
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        let [path, slot] = arguments else {
-            return Err(Halt::Trap(
-                "product entry selection requires a path and a slot".to_owned(),
+                "product entry selection requires an explicit facet and path and slot".to_owned(),
             ));
         };
+        let facet = self.eval_argument(*facet, frame)?;
+        let facet = self.deref_cell(facet);
+        if !matches!(&*facet.borrow(), Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE)
+        {
+            return Err(Halt::Trap(
+                "product selection requires the compiler-issued Build.product facet".to_owned(),
+            ));
+        }
         let path = self.eval_product_entry_operand(*path, frame)?;
         let slot = self.eval_product_entry_operand(*slot, frame)?;
         self.issue_product_entry_description(&path, &slot, occurrence)
             .map(Some)
-    }
-
-    /// The statement-position twin: `builder.product.entry(path, slot);`
-    /// still performs and checks the query, then drops the description.
-    pub(in crate::interpreter::evaluator) fn try_build_product_entry_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        if call.target.as_str() != "entry" || call.receiver.is_empty() {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let is_facet = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
-        );
-        if !is_facet {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("BuildProduct", "entry", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "product entry selection requires the compiler-issued Build.product facet"
-                        .to_owned(),
-                ));
-            }
-            return Ok(false);
-        }
-        if !self.exact_build_facet_method("BuildProduct", "entry", call.target_symbol) {
-            return Err(Halt::Trap(
-                "product entry selection did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        let [path, slot] = arguments else {
-            return Err(Halt::Trap(
-                "product entry selection requires a path and a slot".to_owned(),
-            ));
-        };
-        let path = self.eval_product_entry_operand(*path, frame)?;
-        let slot = self.eval_product_entry_operand(*slot, frame)?;
-        self.issue_product_entry_description(&path, &slot, call.source_span)?;
-        Ok(true)
     }
 
     /// Rejoin a `ProductEntryRef` runtime value to the description the

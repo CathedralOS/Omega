@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.01, "load1_start": 5.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.81, "load1_start": 3.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -112,6 +112,7 @@ pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d
 pass/build/conditional_root_binding built 283ms
 pass/build/described_runner_entry_left_exit built 2356ms exit:11 @26b974b5cae7+wt
 pass/build/described_runner_entry_right_exit built 2175ms exit:37 @26b974b5cae7+wt
+pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
 pass/build/runtime_main_source_builder_is_ordinary_exit built 619ms exit:70
 pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+wt

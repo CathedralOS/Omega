@@ -13,5 +13,5 @@ machine build(builder: &mut Build) {
 }
 
 machine choose(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    builder.product.entry("right::Runner::run", slot)
+    BuildProduct::entry(&builder.product, "right::Runner::run", slot)
 }

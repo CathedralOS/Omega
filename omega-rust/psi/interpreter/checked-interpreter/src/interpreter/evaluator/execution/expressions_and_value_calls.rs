@@ -547,6 +547,18 @@ impl<'program> Evaluator<'program> {
         }
 
         let target = call.target.as_str();
+        // Product selection takes its authority as an ordinary explicit
+        // argument, before namespace classification of the selected call.
+        if let Some(value) = self.try_build_product_entry_call(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            self.program.expression_table.source_span(handle),
+            frame,
+        )? {
+            return Ok(value);
+        }
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
         // here would trap before its exact ordinary target can execute. The
@@ -567,9 +579,6 @@ impl<'program> Evaluator<'program> {
                 return Ok(value);
             }
             if let Some(value) = self.try_build_log_write_line_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_build_product_entry_value_call(handle, call, frame)? {
                 return Ok(value);
             }
             if let Some(value) = self.try_build_product_schema_value_call(handle, call, frame)? {

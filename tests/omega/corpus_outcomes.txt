@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.01, "load1_start": 3.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -274,22 +274,26 @@ fail/build/package_local_calling_copy rejected 72ms expected @c3ad5f6e051f+wt
 	duplicate data `BoundaryPlanResult`
 fail/build/placed_view_program_entry_input rejected 3197ms expected @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`inspect`)
-fail/build/product_entry_description_slot_mismatch rejected 566ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
+fail/build/product_entry_description_slot_mismatch rejected 379ms expected @d7dd90112d31
+	root binding slot `windows_x86_64::ProgramEntry` does not match the product description's slot `linux_arm64::ProgramEntry`
 fail/build/product_entry_forged_description rejected 584ms expected @b09f66e07ebd+wt
 	build-time evaluation of `build` failed: root binding operand is not a compiler-issued product entry description
-fail/build/product_entry_query_ambiguous_leaf rejected 406ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-fail/build/product_entry_query_build_scope_alias rejected 362ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-fail/build/product_entry_query_foreign_helper_private_entry rejected 396ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-fail/build/product_entry_query_incompatible_signature rejected 358ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-fail/build/product_entry_query_undeclared_slot rejected 355ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-fail/build/product_entry_query_unknown_target rejected 440ms unexpected @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
+fail/build/product_entry_query_ambiguous_leaf rejected 379ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is ambiguous: more than one visible declaration is compatible with slot `windows_x86_64::ProgramEntry`
+fail/build/product_entry_query_build_scope_alias rejected 384ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `support::setup::launch` is not a product declaration visible from this build occurrence's package
+fail/build/product_entry_query_discarded_unknown_target rejected 386ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `unknown_target::ProgramEntry`: root slot `unknown_target::ProgramEntry` belongs to unknown target profile `unknown_target`
+fail/build/product_entry_query_foreign_helper_private_entry rejected 392ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is not a product declaration visible from this build occurrence's package
+fail/build/product_entry_query_forged_facet rejected 399ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product selection requires the compiler-issued Build.product facet
+fail/build/product_entry_query_incompatible_signature rejected 416ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `windows_x86_64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `value`
+fail/build/product_entry_query_undeclared_slot rejected 416ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `windows_x86_64::UndeclaredEntry`: target profile `windows_x86_64` declares no required root slot `windows_x86_64::UndeclaredEntry`
+fail/build/product_entry_query_unknown_target rejected 375ms expected @d7dd90112d31
+	build-time evaluation of `build` failed: product entry `launch` is incompatible with slot `unknown_target::ProgramEntry`: root slot `unknown_target::ProgramEntry` belongs to unknown target profile `unknown_target`
 fail/build/program_entry_binding_outside_build rejected 738ms expected @2d8ed253669f
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+wt
@@ -1417,16 +1421,13 @@ pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
-pass/build/described_runner_entry_left_exit rejected 1617ms @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-pass/build/described_runner_entry_right_exit rejected 612ms @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
+pass/build/described_runner_entry_left_exit checked 1809ms @d7dd90112d31
+pass/build/described_runner_entry_right_exit checked 1476ms @d7dd90112d31
+pass/build/product_entry_named_user_machine_exit checked 570ms @d7dd90112d31
 pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
-pass/build/same_leaf_runner_entry_left_exit rejected 488ms @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
-pass/build/same_leaf_runner_entry_right_exit rejected 391ms @c5d32a00863
-	state `entry` expects 3 argument(s), got 2
+pass/build/same_leaf_runner_entry_left_exit checked 1023ms @d7dd90112d31
+pass/build/same_leaf_runner_entry_right_exit checked 1015ms @d7dd90112d31
 pass/build/uefi_os_handoff_invocation rejected 1774ms @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 3170ms @48d34a64a938+wt
