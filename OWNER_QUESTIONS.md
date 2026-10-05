@@ -415,3 +415,54 @@ whether the coordinate was claimed. And (2) and (3) each look like "recognize
 one more shape" from the other's side, which the hard rule forbids choosing
 arbitrarily. Once ruled, the repair is small and the two-line program pins it
 either way.
+
+### Q8 - Who supplies the realization of a bare-metal boundary requirement?
+
+Named decision: `bare-metal-requirement-realization`.
+
+**Customers:** `pass/memory/interrupt_table_canary`
+(`InterruptAcknowledgement::complete`, `source/library/core/interrupt.omg:57`,
+`reaches PortIo`, content = LAPIC end-of-interrupt write) and
+`pass/memory/secondary_processor_canary` (`StartupEnvelope::confirm`, the
+fixture's own `cathedral/processor_startup.omg`, `reaches MachineControl`,
+content = application-processor startup handshake). Both are top-level public
+`boundary requirement`s over **opaque linear boundary data**. Selection and
+admission both succeed; only realization is missing. These are **one** question,
+not two -- the earlier guess that they split by declaration site was wrong.
+
+**All four routes are closed, each measured rather than inferred:**
+
+1. **Compiler intrinsic** -- needs a new `CompilerIntrinsicExecutionIdentity`
+   variant plus a `MachineSemanticKind`, per-target realizations, catalog and
+   encoding opcodes, a legalized scalar graph and review-evidence capture. That
+   makes the interrupt controller and the AP bring-up protocol **compiler-owned
+   semantics**, against AGENTS.md's "Cathedral (the downstream OS) owns OS
+   structures".
+2. **External satisfier leaf** -- `via` admits only `Syscall(n)`,
+   `DllImport{..}`, `VtableField(f)`, `TableFunction(f)`
+   (`01_tokens-to-syntax-trees/src/contracts/conformance/external_binding.rs`).
+   None expresses an MMIO or port write, and
+   `pass/providers/external_boundary_requirement_via_exit` is `DllImport` over
+   libc, which bare metal does not have.
+3. **Authored body** -- refused by measurement: replacing the binding with a
+   body gives ``linear value `envelope` reaches scope exit without being
+   consumed or transferred``. A package cannot discharge a linear
+   `boundary data` whose only declared discharge route is the requirement it is
+   satisfying. Inline asm reaches `PortIo`/`MachineControl` but does not help
+   the discharge, and `MachineControl`/`PortIo` are machine-less reach labels
+   with no callable operation.
+4. **Installation-route propagation** (`InstalledInterruptCompletionRoute` in
+   `external-roots`) -- would make both provider declarations wrong and
+   removable. `wiki/spec/resources/authority.md#completion-authority-and-implementation-selection`
+   says only that "a public boundary requirement still needs a selected,
+   admitted implementation"; it is **silent on what realizes one**.
+
+**Decision needed:** (1) a fifth `ForeignBinding` case for a hardware-register
+write, (2) a language discharge for a linear boundary obligation inside its
+satisfying body, (3) installation-route propagation that removes these two
+provider declarations, or (4) retiring both fixtures as not-yet-authorable.
+
+**Do not resolve it by making the top-level-requirement lane answer
+`Unsupported` the way the trait lane does.** Measured: that moves both fixtures
+off this diagnostic and plausibly to `built` while neither program can run. It
+is an admission-policy change disguised as a cleanup.
