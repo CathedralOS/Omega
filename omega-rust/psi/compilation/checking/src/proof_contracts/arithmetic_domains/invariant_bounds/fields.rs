@@ -24,7 +24,10 @@ pub(super) fn type_reference(
     else {
         return None;
     };
-    let [name] = program.expression_table.name_path_members(receiver.members) else {
+    // One member: the receiver is a bare binding occurrence, not a chain.
+    // Which binding it is comes from the resolved symbol below, so the
+    // spelling itself is only diagnostic payload here.
+    let [_] = program.expression_table.name_path_members(receiver.members) else {
         return None;
     };
     // Which parameter carries the machine's data record, under either
@@ -42,7 +45,6 @@ pub(super) fn type_reference(
             && receiver.symbol == receiver.head_symbol
             && parameter.symbol == receiver.symbol;
         symbol_match
-            && parameter.name == *name
             // The machine's own field storage enforces its declared bounds on
             // every write, so `self.k` keeps them even through a `&mut self`
             // receiver — the read is of storage, not of a snapshot-only value.

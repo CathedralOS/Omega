@@ -857,17 +857,18 @@ pub(super) fn parameter<'program>(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    // One member: the subject is a bare binding occurrence, not a chain.
+    // Which binding it is comes from the resolved head symbol below.
+    let [_] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
     // The edge owners evaluate every expression through this resolver over a
-    // parameter-preserving prefix, so a mutable parameter's name still denotes
-    // the live record the edge observes.
+    // parameter-preserving prefix, so a mutable parameter's symbol still
+    // denotes the live record the edge observes.
     program.state_parameters(state).iter().find(|parameter| {
         path.symbol.is_valid()
             && path.symbol == path.head_symbol
             && parameter.symbol == path.symbol
-            && parameter.name == *name
             && !parameter.is_const
     })
 }

@@ -29,7 +29,11 @@ fn expression_type(
     let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
     let reference = match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            let [name] = program.expression_table.name_path_members(path.members) else {
+            // One member: a bare binding occurrence, never a chain. The
+            // telescope membership test below is the resolved symbol's, so
+            // the spelling contributes nothing a foreign declaration could
+            // substitute past.
+            let [_] = program.expression_table.name_path_members(path.members) else {
                 return None;
             };
             if !path.symbol.is_valid()
@@ -43,7 +47,7 @@ fn expression_type(
             }
             let mut candidates = parameters
                 .iter()
-                .filter(|parameter| parameter.symbol == path.symbol && parameter.name == *name);
+                .filter(|parameter| parameter.symbol == path.symbol);
             let parameter = candidates.next()?;
             if candidates.next().is_some() {
                 return None;
