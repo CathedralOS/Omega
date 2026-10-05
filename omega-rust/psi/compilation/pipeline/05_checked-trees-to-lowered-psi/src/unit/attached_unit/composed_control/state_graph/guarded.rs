@@ -132,11 +132,7 @@ fn reference_source(
         ExpressionNode::Borrow(_)
     );
     if carried_reference
-        || validation::reference_result_custody::shared_borrowed_parts(
-            &checked.typed,
-            authored.return_type,
-        )
-        .is_some()
+        || crate::reference_custody::shared_borrow_parts(checked, authored.return_type).is_some()
     {
         return validation::reference_result_custody::initializer_source(
             &checked.typed,
@@ -158,13 +154,10 @@ fn reference_source(
     let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
         return unsupported("ordered reference return lost its authored borrow");
     };
-    let (referent, access) = validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        authored.return_type,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "ordered reference return lost its mutable result type",
-    ))?;
+    let (referent, access) =
+        crate::reference_custody::mutable_borrow_parts(checked, authored.return_type).ok_or(
+            LoweringError::Unsupported("ordered reference return lost its mutable result type"),
+        )?;
     if validation::expression_result_type_reference(
         &checked.typed,
         machine,
@@ -288,11 +281,8 @@ fn reference_source(
     ))?;
     let parameter = &parameters[position];
     if !parameter.is_mutable
-        && validation::reference_result_custody::mutable_borrowed_parts(
-            &checked.typed,
-            parameter.type_reference,
-        )
-        .is_none()
+        && crate::reference_custody::mutable_borrow_parts(checked, parameter.type_reference)
+            .is_none()
     {
         return unsupported("ordered reference return ingress is not mutable");
     }

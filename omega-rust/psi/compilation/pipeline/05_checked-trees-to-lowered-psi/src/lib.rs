@@ -67,6 +67,7 @@ mod direct_calls;
 mod lowered_machine_provenance;
 mod lowering_error;
 mod producer_result;
+mod reference_custody;
 mod terminal_identities;
 
 // The entrance, and the failure vocabulary its callers match on.

@@ -639,6 +639,16 @@ impl TypeReferenceTable {
         self.type_references.len()
     }
 
+    /// Every live type reference with its node, in arena order. Consumers
+    /// that classify the whole table — not one declaration's types — walk
+    /// this rather than rediscovering rows through the declaration roots,
+    /// which never reach a type the table interned for an intermediate.
+    pub fn type_reference_rows(
+        &self,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references.iter()
+    }
+
     pub fn find_named_type_reference(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
         self.named_rows
             .0

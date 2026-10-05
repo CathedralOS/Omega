@@ -38,14 +38,14 @@ impl emission::Emission<'_, '_, '_> {
             return unsupported("fixed array source has a nonarray carrier");
         };
         let element_reference = *element_type;
-        let element_multiplicity = match validation::reference_result_custody::result_multiplicity(
-            &self.checked.typed,
-            element_reference,
-        ) {
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => return unsupported("fixed array cannot create linear custody"),
-        };
+        let element_multiplicity =
+            match crate::reference_custody::result_multiplicity(self.checked, element_reference) {
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Linear => {
+                    return unsupported("fixed array cannot create linear custody");
+                }
+            };
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
         let source_count = self.values.len();

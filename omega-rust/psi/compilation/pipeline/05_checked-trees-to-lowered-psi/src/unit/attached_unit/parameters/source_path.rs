@@ -518,7 +518,7 @@ pub(crate) fn source_place_path(
     // access remains subject to the caller's independent loan check.
     if !path.is_empty()
         && let Some((_, declared_access)) =
-            validation::reference_result_custody::stored_loan_parts(&checked.typed, type_reference)
+            crate::reference_custody::stored_loan_parts(checked, type_reference)
     {
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
         access = access.or(Some(declared_access));

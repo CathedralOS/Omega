@@ -57,20 +57,15 @@ pub(crate) fn bind_local(
             checked,
             local.type_reference,
         );
-    let borrowed_access = validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        local.type_reference,
-    )
-    .or_else(|| {
-        validation::reference_result_custody::shared_borrowed_parts(
-            &checked.typed,
-            local.type_reference,
-        )
-    })
-    .map(|(_, access)| {
-        crate::expression_preparation::bindings::structural_paths::terminal_access(access)
-    })
-    .or_else(|| shared_slice.map(|_| terminal_psi::StructuralAccess::SharedBorrow));
+    let borrowed_access =
+        crate::reference_custody::mutable_borrow_parts(checked, local.type_reference)
+            .or_else(|| {
+                crate::reference_custody::shared_borrow_parts(checked, local.type_reference)
+            })
+            .map(|(_, access)| {
+                crate::expression_preparation::bindings::structural_paths::terminal_access(access)
+            })
+            .or_else(|| shared_slice.map(|_| terminal_psi::StructuralAccess::SharedBorrow));
     // The roster's owned-source admission is one storage judgment: an already
     // established owned value whose exact constrained type survives the
     // transfer. It classifies every producer and wrapper (plain arrays,

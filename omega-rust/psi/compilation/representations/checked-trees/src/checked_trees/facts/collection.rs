@@ -17,6 +17,10 @@ pub struct CheckFacts {
     pub operational: flow_effects::OperationalPlan,
     pub semantic: facts::FactPlan,
     pub borrow: BorrowFacts,
+    /// Every type reference's borrow custody, classified once over the
+    /// frozen type table. Lowering reads these rows instead of re-entering
+    /// checking to reclassify a carrier at each of its call sites.
+    pub reference_custody: crate::ReferenceCustodyFacts,
     /// Selected source death edges and their remaining custody, retained for
     /// symbolic templates as well as concrete execution.
     pub contextual_cleanup: crate::ContextualCleanupFacts,

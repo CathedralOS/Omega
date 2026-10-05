@@ -125,12 +125,7 @@ pub(super) fn validate_composed_establishment(
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
-    if validation::reference_result_custody::shared_borrowed_parts(
-        &checked.typed,
-        authored.return_type,
-    )
-    .is_some()
-    {
+    if crate::reference_custody::shared_borrow_parts(checked, authored.return_type).is_some() {
         // A shared result may weaken mutable ingress; its exact authored
         // initializer must resolve.
         if validation::reference_result_custody::initializer_source(
@@ -166,12 +161,7 @@ pub(super) fn validate_composed_establishment(
     {
         return unsupported("mutable reference ingress parameter is absent");
     }
-    if validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        authored.return_type,
-    )
-    .is_none()
-    {
+    if crate::reference_custody::mutable_borrow_parts(checked, authored.return_type).is_none() {
         return unsupported("mutable reference return lost its declared referee");
     }
     Ok(())
@@ -350,7 +340,7 @@ pub(super) fn validate_consumer(
             .filter(|result| result.binding_ordinal == binding_ordinal),
     }).filter(|result| {
         matches!(checked.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
-            Some(StatementNode::LocalData(local)) if validation::reference_result_custody::is_reference_record(&checked.typed, local.type_reference))
+            Some(StatementNode::LocalData(local)) if crate::reference_custody::is_reference_record(checked, local.type_reference))
     });
     if let Some(result) = record_result {
         let Some(reference) =
@@ -358,7 +348,7 @@ pub(super) fn validate_consumer(
         else {
             return Ok(false);
         };
-        if validation::reference_result_custody::parts(&checked.typed, reference).is_none() {
+        if crate::reference_custody::primitive_loan_parts(checked, reference).is_none() {
             return Ok(false);
         }
         let expected = validation::reference_result_custody::record_argument(
@@ -403,10 +393,9 @@ pub(super) fn validate_consumer(
     else {
         return Ok(false);
     };
-    let Some((referent, _)) = validation::reference_result_custody::stored_loan_parts(
-        &checked.typed,
-        local.type_reference,
-    ) else {
+    let Some((referent, _)) =
+        crate::reference_custody::stored_loan_parts(checked, local.type_reference)
+    else {
         return Ok(false);
     };
     // Descriptor and erased-alias operands retain their existing representation

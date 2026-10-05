@@ -215,16 +215,10 @@ impl SourceTypes<'_> {
                     // substitutions, exactly as the collector registers it.
                     let (referee, _) = match access {
                         language_semantics::ReferenceAccess::Mutable => {
-                            validation::reference_result_custody::mutable_borrowed_parts(
-                                &checked.typed,
-                                reference,
-                            )
+                            crate::reference_custody::mutable_borrow_parts(checked, reference)
                         }
                         language_semantics::ReferenceAccess::Shared => {
-                            validation::reference_result_custody::shared_borrowed_parts(
-                                &checked.typed,
-                                reference,
-                            )
+                            crate::reference_custody::shared_borrow_parts(checked, reference)
                         }
                         language_semantics::ReferenceAccess::WriteOnly => None,
                     }

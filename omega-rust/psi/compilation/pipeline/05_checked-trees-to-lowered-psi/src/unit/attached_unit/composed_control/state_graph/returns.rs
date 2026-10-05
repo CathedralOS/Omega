@@ -54,11 +54,7 @@ pub(super) fn signature_matches(
             // Slice views use their element-view carrier. Named records and
             // primitive referents retain the reference shell and its affine
             // permission; neither becomes owned referent storage.
-            if validation::reference_result_custody::mutable_borrowed_parts(
-                &checked.typed,
-                source.return_type,
-            )
-            .is_some()
+            if crate::reference_custody::mutable_borrow_parts(checked, source.return_type).is_some()
             {
                 // Only a slice view has a peeled carrier here.
                 let identity = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
@@ -85,10 +81,8 @@ pub(super) fn signature_matches(
             }
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
-                    && validation::reference_result_custody::result_multiplicity(
-                        &checked.typed,
-                        source.return_type,
-                    ) == result.multiplicity
+                    && crate::reference_custody::result_multiplicity(checked, source.return_type)
+                        == result.multiplicity
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
                     && validation::structural_result_projected_qualifications(
@@ -104,11 +98,7 @@ pub(super) fn signature_matches(
             // binding itself is affine, and no owned qualification rows
             // exist to compare. The caller-side loan the `EstablishReference`
             // source rejoins is verified at its own emission, not here.
-            if validation::reference_result_custody::mutable_borrowed_parts(
-                &checked.typed,
-                source.return_type,
-            )
-            .is_some()
+            if crate::reference_custody::mutable_borrow_parts(checked, source.return_type).is_some()
             {
                 return checked
                     .normalized_type_identity(source.return_type)
@@ -130,11 +120,7 @@ pub(super) fn signature_matches(
             // multiplicity the checking side mints; the named referent
             // stays in the caller's frame and the binding carries loan,
             // not contents.
-            if validation::reference_result_custody::shared_borrowed_parts(
-                &checked.typed,
-                source.return_type,
-            )
-            .is_some()
+            if crate::reference_custody::shared_borrow_parts(checked, source.return_type).is_some()
             {
                 return checked
                     .normalized_type_identity(source.return_type)
@@ -161,7 +147,7 @@ pub(super) fn signature_matches(
                 .normalized_type_identity(carrier)
                 .as_str()
                 == result.type_identity
-                && validation::reference_result_custody::result_multiplicity(&checked.typed, source.return_type) == result.multiplicity
+                && crate::reference_custody::result_multiplicity(checked, source.return_type) == result.multiplicity
                 && validation::structural_result_qualifications(&checked.typed, source.return_type).ok().as_ref() == Some(&result.qualifications)
                 && validation::structural_result_projected_qualifications(
                     &checked.typed,
@@ -173,7 +159,7 @@ pub(super) fn signature_matches(
                 // Plain storage classification excludes linear roots by design.
                 // Their admission instead requires exact entry/call/return claims.
                 && (result.multiplicity == Multiplicity::Linear
-                    || validation::reference_result_custody::is_reference_record(&checked.typed, source.return_type)
+                    || crate::reference_custody::is_reference_record(checked, source.return_type)
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
                     || validation::has_cleanup_owned_contents(
@@ -368,11 +354,7 @@ pub(super) fn validate_structural(
             // Borrowed ingress names referent storage; the returned value is
             // its affine reference carrier, resolved through exact source
             // custody.
-            if validation::reference_result_custody::stored_loan_parts(
-                &checked.typed,
-                source.return_type,
-            )
-            .is_some()
+            if crate::reference_custody::stored_loan_parts(checked, source.return_type).is_some()
                 && validation::reference_result_custody::initializer_source(
                     &checked.typed,
                     source,

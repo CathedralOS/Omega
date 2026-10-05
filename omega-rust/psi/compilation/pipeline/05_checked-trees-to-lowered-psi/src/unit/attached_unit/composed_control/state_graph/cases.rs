@@ -494,11 +494,8 @@ pub(super) fn validate(
     let mut subject_reads = Vec::new();
     let declared = checked.data_members(declaration);
     let mut previous_case_order = None;
-    let mutable_reference_result = validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        source.return_type,
-    )
-    .is_some();
+    let mutable_reference_result =
+        crate::reference_custody::mutable_borrow_parts(checked, source.return_type).is_some();
     for case in cases {
         let successor_plan = match &case.outcome {
             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),

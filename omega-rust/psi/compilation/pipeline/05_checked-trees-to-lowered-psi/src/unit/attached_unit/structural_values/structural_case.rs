@@ -185,17 +185,16 @@ impl emission::Emission<'_, '_, '_> {
                     let parent_type = self.structural_type;
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;
-                    self.multiplicity =
-                        match validation::reference_result_custody::result_multiplicity(
-                            &self.checked.typed,
-                            field.type_reference,
-                        ) {
-                            Multiplicity::Affine => StructuralMultiplicity::Affine,
-                            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                            Multiplicity::Linear => {
-                                return unsupported("nested case cannot create linear custody");
-                            }
-                        };
+                    self.multiplicity = match crate::reference_custody::result_multiplicity(
+                        self.checked,
+                        field.type_reference,
+                    ) {
+                        Multiplicity::Affine => StructuralMultiplicity::Affine,
+                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                        Multiplicity::Linear => {
+                            return unsupported("nested case cannot create linear custody");
+                        }
+                    };
                     let argument = self.constructor_operand(value, field.type_reference)?;
                     self.structural_type = parent_type;
                     self.multiplicity = parent_multiplicity;

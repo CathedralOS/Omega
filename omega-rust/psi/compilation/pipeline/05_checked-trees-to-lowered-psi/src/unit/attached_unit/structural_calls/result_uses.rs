@@ -159,12 +159,10 @@ fn validate_linear_result_consumer(
     };
     // A `&mut` view local's qualifications are the referee's: the reference
     // presentation is custody, not a domain shell.
-    let qualification_type = validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        local.type_reference,
-    )
-    .map(|(referee, _)| referee)
-    .unwrap_or(local.type_reference);
+    let qualification_type =
+        crate::reference_custody::mutable_borrow_parts(checked, local.type_reference)
+            .map(|(referee, _)| referee)
+            .unwrap_or(local.type_reference);
     if local.is_mutable
         || validation::structural_result_qualifications(&checked.typed, qualification_type)
             .map_err(LoweringError::Unsupported)?

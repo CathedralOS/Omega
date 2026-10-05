@@ -79,11 +79,12 @@ pub use facts::{
     MachineSynchronousInvocationFact, MachineTerminationFact, MutationFacts,
     NominalMachineUseFacts, NominalMachineUseSite, OperatorSiteLocation, PerformedIntegerWrite,
     ProgressDemandCallSite, QualificationFacts, RealizedMachineContractEnvelope,
-    RequirementCallSpecializationFacts, RetainedBorrowCustodyFact, ServiceReachFacts,
-    StateServiceReachRows, StateWriteFramePlan, SuspensionCrossingCarryFact,
-    SuspensionCrossingLiveValueFact, SuspensionCrossingStorage, SuspensionCrossingValueOrigin,
-    SuspensionFacts, SynchronousInvocationFacts, TerminationFacts, VacuousQualificationUse,
-    canonical_suspension_crossing_id, contract_identity, contract_report_fingerprint,
+    ReferenceCustodyFacts, ReferenceCustodyRow, RequirementCallSpecializationFacts,
+    RetainedBorrowCustodyFact, ServiceReachFacts, StateServiceReachRows, StateWriteFramePlan,
+    SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
+    SuspensionCrossingValueOrigin, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
+    VacuousQualificationUse, canonical_suspension_crossing_id, contract_identity,
+    contract_report_fingerprint,
 };
 pub use flow::{
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,

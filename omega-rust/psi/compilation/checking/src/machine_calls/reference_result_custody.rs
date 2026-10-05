@@ -2,7 +2,10 @@
 //! Record construction, projected use and cleanup replay the same authored
 //! origins, current loan premises and weakening boundaries independently.
 
-use checked_trees::{CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan};
+use checked_trees::{
+    CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
+    ReferenceCustodyFacts, ReferenceCustodyRow,
+};
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -1921,6 +1924,61 @@ pub fn record_argument(
         type_identity: source.source.type_identity.clone(),
         access,
     })
+}
+
+/// Classify every type reference's borrow custody once, over the whole
+/// frozen type table.
+///
+/// The leaf-family, record and multiplicity questions below are pure
+/// functions of the type table: they read no machine, no state and no
+/// checked fact. Checking answers them while it validates carriers, and
+/// lowering needs the same answers at a few hundred call sites. Walking the
+/// table once records them for the whole program, so the classifier's
+/// admitted shapes stay behind this one entry point instead of being
+/// reachable from a later stage.
+///
+/// The row vector is positional by `TypeReferenceHandle::arena_index`, and
+/// index 0 — the invalid handle — carries the classification every handle
+/// the table does not name reads. The table is append-only, so an index is
+/// never reused and a recorded row cannot go stale under a later handle.
+pub fn classify_program_reference_custody(program: &TypedTrees) -> ReferenceCustodyFacts {
+    let table = &program.type_reference_table;
+    let highest = table
+        .type_reference_rows()
+        .map(|(handle, _)| handle.arena_index())
+        .max()
+        .unwrap_or(0);
+    let mut rows =
+        vec![reference_custody(program, TypeReferenceHandle::invalid()); highest as usize + 1];
+    for (handle, _) in table.type_reference_rows() {
+        rows[handle.arena_index() as usize] = reference_custody(program, handle);
+    }
+    ReferenceCustodyFacts::with_rows(rows)
+}
+
+/// One type reference's custody row.
+fn reference_custody(program: &TypedTrees, reference: TypeReferenceHandle) -> ReferenceCustodyRow {
+    let stored = stored_loan_parts(program, reference);
+    ReferenceCustodyRow {
+        primitive_loan_referent: parts(program, reference)
+            .map(|(referent, _)| referent)
+            .unwrap_or_else(TypeReferenceHandle::invalid),
+        stored_loan_referent: stored
+            .map(|(referent, _)| referent)
+            .unwrap_or_else(TypeReferenceHandle::invalid),
+        stored_loan_access: stored
+            .map(|(_, access)| access)
+            .unwrap_or(CheckedStructuralAccess::Owned),
+        mutable_borrow_referent: mutable_borrowed_parts(program, reference)
+            .map(|(referent, _)| referent)
+            .unwrap_or_else(TypeReferenceHandle::invalid),
+        shared_borrow_referent: shared_borrowed_parts(program, reference)
+            .map(|(referent, _)| referent)
+            .unwrap_or_else(TypeReferenceHandle::invalid),
+        is_reference_record: is_reference_record(program, reference),
+        binding_multiplicity: binding_multiplicity(program, reference),
+        result_multiplicity: result_multiplicity(program, reference),
+    }
 }
 
 /// Stored reference classification precedes referent-oriented normalization.

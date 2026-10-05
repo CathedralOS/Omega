@@ -282,10 +282,8 @@ impl Evaluation {
                     checked,
                     binding_type,
                 );
-            let mutable_borrow = validation::reference_result_custody::mutable_borrowed_parts(
-                &checked.typed,
-                binding_type,
-            );
+            let mutable_borrow =
+                crate::reference_custody::mutable_borrow_parts(checked, binding_type);
             // A `&mut` slice view's carrier is its element-view carrier
             // exactly as a `&` view's is: `let slots: &mut [Cell] = ..` binds
             // the `[Cell]` view — and `&mut Cell` binds the `Cell` record —
@@ -330,10 +328,7 @@ impl Evaluation {
             let expected_multiplicity = if reference_carrier {
                 Multiplicity::Affine
             } else {
-                validation::reference_result_custody::binding_multiplicity(
-                    &checked.typed,
-                    binding_type,
-                )
+                crate::reference_custody::binding_multiplicity(checked, binding_type)
             };
             if !local.symbol.is_valid()
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity

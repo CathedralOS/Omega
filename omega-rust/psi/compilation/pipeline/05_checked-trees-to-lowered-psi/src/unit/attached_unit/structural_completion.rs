@@ -89,22 +89,13 @@ pub(super) fn validate(
         }
         return Ok(());
     };
-    let expected_multiplicity = validation::reference_result_custody::result_multiplicity(
-        &checked.typed,
-        state.return_type,
-    );
+    let expected_multiplicity =
+        crate::reference_custody::result_multiplicity(checked, state.return_type);
     if state.symbol != machine.state
         || !source.body_is_present
         || result.multiplicity != expected_multiplicity
-        || !(validation::reference_result_custody::stored_loan_parts(
-            &checked.typed,
-            state.return_type,
-        )
-        .is_some()
-            || validation::reference_result_custody::is_reference_record(
-                &checked.typed,
-                state.return_type,
-            )
+        || !(crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
+            || crate::reference_custody::is_reference_record(checked, state.return_type)
             || validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
             || validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
@@ -130,10 +121,9 @@ pub(super) fn validate(
     {
         return unsupported("structural completion coordinate differs from source");
     }
-    let whole_reference =
-        validation::reference_result_custody::stored_loan_parts(&checked.typed, state.return_type)
-            .is_some()
-            || shared_borrowed_slice_view(checked, state.return_type);
+    let whole_reference = crate::reference_custody::stored_loan_parts(checked, state.return_type)
+        .is_some()
+        || shared_borrowed_slice_view(checked, state.return_type);
     // A `&` result returned at a tail transition mints through the
     // transition's exit arm, not a tail expression statement — the
     // completion value exists only for ordinary structural results.
@@ -148,12 +138,8 @@ pub(super) fn validate(
         Some(StatementNode::Transition(_)) => None,
         _ => return unsupported("structural result source has no completion value"),
     };
-    if validation::reference_result_custody::stored_loan_parts(&checked.typed, state.return_type)
-        .is_some()
-        || validation::reference_result_custody::is_reference_record(
-            &checked.typed,
-            state.return_type,
-        )
+    if crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
+        || crate::reference_custody::is_reference_record(checked, state.return_type)
     {
         if validation::reference_result_custody::returned_reference_sources(&checked.typed, state)
             .is_none()

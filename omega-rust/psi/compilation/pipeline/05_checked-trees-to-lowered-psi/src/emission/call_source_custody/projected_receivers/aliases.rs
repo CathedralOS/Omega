@@ -714,11 +714,7 @@ fn call_result_source(
     if !matches!(
         checked.expression_table.expression(local.initial_value),
         ExpressionNode::Call(_)
-    ) || validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        local.type_reference,
-    )
-    .is_none()
+    ) || crate::reference_custody::mutable_borrow_parts(checked, local.type_reference).is_none()
     {
         return Ok(None);
     }
