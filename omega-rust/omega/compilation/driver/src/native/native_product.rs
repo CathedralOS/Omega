@@ -5,13 +5,24 @@ use diagnostics::Diagnostic;
 
 use compilation_products::NativeProductRequest;
 
+/// What one native stage sequence produces for the admitted settlement to turn
+/// into a report: the realized image, the settled rollback receipt, the
+/// post-production timing ladder and the producer-side rewrite explanation.
+pub struct ProducedNativeProduct {
+    pub artifact: native_artifact::RequestedNativeArtifact,
+    pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
+    pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
+    pub withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
+}
+
 /// Produce the same retained Terminal product used by package re-entry, then
-/// consume it through the single source-free native pipeline.
-pub fn produce_native_report(
+/// consume it through the single source-free native pipeline. The stop and its
+/// Build requirements were admitted by
+/// `CheckedCompilation::prepare_product_report`; nothing is re-admitted here.
+pub fn produce_native_product(
     request: NativeProductRequest,
     mut checked: CheckedCompilation,
-) -> Result<compilation_products::CompileReport, Vec<Diagnostic>> {
-    let production_subject = checked.production_subject()?;
+) -> Result<ProducedNativeProduct, Vec<Diagnostic>> {
     let rollback = request
         .optimization_rollback
         .settle(&checked.build().config.settings.optimizations);
@@ -45,15 +56,12 @@ pub fn produce_native_report(
         },
     )
     .map_err(|(_, diagnostics)| diagnostics)?;
-    checked
-        .native_report(
-            request.root_path,
-            artifact,
-            rollback.into_receipt(),
-            production_subject,
-            request.terminal_admission_profile,
-        )
-        .map(|report| report.with_withheld_rewrites(withheld_rewrites))
+    Ok(ProducedNativeProduct {
+        artifact,
+        rollback_receipt: rollback.into_receipt(),
+        timings: checked.timings().phases().to_vec(),
+        withheld_rewrites,
+    })
 }
 
 /// Project and validate the checked package's accepted Terminal permission

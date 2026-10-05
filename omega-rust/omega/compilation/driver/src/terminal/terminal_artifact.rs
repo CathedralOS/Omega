@@ -13,8 +13,8 @@ use terminal_production::TerminalProductionCustody;
 
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
-/// keeps this coarse row as the boundary total; the production sequence's
-/// per-leg rows arrive through `TerminalProductionTimings` and merge below it.
+/// keeps this coarse row as the boundary total; the production sequence
+/// records its per-leg rows into the same ladder, below it.
 /// Psi's semantic stages have no reporting dependency.
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
@@ -37,32 +37,34 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-/// Merge the production sequence's rows under the boundary row the caller just
-/// recorded. Rows drop silently when the accumulator is disabled.
-pub fn produce_terminal_report(
-    root_path: std::path::PathBuf,
+/// What one Terminal stage sequence produces for the admitted settlement to
+/// turn into a report: the retained product, the settled rollback receipt, the
+/// post-production timing ladder and the producer-side rewrite explanation.
+/// None of it is a report, an admission or a publication.
+pub struct ProducedTerminalProduct {
+    pub artifact: compilation_products::RetainedTerminalArtifact,
+    pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
+    pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
+    pub withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
+}
+
+/// Run the Terminal stage sequence the product admission already allowed. The
+/// stop, its Build requirements and its package production custody were
+/// settled by `CheckedCompilation::prepare_product_report`; this owner never
+/// re-admits them.
+pub fn produce_terminal_product(
     mut checked: CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     rollback: &OptimizationRollback,
-) -> Result<compilation_products::CompileReport, Vec<Diagnostic>> {
-    let pcc_requests = checked.build().config.settings.pcc;
-    compilation_products::RequestedCompileProduct::TerminalArtifact.admit_build_requirements(
-        checked.build_admission().artifact_only(),
-        pcc_requests,
-        rollback,
-    )?;
-    let production_subject = checked.production_subject()?;
+) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
     let rollback = rollback.settle(&checked.build().config.settings.optimizations);
     let produced = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
-    checked
-        .terminal_report(
-            root_path,
-            produced.artifact,
-            production_subject,
-            rollback.into_receipt(),
-            profile.clone(),
-        )
-        .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
+    Ok(ProducedTerminalProduct {
+        artifact: produced.artifact,
+        rollback_receipt: rollback.into_receipt(),
+        timings: checked.timings().phases().to_vec(),
+        withheld_rewrites: produced.withheld_rewrites,
+    })
 }
 
 /// Produce one verified retained Terminal product from the complete checked

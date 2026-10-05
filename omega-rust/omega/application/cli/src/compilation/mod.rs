@@ -321,22 +321,13 @@ fn compile_project_targets(
                         )
                     }
                     (Some(prepared), ProjectProduct::Check) => {
-                        if !optimization_rollback.is_empty() {
-                            let names = optimization_rollback
-                                .requested_disabled()
-                                .as_slice()
-                                .iter()
-                                .map(|optimization| {
-                                    format!("`{}`", optimization.build_case_name())
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            return Err(CompileProjectError::Diagnostics(vec![
-                                Diagnostic::error(format!(
-                                    "optimization rollback {names} names stages not executed by Check"
-                                )),
-                            ]));
-                        }
+                        // A project check carries no overlay into package
+                        // compilation, so the requested stop's own phase
+                        // predicate refuses one here, before project
+                        // preparation, rather than a hand-derived copy of it.
+                        RequestedCompileProduct::Check
+                            .validate_optimization_rollback(&optimization_rollback)
+                            .map_err(|error| CompileProjectError::Diagnostics(vec![error]))?;
                         let request = packages::PreparedLocalProjectCheckRequest::for_targets(
                             prepared,
                             &base_build_dir,

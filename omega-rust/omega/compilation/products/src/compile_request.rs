@@ -31,7 +31,14 @@ pub enum RequestedCompileProduct {
 }
 
 impl RequestedCompileProduct {
-    /// Refuse rollback rules belonging to stages this requested stop never executes.
+    /// Refuse rollback rules belonging to stages this requested stop never
+    /// executes. Request admission applies it before source acquisition -- the
+    /// standalone route in `validate_for_execution`, the project route in the
+    /// CLI's product dispatch -- so an invalid overlay rejects before frontend
+    /// work or auxiliary output, and `CheckedCompilation::prepare_product_report`
+    /// applies it again as the product-owned boundary every directly
+    /// constructed route crosses
+    /// (wiki/spec/build/optimizations.md#release-rollback-and-promotion).
     pub fn validate_optimization_rollback(
         self,
         rollback: &OptimizationRollback,
@@ -63,8 +70,10 @@ impl RequestedCompileProduct {
     }
 
     /// Admit evaluated Build requirements before dispatching product production.
-    /// This checks eligibility only; it establishes no artifact or receiving authority.
-    pub fn admit_build_requirements(
+    /// This checks eligibility only; it establishes no artifact or receiving
+    /// authority. Only product admission calls it: a production leg never
+    /// re-admits the stop its settlement already allowed.
+    pub(crate) fn admit_build_requirements(
         self,
         artifact_only: bool,
         pcc_requests: PccRequests,
@@ -492,7 +501,6 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
-            root_path: self.options.root_path,
             terminal_admission_profile: self.configuration.terminal_admission_profile,
             terminal_authority_policy: self.configuration.terminal_authority_policy,
             terminal_authority_permission_policy: self

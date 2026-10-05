@@ -1,11 +1,12 @@
 //! Admit and project checked product custody for Terminal production and handoff.
 //!
-//! These projections supply existing stage inputs and assemble reports; they do
-//! not lower code, produce callback bodies, or execute native proposal production.
+//! These projections supply existing stage inputs; they do not lower code,
+//! produce callback bodies, execute native proposal production, or assemble a
+//! report — `CompileReportSettlement` owns report construction.
 //! Omega stage 00 independently reconstructs occurrence and provider joins.
 
 use super::CheckedCompilation;
-use crate::{CompileReport, RetainedTerminalArtifact, TerminalCallbackThunkArtifact};
+use crate::TerminalCallbackThunkArtifact;
 use diagnostics::Diagnostic;
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
@@ -84,29 +85,6 @@ impl CheckedCompilation {
             selected_ieee_float_comparison_occurrences,
             selected_integer_comparison_occurrences,
         }
-    }
-
-    /// Assemble a completed Terminal product with the source subject captured
-    /// before lowering and the exact effective rollback receipt. Report custody
-    /// and proof-product eligibility are checked by their existing constructors.
-    pub fn terminal_report(
-        &self,
-        root_path: std::path::PathBuf,
-        artifact: RetainedTerminalArtifact,
-        production_subject: Option<crate::ProductionCompilationSubject>,
-        rollback: Option<optimization_core::OptimizationRollbackReceipt>,
-        profile: proof_admission::AdmissionProfile,
-    ) -> Result<CompileReport, Vec<Diagnostic>> {
-        CompileReport::from_retained_terminal_artifact(
-            root_path,
-            self.sources().source_file_count(),
-            artifact,
-            production_subject,
-        )
-        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .and_then(|report| report.with_pcc_context(self.build().config.settings.pcc, profile))
-        .map(|report| report.with_timings(self.timings().phases().to_vec()))
-        .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
 

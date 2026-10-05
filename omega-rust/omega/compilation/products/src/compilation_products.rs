@@ -616,68 +616,6 @@ impl CompileReport {
         }
     }
 
-    /// Compare retained native-product metadata with the source compilation
-    /// that requested it. These expectations do not grant receiving authority
-    /// or prove source/IR equivalence; artifact and manifest custody still replay
-    /// independently. No source compiler state is retained by this owner.
-    pub fn verify_native_source_metadata(
-        &self,
-        source_file_count: usize,
-        target_profile: Option<target::TargetProfile>,
-        native_target: Option<target::NativeTarget>,
-        application: &NativeApplicationMetadata,
-    ) -> Result<(), &'static str> {
-        if self.output_kind() != CompileOutputKind::RetainedNativeArtifact
-            || self.wrote_output()
-            || !self.has_consistent_executable_publication_custody()
-        {
-            return Err("checked native receipt requires one retained native artifact report");
-        }
-        if self.source_file_count != source_file_count {
-            return Err("checked native receipt source count disagrees with its report");
-        }
-        let profile =
-            target_profile.ok_or("checked native receipt requires one selected target profile")?;
-        let native_target =
-            native_target.ok_or("checked native receipt requires one selected native target")?;
-        if profile.native_target() != native_target {
-            return Err("checked native receipt target profile disagrees with its native target");
-        }
-        // Direct and dynamic ELF payloads each rejoin their own manifest
-        // identity; neither may stand in for the other.
-        let (artifact_target, manifest_matches) = match &self.product {
-            CompileProduct::RetainedNativeArtifact(product) => (
-                product.artifact.target(),
-                self.production_manifest()
-                    .is_none_or(|manifest| manifest.matches_native_artifact(&product.artifact)),
-            ),
-            CompileProduct::RetainedDynamicElfArtifact(product) => (
-                product.artifact.target(),
-                self.production_manifest().is_none_or(|manifest| {
-                    manifest.matches_dynamic_elf_artifact(&product.artifact)
-                }),
-            ),
-            _ => return Err("checked native receipt requires one retained native artifact"),
-        };
-        if artifact_target != native_target {
-            return Err("checked native receipt retained artifact target disagrees with checking");
-        }
-        if let Some(manifest) = self.production_manifest()
-            && (manifest.subject().target_profile() != profile
-                || manifest.subject().native_target() != native_target
-                || !manifest_matches)
-        {
-            return Err("checked native receipt production manifest disagrees with checking");
-        }
-        // The retained publication metadata is exactly the checked build's:
-        // a report whose name, intent, identifier, or subsystem drifted from
-        // checking cannot pair with it.
-        if self.application_metadata() != Some(application) {
-            return Err("checked native receipt application metadata disagrees with checking");
-        }
-        Ok(())
-    }
-
     pub fn from_retained_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,

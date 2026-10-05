@@ -1,16 +1,27 @@
-//! Admit the requested stop and retain its report companions across lowering.
+//! Admit the requested stop and construct every route's product report.
 //!
-//! Check and artifact-only builds finish here. Terminal and native production
-//! remain caller-owned stage sequences; their reports rejoin the exact build
-//! companions, trust settlement and timing snapshot retained before lowering.
+//! One settlement call owns both halves: `prepare_product_report` refuses an
+//! incompatible request before any lowering runs, and the settlement it hands
+//! back is the only way the Terminal and native stage sequences turn their
+//! produced artifact into a report. Check and artifact-only builds finish
+//! inside the admission itself. Nothing downstream re-admits the stop or
+//! re-decorates the report: the production subject, application metadata,
+//! proof-product context, completed build outputs, trust settlement and
+//! timing snapshot are all captured here, before the stage sequence consumes
+//! the checked record.
 
 use super::CheckedCompilation;
-use crate::{CompileOutputKind, CompileReport, RequestedCompileProduct, RetainedBuildOutputs};
+use crate::{
+    CompileOutputKind, CompileReport, ProductionCompilationSubject, RequestedCompileProduct,
+    RetainedBuildOutputs, RetainedTerminalArtifact,
+};
 use artifacts::compile_timings::PhaseTiming;
 use diagnostics::Diagnostic;
-use optimization_core::OptimizationRollback;
+use optimization_core::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::BuildObservationIdentity;
+use package_compilation::build_execution::build_value::PccRequests;
 use std::path::PathBuf;
+use target::NativeApplicationMetadata;
 use trust_model::TrustAdmissionSettlement;
 
 /// Product admission chooses which stage sequence remains, or returns the
@@ -21,10 +32,18 @@ pub enum CheckedProductReport {
     Native(CompileReportSettlement),
 }
 
-/// One-use report companions retained independently of artifact production.
+/// One-use report construction retained independently of artifact production.
 /// This grants no proof, package acceptance or receiver authority.
 pub struct CompileReportSettlement {
     expected_kind: CompileOutputKind,
+    root_path: PathBuf,
+    source_file_count: usize,
+    /// The package production subject settled before lowering, or `None` for a
+    /// compilation without package custody. Production never reconstructs it
+    /// from the checked record it is consuming.
+    production_subject: Option<ProductionCompilationSubject>,
+    pcc_requests: PccRequests,
+    application: NativeApplicationMetadata,
     build_outputs: Option<RetainedBuildOutputs>,
     build_observation: Option<BuildObservationIdentity>,
     trust: TrustAdmissionSettlement,
@@ -32,74 +51,10 @@ pub struct CompileReportSettlement {
 }
 
 impl CheckedCompilation {
-    /// Rejoin a realized image with this checked source's product metadata.
-    /// The production subject was sealed before lowering; the artifact,
-    /// manifest and source metadata still undergo their independent checks.
-    /// A dynamically linked ELF output keeps its own report variant, so it
-    /// never satisfies direct-image custody.
-    pub fn native_report(
-        &self,
-        root_path: PathBuf,
-        artifact: native_artifact::RequestedNativeArtifact,
-        rollback: Option<optimization_core::OptimizationRollbackReceipt>,
-        production_subject: Option<crate::ProductionCompilationSubject>,
-        profile: proof_admission::AdmissionProfile,
-    ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let execution = self.execution();
-        let source_file_count = self.sources().source_file_count();
-        let application = self.build_admission().native_application_metadata(
-            &self.build().config.settings,
-            execution.selected_target_profile,
-        );
-        let report = CompileReport::from_requested_native_artifact(
-            root_path,
-            source_file_count,
-            artifact,
-            rollback,
-            production_subject,
-        )
-        .and_then(|report| report.with_pcc_context(self.build().config.settings.pcc, profile))
-        .and_then(|report| report.with_application_metadata(application.clone()))
-        .map_err(diagnostics)?;
-        report
-            .verify_native_source_metadata(
-                source_file_count,
-                execution.selected_target_profile,
-                execution.selected_native_target(),
-                &application,
-            )
-            .map_err(diagnostics)?;
-        Ok(report.with_timings(self.timings().phases().to_vec()))
-    }
-
-    /// Construct a check-only report under the same evaluated-Build admission
-    /// as ordinary compilation. A check never acquires completed output files.
-    pub fn check_report(
-        &self,
-        root_path: PathBuf,
-        rollback: &OptimizationRollback,
-        trust: TrustAdmissionSettlement,
-    ) -> Result<CompileReport, Vec<Diagnostic>> {
-        RequestedCompileProduct::Check
-            .validate_optimization_rollback(rollback)
-            .map_err(|error| vec![error])?;
-        RequestedCompileProduct::Check.admit_build_requirements(
-            self.build_admission().artifact_only(),
-            self.build().config.settings.pcc,
-            rollback,
-        )?;
-        CompileReport::check_only(root_path, self.sources().source_file_count())
-            .map(|report| {
-                report
-                    .with_trust_admission_settlement(trust)
-                    .with_timings(self.timings().phases().to_vec())
-            })
-            .map_err(diagnostics)
-    }
-
-    /// Settle completed files and refuse incompatible Build requests before
-    /// dispatching any Terminal or native production. Trust has already been
-    /// independently reconstructed by the caller; admission does not infer it.
+    /// Settle completed files, refuse incompatible Build and release-rollback
+    /// requests, and capture the report companions before dispatching any
+    /// Terminal or native production. Trust has already been independently
+    /// reconstructed by the caller; admission does not infer it.
     pub fn prepare_product_report(
         &self,
         root_path: PathBuf,
@@ -107,30 +62,43 @@ impl CheckedCompilation {
         rollback: &OptimizationRollback,
         trust: TrustAdmissionSettlement,
     ) -> Result<CheckedProductReport, Vec<Diagnostic>> {
-        if requested == RequestedCompileProduct::Check {
-            return self
-                .check_report(root_path, rollback, trust)
-                .map(CheckedProductReport::Complete);
-        }
+        // A rollback naming stages this stop never executes refuses here, for
+        // every route, before production or publication can begin
+        // (wiki/spec/build/optimizations.md#release-rollback-and-promotion).
         requested
             .validate_optimization_rollback(rollback)
             .map_err(|error| vec![error])?;
+        let pcc_requests = self.build().config.settings.pcc;
+        let source_file_count = self.sources().source_file_count();
+        let timings = self.timings().phases().to_vec();
+        if requested == RequestedCompileProduct::Check {
+            requested.admit_build_requirements(
+                self.build_admission().artifact_only(),
+                pcc_requests,
+                rollback,
+            )?;
+            // A check never acquires completed output files.
+            return CompileReport::check_only(root_path, source_file_count)
+                .map(|report| {
+                    CheckedProductReport::Complete(
+                        report
+                            .with_trust_admission_settlement(trust)
+                            .with_timings(timings),
+                    )
+                })
+                .map_err(diagnostics);
+        }
         // Preserve the checked route's refusal order: completed-file custody
         // precedes evaluated proof/rollback eligibility for producing stops.
         let build_outputs = self.build().completed_outputs()?;
         let artifact_only = self.build_admission().artifact_only();
-        requested.admit_build_requirements(
-            artifact_only,
-            self.build().config.settings.pcc,
-            rollback,
-        )?;
-        let timings = self.timings().phases().to_vec();
+        requested.admit_build_requirements(artifact_only, pcc_requests, rollback)?;
         if artifact_only {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
             return CompileReport::from_build_outputs(
                 root_path,
-                self.sources().source_file_count(),
+                source_file_count,
                 outputs,
                 self.production_subject()?,
             )
@@ -157,6 +125,16 @@ impl CheckedCompilation {
             } else {
                 CompileOutputKind::RetainedNativeArtifact
             },
+            root_path,
+            source_file_count,
+            // Package production custody is required before the artifact
+            // exists, not after a produced report fails to carry a manifest.
+            production_subject: self.production_subject()?,
+            pcc_requests,
+            application: self.build_admission().native_application_metadata(
+                &self.build().config.settings,
+                self.execution().selected_target_profile,
+            ),
             build_outputs,
             build_observation: self.build().observation_identity(),
             trust,
@@ -171,12 +149,61 @@ impl CheckedCompilation {
 }
 
 impl CompileReportSettlement {
+    /// The production subject this admission settled. A route that assembles
+    /// its own intermediate product reuses this exact custody rather than
+    /// reconstructing it from the checked record production has consumed.
+    pub const fn production_subject(&self) -> Option<&ProductionCompilationSubject> {
+        self.production_subject.as_ref()
+    }
+
     /// Production legs that extend the checked record's ladder after this
     /// settlement's snapshot replace it, so the finished report carries the
     /// post-production row set.
-    pub fn with_timings(mut self, timings: Vec<artifacts::compile_timings::PhaseTiming>) -> Self {
+    pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {
         self.timings = timings;
         self
+    }
+
+    /// Assemble the admitted Terminal product with the source subject captured
+    /// before lowering and the exact effective rollback receipt.
+    pub fn finish_terminal(
+        self,
+        artifact: RetainedTerminalArtifact,
+        rollback: Option<OptimizationRollbackReceipt>,
+        profile: proof_admission::AdmissionProfile,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        let report = CompileReport::from_retained_terminal_artifact(
+            self.root_path.clone(),
+            self.source_file_count,
+            artifact,
+            self.production_subject.clone(),
+        )
+        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
+        .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
+        .map_err(diagnostics)?;
+        self.finish(report)
+    }
+
+    /// Assemble the admitted retained-native product with this compilation's
+    /// application metadata. A dynamically linked ELF output keeps its own
+    /// report variant, so it never satisfies direct-image custody.
+    pub fn finish_native(
+        self,
+        artifact: native_artifact::RequestedNativeArtifact,
+        rollback: Option<OptimizationRollbackReceipt>,
+        profile: proof_admission::AdmissionProfile,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        let report = CompileReport::from_requested_native_artifact(
+            self.root_path.clone(),
+            self.source_file_count,
+            artifact,
+            rollback,
+            self.production_subject.clone(),
+        )
+        .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
+        .and_then(|report| report.with_application_metadata(self.application.clone()))
+        .map_err(diagnostics)?;
+        self.finish(report)
     }
 
     /// Rejoin companions only after the admitted primary product succeeds.

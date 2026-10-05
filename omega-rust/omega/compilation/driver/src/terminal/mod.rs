@@ -11,4 +11,4 @@ mod native_proposal;
 mod terminal_artifact;
 
 pub(crate) use terminal_artifact::produce_retained_terminal_artifact;
-pub use terminal_artifact::produce_terminal_report;
+pub use terminal_artifact::{ProducedTerminalProduct, produce_terminal_product};

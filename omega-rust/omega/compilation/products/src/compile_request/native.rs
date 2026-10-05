@@ -5,10 +5,11 @@ use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
-/// One target's native product request: where the source root is, the
-/// admission profile the Terminal artifact is verified under, the receiving
-/// mechanism-classification policy, the optional service-permission admission
-/// policy, and the optimization rollback to settle.
+/// One target's native product request: the admission profile the Terminal
+/// artifact is verified under, the receiving mechanism-classification policy,
+/// the optional service-permission admission policy, and the optimization
+/// rollback to settle. The source root belongs to the report settlement that
+/// admitted this stop, not to the production request.
 ///
 /// The terminal-authority policy is the receiving authority's explicit
 /// mechanism table: the closed compiler-intrinsic inventory classifies itself,
@@ -25,7 +26,6 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// (including an explicit empty policy) adjudicates every closure leaf
 /// against exact supplied rows.
 pub struct NativeProductRequest {
-    pub root_path: std::path::PathBuf,
     pub terminal_admission_profile: proof_admission::AdmissionProfile,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,

@@ -302,11 +302,23 @@ fn check_one_prepared_target(
             accepted_trust_admissions
         })
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    checked
-        .check_report(
+    // The checked project reaches product admission through the same
+    // settlement call the standalone compiler uses, so a check-only stop
+    // refuses an incompatible proof-product or release-rollback request here
+    // rather than through a second check-only helper.
+    match checked
+        .prepare_product_report(
             options.root_path,
+            compiler::RequestedCompileProduct::Check,
             &compiler::OptimizationRollback::default(),
             settlement,
         )
-        .map_err(CheckPreparedLocalProjectError::ProofProduct)
+        .map_err(CheckPreparedLocalProjectError::ProofProduct)?
+    {
+        compilation_products::CheckedProductReport::Complete(report) => Ok(report),
+        compilation_products::CheckedProductReport::Terminal(_)
+        | compilation_products::CheckedProductReport::Native(_) => Err(
+            CheckPreparedLocalProjectError::Report("check admission settled a producing product"),
+        ),
+    }
 }

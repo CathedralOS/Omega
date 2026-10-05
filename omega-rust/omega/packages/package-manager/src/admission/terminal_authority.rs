@@ -219,7 +219,14 @@ pub fn realize_accepted_native_report(
             // request rather than attaching an impossible context to a report.
             let pcc_context = (checked_root.build().config.settings.pcc, profile.clone());
             let source_count = checked_root.sources().source_file_count();
-            let subject = checked_root.production_subject()?;
+            // The admission above settled this production's package custody.
+            // Require it before producing the Terminal artifact rather than
+            // reconstructing it from the record production is consuming.
+            let subject = settlement.production_subject().cloned().ok_or_else(|| {
+                diagnostics(
+                    "reviewed package Terminal production requires package-aware checked custody",
+                )
+            })?;
             let (retained, production_timings) =
                 compiler::retained_terminal_artifact_from_checked_package(
                     checked_root,
@@ -230,7 +237,7 @@ pub fn realize_accepted_native_report(
                 root_path,
                 source_count,
                 retained,
-                subject,
+                Some(subject),
             )
             .map_err(diagnostics)?;
             (

@@ -7,7 +7,7 @@
 //! backend owners. Component policy and installation remain outside this owner.
 //!
 //! Fresh compilation first produces the retained Terminal boundary:
-//! `produce_native_report` packages checked source, then calls
+//! `produce_native_product` packages checked source, then calls
 //! `realize_retained_native_artifact`, exactly as package re-entry does.
 //! Native realization never reads the checked source or selects providers again.
 
@@ -16,7 +16,7 @@ mod native_realization;
 mod physical_pipeline;
 mod retained_native_product;
 
-pub use native_product::produce_native_report;
+pub use native_product::{ProducedNativeProduct, produce_native_product};
 pub use native_realization::realize_native_artifact;
 pub use physical_pipeline::{
     OptimizedVerifiedPhysicalPipelineError, stage_optimized_verified_physical_pipeline,

@@ -5,9 +5,11 @@ use diagnostics::Diagnostic;
 
 impl CheckedCompilation {
     /// The production-report subject of a package-aware compilation, or
-    /// `None` for a compilation without package custody. Every product stop
-    /// consumes this projection rather than reconstructing its parts.
-    pub fn production_subject(
+    /// `None` for a compilation without package custody. Product admission
+    /// settles this projection once, before any lowering, and the report
+    /// settlement carries it to whichever stop finishes: no production leg
+    /// reconstructs its parts from the record it is consuming.
+    pub(crate) fn production_subject(
         &self,
     ) -> Result<Option<crate::ProductionCompilationSubject>, Vec<Diagnostic>> {
         let Some(package) = self.sources().package_subject() else {

@@ -8,8 +8,8 @@
 use crate::checked::{
     PreparedCheckedSource, check_prepared_source, prepare_checked_source, run_on_compile_thread,
 };
-use crate::native::produce_native_report;
-use crate::terminal::produce_terminal_report;
+use crate::native::produce_native_product;
+use crate::terminal::produce_terminal_product;
 use crate::{CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome};
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use compilation_products::{CheckedProductReport, PreparedBuilds};
@@ -63,7 +63,7 @@ fn compile_target(
     // the selected stage sequence consumes the checked compilation.
     let trust_settlement = checked.admit_trust(target.accepted_trust_admissions())?;
     let product = checked.prepare_product_report(
-        root_path.clone(),
+        root_path,
         shared.requested_product,
         target.optimization_rollback(),
         trust_settlement,
@@ -71,16 +71,27 @@ fn compile_target(
     match product {
         CheckedProductReport::Complete(report) => Ok(report),
         // Psi 05-07: lower, optimize and publish the Terminal artifact.
-        CheckedProductReport::Terminal(settlement) => settlement.finish(produce_terminal_report(
-            root_path,
-            checked,
-            target.terminal_admission_profile(),
-            target.optimization_rollback(),
-        )?),
+        CheckedProductReport::Terminal(settlement) => {
+            let profile = target.terminal_admission_profile().clone();
+            let produced = produce_terminal_product(
+                checked,
+                target.terminal_admission_profile(),
+                target.optimization_rollback(),
+            )?;
+            settlement
+                .with_timings(produced.timings)
+                .finish_terminal(produced.artifact, produced.rollback_receipt, profile)
+                .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
+        }
         // The same retained Terminal boundary, then Omega 00-09 and image emission.
-        CheckedProductReport::Native(settlement) => settlement.finish(produce_native_report(
-            target.into_native_product_request(),
-            checked,
-        )?),
+        CheckedProductReport::Native(settlement) => {
+            let request = target.into_native_product_request();
+            let profile = request.terminal_admission_profile.clone();
+            let produced = produce_native_product(request, checked)?;
+            settlement
+                .with_timings(produced.timings)
+                .finish_native(produced.artifact, produced.rollback_receipt, profile)
+                .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
+        }
     }
 }
