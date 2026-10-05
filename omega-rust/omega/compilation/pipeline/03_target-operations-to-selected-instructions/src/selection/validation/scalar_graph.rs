@@ -11,7 +11,7 @@ use legalized_operations::{
 };
 use optimization_unit::ValueDefinitionSite;
 use register_model::RegisterConstraintKey;
-use register_model::{RegisterClassId, RegisterViewId};
+use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
     MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
@@ -81,6 +81,7 @@ pub(in crate::selection) fn validate_with_environment(
         instruction_cursor: 0,
         block_cursor: 0,
         register_cursor: 0,
+        pending_result_origins: Vec::new(),
         definitions: Vec::new(),
         transport: structural::Transport::default(),
         constraints,
@@ -479,6 +480,7 @@ pub(in crate::selection) fn validate_with_environment(
         }
         control::validate(source, source_block, &mut replay, environment, catalog)?;
         if !replay.pending_provenance.operations.is_empty()
+            || !replay.pending_result_origins.is_empty()
             || replay.block_cursor != block.instructions.len()
         {
             return Err(invalid());
@@ -522,6 +524,7 @@ struct Replay<'a> {
     instruction_cursor: usize,
     block_cursor: usize,
     register_cursor: usize,
+    pending_result_origins: Vec<VirtualRegisterId>,
     definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,
     constraints: &'a SelectedSelectionConstraints,
 }
@@ -585,12 +588,25 @@ impl Replay<'_> {
         site: ValueDefinitionSite,
         scalar_type: ScalarType,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let instruction = SelectedInstructionId(
-            self.instruction_cursor
-                .try_into()
-                .map_err(|_| self.invalid())?,
-        );
-        self.check_register(
+        // The result's first defining row can follow operand-copy or scratch
+        // rows. Retain its declared origin here and check it when that first
+        // definition is replayed, independently of register reservation order.
+        let register = self
+            .selected
+            .virtual_registers
+            .get(self.register_cursor)
+            .ok_or_else(|| self.invalid())?;
+        let VirtualRegisterOrigin::InstructionResult {
+            instruction,
+            source_value,
+        } = register.origin
+        else {
+            return Err(self.invalid());
+        };
+        if source_value != value {
+            return Err(self.invalid());
+        }
+        let output = self.check_register(
             site,
             scalar_type,
             VirtualRegisterOrigin::InstructionResult {
@@ -598,7 +614,9 @@ impl Replay<'_> {
                 source_value: value,
             },
             None,
-        )
+        )?;
+        self.pending_result_origins.push(output);
+        Ok(output)
     }
 
     fn check_instruction(
@@ -627,6 +645,27 @@ impl Replay<'_> {
                 .ne(operands.iter().copied())
         {
             return Err(self.invalid());
+        }
+        for operand in &instruction.operands {
+            if !matches!(
+                operand.access,
+                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+            ) {
+                continue;
+            }
+            let Some(position) = self
+                .pending_result_origins
+                .iter()
+                .position(|register| *register == operand.virtual_register)
+            else {
+                continue;
+            };
+            let register = &self.selected.virtual_registers[operand.virtual_register.0 as usize];
+            if !matches!(register.origin, VirtualRegisterOrigin::InstructionResult { instruction: definition, .. } if definition == instruction.id)
+            {
+                return Err(self.invalid());
+            }
+            self.pending_result_origins.swap_remove(position);
         }
         self.instruction_cursor += 1;
         self.block_cursor += 1;

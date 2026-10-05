@@ -9,7 +9,10 @@ use legalized_operations::{
     TrappingOperation,
 };
 use optimization_unit::ValueDefinitionSite;
-use register_model::{RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+use register_model::{
+    RegisterClassId, RegisterConstraintKey, RegisterOperandAccess,
+    ValidatedRegisterConstraintCatalog,
+};
 use selected_instructions::{
     MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
@@ -85,6 +88,7 @@ fn select_function(
         constraints,
         catalog,
         registers: Vec::new(),
+        pending_result_origins: Vec::new(),
         instructions: Vec::new(),
         case_blocks: Vec::new(),
         case_body_end: None,
@@ -441,7 +445,9 @@ fn select_function(
             } else {
                 control::build(function, source, block, &order, &mut builder, environment)?
             };
-        if !builder.pending_provenance.operations.is_empty() {
+        if !builder.pending_provenance.operations.is_empty()
+            || !builder.pending_result_origins.is_empty()
+        {
             return Err(invalid());
         }
         let body_end = builder.case_body_end.take().unwrap_or(
@@ -492,6 +498,9 @@ struct Builder<'a> {
     constraints: &'a SelectedSelectionConstraints,
     catalog: &'a ValidatedRegisterConstraintCatalog,
     registers: Vec<VirtualRegister>,
+    // Reserving a result does not select its defining instruction: operand
+    // copies and scratch materialization can precede that definition.
+    pending_result_origins: Vec<VirtualRegisterId>,
     instructions: Vec<SelectedInstruction>,
     case_blocks: Vec<SelectedBlock>,
     case_body_end: Option<usize>,
@@ -553,6 +562,7 @@ impl Builder<'_> {
             definition_site: Some(site),
             entry_fixed_view: None,
         });
+        self.pending_result_origins.push(id);
         Ok(id)
     }
 
@@ -591,14 +601,39 @@ impl Builder<'_> {
         if constraint.key != key {
             return Err(SelectedInstructionError::custody());
         }
-        self.instructions
-            .push(super::super::constraints::instruction_from_row(
-                id,
-                kind,
-                operands,
-                provenance,
-                &constraint,
-            )?);
+        let instruction = super::super::constraints::instruction_from_row(
+            id,
+            kind,
+            operands,
+            provenance,
+            &constraint,
+        )?;
+        for operand in &instruction.operands {
+            if !matches!(
+                operand.access,
+                RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+            ) {
+                continue;
+            }
+            let Some(position) = self
+                .pending_result_origins
+                .iter()
+                .position(|register| *register == operand.virtual_register)
+            else {
+                continue;
+            };
+            let register = &mut self.registers[operand.virtual_register.0 as usize];
+            let VirtualRegisterOrigin::InstructionResult {
+                instruction: definition,
+                ..
+            } = &mut register.origin
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            *definition = id;
+            self.pending_result_origins.swap_remove(position);
+        }
+        self.instructions.push(instruction);
         Ok(())
     }
 

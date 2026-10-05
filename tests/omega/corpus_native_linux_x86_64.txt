@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 3.9, "load1_start": 3.28, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 4.38, "load1_start": 4.34, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -27,6 +27,7 @@ pass/arithmetic/runtime_min_max_clamp_narrowing_exit built 5197ms exit:70 @2d8ed
 pass/arithmetic/runtime_monte_carlo_pi_exit built 1040ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_nested_unsigned_witness_exit built 914ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_payload_range_narrowing_exit built 770ms exit:70 @2d8ed253669f+wt
+pass/arithmetic/runtime_pressure_trapping_add_exit built 65472ms exit:70 @f3d653c54c63+wt
 pass/arithmetic/runtime_requires_one_sided_bound_exit built 733ms exit:42 @2d8ed253669f+wt
 pass/arithmetic/runtime_shift_count_domain_exit built 845ms exit:70 @2d8ed253669f+wt
 pass/arithmetic/runtime_shl_saturating_exit built 2762ms exit:70 @2d8ed253669f+wt

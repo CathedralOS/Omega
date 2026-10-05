@@ -75,11 +75,11 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     multiple-incoming-connector and cyclic restrictions. Recompute liveness,
     ranges and legality after changing the selected graph; keep exact
     register-unit aliases and fixed-use constraints.
-  - Upstream bug the split works around: stage 03 records the wrong defining
-    instruction when it registers a result before emitting a helper (x86
-    division scratch, divisor copies) in
-    `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/integer_arithmetic.rs`;
-    the spill rewrite trusts that origin and rejects such values.
+  - Stage 03 result origins now name the first defining instruction after
+    operand copies or scratch materialization; independent selection replay
+    checks the same definition. `pass/arithmetic/runtime_pressure_trapping_add_exit`
+    retains 32 arithmetic results and runs exit 70 through register-pressure
+    recovery. Arbitrary split points and the restrictions above remain.
   Acceptance: a corpus pressure fixture runs natively on each admitted target
   and uses splits and copies where it previously spilled. SPILL-REALIZATION
   owns storage; this item adds no slot.
