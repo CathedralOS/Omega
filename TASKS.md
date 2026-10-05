@@ -1754,24 +1754,54 @@ check corpus and the native corpus unchanged on the slices it names.
     error;
   - no corpus outcome changes otherwise.
 
-- **NESTED-RECORD-LINEAR-CUSTODY.** (new-scope) Stage 05 refuses to lower a
-  record constructor whose field has `Linear` multiplicity:
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/record.rs:265`
-  returns `unsupported("nested record cannot create linear custody")` from the
-  nested-record constructor operand path.
-  `pass/ownership/linear_transparent_record_frontier` reaches it at
-  `let pair: Pair = Pair { left: left, right: right };`, where `Pair` is a
-  transparent affine record over two `[linear] Receipt` fields. The refusal had
-  never been exercised before `abbd563760a` fixed the earlier stage-04
-  unit-plan omission that hid it, so treat its comment as unverified. A
-  transparent record contributes no nominal claim of its own, so the
-  constructor must establish each contained linear field as its own
-  path-indexed obligation inside the new place rather than create custody for
-  the nested field; confirm that against the ownership spec before
-  implementing. Acceptance:
-  `python3 tools/corpus_gate.py --filter ownership/linear_transparent_record_frontier`
-  advances past this refusal, with a full-corpus before/after showing 0
-  regressions.
+- **PROJECTED-OWNED-LET-CONTINUATION.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
+  `let child: T = root.field;` over an owned projection reaches
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs:1028`
+  with `continuation == None` and fails "projected selection requires a
+  structural continuation". An owned projection transfers one child on the
+  selected edge and disposes of the root's residual complement there, so it
+  needs a structural continuation a plain local binding does not supply.
+  Customer: `pass/ownership/linear_transparent_record_frontier` at
+  `let extracted_left: Receipt = forwarded.left;`, reached as of
+  `ed49c3cb9de`; a record mixing one linear member with a scalar member
+  reaches the same point, so the gap is not keyed to the two-linear-field
+  shape. Third rung of the ladder `abbd563760a` and `ed49c3cb9de` climbed.
+  Acceptance: that fixture advances past `emission.rs:1028`, with a
+  full-corpus before/after showing 0 regressions, and the invalid control
+  still refuses -- leaving one of two linear members undischarged must keep
+  rejecting with ``linear value `pair.right` reaches scope exit without being
+  consumed or transferred``, which names a path-indexed obligation.
+
+  Latent, same family, no customer yet:
+  `structural_values/emission/completed_storage.rs:52` keys a block-parameter
+  arrival's claim requirement on the ROOT's multiplicity, so an affine arrival
+  with linear children is not required to carry them across a join.
+
+  **NESTED-RECORD-LINEAR-CUSTODY is closed** by `ed49c3cb9de`. The refusal had
+  gated on the wrong subject: `record.rs` derived the nested operand's
+  result-place multiplicity from the field's DECLARED TYPE, before knowing
+  whether the operand establishes a new result at all, and the customer's
+  operand takes the `Place` transfer route which never reads that value. Seven
+  hand-written `Multiplicity -> StructuralMultiplicity` matches -- the three
+  that omitted `Linear` and refused (`record.rs`, `fixed_array.rs`,
+  `structural_case.rs`) and the four that spelled the total mapping correctly
+  -- collapsed into one `terminal_identities::structural_multiplicity`. A
+  second blocker fell with it: `calls.rs:501` called `establishment_claims`
+  only when the ROOT's multiplicity was `Linear`, so an affine root with linear
+  children collected none of its claims. `ordinary_machine.rs`'s `Linear` arm
+  is deliberately left alone -- it refuses by a genuinely different rule
+  ("structural completion requires retained linear result claims"), a real
+  distinction rather than a narrower copy.
+
+  Contract text still owed there, deliberately not written:
+  `wiki/spec/terminal-psi/calls_and_outcomes.md:105-106` says record results are
+  "unqualified, claim-free, and affine or unrestricted. Erased fields and
+  linear custody remain outside this operation." That reads as "not modelled
+  by it" rather than "reject" -- the same sentence says it of erased fields,
+  which `record.rs` skips rather than refuses -- and it is already contradicted
+  by `operation_contracts/records.rs:131-133`, which admits a `Linear` result
+  with one whole-root claim. Amend it once the fixture compiles end to end, not
+  before.
 
 - **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
   `tests/omega/pass/filesystem/dir_walk_wrappers_exit` compiles no unit plan
@@ -4151,6 +4181,16 @@ wait for Cathedral's instruction coverage. The interpreter is
   [machine-state evidence](wiki/spec/build/machine_state_evidence.md).
   `tests/omega/pass/memory/interrupt_table_canary` has authored roots, layouts
   and validators, but an empty entry, and both handlers only acknowledge.
+
+  Check-leg status before any of this backend work is reachable: the fixture
+  rejected in 6ms on a bundled-`std` import spelling until `cf06f90068e`, then
+  on `DescriptorTableValidation::run`'s `terminates by fuel` ranking until
+  `0b98b2fc46a`. It now stops at "direct call `complete` names public boundary
+  requirement `InterruptAcknowledgement::complete`, which has no selected
+  provider" -- provider selection, the same family as OWNER_QUESTIONS Q8, and
+  no `satisfies` row for that requirement exists anywhere in the repository.
+  Q8's answer decides whether one is owed here, so this item is gated on it
+  rather than on the backend joins below.
   - Join the stub and member-call relocation from
     `omega-rust/omega/compilation/backend/machine-emission/src/entry_exit_stub.rs`
     to image placement, installation and external-root admission;
