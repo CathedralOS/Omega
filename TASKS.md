@@ -2592,24 +2592,62 @@ check corpus and the native corpus unchanged on the slices it names.
   `--allow-overlap` and name the files.
 
 - **DYN-CONTINUATION-ROOT-REJOIN.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
-  `pass/traits/runtime_local_named_dyn_devirtualized_exit` now publishes a
-  dynamic dispatch plan **with** a Unit continuation; `ef6e9f65647` cleared
-  four receiver-era admission gates in `composed_control/dynamic_result.rs`
-  that had made `build_direct_dynamic_unit_continuation` return `None` for
-  every program ever compiled. It still rejects at the Omega-side root
-  rejoin: `omega/compilation/realization/selected-dispatch/src/service_custody/root.rs`
-  builds `attachment_identities` from `terminal_unit_effects.machines` and
-  `composed_machines` only, so a `ProgramEntry` lowered through
-  `dynamic_dispatch` rejoins 0 Terminal context identities. The dyn plan
-  carries `source_parameter_position`, `caller_parameter_access` and
-  `caller_attachment_type_identity` but no structural-parameter roster;
-  publish that roster rather than adding a second `structural_identity` shape.
-  Beyond it, stage 05 `unit/dynamic_composed_unit/{continuation,plan_validation}.rs`
-  must lower a continuation whose successors carry a parameter transfer and
-  whose leaves carry structural parameters -- written for the `&[]` rosters the
-  dead lane always passed, and not yet measured.
-  Acceptance: `python3 tools/corpus_gate.py --filter traits/runtime_local_named_dyn_devirtualized_exit`
-  reaches `checked`, then `--native` reaches exit 70.
+  `pass/traits/runtime_local_named_dyn_devirtualized_exit` now lowers its whole
+  dynamic continuation and stops in Omega's native entry settlement.
+  `9e503d2a760` published `caller_structural_parameters` on both dynamic call
+  plans from `structural_scalar_signature` and taught the Omega-side
+  establishment in `selected-dispatch/src/service_custody/root.rs` to read it,
+  clearing the "rejoins 0 Terminal context identities" rejoin. It also cleared
+  three receiver-era stage 05 gates, each a hand-derivation narrower than the
+  canonical predicate: `select_dynamic_dispatch_plan` required
+  `CheckedTerminalSignatureEligibility::Attached`, which stage 04 never
+  produces, so it refused every dynamic dispatch ever planned;
+  `single_call`/`continuation` synthesized the caller's context parameter at a
+  fixed position 0 instead of rejoining the published roster; and
+  `plan_validation` identified the dispatched call by the flow fact's
+  `receiver_symbol`, which on a trait-qualified spelling (`Shape::code(erased)`,
+  the spelling every dynamic pass fixture uses) names the trait namespace and no
+  runtime place. The place rule now lives once, on
+  `TypedTrees::dynamic_dispatch_subject_place`. The leaf rosters that were `&[]`
+  were a plumbing fix, now done, not the rewrite this item feared. The spec
+  settles the shape independently: `wiki/spec/terminal-psi/dynamic_dispatch.md`
+  decides `dynamic-caller-subject-parameter` as "no parameter position is
+  privileged".
+
+  Current frontier: `Terminal native proposal ProgramEntry settlement failed:
+  FusedServiceEstablishmentDrift`. Stage 07
+  `entry_receipt/receiver_eligibility.rs:93` returns `None` for any entry
+  machine with `attachment.is_some()`, and the dyn lane emits
+  `attachment: Some(..)` on its caller, so no eligibility record exists and
+  `entry_settlement/service_establishment.rs` fails on `eligibility.ok_or(..)`.
+  **This is a genuine fork, not a one-line fix.** Two readers want `None` there
+  (that gate, and `validation/evidence.rs:78`'s devirtualized runtime-call
+  evidence); one requires `Some` -- `validation/foundation.rs:537` derives the
+  machine's provider fields from `machine.attachment`'s record fields, and the
+  lane emits ProviderAttachment places, so dropping it hits
+  `InvalidProviderAttachmentSpecialization`. Migrating that derivation to the
+  context parameter's structural type spans the Terminal verifier and stage 07,
+  and decides where the entry context record's identity lives in Terminal.
+  About 20 sites return the one opaque `FusedServiceEstablishmentDrift` variant;
+  route them through one `#[track_caller]` constructor before diagnosing
+  further.
+
+  Two leads behind it:
+  - `validate_forwarded_dynamic_call` (`plan_validation.rs:670`) holds the same
+    `receiver_symbol` derivation for a forwarded helper's dispatch. Its customer
+    `runtime_local_named_dyn_pass_through_exit` stops at an earlier
+    structural-field-store wall, so no fixture engages it yet -- state it rather
+    than clear it blind.
+  - `CheckedTerminalSignatureEligibility::Attached` is produced **nowhere**;
+    `build_checked_terminal_machine_selections` only yields `Unsupported`,
+    `FreeUnitEffect` or `Eligible`, while `CheckedUnitPlan::admits_signature`
+    and `CheckedReturnPlan`'s equivalent still carry an `(Attached, true)` row.
+    Retiring the variant is a separate repo-wide cleanup.
+
+  Acceptance unchanged: `python3 tools/corpus_gate.py --filter traits/runtime_local_named_dyn_devirtualized_exit`
+  reaches `checked`, then `--native` reaches exit 70. The Omega-side README warns
+  the native leg additionally needs the exact descriptor, table, slot,
+  relocation, call/return and resource joins, with no direct-selection fallback.
 
 - **DYN-JOIN-LANE-STILL-DEAD.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
   `composed_control/dynamic_join.rs::admit_dynamic_join_control_topology`
