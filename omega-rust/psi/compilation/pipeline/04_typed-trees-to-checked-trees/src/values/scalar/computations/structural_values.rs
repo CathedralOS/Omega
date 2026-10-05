@@ -1,7 +1,7 @@
 //! Fresh structural establishment shares the scalar operand evaluation owner.
 //! Reference leaves are classified before referent-oriented normalization:
 //! their value is borrowed-storage custody, never a scalar pointer snapshot.
-//! Record and case literals share the structural-construction contents rule:
+//! Literals, returned values, and whole transfers share the construction-contents rule:
 //! exact interval-qualified scalar members use the existing bounded carrier
 //! and per-member establishment proof, not a constructor-specific exception.
 //! Closed primitive arrays select their scalar-array producer at the value
@@ -160,7 +160,7 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_cleanup_owned_contents(program, returned)
+                    || !(validation::has_structural_construction_contents(program, returned)
                         || validation::has_linear_owned_contents(program, returned)
                         || validation::reference_result_custody::is_reference_record(
                             program, returned,
@@ -901,7 +901,7 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call_target)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_cleanup_owned_contents(self.program, returned)
+                || !(validation::has_structural_construction_contents(self.program, returned)
                     || validation::has_linear_owned_contents(self.program, returned)
                     || validation::reference_result_custody::is_reference_record(
                         self.program,
@@ -1473,10 +1473,12 @@ impl Builder<'_, '_> {
         if !name.symbol.is_valid()
             || name.head_symbol != name.symbol
             || name.members.count() != 1
-            // Whole transfer preserves the owner's cleanup obligation. Shared
-            // descriptor leaves keep their loans without owning the backing;
+            // A completed owner carries the same contents a literal establishes,
+            // including represented field domains; transferring it does not
+            // establish those domains anew. Whole transfer preserves cleanup.
+            // Shared descriptor leaves keep their loans without owning the backing;
             // neither transport grants no-code disposal of the moved value.
-            || !(validation::has_cleanup_owned_contents(self.program, expected)
+            || !(validation::has_structural_construction_contents(self.program, expected)
                     || validation::has_linear_owned_contents(self.program, expected)
                 || validation::has_owned_or_shared_view_contents(self.program, expected)
                 || validation::reference_result_custody::is_reference_record(self.program, expected)
@@ -1515,7 +1517,7 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !(validation::has_cleanup_owned_contents(self.program, reference)
+            || !(validation::has_structural_construction_contents(self.program, reference)
                 || validation::has_linear_owned_contents(self.program, reference)
                 || validation::has_owned_or_shared_view_contents(self.program, reference)
                 || validation::reference_result_custody::is_reference_record(
@@ -1527,13 +1529,33 @@ impl Builder<'_, '_> {
         {
             return None;
         }
+        // Sequence storage has its own catalog identity: a qualified byte
+        // owner retains a byte carrier plus separate qualification evidence,
+        // not a second structural type named by the qualified source spelling.
+        // Use the same identity owner as ShapeCollector, while the comparison
+        // above still requires the complete declared types to agree.
+        let type_identity = if crate::execution::terminal_unit::types::byte_sequence_carrier(
+            self.program,
+            reference,
+            &[],
+        )
+        .is_some()
+        {
+            crate::execution::terminal_unit::types::byte_sequence_type_identity(
+                self.program,
+                reference,
+                &[],
+                &[],
+            )?
+        } else {
+            self.program
+                .normalized_type_identity(reference)
+                .into_string()
+        };
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path: Vec::new(),
-            type_identity: self
-                .program
-                .normalized_type_identity(reference)
-                .into_string(),
+            type_identity,
             access: checked_trees::CheckedStructuralAccess::Owned,
         })
     }

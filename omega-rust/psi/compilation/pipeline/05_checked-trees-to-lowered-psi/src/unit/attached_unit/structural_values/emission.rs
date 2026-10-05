@@ -2022,9 +2022,10 @@ impl Emission<'_, '_, '_> {
             }))
     }
 
-    /// The signature declaration of the immutable owned parameter a checked
-    /// source plan names, with its whole, unqualified custody checked against
-    /// the argument; `None` when the plan names no parameter.
+    /// Resolve the whole ingress place named by the checked source plan.
+    /// Qualifications remain attached to that signature place through copies
+    /// and transfers; their presence does not change its storage identity.
+    /// `None` when the plan names no parameter.
     fn parameter_declaration(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -2075,14 +2076,6 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "owned selection parameter has no signature place",
             ))?;
-        if declaration.access != StructuralAccess::Owned
-            || declaration.structural_type
-                != lookup_type_id(self.type_ids, &argument.type_identity)?
-            || !declaration.qualifications.is_empty()
-            || !declaration.projected_qualifications.is_empty()
-        {
-            return unsupported("owned selection parameter lacks whole plain owned custody");
-        }
         Ok(Some(declaration))
     }
 

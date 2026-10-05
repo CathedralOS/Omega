@@ -136,7 +136,13 @@ pub(crate) fn build_checked_machine_residual_parts(
         free_structural_scalar_signature(program, shapes, state, &binders)?;
     let attachment_type_identity = None;
     trace.phase("state contracts");
-    if !checked_state_contracts_supported(program, state, &structural_parameters) {
+    if !checked_state_contracts_supported(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        &structural_parameters,
+    ) {
         return None;
     }
     trace.phase("entry claims");

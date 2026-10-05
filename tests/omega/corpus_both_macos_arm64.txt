@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.89, "load1_start": 9.31, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 18.18, "load1_start": 19.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -16,6 +16,7 @@ pass/arithmetic/runtime_remainder_result_cast_exit built 1541ms exit:70 interpre
 pass/borrow/runtime_exclusive_loan_local_write_exit built 5556ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
+pass/borrows/branch_selected_record_composed_receiver_exit built 2950ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/borrows/indexed_record_field_replacement_exit built 6044ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/loop_descriptor_reformation_exit built 6344ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
@@ -198,10 +199,13 @@ pass/storage/runtime_local_slice_forward_exit built 6357ms exit:70 interpreter-e
 pass/storage/runtime_parameter_slice_forward_exit built 6379ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/storage/runtime_primitive_local_literal_composition_exit built 5214ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
+pass/structs/qualified_record_element_assignment_exit built 2889ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a0af6064e4c8+wt
+pass/structs/runtime_nested_struct_construction_exit built 2315ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/structs/runtime_nonzero_array_elements_exit built 2275ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
+pass/structs/runtime_qualified_record_call_composition_exit built 2356ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/structs/runtime_state_record_array_element_read_exit built 1901ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/structs/runtime_view_array_elements_exit built 4009ms exit:70 interpreter-exit:70 interpreter:agrees @f1b70212c334
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt

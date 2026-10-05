@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 22.45, "load1_start": 22.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -759,6 +759,8 @@ fail/domains/nonboolean_member_predicate rejected 355ms expected @9ed8b7d0772d
 	domain `Holder::Invalid` proof fact `holder.slot.value` must have type `bool`
 fail/domains/qualified_mutable_invalid_field rejected 148ms expected @b027f59996c3+wt
 	cannot prove default-domain field requirement for call consume from main::entry: parameter packet.label.text requires [u8; N]::NonEmpty
+fail/domains/qualified_scalar_record_call_unestablished rejected 507ms expected @0bb2f2c02dae+wt
+	cannot prove requires contract for call make_gauge from invalid: 5 in i32::NotFive
 fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e029f28c+wt
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/refinement_chain_routed_provenance_forge rejected 720ms expected @2d8ed253669f
@@ -2686,8 +2688,8 @@ pass/structs/runtime_local_array_snapshot_exit checked 1138ms check-target:macos
 pass/structs/runtime_local_record_policy_exit checked 1712ms check-target:macos_arm64 @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms check-target:macos_arm64 @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms check-target:macos_arm64 @2d8ed253669f
-pass/structs/runtime_nonzero_array_elements_exit rejected 862ms check-target:macos_arm64 @4534b9a59c11+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
+pass/structs/runtime_nonzero_array_elements_exit checked 2686ms check-target:macos_arm64 @0bb2f2c02dae+wt
+pass/structs/runtime_qualified_record_call_composition_exit checked 2727ms check-target:macos_arm64 @0bb2f2c02dae+wt
 pass/structs/runtime_state_record_array_element_read_exit checked 1222ms check-target:macos_arm64 @1f53680d77f7+wt
 pass/structs/runtime_struct_array_literal_exit checked 10339ms check-target:macos_arm64 @17039e6ea406+wt
 pass/structs/runtime_view_array_elements_exit checked 5887ms check-target:macos_arm64 @cfe60a3a242

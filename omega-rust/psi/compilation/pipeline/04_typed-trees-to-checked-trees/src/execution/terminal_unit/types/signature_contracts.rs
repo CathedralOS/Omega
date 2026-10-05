@@ -5,10 +5,25 @@ use super::*;
 
 pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
     program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
+    let Some(plan) = facts.contract_plans.for_machine(machine) else {
+        return false;
+    };
     program.state_contracts(state).iter().all(|contract| {
+        if contract.kind == SignatureContractKind::Requires {
+            // The invocation collector retains the complete predicate roster,
+            // including scalar membership subjects. Structural qualifications
+            // stay on their parameter declarations. Lowering publishes this
+            // same roster for every result kind; a second structural-only
+            // admission rule here used to discard valid scalar requirements
+            // whenever the body returned an aggregate.
+            return contract.binding.is_none()
+                && plan.crash.structural_runtime_requirements().is_some();
+        }
         checked_structural_signature_contract_supported(
             program,
             state,

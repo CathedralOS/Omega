@@ -2617,15 +2617,12 @@ check corpus and the native corpus unchanged on the slices it names.
   **Site map, measured at `4fa2d6d846eb`.** The phase string is the only
   reliable pointer: it names the enum variant or literal at the refusing
   `return None`, and the "rejoins 0 identities" wording is the downstream
-  symptom, not a location. Each row is a separate defect. One of the ten
-  closed (`qualified non-linear parameter`, see
-  **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**); the rest stand.
+  symptom, not a location. Each remaining row is a separate defect.
 
   | phase | fixture | refusing site |
   | --- | --- | --- |
   | `call operation: projected operand support` | `pass/build/uefi_os_handoff_invocation` | `terminal_unit/calls/call_operations.rs:433` — neither `ordinary_projected_call_is_supported` nor `projected_reference_record_operands_supported` admits the operands |
   | `call operation: linear structural result` | `pass/core/content_conservation_contract` | `call_operations.rs:486` — design-blocked, see the conservation note below |
-  | `statement sequence: local data: structural call binding` | `pass/structs/runtime_nonzero_array_elements_exit` | `control/statement_sequence/local_data.rs:684` — a structural local whose initializer is not `ExpressionNode::Call` has no producer; the array-literal-with-a-call case is **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT** |
   | `structural field store: destination parameter` | `pass/text/runtime_local_struct_string_field_concat_exit`, `pass/text/runtime_string_stored_suffix_exit` | `structural_scalar_store/destination.rs:165` — `out_line` is a `let mut out_line: &[u8] in Utf8;`, so the parameter lane finds no destination, `borrowed_view_local_root` refuses the `mut` local and `owned_local_root` refuses a reference shell. The green sibling `runtime_bounded_carrier_alias_concat_exit` uses an owned `[u8; 16] in Utf8` carrier; a `&[u8]` destination has no storage for the concatenation, so this likely needs an owned carrier or a compiler-managed temporary, not a widened recognizer |
   | `structural field store: target place` | `pass/traits/runtime_local_named_dyn_pass_through_exit` | `destination.rs:119`, inside `rejoin_loan_local` — `erased = &main.selected as &dyn Item::Primary` reseats a `let mut` reference local, and `&x as &T` is `CastForm::RecastShared`, so the rejoin peels to the `Borrow` and then refuses on `local.is_mutable`. A reseat is not a write *through* the loan; the helper conflates "cannot rejoin" with "unsupported". Note that returning the place unchanged only moves the phase — no lane plans a `&dyn` reseat yet |
   | `call operation: structural arguments: alias and identity` | `pass/traits/runtime_dyn_two_impl_dispatch_exit` | `terminal_unit/calls/structural_arguments.rs:161` |
@@ -2635,6 +2632,16 @@ check corpus and the native corpus unchanged on the slices it names.
   `fail/build/placed_view_program_entry_input` also carries an omission phase
   (`an unavailable scalar target (\`inspect\`)`) but is a `fail` fixture and is
   expected to reject.
+
+  `pass/core/content_conservation_contract` remains **design-blocked** under
+  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**:
+  `reconstruct_structural_parameter_return_claims`
+  (`checking/src/machine_calls/structural_call_custody.rs:641`) replays only a
+  whole-input claim continuation, and the wrapper's returned claim is
+  `Established` by a boundary partition. The fixture's own header already
+  records this as owed via
+  `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
+  recognizer; it is the conservation check.
 
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
   `pass/ownership/linear_transparent_record_frontier` now lowers both
@@ -2793,49 +2800,6 @@ check corpus and the native corpus unchanged on the slices it names.
   of 120 reads its row as `timeout` on a loaded host. The golden row carries
   the outcome class and diagnostic, measured with a 900s budget; a `timeout`
   there is the budget, not a new refusal.
-
-- **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT.** (new-scope) A structural
-  local initialized by a field projection gets no structural-value root, so the
-  planner has no producer for the statement. `abbd563760a` generalized the
-  `construction_destination` arm in
-  `04_typed-trees-to-checked-trees/src/values/scalar/computations.rs` from a
-  whole owned place to an owned place (`Name | Member | Indexed`), narrowing
-  admission by the destination's owning lane
-  (`primitive_type_reference(expected).is_none()`) rather than by the shape of
-  the place expression, and deleted the superseded `is_view_element_copy`
-  eligibility disjunct. Two disjuncts were deliberately kept:
-  `is_scalar_case_place_value` and `needs_copied_place_root` are not subsumed,
-  because `canonical_place_from_expression` also yields canonical places for
-  `Borrow` and recast `Cast` nodes. What remains open is the same question for
-  an **array-literal element that is a call**
-  (`Envelope { elements: [first, make_point(40)] }` in
-  `pass/structs/runtime_nonzero_array_elements_exit`), which still records no
-  root. Acceptance: that fixture advances past its array-literal statement with
-  a full-corpus before/after showing 0 regressions.
-
-- **UNIT-PLAN-OMISSION-SCALAR-REQUIRES-MEMBERSHIP.**
-  (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
-  `checked_structural_signature_contract_supported`
-  (`04_typed-trees-to-checked-trees/src/types/signature_contracts.rs`) resolves
-  a `Requires`/`Membership` place only against **structural** parameters, so
-  `machine make_point(value: u64 in Positive) -> Point` stops at `state
-  contracts` on the implicit `requires value in Positive` of a scalar
-  parameter. Found behind `f935b0f4e6c`, which unified the owned-structural-
-  result question onto `has_structural_construction_contents` at the binding
-  classifier, the ordinary call route and the callee's return-type admission.
-  Blocks `pass/structs/runtime_nonzero_array_elements_exit` together with
-  **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT**. Acceptance: a machine with
-  a domain-qualified scalar parameter and a structural result plans its state
-  contracts.
-
-  `pass/core/content_conservation_contract` is **design-blocked** and is not
-  part of these: `reconstruct_structural_parameter_return_claims`
-  (`checking/src/machine_calls/structural_call_custody.rs:641`) replays only a
-  whole-input claim continuation, and the wrapper's returned claim is
-  `Established` by a boundary partition. The fixture's own header already
-  records this as owed via
-  `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
-  recognizer; it is the conservation check.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
   parameter transfer are lowered in about six places:
