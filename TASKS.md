@@ -2312,6 +2312,17 @@ of a check the same flow already performed, not the check itself.
   `String`, type identity equality is a handle comparison, and full check plus
   native corpus are unchanged.
 
+  An unfinished attempt exists and is NOT on any branch: 125 modified files,
+  reaching layout, Omega stages 00 and 03, and provider planning. It was
+  stopped mid-task to relieve a load average of 140, with the handle
+  conversions for its regenerated files, formatting and the workspace check
+  still outstanding, so it is not known to compile. Preserved as a patch at
+  `<session scratchpad>/PRESERVED_type_identity_interning.patch` against
+  `dfb4587153c`; ask the coordinator for it rather than restarting from zero,
+  but treat it as a sketch, not a candidate. Note how far the blast radius
+  reaches: a change described as "one commit" in this item touched 125 files,
+  so plan the measurement before the edit.
+
 - **CHECKED-IDENTITY-IDS.** (new-scope) Depends on
   **CALLABLE-IDENTITY-INTERNED** and **TYPE-IDENTITY-INTERNED**.
   `checked-trees` declares many `*identity: String` fields, concentrated in
