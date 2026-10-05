@@ -3194,21 +3194,50 @@ of a check the same flow already performed, not the check itself.
   the return types live in `checked-trees`, which `typed-trees` cannot depend
   on. So a recorded row is right here even though the query is pure.
 
-  22 `validation::reference_result_custody` sites remain in stage 05, in three
-  families that each need their own table. 7 are keyed by a state alone
-  (`tail_return_expression` 3, `returned_reference_sources` 2,
-  `source_parameter`, `source_leaf`) and 3 by a state and a local ordinal
-  (`primitive_local_source`); these need a per-state row holding a plan roster
-  rather than a copy row, and `state_by_symbol` makes the state symbol a usable
-  key. 6 are keyed by a `Handle<BorrowLoanFact>` that the query also filters
-  against a machine and state (`release_boundary` 4, `release_statement` 2),
-  where the row must record the pair it was computed for or a mismatched pair
-  would read a boundary the recompute denies. 6 are keyed by a state and an
-  expression (`initializer_source` 3, `borrowed_initializer_source`,
-  `mutable_return_source`, `record_argument`), and `record_argument`
-  additionally takes a `CheckedUnitStructuralResultBindingPlan` that stage 05
-  holds, so nothing checking can enumerate keys it until that query is
-  decomposed.
+  `CheckFacts::state_reference_custody` records one `StateReferenceCustodyRow`
+  per declared state, dense by the state symbol's arena index, and stage 05
+  reads it at the 7 sites keyed by a state alone (`e1ca328f3ce`). **The plan
+  roster this item predicted was not needed**: every stage-05 reader of
+  `returned_reference_sources`, `source_parameter` and `source_leaf` consumes
+  presence only (`.is_none()` in a refusal guard), and `tail_return_expression`
+  returns one ZII handle, so a copy row is the whole answer. Recording the
+  roster would have been facts with no reader -- the ground on which
+  `001397f340a` declined to record `local_owes_record_loans`. Check what the
+  readers consume before choosing a row shape. Population walks `machines()` by
+  `machine_states()`, the structure `state_declaration` already resolves a
+  symbol through (and which refuses a symbol naming two states).
+
+  **15 sites remain, and the surface splits 6/6/3, not 6/6** -- this item twice
+  stated the count wrong. 6 are keyed by a `Handle<BorrowLoanFact>` that the
+  query also filters against a machine and state (`release_boundary` 4,
+  `release_statement` 2), where a row must record the pair it was computed for
+  or a mismatched pair reads a boundary the recompute denies. 6 are keyed by a
+  state and an expression (`initializer_source` 3,
+  `borrowed_initializer_source`, `mutable_return_source`, `record_argument`),
+  and `record_argument` additionally takes a
+  `CheckedUnitStructuralResultBindingPlan` that stage 05 holds, so nothing
+  checking can enumerate keys it until that query is decomposed. 3 are keyed by
+  a state **and a local ordinal** (`primitive_local_source`), which a
+  state-alone row does not close.
+
+  **This item now conflicts with a newer owner ruling, and that must be settled
+  before the next family is recorded.** 4 of the 7 sites just converted were
+  pure refusal guards, otherwise unused. `03710d6b5d9` cites the owner ruling
+  of 2026-10-04 under [Lowering simplification](#lowering-simplification), and
+  **STAGE05-SOURCE-REREAD-DELETED** says "the validators that only re-confirmed
+  a row against its source are deleted". Converting a guard-only site to a
+  recorded-fact read *preserves* the re-checking that ruling removes, so those
+  4 rows may be short-lived and the remaining families may want deletion rather
+  than rows. Classify each remaining site as guard-only or value-consuming
+  first, and record only the value-consuming ones.
+
+  Cost named rather than guessed: the classification pass is a second
+  whole-program walk, and unlike the type-reference walk it is not uniformly
+  cheap -- `returned_reference_sources` iterates every transition of every
+  state and recurses through callees comparing normalized type identities. If
+  it needs narrowing, the early-out belongs **inside that query**, where the
+  row and the recompute cannot drift; hand-deriving a narrower predicate in the
+  builder is a recurring defect class here.
 
   Population must not depend on checking's traversal: `001397f340a` walks the
   whole type-reference table after monomorphization and authored-selection
