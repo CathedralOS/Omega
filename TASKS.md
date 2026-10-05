@@ -96,22 +96,33 @@ helper that passes does not close an item.
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   A receiver call on a public boundary requirement reaches it without a
   selected provider; the static qualified call demands one.
-  - Customers: `tests/omega/pass/memory/address_translation_canary`
-    (`pub boundary requirement Shootdown::discharge(self)`, four
-    `owed.discharge()` calls) and
-    `tests/omega/pass/memory/secondary_processor_canary`
-    (`StartupEnvelope::confirm(self)` called twice; `request_cancel(&self)`
-    has no call site). They still spell `self`.
-  - Rewriting to `Shootdown::discharge(owed)` with a named subject rejects:
-    "direct call `discharge` names public boundary requirement
-    `Shootdown::discharge`, which has no selected provider".
-  - Undecided: either the receiver form was lax (the static form is correct
-    and both fixtures need a selected provider, changing what they pin), or a
-    value-rooted boundary requirement call stays provider-free and needs a
-    static spelling. Record this in `OWNER_QUESTIONS.md` (it is next to Q1
-    `trait-requirement-subject-binding`); it is not a fixture-authoring call.
-  - Unverified: the corpus rows for both fixtures (`checked`) predate the
-    parser's `self` rejection; re-run `python tools/corpus_gate.py --filter memory/`.
+  **Recorded as OWNER_QUESTIONS Q8** (`33b61f830d8`), and the item's framing
+  was wrong in a way that narrows the question. Measured 2026-10-04:
+  - Both customers **already spell the static form** and still reject:
+    `address_translation_canary/main.omg:152` is `Shootdown::discharge(owed);`
+    and `secondary_processor_canary/cathedral/processor_startup.omg:217,315` is
+    `StartupEnvelope::confirm(envelope);`. Neither spells `self`, so the
+    item's second branch (find a static spelling that stays provider-free) is
+    not open.
+  - The discriminator is **installation, not the call form**. `grep` finds
+    **zero** `satisfies` rows for `InterruptAcknowledgement::complete`,
+    `Shootdown::discharge` or `StartupEnvelope::confirm` anywhere in the
+    repository, yet only the first is admitted — it is called from inside
+    machines that `satisfies InterruptEntry::enter`
+    (`interrupt_table_canary/cathedral/interrupt_roots.omg:161,271`), while
+    `discharge` and `confirm` are called from ordinary machines. That is the
+    rule `source/library/core/interrupt.omg` already states for `complete`,
+    where installation "turns the exact non-self parameter route into an
+    introduction".
+  - So Q8 asks only this: does a linear carrier whose domain only that
+    requirement extinguishes thread its installation lineage to an ordinary
+    caller, or do both canaries owe an authored provider and a rewritten
+    header? Both are written as though the first holds, so the answer decides
+    what they pin.
+  - The "unverified corpus rows" bullet is resolved: both were re-measured and
+    re-recorded at `cf06f90068e`. `secondary_processor_canary` previously
+    rejected in 3ms on a bad bundled-`std` import spelling and never reached
+    this rule at all.
   Acceptance: both fixtures use the decided static spelling and check with
   their current pins.
 
@@ -1569,11 +1580,19 @@ crash and native exit behavior.
   `omega-rust/omega/compilation/driver/src` plus
   `driver/terminal-production/src` are mostly plumbing around a stage chain of
   a few dozen lines. This item's own work, which can land now:
-  - One timing system: `terminal-production/src/stage_timings.rs` keeps a
-    ladder that `driver/src/terminal/terminal_artifact.rs`
-    (`merge_terminal_production_timings`) merges into `CompileTimings`.
-  - Plain results: `terminal-production/src/custody.rs` threads a generic
-    caller payload through production only to return it on failure.
+  - ~~One timing system~~ — done at `f413234e5a4`: `TerminalProductionTimings`
+    was a byte-for-byte duplicate of `CompileTimings` (same enabled flag, same
+    aggregate-onto-existing-label rule, same `record_result`), and production
+    now records its legs into the caller's single ladder through
+    `TerminalProductionStage::stage_meta()`. `merge_terminal_production_timings`
+    is deleted. The aggregate row is opened at zero before production and the
+    elapsed added afterwards with `add_completed`, because `record_result`
+    would hold the accumulator borrowed across the call that now writes to it,
+    and because the ladder orders phases by first insertion — do not "simplify"
+    that back into a wrapper.
+  - ~~Plain results~~ — done at `53a409f5e9b`: the always-unit generic `C`, the
+    `callback_custody` field and `CallbackCustodyTerminalArtifactProductionError<C>`
+    are deleted.
   - No self re-validation: the checked `ProgramEntry` receipt is produced,
     carried beside the artifact and rejoined in `terminal_artifact.rs`. The
     producing stage returns the receipt it validated once.
@@ -1596,27 +1615,47 @@ crash and native exit behavior.
   `omega-rust/omega/compilation/products/src/compilation_products.rs`, and
   every compiler and package route reaches it through one report-settlement
   call.
-  - `compiler.rs` already settles through
-    `CheckedCompilation::prepare_product_report`. The remaining
-    report-construction surface is `CheckedCompilation`'s `production_subject`,
-    `admit_terminal_production`, `terminal_native_proposal_request` and
-    `terminal_report`/`native_report`/`check_report`.
-  - Centralize the [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
-    refusals at product-owned construction boundaries, before unsupported
-    production or publication; a late constructor check alone is
-    insufficient. Route package-manager's
-    `omega-rust/omega/packages/package-manager/src/admission/terminal_authority.rs`
-    and `operations/check_project.rs` through the same admission.
-  - Preserve payload custody, application metadata, build outputs, trust
-    settlement and timings.
+  - Frontier: `CompileReportSettlement` owns construction for all five stops
+    (`finish_terminal`, `finish_native`, and the Check and artifact-only arms
+    inside `prepare_product_report`), carrying root path, source count,
+    production subject, `pcc_requests` and native application metadata
+    captured before lowering (`33d5557dc4f`). `terminal_report`,
+    `native_report`, `check_report`, `CompileReport::verify_native_source_metadata`
+    and the CLI's hand-derived Check rollback predicate are deleted. What
+    remains is coverage: **artifact-only admission has no end-to-end
+    exercise** — no fixture or sample declares `Build::artifact_only`, so only
+    `build-declarations`' three declaration tests touch that shape. A fixture
+    needs a build machine that completes an output file under a restricted
+    grant.
+  - `admit_terminal_production` and `terminal_native_proposal_request` stay
+    where they are: the first is the single pre-production head every
+    Terminal-producing route enters, including the package route whose
+    settlement is `Native`, so folding it into admission would skip it there;
+    the second is a borrow projection into stage 00's request with no
+    admission in it.
+  - The [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+    refusals now live at two placements, down from three: request admission
+    before source acquisition, and `prepare_product_report` as the
+    product-owned boundary the directly constructed package routes cross since
+    they build no `CompileRequest`. Honest reachability: of the three package
+    routes two request `NativeArtifact` (whose phase filter rejects nothing)
+    and `check_project` passes an empty overlay, so the `CompileRequest`/CLI
+    route is the only one that can carry a nonempty overlay today.
+  - The item's premise that the corpus runner has no Terminal-request mode is
+    **false**: `produce_terminal_semantic`
+    (`omega-rust/omega/compilation/driver/tests/corpus_runner.rs:325`) compiles
+    the 15 `tests/omega/pass/optimizer/rollback_*` fixtures twice with
+    `RequestedCompileProduct::TerminalArtifact` and compares rolled against
+    unrolled semantic modules, and `driver/tests/terminal_decode_once.rs`
+    drives the Terminal product through full native realization. Terminal
+    admission is covered end to end; only artifact-only is not.
+  - Note for whoever takes this: `compilation-products` has **zero** Rust
+    tests, so the corpus and real-CLI probes are the entire evidence for that
+    crate.
 
-  Acceptance: no duplicate admission helper or scattered decoration remains;
-  direct construction and compiler/package routes reject every incompatible
-  request without publishing partial outputs. Exercise check, Terminal,
-  retained native and [artifact-only](wiki/spec/build/scoped_execution.md)
-  products and retained-to-published conversion. The corpus runner has no
-  Terminal-request mode, so cover Terminal and artifact-only admission
-  directly rather than counting a check/native corpus pass.
+  Acceptance: an [artifact-only](wiki/spec/build/scoped_execution.md) corpus
+  fixture compiles and refuses a nonempty release-rollback overlay without
+  publishing partial outputs.
 
 ## Lowering simplification
 
@@ -1712,6 +1751,84 @@ check corpus and the native corpus unchanged on the slices it names.
     diagnostic at the construct's span instead of an entry-establishment
     error;
   - no corpus outcome changes otherwise.
+
+- **NESTED-RECORD-LINEAR-CUSTODY.** (new-scope) Stage 05 refuses to lower a
+  record constructor whose field has `Linear` multiplicity:
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/record.rs:265`
+  returns `unsupported("nested record cannot create linear custody")` from the
+  nested-record constructor operand path.
+  `pass/ownership/linear_transparent_record_frontier` reaches it at
+  `let pair: Pair = Pair { left: left, right: right };`, where `Pair` is a
+  transparent affine record over two `[linear] Receipt` fields. The refusal had
+  never been exercised before `abbd563760a` fixed the earlier stage-04
+  unit-plan omission that hid it, so treat its comment as unverified. A
+  transparent record contributes no nominal claim of its own, so the
+  constructor must establish each contained linear field as its own
+  path-indexed obligation inside the new place rather than create custody for
+  the nested field; confirm that against the ownership spec before
+  implementing. Acceptance:
+  `python3 tools/corpus_gate.py --filter ownership/linear_transparent_record_frontier`
+  advances past this refusal, with a full-corpus before/after showing 0
+  regressions.
+
+- **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
+  `tests/omega/pass/filesystem/dir_walk_wrappers_exit` compiles no unit plan
+  for `Filesystem::mkall_walk`, so `Filesystem::create_dir_all` is unavailable
+  and the entry rejoins 0 Terminal context identities. The omission is at state
+  0, phase `state graph: state signature: parameter custody shape: qualified
+  non-linear parameter`, raised at
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:809`.
+  This is the second of two stacked gaps on that fixture; the first, a returned
+  case payload from an owned structural state parameter carrying no consumption
+  plan, landed at `1f6a0c3c325` and is pinned by
+  `tests/omega/pass/errors/returned_case_payload_from_parameter_exit` (checked,
+  native exit 70). **Not** blocked on FilesystemHost — that provider cluster is
+  a separate owner question and this chain does not reach it. Acceptance:
+  `python3 tools/corpus_gate.py --native --filter filesystem/dir_walk_wrappers_exit`
+  reaches exit 70.
+
+- **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT.** (new-scope) A structural
+  local initialized by a field projection gets no structural-value root, so the
+  planner has no producer for the statement. `abbd563760a` generalized the
+  `construction_destination` arm in
+  `04_typed-trees-to-checked-trees/src/values/scalar/computations.rs` from a
+  whole owned place to an owned place (`Name | Member | Indexed`), narrowing
+  admission by the destination's owning lane
+  (`primitive_type_reference(expected).is_none()`) rather than by the shape of
+  the place expression, and deleted the superseded `is_view_element_copy`
+  eligibility disjunct. Two disjuncts were deliberately kept:
+  `is_scalar_case_place_value` and `needs_copied_place_root` are not subsumed,
+  because `canonical_place_from_expression` also yields canonical places for
+  `Borrow` and recast `Cast` nodes. What remains open is the same question for
+  an **array-literal element that is a call**
+  (`Envelope { elements: [first, make_point(40)] }` in
+  `pass/structs/runtime_nonzero_array_elements_exit`), which still records no
+  root. Acceptance: that fixture advances past its array-literal statement with
+  a full-corpus before/after showing 0 regressions.
+
+- **UNIT-PLAN-OMISSION-SCALAR-REQUIRES-MEMBERSHIP.**
+  (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
+  `checked_structural_signature_contract_supported`
+  (`04_typed-trees-to-checked-trees/src/types/signature_contracts.rs`) resolves
+  a `Requires`/`Membership` place only against **structural** parameters, so
+  `machine make_point(value: u64 in Positive) -> Point` stops at `state
+  contracts` on the implicit `requires value in Positive` of a scalar
+  parameter. Found behind `f935b0f4e6c`, which unified the owned-structural-
+  result question onto `has_structural_construction_contents` at the binding
+  classifier, the ordinary call route and the callee's return-type admission.
+  Blocks `pass/structs/runtime_nonzero_array_elements_exit` together with
+  **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT**. Acceptance: a machine with
+  a domain-qualified scalar parameter and a structural result plans its state
+  contracts.
+
+  `pass/core/content_conservation_contract` is **design-blocked** and is not
+  part of these: `reconstruct_structural_parameter_return_claims`
+  (`checking/src/machine_calls/structural_call_custody.rs:641`) replays only a
+  whole-input claim continuation, and the wrapper's returned claim is
+  `Established` by a boundary partition. The fixture's own header already
+  records this as owed via
+  `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
+  recognizer; it is the conservation check.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
   parameter transfer are lowered in about six places:
@@ -2194,15 +2311,43 @@ of a check the same flow already performed, not the check itself.
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
-- **LOWERING-READS-CHECKED-BORROW-CUSTODY.** (new-scope) Stage 05 calls
-  `validation::reference_result_custody` (`mutable_borrowed_parts`,
-  `shared_borrowed_parts`, `result_multiplicity`, `parts`,
-  `is_reference_record`, and others) to recompute the borrow-custody answers
-  checking established when it validated those calls. Have checking record
-  each call's custody result as a checked fact and replace every stage 05 call
-  with a read of it in one commit. Acceptance: stage 05 non-test sources do
-  not name `reference_result_custody` (same source-scanning guard); corpus
-  `--filter borrows,references/` check and native unchanged.
+- **LOWERING-READS-CHECKED-BORROW-CUSTODY.** (new-scope)
+  `CheckFacts::reference_custody` records one `ReferenceCustodyRow` per type
+  reference, and stage 05 reads it at the 34 sites keyed by a type reference
+  alone (`001397f340a`). The item's original premise was wrong in a way worth
+  keeping: none of these functions recomputes a checking *analysis* — checking
+  and lowering call the same pure functions over the frozen `TypedTrees`. The
+  query could not simply move to its data's owner because the family pulls in
+  `value_custody/storage_contents.rs` and `program_scope`'s frozen-program
+  memos (property of **LOWERING-READS-CHECKED-CONTENT-CLASSES**), and because
+  the return types live in `checked-trees`, which `typed-trees` cannot depend
+  on. So a recorded row is right here even though the query is pure.
+
+  22 `validation::reference_result_custody` sites remain in stage 05, in three
+  families that each need their own table. 7 are keyed by a state alone
+  (`tail_return_expression` 3, `returned_reference_sources` 2,
+  `source_parameter`, `source_leaf`) and 3 by a state and a local ordinal
+  (`primitive_local_source`); these need a per-state row holding a plan roster
+  rather than a copy row, and `state_by_symbol` makes the state symbol a usable
+  key. 6 are keyed by a `Handle<BorrowLoanFact>` that the query also filters
+  against a machine and state (`release_boundary` 4, `release_statement` 2),
+  where the row must record the pair it was computed for or a mismatched pair
+  would read a boundary the recompute denies. 6 are keyed by a state and an
+  expression (`initializer_source` 3, `borrowed_initializer_source`,
+  `mutable_return_source`, `record_argument`), and `record_argument`
+  additionally takes a `CheckedUnitStructuralResultBindingPlan` that stage 05
+  holds, so nothing checking can enumerate keys it until that query is
+  decomposed.
+
+  Population must not depend on checking's traversal: `001397f340a` walks the
+  whole type-reference table after monomorphization and authored-selection
+  finalization, so no visited-call hole is possible, and the table is
+  append-only so no index goes stale. Before deleting a recompute, prove
+  equivalence with a differential probe that reads the row and recomputes
+  beside it over the full corpus — that is the only evidence these crates have,
+  since they carry zero Rust tests after `55a502d211b`. Acceptance: stage 05
+  non-test sources do not name `reference_result_custody` (same source-scanning
+  guard); corpus `--filter borrows,references/` check and native unchanged.
 
 - **LOWERING-READS-CHECKED-CONTENT-CLASSES.** (new-scope) Stage 05
   reclassifies types with checking's ownership and content predicates:
