@@ -72,7 +72,7 @@ pub use image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage, RequestedExecutableImageError,
     can_emit_executable_image, emit_direct_executable_image, emit_executable_image,
-    emit_object_container, validate_direct_executable_image, validate_executable_image,
+    emit_object_container, validate_direct_executable_image,
 };
 
 pub use installation_record::{

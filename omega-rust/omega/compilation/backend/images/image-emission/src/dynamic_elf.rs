@@ -3,8 +3,10 @@
 //!
 //! `image_output::emit_executable_image` selects this lane for an
 //! import-bearing ELF object. `emit_dynamic_elf_image` prepares the hosted
-//! entry, builds the final image, runs the ELF owner's chain and rejoins the
-//! admitted bytes to the source-free object artifact. It deliberately does
+//! entry, builds the final image once, runs the ELF owner's chain and binds
+//! the admitted text and data to the prepared object. Only bytes admitted
+//! outside that call (`emit_admitted_dynamic_elf_image` and the retained-
+//! artifact replays) rebuild the final image to compare against it. It deliberately does
 //! not construct loader inputs, publish bytes, create an installation
 //! receipt, or grant execution authority.
 
@@ -210,31 +212,96 @@ pub fn emit_dynamic_elf_image(
             diagnostic,
         ))
     })?;
-    let (object, text_bytes, relocations) = prepared_entry.as_ref().map_or(
-        (
-            artifact.object(),
-            artifact.text_bytes(),
-            artifact.relocations(),
-        ),
-        |prepared| {
-            (
-                &prepared.object,
-                prepared.text.as_slice(),
-                &prepared.relocations,
-            )
-        },
-    );
+    let prepared = prepared_parts(artifact, prepared_entry.as_ref());
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
-        object,
-        relocations,
-        text_bytes,
+        object: prepared.object,
+        relocations: prepared.relocations,
+        text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let admitted = emit_elf_dynamic_executable(image, interpreter)
         .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
-    emit_admitted_dynamic_elf_image(artifact, admitted)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::ProductionBridge(error)))
+    // The writer was handed the image built just above from this prepared
+    // entry, so its admitted image is not rebuilt to compare against itself
+    // (omega-rust/pipeline.md, "Verification placement"). The text
+    // validation still runs: its receipt is part of the artifact identity.
+    let output = match validated_output(artifact, &prepared, &admitted) {
+        Ok(output) => output,
+        Err(diagnostic) => {
+            return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
+                Box::new(DynamicElfImageEmissionError {
+                    admitted,
+                    diagnostic,
+                }),
+            )));
+        }
+    };
+    Ok(DynamicElfImageEmission { admitted, output })
+}
+
+/// The object, text and relocations the final image is built from: the
+/// hosted-entry preparation's when it appended a bridge, the artifact's own
+/// otherwise.
+struct PreparedParts<'a> {
+    object: &'a object_file::ObjectPlan,
+    text_bytes: &'a [u8],
+    relocations: &'a object_file::RelocationPlan,
+    entry_shim: Option<crate::hosted_unit_entry::EntryShim>,
+}
+
+fn prepared_parts<'a>(
+    artifact: &'a ObjectArtifact,
+    prepared_entry: Option<&'a crate::hosted_unit_entry::PreparedEntry>,
+) -> PreparedParts<'a> {
+    prepared_entry.map_or(
+        PreparedParts {
+            object: artifact.object(),
+            text_bytes: artifact.text_bytes(),
+            relocations: artifact.relocations(),
+            entry_shim: None,
+        },
+        |prepared| PreparedParts {
+            object: &prepared.object,
+            text_bytes: prepared.text.as_slice(),
+            relocations: &prepared.relocations,
+            entry_shim: Some(prepared.shim),
+        },
+    )
+}
+
+/// The production output for writer bytes: the target the writer admitted
+/// must be this artifact's Linux target, and the final text and data must
+/// bind to the prepared object through the terminal text validation, whose
+/// receipt the output carries.
+fn validated_output(
+    artifact: &ObjectArtifact,
+    prepared: &PreparedParts<'_>,
+    admitted: &ValidatedElfDynamicExecutable,
+) -> Result<EmittedImageOutput, Diagnostic> {
+    let target = artifact.target();
+    if target != admitted.image().target
+        || target.object_format != ObjectFormat::Elf
+        || !matches!(
+            target.architecture,
+            Architecture::Aarch64 | Architecture::X86_64
+        )
+    {
+        return Err(Diagnostic::error(
+            "admitted dynamic ELF target does not match the exact Linux object artifact",
+        ));
+    }
+    let mut output = emitted_direct_executable_output(admitted.output().clone());
+    let validation = validate_terminal_dynamic_elf_image(
+        artifact,
+        prepared.object,
+        prepared.relocations,
+        prepared.text_bytes,
+        prepared.entry_shim,
+        &output,
+    )?;
+    output.compiler_text_validation = Some(validation);
+    Ok(output)
 }
 
 /// Join exact admitted dynamic ELF bytes to the production image-output
@@ -272,62 +339,26 @@ pub fn validate_dynamic_elf_image_emission(
     Ok(())
 }
 
+/// Bytes admitted by another writer run, not built in this call: rebuild the
+/// final image from the prepared entry and require the admitted image to
+/// match it before deriving the output.
 fn derive_output(
     artifact: &ObjectArtifact,
     admitted: &ValidatedElfDynamicExecutable,
 ) -> Result<EmittedImageOutput, Diagnostic> {
-    let target = artifact.target();
-    if target != admitted.image().target
-        || target.object_format != ObjectFormat::Elf
-        || !matches!(
-            target.architecture,
-            Architecture::Aarch64 | Architecture::X86_64
-        )
-    {
-        return Err(Diagnostic::error(
-            "admitted dynamic ELF target does not match the exact Linux object artifact",
-        ));
-    }
-
-    // Replay the same hosted-entry preparation the production path consumed;
-    // the admitted image must match the prepared object/text/relocations
-    // exactly, including any receiver bridge suffix and its BSS partitions.
     let prepared_entry = crate::hosted_unit_entry::prepare(artifact)?;
-    let (object, text_bytes, relocations, entry_shim) = prepared_entry.as_ref().map_or(
-        (
-            artifact.object(),
-            artifact.text_bytes(),
-            artifact.relocations(),
-            None,
-        ),
-        |prepared| {
-            (
-                &prepared.object,
-                prepared.text.as_slice(),
-                &prepared.relocations,
-                Some(prepared.shim),
-            )
-        },
-    );
+    let prepared = prepared_parts(artifact, prepared_entry.as_ref());
+    let output = validated_output(artifact, &prepared, admitted)?;
     let mut replayed_image = image::build_final_image(FinalImageInput {
-        target,
-        object,
-        relocations,
-        text_bytes,
+        target: artifact.target(),
+        object: prepared.object,
+        relocations: prepared.relocations,
+        text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let symbol_digest = final_image_symbol_digest(&replayed_image);
-    let mut output = emitted_direct_executable_output(admitted.output().clone());
-    let validation = validate_terminal_dynamic_elf_image(
-        artifact,
-        object,
-        relocations,
-        text_bytes,
-        entry_shim,
-        &output,
-    )?;
     // The writer relocates `.text` and `.data` at its own load layout; the
-    // terminal validation above has already bound both final byte sets to the
+    // terminal validation has already bound both final byte sets to the
     // encoded object through their relocation envelopes and callback targets.
     replayed_image.memory.text = output.final_text_bytes.clone();
     replayed_image.memory.data = output.final_data_bytes.clone();
@@ -338,6 +369,5 @@ fn derive_output(
             "admitted dynamic ELF final image does not replay from the exact object artifact",
         ));
     }
-    output.compiler_text_validation = Some(validation);
     Ok(output)
 }

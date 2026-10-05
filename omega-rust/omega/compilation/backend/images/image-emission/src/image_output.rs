@@ -3,8 +3,7 @@
 //! [`emit_executable_image`] is the single entry: the object's contents and
 //! the caller's [`ExecutableImageEmissionRequest`] select the direct writer
 //! (ELF, Mach-O or PE over a static image, owned here) or the dynamic ELF
-//! lane (`dynamic_elf`), and [`validate_executable_image`] replays that
-//! selection for retained-artifact readers. The direct lane retains the
+//! lane (`dynamic_elf`). The direct lane retains the
 //! sealed terminal-Psi image carrier and builds the final image once; it
 //! does not replay the object it was just handed (verification placement in
 //! `omega-rust/pipeline.md`). Nothing here constructs machine code or
@@ -21,7 +20,6 @@ use terminal_psi::TerminalPsiIdentity;
 
 use super::dynamic_elf::{
     DynamicElfOrchestrationError, RequestedDynamicElfImage, emit_dynamic_elf_image,
-    validate_requested_dynamic_elf_image,
 };
 use super::final_image_validation::validate_terminal_image;
 use super::{
@@ -261,29 +259,6 @@ pub fn emit_executable_image(
         )
         .map(RequestedExecutableImage::Direct)
         .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic))),
-    }
-}
-
-/// Independently replay the selected image path without collapsing dynamic
-/// output into installable custody: the direct lane through
-/// [`validate_direct_executable_image`], the dynamic lane through
-/// `dynamic_elf::validate_requested_dynamic_elf_image`.
-pub fn validate_executable_image(
-    artifact: &ObjectArtifact,
-    image: &RequestedExecutableImage,
-) -> Result<(), Diagnostic> {
-    match image {
-        RequestedExecutableImage::Direct(image) => {
-            if requires_dynamic_elf(artifact) {
-                return Err(Diagnostic::error(
-                    "import-bearing ELF object was substituted into direct image custody",
-                ));
-            }
-            validate_direct_executable_image(artifact, image)
-        }
-        RequestedExecutableImage::DynamicElf(image) => {
-            validate_requested_dynamic_elf_image(artifact, image)
-        }
     }
 }
 
