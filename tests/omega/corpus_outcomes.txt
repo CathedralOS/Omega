@@ -2262,8 +2262,7 @@ pass/float/runtime_named_fma_sequence_exit checked 16819ms check-target:macos_ar
 pass/float/runtime_named_format_conversion_exit checked 6217ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_named_policy_result_exit checked 5484ms check-target:macos_arm64 @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit checked 5045ms check-target:macos_arm64 @2d8ed253669f
-pass/float/runtime_total_order_satisfiers_exit rejected 7708ms check-target:macos_arm64 @835baa6033e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/float/runtime_total_order_satisfiers_exit checked 33742ms check-target:macos_arm64 @e8239f945e8
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms check-target:macos_arm64 @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms check-target:macos_arm64 @163770eba39c
 pass/float/x86_fma_plan_association rejected 7718ms check-target:linux_x86_64 @95e4e5c52dc
@@ -2572,11 +2571,9 @@ pass/recast/runtime_nested_record_byte_store_exit checked 1232ms check-target:ma
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 1653ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms check-target:macos_arm64 @def08a434d7a+wt
-pass/recast/runtime_scalar_parameter_shared_views_exit rejected 2331ms check-target:macos_arm64 @835baa6033e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/recast/runtime_scalar_parameter_shared_views_exit checked 2431ms check-target:macos_arm64 @e8239f945e8
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms check-target:macos_arm64 @a3bac00e54bb+wt
-pass/recast/runtime_shared_parameter_view_calls_exit rejected 3441ms check-target:macos_arm64 @835baa6033e
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
+pass/recast/runtime_shared_parameter_view_calls_exit checked 4299ms check-target:macos_arm64 @e8239f945e8
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 928ms check-target:macos_arm64 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms check-target:macos_arm64 @2d8ed253669f
@@ -2859,8 +2856,8 @@ pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_ar
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1375ms check-target:macos_arm64 @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1357ms check-target:macos_arm64 @58e4f6f8667
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
+pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 2456ms check-target:macos_arm64 @e8239f945e8
+	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms check-target:macos_arm64 @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f

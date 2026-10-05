@@ -554,8 +554,7 @@ pass/float/runtime_float_to_integer_policy_casts_exit built 3035ms exit:70 @2d8e
 pass/float/runtime_named_float_to_integer_conversion_exit built 3232ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_named_format_conversion_exit built 4456ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_std_is_finite_exit built 2997ms exit:70 @2d8ed253669f+wt
-pass/float/runtime_total_order_satisfiers_exit rejected 15605ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/float/runtime_total_order_satisfiers_exit built 46092ms exit:70 @e8239f945e8
 pass/float/scalar_helper_boundary_sequence_exit built 2975ms exit:70 @2d8ed253669f+wt
 pass/float/x86_fma_plan_association rejected 2566ms @2d8ed253669f+wt
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
@@ -812,11 +811,9 @@ pass/recast/runtime_nested_record_byte_store_exit built 1403ms exit:70 @a3bac00e
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1841ms exit:70 @a3bac00e54bb
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 1020ms @a3bac00e54bb
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
-pass/recast/runtime_scalar_parameter_shared_views_exit rejected 4624ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/recast/runtime_scalar_parameter_shared_views_exit built 4887ms exit:70 @e8239f945e8
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1130ms exit:70 @a3bac00e54bb
-pass/recast/runtime_shared_parameter_view_calls_exit rejected 6523ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
+pass/recast/runtime_shared_parameter_view_calls_exit built 6651ms exit:0 @e8239f945e8
 pass/recast/runtime_shared_record_float_range_weakening_exit built 3421ms exit:70 @a3bac00e54bb
 pass/references/runtime_shared_ref_param_guard_exit built 818ms exit:1 @2d8ed253669f+wt
 pass/relevance/erased_case_payload_field_exit built 805ms exit:70 @2d8ed253669f+wt
@@ -1027,8 +1024,8 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
 pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
 	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1714ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
+pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 4502ms @e8239f945e8
+	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1445ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
