@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 15.39, "load1_start": 15.78, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 8.12, "load1_start": 8.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2562,8 +2562,7 @@ pass/providers/same_name_requirement_right_dispatch_exit checked 670ms check-tar
 pass/providers/selected_const_provider_call_identity_exit checked 2774ms check-target:macos_arm64 @6cbb1bbbe86
 pass/providers/service_borrowed_parameter checked 123ms @2a68bc887d99+wt
 pass/providers/service_fused_root_establishment checked 743ms check-target:linux_x86_64 @2d8ed253669f
-pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 1222ms check-target:macos_arm64 @c5d32a00863
-	terminal-artifact production failed: Lowering(Unsupported("provider candidate has ambiguous terminal body plans"))
+pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 1158ms check-target:macos_arm64 @2c3d96589014+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 455ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/token_machine_family_override_exit checked 1314ms check-target:macos_arm64 @2d8ed253669f
 pass/range/data_parameter_counter_non_negative_exit checked 848ms check-target:macos_arm64 @ec784d4d82e8+wt
