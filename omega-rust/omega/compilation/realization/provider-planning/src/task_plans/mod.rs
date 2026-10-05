@@ -21,10 +21,7 @@ mod start_selections;
 
 pub use call_target_bindings::{CallTargetAssignment, derive_call_target_bindings};
 
-use crate::task_plans::carry_crossings::{
-    activation_carry_crossings, canonical_suspension_crossing, carry_obligations,
-    exact_activation_wide_carry,
-};
+use crate::task_plans::carry_crossings::{canonical_suspension_crossing, carry_obligations};
 use crate::task_plans::runtime_requirements::{
     exact_task_machine_blocking, exact_task_machine_suspension, selected_task_runtime_provider,
 };
@@ -116,7 +113,7 @@ pub fn elaborate_task_activation_plans(
             MachineEntryId::from_normalized_identity,
         )?;
         // The argument layout is more than a report coordinate: the
-        // marshalling image packs each non-self parameter's concrete
+        // marshalling image packs each explicit parameter's concrete
         // size/alignment at its canonical offset, and the retained field
         // table is what the provider boundary checks a presented bundle
         // against.
@@ -167,10 +164,7 @@ pub fn elaborate_task_activation_plans(
 
         let may_suspend = suspension.checked_may_suspend;
         let may_block = blocking.checked_may_block;
-        let crossings = activation_carry_crossings(program, target_machine.symbol)?;
-        // The authoritative crossing roster covers the containment subtree
-        // and every suspension crossing reached inside the checked call
-        // graph, deduplicated by canonical identity.
+        // Stack and carry obligations follow the same checked call graph.
         let graph = task_call_graph(
             program,
             target,
@@ -180,22 +174,12 @@ pub fn elaborate_task_activation_plans(
             entry,
         )?;
         let mut roster = BTreeMap::new();
-        for crossing in crossings
-            .subtree
-            .iter()
-            .copied()
-            .chain(graph.crossings.iter().copied())
-        {
+        for crossing in &graph.crossings {
             let canonical = canonical_suspension_crossing(program, crossing)?;
             roster.insert(canonical.identity, canonical);
         }
         let canonical_suspension_crossings = roster.into_values().collect::<Vec<_>>();
-        let activation_wide_carry = exact_activation_wide_carry(
-            program,
-            target_machine.symbol,
-            target_machine.name.as_str(),
-        )?;
-        let carry_obligations = carry_obligations(activation_wide_carry.effective);
+        let carry_obligations = carry_obligations(graph.carry);
         let stack_representation = normalized_id(
             stack_representation_report_fingerprint(target),
             StackRepresentationId::from_normalized_identity,

@@ -3,7 +3,6 @@
 //! shape so later liveness, runtime-admission, artifact, and model-export
 //! passes never need to reinterpret source syntax.
 
-use arena::{Arena, HandleSpan};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use std::borrow::Cow;
 use symbols::SymbolHandle;
@@ -12,12 +11,6 @@ use symbols::SymbolHandle;
 pub struct CarryFacts {
     /// One entry per data declaration, in declaration order.
     pub data: Vec<DataCarryFact>,
-    /// One topology root per machine. Contained fields and their attached
-    /// machine targets live in grouped arenas below; no record owns a leaf
-    /// allocation.
-    pub machine_topologies: Arena<MachineCarryTopologyFact>,
-    pub contained_fields: Arena<ContainedMachineFieldFact>,
-    pub contained_targets: Arena<ContainedMachineTargetFact>,
     /// Canonical call sites that may suspend, with the most restrictive
     /// four-axis policy contributed by every value live across that exact
     /// crossing. Activation planning consumes this checked result; it must not
@@ -47,10 +40,10 @@ pub struct ClaimCarryPolicyFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineActivationCarryFact {
     pub machine: SymbolHandle,
-    /// Intersection of this machine's direct envelope with every machine
-    /// reachable through its checked contained-field topology.
+    /// Direct envelope of this machine's explicit storage and call values.
+    /// Activation planning composes these over the checked call graph.
     pub effective: CarryPolicy,
-    /// False when any machine in that subtree has a call/value shape that
+    /// False when this machine has a call/value shape that
     /// could not be resolved to a checked type. Absence of a type is never
     /// treated as permissive evidence.
     pub analysis_complete: bool,
@@ -251,67 +244,6 @@ impl CarryFacts {
             .iter()
             .find(|fact| fact.machine == machine)
     }
-
-    pub fn topology_for_machine(&self, machine: SymbolHandle) -> Option<&MachineCarryTopologyFact> {
-        self.machine_topologies
-            .iter()
-            .find_map(|(_, fact)| (fact.machine == machine).then_some(fact))
-    }
-
-    pub fn contained_fields_for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> &[ContainedMachineFieldFact] {
-        self.topology_for_machine(machine)
-            .map(|fact| self.contained_fields.span_or_empty(fact.fields))
-            .unwrap_or_default()
-    }
-
-    pub fn contained_targets_for_field(
-        &self,
-        field: &ContainedMachineFieldFact,
-    ) -> &[ContainedMachineTargetFact] {
-        self.contained_targets.span_or_empty(field.targets)
-    }
-
-    /// Deterministic, cycle-safe closure over the authored field topology.
-    /// The root is always first; each machine symbol appears at most once even
-    /// when multiple contained fields have the same data type.
-    pub fn machine_subtree_symbols(&self, root: SymbolHandle) -> Vec<SymbolHandle> {
-        let mut machines = vec![root];
-        let mut cursor = 0;
-        while cursor < machines.len() {
-            let machine = machines[cursor];
-            cursor += 1;
-            for field in self.contained_fields_for_machine(machine) {
-                for target in self.contained_targets_for_field(field) {
-                    if !machines.contains(&target.machine) {
-                        machines.push(target.machine);
-                    }
-                }
-            }
-        }
-        machines
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MachineCarryTopologyFact {
-    pub machine: SymbolHandle,
-    pub fields: HandleSpan<ContainedMachineFieldFact>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ContainedMachineFieldFact {
-    pub field: SymbolHandle,
-    pub data: SymbolHandle,
-    pub type_reference: typed_trees::types::TypeReferenceHandle,
-    pub targets: HandleSpan<ContainedMachineTargetFact>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ContainedMachineTargetFact {
-    pub machine: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -28,9 +28,10 @@
 //! deletion of a Terminal site and its plan cannot erase required crossing
 //! demand.
 
+use super::carry_crossings::{exact_activation_wide_carry, validate_activation_carry_crossing};
 use checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 use diagnostics::Diagnostic;
-use language_semantics::MachineSupplyMode;
+use language_semantics::{CarryPolicy, MachineSupplyMode};
 use layout::TypeLayout;
 use symbols::SymbolHandle;
 use target::NativeTarget;
@@ -47,9 +48,10 @@ pub(crate) struct TaskCallGraph<'program> {
     pub(crate) root: TaskStackFrameId,
     pub(crate) frames: Vec<ValidatedTaskStackFrameSummary>,
     /// Canonical crossing rows whose `(machine, state)` belongs to a reachable
-    /// frame, including crossings inside nested checked callees. The plan's
-    /// authoritative roster unions these with the containment subtree rows.
+    /// frame, including crossings inside nested checked callees.
     pub(crate) crossings: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
+    /// Direct envelopes combined over these same reached machine frames.
+    pub(crate) carry: CarryPolicy,
 }
 
 /// Derive the reachable same-stack call graph of the activation entered at
@@ -69,12 +71,16 @@ pub(crate) fn task_call_graph<'program>(
     let mut visited = Vec::new();
     let mut frames = Vec::new();
     let mut crossings = Vec::new();
+    let mut carry = CarryPolicy::PERMISSIVE;
     while let Some(entry_symbol) = pending.pop() {
         if visited.contains(&entry_symbol) {
             continue;
         }
         visited.push(entry_symbol);
         let (machine, entry) = exact_frame_target(program, entry_symbol)?;
+        carry = carry.intersect(
+            exact_activation_wide_carry(program, machine.symbol, machine.name.as_str())?.effective,
+        );
         let summary = task_frame_summary(
             program,
             target,
@@ -94,6 +100,7 @@ pub(crate) fn task_call_graph<'program>(
         root,
         frames,
         crossings,
+        carry,
     })
 }
 
@@ -210,6 +217,7 @@ fn task_frame_summary<'program>(
         // Only one crossing can be parked at a time, so staged call-argument
         // demand composes by maximum across this state's crossings.
         let mut state_peak = align_to(size, alignment)?;
+        let mut crossing_coordinates = Vec::new();
         for crossing in program
             .facts
             .carry
@@ -217,6 +225,14 @@ fn task_frame_summary<'program>(
             .iter()
             .filter(|crossing| crossing.machine == machine.symbol && crossing.state == state.symbol)
         {
+            validate_activation_carry_crossing(program, crossing)?;
+            let coordinate = (crossing.statement_index, crossing.call_ordinal);
+            if crossing_coordinates.contains(&coordinate) {
+                return Err(vec![Diagnostic::error(
+                    "task activation carry crossings must retain one row per exact call coordinate",
+                )]);
+            }
+            crossing_coordinates.push(coordinate);
             reachable_crossings.push(crossing);
             let mut crossing_size = size;
             let mut crossing_alignment = alignment;

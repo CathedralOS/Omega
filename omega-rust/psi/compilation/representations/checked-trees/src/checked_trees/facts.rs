@@ -55,8 +55,7 @@ pub use calls::{
     CheckedBoundaryAdapterDispatch, CheckedFactCallProjection, CheckedIntrinsicCallFact,
 };
 pub use carry::{
-    CarryFacts, ClaimCarryPolicyFact, ContainedMachineFieldFact, ContainedMachineTargetFact,
-    DataCarryFact, MachineActivationCarryFact, MachineCarryTopologyFact,
+    CarryFacts, ClaimCarryPolicyFact, DataCarryFact, MachineActivationCarryFact,
     SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
     SuspensionCrossingValueOrigin, canonical_suspension_crossing_id,
 };

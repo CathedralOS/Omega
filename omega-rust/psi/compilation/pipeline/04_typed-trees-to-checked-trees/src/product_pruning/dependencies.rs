@@ -271,20 +271,6 @@ pub(super) fn collect_machine_edges(
         }
     }
 
-    // Machines contained in a carried record field are reachable through the
-    // carrier's ownership topology.
-    for (_, topology) in facts.carry.machine_topologies.iter() {
-        for field in facts.carry.contained_fields.span_or_empty(topology.fields) {
-            for target in facts.carry.contained_targets.span_or_empty(field.targets) {
-                push_edge(
-                    &mut edges,
-                    topology.machine,
-                    index.machine_of(target.machine),
-                );
-            }
-        }
-    }
-
     // Suspension-crossing rows retain the exact call target they may suspend
     // across.
     for crossing in &facts.carry.suspension_crossings {

@@ -242,7 +242,7 @@ fn apply_fact_pruning(
     // rebuilt so iteration sees exactly the retained product. Arenas whose
     // rows are referenced by `Handle`/`HandleSpan` from other retained rows
     // (`borrow.states`, `service_reaches.states`/`calls`,
-    // `carry.contained_fields`/`contained_targets`, the flow call/statement
+    // the flow call/statement
     // arenas, and every proof/evidence arena) stay untouched: their dead
     // rows are unreachable through the pruned declaration surface and
     // compacting them would invalidate live inbound references.
@@ -272,19 +272,6 @@ fn apply_fact_pruning(
         let mut machines = arena::Arena::default();
         facts.service_reaches.root_machines = machines.insert_many(kept);
         facts.service_reaches.machines = machines;
-    }
-    {
-        let kept: Vec<checked_trees::MachineCarryTopologyFact> = facts
-            .carry
-            .machine_topologies
-            .iter()
-            .map(|(_, row)| row)
-            .filter(|row| retained.contains(&row.machine))
-            .cloned()
-            .collect();
-        let mut topologies = arena::Arena::default();
-        topologies.insert_many(kept);
-        facts.carry.machine_topologies = topologies;
     }
 
     // Whole-product semantic dependencies: drop rows owned by or naming a

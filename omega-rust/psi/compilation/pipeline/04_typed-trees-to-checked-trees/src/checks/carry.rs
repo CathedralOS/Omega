@@ -221,7 +221,7 @@ pub(super) fn check_suspension_carry(
 ) -> Result<(), Vec<Diagnostic>> {
     facts.carry.claim_policies = derive_claim_carry_policies(facts);
     let activation_wide_carry =
-        activation::build_machine_activation_carry_facts(program, &facts.carry, &facts.semantic);
+        activation::build_machine_activation_carry_facts(program, &facts.semantic);
     facts.carry.activation_wide_carry = activation_wide_carry;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();

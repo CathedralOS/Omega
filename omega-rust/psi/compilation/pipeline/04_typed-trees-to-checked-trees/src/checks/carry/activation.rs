@@ -10,11 +10,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
-mod subtree;
-
 pub(super) fn build_machine_activation_carry_facts(
     program: &typed_trees::TypedTrees,
-    carry: &checked_trees::CarryFacts,
     semantic: &facts::FactPlan,
 ) -> Vec<checked_trees::MachineActivationCarryFact> {
     // Each machine reads only its own evidenced carry facts. Grouping them
@@ -35,7 +32,7 @@ pub(super) fn build_machine_activation_carry_facts(
             carry_facts.entry(machine).or_default().push(fact);
         }
     }
-    let direct = program
+    program
         .machines()
         .iter()
         .map(|machine| {
@@ -44,9 +41,7 @@ pub(super) fn build_machine_activation_carry_facts(
                 .map_or(&[][..], Vec::as_slice);
             build_machine_activation_carry_fact(program, semantic, machine, facts)
         })
-        .collect::<Vec<_>>();
-
-    subtree::join_activation_carry(carry, &direct)
+        .collect()
 }
 
 fn build_machine_activation_carry_fact(
@@ -64,32 +59,7 @@ fn build_machine_activation_carry_fact(
         unnamed_strict_values: 0,
     };
 
-    // Persistent activation storage exists independently of lexical use and
-    // contributes to the activation-wide preservation requirement.
-    if let Some(attached_name) = machine.attached_data.as_ref()
-        && let Some(attached) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| same_semantic_name(definition.name.as_str(), attached_name.as_str()))
-    {
-        for member in program.data_members(attached) {
-            match member {
-                typed_trees::data::DataMember::Field(field) => {
-                    accumulator.add_machine_type(field.type_reference);
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    for field in program.data_payload_fields(variant) {
-                        accumulator.add_machine_type(field.type_reference);
-                    }
-                }
-            }
-        }
-    }
-    for owned in program.machine_owned_data(machine) {
-        accumulator.add_machine_type(owned.type_reference);
-        accumulator.visit_expression(owned.initial_value);
-    }
-
+    // Declaration qualification is a namespace, not resident storage.
     for state in program.machine_states(machine) {
         for parameter in program.state_parameters(state) {
             accumulator.add_machine_type(parameter.type_reference);

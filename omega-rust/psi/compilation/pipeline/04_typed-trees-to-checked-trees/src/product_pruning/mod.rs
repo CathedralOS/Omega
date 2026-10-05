@@ -39,8 +39,8 @@
 //!   initializers, signature/contract proof facts, and const-expression type
 //!   positions reachable from each machine;
 //! - contract evidence calls, static conformance applications, proof
-//!   recursive-component edges, suspension-crossing targets, carry-topology
-//!   contained machine targets, specialization machine arguments, and
+//!   recursive-component edges, suspension-crossing targets, specialization
+//!   machine arguments, and
 //!   `AutomaticCleanupMachine`/machine-valued semantic dependencies;
 //! - conservative whole-surface retention for provider-selected identities a
 //!   root cannot bound: closed-conformance realization machines, boundary
@@ -55,8 +55,7 @@
 //! Pruning rebuilds the machine declaration arena and every machine-keyed
 //! `Vec` table in the typed sidecars and `CheckFacts`/`FlowFacts` terminal
 //! plan families, plus the machine-keyed roster arenas
-//! (`flow.control.states`, `service_reaches.machines`,
-//! `carry.machine_topologies`) that no `Handle`/`HandleSpan` references into.
+//! (`flow.control.states`, `service_reaches.machines`) that no `Handle`/`HandleSpan` references into.
 //! Arena-resident rows keyed by non-machine identities (expressions, state
 //! fact handles, conformances, evidence terms, span-referenced fact rows)
 //! remain as retained dead evidence: they are valid checked rows that are
