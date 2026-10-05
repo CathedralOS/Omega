@@ -279,7 +279,7 @@ fn require_exact_ranking_view_row(
         return Err(drift("the row ranks exactly one subject".to_owned()));
     };
     let parameter = syntax_trees.items.state_parameter(*parameter);
-    if parameter.is_const || parameter.is_mutable || parameter.is_self {
+    if parameter.is_const || parameter.is_mutable {
         return Err(drift(format!(
             "parameter `{}` carries a binding mode the row does not declare",
             parameter.name.as_str()
@@ -347,7 +347,7 @@ fn require_exact_semantic_row(
     let mut parameters = Vec::new();
     for handle in syntax_trees.items.state_parameters(entry.parameters) {
         let parameter = syntax_trees.items.state_parameter(*handle);
-        if parameter.is_const || parameter.is_mutable || parameter.is_self {
+        if parameter.is_const || parameter.is_mutable {
             return Err(drift(format!(
                 "parameter `{}` carries a binding mode no catalog row declares",
                 parameter.name.as_str()

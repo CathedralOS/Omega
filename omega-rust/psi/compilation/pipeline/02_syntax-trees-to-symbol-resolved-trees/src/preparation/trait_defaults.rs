@@ -532,11 +532,7 @@ fn synthesize_equatable_machine(
     };
     let receiver = syntax.items.state_parameter(*receiver_handle);
     let other = syntax.items.state_parameter(*other_handle);
-    if other.is_self {
-        return false;
-    }
     let receiver_name = Identifier::generated(receiver.name.as_str());
-    let implicit_receiver = receiver.is_self;
     let other_name = other.name.as_str().to_string();
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
@@ -547,9 +543,7 @@ fn synthesize_equatable_machine(
             .replace_type_reference(handle, TypeReferenceNode::Named(subject.clone()));
     }
 
-    let receiver = if implicit_receiver {
-        syntax.expressions.insert(ExpressionNode::SelfValue)
-    } else {
+    let receiver = {
         let member = syntax
             .expressions
             .append_identifier_path_member(receiver_name);

@@ -174,14 +174,11 @@ pub(crate) struct Lowerer {
     /// (`statement::hoist_membership_match_subject`). Keyed by the subject
     /// syntax handle's arena index (`Handle` is not `Hash`).
     match_subject_temps: std::collections::HashMap<u32, String>,
-    /// The CURRENT state's non-receiver parameters (name, resolved type,
+    /// The CURRENT state's parameters (name, resolved type,
     /// mutability). The scalar-computation classification of transition
     /// values reads them. Overwritten at each state.
     pub(crate) current_state_parameters:
         Vec<(String, symbol_resolved_trees::types::TypeReference, bool)>,
-    /// The CURRENT state's explicit `self` parameter, when it has one.
-    pub(crate) current_state_self_parameter:
-        Option<symbol_resolved_trees::signature::StateParameter>,
     /// The CURRENT state's declared return type. Overwritten at each state.
     pub(crate) current_state_return_type: Option<symbol_resolved_trees::types::TypeReference>,
     /// Present when this lowerer extends a retained base.
@@ -274,7 +271,6 @@ impl Lowerer {
             current_evidence_term_names: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
             current_state_parameters: Vec::new(),
-            current_state_self_parameter: None,
             current_state_return_type: None,
             seed: None,
         }

@@ -942,8 +942,8 @@ fn resolved_symbolic_max_bound(
 }
 
 /// Whether `symbol` names a parameter holding a subject position: a
-/// machine state parameter carrying `is_self`, declaring the owning
-/// machine's attached data, or typed by the `Self` carrier -- the
+/// machine state parameter declaring the owning machine's attached data,
+/// or typed by the `Self` carrier -- the
 /// resolved-stage mirror of `typed_trees::dependent_ranges`'s
 /// `receiver_is_subject_parameter`. A resolved name's symbol identifies
 /// one parameter program-wide, so the answer never depends on which
@@ -960,13 +960,11 @@ fn resolved_receiver_is_subject_parameter(
             let state = source_trees.machine_state(*state_handle);
             for parameter in source_trees.state_parameters(state.parameters) {
                 if parameter.symbol == receiver {
-                    return parameter.is_self
-                        || resolved_type_names_attached_data(
-                            source_trees,
-                            &parameter.type_reference,
-                            machine.attached_data_symbol,
-                        )
-                        || resolved_type_is_self(source_trees, &parameter.type_reference);
+                    return resolved_type_names_attached_data(
+                        source_trees,
+                        &parameter.type_reference,
+                        machine.attached_data_symbol,
+                    ) || resolved_type_is_self(source_trees, &parameter.type_reference);
                 }
             }
         }

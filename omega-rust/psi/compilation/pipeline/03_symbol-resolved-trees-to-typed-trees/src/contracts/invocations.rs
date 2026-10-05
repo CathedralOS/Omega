@@ -13,7 +13,6 @@ pub(crate) fn lower_authored_invocations(
     for declaration in declarations {
         let target = if let Some((ordinal, parameter)) = parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .enumerate()
             .find(|(_, parameter)| parameter.name.as_str() == declaration.as_str())
         {

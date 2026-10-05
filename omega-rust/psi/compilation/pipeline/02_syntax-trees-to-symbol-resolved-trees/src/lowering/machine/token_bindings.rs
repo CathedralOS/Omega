@@ -837,9 +837,6 @@ impl<'program> ShapeNormalizer<'program> {
 
     fn parameter_shape(&mut self, parameter: &StateParameter) -> String {
         let mut shape = String::new();
-        if parameter.is_self {
-            shape.push_str("self ");
-        }
         if parameter.is_mutable {
             shape.push_str("mut ");
         }

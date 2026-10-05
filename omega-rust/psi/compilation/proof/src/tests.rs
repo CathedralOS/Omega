@@ -129,7 +129,6 @@ fn collects_bounded_type_sites() {
             type_reference: parameter_type,
             is_const: false,
             is_mutable: false,
-            is_self: false,
             relevance: Default::default(),
         });
     let parameter_handle = syntax_trees.items.append_state_parameter_handle(parameter);

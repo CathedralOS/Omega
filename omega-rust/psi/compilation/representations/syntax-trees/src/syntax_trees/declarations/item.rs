@@ -1452,13 +1452,13 @@ fn proof_fact_source_span_index(handle: Handle<ProofFact>) -> usize {
 /// occurrence's `[erased]` marker (contracts.md#explicit-erased-bindings):
 /// an erased parameter stays in checking, contracts, and semantic identity
 /// but owns no runtime storage, transfer, or read.
+/// Every parameter is explicit; carrier qualification creates no receiver row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateParameterNode {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub is_const: bool,
     pub is_mutable: bool,
-    pub is_self: bool,
     pub relevance: language_core::BindingRelevance,
 }
 

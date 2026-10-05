@@ -180,7 +180,7 @@ pub fn project_build_entry_syntax(
     };
     let builder_parameter = *builder_parameter;
     let builder = syntax_trees.items.state_parameter(builder_parameter);
-    if builder.name.as_str() != BUILDER_PARAMETER_NAME || builder.is_const || builder.is_self {
+    if builder.name.as_str() != BUILDER_PARAMETER_NAME || builder.is_const {
         return Err(BuildDeclarationError::InvalidBuildParameter);
     }
     let TypeReferenceNode::Reference {

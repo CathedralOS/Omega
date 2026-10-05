@@ -100,7 +100,7 @@ pub(crate) fn lower_state_body(
     })
 }
 
-/// Signatures and statements read the same declared parameter/receiver scope.
+/// Signatures and statements read the same declared parameter scope.
 /// Restore the previous scope on both success and failure; completing one state
 /// must not change how a later state's body or generated continuation is lowered.
 fn with_state_scope<T>(
@@ -132,12 +132,11 @@ fn with_state_scope<T>(
         .map(|parameter| parameter.name.as_str().to_string())
         .collect();
     // The scalar-computation classification of transition values reads the
-    // enclosing state's parameter, receiver and return shapes.
+    // enclosing state's parameter and return shapes.
     let parameters = lowerer
         .symbol_resolved_trees
         .state_parameters(state.parameters)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
             (
                 parameter.name.as_str().to_string(),
@@ -146,12 +145,6 @@ fn with_state_scope<T>(
             )
         })
         .collect();
-    let receiver = lowerer
-        .symbol_resolved_trees
-        .state_parameters(state.parameters)
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .cloned();
     let previous_references = std::mem::replace(
         &mut lowerer.reference_struct_parameters,
         reference_parameters,
@@ -159,7 +152,6 @@ fn with_state_scope<T>(
     let previous_names =
         std::mem::replace(&mut lowerer.current_state_parameter_names, parameter_names);
     let previous_parameters = std::mem::replace(&mut lowerer.current_state_parameters, parameters);
-    let previous_receiver = std::mem::replace(&mut lowerer.current_state_self_parameter, receiver);
     let previous_return = std::mem::replace(
         &mut lowerer.current_state_return_type,
         state.return_type.clone(),
@@ -169,7 +161,6 @@ fn with_state_scope<T>(
     lowerer.reference_struct_parameters = previous_references;
     lowerer.current_state_parameter_names = previous_names;
     lowerer.current_state_parameters = previous_parameters;
-    lowerer.current_state_self_parameter = previous_receiver;
     lowerer.current_state_return_type = previous_return;
     result
 }
@@ -691,7 +682,6 @@ pub(crate) fn lower_state_parameter(
         )?,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
-        is_self: parameter.is_self,
         relevance: parameter.relevance,
     })
 }

@@ -1,6 +1,6 @@
 //! Expected types from calls, returns and receiver paths.
 use super::super::{
-    DataMember, ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item,
+    ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item,
     StatementNode, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
@@ -15,11 +15,9 @@ use crate::preparation::declaration_selection;
 /// Closed callable signatures provide exact contextual types without inferring
 /// from literal fields. Free-machine overloads and concrete attached-machine
 /// overloads each contribute a context only when every same-name candidate on
-/// the exact owner agrees on one parameter signature. A direct `self.method`
-/// statement call has that exact owner from the enclosing attached machine. An
-/// explicitly typed local receiver or direct `self.field` receiver also names
-/// one exact nominal owner. Computed, chained, and dynamic receiver selection
-/// remains resolver-owned and fail closed here.
+/// the exact owner agrees on one parameter signature. An explicitly typed
+/// binding receiver names one exact nominal owner. Computed, chained, and
+/// dynamic receiver selection remains resolver-owned and fails closed here.
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_calls_and_returns(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
@@ -44,9 +42,12 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
             .items
             .state_parameters(syntax.tables.items.state(*entry).parameters)
             .iter()
-            .filter_map(|parameter| {
-                let parameter = syntax.tables.items.state_parameter(*parameter);
-                (!parameter.is_self).then_some(parameter.type_reference)
+            .map(|parameter| {
+                syntax
+                    .tables
+                    .items
+                    .state_parameter(*parameter)
+                    .type_reference
             })
             .collect::<Vec<_>>();
         let (signature_map, name) = if let Some(attached) = machine.attached_data.as_ref() {
@@ -100,20 +101,18 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                 .items
                 .state_handles(machine.states)
                 .iter()
-                .map(|state| (*state, machine.attached_data.clone()))
+                .copied()
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    for (state_handle, attached_data) in concrete_states {
+    for state_handle in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
         let statements = syntax.tables.items.statements(state.statements).to_vec();
         let final_statement = statements.last().copied();
         let mut local_owner_types = HashMap::<String, String>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
             let parameter = syntax.tables.items.state_parameter(*parameter);
-            if !parameter.is_self
-                && let Some(type_name) = named_type_name(syntax, parameter.type_reference)
-            {
+            if let Some(type_name) = named_type_name(syntax, parameter.type_reference) {
                 local_owner_types.insert(parameter.name.as_str().to_owned(), type_name);
             }
         }
@@ -124,29 +123,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                 local_owner_types.insert(local.name.as_str().to_owned(), type_name);
             }
         }
-        let self_field_owner_types = attached_data
-            .as_ref()
-            .and_then(|attached| {
-                syntax.root_items().find_map(|item| match item {
-                    Item::Data(definition) if definition.name == *attached => Some(
-                        syntax
-                            .tables
-                            .items
-                            .data_members(definition.members)
-                            .iter()
-                            .filter_map(|member| match member {
-                                DataMember::Field(field) => {
-                                    named_type_name(syntax, field.type_reference)
-                                        .map(|owner| (field.name.as_str().to_owned(), owner))
-                                }
-                                DataMember::Variant(_) | DataMember::Retired(_) => None,
-                            })
-                            .collect::<HashMap<_, _>>(),
-                    ),
-                    _ => None,
-                })
-            })
-            .unwrap_or_default();
         for (index, statement) in statements.iter().enumerate() {
             let frontier = ConstructorFrontier {
                 parameters: state.parameters,
@@ -162,14 +138,10 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                     ExpressionNode::Call(call) if !call.receiver.is_valid() => {
                         Some((call.target.clone(), call.arguments, None))
                     }
-                    ExpressionNode::Call(call) => exact_expression_receiver_owner(
-                        syntax,
-                        call.receiver,
-                        attached_data.as_deref(),
-                        &local_owner_types,
-                        &self_field_owner_types,
-                    )
-                    .map(|owner| (call.target.clone(), call.arguments, Some(owner))),
+                    ExpressionNode::Call(call) => {
+                        exact_expression_receiver_owner(syntax, call.receiver, &local_owner_types)
+                            .map(|owner| (call.target.clone(), call.arguments, Some(owner)))
+                    }
                     _ => None,
                 })
                 .collect::<Vec<_>>();
@@ -208,14 +180,8 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
                     );
                 }
                 StatementNode::Call(call) => {
-                    let owner = exact_statement_receiver_owner(
-                        syntax,
-                        call.receiver,
-                        call.receiver_starts_at_self,
-                        attached_data.as_deref(),
-                        &local_owner_types,
-                        &self_field_owner_types,
-                    );
+                    let owner =
+                        exact_statement_receiver_owner(syntax, call.receiver, &local_owner_types);
                     let parameters = if call.receiver.is_empty() {
                         signatures.get(call.target.as_str())
                     } else {
@@ -271,16 +237,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
 pub(in crate::preparation::generic_data) fn exact_statement_receiver_owner(
     syntax: &SyntaxTrees,
     receiver: HandleSpan<Identifier>,
-    starts_at_self: bool,
-    attached_data: Option<&str>,
     local_owner_types: &HashMap<String, String>,
-    self_field_owner_types: &HashMap<String, String>,
 ) -> Option<String> {
     let members = syntax.tables.statements.identifier_path_members(receiver);
     match members {
-        [_] if starts_at_self => attached_data.map(str::to_owned),
-        [local] if !starts_at_self => local_owner_types.get(local.as_str()).cloned(),
-        [_, field] if starts_at_self => self_field_owner_types.get(field.as_str()).cloned(),
+        [local] => local_owner_types.get(local.as_str()).cloned(),
         _ => None,
     }
 }
@@ -288,25 +249,14 @@ pub(in crate::preparation::generic_data) fn exact_statement_receiver_owner(
 pub(in crate::preparation::generic_data) fn exact_expression_receiver_owner(
     syntax: &SyntaxTrees,
     receiver: ExpressionHandle,
-    attached_data: Option<&str>,
     local_owner_types: &HashMap<String, String>,
-    self_field_owner_types: &HashMap<String, String>,
 ) -> Option<String> {
     match syntax.expressions.expression(receiver) {
-        ExpressionNode::SelfValue => attached_data.map(str::to_owned),
         ExpressionNode::Name(path) => {
             let [local] = syntax.expressions.identifier_path_members(*path) else {
                 return None;
             };
             local_owner_types.get(local.as_str()).cloned()
-        }
-        ExpressionNode::Member(member)
-            if matches!(
-                syntax.expressions.expression(member.receiver),
-                ExpressionNode::SelfValue
-            ) =>
-        {
-            self_field_owner_types.get(member.member.as_str()).cloned()
         }
         _ => None,
     }

@@ -1170,7 +1170,6 @@ fn exact_flat_trait_requirement(
                     && source.symbols.get(value.symbol).kind == symbols::SymbolKind::Parameter
                     && source.symbols.get(value.symbol).parent == requirement.symbol
                     && source.symbols.name(value.symbol) == value.name.as_str()
-                    && !value.is_self
                     && plain_type_is_supported(
                         source,
                         data_frontier,
@@ -1371,7 +1370,6 @@ fn exact_extension_structural_machine_parameter(
                     && source.symbols.get(value.symbol).kind == symbols::SymbolKind::Parameter
                     && source.symbols.get(value.symbol).parent == parameter.symbol
                     && source.symbols.name(value.symbol) == value.name.as_str()
-                    && !value.is_self
                     && plain_type_is_supported(
                         source,
                         data_frontier,

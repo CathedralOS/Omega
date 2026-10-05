@@ -155,8 +155,8 @@ helper that passes does not close an item.
     `Build::require_wire_compatibility`. Do not restore
     implicit builder insertion.
   - Compiler remainder: receiver-specific signatures, lookup, argument
-    insertion, state carry and evidence flags remain (`is_self` in stages
-    02-07, checking, Terminal Psi, Omega stages and review evidence). Replace
+    insertion, state carry and evidence flags remain (`is_self` from typed
+    trees onward, checking, Terminal Psi, Omega stages and review evidence). Replace
     them with ordinary parameter identities through both producers, the
     interpreters and native lowering, and delete the retired paths. Keep
     unrelated receiver-side artifact admission and mathematical subject

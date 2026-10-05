@@ -304,7 +304,6 @@ fn requirement_authorizes_domain_subject(
             && program
                 .state_parameters(requirement.parameters)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .any(|parameter| {
                     type_reference_domain_symbols(program, &parameter.type_reference)
                         .contains(&domain_symbol)
@@ -518,8 +517,7 @@ fn ensured_mutable_parameter_domain_symbols(
                     .state_parameters(requirement.parameters)
                     .iter()
                     .any(|parameter| {
-                        !parameter.is_self
-                            && mutable_reference_parameter(program, &parameter.type_reference)
+                        mutable_reference_parameter(program, &parameter.type_reference)
                             && (parameter.name.as_str() == name.as_str()
                                 || parameter.symbol == path.symbol
                                 || parameter.symbol == path.head_symbol)

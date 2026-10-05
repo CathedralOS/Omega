@@ -685,7 +685,7 @@ fn elaborate_single_subject_default(
     let Some(parameter) = trees
         .state_parameters(root_state.parameters)
         .iter()
-        .find(|parameter| !parameter.is_self && parameter.name.as_str() == subject_name.as_str())
+        .find(|parameter| parameter.name.as_str() == subject_name.as_str())
     else {
         return pending;
     };

@@ -135,14 +135,7 @@ fn assign_machine_references(
             .first()
             .map(|entry| {
                 let entry = machine_states.get(*entry);
-                (
-                    entry.symbol,
-                    state_parameters
-                        .span_or_empty(entry.parameters)
-                        .iter()
-                        .any(|parameter| parameter.is_self),
-                    entry.return_type.clone(),
-                )
+                (entry.symbol, entry.return_type.clone())
             });
         for state_handle in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state_handle);
@@ -244,17 +237,13 @@ fn assign_machine_references(
             // normalize when the full resolved result declarations agree.
             // Child handles/constraints remain part of equality: uncertain
             // equivalence keeps the original call for ordinary checking.
-            if let Some((entry_symbol, entry_has_self, ref entry_return_type)) = entry
+            if let Some((entry_symbol, ref entry_return_type)) = entry
                 && state.return_type == *entry_return_type
             {
-                tail_calls::normalize_self_tail_calls(
+                tail_calls::normalize_recursive_tail_calls(
                     &machine_scope,
                     symbols,
                     entry_symbol,
-                    entry_has_self,
-                    parameters
-                        .iter()
-                        .any(|parameter| parameter.is_self && parameter.symbol.is_valid()),
                     expression_table,
                     statement_path_members,
                     statements,

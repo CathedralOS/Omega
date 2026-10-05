@@ -85,6 +85,8 @@ impl DerefMut for StateSignature {
     }
 }
 
+/// A named parameter with ordinary declared type and binding modes. Machine
+/// qualification does not insert or distinguish an implicit receiver.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
@@ -92,7 +94,6 @@ pub struct StateParameter {
     pub type_reference: TypeReference,
     pub is_const: bool,
     pub is_mutable: bool,
-    pub is_self: bool,
     /// Authored `[erased]` on the binding occurrence -- see the syntax twin.
     pub relevance: language_core::BindingRelevance,
 }
@@ -105,7 +106,6 @@ impl Default for StateParameter {
             type_reference: TypeReference::Unit,
             is_const: false,
             is_mutable: false,
-            is_self: false,
             relevance: language_core::BindingRelevance::Relevant,
         }
     }

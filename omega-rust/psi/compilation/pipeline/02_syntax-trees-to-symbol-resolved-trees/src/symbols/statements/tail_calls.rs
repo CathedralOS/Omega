@@ -1,4 +1,4 @@
-//! Exact self-tail calls become the same state backedge as an authored jump.
+//! Exact recursive tail calls become the same state backedge as an authored jump.
 //!
 //! This runs after reference resolution: a namespace is not a runtime receiver,
 //! and a same-spelled machine is not the current entry. Ranking governs progress,
@@ -17,12 +17,10 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::scope::MachineScope;
 
-pub(super) fn normalize_self_tail_calls(
+pub(super) fn normalize_recursive_tail_calls(
     machine: &MachineScope<'_>,
     symbols: &SymbolTable,
     entry_symbol: SymbolHandle,
-    entry_has_self: bool,
-    state_has_self: bool,
     expressions: &ExpressionTable,
     path_members: &mut Arena<DiagnosticName>,
     statements: &mut [Statement],
@@ -31,12 +29,10 @@ pub(super) fn normalize_self_tail_calls(
     for (index, statement) in statements.iter_mut().enumerate() {
         match statement {
             Statement::Expression(expression) if Some(index) == last_index => {
-                if let Some(target) = self_tail_target(
+                if let Some(target) = recursive_tail_target(
                     machine,
                     symbols,
                     entry_symbol,
-                    entry_has_self,
-                    state_has_self,
                     expressions,
                     path_members,
                     *expression,
@@ -57,12 +53,10 @@ pub(super) fn normalize_self_tail_calls(
                     .chain(transition.continuation.iter_mut())
                 {
                     if let TransitionTarget::Value(expression) = target
-                        && let Some(named) = self_tail_target(
+                        && let Some(named) = recursive_tail_target(
                             machine,
                             symbols,
                             entry_symbol,
-                            entry_has_self,
-                            state_has_self,
                             expressions,
                             path_members,
                             *expression,
@@ -77,12 +71,10 @@ pub(super) fn normalize_self_tail_calls(
     }
 }
 
-fn self_tail_target(
+fn recursive_tail_target(
     machine: &MachineScope<'_>,
     symbols: &SymbolTable,
     entry_symbol: SymbolHandle,
-    entry_has_self: bool,
-    state_has_self: bool,
     expressions: &ExpressionTable,
     path_members: &mut Arena<DiagnosticName>,
     expression: ExpressionHandle,
@@ -120,22 +112,13 @@ fn self_tail_target(
     {
         return None;
     }
-    // A declaration-qualified static call has no receiver value to transport.
-    // An actual receiver must be this activation's exact self; never turn a
-    // call on another instance into a jump that silently retains this one.
-    let receiver_matches = if !call.receiver.is_valid() {
-        !entry_has_self
-    } else if let ExpressionNode::Name(receiver) = expressions.expression(call.receiver) {
-        if entry_has_self {
-            state_has_self && receiver.is_self_value && receiver.symbol == machine.symbol
-        } else {
-            machine.attached_data_symbol.is_valid()
-                && receiver.symbol == machine.attached_data_symbol
-        }
-    } else {
-        false
-    };
-    if !receiver_matches {
+    // A declaration qualifier transports no value. Runtime binding dispatch
+    // remains an ordinary call; a backedge carries only its explicit arguments.
+    if call.receiver.is_valid()
+        && !matches!(expressions.expression(call.receiver), ExpressionNode::Name(receiver)
+            if machine.attached_data_symbol.is_valid()
+                && receiver.symbol == machine.attached_data_symbol)
+    {
         return None;
     }
     let mut path = HandleSpan::empty();

@@ -339,7 +339,6 @@ fn invoked_service_ids(
     for invocation in invokes {
         let service = parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .find(|parameter| parameter.name.as_str() == invocation.as_str())
             .and_then(|parameter| type_symbol(program, &parameter.type_reference))
             .and_then(|symbol| services.id_for_symbol(symbol))

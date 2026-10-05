@@ -263,8 +263,7 @@ pub(crate) fn is_scalar_computation_state(lowerer: &Lowerer) -> bool {
         // probes and loses the authored expression before typed evaluation.
         type_reference.primitive_type().is_some()
     };
-    lowerer.current_state_self_parameter.is_none()
-        && lowerer
+    lowerer
             .current_state_return_type
             .as_ref()
             .is_some_and(scalar_type)

@@ -64,7 +64,7 @@ fn lower_measure_parameter(
         type_reference,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
-        is_self: parameter.is_self,
+        is_self: false,
         relevance: parameter.relevance,
     })
 }
