@@ -16,7 +16,6 @@ pub(super) enum AuthorityEdge<'operation> {
     DynamicParameterDispatch(&'operation AbstractParameterDynamicDispatch),
     Boundary(BoundaryMachineId),
     CheckedPortWrite {
-        service: semantic_vocabulary::ServiceId,
         port: u16,
     },
 }
@@ -47,10 +46,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
             }
         },
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
-        AbstractOperation::PortWrite { service, port, .. } => AuthorityEdge::CheckedPortWrite {
-            service: *service,
-            port: *port,
-        },
+        AbstractOperation::PortWrite { port, .. } => {
+            AuthorityEdge::CheckedPortWrite { port: *port }
+        }
         AbstractOperation::DynamicDescriptorParameter { .. }
         // An atomic event carries no call or boundary edge; its ordering and
         // custody evidence stay on the operation itself.

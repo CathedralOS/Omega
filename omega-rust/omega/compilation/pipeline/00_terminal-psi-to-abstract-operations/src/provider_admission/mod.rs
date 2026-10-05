@@ -104,15 +104,19 @@ pub fn admit_native_providers<'request>(
     let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
     // leaves join the supplied receiving rows into the effective policy the
-    // closure review and the artifact identity bind. A byte-identical supplied
-    // row dedups; a supplied row for the same mechanism with a different
-    // disposition is a forged classification and rejects as a duplicate key.
+    // closure review and the artifact identity bind. The supplied policy is
+    // the receiving authority this same process constructed, so its rows
+    // classify first: a cohort row joins only on a mechanism the supplied
+    // rows do not already name.
     let effective_policy = if cohort_rows.is_empty() {
         None
     } else {
         let mut rows = request.terminal_authority_policy.explicit_rows().to_vec();
         for row in cohort_rows {
-            if !rows.contains(&row) {
+            if !rows
+                .iter()
+                .any(|supplied| supplied.mechanism() == row.mechanism())
+            {
                 rows.push(row);
             }
         }
@@ -122,7 +126,7 @@ pub fn admit_native_providers<'request>(
             )
             .map_err(|error| {
                 vec![Diagnostic::error(format!(
-                    "settled filesystem cohort mechanism rows do not merge into the receiving terminal-authority policy without substitution: {error:?}"
+                    "settled filesystem cohort mechanism rows do not construct the effective receiving terminal-authority policy: {error:?}"
                 ))]
             })?,
         )

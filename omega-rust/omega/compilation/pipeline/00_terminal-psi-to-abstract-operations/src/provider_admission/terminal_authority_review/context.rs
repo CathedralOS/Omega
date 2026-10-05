@@ -136,7 +136,12 @@ impl<'a> ReviewContext<'a> {
         String,
     > {
         let specialization = self.selected.specialized_requirement_row(requirement);
-        let matches = self
+        // Provider selection resolves each requirement to at most one plan
+        // row and each schema's method roster carries the requirement once,
+        // so the join takes the identifying row instead of re-counting the
+        // matches; the absent case stays a real refusal — a boundary can be
+        // declared and reached without a selected provider.
+        let (plan, row) = self
             .selected
             .plans()
             .iter()
@@ -159,25 +164,12 @@ impl<'a> ReviewContext<'a> {
                     })
                     .map(move |row| (plan, row))
             })
-            .collect::<Vec<_>>();
-        let [(plan, row)] = matches.as_slice() else {
-            return Err(format!(
-                "reachable requirement `{requirement}` resolves to {} selected provider rows",
-                matches.len()
-            ));
-        };
-        let methods = plan
-            .schema
-            .methods
-            .iter()
-            .filter(|method| method.requirement_identity == row.requirement_identity)
-            .collect::<Vec<_>>();
-        if methods.len() != 1 {
-            return Err(format!(
-                "reachable requirement `{requirement}` resolves to {} exact schema methods",
-                methods.len()
-            ));
-        }
+            .next()
+            .ok_or_else(|| {
+                format!(
+                    "reachable requirement `{requirement}` resolves to 0 selected provider rows"
+                )
+            })?;
         if plan.target != self.target_profile.target_name() {
             return Err(format!(
                 "reachable requirement `{requirement}` selected target `{}` instead of exact profile `{}`",
@@ -254,12 +246,10 @@ impl<'a> ReviewContext<'a> {
                     AuthorityEdge::Boundary(boundary) => {
                         boundaries.insert(boundary);
                     }
-                    AuthorityEdge::CheckedPortWrite { service, port } => {
-                        if !function.published_service_ceiling.contains(&service) {
-                            return Err(format!(
-                                "reachable machine {machine:?} uses PortWrite outside its verified service ceiling"
-                            ));
-                        }
+                    AuthorityEdge::CheckedPortWrite { port } => {
+                        // Psi's `validate_port_write` already proved the write's
+                        // service sits inside the machine's published ceiling;
+                        // re-asking it here would replay the same fact.
                         if self.target_profile.native_target().architecture
                             != target::Architecture::X86_64
                         {

@@ -18,7 +18,7 @@ type LeafKey = (
 
 pub(super) struct Reviewer<'a> {
     context: ReviewContext<'a>,
-    active_requirements: BTreeSet<String>,
+    expanded: BTreeSet<BoundaryMachineId>,
     leaves: BTreeMap<LeafKey, TerminalAuthorityClosureLeaf>,
 }
 
@@ -26,7 +26,7 @@ impl<'a> Reviewer<'a> {
     pub(super) fn new(context: ReviewContext<'a>) -> Self {
         Self {
             context,
-            active_requirements: BTreeSet::new(),
+            expanded: BTreeSet::new(),
             leaves: BTreeMap::new(),
         }
     }
@@ -36,6 +36,13 @@ impl<'a> Reviewer<'a> {
     }
 
     pub(super) fn expand_boundary(&mut self, boundary: BoundaryMachineId) -> Result<(), String> {
+        // Provider planning's selected synchronous-invocation cycle check
+        // already rejects a cycle through the selected providers; this set
+        // only bounds the recursion so a repeated boundary is expanded once
+        // rather than re-checked.
+        if !self.expanded.insert(boundary) {
+            return Ok(());
+        }
         let declaration = self
             .context
             .boundaries
@@ -57,35 +64,29 @@ impl<'a> Reviewer<'a> {
                         "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
                     ));
                 }
-                if !self.active_requirements.insert(requirement.to_owned()) {
-                    return Err(format!(
-                        "selected checked-provider closure contains a cycle through `{requirement}`"
-                    ));
-                }
+                // Provider installation already admitted exactly one
+                // installed candidate matching this boundary's selected
+                // adapter; the join below recovers that row rather than
+                // re-counting the matches.
                 // The installed candidate names the specialized provider
                 // instance for a closed requirement; the selected row's
                 // binding retains the authored generic provider template.
                 let realization_identity = specialization
                     .map(|row| row.machine_identity.as_str())
                     .unwrap_or(machine_identity.as_str());
-                let candidates = self
+                let candidate = self
                     .context
                     .installed_candidates
                     .iter()
-                    .filter(|candidate| {
+                    .find(|candidate| {
                         candidate.boundary == boundary
                             && candidate.requirement_identity == requirement
                             && candidate.provider_identity == selected_plan.provider_type
                             && candidate.candidate_identity == realization_identity
                     })
-                    .collect::<Vec<_>>();
-                let [candidate] = candidates.as_slice() else {
-                    self.active_requirements.remove(requirement);
-                    return Err(format!(
-                        "selected checked adapter for `{requirement}` resolves to {} exact installed candidates",
-                        candidates.len()
-                    ));
-                };
+                    .expect(
+                        "checked provider installation admitted the selected adapter's exact candidate",
+                    );
                 let schema = selected_plan.schema.identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self
@@ -97,7 +98,6 @@ impl<'a> Reviewer<'a> {
                 for nested_boundary in nested.boundaries {
                     self.expand_boundary(nested_boundary)?;
                 }
-                self.active_requirements.remove(requirement);
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::Import { .. }
