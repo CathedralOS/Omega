@@ -1622,11 +1622,35 @@ crash and native exit behavior.
     captured before lowering (`33d5557dc4f`). `terminal_report`,
     `native_report`, `check_report`, `CompileReport::verify_native_source_metadata`
     and the CLI's hand-derived Check rollback predicate are deleted. What
-    remains is coverage: **artifact-only admission has no end-to-end
-    exercise** — no fixture or sample declares `Build::artifact_only`, so only
-    `build-declarations`' three declaration tests touch that shape. A fixture
-    needs a build machine that completes an output file under a restricted
-    grant.
+    remains is coverage. Artifact-only admission is now authorable and verified
+    through the CLI, but has **no corpus exercise**. `d37ea22ec59` repaired the
+    prerequisite nobody knew was broken: `BuildOutput::require`/`complete`/`fail`
+    and `RequiredOutput::path` selected by RECEIVER SHAPE and became silently
+    unreachable when the receiver-to-explicit-argument migration retired that
+    spelling, so `Build::artifact_only` could never complete a required output
+    and nothing diagnosed the loss. Proof rather than inference: two `require`
+    calls reserving the same name, which the evaluator rejects as a collision,
+    compiled clean before the repair and reject after it. The four entrypoints
+    now read their facet from the first argument, the shape `try_build_path_call`
+    and the three `BuildProduct` queries already used -- which is why
+    `resolve`/`create`/`write`/`close`/`include_source` survived the migration
+    and the obligation family did not. The receiver route and `output_facet_root`
+    are deleted.
+
+    Three witnesses sit in `tests/omega/pending/build/artifact_only_*`, a tier
+    the runner does not walk, each with a README recording its exact diagnostic
+    and bounding variant. They cannot move into `pass`/`fail` until the harness
+    can bind a fixture root with canonical Source metadata -- see
+    **CORPUS-SEALED-SOURCE-STAGING**. Note also that an `OptimizationRollback`
+    cannot be authored in Omega at all: the only two non-test construction sites
+    are the CLI's `--disable-optimization <ExactName>` and the corpus runner's
+    `rollback.txt` sidecar, which 15 fixtures already use.
+
+    Correction for whoever picks this up: there is **no**
+    `RequestedCompileProduct::ArtifactOnly`. That enum has exactly `Check`,
+    `TerminalArtifact` and `NativeArtifact`; `artifact_only` is a `bool` on
+    `EvaluatedBuild` selecting `CompileOutputKind::BuildArtifacts` inside
+    `admit_build_requirements`, and the spec adds no fourth project role.
   - `admit_terminal_production` and `terminal_native_proposal_request` stay
     where they are: the first is the single pre-production head every
     Terminal-producing route enters, including the package route whose
@@ -1656,6 +1680,59 @@ crash and native exit behavior.
   Acceptance: an [artifact-only](wiki/spec/build/scoped_execution.md) corpus
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
+
+- **CORPUS-SEALED-SOURCE-STAGING.** (new-scope) The corpus runner cannot host
+  any build machine that reaches the build filesystem, so `BuildSource` and
+  `BuildOutput` have **zero** authored exercise corpus-wide -- no `.omg` file
+  anywhere used `BuildOutput`, `BuildSource`, `builder.output` or
+  `builder.source` before `d37ea22ec59`. Three verified layers:
+  `omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs`
+  binds the root package straight to the working-tree directory and captures no
+  canonical Source metadata, so a fixture with a project declaration (which
+  forces package mode) records `rejected` with "package-aware build filesystem
+  access requires compiler-validated canonical Source metadata"; adding
+  `PackageSourceBinding::with_canonical_source_metadata()` moves the refusal to
+  "physical Source directory ... has noncanonical mode 0o755; expected 0o555";
+  and `0o555` is what package acquisition leaves on a snapshot, which the
+  harness never creates because it bypasses acquisition. The real CLI runs this
+  source out of `.../local-snapshots/source-<digest>/source/`, which is why it
+  works there.
+
+  Do not weaken either check to pass a test: they exist because package
+  acquisition is a trust boundary. Making the harness produce a genuinely
+  sealed root is in scope; making the compiler accept an unsealed one is not.
+
+  The design question is cost, not permission: staging and sealing a snapshot
+  per fixture relocates every fixture's source root into a temporary directory
+  and churns the repo-relative paths the golden's diagnostic lines carry. Count
+  the affected rows before accepting a mass re-record, and prefer a scheme that
+  preserves the printed paths. Acceptance:
+  `tests/omega/pending/build/artifact_only_required_output_completion` moves to
+  `pass/` with its golden row, and `artifact_only_rollback_overlay_refused` and
+  `artifact_only_unsealed_output_refused` to `fail/` with their `expected.txt`.
+  A measured recommendation NOT to do it, with the row count that decides it,
+  closes this item too.
+
+- **BUILD-FACET-RECEIVER-RESIDUE.** (split-of:COMPILE-REPORT-PRODUCTS)
+  `BuildLog::write_line` and `Build::select_provider` still select by receiver
+  place inside the build dispatchers' `!expression_receiver_is_namespace` /
+  `!statement_receiver_is_namespace` guard -- the exact shape that made the
+  required-output family silently dead until `d37ea22ec59`. A qualified call
+  skips the guarded block entirely and falls through to ordinary static
+  dispatch, executing the prelude's declared body and returning an authored
+  value, while the attached spelling the guard does admit no longer types. So
+  the failure mode is a facet call that compiles and does nothing.
+  `BuildLog::write_line` has no authored customer at all. Acceptance: a program
+  that writes a build log line observes it, or the declaration is removed.
+
+  **Treat this shape as a census, not two sites.** Grep the build dispatchers
+  for every entrypoint still keyed on `call.receiver` being a valid place, and
+  check each against whether its qualified spelling reaches the evaluator.
+  Two Codex `STATIC-MACHINE-MIGRATION` sessions are landing this family by
+  family (`5d467687f50` product entries, `dac9585f443` product descriptions,
+  `b429d3348ca` opaque representations, `87038579ee1` boundaries,
+  `2c482e057d5` wire compatibility, `d37ea22ec59` the `BuildOutput` obligation
+  family), so coordinate rather than duplicate.
 
 ## Lowering simplification
 
