@@ -4587,6 +4587,28 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   `omega-rust/omega/compilation/driver/src/native/native_realization/callback_thunks.rs`,
   machine emission, selected-call ABI transport.
 
+  **A resultless callback cannot carry an ABI record at all**, verified
+  directly rather than inferred: `ScalarFunctionAbi`
+  (`representations/target-operations/src/target_operations/calls/abi.rs:27-31`)
+  declares `result: ScalarAbiValue`, not an `Option`, so there is no
+  representation for a callback entry that returns nothing. A thunk for a
+  resultless procedure therefore refuses at
+  `backend/machine-emission/src/private_callback.rs:82` with "callback thunk
+  emits no scalar ABI for its boundary entry signature", and both the
+  materializer and its signature-drift check read that same mandatory record.
+  Extending this needs a resultless entry in the ABI representation, not a void
+  branch in the materializer.
+
+  Reached while giving `pass/calls/callback_private_materialization`'s
+  `WindowRegistrar::register` a provider; the obvious way around it does not
+  work, since declaring the procedure `-> u64` instead fails two stages earlier
+  in target lowering with `TranslationValidation(StructuralCallArgumentMismatch)`.
+  The provider change that reaches this wall is **not landed and is under
+  review** -- it resolves the schema with a `DllImport::PeByName` naming a
+  library and export that exist nowhere in the repository, justified as a
+  never-called compile-time coordinate, which is a question about what a
+  compile-only fixture may assert rather than an implementation detail.
+
   Acceptance: a Windows x64 corpus program registers a private callback with a
   general body and inbound signature, and the callback executes with the
   authored result. Missing, duplicate, overlapping or incompatible
