@@ -2244,10 +2244,8 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 46769ms check-target:macos_a
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 31196ms check-target:macos_arm64 @835baa6033e
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 15232ms check-target:windows_x86_64 @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, state 0, statement 31)") })
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 19264ms check-target:linux_x86_64 @c5d32a00863
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "x86_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`x86_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, state 0, statement 31)") })
+pass/float/build_runtime_semantics_twins_windows_x64 timeout 120000ms check-target:windows_x86_64 @98ac0f8c4db
+pass/float/build_runtime_semantics_twins_x86_baseline timeout 120000ms check-target:linux_x86_64 @98ac0f8c4db
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463
 pass/float/data_where_float_field_restored_exit checked 2202ms check-target:macos_arm64 @8cb8c462809d+wt

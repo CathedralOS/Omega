@@ -512,11 +512,10 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 37145ms @226c4c4b57b
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 32917ms @226c4c4b57b
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(PrimitiveSnapshotReconstructionLimitExceeded(MachineId(14))))
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 3202ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 3041ms @2d8ed253669f+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "x86_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`x86_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
+pass/float/build_runtime_semantics_twins_windows_x64 timeout 120000ms @98ac0f8c4db
+pass/float/build_runtime_semantics_twins_x86_baseline timeout 120000ms @98ac0f8c4db
 pass/float/builtin_extrema_field_store_exit built 3431ms exit:70 @2d8ed253669f+wt
+pass/float/computed_comparison_literal_landing_exit built 15823ms exit:0 @98ac0f8c4db
 pass/float/f32_arg_const_arith_landed_exit built 2697ms exit:70 @2d8ed253669f+wt
 pass/float/f32_per_operation_rounding_exit built 3224ms exit:77 @2d8ed253669f+wt
 pass/float/finite_core_domain_range_discharge built 3073ms exit:77 @9baafc0ace88
