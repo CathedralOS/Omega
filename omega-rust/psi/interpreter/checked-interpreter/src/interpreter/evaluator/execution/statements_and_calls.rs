@@ -556,16 +556,27 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
-        // Other activation facets still require a runtime receiver. A declaration called
-        // `write` or `close` is not a facet merely because its leaf matches;
-        // let ordinary selected-target dispatch handle namespace calls below.
-        if !self.statement_receiver_is_namespace(call) {
-            if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
-                return Ok(value);
-            }
-            if self.try_build_log_write_line_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
+        // Build logging takes the activation's log facet as an explicit
+        // operand, so it is selected here by resolved toolchain identity
+        // beside the other facet families rather than by receiver shape.
+        if self
+            .try_build_log_write_line_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        // Stage 02 retains every admitted provider-selection statement as an
+        // expression, so this entry stays unreached today. It reads the
+        // activation out of its first argument and never needed the receiver
+        // classification that used to gate it.
+        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
+            return Ok(value);
         }
 
         // Host boundary call? (e.g. self.console.exit_process(70))
@@ -618,10 +629,6 @@ impl<'program> Evaluator<'program> {
             .ok_or_else(|| {
                 Halt::Unsupported(format!("call target `{target}` has no resolved state"))
             })
-    }
-
-    fn statement_receiver_is_namespace(&self, call: &TableCall) -> bool {
-        self.is_declaration_namespace(call.receiver_symbol)
     }
 
     /// Declaration namespaces are resolved symbols, not runtime places or

@@ -623,18 +623,20 @@ impl<'program> Evaluator<'program> {
         )? {
             return Ok(value);
         }
-        let target = call.target.as_str();
-        // Build facets act on invocation-owned values, never declaration
-        // namespaces. Probing storage for a qualified user `read`/`resolve`
-        // here would trap before its exact ordinary target can execute. The
-        // same classification keeps the collection builtins and the host
-        // fallback below from reading a qualifier as storage or spelling.
-        let qualified = self.expression_receiver_is_namespace(call.receiver);
-        if !qualified {
-            if let Some(value) = self.try_build_log_write_line_value_call(call, frame)? {
-                return Ok(value);
-            }
+        if let Some(value) = self.try_build_log_write_line_call(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
         }
+        let target = call.target.as_str();
+        // Collection builtins and the host fallback below still classify the
+        // qualifier: probing storage for a qualified user `read`/`resolve`
+        // would trap before its exact ordinary target can execute.
+        let qualified = self.expression_receiver_is_namespace(call.receiver);
         if let Some(request) = &call.private_layout_operation {
             let arguments = self
                 .program

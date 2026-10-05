@@ -6,7 +6,7 @@
 //! accounting owner, so nested calls retain call-start order and live buffers.
 use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
-    SymbolHandle, TableCall, Value,
+    SymbolHandle, Value,
 };
 use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
@@ -303,31 +303,6 @@ impl<'program> Evaluator<'program> {
                 self.filesystem_operation_attempts.len(),
             ));
         Ok(Value::Unit)
-    }
-
-    pub(in crate::interpreter::evaluator) fn statement_receiver_cell(
-        &self,
-        call: &TableCall,
-        frame: &Frame,
-    ) -> EvalResult<Option<Cell>> {
-        let members = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver);
-        let Some((_, rest)) = members.split_first() else {
-            return Ok(None);
-        };
-        let Some(mut cell) = frame.local_cell(call.receiver_root_symbol) else {
-            return Ok(None);
-        };
-        for member in rest {
-            cell = self.deref_cell(cell);
-            cell = match self.field_cell(&cell, member.as_str()) {
-                Ok(field) => field,
-                Err(_) => return Ok(None),
-            };
-        }
-        Ok(Some(self.deref_cell(cell)))
     }
 
     pub(in crate::interpreter::evaluator) fn exact_build_facet_method(

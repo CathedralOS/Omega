@@ -282,6 +282,8 @@ fail/build/boundary_acceptance_fabricated_activation rejected 877ms expected @b4
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/build_effects_undeclared rejected 97ms expected @d491b0cca867+wt
 	`build` reaches boundary service `Console` -- build.omg may not reach runtime boundary services; use the compiler-owned Build facets
+fail/build/build_log_counterfeit_facet_refused rejected 781ms expected @d116b779c674
+	build-time evaluation of `build` failed: build logging requires the activation's compiler-issued BuildLog facet
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/crash_exclusion_trapping_provider rejected 2041ms expected @5c302dd6d305

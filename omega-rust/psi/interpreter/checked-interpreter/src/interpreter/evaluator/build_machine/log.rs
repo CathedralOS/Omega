@@ -1,71 +1,46 @@
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+    EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
 use language_semantics::declaration_selection::BuildOperation;
 const BUILD_LOG_FACET_TYPE: &str = "$OmegaBuildLogFacet";
 
 impl<'program> Evaluator<'program> {
-    pub(in crate::interpreter::evaluator) fn try_build_log_write_line_value_call(
+    /// `BuildLog::write_line(&mut builder.log, text)` carries the activation's
+    /// log facet as its first explicit operand, the shape every other Build
+    /// facet family already uses. Selection is the resolved prelude
+    /// `(attached data, state)` pair, so an ordinary user machine spelled
+    /// `write_line` never acquires build logging, and no spelling depends on a
+    /// receiver place.
+    pub(in crate::interpreter::evaluator) fn try_build_log_write_line_call(
         &mut self,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::LogWriteLine)
-            || !call.receiver.is_valid()
+        if self.build_prelude_facet_method(target)
+            != Some(("BuildLog", BuildOperation::LogWriteLine.authored_spelling()))
         {
             return Ok(None);
         }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        self.try_write_build_log_line(receiver, call.target_symbol, arguments, frame)
-            .map(|handled| handled.then_some(Value::Unit))
-    }
-
-    pub(in crate::interpreter::evaluator) fn try_build_log_write_line_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::LogWriteLine)
-            || call.receiver.is_empty()
-        {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
+        let Some((facet, operands)) = arguments.split_first() else {
+            return Err(Halt::Trap(
+                "build logging has no explicit activation facet".to_owned(),
+            ));
         };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        self.try_write_build_log_line(receiver, call.target_symbol, arguments, frame)
-    }
-
-    fn try_write_build_log_line(
-        &mut self,
-        receiver: Cell,
-        target_symbol: SymbolHandle,
-        arguments: &[ExpressionHandle],
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        let receiver = self.deref_cell(receiver);
+        // Validate the compiler-issued facet before evaluating the text: only
+        // the activation's own log slot grants retained build logging, and an
+        // authored `BuildLog {}` has the same static shape with no slot.
+        let facet = self.eval_argument(*facet, frame)?;
+        let facet = self.deref_cell(facet);
         if !matches!(
-            &*receiver.borrow(),
+            &*facet.borrow(),
             Value::Struct { type_name, .. } if **type_name == *BUILD_LOG_FACET_TYPE
         ) {
-            return Ok(false);
-        }
-        if !self.exact_build_log_write_line(target_symbol) {
             return Err(Halt::Trap(
-                "build logging did not select the exact toolchain machine".to_owned(),
+                "build logging requires the activation's compiler-issued BuildLog facet".to_owned(),
             ));
         }
-        let [text] = arguments else {
+        let [text] = operands else {
             return Err(Halt::Trap(
                 "build logging requires one byte-string argument".to_owned(),
             ));
@@ -99,21 +74,6 @@ impl<'program> Evaluator<'program> {
             .map_err(|_| Halt::Resource("build log allocation was refused".to_owned()))?;
         self.build_log.extend_from_slice(&bytes);
         self.build_log.push(b'\n');
-        Ok(true)
-    }
-
-    fn exact_build_log_write_line(&self, target_symbol: SymbolHandle) -> bool {
-        self.program.machines().iter().any(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|attached| attached.as_str() == "BuildLog")
-                && self.symbol_has_build_prelude_source(machine.symbol)
-                && self.program.machine_states(machine).iter().any(|state| {
-                    state.name.as_str() == BuildOperation::LogWriteLine.authored_spelling()
-                        && self.symbol_has_build_prelude_source(state.symbol)
-                        && (!target_symbol.is_valid() || state.symbol == target_symbol)
-                })
-        })
+        Ok(Some(Value::Unit))
     }
 }

@@ -2290,26 +2290,42 @@ crash and native exit behavior.
   Sequencing: `corpus_runner.rs` and the shared golden are also the surface of
   **CORPUS-SEALED-SOURCE-STAGING**, so the two coordinate rather than race.
 
-- **BUILD-FACET-RECEIVER-RESIDUE.** (split-of:COMPILE-REPORT-PRODUCTS)
-  `BuildLog::write_line` and `Build::select_provider` still select by receiver
-  place inside the build dispatchers' `!expression_receiver_is_namespace` /
-  `!statement_receiver_is_namespace` guard -- the exact shape that made the
-  required-output family silently dead until `d37ea22ec59`. A qualified call
-  skips the guarded block entirely and falls through to ordinary static
-  dispatch, executing the prelude's declared body and returning an authored
-  value, while the attached spelling the guard does admit no longer types. So
-  the failure mode is a facet call that compiles and does nothing.
-  `BuildLog::write_line` has no authored customer at all. Acceptance: a program
-  that writes a build log line observes it, or the declaration is removed.
+- **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
+  The receiver-keyed build-facet census is closed. `BuildLog::write_line` was
+  the last entrypoint selected by receiver place; it now reads its facet from
+  the first explicit operand, and `fail/build/build_log_counterfeit_facet_refused`
+  pins that the call reaches the evaluator at all. Three selection records the
+  census found are dead rather than broken, and none can be removed inside the
+  Psi evaluator alone. `try_provider_selection_statement` is unreachable --
+  stage 02 retains every admitted `select_provider` statement as an expression,
+  and checking refuses the one spelling that would stay a statement with
+  "qualified call `select_provider` has no resolved callable declaration" -- so
+  nothing constructs `ExecutedProviderSelectionSite::Statement`, and deleting
+  that variant reaches `provider-planning/src/provider_declarations.rs` across
+  the firewall. Stage 04's `BuildOperationForm::PreludeDataReceiver` still
+  classifies four operations by receiver and none of the four needs it:
+  `LogWriteLine` and `IncludedSourceHandoff` are selected by resolved prelude
+  identity, and `OptimizationSelection`/`OptimizationReportRequest` have no
+  prelude machine declaration to resolve. Acceptance: no build operation is
+  classified by receiver shape, and no unconstructed executed-selection variant
+  survives.
 
-  **Treat this shape as a census, not two sites.** Grep the build dispatchers
-  for every entrypoint still keyed on `call.receiver` being a valid place, and
-  check each against whether its qualified spelling reaches the evaluator.
-  Two Codex `STATIC-MACHINE-MIGRATION` sessions are landing this family by
-  family (`5d467687f50` product entries, `dac9585f443` product descriptions,
-  `b429d3348ca` opaque representations, `87038579ee1` boundaries,
-  `2c482e057d5` wire compatibility, `d37ea22ec59` the `BuildOutput` obligation
-  family), so coordinate rather than duplicate.
+- **CORPUS-BUILD-LOG-STREAM-COLLISION.** (new-scope)
+  No corpus fixture can write a build log line. The compiler emits the retained
+  build log on its standard output and the corpus runner multiplexes its
+  fixture records on that same stream, so one authored line aborts the whole
+  measurement with `corpus_gate: runner emitted unreadable records: line 1: not
+  a fixture record: <the authored line>`. It is a harness property, not a
+  property of any one source: every fixture writing any build log line breaks
+  identically. That is why the authored `BuildLog::write_line` customer is
+  `tests/omega/pending/build/build_log_line_written` rather than a `pass` row,
+  verified instead through the real CLI. Acceptance: a fixture that writes a
+  build log line records an ordinary outcome, and that pending case moves into
+  `pass/` with its golden row.
+
+  Sequencing: this is the same `corpus_runner.rs` and shared-golden surface as
+  **CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION** and **CORPUS-SEALED-SOURCE-STAGING**,
+  so the three coordinate rather than race.
 
 ## Lowering simplification
 
