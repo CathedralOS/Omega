@@ -13,7 +13,7 @@ implementation, it does not exempt anything from release.
 | Priority | Work |
 | --- | --- |
 | 1. Run existing programs | [High-priority composition repairs](#high-priority-composition-repairs) and [Immediate product closure](#immediate-product-closure). Choose a concrete failure from SAMPLE-CORPUS, CANARY-CORPUS or SQUALR-HEADLESS and repair the general operation. |
-| 2. Remove source and pipeline blockers | [Pipeline route](#pipeline-route), [Data-flow defects](#data-flow-defects), [Trust ceremony](#trust-ceremony), [Red tests](#red-tests) and [PCC removal](#pcc-removal). |
+| 2. Remove source and pipeline blockers | [Universal interpreter cutover](#universal-interpreter-cutover), [Pipeline route](#pipeline-route), [Data-flow defects](#data-flow-defects), [Trust ceremony](#trust-ceremony), [Red tests](#red-tests) and [PCC removal](#pcc-removal). |
 | 3. Connect remaining accepted capabilities | [Entry and authority](#p1---authority-roots-and-entry), [materialization](#p2---materialization-and-placed-access), [service reach](#automatic-service-reach), [reflection](#semantic-reflection), [scoped build execution](#scoped-build-execution), [process exit](#process-exit-contract), [exclusions](#build-level-behavior-exclusions), [tests](#requirement-based-tests), [embedding](#embedding-and-interpreted-components) and [parallel lanes](#parallel-language-and-compiler-lanes). Move an item earlier when the chosen program needs it. |
 | 4. Close the release matrix | [Rust compiler release closure](#rust-compiler-release-closure). Focused successes do not satisfy full gates. |
 | Separate owners | [Optimizer](TASKS_OPTIMIZER.md), [bootstrap](TASKS_BOOTSTRAP.md) and [Cathedral](#p5---cathedral-over-general-omega-primitives). A native correctness dependency moves with the program that exercises it. |
@@ -1231,6 +1231,280 @@ defines the complete product bar.
   obligations hold. `fail/slices/signed_slice_index_upper_only` still rejects.
   Coordinate library suffix migration with
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** without weakening these obligations.
+
+## Universal interpreter cutover
+
+Move executable Omega computation to one Psi-owned core consuming Terminal
+Psi. Ordinary runs, semantic evaluation, Build execution and embedding differ
+in their inputs, effect bindings and result handling; they do not own separate
+operation dispatchers, call stacks or value/store implementations. The existing
+`omega-rust/psi/interpreter/terminal-interpreter/` is the destination. Do not
+introduce a third IR, a third engine, a tree-input execution mode or a shared
+wrapper around both old engines. Governing contracts are the
+[pipeline](omega-rust/pipeline.md),
+[semantic evaluation](wiki/spec/language/evaluation.md) and
+[embedding](wiki/spec/build/embedding.md); current PCC-removal instructions take
+precedence over older references to mandatory proof bytes or Terminal replay.
+
+This is an owner-authorized breaking migration. Establish the small build,
+check and run path needed to develop the compiler, then delete tree execution
+before restoring all feature coverage. Do not retain the old engine merely to
+keep every canary functional, extend its unsupported features, or wait for full
+parity before cutting over. A lost capability becomes explicitly unimplemented
+with an owning restoration item; its authored source and result oracle stay.
+Unimplemented is unfinished work, never a successful execution or release pass.
+Existing items that ask for a checked-interpreter repair must instead restore
+that behavior through the common core once its deletion lands.
+
+The minimum development path is a Rust build, a source check accepting a
+known-valid program, a source check rejecting a known-invalid program, and an
+ordinary package-aware `omega run` producing its authored result. Freeze those
+specific witnesses and their transitive requirements in **TERMINAL-BUILD-SEED**;
+do not invent a larger compatibility exception. Retain legacy execution only
+until that seed can use the common core. Afterward there is no tree fallback.
+
+Missing migration coverage may be a warning in an explicitly optional
+development comparison, with the comparison reported as unavailable. A
+requested execution still reports unimplemented; an actual wrong result is a
+failure. Type, arithmetic definedness, ownership, termination, effect/grant and
+foreign-package admission failures remain errors. Remove redundant production
+replay under the existing PCC tasks rather than downgrading it into a new
+warning pass. Do not turn arbitrary errors into unimplemented or warn and run
+code whose required semantic checks failed.
+
+Claim individual assignments and paths. Each restoration lands one operation
+or caller family, removes its superseded mechanism, and names an unchanged
+program plus an invalid control. Reuse existing capability owners rather than
+duplicate their representation or lowering work. Native/corpus success does
+not establish ordinary CLI package admission; report both routes accurately.
+Delete these items as their acceptance closes. The order is:
+gap reporting -> core entry -> early jobs -> development seed -> tree deletion,
+then independent claimed restoration slices -> final closure.
+
+- **INTERPRETER-MIGRATION-GAPS.** (new-scope) Make intentional missing
+  execution coverage visible before the tree cutover. The current corpus walks
+  `tests/omega/{pass,fail,run}/`; simply moving canaries to `pending/` drops them
+  from its results. Extend the existing runner/records/scoreboard with explicit
+  migration-gap reporting and a narrow, reviewed designation tied to the owning
+  capability task. Exercise designated pending canaries and retain their real
+  authored exit/stdout oracles; count unimplemented separately from success,
+  rejection, infrastructure failure, timeout and disagreement. Use an actual
+  unsupported operation/entry diagnostic, not a blanket catch or a source-shape
+  skip. A migrated slice exits the gap roster only after the unchanged oracle
+  executes; no re-pinning wrong results as accepted behavior.
+  Owners: `omega-rust/omega/compilation/driver/tests/corpus_runner.rs`,
+  `tools/corpus_gate.py`, `tools/corpus_records.py`, `tools/corpus_scoreboard.py`.
+  Acceptance: a deliberately unsupported canary reports its exact missing
+  capability/task, a working canary still meets its oracle, a wrong result still
+  fails, and an unrelated checker rejection or timeout cannot satisfy the gap.
+  Pending artifact-only Build fixtures remain separately attributed to their
+  existing harness dependency; do not relabel that as interpreter coverage.
+
+- **INTERPRETER-CORE-ENTRY.** (new-scope) Make the existing Terminal engine's
+  program/instance lifecycle the common execution entry, without checked-tree
+  dependencies, compiler-owned source lookup or a separate trusted execution
+  engine. Reuse one core for direct interpretation and embedding; drivers own
+  exact entries, supplied values, effects, resource provisions and observations.
+  Its current `TerminalProgram::load` requires proof bytes and Terminal
+  verification: coordinate the interpreter part of
+  **OMEGA-READS-TERMINAL-UNVERIFIED** and its prerequisite PCC/checker removals,
+  rather than synthesize empty proofs or replay the producer. Keep genuine
+  foreign-package/build confinement at its existing trust boundary.
+  Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/program.rs`,
+  `src/instance.rs`, `src/execution.rs`, `src/adapters.rs` within that crate.
+  Acceptance: a produced Terminal program executes through the common lifecycle;
+  missing/wrong-instance imports fail before effects, and pause/resume does not
+  repeat an effect. Source constructors and byte loaders reach that same core.
+  A current `--both` result alone cannot close this item while it uses trees.
+
+- **EARLY-TERMINAL-JOBS.** (new-scope) Produce a checked, closed Terminal job
+  for a demanded compile-time machine and its complete call dependencies before
+  the whole application's types/array lengths are ready. Reuse declaration
+  selection, specialization and Psi stages 04-07; do not add a second lowering
+  implementation or complete compiler driver. Keep unrelated product
+  declarations as non-executable metadata, order prerequisite evaluations, and
+  reject real cycles with their dependency chain rather than inserting zero
+  lengths or weakening admission. Psi compile-time cannot depend upward on the
+  Omega product driver; extract only the reusable target-neutral production
+  operation into its Psi owner. Depends on **INTERPRETER-CORE-ENTRY**.
+  Owners: `omega-rust/psi/compilation/compile-time/src/machine_execution/`,
+  `omega-rust/psi/compilation/compile-time/src/const_evaluation/const_lengths.rs`,
+  `omega-rust/omega/compilation/driver/terminal-production/src/` and the owning
+  Psi stages. Acceptance: `pass/comptime/runtime_const_array_length_transitive_exit`
+  computes 16 through Terminal and its unchanged application exits 70;
+  `pass/build/const_index_dependency_order_exit` respects leaf-before-outer
+  ordering. `fail/comptime/{negative_const_array_length,effectful_const_array_length}`
+  still reject. Record a precise dependency if the demanded closure itself
+  cannot yet check; do not establish a permanent typed-tree execution exception.
+
+- **TERMINAL-BUILD-SEED.** (new-scope) Establish the minimum package-aware
+  Build activation that lets agents keep building/checking/running the compiler
+  after tree execution is removed. Depends on **EARLY-TERMINAL-JOBS**. Inventory
+  the actual transitive Build/core/stdlib requirements of the seed before
+  selecting its scope; a minimal source file does not imply a trivial Build.
+  Run guest computation in the core and bind exact compiler-service operations
+  for its required application, dependency, provider and entry declarations.
+  Product description queries do not execute product bodies. Preserve
+  **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
+  do not retain a feature/fixture-specific Build evaluator.
+  Owners: `omega-rust/omega/compilation/build-evaluation/src/`, Psi compile-time
+  admission, exact Build catalog contracts and Terminal lowering/adapters.
+  Acceptance on Windows and macOS: `mbx check -p omega`; ordinary source check
+  of the valid seed; rejection of
+  `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`;
+  package-aware `omega run tests/omega/pass/float/named_provider_directed_divide_exit/main.omg`
+  after normal local package preparation produces 70. Freeze its actual closure,
+  not the whole passing corpus. Unrelated unsupported features may become gaps.
+
+- **CHECKED-INTERPRETER-DELETED.** (new-scope) Delete the tree execution
+  engine immediately after **INTERPRETER-MIGRATION-GAPS** and
+  **TERMINAL-BUILD-SEED** close; full feature parity is not a dependency.
+  Remove `omega-rust/psi/interpreter/checked-interpreter/` and production
+  dependency edges, expression walkers, call/frame/store machinery and worker
+  entrypoints. Inventory every consumer first: compile-time and Build
+  evaluation, CLI/corpus, package snapshots/metadata, observation codecs,
+  provider selection and trust records. Move still-required data interfaces
+  and genuine host helpers to their semantic/tooling owners; retire receipt
+  families already revoked by the owner. Do not leave the old crate as a
+  facade or move its evaluator into a host adapter. Every unimplemented caller
+  returns a specific capability gap before unsafe or partial execution, with
+  an owning restoration item. No fake values, generic catch-and-continue,
+  warning-based semantic admission or tree fallback.
+  Acceptance: Rust `omega` still builds; the seed check/run controls work;
+  missing features appear in gap results with preserved authored canaries;
+  source/dependency audit finds no checked-interpreter or executable tree
+  visitor. Optional comparison can report unavailable, never agreement.
+
+- **TERMINAL-CONST-SCALARS.** (split-of:EARLY-TERMINAL-JOBS) After
+  **CHECKED-INTERPRETER-DELETED**, restore pure scalar evaluation callers
+  through early Terminal jobs, one caller family per landing: const lengths,
+  range endpoints, generic values and initializers. Calls, branching, mutation
+  and measured recursion use the ordinary core, not a constant-fold evaluator.
+  Owners: `omega-rust/psi/compilation/compile-time/src/const_evaluation/` and
+  Terminal scalar/call operations. Acceptance: restore
+  `pass/comptime/runtime_const_measured_recursion_exit` (70),
+  `pass/comptime/range_endpoint_requires_discharge_exit` and
+  `pass/generics/runtime_const_data_machine_call_exit` to their authored
+  oracles; `fail/comptime/recursive_accumulator_requires_coupling` still
+  rejects and fuel exhaustion is not a semantic value. Preserve integer
+  width/domain behavior; explicitly account for changed charging/cache identity.
+
+- **TERMINAL-CONST-PROVIDERS.** (split-of:EARLY-TERMINAL-JOBS) Restore
+  provider-dependent early computation through exact Terminal operation and
+  selected-provider identities. Depends on **CHECKED-INTERPRETER-DELETED**;
+  coordinate **PROVIDER-SELECTION-AFTER-TERMINAL** and
+  **OPERATOR-BOUNDARY-CALLS** rather than introduce another selection registry.
+  Preserve the once-per-Psi, cross-target constant provider agreement contract;
+  no per-target layout-determining folds or spelling-selected primitives.
+  Owners: compile-time selected operators/admission, Terminal selection
+  vocabulary and existing provider installation owners. Acceptance:
+  `pass/comptime/selected_float_array_length_exit` exits 70;
+  `pass/comptime/provider_boundary_range_endpoint_exit` and
+  `pass/providers/checked_boundary_operator_const_application_alternate_exit`
+  meet their oracles; same-spelled user operators gain no primitive privilege
+  and divergent requested-target selections reject. Mark missing installations
+  unimplemented; do not weaken physical feature/ABI checks.
+
+- **TERMINAL-CONST-STRUCTURES.** (split-of:EARLY-TERMINAL-JOBS) Restore
+  owned record/case results, arrays/bytes and local references through one
+  snapshot bridge and the core's storage/loan implementation. Depends on
+  **CHECKED-INTERPRETER-DELETED**. Land each semantic value family separately.
+  Inputs are owned values; only typed recursive snapshots return to the
+  compiler. Materialization remains a separate judgment; no runtime cell,
+  interpreter alias or host pointer escapes. Handle-backed identity remains
+  authoritative across aggregate paths and calls.
+  Owners: Psi compile-time materialization and shared snapshot vocabulary;
+  Terminal values/storage/references. Acceptance: restore the structured
+  consumers in `pass/layouts/runtime_plan_laid_value_field_exit` and
+  `pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit`;
+  mismatched nominal case/width and escaping references reject, while local
+  alias writes remain visible without copy-out. Scope this item to value
+  transport; existing layout/loan owners still own their semantic repairs.
+
+- **TERMINAL-LAYOUT-WIRE-EVALUATION.** (split-of:EARLY-TERMINAL-JOBS)
+  Restore compile-time layout, placed-view, wire and executable proof-value
+  consumers through the common early-job producer/snapshot bridge. Depends
+  on the required **TERMINAL-CONST-STRUCTURES** families; coordinate existing
+  layout, reflection and **WIRE-CODEC-LIBRARY** owners. Land one consumer
+  family, retire its direct tree call, and promote its canary only after the
+  authored oracle executes. Compiler schema queries return explicit immutable
+  descriptions; host adapters do not interpret guest code. Missing executable
+  semantic value/operation coverage remains a named gap. Symbolic mathematical
+  kernel checking is a separate judgment, not a justification for a second
+  executable interpreter.
+  Owner: `omega-rust/psi/compilation/compile-time/src/layouts/` and owning
+  Terminal operation/value representations. Acceptance: restore
+  `pass/wire/runtime_wire_policy_authored_plan_exit` and
+  `pass/layouts/runtime_plan_laid_value_field_exit`; malformed policy results
+  and inadmissible host observations still reject. Retain value-sensitive
+  constant materialization rather than accepting a result merely by type.
+
+- **TERMINAL-RUNTIME-DRIVERS.** (new-scope) Restore CLI comparison/corpus
+  execution over the produced Terminal program, exact selected entry and host
+  bindings after **CHECKED-INTERPRETER-DELETED**. Share program/instance/core
+  execution with embedding. Runtime drivers provision stdin/output, context,
+  virtual clocks and exact imports; they do not recompile the authored file,
+  rerun Build or evaluate source expressions. Restore complete operation/import
+  families, not a simple-program eligibility matrix. Unsupported interpretation
+  stays explicitly unavailable; actual disagreement is an error.
+  Owners: `omega-rust/omega/application/cli/src/execution/compilation.rs`,
+  `omega-rust/omega/compilation/driver/tests/corpus_runner.rs` and exact host
+  adapters. Acceptance: `omega run --both` for
+  `pass/float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`
+  returns native/interpreter 70; restore **WINDOWS-CONSOLE-INPUT**'s Loader and
+  five bounded-line controls through the common core. Missing/wrong-instance
+  imports reject before effects; stdout/stderr and exit oracles are independent.
+  A native compilation failure or comparison decline cannot count as agreement.
+
+- **TERMINAL-BUILD-QUERIES.** (split-of:TERMINAL-BUILD-SEED) Restore Build
+  query/selection families beyond the development seed after
+  **CHECKED-INTERPRETER-DELETED**. Guest computation always runs in the core;
+  exact compiler-service contracts provide product descriptions, schema,
+  providers, target rows, exclusions and dependency declarations. Describing an
+  uncompiled declaration does not make its body executable. No string-based
+  privilege, fabricated runtime markers or relocated Build evaluator. Bind
+  catalog operations through closed identity and explicit activation authority.
+  Owners: Build evaluation, Psi compile-time admission, existing compiler
+  catalog/query owners and Terminal operation lowering. Acceptance: restore
+  `pass/build/{described_runner_entry_right_exit,runtime_depend_mapping_exit}`;
+  `fail/build/{product_entry_query_incompatible_signature,program_entry_binding_outside_build}`
+  and fabricated-activation controls still reject. Land one query family at a
+  time and count one Build activation under **BUILD-EVALUATES-ONCE**.
+
+- **TERMINAL-BUILD-EFFECTS.** (split-of:TERMINAL-BUILD-SEED) Restore granted
+  filesystem, logging, generated source/dependency and output staging through
+  Build-specific host bindings after **CHECKED-INTERPRETER-DELETED**. Pure jobs
+  receive no such bindings; fresh instances do not roll back real host effects.
+  Generated inputs return to ordinary loading/resolution. Restore filesystem/
+  grants, source/output staging and nested dependencies as separate landings;
+  keep **BUILD-EVALUATES-ONCE**, **BUILD-SNAPSHOT-OUTPUTS** and existing
+  output/receipt retirement semantics. Resource provisions and effect order
+  stay explicit; do not equate tree steps with Terminal fuel or preserve dead
+  receipt machinery merely for cache compatibility.
+  Owners: Build driver, package compilation-inputs/build-output/source owners,
+  exact filesystem bindings and common core resource lifetimes. Acceptance:
+  an authored Build emits one declared source/output and the application meets
+  its oracle, including a nested generated dependency; denied traversal,
+  missing required output, wrong grant and exhaustion retain correct failure
+  and partial-effect reporting. Use ordinary CLI package preparation. The
+  existing `pending/build/artifact_only_*` witnesses need their separate corpus
+  source-metadata harness dependency; do not waive grants to promote them.
+
+- **UNIVERSAL-INTERPRETER-CLOSURE.** (new-scope) Finish after the above
+  restoration items close: one execution core, no executable trees, no legacy
+  fallbacks/facades, and no migration gaps in the accepted release scope.
+  Audit every retired crate consumer and update architecture/entry documentation
+  where the old split remains. Inspect `source/psi/` and `source/omega/` against
+  the same job/value/effect contract and name any missing product implementation
+  on its owning task; Rust-only consolidation is not completed product compiler
+  delivery. Keep the accepted bootstrap chain and its proofs unchanged.
+  Acceptance: common-core public run and negative controls on Windows/macOS;
+  justified final native/interpreter corpus coverage meets unchanged authored
+  results; source/dependency audits find one dispatcher/call/store/resource
+  implementation and no tree interpreter. Every migration-designated canary is
+  either restored and promoted or still an explicit open release dependency,
+  never silently skipped or marked passing. Remove obsolete comparison audits
+  and migration-only exceptions; optional debugging cannot become another engine.
 
 ## Pipeline route
 
