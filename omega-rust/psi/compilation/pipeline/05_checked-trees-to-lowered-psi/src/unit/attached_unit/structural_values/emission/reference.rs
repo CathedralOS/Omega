@@ -25,6 +25,7 @@ impl Emission<'_, '_, '_> {
             self.temporary_places,
         )?;
         let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let has_primitive_home = primitive_home.is_some();
         let mut locals = self.evaluation.structural_locals.clone();
         locals.extend(primitive_home);
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
@@ -39,11 +40,17 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "reference referent type is missing",
             ))?;
-        // Scalar referents use the same primitive-home join as borrowed call
-        // arguments. A descriptor captures that original home, whether its
-        // source is primitive storage or a projection of a structural owner.
+        // Direct primitive storage needs its original mutable home. Existing
+        // structural projections, parameters and immutable homes retain their
+        // established join, including shared root qualification custody.
         let argument = match referent.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+            StructuralTypeShape::PrimitiveScalar(scalar_type)
+                if !has_primitive_home
+                    && matches!(
+                        source.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                    ) =>
+            {
                 bindings.primitive_borrow(source, scalar_type, self.structural_types)?
             }
             _ => bindings.borrowed_structural_argument(
