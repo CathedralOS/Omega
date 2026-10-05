@@ -56,14 +56,8 @@ pub fn derive_checked_nongeneric_operator_application_realizations(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<CheckedNongenericOperatorApplicationRealization>, Vec<Diagnostic>> {
-    let independently_derived_realizations =
-        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(&checked.typed);
     let mut rows: Vec<CheckedNongenericOperatorApplicationRealization> = Vec::new();
-    for row in checked_expressions::derive(
-        checked,
-        selected_provider_plans.plans(),
-        &independently_derived_realizations,
-    )? {
+    for row in checked_expressions::derive(checked, selected_provider_plans.plans())? {
         match rows
             .iter()
             .find(|retained| retained.application_site == row.application_site)

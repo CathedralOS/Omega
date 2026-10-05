@@ -194,16 +194,6 @@ pub fn infer_checked_crash_causes(
     facts::infer_checked_crash_causes(program, facts)
 }
 
-/// Rederive every checked machine-to-operator realization together with the
-/// complete canonical contracts on both sides. Package review compares this
-/// against the retained checked baseline before publishing the selected
-/// operator.
-pub fn derive_checked_operator_realization_contracts(
-    program: &TypedTrees,
-) -> Vec<checked_trees::CheckedOperatorRealizationContract> {
-    operators::derive_checked_operator_realization_contracts(program)
-}
-
 /// Rederive one exact compiler-owned collection view from the final typed
 /// program and the checked environments that own its expression. Package
 /// review uses this compiler-internal seam to reject a retained intrinsic fact

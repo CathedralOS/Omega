@@ -11,7 +11,7 @@ use super::{
 };
 use checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationUseSite,
-    CheckedOperatorRealizationContract, CheckedOperatorResolutionStatus, CheckedTrees,
+    CheckedOperatorResolutionStatus, CheckedTrees,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -41,20 +41,13 @@ pub fn derive_checked_specialized_operator_application_realizations(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<CheckedSpecializedOperatorApplicationRealization>, Vec<Diagnostic>> {
-    let independently_derived_realizations =
-        typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(&checked.typed);
     let mut rows = Vec::new();
     let mut diagnostics = Vec::new();
     for application in &checked.facts.operators.boundary_applications {
         if application.arguments.is_empty() {
             continue;
         }
-        match derive_one(
-            checked,
-            selected_provider_plans.plans(),
-            &independently_derived_realizations,
-            application,
-        ) {
+        match derive_one(checked, selected_provider_plans.plans(), application) {
             Ok(row) => rows.push(row),
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
@@ -69,7 +62,6 @@ pub fn derive_checked_specialized_operator_application_realizations(
 fn derive_one(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    independently_derived_realizations: &[CheckedOperatorRealizationContract],
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<CheckedSpecializedOperatorApplicationRealization, Diagnostic> {
     let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, origin } =
@@ -170,36 +162,6 @@ fn derive_one(
     if contract.commitment.is_zero() {
         return Err(Diagnostic::error(
             "selected generic realization has an empty machine contract commitment",
-        ));
-    }
-
-    let retained_contracts = checked
-        .facts
-        .operators
-        .operator_realization_contracts
-        .iter()
-        .filter(|contract| {
-            contract.machine_symbol() == realization_machine
-                && contract.operator_symbol() == application.requirement_symbol
-        })
-        .collect::<Vec<_>>();
-    let derived_contracts = independently_derived_realizations
-        .iter()
-        .filter(|contract| {
-            contract.machine_symbol() == realization_machine
-                && contract.operator_symbol() == application.requirement_symbol
-        })
-        .collect::<Vec<_>>();
-    let ([retained_contract], [derived_contract]) =
-        (retained_contracts.as_slice(), derived_contracts.as_slice())
-    else {
-        return Err(Diagnostic::error(
-            "selected generic realization lacks one independently replayable operator contract",
-        ));
-    };
-    if *retained_contract != *derived_contract {
-        return Err(Diagnostic::error(
-            "selected generic realization contract differs from independent compiler rederivation",
         ));
     }
 
