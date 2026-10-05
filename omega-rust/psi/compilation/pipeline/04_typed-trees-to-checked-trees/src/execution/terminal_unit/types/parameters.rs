@@ -14,6 +14,23 @@ pub(in crate::execution::terminal_unit) fn state_flow(
     })
 }
 
+/// Which authored parameter an argument or contract place roots at. A
+/// parameter owns its place root outright, so the question is its own symbol
+/// and nothing else.
+///
+/// Before static machines this was `parameter_root_symbol`, which answered the
+/// attached machine's symbol for a `self` receiver, because an implicit
+/// receiver place rooted at the machine rather than at any parameter. Every
+/// caller therefore spelled the question as a disjunction over both roots. A
+/// qualified machine name now contributes no hidden receiver and
+/// `StateParameter` carries no receiver flag at all, so the machine-rooted
+/// alternative is not representable and the disjunction collapses to this one
+/// comparison. Keep the question here rather than re-deriving it at each
+/// place-rooting site, so a later root spelling has one place to grow.
+pub(crate) fn parameter_is_root(parameter: &StateParameter, root: SymbolHandle) -> bool {
+    parameter.symbol == root
+}
+
 pub(in crate::execution::terminal_unit) fn machine_binders(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,

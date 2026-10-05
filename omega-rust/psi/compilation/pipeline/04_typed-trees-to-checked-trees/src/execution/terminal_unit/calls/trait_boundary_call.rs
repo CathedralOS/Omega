@@ -332,12 +332,8 @@ pub(super) fn build(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
-        let source = SourceParameter::resolve(
-            machine.symbol,
-            caller_source_parameters,
-            caller_parameters,
-            source_symbol,
-        )?;
+        let source =
+            SourceParameter::resolve(caller_source_parameters, caller_parameters, source_symbol)?;
         let custody = source.custody(structural_access_for_type_reference(program, formal));
         let argument = ParameterArgument {
             program,

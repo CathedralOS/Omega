@@ -6,13 +6,12 @@ use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_litera
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path, ordinary_parameter_path,
-    parameter_is_root,
 };
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, byte_sequence_type_identity, is_unit,
+    ShapeCollector, base_type_identity, byte_sequence_type_identity, is_unit, parameter_is_root,
     structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::types::{
@@ -352,7 +351,7 @@ pub(crate) fn structural_call_arguments(
         // lane plans. Parameter-rooted places keep the parameter arms below.
         if !source_parameters
             .iter()
-            .any(|parameter| parameter_is_root(caller_machine.symbol, parameter, source_symbol))
+            .any(|parameter| parameter_is_root(parameter, source_symbol))
             && let Some(plan) = computation_arguments::borrowed_storage_argument(
                 program,
                 &facts.borrow,
@@ -367,12 +366,7 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: parameter source");
-        let source = SourceParameter::resolve(
-            caller_machine.symbol,
-            source_parameters,
-            caller_parameters,
-            source_symbol,
-        )?;
+        let source = SourceParameter::resolve(source_parameters, caller_parameters, source_symbol)?;
         let target_access = structural_access_for_type_reference(program, target.type_reference);
         let custody = source.custody(target_access);
         // A closed primitive array parameter passes only whole, owned and

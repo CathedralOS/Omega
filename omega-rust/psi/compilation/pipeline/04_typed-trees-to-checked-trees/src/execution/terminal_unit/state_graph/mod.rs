@@ -2388,9 +2388,7 @@ fn successor_bindings(
                             .iter()
                             .enumerate()
                             .find(|(_, parameter)| {
-                                (parameter).symbol
-                                    == root_symbol
-                                    || parameter.symbol == root_symbol
+                                super::types::parameter_is_root(parameter, root_symbol)
                             })
                             .and_then(|(position, _)| {
                                 source_structural
@@ -2795,14 +2793,11 @@ fn projected_copy_subject(
     if place.segments.is_empty() {
         return None;
     }
-    let (position, _) =
-        program
-            .state_parameters(source)
-            .iter()
-            .enumerate()
-            .find(|(_, parameter)| {
-                (parameter).symbol == root_symbol || parameter.symbol == root_symbol
-            })?;
+    let (position, _) = program
+        .state_parameters(source)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| super::types::parameter_is_root(parameter, root_symbol))?;
     let (parameter_index, parameter) = source_structural
         .iter()
         .enumerate()

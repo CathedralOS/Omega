@@ -52,7 +52,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                     };
                     let rooted_in_telescope = source_parameters
                         .iter()
-                        .any(|parameter| (parameter).symbol == root || parameter.symbol == root);
+                        .any(|parameter| parameter_is_root(parameter, root));
                     return rooted_in_telescope
                         && place
                             .segments
@@ -67,7 +67,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                 };
                 let Some(position) = source_parameters
                     .iter()
-                    .position(|parameter| (parameter).symbol == root || parameter.symbol == root)
+                    .position(|parameter| parameter_is_root(parameter, root))
                 else {
                     return false;
                 };
@@ -302,7 +302,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
         };
         let source_position = source_parameters
             .iter()
-            .position(|parameter| (parameter).symbol == root || parameter.symbol == root)?;
+            .position(|parameter| parameter_is_root(parameter, root))?;
         let argument_index = structural_parameters
             .iter()
             .position(|parameter| parameter.position as usize == source_position)?;

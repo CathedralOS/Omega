@@ -1,7 +1,7 @@
 //! Nominal cleanup boolean, scalar and caller requirements with their
 //! diagnostics.
 
-use crate::execution::terminal_unit::types::terminal_field_identity;
+use crate::execution::terminal_unit::types::{parameter_is_root, terminal_field_identity};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
     CheckedStructuralScalarIntegerBoundRequirementPlan, CheckedStructuralScalarParameterPlan,
@@ -166,7 +166,7 @@ pub(crate) fn direct_integer_requirement(
         };
         let source_position = source_parameters
             .iter()
-            .position(|parameter| (parameter).symbol == root || parameter.symbol == root)?;
+            .position(|parameter| parameter_is_root(parameter, root))?;
         let parameter_position = scalar_parameters
             .iter()
             .position(|parameter| parameter.source_position as usize == source_position)?;

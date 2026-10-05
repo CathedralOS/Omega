@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
     fixed_array_slice_view_is_admitted, fixed_byte_array_view_is_admitted,
 };
 use crate::execution::terminal_unit::types::{
-    base_type_identity, borrowed_slice_view_element, byte_sequence_carrier,
+    base_type_identity, borrowed_slice_view_element, byte_sequence_carrier, parameter_is_root,
 };
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -22,17 +22,6 @@ use crate::execution::terminal_unit::{
 use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
 
 type ArgumentPath = Vec<CheckedUnitStructuralPathSegment>;
-
-/// An authored `self.field` argument roots at the `self` parameter's own
-/// symbol, while an implicit receiver place roots at the machine the
-/// parameter is attached to. Both spellings name one parameter.
-pub(crate) fn parameter_is_root(
-    _machine: SymbolHandle,
-    parameter: &StateParameter,
-    root: SymbolHandle,
-) -> bool {
-    (parameter).symbol == root || parameter.symbol == root
-}
 
 /// The caller parameter an argument place is rooted at, with the dense index
 /// of its structural plan.
@@ -45,14 +34,13 @@ pub(crate) struct SourceParameter<'parameters> {
 
 impl<'parameters> SourceParameter<'parameters> {
     pub(crate) fn resolve(
-        machine: SymbolHandle,
         declarations: &'parameters [StateParameter],
         plans: &'parameters [CheckedUnitStructuralParameterPlan],
         root: SymbolHandle,
     ) -> Option<Self> {
         let declaration = declarations
             .iter()
-            .find(|parameter| parameter_is_root(machine, parameter, root))?;
+            .find(|parameter| parameter_is_root(parameter, root))?;
         let position = declarations
             .iter()
             .position(|parameter| parameter.symbol == declaration.symbol)?;

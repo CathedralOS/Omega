@@ -584,9 +584,10 @@ pub(in crate::execution) fn borrowed_view_argument(
     }
     let identity = view_identity(program, kind, target.type_reference)?;
     let parameters = program.state_parameters(state);
-    let (source, source_type) = if let Some(position) = parameters.iter().position(|parameter| {
-        super::parameter_argument_paths::parameter_is_root(machine, parameter, symbol)
-    }) {
+    let (source, source_type) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+    {
         let parameter = &parameters[position];
         if parameter.is_const {
             return None;
