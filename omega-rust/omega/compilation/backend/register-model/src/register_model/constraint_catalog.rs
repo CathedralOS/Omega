@@ -49,6 +49,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
+    /// Bitwise RMW may need a retry sequence with a different register contract.
+    pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
     pub load64: Option<RegisterConstraintKey>,
     pub load_packed: Option<RegisterConstraintKey>,

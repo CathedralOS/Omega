@@ -64,8 +64,16 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
         };
-        validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
-        for mutation in 0..7 {
+        validate_non_return(
+            target::Architecture::Aarch64,
+            instruction,
+            kind,
+            &encoding,
+            &layout,
+            &store,
+        )
+        .unwrap();
+        for mutation in 0..8 {
             let mut changed = store.clone();
             let footprint = changed.footprint_mut(encoding.footprint).unwrap();
             match mutation {
@@ -95,10 +103,22 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
                     .encoded
                     .external_operand_writes
                     .push(form.operand_count()),
+                6 => {
+                    footprint.encoded.control =
+                        MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+                }
                 _ => footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1,
             }
             assert!(
-                validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
+                validate_non_return(
+                    target::Architecture::Aarch64,
+                    instruction,
+                    kind,
+                    &encoding,
+                    &layout,
+                    &changed
+                )
+                .is_err(),
                 "{form:?}, mutation {mutation}"
             );
         }

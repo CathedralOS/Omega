@@ -135,6 +135,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         atomic_store: None,
         atomic_update: None,
         atomic_compare_exchange: None,
+        atomic_bitwise_update: None,
         crash: instruction_key(780),
         call_aggregate: Vec::new(),
         return_aggregate: Vec::new(),
@@ -314,6 +315,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             atomic_compare_exchange: Some(instruction_key(784)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            atomic_bitwise_update: Some(instruction_key(785)),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

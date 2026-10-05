@@ -280,6 +280,7 @@ fn selected_keys(
         atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
         atomic_store: Some(crate::X86_64_ATOMIC_STORE),
         atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
+        atomic_bitwise_update: Some(crate::X86_64_ATOMIC_BITWISE_UPDATE),
         atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
         crash: crate::X86_64_CRASH,
         load_packed: Some(crate::X86_64_LOAD_PACKED),

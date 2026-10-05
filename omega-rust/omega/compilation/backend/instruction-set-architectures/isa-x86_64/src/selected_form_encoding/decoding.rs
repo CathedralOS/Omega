@@ -217,6 +217,12 @@ pub(crate) enum DecodedInstruction {
     },
     /// `lock cmpxchg` of the replacement register against the atomic cell,
     /// with the expected input and observed output fixed in RAX.
+    AtomicBitwise {
+        operation: selected_instructions::AtomicOperation,
+        source: u8,
+        destination: u8,
+        bits: u16,
+    },
     AtomicLockedCompareExchange {
         register: u8,
         base: u8,
@@ -682,7 +688,7 @@ pub(crate) fn decode_one(
     ))
 }
 
-/// Decode the fixed-work atomic forms: an optional operand-size prefix, an
+/// Decode atomic constituent instructions: an optional operand-size prefix, an
 /// optional LOCK prefix, an optional REX, then the opcode and the
 /// `[base + disp32]` cell. Every byte is checked against the emitted shape;
 /// a sequence that only shares a prefix stays `None` for the generic arms.
@@ -779,6 +785,34 @@ fn decode_atomic(bytes: &[u8]) -> Option<(DecodedInstruction, usize)> {
     }
     let modrm = *bytes.get(cursor + 1)?;
     match opcode {
+        0x20 | 0x21 | 0x08 | 0x09 | 0x30 | 0x31 if !locked && modrm >> 6 == 3 => {
+            let operation = match opcode & !1 {
+                0x20 => selected_instructions::AtomicOperation::FetchAnd,
+                0x08 => selected_instructions::AtomicOperation::FetchOr,
+                0x30 => selected_instructions::AtomicOperation::FetchXor,
+                _ => unreachable!(),
+            };
+            // Existing 64-bit scalar operations keep their ordinary decoded
+            // vocabulary. The retry validator accepts that vocabulary too.
+            if rex & 8 != 0 && opcode & 1 != 0 && !operand_sized {
+                return None;
+            }
+            Some((
+                DecodedInstruction::AtomicBitwise {
+                    operation,
+                    source: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                    destination: (modrm & 7) | ((rex & 1) << 3),
+                    bits: if opcode & 1 == 0 {
+                        8
+                    } else if operand_sized {
+                        16
+                    } else {
+                        32
+                    },
+                },
+                cursor + 2,
+            ))
+        }
         // `movzx`/`mov` into the observed output and `mov`/`xchg` against
         // the cell share the `[base + disp32]` operand.
         0x8b | 0x88 | 0x89 | 0x86 | 0x87 if modrm >> 6 == 2 => {
@@ -941,7 +975,86 @@ pub(crate) fn validate_decoded(
                             },
                         ]
                 }
-                _ => false,
+                operation @ (selected_instructions::AtomicOperation::FetchAnd
+                | selected_instructions::AtomicOperation::FetchOr
+                | selected_instructions::AtomicOperation::FetchXor) => {
+                    let source = registers[1];
+                    let destination = registers[2];
+                    let bitwise = if bits == 64 {
+                        match operation {
+                            selected_instructions::AtomicOperation::FetchAnd => {
+                                DecodedInstruction::BitwiseAnd {
+                                    source,
+                                    destination,
+                                }
+                            }
+                            selected_instructions::AtomicOperation::FetchOr => {
+                                DecodedInstruction::Or {
+                                    source,
+                                    destination,
+                                }
+                            }
+                            selected_instructions::AtomicOperation::FetchXor => {
+                                DecodedInstruction::Xor {
+                                    source,
+                                    destination,
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        DecodedInstruction::AtomicBitwise {
+                            operation,
+                            source,
+                            destination,
+                            bits,
+                        }
+                    };
+                    // Count instruction lengths independently of the encoder:
+                    // MOV is 3, bitwise is prefix + opcode/ModRM, CMPXCHG is
+                    // LOCK + optional width/REX + 0F opcode/ModRM + SIB/disp32.
+                    let width_prefix = usize::from(bits == 16);
+                    let bit_rex =
+                        usize::from(bits == 8 || bits == 64 || source >= 8 || destination >= 8);
+                    let cmp_rex =
+                        usize::from(bits == 8 || bits == 64 || destination >= 8 || base >= 8);
+                    let retry_length = 3
+                        + width_prefix
+                        + bit_rex
+                        + 2
+                        + 1
+                        + width_prefix
+                        + cmp_rex
+                        + 3
+                        + usize::from(base & 7 == 4)
+                        + 4
+                        + 2;
+                    decoded
+                        == [
+                            DecodedInstruction::AtomicLoad {
+                                destination: 0,
+                                base,
+                                bits,
+                            },
+                            DecodedInstruction::Move {
+                                source: 0,
+                                destination,
+                            },
+                            bitwise,
+                            DecodedInstruction::AtomicLockedCompareExchange {
+                                register: destination,
+                                base,
+                                bits,
+                            },
+                            DecodedInstruction::JumpNotEqualShort {
+                                displacement: -(retry_length as i8),
+                            },
+                            DecodedInstruction::Move {
+                                source: 0,
+                                destination,
+                            },
+                        ]
+                }
             }
         }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }

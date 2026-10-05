@@ -73,7 +73,15 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     normalized_foreign_call_fixup: None,
                     byte_literal_address_fixup: None,
                 };
-                validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
+                validate_non_return(
+                    target::Architecture::Aarch64,
+                    instruction,
+                    kind,
+                    &encoding,
+                    &layout,
+                    &store,
+                )
+                .unwrap();
                 let mut changed = store.clone();
                 let footprint = changed.footprint_mut(encoding.footprint).unwrap();
                 footprint.encoded.control = if domain == IeeeFloatToIntegerDomain::Trapping {
@@ -82,7 +90,15 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     MachineEncodedControlEffect::FallThroughOrTrapV1
                 };
                 assert!(
-                    validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
+                    validate_non_return(
+                        target::Architecture::Aarch64,
+                        instruction,
+                        kind,
+                        &encoding,
+                        &layout,
+                        &changed
+                    )
+                    .is_err(),
                     "{form:?}"
                 );
             }

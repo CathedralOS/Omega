@@ -146,6 +146,7 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
 }
 
 pub(in crate::exit_contract) fn validate_non_return(
+    architecture: target::Architecture,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
     encoding: &machine_code::SelectedFormEncodingRow,
@@ -153,6 +154,20 @@ pub(in crate::exit_contract) fn validate_non_return(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
+        // LSE has one fall-through atomic instruction; x86 bitwise fetch
+        // owns a target-local retry until its compare-exchange commits.
+        // Producer and replay both pass the actual admitted architecture.
+        SelectedInstructionKind::AtomicAccess { form }
+            if architecture == target::Architecture::X86_64
+                && matches!(
+                    form.operation,
+                    selected_instructions::AtomicOperation::FetchAnd
+                        | selected_instructions::AtomicOperation::FetchOr
+                        | selected_instructions::AtomicOperation::FetchXor
+                ) =>
+        {
+            MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+        }
         SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {
             MachineEncodedControlEffect::FallThroughOrTrapV1
         }

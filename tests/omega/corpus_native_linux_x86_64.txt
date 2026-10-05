@@ -42,10 +42,10 @@ pass/arithmetic/suffix_landed_operand_position_exit built 1467ms exit:77 @2d8ed2
 pass/arithmetic/typed_integer_remainder checked 284ms @2d8ed253669f+wt
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 824ms exit:70 @233d30cb1ceb
 pass/atomics/atomic_global_order_operations checked 322ms @2d8ed253669f+wt
+pass/atomics/runtime_atomic_bitwise_widths_exit built 4292ms exit:70 @8ed2986d3282
 pass/atomics/runtime_atomic_compare_exchange_exit built 873ms exit:70 @2d8ed253669f+wt
 pass/atomics/runtime_atomic_fetch_add_exit built 869ms exit:70 @2d8ed253669f+wt
-pass/atomics/shared_receiver_atomic_store rejected 5239ms @95e4e5c52dc
-	native artifact identity physical pipeline failed: common physical staging failed: FunctionRelativeRealization(Encoding(X86_64(UnsupportedAtomicForm)))
+pass/atomics/shared_receiver_atomic_store built 2342ms exit:70 @8ed2986d3282
 pass/blockexec/blocking_executor_custody_claims_compile built 680ms @2d8ed253669f+wt
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 270ms @2d8ed253669f+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 273ms @2d8ed253669f+wt

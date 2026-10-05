@@ -4,7 +4,7 @@
 use crate::register_model::packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 use crate::register_model::physical_model::{GPR64, VECTOR128, complement, sorted_units};
 use crate::register_model::{
-    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET,
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_ATOMIC_BITWISE_UPDATE,
     X86_64_ATOMIC_COMPARE_EXCHANGE, X86_64_ATOMIC_LOAD, X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE,
     X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_BYTE_LITERAL_IMAGE_ADDRESS,
     X86_64_COMPARE_BYTE_SEQUENCES, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
@@ -1060,8 +1060,8 @@ pub fn x86_64_register_constraint_catalog(
     // had since the 486. The address is an ordinary base register; the cell
     // it points at belongs to the memory effect, not this operand roster.
     // `mov` plus `mfence` is the fixed-work store because `xchg` would
-    // destroy the incoming value register; fetch-and/or/xor have no
-    // fixed-work form without a hidden retry loop and stay unadmitted. The
+    // destroy the incoming value register. Bitwise fetch has its own row:
+    // its compare-exchange retry control and RAX interference are explicit. The
     // observed prior value is an early-clobber definition on every row it
     // appears in, the same shape every other target's atomic rows carry.
     constraints.push(RegisterInstructionConstraint {
@@ -1106,6 +1106,30 @@ pub fn x86_64_register_constraint_catalog(
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),
         clobbers: view("rflags").units.clone(),
+    });
+    // CMPXCHG's hidden accumulator must not overwrite either input while a
+    // failed attempt prepares its next replacement. The current constraint
+    // vocabulary has no allocatable-class exclusion for RAX, so fixed
+    // caller-volatile homes make that exclusion explicit through ordinary
+    // fixed-view copies, without changing the physical register model or
+    // reserving an undeclared scratch. R8 is the distinct fixed replacement
+    // and final observed-prior home; no input is modified by the encoding.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ATOMIC_BITWISE_UPDATE,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rdx"),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
+            fixed(2, RegisterOperandAccess::Def, "r8"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: {
+            let mut clobbers = view("rax").units.clone();
+            clobbers.extend(view("rflags").units.iter().copied());
+            clobbers.sort_unstable();
+            clobbers
+        },
     });
     // CMPXCHG reads the expected input from RAX and leaves the observed
     // prior cell in it: the expected operand pins RAX, the observed output

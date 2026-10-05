@@ -2,13 +2,15 @@ use super::validate_declaration;
 use crate::{
     AtomicForm, AtomicOperation, AtomicWidth, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+    RegisterViewId,
 };
 
 fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffectDeclaration) {
@@ -49,6 +51,12 @@ fn declaration(form: AtomicForm) -> (RegisterInstructionConstraint, MachineEffec
         form,
     };
     encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+    if matches!(
+        form.operation,
+        AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
+    ) {
+        encoded.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
+    }
     let declaration = MachineEffectDeclaration {
         semantic: MachineSemanticKind::AtomicAccess(form),
         constraint: key,
@@ -144,5 +152,59 @@ fn atomic_forms_require_indivisible_memory_and_exact_operand_custody() {
                 validate_declaration(target::Architecture::X86_64, &changed, &original).is_err()
             );
         }
+    }
+}
+
+#[test]
+fn retry_control_is_required_only_for_x86_bitwise_atomic_updates() {
+    for form in AtomicForm::ALL {
+        let (constraint, mut declared) = declaration(form);
+        let bitwise = matches!(
+            form.operation,
+            AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
+        );
+        declared.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1;
+        assert_eq!(
+            validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
+            !bitwise
+        );
+        validate_declaration(target::Architecture::Aarch64, &constraint, &declared)
+            .expect("single LSE instruction falls through");
+        declared.alternatives[0].encoded.control =
+            MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
+        assert_eq!(
+            validate_declaration(target::Architecture::X86_64, &constraint, &declared).is_ok(),
+            bitwise
+        );
+        assert!(
+            validate_declaration(target::Architecture::Aarch64, &constraint, &declared).is_err()
+        );
+    }
+}
+
+#[test]
+fn retry_fixed_output_requires_every_input_to_have_a_distinct_fixed_home() {
+    let form = AtomicForm {
+        width: AtomicWidth::Bits32,
+        operation: AtomicOperation::FetchOr,
+    };
+    let (mut constraint, declaration) = declaration(form);
+    for (i, operand) in constraint.operands.iter_mut().enumerate() {
+        operand.fixed_view = Some(RegisterViewId(i as u16));
+        operand.early_clobber = false;
+    }
+    validate_declaration(target::Architecture::X86_64, &constraint, &declaration)
+        .expect("fixed homes keep the replacement separate from inputs");
+    for input in 0..2 {
+        let mut missing = constraint.clone();
+        missing.operands[input].fixed_view = None;
+        assert!(
+            validate_declaration(target::Architecture::X86_64, &missing, &declaration).is_err()
+        );
+        let mut aliased = constraint.clone();
+        aliased.operands[input].fixed_view = constraint.operands[2].fixed_view;
+        assert!(
+            validate_declaration(target::Architecture::X86_64, &aliased, &declaration).is_err()
+        );
     }
 }

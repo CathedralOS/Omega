@@ -263,6 +263,8 @@ fn selected_keys(
             .then_some(crate::AARCH64_ATOMIC_STORE),
         atomic_update: (target == NativeTarget::macos_arm64())
             .then_some(crate::AARCH64_ATOMIC_UPDATE),
+        atomic_bitwise_update: (target == NativeTarget::macos_arm64())
+            .then_some(crate::AARCH64_ATOMIC_UPDATE),
         atomic_compare_exchange: (target == NativeTarget::macos_arm64())
             .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
         crash: crate::AARCH64_CRASH,

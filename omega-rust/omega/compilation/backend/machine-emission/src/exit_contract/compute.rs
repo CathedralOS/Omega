@@ -480,6 +480,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         ));
                     }
                     validate_non_return(
+                        target.architecture,
                         instruction.id,
                         instruction.kind,
                         encoding_row,

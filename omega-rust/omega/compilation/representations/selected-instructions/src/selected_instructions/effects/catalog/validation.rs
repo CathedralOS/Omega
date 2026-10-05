@@ -235,6 +235,7 @@ pub(super) fn validate_declaration(
             MachineEffectCatalogValidationError::InvalidAlternativeApplicability(semantic)
         })?;
         validate_encoded_effects(
+            architecture,
             constraint,
             declaration,
             alternative.applicability,
@@ -265,6 +266,7 @@ pub(super) fn validate_declaration(
 }
 
 fn validate_encoded_effects(
+    architecture: target::Architecture,
     constraint: &RegisterInstructionConstraint,
     declaration: &MachineEffectDeclaration,
     applicability: MachineAlternativeApplicability,
@@ -660,6 +662,14 @@ fn validate_encoded_effects(
         return Err(());
     }
     let expected_barrier = match encoded.control {
+        MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+            if architecture == target::Architecture::X86_64
+                && matches!(declaration.semantic, MachineSemanticKind::AtomicAccess(form)
+                    if matches!(form.operation, crate::AtomicOperation::FetchAnd | crate::AtomicOperation::FetchOr | crate::AtomicOperation::FetchXor)) =>
+        {
+            MachineBarrier::ExternalEffect
+        }
+        MachineEncodedControlEffect::AtomicRetryUntilCommitV1 => return Err(()),
         MachineEncodedControlEffect::CrashV1 => return Err(()),
         MachineEncodedControlEffect::FallThroughOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
@@ -1015,7 +1025,19 @@ fn validate_encoded_effects(
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::AtomicAccess(form)
             && declaration.memory == crate::MachineMemoryEffect::AtomicPointerV1
-            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && encoded.control
+                == if architecture == target::Architecture::X86_64
+                    && matches!(
+                        form.operation,
+                        crate::AtomicOperation::FetchAnd
+                            | crate::AtomicOperation::FetchOr
+                            | crate::AtomicOperation::FetchXor
+                    )
+                {
+                    MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+                } else {
+                    MachineEncodedControlEffect::FallThroughV1
+                }
             && constraint.operands.len() == usize::from(form.operand_count())
             && encoded
                 .external_operand_reads
@@ -1036,7 +1058,22 @@ fn validate_encoded_effects(
                         return false;
                     }
                     if Some(operand.operand) == form.observed_operand() {
-                        operand.access == RegisterOperandAccess::Def && operand.early_clobber
+                        // Allocatable outputs require early clobber. A retry
+                        // may instead use fixed homes: all inputs must also
+                        // be fixed and distinct, and target catalog replay
+                        // checks their actual physical-unit separation.
+                        operand.access == RegisterOperandAccess::Def
+                            && (operand.early_clobber
+                                || (encoded.control
+                                    == MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+                                    && operand.fixed_view.is_some()
+                                    && constraint.operands
+                                        [..usize::from(form.operation.input_count())]
+                                        .iter()
+                                        .all(|input| {
+                                            input.fixed_view.is_some()
+                                                && input.fixed_view != operand.fixed_view
+                                        })))
                     } else {
                         operand.access == RegisterOperandAccess::Use && !operand.early_clobber
                     }

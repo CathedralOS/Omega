@@ -329,6 +329,7 @@ pub(super) fn check(
                         ));
                     }
                     validate_non_return(
+                        machine.target.architecture,
                         instruction.id,
                         instruction.kind,
                         encoding_row,

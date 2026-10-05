@@ -1,4 +1,4 @@
-//! Fixed-work atomic forms over the LOCK-prefixed vocabulary every x86-64
+//! Atomic forms over the LOCK-prefixed vocabulary every x86-64
 //! target has carried since the 486.
 //!
 //! Sequential consistency follows the usual TSO recipe: loads and narrow
@@ -9,9 +9,13 @@
 //! expected input pinned to RAX and the observed output copied out of RAX
 //! afterward. `XADD`/`XCHG` update the same register they read, so the
 //! sequence first copies the incoming value into the observed output
-//! register. There are no hidden software retries or helper calls:
-//! fetch-and/or/xor have no fixed-work form and stay unadmitted at this
-//! encoder.
+//! register. Bitwise fetch uses a separate compare-exchange retry form:
+//! its control effect explicitly retains unbounded target-relative work,
+//! and RAX is a declared clobber. A failed attempt updates the comparison
+//! in RAX and recomputes its replacement from that observation and the
+//! unchanged authored mask. Only the successful attempt's observed prior
+//! is returned. A load followed by LOCK AND/OR/XOR would return the wrong
+//! prior under contention and is not an implementation of this operation.
 //!
 //! Every memory operand is `[base + disp32]` with the displacement zero, the
 //! same shape the ordinary load/store forms use; the cell effect lives in
@@ -21,8 +25,8 @@ use super::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
 use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
 use register_model::RegisterViewId;
 use selected_instructions::{
-    AtomicForm, AtomicOperation, AtomicWidth, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedTrapBehavior,
+    AtomicForm, AtomicOperation, AtomicWidth, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
 };
 
 /// Whether this operation's constraint row carries the RFLAGS clobber its
@@ -33,6 +37,13 @@ use selected_instructions::{
 /// allocation is planned against.
 pub(crate) const fn writes_rflags(operation: AtomicOperation) -> bool {
     !matches!(operation, AtomicOperation::Load | AtomicOperation::Store)
+}
+
+const fn retries_bitwise_update(operation: AtomicOperation) -> bool {
+    matches!(
+        operation,
+        AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
+    )
 }
 
 pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
@@ -58,8 +69,12 @@ pub(crate) fn effects(form: AtomicForm) -> MachineEncodedEffects {
     if writes_rflags(form.operation) {
         effects.implicit_unit_clobbers.extend(units("rflags"));
     }
-    if form.operation == AtomicOperation::CompareExchange {
+    if form.operation == AtomicOperation::CompareExchange || retries_bitwise_update(form.operation)
+    {
         effects.implicit_unit_clobbers.extend(units("rax"));
+    }
+    if retries_bitwise_update(form.operation) {
+        effects.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
     }
     effects.implicit_unit_clobbers.sort_unstable();
     effects
@@ -171,6 +186,11 @@ fn validate_registers(
     if form.operation == AtomicOperation::CompareExchange && registers[1] != 0 {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
+    // RAX is the loop's private comparison, written before either input is
+    // consumed by all attempts. None of the external homes may alias it.
+    if retries_bitwise_update(form.operation) && registers.contains(&0) {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     Ok(())
 }
 
@@ -251,7 +271,40 @@ pub(crate) fn encode(
             append_memory_modrm(&mut bytes, register, base);
         }
         AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor => {
-            return Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm);
+            bytes.extend(encode(
+                AtomicForm {
+                    width,
+                    operation: AtomicOperation::Load,
+                },
+                &[base, 0],
+            )?);
+            let retry = bytes.len();
+            let observed = registers[2];
+            let mask = registers[1];
+            copy_into_observed(&mut bytes, observed, 0);
+            append_width_prefixes(&mut bytes, width, false, true, bits == 64, mask, observed);
+            let opcode = match form.operation {
+                AtomicOperation::FetchAnd => 0x20,
+                AtomicOperation::FetchOr => 0x08,
+                AtomicOperation::FetchXor => 0x30,
+                _ => unreachable!("bitwise update arm"),
+            };
+            bytes.extend([
+                opcode + u8::from(bits != 8),
+                modrm(3, mask & 7, observed & 7),
+            ]);
+            append_width_prefixes(&mut bytes, width, true, true, bits == 64, observed, base);
+            bytes.extend([0x0f, if bits == 8 { 0xb0 } else { 0xb1 }]);
+            append_memory_modrm(&mut bytes, observed, base);
+            // A failed CMPXCHG places its instruction-observed resident in
+            // RAX. Retry from the replacement computation, not from a load.
+            let displacement = i8::try_from(retry as isize - (bytes.len() + 2) as isize)
+                .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            bytes.extend([0x75, displacement as u8]);
+            // RAX contains the successful comparison's prior. The initial
+            // MOVZX (or EAX write) keeps the unused narrow high bits zero;
+            // failed AL/AX comparisons retain those zero bits as well.
+            copy_into_observed(&mut bytes, observed, 0);
         }
     }
     Ok(bytes)
@@ -308,17 +361,6 @@ mod tests {
         for form in AtomicForm::ALL {
             let codes = form_registers(form);
             let registers = &codes[..usize::from(form.operand_count())];
-            if matches!(
-                form.operation,
-                AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
-            ) {
-                assert_eq!(
-                    encode(form, registers),
-                    Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm),
-                    "{form:?}"
-                );
-                continue;
-            }
             let bytes = encode(form, registers).unwrap();
             let name = |code: u8| {
                 [
@@ -393,22 +435,6 @@ mod tests {
                 family: MachineAlternativeFamily::AtomicAccess(form),
                 variant: 0,
             };
-            if matches!(
-                form.operation,
-                AtomicOperation::FetchAnd | AtomicOperation::FetchOr | AtomicOperation::FetchXor
-            ) {
-                assert_eq!(
-                    crate::encode_x86_64_selected_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operand_views
-                    ),
-                    Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm),
-                    "{form:?}"
-                );
-                continue;
-            }
             let encoded =
                 crate::encode_x86_64_selected_form(&physical, kind, alternative, &operand_views)
                     .unwrap();
@@ -434,6 +460,52 @@ mod tests {
                     "{form:?}"
                 );
             }
+        }
+    }
+    #[test]
+    fn bitwise_retry_returns_committed_prior_and_preserves_inputs() {
+        let form = AtomicForm {
+            width: AtomicWidth::Bits32,
+            operation: AtomicOperation::FetchOr,
+        };
+        assert_eq!(
+            encode(form, &[2, 1, 8]).unwrap(),
+            [
+                0x8b, 0x82, 0, 0, 0, 0, 0x49, 0x89, 0xc0, 0x41, 0x09, 0xc8, 0xf0, 0x44, 0x0f, 0xb1,
+                0x82, 0, 0, 0, 0, 0x75, 0xef, 0x49, 0x89, 0xc0,
+            ]
+        );
+        for form in AtomicForm::ALL
+            .into_iter()
+            .filter(|form| retries_bitwise_update(form.operation))
+        {
+            for operand in 0..3 {
+                let mut homes = [2, 1, 8];
+                homes[operand] = 0;
+                assert!(
+                    encode(form, &homes).is_err(),
+                    "RAX alias: {form:?} operand {operand}"
+                );
+            }
+            let bytes = encode(form, &[2, 1, 8]).unwrap();
+            assert_eq!(
+                effects(form).control,
+                MachineEncodedControlEffect::AtomicRetryUntilCommitV1
+            );
+            assert_eq!(effects(form).external_operand_writes, [2]);
+            // The negative branch lands after the initial load, at the copy
+            // from the refreshed comparison into the next replacement.
+            let branch = bytes.len() - 5;
+            assert_eq!(bytes[branch], 0x75);
+            let retry = (branch as isize + 2 + bytes[branch + 1] as i8 as isize) as usize;
+            assert_eq!(&bytes[retry..retry + 3], &[0x49, 0x89, 0xc0]);
+            assert!(retry > 0 && retry < branch);
+            println!(
+                "atomic-vector {:?} {:?} {}",
+                form.width,
+                form.operation,
+                bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+            );
         }
     }
 }

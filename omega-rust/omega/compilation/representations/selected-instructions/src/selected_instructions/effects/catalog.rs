@@ -854,6 +854,11 @@ pub enum MachineEncodedControlEffect {
     HostedReadReturnOrTrapV1,
     HostedWriteReturnOrTrapV1,
     FallThroughV1,
+    /// A software compare-exchange loop retries until an update commits,
+    /// then falls through. Each failed attempt is target-relative work with
+    /// no static bound: this is not a fixed-work or termination claim. The
+    /// successful attempt supplies the observed prior, not its initial load.
+    AtomicRetryUntilCommitV1,
     ConditionalRelativeBranchV1,
     ReturnFromActivationStackV1,
     ReturnIndirectRegisterV1 {

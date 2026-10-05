@@ -38,7 +38,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v30\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v31\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -46,6 +46,7 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
         catalog.selected_keys.atomic_compare_exchange,
+        catalog.selected_keys.atomic_bitwise_update,
         catalog.selected_keys.copy_bytes,
         catalog.selected_keys.hosted_read_byte,
         catalog.selected_keys.hosted_write_byte_i32,
@@ -420,6 +421,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.identity_bytes(&[4]),
         MachineEncodedControlEffect::SupervisorCallV1 => bytes.identity_bytes(&[11]),
+        MachineEncodedControlEffect::AtomicRetryUntilCommitV1 => bytes.identity_bytes(&[12]),
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.identity_bytes(&[5]),
     }
 }

@@ -755,6 +755,7 @@ fn decode_encoded_effects(
         },
         4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
         11 if allow_scalar_call => MachineEncodedControlEffect::SupervisorCallV1,
+        12 => MachineEncodedControlEffect::AtomicRetryUntilCommitV1,
         5 if allow_jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };

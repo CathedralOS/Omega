@@ -124,9 +124,9 @@ fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary(
         }
         source.identity = pre_allocation_machine_effect_identity(&source);
         let encoded = source.encode();
-        assert_eq!(&encoded[8..12], &31_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &32_u32.to_le_bytes());
         assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
-        for version in [30_u32, 32_u32] {
+        for version in [30_u32, 31_u32, 33_u32] {
             let mut wrong_version = encoded.clone();
             wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
             assert_eq!(
@@ -181,6 +181,14 @@ fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
             form,
         };
         encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        if matches!(
+            form.operation,
+            crate::AtomicOperation::FetchAnd
+                | crate::AtomicOperation::FetchOr
+                | crate::AtomicOperation::FetchXor
+        ) {
+            encoded.control = MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
+        }
         instruction.alternatives[0].encoded = encoded;
         source.identity = pre_allocation_machine_effect_identity(&source);
         assert_eq!(
@@ -986,7 +994,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &31_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &32_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source

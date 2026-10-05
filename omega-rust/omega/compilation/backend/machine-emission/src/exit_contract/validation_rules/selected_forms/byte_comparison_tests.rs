@@ -59,7 +59,15 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         normalized_foreign_call_fixup: None,
         byte_literal_address_fixup: None,
     };
-    validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
+    validate_non_return(
+        target::Architecture::Aarch64,
+        instruction,
+        kind,
+        &encoding,
+        &layout,
+        &store,
+    )
+    .unwrap();
     for mutation in 0..9 {
         let mut changed = store.clone();
         let footprint = changed.footprint_mut(encoding.footprint).unwrap();
@@ -91,12 +99,30 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
             _ => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
         }
         assert!(
-            validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
+            validate_non_return(
+                target::Architecture::Aarch64,
+                instruction,
+                kind,
+                &encoding,
+                &layout,
+                &changed
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
     let mut changed = store.clone();
     let footprint = changed.footprint_mut(encoding.footprint).unwrap();
     footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
-    assert!(validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err());
+    assert!(
+        validate_non_return(
+            target::Architecture::Aarch64,
+            instruction,
+            kind,
+            &encoding,
+            &layout,
+            &changed
+        )
+        .is_err()
+    );
 }

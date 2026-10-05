@@ -83,7 +83,15 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
         };
-        validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
+        validate_non_return(
+            target::Architecture::Aarch64,
+            instruction,
+            kind,
+            &encoding,
+            &layout,
+            &store,
+        )
+        .unwrap();
         for mutation in 0..6 {
             // A mutation reaches either the row's own address or the
             // footprint the store holds, so both are cloned per mutation.
@@ -110,7 +118,15 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                 }
             }
             assert!(
-                validate_non_return(instruction, kind, &changed_row, &layout, &changed).is_err(),
+                validate_non_return(
+                    target::Architecture::Aarch64,
+                    instruction,
+                    kind,
+                    &changed_row,
+                    &layout,
+                    &changed
+                )
+                .is_err(),
                 "mutation {mutation}"
             );
         }

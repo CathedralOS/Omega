@@ -50,6 +50,7 @@ fn keys() -> SelectedConstraintKeys {
         atomic_store: Some(instruction(55)),
         atomic_update: Some(instruction(56)),
         atomic_compare_exchange: Some(instruction(57)),
+        atomic_bitwise_update: Some(instruction(58)),
         crash: instruction(780),
         copy_bytes: Some(instruction(40)),
         scan_byte_sequence: Some(instruction(41)),
@@ -1336,7 +1337,7 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 
 #[test]
 fn encoded_control_effect_identity_bytes_are_pinned() {
-    let cases: [(MachineEncodedControlEffect, &[u8]); 12] = [
+    let cases: [(MachineEncodedControlEffect, &[u8]); 13] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
         (
             MachineEncodedControlEffect::ConditionalRelativeBranchV1,
@@ -1363,6 +1364,7 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
         (MachineEncodedControlEffect::CrashV1, &[9]),
         (MachineEncodedControlEffect::FallThroughOrTrapV1, &[10]),
         (MachineEncodedControlEffect::SupervisorCallV1, &[11]),
+        (MachineEncodedControlEffect::AtomicRetryUntilCommitV1, &[12]),
     ];
     for (control, expected) in cases {
         let mut wanted = EMPTY_LIST_PREFIX.to_vec();

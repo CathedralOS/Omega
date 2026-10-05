@@ -10,6 +10,8 @@ pub struct SelectedConstraintKeys {
     pub atomic_store: Option<RegisterConstraintKey>,
     pub atomic_update: Option<RegisterConstraintKey>,
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
+    /// Bitwise RMW may need a retry sequence with a different register contract.
+    pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
     pub copy_bytes: Option<RegisterConstraintKey>,
     /// Byte-sequence predicate scan: two preserved inputs (base, count), two

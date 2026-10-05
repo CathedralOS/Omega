@@ -4,10 +4,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{FixedViewCopyPlan, fixed_view_copy_identity};
 
-const V47_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v47\0";
-pub(super) fn v47_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32] {
+const V48_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v48\0";
+pub(super) fn v48_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(V47_DOMAIN);
+    hasher.update(V48_DOMAIN);
     hasher.update(fixed_view_copy_identity(plan).bytes());
     hasher.update(Sha256::digest(content));
     hasher.finalize().into()

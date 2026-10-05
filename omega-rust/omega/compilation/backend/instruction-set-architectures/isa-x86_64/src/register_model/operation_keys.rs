@@ -353,6 +353,14 @@ pub const X86_64_ATOMIC_UPDATE: RegisterConstraintKey = RegisterConstraintKey {
     variant: 73,
 };
 
+/// Bitwise fetch uses a compare-exchange retry sequence. RAX holds the
+/// current comparison, while fixed caller-volatile homes preserve the address
+/// and authored mask and separate the returned prior from the replacement.
+pub const X86_64_ATOMIC_BITWISE_UPDATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 747,
+};
+
 /// Atomic compare-exchange: `LOCK CMPXCHG` reads the expected value from RAX
 /// and leaves the observed prior cell value in RAX; the replacement is an
 /// ordinary allocatable input. RFLAGS is clobbered.
@@ -443,7 +451,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 95] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 96] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -592,6 +600,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 95] = [
     X86_64_LOAD16,
     X86_64_MATERIALIZE_BOOLEAN,
     X86_64_COPY_BYTES,
+    X86_64_ATOMIC_BITWISE_UPDATE,
     X86_64_SAVE_FLOATING_CONTROL,
     X86_64_RESTORE_FLOATING_CONTROL,
     X86_64_SCAN_BYTE_SEQUENCE,
