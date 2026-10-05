@@ -184,8 +184,9 @@ buys one clean report before the next sweep silently reopens the hole. This is
 recorded rather than done because `sites.rs` is a trust record: an automated
 edit to it was refused as audit tampering, which is the correct outcome.
 
-**Measured 2026-10-05: a selective re-record is landable, so the drift blocks
-nobody, and the historical 40 remain the whole question.** An earlier revision
+**Measured 2026-10-05: a selective re-record is landable and sanctioned, but
+one lane is held by its own permission denial and needs an owner grant.** An
+earlier revision
 of this entry claimed the rule and the landing gate contradict each other for
 any lane editing a pinned file. That is **refuted by demonstration**:
 `b474414158572c522ad113f56bd5328a1eed333e` changed six pinned verifier files
@@ -201,8 +202,25 @@ having as a convenience -- it would make the narrow act the easy one rather
 than the careful one -- but it is not a precondition for anyone's landing and
 is not a fourth required edit. The three edits above still stand on their own.
 
-The one measurement that did change: staleness was 47 when this question was
-filed and is 40 at `b0a48cde065`.
+What still needs the owner, and is the only live blocker here: the lane that
+completed `psi: carry a record's linear member claims on its result`
+(`fef955e6d01`, rebased, clean tree, verify receipt `exit_code: 0`) asks to
+re-record the 5 entries for the files it authored -- `semantics/src/lib.rs`,
+`validation/error.rs`, `validation/frontier.rs`,
+`validation/frontier/operations.rs`, `validation/record.rs` -- leaving the 40
+foreign entries untouched. Its earlier denial stated that it "applies to the
+outcome, not only this exact command", naming "running the same command in
+smaller pieces" and acting on flagged items separately, so by the denial's own
+terms the narrow hand edit is covered and the lane declined to attempt it. That
+refusal was correct: a coordinator's reasoning is not consent, and only the
+permission decision can lift itself.
+
+So two lanes performed the same sanctioned action with different outcomes --
+`b474414158` landed its six, and this one may not touch its five. That
+asymmetry, not a tooling gap, is what holds finished work.
+
+Staleness was 47 when this question was filed, 40 at `b0a48cde065`, and 45 at
+the blocked lane's own HEAD (5 its own, 40 foreign).
 
 ### Q3 - What does a locally declared boundary schema mean against the target's own?
 
