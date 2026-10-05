@@ -169,7 +169,6 @@ fn address_join_argument(
                 )
                 .any(|source| {
                     source.place == argument.place
-                        && !source.is_self
                         && source.structural_type == parameter.structural_type
                         && source.access == parameter.access
                         && source.multiplicity == parameter.multiplicity

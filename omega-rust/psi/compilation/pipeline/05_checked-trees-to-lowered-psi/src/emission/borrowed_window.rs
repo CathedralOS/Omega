@@ -345,7 +345,7 @@ fn resolve_window_place(
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<ResolvedWindowPlace, LoweringError> {
-    let spelling = spell_place(plan, parameters);
+    let spelling = spell_place(plan);
     let (source, root_type) = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             // Plan coordinates index the retained structural roster. A
@@ -475,21 +475,14 @@ fn resolve_window_place(
     })
 }
 
-/// The authored-facing name of a checked place for diagnostics: the receiver
-/// or parameter position, then each spelled segment.
-fn spell_place(
-    plan: &CheckedUnitStructuralArgumentPlan,
-    parameters: &[StructuralParameterDeclaration],
-) -> String {
+/// The authored-facing name of a checked place, followed by its path segments.
+fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
     let mut spelling = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index } => {
             format!("scalar parameter#{parameter_index}")
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            match parameters.get(parameter_index as usize) {
-                Some(parameter) if parameter.is_self => "self".to_owned(),
-                _ => format!("parameter#{parameter_index}"),
-            }
+            format!("parameter#{parameter_index}")
         }
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => "local".to_owned(),

@@ -1,17 +1,14 @@
 //! `&mut` structural-view results mint caller-side loans at the callee's own
-//! tail source, not signature elision. Elision reads the declared signature —
-//! rule 3 even collapses every `&mut`-returning `&mut self` method onto the
-//! receiver — while the structural custody model asks which caller storage
+//! tail source, not signature elision. Elision reads the declared signature,
+//! while the structural custody model asks which caller storage
 //! the returned borrow actually denotes. The tail walk answers that: the
 //! callee's return borrows, resolved through the callee's own locals back to
-//! a `&mut` parameter, the machine's own authority, or a data-binding member.
+//! a `&mut` parameter.
 use super::argument_borrow_loan_place;
 use super::helper_call_borrow_loan_place;
 use crate::borrow::accesses::BorrowAccessPlace;
 use crate::borrow::accesses::borrow_access_place;
-use crate::execution::terminal_unit::calls::{
-    view_data_member_symbol, view_source_parameter_is_mutable,
-};
+use crate::execution::terminal_unit::calls::view_source_parameter_is_mutable;
 use crate::semantic::calls::find_state_with_machine;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use language_core::ReferenceAccess;
@@ -20,9 +17,8 @@ use typed_trees::TypedTrees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use validation::reference_result_custody::mutable_borrowed_parts;
 
-/// The caller-side place a `&mut` structural-view result loans: the call
-/// receiver when the callee's returned borrows root inside `*self`, or the
-/// one non-self argument its returns select. Answers `None` when the call
+/// The caller-side place a `&mut` structural-view result loans: the
+/// argument its returns select. Answers `None` when the call
 /// target is not a `mutable_borrowed_parts` callee or its tail does not
 /// resolve to exactly one caller-side source — a minted-but-wrong loan is
 /// worse than none, because downstream custody only admits exact matches.
@@ -37,56 +33,34 @@ pub(crate) fn mutable_view_call_loan_place(
     if mutable_borrowed_parts(program, callee_state.return_type).is_none() {
         return None;
     }
-    match mutable_view_source(program, callee_machine, callee_state)? {
-        MutableViewSource::SelfReceiver => {
-            if !call.receiver.is_valid() {
-                return None;
-            }
-            borrow_access_place(
-                program,
-                state_symbol,
-                statement_index,
-                call.receiver,
-                machine_symbol,
-            )
-        }
-        MutableViewSource::Parameter(non_self_index) => {
-            let argument = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .get(non_self_index)
-                .copied()?;
-            argument_borrow_loan_place(
-                program,
-                state_symbol,
-                statement_index,
-                machine_symbol,
-                argument,
-            )
-        }
-    }
-}
-
-/// Which caller-side place the callee's `&mut` returns denote.
-enum MutableViewSource {
-    SelfReceiver,
-    Parameter(usize),
+    let parameter_index = mutable_view_source(program, callee_machine, callee_state)?;
+    let argument = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(parameter_index)
+        .copied()?;
+    argument_borrow_loan_place(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        argument,
+    )
 }
 
 /// Every `&mut` the callee returns must resolve to the same caller-side
-/// source: one `&mut` parameter position, or the `*self` authority (directly
-/// or through a `self` member). Returns resolving to callee-owned storage —
+/// source: one `&mut` parameter position. Returns resolving to callee-owned storage —
 /// or to different sources — have no single caller loan to mint.
 fn mutable_view_source(
     program: &TypedTrees,
     callee_machine: &typed_trees::machine::Machine,
     callee_state: &typed_trees::state::State,
-) -> Option<MutableViewSource> {
+) -> Option<usize> {
     let statements = program
         .statement_table
         .statements(callee_state.statement_nodes);
     let parameters = program.state_parameters(callee_state);
-    let mut source: Option<MutableViewSource> = None;
+    let mut source = None;
     for (ordinal, statement) in statements.iter().enumerate() {
         let returned = match statement {
             StatementNode::Transition(transition)
@@ -127,23 +101,11 @@ fn mutable_view_source(
             if !view_source_parameter_is_mutable(program, parameter) {
                 return None;
             }
-            MutableViewSource::Parameter(parameters[..position].iter().count())
-        } else if root == callee_machine.symbol
-            || view_data_member_symbol(program, callee_state, callee_machine.symbol, root).is_some()
-        {
-            MutableViewSource::SelfReceiver
+            position
         } else {
             return None;
         };
-        let agrees = match (&source, &resolved) {
-            (None, _) => true,
-            (Some(MutableViewSource::SelfReceiver), MutableViewSource::SelfReceiver) => true,
-            (Some(MutableViewSource::Parameter(prior)), MutableViewSource::Parameter(next)) => {
-                prior == next
-            }
-            _ => false,
-        };
-        if !agrees {
+        if source.is_some_and(|prior| prior != resolved) {
             return None;
         }
         source = Some(resolved);
@@ -152,7 +114,7 @@ fn mutable_view_source(
 }
 
 /// The returned borrow's place ends at caller-frame storage: a `&mut`
-/// parameter, the machine's `*self` authority, or a `self` member. Roots
+/// parameter. Roots
 /// that land on callee view locals substitute that local's own borrow
 /// source — the same loan replay the tracker performs, kept syntactic so
 /// this helper stays usable where no `CheckFacts` exist.
@@ -166,7 +128,7 @@ fn mutable_view_caller_root(
 ) -> Option<SymbolHandle> {
     let mut place = borrow_access_place(program, state.symbol, ordinal, target, machine)?;
     for _ in 0..8 {
-        if view_source_root_is_caller_storage(program, state, machine, place.root_symbol) {
+        if view_source_root_is_caller_storage(program, state, place.root_symbol) {
             return Some(place.root_symbol);
         }
         let (index, local) =
@@ -233,17 +195,13 @@ fn initializer_borrow_place(
     }
 }
 
-/// Caller-frame roots for the tail walk: the machine itself, one of its
-/// data-binding member fields, or a `&mut` parameter of the callee state.
+/// Caller-frame roots for the tail walk: a `&mut` parameter of the callee state.
 fn view_source_root_is_caller_storage(
     program: &TypedTrees,
     state: &typed_trees::state::State,
-    machine: SymbolHandle,
     root: SymbolHandle,
 ) -> bool {
-    root == machine
-        || program.state_parameters(state).iter().any(|parameter| {
-            parameter.symbol == root && view_source_parameter_is_mutable(program, parameter)
-        })
-        || view_data_member_symbol(program, state, machine, root).is_some()
+    program.state_parameters(state).iter().any(|parameter| {
+        parameter.symbol == root && view_source_parameter_is_mutable(program, parameter)
+    })
 }

@@ -1018,7 +1018,7 @@ fn helper_call_aggregate_borrow_loans(
     sources
         .into_iter()
         .flat_map(|(field, projection)| {
-            let Some(argument) = arguments.get(field.non_self_index).copied() else {
+            let Some(argument) = arguments.get(field.parameter_index).copied() else {
                 return Vec::new();
             };
             if !is_reference_type(program, field.source_type) {
@@ -1188,26 +1188,11 @@ pub(crate) fn helper_call_borrow_loan_place(
         ViewReturnSource::NotApplicable
         | ViewReturnSource::Ambiguous(_)
         | ViewReturnSource::Fields { .. } => None,
-        ViewReturnSource::SelfReceiver => {
-            // Elision rule 3: a `&self`/`&mut self` method's returned view
-            // borrows self (the call receiver).
-            if !call.receiver.is_valid() {
-                return None;
-            }
-            borrow_access_place(
-                program,
-                state_symbol,
-                statement_index,
-                call.receiver,
-                machine_symbol,
-            )
-        }
-        ViewReturnSource::Parameter { non_self_index } => {
+        ViewReturnSource::Parameter { parameter_index } => {
             // The returned view borrows one named (or single) ref input; its
-            // loan follows that argument's place. Arguments map 1:1 to non-self
-            // parameters (a `&self` receiver routes through `SelfReceiver`).
+            // loan follows that argument's place. Arguments map 1:1 to parameters.
             let arguments = program.expression_table.expression_handles(call.arguments);
-            let argument = arguments.get(non_self_index).copied()?;
+            let argument = arguments.get(parameter_index).copied()?;
             argument_borrow_loan_place(
                 program,
                 state_symbol,
@@ -1279,8 +1264,8 @@ fn call_site_substitutions(
 }
 
 /// True when the call target's own declaration names one exact borrow source
-/// for its returned view: the self receiver or a single direct reference
-/// parameter. This is the promotion gate for call-result loan provenance --
+/// for its returned view: a single direct reference parameter.
+/// This is the promotion gate for call-result loan provenance --
 /// the name-matched slice/view builtins, carrier-field sources, ambiguous
 /// signatures, and view-free calls all stay deliberately unretained.
 pub(crate) fn call_declares_direct_view_source(
@@ -1289,7 +1274,7 @@ pub(crate) fn call_declares_direct_view_source(
 ) -> bool {
     matches!(
         call_view_return_source(program, target_symbol),
-        ViewReturnSource::Parameter { .. } | ViewReturnSource::SelfReceiver
+        ViewReturnSource::Parameter { .. }
     )
 }
 

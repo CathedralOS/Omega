@@ -804,7 +804,6 @@ pub(super) fn copyable_owned_argument_root(
         )
         .any(|parameter| {
             parameter.place == root
-                && !parameter.is_self
                 && parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()

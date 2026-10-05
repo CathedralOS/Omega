@@ -198,7 +198,6 @@ pub(super) fn validate_guarded_call_outputs(
                                 .collect::<BTreeSet<_>>()
                                 .len()
                                 == target_uses.len()
-                            && !parameter.is_self
                             && parameter.structural_type == result.structural_type
                             && parameter.multiplicity
                                 == terminal_psi::StructuralMultiplicity::Unrestricted

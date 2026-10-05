@@ -47,7 +47,6 @@ pub(super) fn validate(
             {
                 if parameter.access != terminal_psi::StructuralAccess::Owned
                     || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                    || parameter.is_self
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {

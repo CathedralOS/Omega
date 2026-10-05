@@ -132,7 +132,6 @@ pub(crate) fn validate_parameter_binding_receiver(
         "binding receiver lost its retained structural parameter",
     ))?;
     if parameters.next().is_some()
-        || parameter.is_self
         || source_parameter.relevance.is_erased()
         || parameter.fused_service_erasure.is_some()
     {

@@ -45,7 +45,6 @@ pub(super) fn argument(
     let presented = StructuralParameterDeclaration {
         place: result.place,
         position: destination.position,
-        is_self: false,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
         access: StructuralAccess::Owned,

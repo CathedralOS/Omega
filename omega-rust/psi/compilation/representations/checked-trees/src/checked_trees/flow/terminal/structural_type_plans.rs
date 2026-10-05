@@ -298,7 +298,6 @@ pub struct CheckedUnitStructuralParameterPlan {
     /// Position in the authored state signature. Structural argument lists use
     /// their own dense order and therefore never reinterpret this coordinate.
     pub position: u32,
-    pub is_self: bool,
     pub type_identity: String,
     pub multiplicity: Multiplicity,
     pub access: CheckedStructuralAccess,

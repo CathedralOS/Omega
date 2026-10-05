@@ -294,8 +294,7 @@ fn forwarded_owner_loan(
     plan: &AbstractOperationPlan,
 ) -> bool {
     let identical = |source: &StructuralParameterDeclaration| {
-        !source.is_self
-            && source.structural_type == declaration.structural_type
+        source.structural_type == declaration.structural_type
             && source.access == declaration.access
             && source.multiplicity == declaration.multiplicity
             && source.qualifications == declaration.qualifications

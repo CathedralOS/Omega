@@ -169,7 +169,6 @@ pub(super) fn validate_borrowed_argument(
         .map(|(_, result)| terminal_psi::StructuralParameterDeclaration {
             place: result.place,
             position: 0,
-            is_self: false,
             structural_type: result.structural_type,
             multiplicity: result.multiplicity,
             access: StructuralAccess::Owned,
@@ -408,8 +407,8 @@ pub(super) fn validate_borrowed_argument(
     )
     .ok()?;
     // Attachment names the enclosing declaration, not an extra argument or
-    // a different pointer ABI for scalar-returning callers. Rejoin that type
-    // and any explicit receiver; static attached methods have no receiver.
+    // a different pointer ABI for scalar-returning callers. Rejoin that type;
+    // every argument has its own explicit declaration and placement.
     // The checks below still reconstruct every incoming/outgoing placement,
     // referent, projection, and access mode independently.
     if source.attachment.is_some_and(|attachment| {
@@ -417,9 +416,6 @@ pub(super) fn validate_borrowed_argument(
             .structural_types
             .iter()
             .any(|declaration| declaration.id == attachment)
-            || signature.parameters.iter().any(|parameter| {
-                parameter.semantic.is_self && parameter.semantic.structural_type != attachment
-            })
     }) || (!parameters.is_empty()
         && !crate::structural_inputs::unobserved_owned_input::accepts(source)
         && !crate::structural_inputs::structural_unit_input::accepts_graph(

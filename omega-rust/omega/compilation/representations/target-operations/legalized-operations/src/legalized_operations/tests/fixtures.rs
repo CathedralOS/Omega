@@ -38,7 +38,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             semantic: StructuralParameterDeclaration {
                 place,
                 position: position as u32,
-                is_self: false,
                 structural_type: extent_type,
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
@@ -141,17 +140,11 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 structural_places: vec![
                     StructuralPlaceDeclaration {
                         id: image_place,
-                        kind: StructuralPlaceKind::Parameter {
-                            position: 0,
-                            is_self: false,
-                        },
+                        kind: StructuralPlaceKind::Parameter { position: 0 },
                     },
                     StructuralPlaceDeclaration {
                         id: storage_place,
-                        kind: StructuralPlaceKind::Parameter {
-                            position: 1,
-                            is_self: false,
-                        },
+                        kind: StructuralPlaceKind::Parameter { position: 1 },
                     },
                 ],
                 entry_claims: vec![
@@ -248,7 +241,6 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
                 .iter()
                 .map(|parameter| terminal_psi::ProviderSignatureParameter {
                     position: parameter.semantic.position,
-                    is_self: parameter.semantic.is_self,
                     structural_type: parameter.semantic.structural_type,
                     multiplicity: parameter.semantic.multiplicity,
                     access: parameter.semantic.access,

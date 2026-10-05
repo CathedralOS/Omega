@@ -203,7 +203,6 @@ fn normalize_projection_subject(
                 position: u32::try_from(position).expect("parameter position fits u32"),
                 symbol: parameter.symbol,
                 name: parameter.name.as_str().to_owned(),
-                is_self: false,
             },
             parameter.type_reference,
         )

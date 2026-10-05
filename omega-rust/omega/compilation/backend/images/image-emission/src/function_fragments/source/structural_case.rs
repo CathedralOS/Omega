@@ -143,7 +143,6 @@ mod tests {
         StructuralParameterDeclaration {
             place,
             position: 0,
-            is_self: false,
             structural_type: StructuralTypeId::new(2).unwrap(),
             access: StructuralAccess::Owned,
             multiplicity: StructuralMultiplicity::Affine,
@@ -271,7 +270,6 @@ mod tests {
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: source,
                 position: 0,
-                is_self: false,
                 structural_type: StructuralTypeId::new(2).unwrap(),
                 access: StructuralAccess::Owned,
                 multiplicity: StructuralMultiplicity::Affine,

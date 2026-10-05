@@ -32,7 +32,6 @@ pub(super) fn encode(
     length(bytes, provider.signature.parameters.len());
     for parameter in &provider.signature.parameters {
         bytes.extend_from_slice(&parameter.position.to_le_bytes());
-        bytes.push(u8::from(parameter.is_self));
         bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_access(bytes, parameter.access);
@@ -80,7 +79,6 @@ pub(super) fn decode(
     for _ in 0..signature_count {
         parameters.push(ProviderSignatureParameter {
             position: cursor.u32()?,
-            is_self: decode_bool(cursor)?,
             structural_type: decode_id(cursor, StructuralTypeId::new)?,
             multiplicity: decode_multiplicity(cursor)?,
             access: decode_access(cursor)?,
@@ -117,12 +115,4 @@ pub(super) fn decode(
             realized_service_ceiling: decode_ids(cursor, ServiceId::new)?,
         },
     })
-}
-
-fn decode_bool(cursor: &mut Cursor<'_>) -> Result<bool, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(false),
-        1 => Ok(true),
-        tag => Err(FixedViewCopyDecodeError::UnknownBoolean(tag)),
-    }
 }

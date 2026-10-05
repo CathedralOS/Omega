@@ -37,11 +37,10 @@ pub fn arrival_parameter<'machine>(
     }
 
     match place_declaration.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             let parameter = machine.structural_parameters.get(position as usize)?;
             (parameter.place == place
                 && parameter.position == position
-                && parameter.is_self == is_self
                 && machine
                     .structural_parameters
                     .iter()
@@ -76,7 +75,6 @@ pub fn arrival_parameter<'machine>(
             let parameter = owner.structural_parameters.get(position as usize)?;
             (parameter.place == place
                 && parameter.position == position
-                && !parameter.is_self
                 && machine
                     .blocks
                     .iter()

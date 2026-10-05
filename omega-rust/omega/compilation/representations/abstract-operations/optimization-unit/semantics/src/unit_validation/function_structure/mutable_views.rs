@@ -177,10 +177,8 @@ pub(crate) fn current_mutable_borrows(
                             // permission as an incoming mutable record. Its
                             // source name expires on transfer, even though the
                             // physical pointer still names the same referent.
-                            let mut joined = (**parameter).clone();
-                            joined.is_self = false;
                             abstract_operations::control_flow::address_joins::is_address_join(
-                                &joined,
+                                parameter,
                                 |identity| types.get(&identity).copied(),
                             )
                         }

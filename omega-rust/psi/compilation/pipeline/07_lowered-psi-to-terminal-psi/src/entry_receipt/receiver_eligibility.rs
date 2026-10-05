@@ -102,9 +102,6 @@ pub(super) fn derive(
             if parameters.next().is_some()
                 || parameter.access != StructuralAccess::MutableBorrow
                 || parameter.position != terminal_position
-                // Terminal metadata is independently checked: an implicit
-                // receiver there cannot stand in for this explicit parameter.
-                || parameter.is_self
             {
                 return None;
             }
@@ -248,7 +245,6 @@ fn ordinary_context_terminal_position(
         .filter(|(_, parameter)| parameter.position == source_position);
     let (position, parameter) = matching.next()?;
     if matching.next().is_some()
-        || parameter.is_self
         || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
         || parameter.type_identity != checked.normalized_type_identity(referent).as_str()
     {

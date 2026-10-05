@@ -61,22 +61,21 @@ pub(super) fn lower<Call: DynamicCall>(
         plan.source_type_identity,
     )?;
     let caller_attachment = lookup_type_id(&type_ids, plan.caller_attachment_type_identity)?;
-    let caller_self = StructuralParameterDeclaration {
+    let caller_parameter = StructuralParameterDeclaration {
         place: place_id(1),
         position: 0,
-        is_self: true,
         structural_type: caller_attachment,
         multiplicity: LOAN_MULTIPLICITY,
         access: match plan.caller_parameter_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-            _ => return unsupported("direct dynamic caller requires a borrowed self parameter"),
+            _ => return unsupported("direct dynamic caller requires a borrowed context parameter"),
         },
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
     let source = validate_and_lower_dynamic_source(
-        &caller_self,
+        &caller_parameter,
         &plan,
         plan.source_path,
         plan.source_type_identity,
@@ -92,7 +91,7 @@ pub(super) fn lower<Call: DynamicCall>(
     let mut caller_operations = lower_caller_store_operations(
         call.caller_store(),
         &plan,
-        &caller_self,
+        &caller_parameter,
         &structural_types,
         &type_ids,
         &mut next_operation,
@@ -137,7 +136,7 @@ pub(super) fn lower<Call: DynamicCall>(
     )?;
     let (mut dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
-        &caller_self,
+        &caller_parameter,
         &plan,
         result_type.is_some(),
         &structural_types,
@@ -238,14 +237,13 @@ pub(super) fn lower<Call: DynamicCall>(
         attachment: Some(caller_attachment),
         nominal_cleanup_subject: None,
         parameters: Vec::new(),
-        structural_parameters: vec![caller_self.clone()],
+        structural_parameters: vec![caller_parameter.clone()],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
-            id: caller_self.place,
+            id: caller_parameter.place,
             kind: StructuralPlaceKind::Parameter {
-                position: caller_self.position,
-                is_self: caller_self.is_self,
+                position: caller_parameter.position,
             },
         }],
         entry_claims: Vec::new(),

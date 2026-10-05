@@ -10,7 +10,7 @@ use crate::installation_record::codec::structural::scalar::{
     access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
     multiplicity_tag,
 };
-use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u32, push_u64};
+use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 
 pub(crate) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
@@ -18,7 +18,6 @@ pub(crate) fn encode_structural_parameter(
 ) -> Result<(), InstallationError> {
     push_u64(bytes, parameter.place.get());
     push_u32(bytes, parameter.position);
-    bytes.push(u8::from(parameter.is_self));
     bytes.push(multiplicity_tag(parameter.multiplicity));
     bytes.push(access_tag(parameter.access));
     bytes.push(0);
@@ -65,7 +64,6 @@ pub(crate) fn decode_structural_parameter(
         InstallationError::ZeroStructuralReturnIdentity("source place"),
     )?;
     let position = reader.u32()?;
-    let is_self = decode_boolean(reader.u8()?)?;
     let multiplicity = decode_multiplicity(reader.u8()?)?;
     let access = decode_access(reader.u8()?)?;
     if reader.u8()? != 0 {
@@ -77,7 +75,6 @@ pub(crate) fn decode_structural_parameter(
     Ok(StructuralParameterDeclaration {
         place,
         position,
-        is_self,
         structural_type,
         multiplicity,
         access,

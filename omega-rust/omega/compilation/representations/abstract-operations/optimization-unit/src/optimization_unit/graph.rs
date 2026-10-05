@@ -238,9 +238,8 @@ impl PsiOptimizationFunction {
             return None;
         }
         match declaration.kind {
-            StructuralPlaceKind::Parameter { position, is_self }
+            StructuralPlaceKind::Parameter { position }
                 if position == parameter.position
-                    && is_self == parameter.is_self
                     && self
                         .structural_parameters
                         .iter()
@@ -248,7 +247,6 @@ impl PsiOptimizationFunction {
             StructuralPlaceKind::BlockParameter { block, position }
                 if block != self.entry
                     && position == parameter.position
-                    && !parameter.is_self
                     && self
                         .blocks
                         .iter()

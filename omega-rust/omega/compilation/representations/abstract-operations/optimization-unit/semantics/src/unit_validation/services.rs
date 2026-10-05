@@ -373,10 +373,9 @@ pub(crate) fn boundary_structural_signature_matches(
         })
 }
 
-/// Replay Terminal's exact attachment/self half of a structural signature.
-/// An attachment need not have a runtime `self` parameter, including a
-/// provider-backed specialization, but every retained `self` must be the
-/// unique parameter whose type is that attachment.
+/// Check the nominal attachment and each explicitly declared parameter.
+/// Nominal ownership introduces no argument or relationship between argument
+/// types; each parameter carries its own position, place and qualifications.
 pub(crate) fn structural_signature_matches(
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     attachment: Option<StructuralTypeId>,
@@ -387,19 +386,10 @@ pub(crate) fn structural_signature_matches(
         return false;
     }
     let mut places = BTreeSet::new();
-    let mut saw_self = false;
     parameters.iter().enumerate().all(|(position, parameter)| {
-        let self_matches = if parameter.is_self {
-            let matches = !saw_self && attachment == Some(parameter.structural_type);
-            saw_self = true;
-            matches
-        } else {
-            true
-        };
         u32::try_from(position).ok() == Some(parameter.position)
             && places.insert(parameter.place)
             && types.contains_key(&parameter.structural_type)
-            && self_matches
             && structural_qualifications_match(
                 parameter.structural_type,
                 &parameter.qualifications,

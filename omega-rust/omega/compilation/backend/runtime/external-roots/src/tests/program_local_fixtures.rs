@@ -129,7 +129,6 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: semantic_vocabulary::PlaceId::new(1).expect("place identity"),
                 position: 0,
-                is_self: false,
                 structural_type: carrier,
                 multiplicity: StructuralMultiplicity::Linear,
                 access: terminal_psi::StructuralAccess::Owned,
@@ -214,7 +213,6 @@ pub(super) fn program_local_two_schema_module() -> TerminalModule {
         .push(StructuralParameterDeclaration {
             place: semantic_vocabulary::PlaceId::new(2).expect("place identity"),
             position: 1,
-            is_self: false,
             structural_type: machine.structural_parameters[0].structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             access: terminal_psi::StructuralAccess::Owned,

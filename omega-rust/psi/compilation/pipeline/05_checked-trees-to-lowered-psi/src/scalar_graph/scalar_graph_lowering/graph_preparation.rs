@@ -121,30 +121,15 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     // equal carrier types never imply equal storage identities. The private
     // blocks emitted beneath a state receive its exclusive record loans in
     // `scalar_graph_module::state_borrows`.
-    //
-    // The one exception binds nothing on an edge: a tail fusion of
-    // single-state machines whose every member retains the entry's exact
-    // borrowed receiver. The receiver is one machine-scope place, and
-    // successor replay admits only tails that lend the source's lexical
-    // `self`, so every member reads it through the entry namespace.
-    let shared_receiver = states.len() > 1
-        && states.iter().all(|state| {
-            matches!(state.structural_parameters.as_slice(), [receiver] if receiver.is_self)
-                && state.structural_parameters == entry_state.structural_parameters
-                && crate::declarations::state_declaration(checked, state.state)
-                    .is_ok_and(|(owner, _)| checked.machine_states(owner).len() == 1)
-        });
     if entry_state.structural_parameters.len() != structural_parameters.len()
         || (states.len() != 1
-            && !shared_receiver
             && states.iter().any(|state| {
                 state.structural_parameters.iter().any(|parameter| {
-                    parameter.is_self
-                        || !matches!(
-                            parameter.access,
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                                | checked_trees::CheckedStructuralAccess::MutableBorrow
-                        )
+                    !matches!(
+                        parameter.access,
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                            | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    )
                 })
             }))
         || (!primitive_locals.is_empty() && states.len() != 1)
@@ -233,7 +218,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let mut value_requirements = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
         computations.enter_source_state(state.state)?;
-        let state_parameters = if state_index == 0 || shared_receiver {
+        let state_parameters = if state_index == 0 {
             Vec::new()
         } else {
             crate::unit::attached_unit::lower_unit_parameters(
@@ -250,12 +235,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .zip(&state_parameters)
             .map(|(source, declaration)| (source.position, declaration.clone()))
             .collect::<Vec<_>>();
-        let state_namespace: &[(u32, StructuralParameterDeclaration)] =
-            if state_index == 0 || shared_receiver {
-                &entry_namespace
-            } else {
-                &local_namespace
-            };
+        let state_namespace: &[(u32, StructuralParameterDeclaration)] = if state_index == 0 {
+            &entry_namespace
+        } else {
+            &local_namespace
+        };
         let private_start = computations.private_state_count();
         state_requires.push(PreparedStateRequirements {
             clauses: replayed_requirements[state_index].clone(),

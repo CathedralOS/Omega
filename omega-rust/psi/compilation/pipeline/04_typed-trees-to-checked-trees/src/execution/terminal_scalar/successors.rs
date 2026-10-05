@@ -151,14 +151,7 @@ fn arguments<'a>(
     let target_states = program.machine_states(target_machine);
     let source_parameters = program.state_parameters(source_state);
     let target_parameters = program.state_parameters(target_state);
-    let forwarded = |state: &CheckedScalarStateGraph| {
-        state
-            .structural_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-    };
-    if forwarded(source) != 0 || forwarded(target) != 0 {
+    if !source.structural_parameters.is_empty() || !target.structural_parameters.is_empty() {
         // Both endpoint rosters rejoin their own declaration. A fused edge
         // does not give the dispatch machine authority over a sibling's
         // signature, nor does sharing a carrier imply sharing a place.
@@ -166,13 +159,7 @@ fn arguments<'a>(
             (source_machine, source_state, source),
             (target_machine, target_state, target),
         ] {
-            let (structural, scalar, _) = if owner.attached_data.is_some()
-                && (super::retains_borrowed_receiver(program, authored)
-                    || !program
-                        .state_parameters(authored)
-                        .iter()
-                        .any(|_parameter| false))
-            {
+            let (structural, scalar, _) = if owner.attached_data.is_some() {
                 super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
                     program, owner, authored,
                 )?
@@ -210,22 +197,6 @@ fn arguments<'a>(
     else {
         return None;
     };
-    // A fused graph declares a retained receiver once (`build_machine_graph`).
-    // A tail may keep it only by spelling the source's own lexical `self` (or
-    // no receiver); a projected receiver would lend a different place.
-    if graph.states.len() > 1
-        && source
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
-        && !match program.statement_table.name_path_members(path.members) {
-            [_] => true,
-            [receiver, _] => receiver.as_str() == "self",
-            _ => false,
-        }
-    {
-        return None;
-    }
     let arguments = program.statement_table.expression_handles(*arguments);
     let target_index = if let Some(target_index) =
         crate::checks::termination::named_transition_target_state_index(
@@ -247,17 +218,15 @@ fn arguments<'a>(
         }
         0
     };
-    // Authored actuals exclude an implicit `self`, and an ambient borrowed
-    // receiver owns no graph parameter entry. Pair each actual with its
-    // authored formal so ordinals keep the authored target position; an
-    // explicit `self` actual has no counterpart here and refuses the edge.
+    // Pair every explicit actual with its authored formal before partitioning
+    // runtime and erased arguments, preserving the source parameter position.
     let target_formals = target_parameters.iter().enumerate().collect::<Vec<_>>();
     if target_states.get(target_index)?.symbol != target.state
         || arguments.len() != successor.argument_count as usize
         || arguments.len() != target_formals.len()
         || target_formals.len()
             != target.scalar_parameters.len()
-                + forwarded(target)
+                + target.structural_parameters.len()
                 + target.erased_scalar_parameters.len()
                 + target.erased_proof_parameters.len()
     {
@@ -394,7 +363,7 @@ fn arguments<'a>(
             .structural_parameters
             .iter()
             .enumerate()
-            .find(|(_, parameter)| !parameter.is_self && parameter.position == argument_ordinal)?;
+            .find(|(_, parameter)| parameter.position == argument_ordinal)?;
         let target_parameter_index = u32::try_from(target_parameter_index).ok()?;
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(*actual)
             && matches!(

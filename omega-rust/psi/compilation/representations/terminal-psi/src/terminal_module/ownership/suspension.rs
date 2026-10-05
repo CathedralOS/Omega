@@ -67,7 +67,6 @@ pub enum TerminalSuspensionValueType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalSuspensionStorage {
-    Persistent,
     Parameter,
     Local,
     CallArgument,
@@ -75,7 +74,7 @@ pub enum TerminalSuspensionStorage {
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
     let mut hash = Sha256::new();
-    hash.update(b"terminal-suspension-frontier-v1\0");
+    hash.update(b"terminal-suspension-frontier-v2\0");
     hash.update(plan.operation.get().to_le_bytes());
     hash.update(plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -154,7 +153,6 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
             }
         }
         hash.update([match live.storage {
-            TerminalSuspensionStorage::Persistent => 1,
             TerminalSuspensionStorage::Parameter => 2,
             TerminalSuspensionStorage::Local => 3,
             TerminalSuspensionStorage::CallArgument => 4,

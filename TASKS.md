@@ -331,9 +331,12 @@ helper that passes does not close an item.
     implicit builder insertion.
   - Compiler remainder: typed parameters now have only explicit subject
     identities; checking, interpretation, provider arity and review capture
-    consume those identities without an implicit receiver parameter. Retire
-    the remaining attachment helpers and the separate checked-plan, Terminal,
-    and Omega receiver flags through their producers and consumers.
+    consume those identities without an implicit receiver parameter. The
+    checked structural signatures, Terminal parameters, provider signatures,
+    retained-borrow roots and Omega artifacts no longer carry receiver flags.
+    Retire the remaining attachment helpers, inert receiver-retention arguments,
+    and checked suspension `Persistent` discovery; suspension field origins
+    need an explicit parameter-place join rather than a hidden receiver.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject
@@ -349,10 +352,14 @@ helper that passes does not close an item.
   - Entry context: provision the exact ordinary mutable context parameter of
     the [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, storage
-    partitioning and cleanup. Remove attachment/`is_self` as authority inputs,
-    including in interpreter provider argument correspondence.
+    partitioning and cleanup. Entry provisioning now joins explicit source
+    positions; remove remaining attachment-driven discovery without changing
+    provider or storage authority.
   - Scratch fields become ordinary locals; pass only live values across
-    states. Temporary-scoping design is deferred and not a prerequisite.
+    states. The glider sample now keeps only bindings and its grid in Main;
+    its local-buffer migration still needs native and interpreted validation
+    on a host supplying its Clock provider. Temporary-scoping design is
+    deferred and not a prerequisite.
   - A case dispatch over a computed call subject evaluates it once
     (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`),
     but the state graph still declines it when the subject's operands call or

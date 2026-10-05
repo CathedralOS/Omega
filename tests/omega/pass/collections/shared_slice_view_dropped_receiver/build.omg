@@ -1,6 +1,6 @@
-// Shared views rooted past a dropped receiver: `&[Node]` on `bag` inside a
-// machine whose unread `&self` leaves the structural roster must still name
-// `bag` — the source keys itself by symbol, not by authored position.
+// An unused explicit Probe parameter precedes the Bag parameter. Forming a
+// shared node view must preserve Bag's identity if Probe is erased from the
+// runtime roster; source and lowered positions are not interchangeable.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "shared_slice_view_dropped_receiver");

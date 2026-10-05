@@ -108,7 +108,6 @@ pub(crate) fn encode_destination(
 ) -> Result<(), InstallationError> {
     push_u64(bytes, destination.place.get());
     push_u32(bytes, destination.position);
-    bytes.push(u8::from(destination.is_self));
     bytes.push(multiplicity_tag(destination.multiplicity));
     bytes.push(access_tag(destination.access));
     bytes.push(0);
@@ -123,7 +122,6 @@ pub(crate) fn decode_destination(
     let place =
         PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
     let position = reader.u32()?;
-    let is_self = decode_boolean(reader.u8()?)?;
     let multiplicity = decode_multiplicity(reader.u8()?)?;
     let access = decode_access(reader.u8()?)?;
     if reader.u8()? != 0 {
@@ -134,7 +132,6 @@ pub(crate) fn decode_destination(
     Ok(StructuralParameterDeclaration {
         place,
         position,
-        is_self,
         structural_type,
         multiplicity,
         access,

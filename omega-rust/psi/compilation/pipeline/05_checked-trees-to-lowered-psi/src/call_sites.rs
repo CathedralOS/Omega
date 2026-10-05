@@ -1,6 +1,6 @@
 //! Calls as stage 04 recorded them. The source-custody binding pass joins
 //! every flow call row (`FlowCallFact`) to its authored call site and records
-//! the site kind, the callee as spelled, the explicit arguments, the receiver,
+//! the site kind, the callee as spelled, the explicit arguments,
 //! what the statement does with the result, and whether a named transition is
 //! the state's closing invocation. Lowering reads those rows here, with the
 //! callee's declared signature, instead of walking the authored statement
@@ -21,27 +21,16 @@ pub(crate) struct AuthoredCall {
     pub explicit_arguments: Vec<ExpressionHandle>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
-    /// The receiver a call expression spells before its name; the zero
-    /// handle for every other site.
-    pub receiver: ExpressionHandle,
     pub boundary: bool,
     pub target_state: SymbolHandle,
 }
 
 impl AuthoredCall {
-    /// The authored expression passed at formal `position`: the explicit
-    /// argument, or for the receiver formal of a call spelled on a place
-    /// (`self.element(2)`, `self.samples.element(2)`) that receiver
-    /// expression. An explicit receiver argument already sits at its position.
-    pub(crate) fn structural_argument(
-        &self,
-        position: u32,
-        is_self: bool,
-    ) -> Option<ExpressionHandle> {
+    /// The explicit authored expression passed at formal `position`.
+    pub(crate) fn structural_argument(&self, position: u32) -> Option<ExpressionHandle> {
         self.structural_arguments
             .iter()
             .find_map(|(formal, expression)| (*formal == position).then_some(*expression))
-            .or_else(|| (is_self && self.receiver.is_valid()).then_some(self.receiver))
     }
 }
 
@@ -92,7 +81,6 @@ fn planned_call<'checked>(
         arguments: control
             .call_arguments
             .span_or_empty(call.authored_arguments),
-        receiver: call.authored_receiver,
         site,
     })
 }
@@ -100,7 +88,6 @@ fn planned_call<'checked>(
 struct PlannedCall<'checked> {
     target: SymbolHandle,
     arguments: &'checked [ExpressionHandle],
-    receiver: ExpressionHandle,
     site: Option<NominalMachineUseSite>,
 }
 
@@ -114,7 +101,6 @@ pub(crate) fn locate(
     let PlannedCall {
         target: source_target,
         arguments,
-        receiver,
         site: source_site,
     } = planned_call(checked, state, caller_state, coordinate)?;
     let target = crate::declarations::target_signature(checked, machine.symbol, source_target)?;
@@ -151,7 +137,6 @@ pub(crate) fn locate(
         explicit_arguments: arguments.to_vec(),
         scalar_arguments,
         structural_arguments,
-        receiver,
         boundary: target.boundary,
         target_state: target.state,
     })

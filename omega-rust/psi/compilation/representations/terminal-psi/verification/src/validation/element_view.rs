@@ -62,15 +62,11 @@ fn view_access(
             .iter()
             .find(|row| row.id == place)?;
         let established = match declaration.kind {
-            StructuralPlaceKind::Parameter { position, is_self } => {
+            StructuralPlaceKind::Parameter { position } => {
                 machine
                     .structural_parameters
                     .iter()
-                    .find(|parameter| {
-                        parameter.place == place
-                            && parameter.position == position
-                            && parameter.is_self == is_self
-                    })?
+                    .find(|parameter| parameter.place == place && parameter.position == position)?
                     .access
             }
             StructuralPlaceKind::BlockParameter { .. } => {

@@ -507,7 +507,6 @@ pub(super) fn valid_nominal_cleanup(
                             && place.kind
                                 == semantic_vocabulary::StructuralPlaceKind::Parameter {
                                     position: parameter.position,
-                                    is_self: parameter.is_self,
                                 }
                     })
             }

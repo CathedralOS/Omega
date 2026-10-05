@@ -334,60 +334,19 @@ fn build_machine_graph(
     // edges transfer the exact loan, and lowering binds a distinct block
     // parameter for the destination. Owned multi-state formals still need
     // their disposal sequencing on the Unit graph.
-    //
-    // A tail fusion of single-state machines that each retain the same
-    // borrowed receiver forwards no formal: the receiver is one machine-scope
-    // place that edges carry no lane for, and `successors` admits only tails
-    // that lend the source's own lexical `self`. The Unit graph cannot carry
-    // these cross-machine tails, so this fusion keeps its scalar graph.
-    let shared_receiver_fusion = states.len() > 1
-        && pending
-            .iter()
-            .all(|(owner, _)| program.machine_states(owner).len() == 1)
-        && states.iter().all(|(state, _, _)| {
-            matches!(state.structural_parameters.as_slice(), [receiver] if receiver.is_self)
-                && state.structural_parameters == states[0].0.structural_parameters
-        });
     if states.len() > 1
-        && !shared_receiver_fusion
         && states.iter().any(|(state, _, _)| {
             state.structural_parameters.iter().any(|parameter| {
-                parameter.is_self
-                    || !matches!(
-                        parameter.access,
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
-                            | checked_trees::CheckedStructuralAccess::MutableBorrow
-                    )
+                !matches!(
+                    parameter.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
             })
         })
     {
         *reason = "machine has no source-independent checked scalar control plan (multi-state structural formals)";
         return None;
-    }
-    // Any receiver omitted from this representation must remain unobserved.
-    // Readable implicit receivers were retained above, so ordinary multi-state
-    // bodies carrying them have declined to the Unit state graph. In
-    // particular, an unread receiver is not an erased call argument merely
-    // because this planner found no field observations.
-    for (&(_, state), (built, ..)) in pending.iter().zip(&states) {
-        if built
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
-        {
-            continue;
-        }
-        let parameters = program.state_parameters(state);
-        if let Some(position) = parameters.iter().position(|_parameter| false) {
-            let Ok(position) = u32::try_from(position) else {
-                *reason = "machine has no source-independent checked scalar control plan (receiver position)";
-                return None;
-            };
-            if state_reads_ambient_position(expressions, computations, state.symbol, position) {
-                *reason = "machine has no source-independent checked scalar control plan (ambient receiver read)";
-                return None;
-            }
-        }
     }
     Some(CheckedScalarMachineGraph {
         machine: machine.symbol,
@@ -403,27 +362,6 @@ fn build_machine_graph(
                 state
             })
             .collect(),
-    })
-}
-
-/// Receiver custody comes from the declaration, not its use or state count.
-/// Retaining the readable receiver also makes the multi-state structural-roster
-/// check select the Unit graph, which already carries it across state edges.
-/// Publishing a receiver-free scalar graph instead would win callee selection
-/// with a signature that disagrees with the caller's checked borrow.
-fn retains_borrowed_receiver(program: &TypedTrees, state: &typed_trees::state::State) -> bool {
-    program.state_parameters(state).iter().any(|parameter| {
-        false
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                typed_trees::types::TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable,
-                    ..
-                }
-            )
     })
 }
 
@@ -450,16 +388,8 @@ fn checked_state_graph(
                 return None;
             };
             let parameters = program.state_parameters(state);
-            // Borrowed receivers use the retained signature below. An owned
-            // `self` still has no scalar-graph representation and refuses the
-            // plan; attachment identity alone does not provide its custody.
             if parameters.iter().any(|parameter| {
                 super::terminal_unit::strips_erased_parameter(parameter).is_none()
-                    || (false
-                        && !crate::borrow::view_link::is_reference_type(
-                            program,
-                            parameter.type_reference,
-                        ))
                     || parameter.is_const
                     || (parameter.is_mutable
                         && !matches!(
@@ -477,22 +407,16 @@ fn checked_state_graph(
             // An erased parameter (a plain immutable binding after the
             // rejections above) owns no scalar entry and does not make the
             // signature mixed, whatever its type: a proof-only type such as
-            // `Nat` is exactly what erasure exists for. Neither does the
-            // ambient borrowed receiver, which is not a value argument.
+            // `Nat` is exactly what erasure exists for.
             let mixed = parameters.iter().any(|parameter| {
                 (!parameter.relevance.is_erased())
                     && program
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
-            // Preserve the signature before selecting a representation.
-            // Explicit loans bind per state; implicit receiver custody keeps
-            // its separate machine-scoped admission in `build_machine_graph`.
-            let receiver = parameters.iter().any(|_parameter| false);
-            let retains_receiver = retains_borrowed_receiver(program, state);
+            // Preserve the explicit signature before selecting a representation.
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
-                && (retains_receiver || !receiver)
             {
                 // An attached machine's graph carries its whole mixed
                 // signature, and each re-entry edge forwards the body's own
@@ -523,18 +447,6 @@ fn checked_state_graph(
                     super::terminal_unit::structural_scalar_graph_signature(program, state)
                 else {
                     *reason = "machine has no source-independent checked scalar control plan (mixed signature)";
-                    return None;
-                };
-                signature
-            } else if retains_receiver {
-                // The state's roster is the machine's structural namespace,
-                // so the borrowed receiver lands there once.
-                let Some(signature) =
-                    crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
-                        program, machine, state,
-                    )
-                else {
-                    *reason = "machine has no source-independent checked scalar control plan (ambient-self signature)";
                     return None;
                 };
                 signature
@@ -641,8 +553,9 @@ fn checked_state_graph(
             // (`scalar_targets::available_target`), so a leaf that owner keeps
             // must not also register here. A borrowed record is not one of
             // those lanes; its state stays on this graph.
-            if mixed && structural_parameters.iter().all(|parameter| {
-                parameter.access != checked_trees::CheckedStructuralAccess::Owned
+            if mixed
+                && structural_parameters.iter().all(|parameter| {
+                    parameter.access != checked_trees::CheckedStructuralAccess::Owned
                     && parameters
                         .get(parameter.position as usize)
                         .is_some_and(|source| {
@@ -657,7 +570,8 @@ fn checked_state_graph(
                             )
                             .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
                         })
-            }) && matches!(statements, [StatementNode::Expression(_)])
+                })
+                && matches!(statements, [StatementNode::Expression(_)])
                 && !computations
                     .roots
                     .iter()
@@ -1228,287 +1142,5 @@ fn checked_branch_destination(
         )
         .map(CheckedScalarBranchDestination::Jump),
         _ => None,
-    }
-}
-
-/// Whether any scalar plan rooted in `state` observes through the authored
-/// parameter `position` — the ambient borrowed receiver's coordinate. An
-/// unrecognized or malformed node counts as a read so the gate stays closed.
-fn state_reads_ambient_position(
-    expressions: &checked_trees::CheckedScalarExpressionPlans,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    state: symbols::SymbolHandle,
-    position: u32,
-) -> bool {
-    expressions.expressions.iter().any(|expression| {
-        expression.state == state
-            && scalar_expression_reads_position(&expression.expression, position)
-    }) || computations.roots.iter().any(|(_, root)| {
-        root.state == state && computation_reads_position(computations, root.root, position)
-    })
-}
-
-fn computation_reads_position(
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    root: checked_trees::CheckedScalarComputationHandle,
-    position: u32,
-) -> bool {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(handle) = pending.pop() {
-        if visited.contains(&handle) {
-            continue;
-        }
-        visited.push(handle);
-        if !computations.nodes.is_valid(handle) {
-            return true;
-        }
-        match &computations.nodes.get(handle).kind {
-            checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. }
-            | checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
-                subject,
-                ..
-            }
-            | checked_trees::CheckedScalarComputationKind::ByteSequencePredicate {
-                subject, ..
-            } => {
-                if structural_place_reads_position(subject, position, &mut pending) {
-                    return true;
-                }
-            }
-            checked_trees::CheckedScalarComputationKind::CaseMembership { subject, .. } => {
-                if structural_argument_reads_position(computations, subject, position, &mut pending)
-                {
-                    return true;
-                }
-            }
-            checked_trees::CheckedScalarComputationKind::SelectedComparison {
-                left, right, ..
-            } => pending.extend([*left, *right]),
-            checked_trees::CheckedScalarComputationKind::Qualification { operand, .. }
-            | checked_trees::CheckedScalarComputationKind::AuthoredCast { operand, .. }
-            | checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                pending.push(*operand)
-            }
-            checked_trees::CheckedScalarComputationKind::Value(expression) => {
-                if scalar_expression_reads_position(expression, position) {
-                    return true;
-                }
-            }
-            checked_trees::CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.push(*subject);
-                let Some(arms) = computations.dispatch_arms.span(*arms) else {
-                    return true;
-                };
-                for arm in arms {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
-                    {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
-            }
-            checked_trees::CheckedScalarComputationKind::Call {
-                arguments,
-                structural_arguments,
-                ..
-            } => {
-                let Some(operands) = computations.operands.span(*arguments) else {
-                    return true;
-                };
-                pending.extend_from_slice(operands);
-                let Some(arguments) = computations
-                    .structural_arguments
-                    .span(*structural_arguments)
-                else {
-                    return true;
-                };
-                for argument in arguments {
-                    if structural_argument_reads_position(
-                        computations,
-                        argument,
-                        position,
-                        &mut pending,
-                    ) {
-                        return true;
-                    }
-                }
-            }
-            checked_trees::CheckedScalarComputationKind::Select {
-                condition,
-                when_true,
-                when_false,
-                ..
-            } => pending.extend([*condition, *when_true, *when_false]),
-            checked_trees::CheckedScalarComputationKind::BoundaryCall { arguments, .. } => {
-                let Some(operands) = computations.operands.span(*arguments) else {
-                    return true;
-                };
-                pending.extend_from_slice(operands);
-            }
-            checked_trees::CheckedScalarComputationKind::Apply {
-                expression,
-                operands,
-                ..
-            } => {
-                if scalar_expression_reads_position(expression, position) {
-                    return true;
-                }
-                let Some(operands) = computations.operands.span(*operands) else {
-                    return true;
-                };
-                pending.extend_from_slice(operands);
-            }
-        }
-    }
-    false
-}
-
-fn structural_argument_reads_position(
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    argument: &checked_trees::CheckedScalarComputationStructuralArgument,
-    position: u32,
-    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
-) -> bool {
-    match argument {
-        checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
-            structural_place_reads_position(place, position, pending)
-        }
-        checked_trees::CheckedScalarComputationStructuralArgument::Case(construction) => {
-            let Some(fields) = computations.case_fields.span(construction.fields) else {
-                return true;
-            };
-            pending.extend(fields.iter().map(|field| field.value));
-            false
-        }
-        checked_trees::CheckedScalarComputationStructuralArgument::Array { elements, .. } => {
-            let Some(elements) = computations.operands.span(*elements) else {
-                return true;
-            };
-            pending.extend_from_slice(elements);
-            false
-        }
-    }
-}
-
-fn structural_place_reads_position(
-    plan: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    position: u32,
-    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
-) -> bool {
-    if plan.source_parameter_index() == Some(position) {
-        return true;
-    }
-    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        root,
-        start,
-        end,
-        ..
-    }
-    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-        root,
-        start,
-        end,
-        ..
-    } = &plan.source
-    {
-        return root.parameter() == Some(position)
-            || start.iter().chain(end).any(|endpoint| match endpoint {
-                checked_trees::CheckedCallScalarArgument::Pure(value) => {
-                    scalar_expression_reads_position(value, position)
-                }
-                checked_trees::CheckedCallScalarArgument::Computation(root) => {
-                    pending.push(*root);
-                    false
-                }
-            });
-    }
-    false
-}
-
-fn scalar_expression_reads_position(
-    expression: &checked_trees::CheckedScalarExpression,
-    position: u32,
-) -> bool {
-    use checked_trees::CheckedScalarExpression as Scalar;
-    match expression {
-        Scalar::StructuralParameterByteLength { root, .. } => root.parameter() == Some(position),
-        Scalar::StructuralParameterField {
-            parameter_position, ..
-        } => *parameter_position == position,
-        Scalar::StructuralParameterIndexedRead {
-            root,
-            index,
-            inner_indexes,
-            ..
-        } => {
-            root.parameter() == Some(position)
-                || scalar_expression_reads_position(index, position)
-                || inner_indexes
-                    .iter()
-                    .any(|inner| scalar_expression_reads_position(inner, position))
-        }
-        Scalar::IntegerBinary { left, right, .. } => {
-            scalar_expression_reads_position(left, position)
-                || scalar_expression_reads_position(right, position)
-        }
-        Scalar::IntegerBitwiseNot { operand, .. }
-        | Scalar::IntegerWiden { operand, .. }
-        | Scalar::IntegerExactCast { operand, .. }
-        | Scalar::IntegerWrappingCast { operand, .. }
-        | Scalar::RepresentationView { operand, .. }
-        | Scalar::IntegerSaturatingCast { operand, .. }
-        | Scalar::IntegerTrappingCast { operand, .. } => {
-            scalar_expression_reads_position(operand, position)
-        }
-        Scalar::Boolean(expression) => boolean_expression_reads_position(expression, position),
-        Scalar::StorageRead { .. }
-        | Scalar::Parameter { .. }
-        | Scalar::ErasedParameter { .. }
-        | Scalar::Local { .. }
-        | Scalar::IntegerLiteral { .. }
-        | Scalar::IeeeFloatLiteral { .. } => false,
-    }
-}
-
-fn boolean_expression_reads_position(
-    expression: &checked_trees::CheckedBooleanExpression,
-    position: u32,
-) -> bool {
-    use checked_trees::CheckedBooleanExpression as Boolean;
-    match expression {
-        Boolean::IntegerMathComparison { left, right, .. } => {
-            [left, right].into_iter().any(|expression| expression.terms.iter().any(|(_, term)| {
-                matches!(term, checked_trees::CheckedIntegerMathTerm::Embed { operand, .. } if scalar_expression_reads_position(operand, position))
-            }))
-        }
-
-        Boolean::StructuralParameterField {
-            parameter_position, ..
-        } => *parameter_position == position,
-        Boolean::IeeeFloatComparison { left, right, .. }
-        | Boolean::ByteSequenceEqual { left, right }
-        | Boolean::PayloadlessSumEqual { left, right, .. } => {
-            left.parameter_position == position || right.parameter_position == position
-        }
-        Boolean::StructuralCaseMembership { subject, .. } => subject.parameter_position == position,
-        Boolean::ByteSequencePredicate { root, .. } => root.parameter() == Some(position),
-        Boolean::Not(operand) => boolean_expression_reads_position(operand, position),
-        Boolean::Equal { left, right }
-        | Boolean::And { left, right }
-        | Boolean::Or { left, right } => {
-            boolean_expression_reads_position(left, position)
-                || boolean_expression_reads_position(right, position)
-        }
-        Boolean::IntegerComparison { left, right, .. }
-        | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
-            scalar_expression_reads_position(left, position)
-                || scalar_expression_reads_position(right, position)
-        }
-        Boolean::StorageRead { .. }
-        | Boolean::Constant(_)
-        | Boolean::Parameter { .. }
-        | Boolean::ErasedParameter { .. }
-        | Boolean::Local { .. } => false,
     }
 }

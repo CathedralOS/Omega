@@ -226,7 +226,6 @@ pub(super) fn resolve(
                         "Unit graph claim parameter is missing",
                     ))?;
                 if claim.carry != CarryPolicy::STRICT
-                    || parameter.is_self
                     || parameter.access != checked_trees::CheckedStructuralAccess::Owned
                     || parameter.multiplicity != Multiplicity::Linear
                 {
@@ -258,8 +257,7 @@ pub(super) fn resolve(
                         .ok_or(LoweringError::Unsupported(
                         "Unit graph claim transfer source parameter is missing",
                     ))?;
-                    if source_parameter.is_self
-                        || source_parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    if source_parameter.access != checked_trees::CheckedStructuralAccess::Owned
                         || source_parameter.multiplicity != Multiplicity::Linear
                     {
                         return unsupported("Unit graph claim source is not owned linear custody");

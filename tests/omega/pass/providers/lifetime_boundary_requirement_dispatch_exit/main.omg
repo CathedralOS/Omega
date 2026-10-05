@@ -10,7 +10,7 @@
 // `main` calls the requirement directly in value and statement position,
 // lending `&main.bytes[0..41]`: the unit plan admits a borrowed boundary
 // argument through the fixed-range byte-view lane when its place roots at a
-// caller parameter (here the `&mut self` receiver).
+// caller parameter (here `main: &mut Main`).
 use omega_language_std::console;
 use omega::language::core::binding;
 

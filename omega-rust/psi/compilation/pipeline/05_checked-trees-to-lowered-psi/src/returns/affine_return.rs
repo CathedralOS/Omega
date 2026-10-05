@@ -86,7 +86,6 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                 .iter()
                 .enumerate()
                 .any(|(position, source)| u32::try_from(position).ok() != Some(*source))
-            || realization.structural_parameter.is_self
             || realization.structural_parameter.multiplicity != Multiplicity::Affine
             || realization.structural_parameter.access
                 != checked_trees::CheckedStructuralAccess::Owned
@@ -202,7 +201,6 @@ pub(crate) fn lower_claim_free_affine_return_machines(
                     id: structural_parameter_place,
                     kind: StructuralPlaceKind::Parameter {
                         position: structural_parameter_position,
-                        is_self: false,
                     },
                 },
                 StructuralPlaceDeclaration {

@@ -55,7 +55,6 @@ pub(in crate::validation) fn validate_destination(
                 && (place.kind
                     == StructuralPlaceKind::Parameter {
                         position: parameter.position,
-                        is_self: parameter.is_self,
                     }
                     || crate::validation::block_views::parameter(machine, destination)
                         == Some(parameter))

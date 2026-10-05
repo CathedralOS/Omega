@@ -118,10 +118,9 @@ pub(crate) fn encode_structural_place_kind(writer: &mut Writer, kind: Structural
             writer.id(block);
             writer.u32(position);
         }
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             writer.u8(1);
             writer.u32(position);
-            writer.u8(u8::from(is_self));
         }
         StructuralPlaceKind::Result => writer.u8(2),
         StructuralPlaceKind::OperationResult {
@@ -238,7 +237,6 @@ pub(crate) fn decode_structural_place_kind(
         },
         1 => StructuralPlaceKind::Parameter {
             position: reader.u32()?,
-            is_self: reader.boolean()?,
         },
         2 => StructuralPlaceKind::Result,
         6 => StructuralPlaceKind::OperationResult {

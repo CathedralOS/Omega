@@ -211,7 +211,6 @@ fn structural_signature_with_partial_affine(
         }
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: u32::try_from(position).ok()?,
-            is_self: false,
             type_identity,
             multiplicity,
             access,
@@ -520,7 +519,6 @@ fn scalar_and_structural_parameters(
         };
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
-            is_self: false,
             primitive_referent: shapes.primitive_scalar(&type_identity),
             type_identity,
             multiplicity,

@@ -343,7 +343,6 @@ pub(super) fn encode_semantic_parameter(
 ) {
     bytes.extend_from_slice(&parameter.place.get().to_le_bytes());
     bytes.extend_from_slice(&parameter.position.to_le_bytes());
-    bytes.push(u8::from(parameter.is_self));
     bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);
@@ -365,7 +364,6 @@ pub(super) fn decode_semantic_parameter(
     Ok(StructuralParameterDeclaration {
         place: decode_id(cursor, PlaceId::new)?,
         position: cursor.u32()?,
-        is_self: decode_bool(cursor)?,
         structural_type: decode_id(cursor, StructuralTypeId::new)?,
         multiplicity: decode_multiplicity(cursor)?,
         access: decode_access(cursor)?,
@@ -478,10 +476,9 @@ pub(super) fn decode_target_argument(
 pub(super) fn encode_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
     bytes.extend_from_slice(&place.id.get().to_le_bytes());
     match place.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             bytes.push(1);
             bytes.extend_from_slice(&position.to_le_bytes());
-            bytes.push(u8::from(is_self));
         }
         StructuralPlaceKind::BlockParameter { block, position } => {
             bytes.push(8);
@@ -538,7 +535,6 @@ pub(super) fn decode_place(
     let kind = match cursor.byte()? {
         1 => StructuralPlaceKind::Parameter {
             position: cursor.u32()?,
-            is_self: decode_bool(cursor)?,
         },
         2 => StructuralPlaceKind::Result,
         3 => StructuralPlaceKind::OperationResult {
@@ -705,14 +701,6 @@ pub(super) fn decode_string(cursor: &mut Cursor<'_>) -> Result<String, FixedView
     std::str::from_utf8(cursor.take(length)?)
         .map(str::to_owned)
         .map_err(|_| FixedViewCopyDecodeError::InvalidUtf8)
-}
-
-fn decode_bool(cursor: &mut Cursor<'_>) -> Result<bool, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(false),
-        1 => Ok(true),
-        tag => Err(FixedViewCopyDecodeError::UnknownBoolean(tag)),
-    }
 }
 
 fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {

@@ -144,10 +144,10 @@ pub(super) fn lower_result_identity(
                     "content result has an absent structural root",
                 ))?;
             match declaration.kind {
-                StructuralPlaceKind::Parameter { position, is_self } => checked_parameters
+                StructuralPlaceKind::Parameter { position } => checked_parameters
                     .iter()
                     .zip(parameters)
-                    .find(|(source, _)| source.position == position && source.is_self == is_self)
+                    .find(|(source, _)| source.position == position)
                     .map(|(_, parameter)| parameter.place)
                     .ok_or(LoweringError::Unsupported(
                         "content result lost its exact input parameter",

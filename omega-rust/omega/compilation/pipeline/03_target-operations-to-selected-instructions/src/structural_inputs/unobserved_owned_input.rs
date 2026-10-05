@@ -13,7 +13,6 @@ pub(crate) fn parameter(parameter: &StructuralParameterDeclaration) -> bool {
             parameter.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         )
-        && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
 }

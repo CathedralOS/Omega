@@ -818,7 +818,6 @@ pub(super) fn emit(
             id: parameter.place,
             kind: StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             },
         })
         .chain(provider_places.iter().copied())

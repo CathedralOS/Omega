@@ -641,12 +641,7 @@ fn projected_root_is_fully_consumed(
     {
         return false;
     }
-    if let Some(structural_type) = partial_affine_root_type(machine, place)
-        && !machine
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == place && parameter.is_self)
-    {
+    if let Some(structural_type) = partial_affine_root_type(machine, place) {
         return frontier
             .partial_custody_paths
             .get(&place)

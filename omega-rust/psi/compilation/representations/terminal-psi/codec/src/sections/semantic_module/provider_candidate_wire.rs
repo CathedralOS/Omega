@@ -36,7 +36,6 @@ pub(crate) fn encode_provider_candidate(
     )?;
     for parameter in &candidate.signature.parameters {
         writer.u32(parameter.position);
-        writer.u8(u8::from(parameter.is_self));
         writer.id(parameter.structural_type);
         writer.u8(match parameter.multiplicity {
             StructuralMultiplicity::Unrestricted => 1,
@@ -82,7 +81,6 @@ pub(crate) fn decode_provider_candidate(
     let candidate = reader.id("MachineId")?;
     let parameters = decode_counted(reader, |reader| {
         let position = reader.u32()?;
-        let is_self = reader.boolean()?;
         let structural_type = reader.id("StructuralTypeId")?;
         let multiplicity = match reader.u8()? {
             1 => StructuralMultiplicity::Unrestricted,
@@ -92,7 +90,6 @@ pub(crate) fn decode_provider_candidate(
         };
         Ok(ProviderSignatureParameter {
             position,
-            is_self,
             structural_type,
             multiplicity,
             access: decode_structural_access(reader)?,

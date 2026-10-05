@@ -1187,14 +1187,11 @@ fn lower_content_place(
         CheckedContentPlaceVersion::Current => ContentPlaceVersion::Current,
     };
     let (root, kind) = match &place.root {
-        CheckedContentPlaceRoot::Parameter {
-            position, is_self, ..
-        } => (
+        CheckedContentPlaceRoot::Parameter { position, .. } => (
             PlaceId::new(u64::from(*position) + 1)
                 .expect("a parameter position plus one is nonzero"),
             StructuralPlaceKind::Parameter {
                 position: *position,
-                is_self: *is_self,
             },
         ),
         CheckedContentPlaceRoot::Result => (

@@ -56,7 +56,6 @@ pub(super) fn validate(
         let selected = resolve_structural_path(module, root, &argument.path).ok_or_else(invalid)?;
         if parameter.structural_type != selected
             || parameter.multiplicity != StructuralMultiplicity::Affine
-            || parameter.is_self
             || parameter.access != StructuralAccess::Owned
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()

@@ -119,8 +119,8 @@ pub(super) fn parameter_type(
         && (super::block_views::parameter(machine, place) == Some(parameter)
             || machine.structural_places.iter().any(|entry| {
                 entry.id == place
-                    && matches!(entry.kind, StructuralPlaceKind::Parameter { position, is_self }
-                if position == parameter.position && is_self == parameter.is_self)
+                    && matches!(entry.kind, StructuralPlaceKind::Parameter { position }
+                if position == parameter.position)
             })))
     .then_some(parameter.structural_type)
 }

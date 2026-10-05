@@ -107,7 +107,6 @@ pub(super) fn validate(
                 .find(|parameter| parameter.place == value.place)
             {
                 if parameter.access != StructuralAccess::Owned
-                    || parameter.is_self
                     || parameter.structural_type != extent.field_type
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || !parameter.qualifications.is_empty()

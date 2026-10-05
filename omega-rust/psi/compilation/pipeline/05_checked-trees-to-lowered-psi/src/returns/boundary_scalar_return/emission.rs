@@ -369,7 +369,6 @@ pub(crate) fn emit_boundary_scalar_return(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             })
             .collect(),

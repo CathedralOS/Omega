@@ -224,7 +224,6 @@ pub(crate) fn encode_structural_parameters(
     for parameter in parameters {
         writer.id(parameter.place);
         writer.u32(parameter.position);
-        writer.u8(u8::from(parameter.is_self));
         writer.id(parameter.structural_type);
         writer.u8(match parameter.multiplicity {
             StructuralMultiplicity::Unrestricted => 1,
@@ -362,15 +361,10 @@ fn encode_retained_borrow_place(
         ContentPlaceVersion::Current => 2,
     });
     match &place.root {
-        RetainedBorrowPlaceRoot::Parameter {
-            position,
-            identity,
-            is_self,
-        } => {
+        RetainedBorrowPlaceRoot::Parameter { position, identity } => {
             writer.u8(1);
             writer.u32(*position);
             writer.string("retained-borrow parameter identity", identity)?;
-            writer.boolean(*is_self);
         }
         RetainedBorrowPlaceRoot::Result => writer.u8(2),
     }
@@ -406,7 +400,6 @@ fn decode_retained_borrow_place(
         1 => RetainedBorrowPlaceRoot::Parameter {
             position: reader.u32()?,
             identity: reader.string("retained-borrow parameter identity")?,
-            is_self: reader.boolean()?,
         },
         2 => RetainedBorrowPlaceRoot::Result,
         tag => return Err(CodecError::InvalidTag("RetainedBorrowPlaceRoot", tag)),
@@ -614,7 +607,6 @@ pub(crate) fn decode_structural_parameters(
     decode_counted(reader, |reader| {
         let place = reader.id("PlaceId")?;
         let position = reader.u32()?;
-        let is_self = reader.boolean()?;
         let structural_type = reader.id("StructuralTypeId")?;
         let multiplicity = match reader.u8()? {
             1 => StructuralMultiplicity::Unrestricted,
@@ -626,7 +618,6 @@ pub(crate) fn decode_structural_parameters(
         Ok(StructuralParameterDeclaration {
             place,
             position,
-            is_self,
             structural_type,
             multiplicity,
             access,

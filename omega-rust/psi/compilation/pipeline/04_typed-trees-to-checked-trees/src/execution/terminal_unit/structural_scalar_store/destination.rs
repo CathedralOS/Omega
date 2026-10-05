@@ -222,22 +222,12 @@ pub(super) fn resolve<'a>(
             else {
                 return None;
             };
-            // A receiver's source referent is `Self`; its declaration identity
-            // comes from the machine attachment, not a global lookup of that
-            // spelling. A borrowed fixed-array root has no record owner of its
+            // A borrowed fixed-array root has no record owner of its
             // own: its element record resolves through the first carrier
             // `FixedIndex` hop, so an unresolved owner stays admissible only
             // behind an index segment.
-            let root_owner = if plan.is_self {
-                Some(
-                    program
-                        .data_definitions()
-                        .iter()
-                        .find(|data| data.symbol == machine.attached_data_symbol)?,
-                )
-            } else {
-                crate::facts::field_domain::data_definition_for_field_type(program, *referee)
-            };
+            let root_owner =
+                crate::facts::field_domain::data_definition_for_field_type(program, *referee);
             Some(Destination {
                 root: Root::Parameter { plan, parameter },
                 place,
@@ -437,7 +427,6 @@ impl<'a> Destination<'a> {
             }
         }
         if planned_parameters != scalar.len() + structural.len()
-            || plan.is_self
             || parameter.is_const
             || !parameter.is_mutable
         {

@@ -161,7 +161,6 @@ pub(super) fn store_field(
             .find(|parameter| parameter.place == value.place)
             .ok_or_else(invalid)?;
         if declaration.access != StructuralAccess::Owned
-            || declaration.is_self
             || declaration.structural_type != field_type
             || !declaration.qualifications.is_empty()
             || !declaration.projected_qualifications.is_empty()

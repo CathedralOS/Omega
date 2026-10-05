@@ -203,7 +203,6 @@ pub(crate) fn validate_unit_operation_static(
                                 && matches!(integer.bits(), 8 | 16 | 32 | 64)
                     )
                 }) && callee_parameter.position == 0
-                    && !callee_parameter.is_self
                     && callee_parameter.structural_type == callee_result.structural_type
                     && callee_parameter.multiplicity == StructuralMultiplicity::Affine
                     && callee_parameter.access == StructuralAccess::Owned

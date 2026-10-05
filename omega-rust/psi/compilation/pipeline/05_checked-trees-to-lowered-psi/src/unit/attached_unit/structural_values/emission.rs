@@ -1459,7 +1459,6 @@ impl Emission<'_, '_, '_> {
             structural_parameters.push(StructuralParameterDeclaration {
                 place: target,
                 position,
-                is_self: false,
                 structural_type: owner.value.structural_type,
                 multiplicity: owner.value.multiplicity,
                 access: StructuralAccess::Owned,
@@ -1474,7 +1473,6 @@ impl Emission<'_, '_, '_> {
         structural_parameters.push(StructuralParameterDeclaration {
             place,
             position,
-            is_self: false,
             structural_type: self.structural_type,
             multiplicity: self.multiplicity,
             access: StructuralAccess::Owned,
@@ -1566,7 +1564,6 @@ impl Emission<'_, '_, '_> {
         let structural_parameters = vec![StructuralParameterDeclaration {
             place,
             position,
-            is_self: false,
             structural_type: self.structural_type,
             multiplicity: self.multiplicity,
             access: self.result_access,
@@ -2365,7 +2362,6 @@ impl Emission<'_, '_, '_> {
                 structural_parameters.push(StructuralParameterDeclaration {
                     place,
                     position,
-                    is_self: false,
                     structural_type,
                     multiplicity,
                     access: if is_result_slot {

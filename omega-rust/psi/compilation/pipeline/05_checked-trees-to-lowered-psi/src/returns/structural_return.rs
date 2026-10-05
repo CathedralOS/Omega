@@ -51,10 +51,9 @@ pub(crate) fn lower_structural_return_machine(
                     || local.type_identity.is_empty()
             })
         || returned_plan.multiplicity != Multiplicity::Linear
-        || returned_plan.is_self
         || discarded_plans
             .iter()
-            .any(|discarded| discarded.multiplicity != Multiplicity::Affine || discarded.is_self)
+            .any(|discarded| discarded.multiplicity != Multiplicity::Affine)
         || plan.result.multiplicity != Multiplicity::Linear
         || plan.entry_claim.parameter_index != 0
         || !plan.entry_claim.path.is_empty()
@@ -172,13 +171,7 @@ pub(crate) fn lower_structural_return_machine(
         return unsupported("structural result claim/content identities do not unify exactly");
     }
     let content_places = BTreeMap::from([
-        (
-            input.place,
-            StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: input.is_self,
-            },
-        ),
+        (input.place, StructuralPlaceKind::Parameter { position: 0 }),
         (result_place, StructuralPlaceKind::Result),
     ]);
     let actual_places = identity
@@ -195,7 +188,6 @@ pub(crate) fn lower_structural_return_machine(
             discarded.place,
             StructuralPlaceKind::Parameter {
                 position: discarded.position,
-                is_self: discarded.is_self,
             },
         );
     }

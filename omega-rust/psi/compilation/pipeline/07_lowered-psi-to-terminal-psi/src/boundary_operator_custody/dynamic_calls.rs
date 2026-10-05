@@ -1897,20 +1897,19 @@ fn verify_source(
             "stored dynamic descriptor source drifted from its checked selection",
             "forwarded dynamic descriptor source drifted from its checked selection",
         ))?;
-    let self_parameters = owner
+    let source_parameters = owner
         .structural_parameters
         .iter()
-        .filter(|parameter| parameter.is_self)
+        .filter(|parameter| parameter.position == source_parameter_position)
         .collect::<Vec<_>>();
-    let [self_parameter] = self_parameters.as_slice() else {
+    let [source_parameter] = source_parameters.as_slice() else {
         return unsupported(family.message(
-            "rebound dynamic source lost its exact caller self parameter",
-            "stored dynamic source lost its exact caller self parameter",
-            "forwarded dynamic source lost its exact caller self parameter",
+            "rebound dynamic source lost its exact caller parameter",
+            "stored dynamic source lost its exact caller parameter",
+            "forwarded dynamic source lost its exact caller parameter",
         ));
     };
-    if self_parameter.position != source_parameter_position
-        || source.place != self_parameter.place
+    if source.place != source_parameter.place
         || source.path != expected_path
         || source.access != expected_access
     {

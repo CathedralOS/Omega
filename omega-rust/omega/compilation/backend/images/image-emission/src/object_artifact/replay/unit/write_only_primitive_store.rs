@@ -269,7 +269,6 @@ fn validate_store(
         || destination_type_count != 1
         || store.destination_type.identity.is_empty()
         || store.destination_type.id != store.destination.structural_type
-        || store.destination.is_self
         || store.destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !matches!(
             store.destination.access,

@@ -11,11 +11,10 @@ use crate::{BoundaryMachineId, StructuralFieldId, StructuralTypeId};
 pub enum StructuralPlaceKind {
     Parameter {
         position: u32,
-        is_self: bool,
     },
     /// One block-local structural binding. The position is dense and zero-based
     /// in the owning block's structural parameter vector, never an authored
-    /// source argument position or a machine `self` parameter.
+    /// source argument position.
     BlockParameter {
         block: crate::BlockId,
         position: u32,

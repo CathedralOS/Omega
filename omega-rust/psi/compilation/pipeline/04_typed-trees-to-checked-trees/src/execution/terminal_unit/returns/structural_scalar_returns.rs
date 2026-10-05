@@ -141,7 +141,6 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
             }
             Some(CheckedUnitStructuralParameterPlan {
                 position: u32::try_from(position).ok()?,
-                is_self: false,
                 primitive_referent: shapes.primitive_scalar(&type_identity),
                 type_identity,
                 multiplicity,
@@ -270,9 +269,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 .map(|parameter| parameter.source_position),
         )
         .collect::<BTreeSet<_>>();
-    // A borrowed `self` is the machine's ambient receiver: it rides the
-    // attachment rather than a forwarded operand, so the roster's authored
-    // positions exclude the receiver slot.
+    // Every runtime parameter is forwarded at its explicit authored position.
     let forwarded_parameter_positions = source_state_parameters
         .iter()
         .enumerate()
@@ -287,8 +284,7 @@ pub(crate) fn build_structural_scalar_return_machine(
             .windows(2)
             .any(|pair| pair[0].source_position >= pair[1].source_position)
         || structural_parameters.iter().any(|parameter| {
-            parameter.is_self
-                || (!primitive_reference_body && parameter.multiplicity != Multiplicity::Affine)
+            (!primitive_reference_body && parameter.multiplicity != Multiplicity::Affine)
                 || !parameter.qualifications.is_empty()
         })
     {
@@ -562,7 +558,6 @@ pub(crate) fn build_structural_scalar_return_machine(
             if has_nominal_cleanup
                 && ((source_parameter.is_const)
                     || source_parameter.is_mutable
-                    || checked_parameter.is_self
                     || checked_parameter.multiplicity != Multiplicity::Affine
                     || !checked_parameter.qualifications.is_empty())
             {

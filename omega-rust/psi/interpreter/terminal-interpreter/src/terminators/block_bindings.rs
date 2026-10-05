@@ -214,7 +214,6 @@ impl TerminalExecution {
             .enumerate()
         {
             if usize::try_from(parameter.position).ok() != Some(position)
-                || parameter.is_self
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || (parameter.access != StructuralAccess::Owned
@@ -762,22 +761,17 @@ impl TerminalExecution {
             .iter()
             .find(|declaration| declaration.id == place)?;
         match declaration.kind {
-            StructuralPlaceKind::Parameter { position, is_self } => {
-                machine.structural_parameters.iter().find(|parameter| {
-                    parameter.place == place
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })
-            }
+            StructuralPlaceKind::Parameter { position } => machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == place && parameter.position == position),
             StructuralPlaceKind::BlockParameter { block, position } => self.program.machines
                 [&self.current_machine]
                 .blocks
                 .get(&block)?
                 .structural_parameters
                 .get(position as usize)
-                .filter(|parameter| {
-                    parameter.place == place && parameter.position == position && !parameter.is_self
-                }),
+                .filter(|parameter| parameter.place == place && parameter.position == position),
             _ => None,
         }
     }

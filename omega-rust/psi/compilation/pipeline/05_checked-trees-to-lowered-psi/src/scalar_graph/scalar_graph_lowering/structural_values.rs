@@ -539,7 +539,6 @@ impl Preparation<'_> {
             destination: StructuralParameterDeclaration {
                 place,
                 position: 0,
-                is_self: false,
                 structural_type,
                 multiplicity,
                 access: StructuralAccess::Owned,
@@ -858,7 +857,6 @@ pub(super) fn exit_target(
             place: place_id(allocate_dense(next_place)?),
             position: u32::try_from(destinations.len())
                 .map_err(|_| LoweringError::Unsupported("local cleanup frontier exceeds u32"))?,
-            is_self: false,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,

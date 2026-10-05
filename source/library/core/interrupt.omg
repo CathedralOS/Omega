@@ -36,7 +36,7 @@ pub boundary trait InterruptMaskControl {
 
 // One stable semantic requirement owns inbound acknowledgement establishment.
 // Platform interrupt roots inherit this requirement. Installation—not an
-// ordinary call—turns the exact non-self parameter route into an introduction.
+// ordinary call—turns the exact explicit parameter route into an introduction.
 // Entry and completion own distinct installation-selected reach rows beneath
 // the same conservative hardware-access ceiling. Installation resolves this
 // entry row to the selected provider's exact reach; provider/token lineage,

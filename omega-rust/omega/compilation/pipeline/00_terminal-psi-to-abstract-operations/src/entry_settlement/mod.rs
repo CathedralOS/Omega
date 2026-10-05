@@ -162,11 +162,6 @@ fn validate_receiver_eligibility(
                     || program_entry.source.receiver().source_position() != Some(source_position)
                     || receiver.access != terminal_psi::StructuralAccess::MutableBorrow
                     || receiver.structural_type != eligibility.terminal_receiver_type()
-                    || receiver.is_self != entry.attachment.is_some()
-                    || entry
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.is_self && parameter.place != terminal_self)
                 {
                     return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
                 }
@@ -174,10 +169,6 @@ fn validate_receiver_eligibility(
             terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position } => {
                 if program_entry.source.receiver().source_position() != Some(source_position)
                     || entry.attachment != Some(eligibility.terminal_receiver_type())
-                    || entry
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.is_self)
                     || entry
                         .structural_parameters
                         .iter()

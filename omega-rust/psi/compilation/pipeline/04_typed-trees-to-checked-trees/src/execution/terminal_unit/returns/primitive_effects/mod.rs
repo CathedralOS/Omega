@@ -86,8 +86,7 @@ pub(in crate::execution::terminal_unit) fn build_machine(
 pub(super) fn is_primitive_reference_plan(plan: &CheckedStructuralScalarReturnMachinePlan) -> bool {
     !plan.structural_parameters.is_empty()
         && plan.structural_parameters.iter().all(|parameter| {
-            !parameter.is_self
-                && parameter.multiplicity == Multiplicity::Unrestricted
+            parameter.multiplicity == Multiplicity::Unrestricted
                 && parameter.access != CheckedStructuralAccess::Owned
                 && parameter.qualifications.is_empty()
         })

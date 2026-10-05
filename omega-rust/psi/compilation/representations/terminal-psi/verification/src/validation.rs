@@ -172,17 +172,8 @@ pub(crate) fn machine_value_context(
             .iter()
             .map(|place| (place.id, place.kind))
             .chain(
-                affine_cleanup::nominal_cleanup_contract_receiver(module, machine.id).map(
-                    |receiver| {
-                        (
-                            receiver,
-                            StructuralPlaceKind::Parameter {
-                                position: 0,
-                                is_self: true,
-                            },
-                        )
-                    },
-                ),
+                affine_cleanup::nominal_cleanup_contract_receiver(module, machine.id)
+                    .map(|receiver| (receiver, StructuralPlaceKind::Parameter { position: 0 })),
             ),
     )
     .map_err(ModuleError::MalformedProposition)
@@ -785,7 +776,6 @@ fn exact_shared_cohort_observation(
                     && argument.path.is_empty()
                     && argument.access == StructuralAccess::SharedBorrow
                     && u32::try_from(position).ok() == Some(parameter.position)
-                    && !parameter.is_self
                     && parameter.access == StructuralAccess::SharedBorrow
                     && parameter.structural_type == caller_parameter.structural_type
             })
@@ -840,7 +830,6 @@ fn exact_restored_mutating_call(
             callee.structural_parameters.as_slice(),
             [parameter]
                 if parameter.position == 0
-                    && !parameter.is_self
                     && parameter.access == StructuralAccess::MutableBorrow
         )
         && caller.structural_parameters.iter().any(|parameter| {

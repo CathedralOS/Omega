@@ -381,11 +381,11 @@ pub(crate) fn bind_affine_frontier_types(
     source_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     let mut frontier = BTreeSet::new();
-    // Match verifier frontier reconstruction: a borrowed receiver is present
-    // in the signature but is never owned by this machine.
+    // Only owned parameters incur disposal debt; referent multiplicity does
+    // not turn a loan into ownership.
     for parameter in parameters.iter().filter(|parameter| {
         parameter.multiplicity == StructuralMultiplicity::Affine
-            && !(parameter.is_self && parameter.access != StructuralAccess::Owned)
+            && parameter.access == StructuralAccess::Owned
     }) {
         let structural_type = source_type(parameter.place).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),

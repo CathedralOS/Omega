@@ -458,7 +458,7 @@ pub(crate) fn hash_structural_argument(
 }
 
 /// Hash one declared structural formal: its declared position, place,
-/// self-ness, structural type, multiplicity, access, and exact qualification
+/// structural type, multiplicity, access, and exact qualification
 /// rows. No declared field can drift underneath a retained argument binding.
 pub(crate) fn hash_structural_parameter_declaration(
     digest: &mut Sha256,
@@ -466,7 +466,6 @@ pub(crate) fn hash_structural_parameter_declaration(
 ) {
     digest.update(parameter.place.get().to_le_bytes());
     digest.update(parameter.position.to_le_bytes());
-    digest.update([u8::from(parameter.is_self)]);
     digest.update(parameter.structural_type.get().to_le_bytes());
     digest.update([match parameter.multiplicity {
         terminal_psi::StructuralMultiplicity::Unrestricted => 1,

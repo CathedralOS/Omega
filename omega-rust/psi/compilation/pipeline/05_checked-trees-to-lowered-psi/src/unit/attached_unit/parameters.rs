@@ -269,7 +269,6 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             if source.is_const
                 || source.is_mutable
                     != (carrier.access == checked_trees::CheckedStructuralAccess::MutableBorrow)
-                || parameter.is_self
                 || source.relevance.is_erased()
                 || parameter.multiplicity != service_parameter_multiplicity(carrier.access)?
                 || parameter.access != carrier.access
@@ -440,8 +439,7 @@ pub(crate) fn lower_unit_parameters(
                 ));
             }
             if parameter.fused_service_erasure.is_some()
-                && (parameter.is_self
-                    || parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
+                && (parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty())
             {
@@ -454,7 +452,6 @@ pub(crate) fn lower_unit_parameters(
                 position: u32::try_from(dense_position).map_err(|_| {
                     LoweringError::Unsupported("Unit structural parameter count exceeds u32")
                 })?,
-                is_self: parameter.is_self,
                 structural_type: lookup_type_id(type_ids, &parameter.type_identity)?,
                 multiplicity: crate::terminal_identities::structural_multiplicity(
                     parameter.multiplicity,
@@ -764,7 +761,6 @@ pub(crate) fn validate_transfer_shape(
                 let storage = StructuralParameterDeclaration {
                     place: source.id,
                     position: target.position,
-                    is_self: false,
                     structural_type,
                     access: StructuralAccess::Owned,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -786,7 +782,7 @@ pub(crate) fn validate_transfer_shape(
                                 | StructuralTypeShape::Sum { .. } => true,
                                 StructuralTypeShape::ByteSequence(
                                     ByteSequenceCarrier::BoundedOwned { .. },
-                                ) => !target.is_self && target.projected_qualifications.is_empty(),
+                                ) => target.projected_qualifications.is_empty(),
                                 _ => false,
                             }
                     });
@@ -800,7 +796,6 @@ pub(crate) fn validate_transfer_shape(
                         } else {
                             Multiplicity::Affine
                         }
-                    || (target.is_self && !argument.path.is_empty())
                     || target.fused_service_erasure.is_some()
                 {
                     return unsupported("owned result argument has invalid checked custody");
@@ -879,23 +874,9 @@ pub(crate) fn validate_transfer_shape(
     Ok(())
 }
 
-/// The call's emitted transfer roster: each checked row resolves through the
-/// caller's claim table, and a claim-carrying `self` formal fed by a
-/// completed result names the minted binding the call consumes. The checker
-/// records that consume as a permission event rather than a transfer row —
-/// the result's claim was established at its own binding statement, not
-/// carried through an entry claim — so the emitted operation publishes the
-/// result's carried claim directly. The verifier's roster joins it against
-/// the result place's own frontier the same way it resolves every other
-/// caller claim.
+/// Resolve every checked transfer through the caller's exact claim table.
 pub(crate) fn emitted_claim_transfers(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    completed_results: &[(
-        u32,
-        crate::emission::operation_emission::buffer::StructuralBinding,
-    )],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<ClaimTransfer>, LoweringError> {
     let mut emitted = transfers
@@ -907,34 +888,6 @@ pub(crate) fn emitted_claim_transfers(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    for (argument_index, (argument, target)) in arguments.iter().zip(target_parameters).enumerate()
-    {
-        let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
-            continue;
-        };
-        if !target.is_self || target.multiplicity != Multiplicity::Linear {
-            continue;
-        }
-        // Transfer-shape validation already joined this argument: the
-        // completed result carries exactly the formal's whole-value entry
-        // claim, bound in the caller's table by the producing statement's
-        // mint. The emitted transfer is that consume, not a new claim.
-        let (_, result) = completed_results
-            .iter()
-            .find(|(ordinal, _)| *ordinal == binding_ordinal)
-            .ok_or(LoweringError::Unsupported(
-                "Unit self argument lost its completed result claim binding",
-            ))?;
-        let [binding] = result.operation_result()?.claims.as_slice() else {
-            return unsupported("Unit self argument lost its completed result claim binding");
-        };
-        emitted.push(ClaimTransfer {
-            claim: binding.claim,
-            argument_index: u32::try_from(argument_index).map_err(|_| {
-                LoweringError::Unsupported("Unit claim transfer argument index exceeds u32")
-            })?,
-        });
-    }
     emitted.sort();
     Ok(emitted)
 }
@@ -1004,7 +957,6 @@ fn validate_borrowed_argument(
     if let (PreparedArgumentTip::Inline(field), StructuralTypeShape::ByteSequence(expected)) =
         (&projection.tip, &expected.shape)
         && let Some(carrier) = field.byte_sequence_carrier()
-        && !target.is_self
         && target.projected_qualifications.is_empty()
     {
         let compatible = match (carrier, *expected) {
@@ -1045,7 +997,6 @@ fn validate_borrowed_argument(
             access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         )
-        && !target.is_self
         && target.qualifications.is_empty()
         && target.projected_qualifications.is_empty();
     // A shared view of a bounded owner carries its live length and existing
@@ -1055,7 +1006,6 @@ fn validate_borrowed_argument(
         (PreparedArgumentTip::Declaration(declaration), StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None | Some(StructuralAccess::SharedBorrow) }))
             if matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
         && access == StructuralAccess::SharedBorrow
-        && !target.is_self
         && target.projected_qualifications.is_empty();
     if element_view
         || shared_owner_view
@@ -1105,7 +1055,6 @@ fn byte_view_transfer(
     let expected = StructuralParameterDeclaration {
         place: source.place,
         position: target.position,
-        is_self: target.is_self,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         access,

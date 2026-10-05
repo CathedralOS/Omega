@@ -328,7 +328,5 @@ pub(super) fn block_parameter(
         .find(|candidate| candidate.id == block)?
         .structural_parameters
         .get(position as usize)
-        .filter(|parameter| {
-            parameter.place == place && parameter.position == position && !parameter.is_self
-        })
+        .filter(|parameter| parameter.place == place && parameter.position == position)
 }

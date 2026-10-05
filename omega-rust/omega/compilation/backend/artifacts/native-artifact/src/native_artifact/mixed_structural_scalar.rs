@@ -120,7 +120,6 @@ mod tests {
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: structural_parameter,
                 position: 0,
-                is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,
                 access: StructuralAccess::Owned,

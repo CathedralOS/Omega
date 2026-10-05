@@ -187,26 +187,10 @@ pub(super) fn prepare(
         checked_target.structural_parameters,
         type_ids,
         structural_types,
-        // A claim-carrying `self` formal whose argument is a completed result
-        // discharges its entry claim through the moved frontier — the checker
-        // records the consume as a permission event, not a transfer row, so
-        // the checked roster expects none here. Every other entry claim
-        // expects exactly one.
+        // Every entry claim requires its checked transfer row.
         &checked_target
             .entry_claims
             .iter()
-            .filter(|claim| {
-                checked_target
-                    .structural_parameters
-                    .get(claim.parameter_index as usize)
-                    .zip(structural_arguments.get(claim.parameter_index as usize))
-                    .is_none_or(|(parameter, argument)| {
-                        !(parameter.is_self && parameter.multiplicity == Multiplicity::Linear)
-                            || argument
-                                .source_structural_result_binding_ordinal()
-                                .is_none()
-                    })
-            })
             .map(|claim| claim.parameter_index)
             .collect::<Vec<_>>(),
         primitive_local_places,
@@ -214,13 +198,7 @@ pub(super) fn prepare(
             results: completed_results,
         }),
     )?;
-    let claim_transfers = emitted_claim_transfers(
-        structural_arguments,
-        claim_transfers,
-        checked_target.structural_parameters,
-        completed_results,
-        claim_bindings,
-    )?;
+    let claim_transfers = emitted_claim_transfers(claim_transfers, claim_bindings)?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
         structural_types,

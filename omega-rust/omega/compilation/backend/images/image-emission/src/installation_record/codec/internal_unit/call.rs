@@ -1045,7 +1045,6 @@ mod tests {
             declaration: terminal_psi::StructuralParameterDeclaration {
                 place: result.operation_result.place,
                 position: 0,
-                is_self: false,
                 structural_type: result.operation_result.structural_type,
                 multiplicity: result.operation_result.multiplicity,
                 access: terminal_psi::StructuralAccess::Owned,

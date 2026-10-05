@@ -133,8 +133,8 @@ pub(in crate::validation) fn plain_parameter(
                 .any(|claim| claim.input.root == source)
             && machine.structural_places.iter().any(|place| {
                 place.id == source
-                    && matches!(place.kind, StructuralPlaceKind::Parameter { position, is_self }
-                    if position == parameter.position && is_self == parameter.is_self)
+                    && matches!(place.kind, StructuralPlaceKind::Parameter { position }
+                    if position == parameter.position)
             })
             && terminal_semantics::scalar_array_leaf_shape(
                 module.structural_types.iter(),

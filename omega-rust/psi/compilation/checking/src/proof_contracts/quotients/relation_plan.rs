@@ -170,7 +170,6 @@ pub(super) enum RelationPlanError {
     TheoremSchemaRuntimeArityMismatch,
     TheoremSchemaParameterArityMismatch,
     TheoremSchemaConstParameter(usize),
-    TheoremSchemaAttachedReceiver(usize),
     TheoremSchemaParameterModeMismatch(usize),
     TheoremSchemaParameterTypeMismatch(usize),
     TheoremSchemaNamedEvidenceLane,
@@ -279,10 +278,6 @@ impl fmt::Display for RelationPlanError {
             Self::TheoremSchemaConstParameter(position) => write!(
                 formatter,
                 "selected theorem parameter {position} is const; theorem-schema parameters must all be ordinary proof-static values"
-            ),
-            Self::TheoremSchemaAttachedReceiver(position) => write!(
-                formatter,
-                "selected theorem parameter {position} is an attached receiver; theorem-schema parameters must all be ordinary explicit values"
             ),
             Self::TheoremSchemaParameterModeMismatch(position) => write!(
                 formatter,

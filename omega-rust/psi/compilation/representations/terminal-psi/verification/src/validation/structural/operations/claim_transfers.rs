@@ -98,7 +98,6 @@ pub(crate) fn is_record_loan(
                 let backing = StructuralParameterDeclaration {
                     place: argument.place,
                     position: parameter.position,
-                    is_self: false,
                     structural_type: root_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: argument.access,

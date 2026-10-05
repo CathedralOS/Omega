@@ -240,7 +240,6 @@ pub(super) fn validate(
                             && semantic.access == terminal_psi::StructuralAccess::Owned
                             && semantic.multiplicity
                                 != terminal_psi::StructuralMultiplicity::Linear
-                            && !semantic.is_self
                             && semantic.qualifications.is_empty()
                             && semantic.projected_qualifications.is_empty()
                             && optimized.result.structural().is_some_and(|result| {

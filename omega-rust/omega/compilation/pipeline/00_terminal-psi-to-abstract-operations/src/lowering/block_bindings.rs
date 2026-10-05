@@ -35,7 +35,6 @@ pub(super) fn validate_structural_block_bindings(
                 .any(|(position, parameter)| {
                     block.id == machine.entry
                         || parameter.position as usize != position
-                        || parameter.is_self
                         || (!parameter.qualifications.is_empty()
                             && !abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
                                 parameter,

@@ -144,7 +144,6 @@ impl LoanChains {
                 let candidate = live.get(position).copied().unwrap_or(false)
                     && block_owned(position)
                     && parameter.access == CheckedStructuralAccess::MutableBorrow
-                    && !parameter.is_self
                     && !aliased
                         .get(position)
                         .is_some_and(|aliased| aliased.contains_key(&(dense as u32)));

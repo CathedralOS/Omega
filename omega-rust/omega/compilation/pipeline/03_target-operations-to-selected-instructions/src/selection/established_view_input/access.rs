@@ -54,7 +54,6 @@ pub(in crate::selection) fn view_access(
             let expected_kind = owner.map_or(
                 StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
                 |block| StructuralPlaceKind::BlockParameter {
                     block,

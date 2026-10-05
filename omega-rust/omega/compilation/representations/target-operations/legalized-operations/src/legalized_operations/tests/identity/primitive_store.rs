@@ -16,7 +16,6 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
         destination: StructuralParameterDeclaration {
             place: id(501),
             position: 0,
-            is_self: false,
             structural_type: id(502),
             multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::WriteOnlyBorrow,
@@ -39,7 +38,7 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
     let plan = primitive_store_plan();
     let identity = legalized_operation_plan_identity(&plan);
     assert_eq!(identity, legalized_operation_plan_identity(&plan.clone()));
-    for mutation in 0..16 {
+    for mutation in 0..15 {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination:
@@ -56,30 +55,29 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
         match mutation {
             0 => destination.place = id(999),
             1 => destination.position = 1,
-            2 => destination.is_self = true,
-            3 => destination.structural_type = id(999),
-            4 => destination.multiplicity = StructuralMultiplicity::Linear,
-            5 => destination.access = StructuralAccess::MutableBorrow,
-            6 => destination.qualifications.push(id(999)),
-            7 => value.value = id(999),
-            8 => {
+            2 => destination.structural_type = id(999),
+            3 => destination.multiplicity = StructuralMultiplicity::Linear,
+            4 => destination.access = StructuralAccess::MutableBorrow,
+            5 => destination.qualifications.push(id(999)),
+            6 => value.value = id(999),
+            7 => {
                 value.scalar_type =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
             }
-            9 => destination.projected_qualifications.push(
+            8 => destination.projected_qualifications.push(
                 terminal_psi::StructuralPathQualification {
                     path: vec![StructuralPathSegment::FixedIndex(1)],
                     domain: id(998),
                 },
             ),
-            10 => *byte_size = 8,
-            11 => path.push(StructuralPathSegment::FixedIndex(1)),
-            12 => *byte_offset = 4,
+            9 => *byte_size = 8,
+            10 => path.push(StructuralPathSegment::FixedIndex(1)),
+            11 => *byte_offset = 4,
             // A runtime element's selector, stride and certificate each
             // participate: two stores differing only in the element they
             // scale into are distinct plans.
-            13 => indices.push(runtime_index(id(700), 4)),
-            14 => indices.push(runtime_index(id(701), 4)),
+            12 => indices.push(runtime_index(id(700), 4)),
+            13 => indices.push(runtime_index(id(701), 4)),
             _ => indices.push(runtime_index(id(700), 8)),
         }
         assert_ne!(
@@ -229,7 +227,6 @@ fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
     let declaration = |place: u64| StructuralParameterDeclaration {
         place: id(place),
         position: 0,
-        is_self: false,
         structural_type: id(502),
         multiplicity: StructuralMultiplicity::Affine,
         access: StructuralAccess::Owned,

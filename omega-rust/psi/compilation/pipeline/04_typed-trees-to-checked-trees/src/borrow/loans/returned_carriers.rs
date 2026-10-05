@@ -58,7 +58,7 @@ pub(super) fn completed_field_sources(
             })
             .nth(parameter_index as usize)?;
 
-        let non_self_index = parameters[..position].iter().count();
+        let parameter_index = parameters[..position].iter().count();
         let owner_path = owner_segments(loan_place_segments(
             program,
             state.return_type,
@@ -94,7 +94,7 @@ pub(super) fn completed_field_sources(
         let (index, field) = fields.iter().enumerate().find(|(_, field)| {
             field.owner_path == owner_path
                 && field.source_path == source_path
-                && field.non_self_index == non_self_index
+                && field.parameter_index == parameter_index
                 && field.kind == kind
         })?;
         covered[index] = true;
@@ -262,11 +262,10 @@ pub(super) fn result_loans(
                 }
                 return Some(limit_access(loans, &access_limits));
             }
-            ViewReturnSource::Parameter { non_self_index } => *program
+            ViewReturnSource::Parameter { parameter_index } => *program
                 .expression_table
                 .expression_handles(call.arguments)
-                .get(non_self_index)?,
-            ViewReturnSource::SelfReceiver => call.receiver,
+                .get(parameter_index)?,
             ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
         };
     }
@@ -310,7 +309,7 @@ pub(super) fn argument_loans(
     let source_segments = place_segments(&field.source_path);
     let cached_index = carried_arguments
         .iter()
-        .position(|(index, _)| *index == field.non_self_index)
+        .position(|(index, _)| *index == field.parameter_index)
         .unwrap_or_else(|| {
             // `field.source_type` is the declared parameter type; the call's
             // closed bindings resolve a type parameter to the argument's
@@ -331,7 +330,7 @@ pub(super) fn argument_loans(
                     })
                     .collect();
             let index = carried_arguments.len();
-            carried_arguments.push((field.non_self_index, loans));
+            carried_arguments.push((field.parameter_index, loans));
             index
         });
     let mut carried = carried_arguments[cached_index]

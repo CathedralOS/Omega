@@ -154,7 +154,6 @@ pub(super) fn shared_owner_view(
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) || multiplicity != StructuralMultiplicity::Unrestricted
         || !projected.is_empty()
-        || declaration.is_self
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
         || !declaration.projected_qualifications.is_empty()
         || destination.shape != ValueShape::borrowed_reference(16, 8)

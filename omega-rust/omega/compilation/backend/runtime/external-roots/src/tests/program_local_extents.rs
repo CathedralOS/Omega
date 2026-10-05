@@ -852,7 +852,6 @@ fn retained_borrow_custody(
             root: terminal_psi::RetainedBorrowPlaceRoot::Parameter {
                 position: source_position,
                 identity: "buffer".to_owned(),
-                is_self: false,
             },
             segments: Vec::new(),
         },
@@ -1030,19 +1029,6 @@ fn retained_foreign_argument_under_custody_uses_the_authored_row() {
                 unreachable!()
             };
             custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Result;
-            custody
-        },
-        {
-            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
-                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
-            else {
-                unreachable!()
-            };
-            custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Parameter {
-                position: 0,
-                identity: "self".to_owned(),
-                is_self: true,
-            };
             custody
         },
     ];

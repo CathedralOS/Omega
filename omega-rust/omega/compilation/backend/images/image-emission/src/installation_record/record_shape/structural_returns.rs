@@ -70,7 +70,6 @@ pub(super) fn validate_structural_returns(
             || returned.code_offset != 0
             || returned.byte_count != function.byte_count
             || returned.source.position != 0
-            || returned.source.is_self
             || (!exact_claimful_linear && !exact_claim_free_affine)
             || returned.source.structural_type != returned.result.structural_type
             || returned.source.qualifications != returned.result.qualifications
@@ -137,7 +136,7 @@ pub(super) fn validate_structural_returns(
                 .iter()
                 .enumerate()
                 .any(|(index, parameter)| {
-                    parameter.is_self || usize::try_from(parameter.position) != Ok(index)
+                    usize::try_from(parameter.position) != Ok(index)
                 })
             || returned.trivial_affine_discards
                 != returned

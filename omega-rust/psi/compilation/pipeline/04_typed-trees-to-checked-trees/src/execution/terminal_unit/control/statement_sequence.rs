@@ -752,7 +752,6 @@ pub(in crate::execution::terminal_unit) fn build(
     // completion reading it needs no qualification transport.
     let shared_bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
         parameter.access == CheckedStructuralAccess::SharedBorrow
-            && !parameter.is_self
             && parameter.projected_qualifications.is_empty()
             && program
                 .state_parameters(state)

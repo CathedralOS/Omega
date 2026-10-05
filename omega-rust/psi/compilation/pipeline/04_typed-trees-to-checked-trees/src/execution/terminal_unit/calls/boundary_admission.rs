@@ -28,11 +28,10 @@ pub(super) fn parameter_binding_receiver_matches(
         return false;
     };
     parameters.iter().any(|parameter| {
-        !parameter.is_self
-            && program
-                .state_parameters(state)
-                .get(parameter.position as usize)
-                .is_some_and(|candidate| candidate.symbol == source.symbol)
+        program
+            .state_parameters(state)
+            .get(parameter.position as usize)
+            .is_some_and(|candidate| candidate.symbol == source.symbol)
     })
 }
 

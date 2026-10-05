@@ -40,10 +40,9 @@ pub(super) fn encode_place_declaration(
             bytes.id(block);
             bytes.u32(position);
         }
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             bytes.u8(1);
             bytes.u32(position);
-            bytes.boolean(is_self);
         }
         StructuralPlaceKind::Result => bytes.u8(2),
         StructuralPlaceKind::OperationResult {
@@ -176,15 +175,10 @@ fn encode_retained_borrow_place(bytes: &mut CanonicalBytes, place: &RetainedBorr
         ContentPlaceVersion::Current => 2,
     });
     match &place.root {
-        RetainedBorrowPlaceRoot::Parameter {
-            position,
-            identity,
-            is_self,
-        } => {
+        RetainedBorrowPlaceRoot::Parameter { position, identity } => {
             bytes.u8(1);
             bytes.u32(*position);
             bytes.string(identity);
-            bytes.boolean(*is_self);
         }
         RetainedBorrowPlaceRoot::Result => bytes.u8(2),
     }
@@ -363,7 +357,6 @@ pub(super) fn encode_provider_candidate(
     bytes.id(candidate.candidate);
     bytes.slice(&candidate.signature.parameters, |bytes, parameter| {
         bytes.u32(parameter.position);
-        bytes.boolean(parameter.is_self);
         bytes.id(parameter.structural_type);
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_ids(bytes, &parameter.qualifications);

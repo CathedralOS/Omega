@@ -57,8 +57,7 @@ pub(in crate::lowering) fn is_immutable_byte_carrier_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    !parameter.is_self
-        && parameter.access == StructuralAccess::SharedBorrow
+    parameter.access == StructuralAccess::SharedBorrow
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && structural_types
             .get(&parameter.structural_type)
@@ -76,12 +75,10 @@ pub(in crate::lowering) fn is_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    !parameter.is_self
-        && matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && structural_types
             .get(&parameter.structural_type)

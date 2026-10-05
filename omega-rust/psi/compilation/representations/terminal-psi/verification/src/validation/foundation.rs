@@ -568,17 +568,7 @@ fn validate_provider_attachment_specialization(
     let Some(attachment) = machine.attachment else {
         return Err(invalid());
     };
-    let self_parameters = machine
-        .structural_parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .collect::<Vec<_>>();
-    let invalid_self = match self_parameters.as_slice() {
-        [] => false,
-        [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
-        _ => true,
-    };
-    if provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3) || invalid_self {
+    if provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3) {
         return Err(invalid());
     }
     let mut specialized_boundaries = BTreeSet::new();
@@ -655,7 +645,6 @@ fn provider_signature_parameter(
 ) -> terminal_psi::ProviderSignatureParameter {
     terminal_psi::ProviderSignatureParameter {
         position: parameter.position,
-        is_self: parameter.is_self,
         structural_type: parameter.structural_type,
         multiplicity: parameter.multiplicity,
         access: parameter.access,
@@ -832,8 +821,12 @@ fn validate_structural_signature(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     owner: StructuralSignatureOwner,
 ) -> Result<(), ModuleError> {
+    if let Some(attachment) = attachment
+        && !types.contains_key(&attachment)
+    {
+        return Err(ModuleError::UnknownStructuralType(attachment));
+    }
     let mut places = BTreeSet::new();
-    let mut saw_self = false;
     for (index, parameter) in parameters.iter().enumerate() {
         if parameter.position != index as u32 {
             return Err(ModuleError::NonDenseStructuralParameter {
@@ -851,12 +844,6 @@ fn validate_structural_signature(
             return Err(ModuleError::UnknownStructuralType(
                 parameter.structural_type,
             ));
-        }
-        if parameter.is_self {
-            if saw_self || attachment != Some(parameter.structural_type) {
-                return Err(ModuleError::InvalidStructuralSelfParameter { owner });
-            }
-            saw_self = true;
         }
         let mut qualifications = BTreeSet::new();
         for qualification in &parameter.qualifications {

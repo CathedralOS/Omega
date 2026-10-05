@@ -77,7 +77,6 @@ impl TerminalMachineResult {
 pub struct StructuralParameterDeclaration {
     pub place: PlaceId,
     pub position: u32,
-    pub is_self: bool,
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
     pub access: StructuralAccess,

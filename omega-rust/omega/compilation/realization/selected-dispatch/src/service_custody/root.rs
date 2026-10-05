@@ -185,7 +185,6 @@ pub fn derive_fused_program_entry_establishments(
                 .filter(|parameter| parameter.position == context.source_position);
             let parameter = matching.next()?;
             if matching.next().is_some()
-                || parameter.is_self
                 || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
                 || parameter.type_identity != checked.normalized_type_identity(*referee).as_str()
             {

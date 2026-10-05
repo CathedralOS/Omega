@@ -406,14 +406,6 @@ pub(crate) fn parameter_shape(
     if !parameter.projected_qualifications.is_empty() {
         return None;
     }
-    if parameter.is_self
-        && declarations.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
-        })
-    {
-        return None;
-    }
     if parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
     {
@@ -958,7 +950,6 @@ pub(crate) fn bounded_byte_view(
     let expected = terminal_psi::StructuralParameterDeclaration {
         place: argument.place,
         position: 0,
-        is_self: false,
         structural_type: view_type,
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         access: terminal_psi::StructuralAccess::SharedBorrow,

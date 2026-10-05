@@ -38,11 +38,10 @@ pub(super) fn validate_boundary_content_guarantees(
             };
             let kinds =
                 validate_guarantee_places(&guarantee.structural_places, |kind| match kind {
-                    StructuralPlaceKind::Parameter { position, is_self } => {
-                        boundary.structural_parameters.iter().any(|parameter| {
-                            parameter.position == position && parameter.is_self == is_self
-                        })
-                    }
+                    StructuralPlaceKind::Parameter { position } => boundary
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.position == position),
                     StructuralPlaceKind::Result
                     | StructuralPlaceKind::BlockParameter { .. }
                     | StructuralPlaceKind::OperationResult { .. }
@@ -97,7 +96,6 @@ fn validate_retained_borrow_custody(
             version: semantic_vocabulary::ContentPlaceVersion::Entry,
             root: RetainedBorrowPlaceRoot::Parameter {
                 identity,
-                is_self: false,
                 ..
             },
             segments,
@@ -174,8 +172,7 @@ fn retained_borrow_signature_matches(
     let Some(parameter) = boundary.structural_parameters.get(lane) else {
         return false;
     };
-    if parameter.is_self
-        || parameter.access != custody.access
+    if parameter.access != custody.access
         || !module.structural_types.iter().any(|declaration| {
             declaration.id == parameter.structural_type
                 && declaration.identity == custody.source_projection.carrier_identity
@@ -875,12 +872,12 @@ fn partition_substitutions_match_arguments(
                 && substitution.target.root == result.place
                 && substitution.target.segments == substitution.source.segments;
         }
-        let StructuralPlaceKind::Parameter { position, is_self } = source_place.kind else {
+        let StructuralPlaceKind::Parameter { position } = source_place.kind else {
             return false;
         };
         let Some(argument_index) = parameters
             .iter()
-            .position(|parameter| parameter.position == position && parameter.is_self == is_self)
+            .position(|parameter| parameter.position == position)
         else {
             return false;
         };

@@ -143,34 +143,23 @@ fn validate_provider_attachment_foundation(
     let Some(attachment) = machine.attachment else {
         return malformed("provider-backed attachment specialization is incomplete");
     };
-    let self_parameters = machine
-        .structural_parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .collect::<Vec<_>>();
-    let invalid_self = match self_parameters.as_slice() {
-        [] => false,
-        [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
-        _ => true,
-    };
     let mut boundaries = BTreeSet::new();
-    if invalid_self
-        || provider_roots
-            .iter()
-            .any(|(root_attachment, field, boundary)| {
-                *root_attachment != attachment
-                    || !provider_fields
-                        .iter()
-                        .any(|provider_field| provider_field.id == *field)
-                    || !boundaries.insert(*boundary)
-                    || module
-                        .boundary_machines
-                        .iter()
-                        .find(|declaration| declaration.id == *boundary)
-                        .is_none_or(|declaration| {
-                            declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
-                        })
-            })
+    if provider_roots
+        .iter()
+        .any(|(root_attachment, field, boundary)| {
+            *root_attachment != attachment
+                || !provider_fields
+                    .iter()
+                    .any(|provider_field| provider_field.id == *field)
+                || !boundaries.insert(*boundary)
+                || module
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == *boundary)
+                    .is_none_or(|declaration| {
+                        declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
+                    })
+        })
     {
         return malformed("provider-backed attachment specialization is incomplete");
     }
@@ -353,14 +342,9 @@ fn validate_structural_parameters(
     parameters: &[StructuralParameterDeclaration],
 ) -> Result<(), CodecError> {
     let mut places = BTreeSet::new();
-    let mut self_count = 0_u32;
     for parameter in parameters {
         if !places.insert(parameter.place) {
             return malformed("structural parameters reuse a place identity");
-        }
-        self_count += u32::from(parameter.is_self);
-        if self_count > 1 {
-            return malformed("structural signature declares more than one self parameter");
         }
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("structural parameter references an unknown type");
@@ -830,7 +814,6 @@ fn validate_structural_arguments(
         let result_backing = result.map(|result| StructuralParameterDeclaration {
             place: argument.place,
             position: expected.position,
-            is_self: false,
             structural_type: actual_type,
             multiplicity: result.multiplicity,
             access: terminal_psi::StructuralAccess::Owned,
@@ -967,7 +950,6 @@ fn owned_byte_view_presentation(
     if !argument.path.is_empty()
         || argument.access != terminal_psi::StructuralAccess::SharedBorrow
         || expected.access != terminal_psi::StructuralAccess::SharedBorrow
-        || expected.is_self
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || !expected.projected_qualifications.is_empty()
         || machine

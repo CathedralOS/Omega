@@ -161,10 +161,6 @@ pub struct RetainedBorrowPlace {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RetainedBorrowPlaceRoot {
-    Parameter {
-        position: u32,
-        identity: String,
-        is_self: bool,
-    },
+    Parameter { position: u32, identity: String },
     Result,
 }

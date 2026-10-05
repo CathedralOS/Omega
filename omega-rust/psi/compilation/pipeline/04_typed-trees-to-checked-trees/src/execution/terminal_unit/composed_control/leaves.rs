@@ -116,8 +116,7 @@ fn exact_boundary_custody(
     matches!(
         (caller_parameters, entry_claims, arguments, receipts, boundary_parameters),
         ([caller], [claim], [argument], [receipt], [boundary])
-            if !caller.is_self
-                && caller.multiplicity == Multiplicity::Linear
+            if caller.multiplicity == Multiplicity::Linear
                 && caller.access == CheckedStructuralAccess::Owned
                 && caller.qualifications.is_empty()
                 && claim.parameter_index == 0

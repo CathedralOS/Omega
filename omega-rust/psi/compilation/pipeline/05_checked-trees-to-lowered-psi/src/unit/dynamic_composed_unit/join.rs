@@ -92,12 +92,11 @@ pub(super) fn lower<Call: DynamicCall>(
     let caller_access = match first_view.caller_parameter_access {
         CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
         CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-        _ => return unsupported("joined dynamic caller requires borrowed self"),
+        _ => return unsupported("joined dynamic caller requires borrowed context"),
     };
-    let caller_self = StructuralParameterDeclaration {
+    let caller_parameter = StructuralParameterDeclaration {
         place: place_id(1),
         position: 0,
-        is_self: true,
         structural_type: caller_attachment,
         multiplicity: LOAN_MULTIPLICITY,
         access: caller_access,
@@ -106,7 +105,7 @@ pub(super) fn lower<Call: DynamicCall>(
     };
     let sources = [
         validate_and_lower_dynamic_source(
-            &caller_self,
+            &caller_parameter,
             &first_view,
             first_view.source_path,
             first_view.source_type_identity,
@@ -114,7 +113,7 @@ pub(super) fn lower<Call: DynamicCall>(
             &type_ids,
         )?,
         validate_and_lower_dynamic_source(
-            &caller_self,
+            &caller_parameter,
             &second_view,
             second_view.source_path,
             second_view.source_type_identity,
@@ -154,7 +153,7 @@ pub(super) fn lower<Call: DynamicCall>(
         return unsupported("joined dynamic conformances do not expose one exact interface");
     }
 
-    // Dense scalar parameter identities follow the borrowed self place; a
+    // Dense scalar parameter identities follow the borrowed context place; a
     // guard reading only retained fields needs none of them.
     let scalar_parameters = control
         .scalar_parameters
@@ -210,7 +209,7 @@ pub(super) fn lower<Call: DynamicCall>(
     let (first_helper_machine, first_helper_operation) =
         (first_helper.machine, first_helper.operation);
     let [true_result, false_result] = branch_results;
-    let structural_parameters = [(caller_self.position, caller_self.clone())];
+    let structural_parameters = [(caller_parameter.position, caller_parameter.clone())];
     let (guard_operations, guard_value) = lower_join_guard(
         &control.guard,
         &scalar_parameters,
@@ -390,14 +389,13 @@ pub(super) fn lower<Call: DynamicCall>(
         attachment: Some(caller_attachment),
         nominal_cleanup_subject: None,
         parameters: scalar_parameters,
-        structural_parameters: vec![caller_self.clone()],
+        structural_parameters: vec![caller_parameter.clone()],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
-            id: caller_self.place,
+            id: caller_parameter.place,
             kind: StructuralPlaceKind::Parameter {
-                position: caller_self.position,
-                is_self: caller_self.is_self,
+                position: caller_parameter.position,
             },
         }],
         entry_claims: Vec::new(),

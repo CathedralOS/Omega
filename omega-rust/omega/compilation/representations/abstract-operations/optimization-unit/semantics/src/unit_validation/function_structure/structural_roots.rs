@@ -835,9 +835,8 @@ pub(crate) fn validate_structural_root_operations(
                                 parameter.place == *source
                                     && matches!(
                                         place_kinds.get(source),
-                                        Some(StructuralPlaceKind::Parameter { position, is_self })
+                                        Some(StructuralPlaceKind::Parameter { position })
                                             if *position == parameter.position
-                                                && *is_self == parameter.is_self
                                     )
                             })
                             .or_else(|| {
@@ -856,7 +855,6 @@ pub(crate) fn validate_structural_root_operations(
                                     .filter(|parameter| {
                                         parameter.place == *source
                                             && parameter.position == position
-                                            && !parameter.is_self
                                             && (parameter.access
                                                 == terminal_psi::StructuralAccess::Owned
                                                 || shared_descriptor_result)
@@ -1177,14 +1175,12 @@ fn borrowed_window_root(
                     .iter()
                     .all(|claim| claim.input.root != parameter.place)
                 && match place_kinds.get(&parameter.place) {
-                    Some(StructuralPlaceKind::Parameter { position, is_self }) => {
+                    Some(StructuralPlaceKind::Parameter { position }) => {
                         *position == parameter.position
-                            && *is_self == parameter.is_self
                             && function.structural_parameters.contains(parameter)
                     }
                     Some(StructuralPlaceKind::BlockParameter { block, position }) => {
                         *position == parameter.position
-                            && !parameter.is_self
                             && function.blocks.iter().any(|candidate| {
                                 candidate.id == *block
                                     && candidate.structural_parameters.contains(parameter)

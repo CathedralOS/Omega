@@ -399,12 +399,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         }
         let terminal_psi::RetainedBorrowPlace {
             version: semantic_vocabulary::ContentPlaceVersion::Entry,
-            root:
-                terminal_psi::RetainedBorrowPlaceRoot::Parameter {
-                    position,
-                    is_self: false,
-                    ..
-                },
+            root: terminal_psi::RetainedBorrowPlaceRoot::Parameter { position, .. },
             segments,
         } = &custody.source
         else {

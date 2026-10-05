@@ -269,7 +269,6 @@ fn instantiate(
         program,
         machine,
         equation.state,
-        machine,
         edge.target,
         boundary,
         edge.statement_index,

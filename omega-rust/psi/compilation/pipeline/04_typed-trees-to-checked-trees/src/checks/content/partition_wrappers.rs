@@ -25,7 +25,6 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub(crate) struct ReturnedPartitionInvocation {
     statement_index: usize,
     pub(crate) target_symbol: SymbolHandle,
-    receiver: Option<ExpressionHandle>,
     arguments: Vec<ExpressionHandle>,
     form: ReturnedPartitionInvocationForm,
 }
@@ -101,7 +100,6 @@ pub(crate) fn returned_partition_invocations(
                             returned.push(ReturnedPartitionInvocation {
                                 statement_index,
                                 target_symbol: path.symbol,
-                                receiver: None,
                                 arguments: program
                                     .statement_table
                                     .expression_handles(*arguments)
@@ -143,7 +141,6 @@ fn direct_expression_invocation(
     Some(ReturnedPartitionInvocation {
         statement_index,
         target_symbol: call.target_symbol,
-        receiver: call.receiver.is_valid().then_some(call.receiver),
         arguments: program
             .expression_table
             .expression_handles(call.arguments)
@@ -493,7 +490,6 @@ fn instantiate_partition_subject(
                     position: u32::try_from(caller_position).ok()?,
                     symbol: caller_parameter.symbol,
                     name: caller_parameter.name.as_str().to_owned(),
-                    is_self: false,
                 },
                 segments: content_path(program, &actual.segments)?,
             };

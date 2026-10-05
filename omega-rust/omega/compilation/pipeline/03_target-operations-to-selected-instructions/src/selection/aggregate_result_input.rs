@@ -540,7 +540,6 @@ pub(super) fn returned_parameter<'a>(
         || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
-        || semantic.is_self
         || !semantic.qualifications.is_empty()
         || !semantic.projected_qualifications.is_empty()
         || !declared.qualifications.is_empty()

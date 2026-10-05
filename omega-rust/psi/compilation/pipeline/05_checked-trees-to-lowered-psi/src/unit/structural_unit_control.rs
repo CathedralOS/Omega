@@ -39,21 +39,8 @@ pub(crate) fn lower_structural_unit_control_machine(
         }
         let mut positions = BTreeSet::new();
         for parameter in &state.structural_parameters {
-            // A `&mut self` receiver is borrowed, unrestricted custody checked
-            // per state: it crosses every edge through an exact 1:1 transfer
-            // and never joins the affine discard frontier. Bound it the same
-            // way the composed route binds receivers.
-            let admitted = if parameter.is_self {
-                parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                    && parameter.multiplicity == Multiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
-                    && parameter.fused_service_erasure.is_none()
-                    && plan.attachment_type_identity.as_deref()
-                        == Some(parameter.type_identity.as_str())
-            } else {
-                parameter.multiplicity == Multiplicity::Affine
-                    && parameter.qualifications.is_empty()
-            };
+            let admitted = parameter.multiplicity == Multiplicity::Affine
+                && parameter.qualifications.is_empty();
             if !admitted || !positions.insert(parameter.position) {
                 return unsupported(
                     "structural Unit state signature is not claim-free affine custody",
@@ -208,7 +195,6 @@ pub(crate) fn lower_structural_unit_control_machine(
                     .structural_parameters
                     .iter()
                     .rev()
-                    .filter(|parameter| !parameter.is_self)
                     .map(|parameter| parameter.position)
                     .collect::<Vec<_>>();
                 if *trivial_affine_discard_parameter_positions != expected {
@@ -591,7 +577,6 @@ pub(crate) fn lower_structural_unit_control_machine(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             })
             .collect(),
@@ -695,7 +680,6 @@ fn lower_ranked_structural_unit_countdown(
                 .structural_parameters
                 .iter()
                 .rev()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.position)
                 .collect::<Vec<_>>()
     {
@@ -834,7 +818,6 @@ fn lower_ranked_structural_unit_countdown(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             })
             .collect(),
@@ -979,7 +962,6 @@ fn lower_ranked_structural_unit_countdown(
                     trivial_affine_discards: structural_parameters
                         .iter()
                         .rev()
-                        .filter(|parameter| !parameter.is_self)
                         .map(|parameter| parameter.place)
                         .collect(),
                 },

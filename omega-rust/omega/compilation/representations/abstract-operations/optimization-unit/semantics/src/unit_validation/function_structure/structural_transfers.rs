@@ -122,7 +122,6 @@ pub(super) fn validate(
                                     && source.multiplicity == parameter.multiplicity
                                     && source.qualifications == parameter.qualifications
                                     && source.projected_qualifications.is_empty()
-                                    && !source.is_self
                             });
                     let copied = binding.argument.path.is_empty()
                         && binding.argument.access == StructuralAccess::Owned
@@ -395,7 +394,6 @@ fn qualified_shared_view_source(
                 && source.multiplicity == parameter.multiplicity
                 && source.qualifications == parameter.qualifications
                 && source.projected_qualifications.is_empty()
-                && !source.is_self
         });
     let literal = || {
         function
@@ -425,21 +423,19 @@ fn qualified_shared_view_source(
 /// Plain block parameters carry no qualification roster. Qualified bounded
 /// owners use the exact whole-value route above rather than this fallback.
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
-    !parameter.is_self
-        && match parameter.access {
-            StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow => {
-                parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            }
-            StructuralAccess::Owned => matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted
-                    | StructuralMultiplicity::Affine
-                    | StructuralMultiplicity::Linear
-            ),
+    (match parameter.access {
+        StructuralAccess::SharedBorrow
+        | StructuralAccess::MutableBorrow
+        | StructuralAccess::WriteOnlyBorrow => {
+            parameter.multiplicity == StructuralMultiplicity::Unrestricted
         }
-        && parameter.qualifications.is_empty()
+        StructuralAccess::Owned => matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted
+                | StructuralMultiplicity::Affine
+                | StructuralMultiplicity::Linear
+        ),
+    }) && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
 }
 
@@ -459,7 +455,7 @@ fn source_contract(
         )
         .find(|parameter| parameter.place == place)
     {
-        return (plain(parameter) || parameter.is_self).then_some((
+        return plain(parameter).then_some((
             parameter.structural_type,
             parameter.access,
             parameter.multiplicity,

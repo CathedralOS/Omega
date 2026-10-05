@@ -46,7 +46,6 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .map(|parameter| ParameterFacts {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    is_self: false,
                     length: MergedFact::Unseen,
                     minimum_length: super::MergedBound::Unseen,
                     integer: MergedFact::Unseen,
@@ -82,7 +81,6 @@ pub(super) fn collect_state_argument_facts_for_call(
             entry
                 .parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .zip(arguments.iter().copied())
                 .filter_map(|(parameter, argument)| {
                     let mut place =
@@ -178,17 +176,11 @@ pub(super) fn collect_state_argument_facts_for_call(
         .parameters
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self)
         .zip(arguments.iter().copied())
         .map(|((index, _), argument)| (index, argument))
         .collect();
 
-    for (parameter, argument) in entry
-        .parameters
-        .iter_mut()
-        .filter(|parameter| !parameter.is_self)
-        .zip(arguments.iter().copied())
-    {
+    for (parameter, argument) in entry.parameters.iter_mut().zip(arguments.iter().copied()) {
         parameter.length.merge(expression_indexable_length(
             program, machine, state, facts, argument,
         ));

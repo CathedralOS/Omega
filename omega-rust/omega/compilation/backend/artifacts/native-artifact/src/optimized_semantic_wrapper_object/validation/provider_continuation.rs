@@ -199,7 +199,6 @@ fn structural_signature_matches(
             .all(|(actual, expected)| {
                 let actual = &actual.semantic;
                 actual.position == expected.position
-                    && actual.is_self == expected.is_self
                     && actual.structural_type == expected.structural_type
                     && actual.multiplicity == expected.multiplicity
                     && actual.access == expected.access

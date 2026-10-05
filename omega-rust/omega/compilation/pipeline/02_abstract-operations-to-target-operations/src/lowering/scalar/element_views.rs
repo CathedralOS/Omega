@@ -128,12 +128,10 @@ pub(in crate::lowering) fn is_element_view_parameter(
     parameter: &StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    !parameter.is_self
-        && matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && structural_types

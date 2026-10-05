@@ -1,4 +1,4 @@
-//! Independent object replay for bounded ordered mutable-self scalar stores.
+//! Independent object replay for bounded ordered mutable-parameter scalar stores.
 
 use calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
 use machine_code::{MachineCodeFunction, SemanticCodeSite};
@@ -31,9 +31,7 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
         .get(parameter_index)
         .ok_or_else(invalid)?;
     let return_width = scalar_width(anchor.return_scalar_type).ok_or_else(invalid)?;
-    if !anchor.destination.is_self
-        || function.attachment != Some(anchor.destination.structural_type)
-        || anchor.destination.access != terminal_psi::StructuralAccess::MutableBorrow
+    if anchor.destination.access != terminal_psi::StructuralAccess::MutableBorrow
         || !matches!(
             anchor.destination.multiplicity,
             terminal_psi::StructuralMultiplicity::Unrestricted

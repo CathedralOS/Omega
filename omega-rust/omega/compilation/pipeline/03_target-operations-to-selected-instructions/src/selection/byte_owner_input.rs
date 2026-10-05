@@ -128,7 +128,6 @@ fn source_declaration(
             Some(terminal_psi::StructuralParameterDeclaration {
                 place: result.place,
                 position: 0,
-                is_self: false,
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,
                 access: StructuralAccess::Owned,

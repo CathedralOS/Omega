@@ -59,7 +59,6 @@ pub(super) fn bound_value_type(
             ))?;
         if authored.symbol != name.head_symbol
             || value.type_identity != parameter.type_identity
-            || parameter.is_self
             || parameter.access != checked_trees::CheckedStructuralAccess::Owned
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()

@@ -61,7 +61,6 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
                 StructuralParameterDeclaration {
                     place: result.place,
                     position: 0,
-                    is_self: false,
                     structural_type: result.structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::MutableBorrow,

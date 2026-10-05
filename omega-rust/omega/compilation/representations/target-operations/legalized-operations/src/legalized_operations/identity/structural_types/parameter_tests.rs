@@ -14,7 +14,6 @@ fn semantic_and_target_parameters_bind_ordered_projected_qualifications() {
     let semantic = StructuralParameterDeclaration {
         place: semantic_vocabulary::PlaceId::new(1).unwrap(),
         position: 0,
-        is_self: false,
         structural_type: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,

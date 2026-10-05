@@ -497,23 +497,6 @@ pub(super) fn validate_bindings(
         {
             continue;
         }
-        if matches!(
-            transfer.source,
-            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver
-        ) {
-            // A source state that never declared `self` forwards the
-            // machine's ambient receiver: the target's `self` binds the
-            // machine's entry receiver under the same access narrowing a
-            // carried parameter would take.
-            if !plan.states[0]
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.is_self)
-            {
-                return unsupported("Unit graph machine receiver is missing");
-            }
-            continue;
-        }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
             subject,
         } = &transfer.source
@@ -605,9 +588,6 @@ pub(super) fn validate_bindings(
             } => {
                 return unsupported("Unit graph literal argument was not independently rejoined");
             }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
-                return unsupported("Unit graph machine receiver was not independently rejoined");
-            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
                 return unsupported("Unit graph projected argument was not independently rejoined");
             }
@@ -623,9 +603,7 @@ pub(super) fn validate_bindings(
                 ..
             } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
-                if !target.is_self {
-                    validate_argument(target.position, source.position)?;
-                }
+                validate_argument(target.position, source.position)?;
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 ..
@@ -650,9 +628,6 @@ pub(super) fn validate_bindings(
                 ..
             } => {
                 return unsupported("Unit graph literal argument was not independently rejoined");
-            }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
-                return unsupported("Unit graph machine receiver was not independently rejoined");
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
                 return unsupported("Unit graph projected argument was not independently rejoined");

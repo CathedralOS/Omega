@@ -1,47 +1,6 @@
-// Binding a CALL RESULT that is a reference into a `let` local previously
-// had no route (`statement sequence: call: flow call`). The binding now
-// routes — a targetless `--check` compiles — and the residual wall is
-// downstream: native artifact canonical abstract optimization declines
-// `InvalidStructuralTypeIdentity(StructuralTypeId(3))` on the reference
-// result's carried type.
-//
-//   let v: u32   = main.plain();            checks   (scalar result)
-//   let v: &u32  = main.borrow_it();        check-green, native-red (this fixture)
-//   let v: &[u8] = main.buf.as_slice();     same residual wall (a std method)
-//
-// A STATEMENT call with a `&mut` argument checks, so it is not calls, and not
-// references in argument position -- it is a reference in RESULT position
-// reaching a local binding.
-//
-// SAME GAP as `tests/omega/run/borrows/reference_local_binding_routes`,
-// which found that a reference binding routes ONLY for a `&mut` of a
-// self-rooted place named directly. A call result is one more producer that
-// does not route. The label is not the cause and the phase varies with the
-// PRODUCER, which is why this gap looks like several unrelated clusters:
-//
-//   `&main.size`, `&main.buf[0]`, `&mut main.buf[off]`, a reference recast
-//                       -> `statement sequence: local data: structural call binding`
-//   a borrow of a plain local, with a transition following
-//                       -> `state graph: result custody accounting`
-//   `main.buf.as_slice()`
-//                       -> `statement sequence: call: flow call`
-//   an own machine returning `&u32`   (this fixture)
-//                       -> `state graph: operation custody: reference custody`
-//   `&main.buf[0]` in a single-body machine with no transition
-//                       -> `statement sequence: unsupported statement kind`
-//
-// Seven labels, one capability. The last row also shows the phase depends on
-// the SURROUNDING program, not only the statement: the identical borrow
-// reports a different phase once a transition follows it. Do not split this
-// into separate items by label, and do not pin a repair on any of the strings.
-//
-// Progress since: the shared `&` place loans (rows 1-2) now route through
-// the shared place-loan arm, and this fixture's own leg cleared the
-// result-position stack — leaf-loans gate, `ref` result signature, the
-// `EstablishReference` source-effect rejoin, and the verifier's
-// reference-shape admission — to its present wall:
-//   InvalidReferenceCustody: reference result changes its mapped source type
-// (the verifier's call-result source mapping in validation/references.rs).
+// A reference returned by a static machine remains a reference when bound to
+// a local. Its referent must survive the call and retain its source identity;
+// copying a scalar result is not a substitute for this behavior.
 use omega_language_std::console;
 use omega::language::core::binding;
 

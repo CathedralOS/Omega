@@ -272,20 +272,14 @@ fn same_root(left: &ContentPlaceRoot, right: &ContentPlaceRoot) -> bool {
             ContentPlaceRoot::Parameter {
                 position: left_position,
                 symbol: left_symbol,
-                is_self: left_self,
                 ..
             },
             ContentPlaceRoot::Parameter {
                 position: right_position,
                 symbol: right_symbol,
-                is_self: right_self,
                 ..
             },
-        ) => {
-            left_position == right_position
-                && left_symbol == right_symbol
-                && left_self == right_self
-        }
+        ) => left_position == right_position && left_symbol == right_symbol,
         _ => false,
     }
 }
@@ -312,10 +306,7 @@ fn owned_input(
     place: &ContentStructuralPlace,
 ) -> bool {
     let ContentPlaceRoot::Parameter {
-        position,
-        symbol,
-        is_self,
-        ..
+        position, symbol, ..
     } = place.root
     else {
         return false;
@@ -331,7 +322,6 @@ fn owned_input(
     };
     *complete
         && parameter.symbol == symbol
-        && !is_self
         && sources.iter().any(|source| {
             !source.borrowed
                 && source.domain.symbol == projection.domain

@@ -36,7 +36,6 @@ pub struct ProviderSignature {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderSignatureParameter {
     pub position: u32,
-    pub is_self: bool,
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
     pub access: StructuralAccess,

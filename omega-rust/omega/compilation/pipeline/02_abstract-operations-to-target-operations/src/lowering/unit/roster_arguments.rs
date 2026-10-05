@@ -595,7 +595,6 @@ pub(in crate::lowering) fn local_array_loan(
     let presented = terminal_psi::StructuralParameterDeclaration {
         place: result.place,
         position: callee_parameter.position,
-        is_self: false,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
         access: StructuralAccess::Owned,

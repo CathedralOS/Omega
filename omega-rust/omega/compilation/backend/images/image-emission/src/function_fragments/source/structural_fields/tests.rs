@@ -26,8 +26,7 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let (mut function, mut target) = field_fixture(scalar);
     let block = BlockId::new(2).unwrap();
-    let mut parameter = function.structural_parameters.remove(0);
-    parameter.is_self = false;
+    let parameter = function.structural_parameters.remove(0);
     let place = parameter.place;
     let identity = parameter.structural_type;
     function
@@ -358,7 +357,6 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
     let parameter = StructuralParameterDeclaration {
         place: PlaceId::new(1).unwrap(),
         position: 0,
-        is_self: true,
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::SharedBorrow,
@@ -985,7 +983,6 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
     for arrival in [false, true] {
         let (mut function, mut target) = field_fixture(scalar);
         let parameter = &mut function.structural_parameters[0];
-        parameter.is_self = false;
         parameter.access = StructuralAccess::MutableBorrow;
         parameter.qualifications = vec![StructuralDomainId::new(1).unwrap()];
         target.graph.parameters[0].access = parameter.access;
@@ -1849,7 +1846,6 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
         .push(StructuralParameterDeclaration {
             place: source,
             position: 1,
-            is_self: false,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::Owned,
@@ -2212,7 +2208,6 @@ fn owned_field_fixture(
 ) -> (AbstractFunction, TargetFunction) {
     let (mut function, mut target) = field_fixture(scalar_type);
     let parameter = &mut function.structural_parameters[0];
-    parameter.is_self = false;
     parameter.access = StructuralAccess::Owned;
     parameter.multiplicity = multiplicity;
     target.graph.parameters[0].access = StructuralAccess::Owned;

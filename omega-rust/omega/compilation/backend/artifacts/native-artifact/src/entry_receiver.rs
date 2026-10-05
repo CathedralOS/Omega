@@ -32,40 +32,10 @@ pub fn admit_executable_entry_receiver(
     // Settlement retains the entry declaration, not an installed receiver.
     // This admission serves executable images; callable lowering and
     // explicit semantic wrappers retain their own boundaries.
-    let has_self_parameter = |parameters: &[terminal_psi::StructuralParameterDeclaration]| {
-        parameters.iter().any(|parameter| parameter.is_self)
-    };
-    let has_legacy_receiver = plan.functions.iter().any(|function| {
-        function.machine == plan.entry && has_self_parameter(&function.structural_parameters)
-    });
-    // The verified Terminal entry is the receiver-mode frontier the abstract
-    // lowering replays. An unused `&mut self` receiver erases entirely inside
-    // checked production, so a provisioned source entry legitimately reaches
-    // this stage without a self parameter; the plan cannot gain or lose the
-    // marker that verification retained.
-    let terminal_has_receiver = terminal.machines.iter().any(|machine| {
-        machine.id == terminal.entry && has_self_parameter(&machine.structural_parameters)
-    });
-    if has_legacy_receiver != terminal_has_receiver {
-        return Err(receiver_admission_error(
-            "ProgramEntry receiver provisioning",
-            "lowered entry does not preserve the source-selected receiver mode",
-        ));
-    }
     let source_provisions_receiver = matches!(
         program_entry.source().receiver(),
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
     );
-    if !source_provisions_receiver {
-        if has_legacy_receiver {
-            // A free source entry cannot acquire a receiver through lowering.
-            return Err(receiver_admission_error(
-                "ProgramEntry receiver provisioning",
-                "lowered entry does not preserve the source-selected receiver mode",
-            ));
-        }
-        return entry_boundary_without_receiver(placed_view_establishments);
-    }
     let lowered_entry = plan
         .functions
         .iter()
@@ -90,13 +60,16 @@ pub fn admit_executable_entry_receiver(
             "lowered entry does not preserve the source-selected receiver identity",
         ));
     }
+    if !source_provisions_receiver {
+        return entry_boundary_without_receiver(placed_view_establishments);
+    }
     let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
         || native_target == target::NativeTarget::macos_x64()
         || native_target == target::NativeTarget::linux_x64()
         || native_target == target::NativeTarget::linux_arm64()
         || native_target == target::NativeTarget::windows_x64()
         // The UEFI entry is not a hosted shim: the authored semantic entry
-        // compiles a private wrapper that provisions `self` inside its own
+        // compiles a private wrapper that provisions the context inside its own
         // outgoing frame and calls the semantic child, so the root-backed
         // bridge for it is the semantic wrapper object join.
         || native_target == target::NativeTarget::uefi_x64();

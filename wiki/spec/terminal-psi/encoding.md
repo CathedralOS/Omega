@@ -27,14 +27,17 @@ semantic changes move producer, codec, verifier, interpreter, and lowerers
 together. Current golden bytes establish the current format, not historical
 acceptance.
 
-The `self` flags still listed below describe legacy fields in the current
-implementation's encoding, not an accepted source receiver feature or a second
-source contract. [Static machines](../language/machines.md#static-declarations-and-explicit-state)
-use ordinary explicit parameter positions and identities. Removing these fields
-requires the coordinated producer, codec, verifier and consumer migration tracked
-by `STATIC-MACHINE-MIGRATION`; deleting a table column alone would misdescribe
-the bytes. Do not introduce new receiver-specific authority or dependencies on
-those flags while completing that migration.
+[Static machines](../language/machines.md#static-declarations-and-explicit-state)
+use ordinary explicit parameter positions and identities. Structural parameters,
+provider signature parameters, structural places and retained-borrow parameter
+roots carry no `self` flag. Removing that byte changes the canonical format;
+old encodings reject through the stale-marker rule rather than being accepted
+as a compatibility dialect. Access, multiplicity, qualifications and custody
+remain independently checked for every ordinary parameter.
+
+`STATIC-MACHINE-MIGRATION` tracks completion of the coordinated producer,
+codec, verifier and consumer migration. These byte layouts do not claim that
+the remaining consumer migration or end-to-end validation is complete.
 
 The same distinction applies to the legacy conformance subject field and the
 single structural argument stored in a dynamic selection below. The
@@ -169,7 +172,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | erased proof formal | `u32` source position + type identity string |
 | projected qualification | structural path + domain id |
 | structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
-| structural parameter | place id + `u32` position + `u8` self flag + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
+| structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
 | scalar term list | counted scalar terms |
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
@@ -689,7 +692,7 @@ source and target block ids, successor rank value id, and rank comparison:
 <!-- place-kind-tags -->
 | Tag | Structural place kind | Fields after the tag |
 | --- | --- | --- |
-| 1 | Parameter | `u32` position + `bool` self flag |
+| 1 | Parameter | `u32` position |
 | 2 | Result | — |
 | 3 | TrivialAffineLocal | `u32` declaration ordinal + structural type id; no construction element |
 | 4 | ByteSequenceLiteral | `u32` declaration ordinal + structural type id |
@@ -706,7 +709,7 @@ BlockParameter places are machine-local and reject at content positions:
 <!-- content-structural-place-kind-tags -->
 | Tag | Content structural place kind | Fields after the tag |
 | --- | --- | --- |
-| 1 | Parameter | `u32` position + `bool` self flag |
+| 1 | Parameter | `u32` position |
 | 2 | Result | — |
 | 3 | TrivialAffineLocal | `u32` declaration ordinal + structural type id; no construction element |
 | 4 | ByteSequenceLiteral | `u32` declaration ordinal + structural type id |
@@ -984,7 +987,7 @@ are not re-sorted by the canonical-order checker.
 | structural parameter | the machine-row structural parameter encoding |
 | service reach | counted service ids |
 | provider candidate | boundary machine id + requirement identity string + provider identity string + candidate identity string + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
-| signature parameter | `u32` position + `bool` self + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
+| signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
 | projected qualification | structural path + domain id |
 | positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
 | required domain | `u32` argument index + domain id |
@@ -1039,7 +1042,7 @@ content conservation (content algebra + content term + content term).
 
 | tag | Retained-borrow root |
 | --- | --- |
-| 1 | Parameter | `u32` position + identity string + `bool` self |
+| 1 | Parameter | `u32` position + identity string |
 | 2 | Result |
 
 <!-- retained-borrow-segment-tags -->
@@ -1363,7 +1366,6 @@ sites, then counted call plans.
 
 | tag | Suspension storage |
 | --- | --- |
-| 1 | Persistent |
 | 2 | Parameter |
 | 3 | Local |
 | 4 | CallArgument |

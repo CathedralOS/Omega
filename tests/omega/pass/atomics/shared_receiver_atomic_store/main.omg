@@ -1,13 +1,7 @@
-// PASS + RUN canary: atomic operations take a shared receiver
-// (wiki/spec/language/concurrency.md, "All receivers are shared"). A store and
-// a fetch_or on an AtomicU32 field reached through `&self` are admitted; the
-// enclosing record is never written through the shared borrow, the cell is.
-// An ordinary write through `&self` stays rejected
-// (fail/atomics/shared_receiver_plain_field_write).
-//
-// Main observes the cell afterwards: publish(10) then mark(5) returns the
-// instruction-observed prior 10 and leaves 15 in the cell -> exit 70.
-// 71 = wrong fetch_or prior, 72 = wrong stored value.
+// Atomic store and fetch_or mutate an AtomicU32 through a shared Cell borrow,
+// without granting ordinary writes to the enclosing record. The negative
+// control is fail/atomics/shared_receiver_plain_field_write.
+// publish(10), then mark(5), must observe prior 10 and leave 15: exit 70.
 
 use omega_language_std::console;
 use omega::language::core::binding;

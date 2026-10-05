@@ -77,7 +77,6 @@ pub(super) fn matches_producers(function: &PsiOptimizationFunction) -> bool {
                     && place.kind
                         == StructuralPlaceKind::Parameter {
                             position: parameter.position,
-                            is_self: parameter.is_self,
                         }
             }) || function.blocks.iter().any(|block| {
                 block.structural_parameters.iter().any(|parameter| {

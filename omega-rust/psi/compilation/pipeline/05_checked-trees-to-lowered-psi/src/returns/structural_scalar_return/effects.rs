@@ -234,8 +234,7 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "primitive reference return shape is absent",
                 ))?;
-            if retained.is_self
-                || usize::try_from(retained.position).ok() != Some(position)
+            if usize::try_from(retained.position).ok() != Some(position)
                 || retained.access != access
                 || retained.multiplicity != Multiplicity::Unrestricted
                 || !retained.qualifications.is_empty()

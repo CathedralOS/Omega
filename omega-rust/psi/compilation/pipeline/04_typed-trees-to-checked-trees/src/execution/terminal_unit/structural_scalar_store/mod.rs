@@ -740,12 +740,10 @@ fn case_field_store(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.position as usize == value_position)?;
-    if value_plan.is_self
-        || !matches!(
-            value_plan.access,
-            CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
-        )
-        || value_plan.multiplicity != Multiplicity::Unrestricted
+    if !matches!(
+        value_plan.access,
+        CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
+    ) || value_plan.multiplicity != Multiplicity::Unrestricted
         || !value_plan.qualifications.is_empty()
         || !value_plan.projected_qualifications.is_empty()
         || value_plan.fused_service_erasure.is_some()
@@ -974,7 +972,6 @@ fn bound_structural_parameter(
     };
     structural_parameters.iter().any(|parameter| {
         parameter.position == position
-            && !parameter.is_self
             && parameter.access == CheckedStructuralAccess::Owned
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()

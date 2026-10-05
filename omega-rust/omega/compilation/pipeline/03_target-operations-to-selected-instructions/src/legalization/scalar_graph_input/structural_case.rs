@@ -99,7 +99,7 @@ pub(in crate::legalization) fn case_source(
                     declaration: declaration.clone(),
                 },
             ),
-            terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
+            terminal_psi::StructuralAccess::Owned => Ok(
                 legalized_operations::LegalizedStructuralCaseSource::Parameter {
                     declaration: declaration.clone(),
                 },

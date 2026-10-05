@@ -189,7 +189,6 @@ fn substitute_installed_provider_unit_scalar_call(
                 .parameters
                 .push(ProviderSignatureParameter {
                     position: 0,
-                    is_self: false,
                     structural_type: StructuralTypeId::new(7).unwrap(),
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,

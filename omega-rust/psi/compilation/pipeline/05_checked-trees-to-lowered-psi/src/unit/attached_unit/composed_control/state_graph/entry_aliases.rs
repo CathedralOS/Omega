@@ -1,16 +1,5 @@
 //! Whole entry-parameter loans forwarded through state parameters.
 //!
-//! A static entry keeps `self`, because a hosted `ProgramEntry` exposes no
-//! arrival parameters, and lends the whole receiver into the states that read
-//! its data (`transition { _ -> step(&mut self) }`). A state parameter that
-//! receives that whole receiver on every live incoming edge, directly from the
-//! entry or forwarded unchanged through another such parameter, names the
-//! invocation's own storage exactly as a state's implicit `self` does. It keeps
-//! the entry receiver's place instead of becoming a block parameter: Terminal
-//! admits a borrowed block parameter only over plain carriers, while the
-//! invocation parameter carries whatever record the entry receives, bounded
-//! byte fields included.
-//!
 //! Any whole borrowed entry parameter can keep its invocation place when
 //! every arrival proves that identity. The referent's representation does not
 //! change this proof: a plain record and a record containing views obey the
@@ -19,9 +8,8 @@
 //! its release independently.
 //!
 //! A forward keeps its access and custody metadata. A named `&mut` entry loan
-//! narrowed to `&T` remains a shared block parameter, as pinned by
-//! `tests/shared_state_views.rs`. Only the receiver may also be narrowed while
-//! keeping the invocation place, as a state's implicit `&self` is.
+//! narrowed to `&T` remains a shared block parameter rather than reusing the
+//! exclusive entry declaration.
 //!
 //! The roster is the greatest fixpoint per entry parameter: every candidate
 //! starts aliased, and a candidate leaves once one of its incoming edges
@@ -57,25 +45,19 @@ pub(super) fn alias_entry_parameter_loans(
     if entry_reentered {
         return Ok(());
     }
-    // The receiver keeps its established precedence; the remaining entry
-    // loans follow in declaration order.
-    let mut roots = entry
+    let roots = entry
         .structural_parameters
         .iter()
         .enumerate()
         .filter(|(_, parameter)| {
-            parameter.is_self
-                || matches!(
-                    parameter.access,
-                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-                )
-        })
-        .collect::<Vec<_>>();
-    roots.sort_by_key(|(_, parameter)| !parameter.is_self);
+            matches!(
+                parameter.access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+            )
+        });
     for (root, root_parameter) in roots {
         let root = u32::try_from(root)
             .map_err(|_| LoweringError::Unsupported("Unit graph entry position exceeds u32"))?;
-        let receiver = root_parameter.is_self;
         let mut candidates = BTreeSet::new();
         for (position, state) in plan.states.iter().enumerate().skip(1) {
             if !live[position] {
@@ -85,13 +67,10 @@ pub(super) fn alias_entry_parameter_loans(
                 let index = u32::try_from(index).map_err(|_| {
                     LoweringError::Unsupported("Unit graph parameter index exceeds u32")
                 })?;
-                if !parameter.is_self
-                    && matches!(
-                        parameter.access,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
-                    )
-                    && (receiver || parameter.access == root_parameter.access)
+                if matches!(
+                    parameter.access,
+                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+                ) && parameter.access == root_parameter.access
                     && parameter.type_identity == root_parameter.type_identity
                     && parameter.multiplicity == root_parameter.multiplicity
                     && parameter.qualifications == root_parameter.qualifications
@@ -132,9 +111,6 @@ pub(super) fn alias_entry_parameter_loans(
                                     } => {
                                         (source == 0 && source_index == root)
                                             || candidates.contains(&(source, source_index))
-                                    }
-                                    CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
-                                        receiver
                                     }
                                     _ => false,
                                 })

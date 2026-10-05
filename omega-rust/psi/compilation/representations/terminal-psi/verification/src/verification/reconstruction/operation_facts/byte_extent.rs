@@ -60,14 +60,10 @@ fn length_fact(
         return Ok(None);
     };
     let owned_type = match place_kind {
-        StructuralPlaceKind::Parameter { position, is_self } => machine
+        StructuralPlaceKind::Parameter { position } => machine
             .structural_parameters
             .iter()
-            .find(|parameter| {
-                parameter.place == *source
-                    && parameter.position == position
-                    && parameter.is_self == is_self
-            })
+            .find(|parameter| parameter.place == *source && parameter.position == position)
             .map(|parameter| parameter.structural_type),
         StructuralPlaceKind::OperationResult { .. } => {
             terminal_semantics::byte_owned_call_result(module, machine, *source)

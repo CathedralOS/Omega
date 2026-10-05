@@ -94,12 +94,7 @@ fn validate_retained_borrow_call(
     };
     let terminal_psi::RetainedBorrowPlace {
         version: semantic_vocabulary::ContentPlaceVersion::Entry,
-        root:
-            terminal_psi::RetainedBorrowPlaceRoot::Parameter {
-                position,
-                is_self: false,
-                ..
-            },
+        root: terminal_psi::RetainedBorrowPlaceRoot::Parameter { position, .. },
         segments,
     } = &custody.source
     else {

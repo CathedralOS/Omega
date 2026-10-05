@@ -171,9 +171,7 @@ pub struct CallTargetIndex {
 
 /// Write-frame isolation verdicts. The verdict keys are all program-owned
 /// handle types, so the memo lives on the program: `isolation` answers
-/// handle-plus-flag questions, `storage_match` handle pairs, `definitions`
-/// per-definition positions (not symbols — forged duplicate symbols in
-/// fixtures must keep independent verdicts), and `reference_free` /
+/// handle-plus-flag questions, `storage_match` handle pairs, and `reference_free` /
 /// `carry_write` handle-plus-binding-frame questions.
 #[derive(Clone, Default)]
 pub struct IsolationVerdicts {
@@ -185,12 +183,6 @@ pub struct IsolationVerdicts {
         ),
         bool,
     >,
-    /// Verdicts keyed on the definition's own address as `usize`, not its
-    /// symbol — test fixtures can forge duplicate symbols, and two
-    /// definitions sharing one must keep independent verdicts. The slot's
-    /// revision guard bounds the address's lifetime: a rebuilt index drops
-    /// every key the table mutation could have invalidated.
-    pub definitions: HashMap<usize, bool>,
     pub reference_free: HashMap<
         (
             crate::types::TypeReferenceHandle,

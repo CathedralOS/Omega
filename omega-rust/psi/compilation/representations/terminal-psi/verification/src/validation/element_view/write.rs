@@ -96,15 +96,11 @@ fn mutable_view_type(
         .find(|place| place.id == destination)
         .ok_or_else(invalid)?;
     match place.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             let parameter = machine
                 .structural_parameters
                 .iter()
-                .find(|parameter| {
-                    parameter.place == destination
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })
+                .find(|parameter| parameter.place == destination && parameter.position == position)
                 .ok_or_else(invalid)?;
             if parameter.access != StructuralAccess::MutableBorrow
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted

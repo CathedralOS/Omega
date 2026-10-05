@@ -1,5 +1,5 @@
 //! Retained call formals connect authored positions to dense runtime slots.
-//! The selected checked body owns receiver retention and erasure. Consumers
+//! The selected checked body owns parameter retention and erasure. Consumers
 //! borrow its roster instead of reconstructing either policy from source
 //! argument counts; ordinary call admission still owns transfer authority.
 
@@ -51,8 +51,7 @@ pub(crate) fn structural_positions(
                 "retained call formal has no authored position",
             ))?;
         let authored = &signature.parameters[position as usize];
-        if retained.is_self
-            || authored.relevance.is_erased()
+        if authored.relevance.is_erased()
             || checked
                 .primitive_type_reference(authored.type_reference)
                 .is_some()

@@ -98,13 +98,6 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    if abstracted
-        .structural_parameters
-        .iter()
-        .any(|parameter| parameter.is_self && target.attachment != Some(parameter.structural_type))
-    {
-        return Err(LegalizationError::custody());
-    }
     if optimized
         .blocks
         .iter()
@@ -119,7 +112,6 @@ pub(super) fn validate(
                 &plan.structural_types,
             )
             .is_none()
-                || (parameter.is_self && target.attachment != Some(parameter.structural_type))
         })
     {
         return Err(LegalizationError::custody());
@@ -144,7 +136,6 @@ pub(super) fn mutable_parameter(
             parameter.place == place
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && !parameter.is_self
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
@@ -208,7 +199,6 @@ pub(in crate::legalization) fn shared_return(
             parameter.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
         ) && parameter.multiplicity == declared.multiplicity
-            && !parameter.is_self
             && parameter.qualifications == declared.qualifications
             && parameter.projected_qualifications.is_empty();
     }

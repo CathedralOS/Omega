@@ -226,7 +226,6 @@ pub(crate) fn prepare_signature(
                     crate::terminal_identities::allocate_dense(next_place)?,
                 ),
                 position: 0,
-                is_self: false,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 access: terminal_psi::StructuralAccess::MutableBorrow,

@@ -679,8 +679,6 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 })
                 .count();
             if previous.is_some_and(|previous| previous >= key)
-                || (store.destination.is_self
-                    && function.attachment != Some(store.destination.structural_type))
                 || !matches!(
                     store.destination.access,
                     StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -1084,7 +1082,6 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 || destination_type_count != 1
                 || store.destination_type.identity.is_empty()
                 || store.destination_type.id != store.destination.structural_type
-                || store.destination.is_self
                 || store.destination.multiplicity != StructuralMultiplicity::Unrestricted
                 || !matches!(
                     store.destination.access,

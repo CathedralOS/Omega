@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
-    b"omega.checked-syscall-argument-contract.conservative-unqualified.v1\0";
+    b"omega.checked-syscall-argument-contract.conservative-unqualified.v2\0";
 
 /// Derive the first checked syscall argument contract from one verified
 /// target-neutral boundary signature.
@@ -146,7 +146,6 @@ pub fn conservative_syscall_terminal_mechanism(
             return Err("direct syscall structural carrier has an empty identity".to_owned());
         }
         digest.update(parameter.position.to_be_bytes());
-        digest.update([u8::from(parameter.is_self)]);
         digest.update([multiplicity_tag(parameter.multiplicity)]);
         digest.update([access_tag(parameter.access)]);
         push_bytes(&mut digest, carrier.identity.as_bytes())?;

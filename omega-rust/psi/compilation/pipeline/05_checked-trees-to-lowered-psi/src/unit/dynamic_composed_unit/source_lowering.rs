@@ -17,10 +17,10 @@ use terminal_psi::{
     TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
 };
 
-/// Validate that the caller's borrowed `self` licenses the call's field
+/// Validate that the caller's borrowed context licenses the call's field
 /// subloan at `source_path`, then lower that subloan.
 pub(crate) fn validate_and_lower_dynamic_source(
-    caller_self: &StructuralParameterDeclaration,
+    caller_parameter: &StructuralParameterDeclaration,
     plan: &DynamicCallView<'_>,
     source_path: &[CheckedUnitStructuralPathSegment],
     source_type_identity: &str,
@@ -28,23 +28,22 @@ pub(crate) fn validate_and_lower_dynamic_source(
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
     let source_access = plan.source_access;
-    if plan.source_parameter_position != caller_self.position
+    if plan.source_parameter_position != caller_parameter.position
         || plan.caller_parameter_access
-            != match caller_self.access {
+            != match caller_parameter.access {
                 StructuralAccess::SharedBorrow => CheckedStructuralAccess::SharedBorrow,
                 StructuralAccess::MutableBorrow => CheckedStructuralAccess::MutableBorrow,
-                _ => return unsupported("direct dynamic caller self access is unsupported"),
+                _ => return unsupported("direct dynamic caller context access is unsupported"),
             }
-        || !caller_self.is_self
-        || caller_self.multiplicity != LOAN_MULTIPLICITY
+        || caller_parameter.multiplicity != LOAN_MULTIPLICITY
         || !matches!(
             source_access,
             CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
         )
         || (source_access == CheckedStructuralAccess::MutableBorrow
-            && caller_self.access != StructuralAccess::MutableBorrow)
+            && caller_parameter.access != StructuralAccess::MutableBorrow)
     {
-        return unsupported("direct dynamic caller self does not license the field subloan");
+        return unsupported("direct dynamic caller context does not license the field subloan");
     }
     let attachment_id = lookup_type_id(type_ids, plan.caller_attachment_type_identity)?;
     let source_type = lookup_type_id(type_ids, source_type_identity)?;
@@ -71,7 +70,7 @@ pub(crate) fn validate_and_lower_dynamic_source(
         return unsupported("direct dynamic source field no longer matches its structural carrier");
     }
     Ok(StructuralArgument {
-        place: caller_self.place,
+        place: caller_parameter.place,
         path: lower_structural_path(source_path)?,
         access: match source_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
@@ -132,7 +131,7 @@ fn descriptor_call(returns_scalar: bool) -> OperationKind {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_dynamic_call_custody(
     lane: DynamicLoweringLane<'_>,
-    caller_self: &StructuralParameterDeclaration,
+    caller_parameter: &StructuralParameterDeclaration,
     plan: &DynamicCallView<'_>,
     returns_scalar: bool,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -166,7 +165,7 @@ pub(crate) fn lower_dynamic_call_custody(
         }
         DynamicLoweringLane::Rebound(initial) => {
             let initial_source = validate_and_lower_dynamic_source(
-                caller_self,
+                caller_parameter,
                 plan,
                 &initial.path,
                 &initial.type_identity,

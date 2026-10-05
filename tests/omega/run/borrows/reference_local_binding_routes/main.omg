@@ -1,60 +1,6 @@
-// Binding a REFERENCE into a `let` local is routed for one narrow shape only:
-// a `&mut` of a self-rooted place named directly. Every other reference
-// binding measured has no route. Reduced from
-// `samples/cli/systems/descriptor_walk`.
-//
-// Measured in a two-state machine (entry + a `done` state reached by a
-// transition), each row differing from its neighbour by one token:
-//
-//   let d: &mut u32      = &mut main.size;          checks
-//   let d: &mut u32      = &mut main.inner.a;       checks   (nested field)
-//   let d: &mut [u8; 48] = &mut main.buf;           checks   (whole array)
-//   let d: &mut u8       = &mut main.buf[0];        checks   (literal index)
-//   let d: u32           = main.size;               checks   (a copy)
-//
-//   let d: &u32          = &main.size;              OMITTED
-//   let d: &u32          = &main.inner.a;           OMITTED
-//   let d: &[u8; 48]     = &main.buf;               OMITTED
-//   let d: &u8           = &main.buf[0];            OMITTED
-//   let d: &mut u8       = &mut main.buf[off];      OMITTED  (RUNTIME index)
-//   let d: &mut Desc     = &mut main.buf[0] as &mut Desc;    OMITTED (recast)
-//   let d: &mut u32      = &mut main.buf[0] as &mut u32;     OMITTED (recast
-//                                                            to a non-record)
-//   let v: u32 = 7; let d: &mut u32 = &mut v;       OMITTED  (borrow a LOCAL)
-//   let v: u32 = 7; let d: &u32     = &v;           OMITTED, at a DIFFERENT
-//                                                   phase, `state graph:
-//                                                   result custody accounting`
-//
-// So: the SHARED `&` side has no route at all, at any depth and through any
-// place. The `&mut` side routes only for a place that is self-rooted, indexed
-// by a literal if indexed, and not recast.
-//
-// THE SAMPLE IS OVER-DETERMINED. `descriptor_walk`'s one line,
-// `let d: &Desc = &main.buf[off] as &Desc;`, packs THREE independently
-// sufficient triggers -- the shared borrow, the runtime index, and the recast
-// -- each of which omits on its own against its own checking control. The
-// board previously attributed the sample to the recast. That is not wrong, but
-// it is incomplete in the way that matters: removing the recast alone leaves
-// the sample omitting at the same site, so a repair aimed at any one trigger
-// will not clear it. Confirm all three.
-//
-// This fixture pins the SHARED-BORROW trigger, the simplest of the three: no
-// array, no record, no recast, no `requires`, no runtime index.
-//
-// A RECORD LITERAL carrying a reference field is one more producer, found
-// while recovering a deleted termination customer:
-// `Indirect { target: &mut owner }`, where `owner` is a plain local, omits at
-// `statement sequence: local data: structural call binding` -- while the
-// record literal alone checks and the bare `&mut owner` binding omits at
-// `statement sequence: unsupported statement kind`. Pinned at
-// `tests/omega/pending/termination/rank_endpoint_borrows_recovery`, which
-// TERMINATION-RANKING-CHECKS is waiting on: that item asks to recover
-// `rank_endpoint_borrows` as a corpus entry, and this is what stops it.
-//
-// The `&` of a plain local is listed above for completeness but is a
-// DIFFERENT omission -- it reports `state graph: result custody accounting`,
-// and it is reported to check when no transition follows, which was not
-// re-measured here.
+// A shared reference bound to a local must retain the exact projected source.
+// Reduced from samples/cli/systems/descriptor_walk. Other reference producers
+// use the same local-binding semantics rather than receiver-specific routes.
 use omega_language_std::console;
 use omega::language::core::binding;
 

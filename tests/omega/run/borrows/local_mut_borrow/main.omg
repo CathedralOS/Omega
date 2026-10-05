@@ -1,9 +1,6 @@
-// PENDING pin — REFERENCE-LOCAL-BINDING-ROUTES residual (measured 2026-09-29
-// on f4b3db3): `&mut` of a plain LOCAL omits at 'statement sequence: local
-// data: structural call binding'. Same wall as recast + bounded-runtime-index
-// siblings. The narrow self-rooted shape (`&mut main.field`) routes; anything
-// rooted at a `let` local does not. Repair owner: the local_data structural
-// call binding (VIEW-RESULT-LOAN-CUSTODY territory).
+// An ordinary mutable reference to a local scalar writes the local storage.
+// Keeping a transition after the write exercises custody through state control.
+// Expected exit: 9, not the stale initializer 7.
 use omega_language_std::console;
 use omega::language::core::binding;
 

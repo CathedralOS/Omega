@@ -6,9 +6,8 @@
 //! substitution; `callable` retains their distinct parameter/result scopes.
 //! A public requirement guarantee is not a proof of its provider's body.
 //! A named arrival substitutes only its own state contract; it cannot revive
-//! machine-entry assumptions. Implicit self must resolve to a canonical receiver
-//! place; it does not consume a positional explicit argument. Receiver-field
-//! predicates still need their own exact declaration-owned projection support.
+//! machine-entry assumptions. Every input substitutes through its explicit
+//! argument position and exact declaration-owned projection.
 //!
 //! This consumes the existing flow evidence rather than copying predicates at
 //! each assignment. Storage dependencies retire changed inputs; assignment
@@ -35,7 +34,6 @@ pub(in crate::checks) use availability::{AvailableGuarantee, available};
 struct Invocation<'program> {
     site: CallSite<'program>,
     callable: Callable<'program>,
-    caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     statement: usize,
     ordinal: usize,
@@ -235,7 +233,6 @@ fn invocation<'program>(
     Some(Invocation {
         site,
         callable,
-        caller_machine: caller.machine_symbol,
         caller_state: caller.state_symbol,
         statement,
         ordinal,
@@ -293,22 +290,6 @@ fn stable_predicate_inputs(
         actual_projection(program, invocation, occurrence)
             .is_some_and(|(actual, _)| stable_value(program, actual, &mut Vec::new()))
     })
-}
-
-fn receiver_place(program: &TypedTrees, invocation: &Invocation<'_>) -> Option<CanonicalPlace> {
-    let place = crate::flow::canonical_receiver_place_for_call_site(
-        program,
-        invocation.caller_machine,
-        invocation.caller_state,
-        &invocation.site,
-        invocation.statement,
-    )?;
-    (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
-        && !place.segments.iter().any(|segment| {
-            matches!(segment, facts::PlaceSegment::Index { .. })
-                || crate::flow::place_segment_has_unresolved_identity(*segment)
-        }))
-    .then_some(place)
 }
 
 fn stable_value(

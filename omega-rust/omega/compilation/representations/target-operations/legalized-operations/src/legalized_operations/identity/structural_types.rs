@@ -39,7 +39,6 @@ pub(super) fn encode_structural_parameter(
 ) {
     bytes.extend_from_slice(&parameter.place.get().to_le_bytes());
     bytes.extend_from_slice(&parameter.position.to_le_bytes());
-    bytes.push(u8::from(parameter.is_self));
     bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);
@@ -177,10 +176,9 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
             bytes.extend_from_slice(&block.get().to_le_bytes());
             bytes.extend_from_slice(&position.to_le_bytes());
         }
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             bytes.push(1);
             bytes.extend_from_slice(&position.to_le_bytes());
-            bytes.push(u8::from(is_self));
         }
         StructuralPlaceKind::Result => bytes.push(2),
         StructuralPlaceKind::OperationResult {

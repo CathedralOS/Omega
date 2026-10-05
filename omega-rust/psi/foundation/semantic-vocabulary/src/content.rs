@@ -212,8 +212,8 @@ fn encode_fingerprint_term(
                 ContentPlaceVersion::Current => 2,
             });
             match structural_places.get(&subject.root)? {
-                StructuralPlaceKind::Parameter { position, is_self } => {
-                    output.push(if *is_self { 2 } else { 1 });
+                StructuralPlaceKind::Parameter { position } => {
+                    output.push(1);
                     output.extend_from_slice(&position.to_le_bytes());
                 }
                 StructuralPlaceKind::Result => output.push(3),
@@ -381,13 +381,7 @@ mod tests {
         let context = PropositionContext::from_value_types_and_places(
             [],
             [
-                (
-                    parameter,
-                    StructuralPlaceKind::Parameter {
-                        position: 0,
-                        is_self: false,
-                    },
-                ),
+                (parameter, StructuralPlaceKind::Parameter { position: 0 }),
                 (result, StructuralPlaceKind::Result),
             ],
         )

@@ -1134,7 +1134,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                     id: parameter.place,
                     kind: StructuralPlaceKind::Parameter {
                         position: parameter.position,
-                        is_self: parameter.is_self,
                     },
                 })
                 .collect(),

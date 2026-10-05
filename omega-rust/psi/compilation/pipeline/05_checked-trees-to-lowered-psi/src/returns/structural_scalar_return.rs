@@ -176,8 +176,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
         .collect::<Vec<_>>();
     let mut positions = BTreeSet::new();
     for parameter in &plan.structural_parameters {
-        if parameter.is_self
-            || parameter.multiplicity != Multiplicity::Affine
+        if parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()
             || !positions.insert(parameter.position)
         {
@@ -289,7 +288,6 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             })
             .collect(),
@@ -462,8 +460,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     }
     let mut positions = BTreeSet::new();
     for parameter in &plan.structural_parameters {
-        if parameter.is_self
-            || (parameter.multiplicity != Multiplicity::Affine && !primitive_reference_return)
+        if (parameter.multiplicity != Multiplicity::Affine && !primitive_reference_return)
             || !parameter.qualifications.is_empty()
             || !positions.insert(parameter.position)
         {
@@ -1038,7 +1035,6 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             })
             .collect(),

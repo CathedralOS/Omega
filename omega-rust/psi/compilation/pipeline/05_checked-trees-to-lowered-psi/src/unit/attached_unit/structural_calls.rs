@@ -179,7 +179,6 @@ pub(super) fn validate(
         if source.type_identity != argument.type_identity
             || source.access != checked_trees::CheckedStructuralAccess::Owned
             || source.multiplicity != Multiplicity::Affine
-            || source.is_self
             || !source.qualifications.is_empty()
             || source.fused_service_erasure.is_some()
             || caller

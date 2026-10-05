@@ -308,7 +308,6 @@ fn lifetime_bound_borrow_custody(
                     .expect("state parameter position fits in u32"),
                 symbol: source.parameter.symbol,
                 name: source.parameter.name.as_str().to_owned(),
-                is_self: false,
             },
             segments: Vec::new(),
         },

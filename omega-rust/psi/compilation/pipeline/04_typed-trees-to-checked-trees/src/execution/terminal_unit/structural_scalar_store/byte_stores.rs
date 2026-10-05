@@ -66,8 +66,7 @@ pub(super) fn view_write(
     }
     match destination.root {
         Root::Parameter { plan, parameter } => {
-            if plan.is_self
-                || plan.access != CheckedStructuralAccess::MutableBorrow
+            if plan.access != CheckedStructuralAccess::MutableBorrow
                 || plan.multiplicity != Multiplicity::Unrestricted
                 || !plan.qualifications.is_empty()
                 || plan.fused_service_erasure.is_some()
@@ -136,8 +135,7 @@ pub(super) fn element_view_element_reference(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let type_reference = match &destination.root {
         Root::Parameter { plan, parameter } => {
-            if plan.is_self
-                || plan.access != CheckedStructuralAccess::MutableBorrow
+            if plan.access != CheckedStructuralAccess::MutableBorrow
                 || plan.multiplicity != Multiplicity::Unrestricted
                 || !plan.qualifications.is_empty()
                 || plan.fused_service_erasure.is_some()

@@ -1546,7 +1546,6 @@ fn read_access(
             // publication rejoins the exact block declaration and permissions.
             if block.block == function.entry
                 || parameter.position as usize != position
-                || parameter.is_self
                 || !parameter_access(parameter, &target.graph.structural_types, purpose)
                 || !target.graph.blocks.iter().any(|candidate| {
                     candidate.block == block.block

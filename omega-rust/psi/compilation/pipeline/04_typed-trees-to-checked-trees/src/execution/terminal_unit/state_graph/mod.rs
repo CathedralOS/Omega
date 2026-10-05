@@ -810,18 +810,8 @@ fn build_traced_with(
                 );
                 return None;
             }
-            match (parameter.is_self, &parameter.access) {
-                (
-                    true,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow,
-                ) => {}
-                (true, _) => {
-                    trace.phase(
-                        "state graph: state signature: parameter custody shape: persistent receiver access",
-                    );
-                    return None;
-                }
-                (false, CheckedStructuralAccess::Owned) => {
+            match parameter.access {
+                CheckedStructuralAccess::Owned => {
                     // Primitive arrays and bounded byte owners carry their
                     // checked payload shape rather than a nominal identity.
                     // Edge custody still checks the exact source/destination;
@@ -883,7 +873,7 @@ fn build_traced_with(
                         return None;
                     }
                 }
-                (false, _) => {
+                _ => {
                     if parameter.multiplicity != Multiplicity::Unrestricted {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: borrowed restricted parameter",
@@ -1147,7 +1137,6 @@ fn forwards_qualified_parameter(
         return false;
     };
     if target_index == 0
-        || parameter.is_self
         || !(parameter.access == CheckedStructuralAccess::SharedBorrow
             || (matches!(
                 parameter.access,
@@ -1216,8 +1205,7 @@ fn forwards_qualified_parameter(
                                 }
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                                     source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
-                                        !forwarded.is_self
-                                            && forwarded.type_identity == parameter.type_identity
+                                        forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
                                             && forwarded.multiplicity == parameter.multiplicity
                                             && forwarded.qualifications == parameter.qualifications
@@ -1559,8 +1547,6 @@ fn retained_receivers(
         .iter()
         .map(|&(owner, state)| {
             crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
-                program, facts, owner, state,
-            ) || crate::execution::terminal_unit::receiver_calls::calls_self_receiver(
                 program, facts, owner, state,
             ) || receiver_rooted_operand(program, facts, owner, state)
         })

@@ -82,7 +82,7 @@ pub(super) fn store_at(
     if projection.path.is_empty() {
         match destination.root {
             super::destination::Root::Parameter { plan, .. }
-                if plan.is_self || plan.multiplicity != Multiplicity::Unrestricted =>
+                if plan.multiplicity != Multiplicity::Unrestricted =>
             {
                 return None;
             }

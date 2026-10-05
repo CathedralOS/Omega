@@ -259,11 +259,10 @@ impl StateGraphEmission<'_, '_> {
             root.structural_parameters = std::mem::take(&mut self.state_views[position])
                 .into_iter()
                 .enumerate()
-                .filter(|(dense, parameter)| {
-                    !parameter.is_self
-                        && !aliased
-                            .get(position)
-                            .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                .filter(|(dense, _)| {
+                    !aliased
+                        .get(position)
+                        .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                 })
                 .map(|(dense, mut parameter)| {
                     loan_chains.declare(position, dense as u32, &mut parameter);

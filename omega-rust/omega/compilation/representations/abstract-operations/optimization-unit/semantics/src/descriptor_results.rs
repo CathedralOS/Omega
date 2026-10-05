@@ -139,7 +139,6 @@ fn adapt(
         if declaration(parameter.place)?.kind
             != (StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             })
         {
             return None;

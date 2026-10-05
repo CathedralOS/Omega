@@ -84,15 +84,10 @@ pub(super) fn validate_machine(
             .structural_places
             .iter()
             .map(|place| (place.id, place.kind))
-            .chain(contract_receiver.map(|receiver| {
-                (
-                    receiver,
-                    StructuralPlaceKind::Parameter {
-                        position: 0,
-                        is_self: true,
-                    },
-                )
-            })),
+            .chain(
+                contract_receiver
+                    .map(|receiver| (receiver, StructuralPlaceKind::Parameter { position: 0 })),
+            ),
     )
     .map_err(ModuleError::MalformedProposition)?;
     content::validate_content_entry_claims(machine, registry, &structural_place_kinds, &context)?;

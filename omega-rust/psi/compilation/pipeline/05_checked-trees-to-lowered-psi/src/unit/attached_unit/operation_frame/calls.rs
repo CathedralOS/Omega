@@ -854,24 +854,10 @@ impl OperationFrame<'_, '_> {
                 target.structural_parameters(),
                 self.type_ids,
                 self.structural_types.declarations(),
-                // A claim-carrying `self` formal fed by a completed result
-                // consumes the moved frontier instead of publishing a
-                // transfer row; every other entry claim expects exactly one.
+                // Every entry claim requires its checked transfer row.
                 &target
                     .entry_claims()
                     .iter()
-                    .filter(|claim| {
-                        target
-                            .structural_parameters()
-                            .get(claim.parameter_index as usize)
-                            .zip(structural_arguments.get(claim.parameter_index as usize))
-                            .is_none_or(|(parameter, argument)| {
-                                !parameter.is_self
-                                    || argument
-                                        .source_structural_result_binding_ordinal()
-                                        .is_none()
-                            })
-                    })
                     .map(|claim| claim.parameter_index)
                     .collect::<Vec<_>>(),
                 self.primitive_locals,
@@ -892,13 +878,7 @@ impl OperationFrame<'_, '_> {
                     &mut selector_values,
                     Some(&mut *self.calls),
                 )?,
-                emitted_claim_transfers(
-                    structural_arguments,
-                    claim_transfers,
-                    target.structural_parameters(),
-                    &self.operations.structural_values,
-                    self.caller.claims.bindings(),
-                )?,
+                emitted_claim_transfers(claim_transfers, self.caller.claims.bindings())?,
             )
         } else {
             (Vec::new(), Vec::new())

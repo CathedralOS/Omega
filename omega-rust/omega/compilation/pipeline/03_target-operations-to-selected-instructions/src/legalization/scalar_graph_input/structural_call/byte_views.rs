@@ -132,7 +132,6 @@ pub(super) fn argument(
             StructuralParameterDeclaration {
                 place: result.place,
                 position: 0,
-                is_self: false,
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,
                 access: StructuralAccess::Owned,
@@ -169,8 +168,7 @@ pub(super) fn argument(
     let destination = call.parameters.get(ordinal).ok_or_else(invalid)?;
     if result_custody.is_some_and(|result| {
         !result.claims.is_empty() || !result.qualification_establishments.is_empty()
-    }) || formal.is_self
-        || formal.multiplicity != StructuralMultiplicity::Unrestricted
+    }) || formal.multiplicity != StructuralMultiplicity::Unrestricted
         || !formal.projected_qualifications.is_empty()
         || destination.shape != ValueShape::borrowed_reference(16, 8)
     {

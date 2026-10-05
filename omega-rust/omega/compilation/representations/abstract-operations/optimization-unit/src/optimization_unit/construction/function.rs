@@ -64,7 +64,6 @@ pub fn reconstruct_psi_optimization_function_seed(
             id: parameter.place,
             kind: StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             },
         })
         .chain(

@@ -403,12 +403,6 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     ByteSequenceLiteral {
         bytes: Vec<u8>,
     },
-    /// The machine's own receiver, claimed by a target state that declares
-    /// `self` from a source state that did not. A self-less source never
-    /// surrendered the receiver: it rides the machine ambiently and keeps
-    /// its entry place, so the edge forwards the machine's receiver
-    /// descriptor rather than a source parameter.
-    MachineReceiver,
     /// A copyable leaf projected out of a source parameter — `param.field`.
     /// The target owns its storage, so the edge mints one
     /// `StructuralLeafCopy` operation reading the projected subtree into a

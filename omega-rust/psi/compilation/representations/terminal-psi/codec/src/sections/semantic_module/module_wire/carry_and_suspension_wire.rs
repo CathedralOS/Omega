@@ -115,7 +115,6 @@ pub(crate) fn encode_suspension_call_plan(
             }
         }
         writer.u8(match live.storage {
-            TerminalSuspensionStorage::Persistent => 1,
             TerminalSuspensionStorage::Parameter => 2,
             TerminalSuspensionStorage::Local => 3,
             TerminalSuspensionStorage::CallArgument => 4,
@@ -237,7 +236,6 @@ pub(crate) fn decode_suspension_call_plan(
             tag => return Err(CodecError::InvalidTag("TerminalSuspensionValueType", tag)),
         };
         let storage = match reader.u8()? {
-            1 => TerminalSuspensionStorage::Persistent,
             2 => TerminalSuspensionStorage::Parameter,
             3 => TerminalSuspensionStorage::Local,
             4 => TerminalSuspensionStorage::CallArgument,

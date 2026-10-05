@@ -48,7 +48,6 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
     let parameter = terminal_psi::StructuralParameterDeclaration {
         place: id(500),
         position: 0,
-        is_self: false,
         structural_type: id(501),
         access: terminal_psi::StructuralAccess::SharedBorrow,
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

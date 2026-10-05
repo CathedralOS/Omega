@@ -84,7 +84,6 @@ pub(super) fn encode_structural_parameter(
 ) {
     bytes.id(parameter.place);
     bytes.u32(parameter.position);
-    bytes.boolean(parameter.is_self);
     bytes.id(parameter.structural_type);
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);

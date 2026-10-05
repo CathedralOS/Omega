@@ -41,7 +41,6 @@ impl Expansion<'_> {
                 terminal_psi::StructuralParameterDeclaration {
                     place: slot.place,
                     position: 0,
-                    is_self: false,
                     structural_type: slot.structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
@@ -188,7 +187,6 @@ impl Expansion<'_> {
                 terminal_psi::StructuralParameterDeclaration {
                     place: slot.place,
                     position: 0,
-                    is_self: false,
                     structural_type: slot.structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,

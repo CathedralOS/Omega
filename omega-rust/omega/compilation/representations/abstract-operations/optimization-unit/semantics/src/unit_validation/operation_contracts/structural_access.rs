@@ -4,7 +4,7 @@ use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_semantics::{interior_member_borrow, structural_paths_may_overlap};
+use terminal_semantics::structural_paths_may_overlap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
@@ -370,7 +370,6 @@ pub(crate) fn structural_arguments_match(
             && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {
                 place: argument.place,
                 position: parameter.position,
-                is_self: false,
                 structural_type: source.structural_type,
                 multiplicity: source.multiplicity,
                 access: source.access,
@@ -557,7 +556,6 @@ pub(crate) fn structural_arguments_match(
             terminal_psi::StructuralMultiplicity::Linear
         };
         let copied_byte_predicates = projection != StructuralProjectionPolicy::Boundary
-            && !parameter.is_self
             && argument.path.is_empty()
             && argument.access == terminal_psi::StructuralAccess::Owned
             && parameter.access == terminal_psi::StructuralAccess::Owned
@@ -639,21 +637,12 @@ pub(crate) fn structural_arguments_match(
             return false;
         }
     }
-    let receiver = parameters.iter().position(|parameter| parameter.is_self);
     for first in 0..arguments.len() {
         for second in first + 1..arguments.len() {
             let left = &arguments[first];
             let right = &arguments[second];
-            // The receiver's claim is the callee's own context: a borrow
-            // strictly inside it is a subloan under the loan parent-child
-            // table, never an independent second claim.
-            let interior_loan = receiver.is_some_and(|index| {
-                (first == index && interior_member_borrow(left, right))
-                    || (second == index && interior_member_borrow(right, left))
-            });
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
-                && !interior_loan
                 && (structural_access_is_exclusive(left.access)
                     || structural_access_is_exclusive(right.access)
                     // Moving an affine owner is exclusive even when the other
@@ -739,7 +728,6 @@ fn owned_bounded_owner_loan(
         || argument.access != terminal_psi::StructuralAccess::SharedBorrow
         || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
         || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || parameter.is_self
         || !parameter.projected_qualifications.is_empty()
         || source.access != terminal_psi::StructuralAccess::Owned
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted

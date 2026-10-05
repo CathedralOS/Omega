@@ -116,9 +116,9 @@ pub fn replay_semantic_contract(
     Ok(contract)
 }
 
-/// The wrapper provisions `self` itself, so its checked referent layout is a
+/// The wrapper provisions the entry context, so its checked referent layout is a
 /// fact of the emitted child — the selected plan's structural contract — not
-/// of the boundary inputs. The native `self` parameter carries a borrowed
+/// of the boundary inputs. The native context parameter carries a borrowed
 /// reference whose `ValueShape` retains the referent's byte extent and
 /// alignment. Every field of the attached record must be zero-valid so the
 /// zero-fill inside the wrapper's own frame establishes the receiver: erased
@@ -148,11 +148,20 @@ pub fn receiver_layout(
         .structural
         .as_ref()
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
-    let Some(receiver) = structural
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.is_self)
+    let eligibility = settlement
+        .checked_entry()
+        .receiver_eligibility()
+        .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
+    let terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+        terminal_self: context_place,
+        source_position,
+    } = eligibility.projection()
     else {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    };
+    let Some(receiver) = structural.parameters.iter().find(|parameter| {
+        parameter.semantic.place == context_place && parameter.semantic.position == source_position
+    }) else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     let shape = receiver.target.shape;
@@ -420,7 +429,7 @@ pub fn validate_entry_shape(
         .find(|machine| machine.id == settlement.checked_entry().terminal_entry())
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
     // The selected source shape is the authority: a provisioned-mutable
-    // receiver adds one `self` parameter at position 0 ahead of the two
+    // context occupies its explicit parameter at position 0 ahead of the two
     // visible Extent roots; a free source carries the roots alone.
     let (receiver, image, storage) = match entry.structural_parameters.as_slice() {
         [image, storage] => (None, image, storage),
@@ -441,16 +450,24 @@ pub fn validate_entry_shape(
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
     if let Some(receiver) = receiver
-        && (!receiver.is_self
-            || receiver.position != 0
+        && (receiver.position != 0
             || receiver.multiplicity != StructuralMultiplicity::Unrestricted
             || receiver.access != StructuralAccess::MutableBorrow
             || !receiver.qualifications.is_empty()
             || !receiver.projected_qualifications.is_empty()
-            || entry.attachment != Some(receiver.structural_type)
+            || !settlement
+                .checked_entry()
+                .receiver_eligibility()
+                .is_some_and(|eligibility| {
+                    matches!(eligibility.projection(),
+                    terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+                        terminal_self,
+                        source_position: 0,
+                    } if terminal_self == receiver.place)
+                })
             || !matches!(entry.structural_places.as_slice(), [receiver_place, ..]
                 if receiver_place.id == receiver.place
-                    && receiver_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: true }))
+                    && receiver_place.kind == StructuralPlaceKind::Parameter { position: 0 }))
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
@@ -459,8 +476,6 @@ pub fn validate_entry_shape(
         || entry.result != TerminalMachineResult::Unit
         || image.position != receiver_shift
         || storage.position != receiver_shift + 1
-        || image.is_self
-        || storage.is_self
         || image.place == storage.place
         || image.structural_type != storage.structural_type
         || image.multiplicity != StructuralMultiplicity::Linear
@@ -525,11 +540,11 @@ pub fn validate_entry_shape(
     if !matches!(visible_places, [image_place, storage_place]
     if image_place.id == image.place
         && image_place.kind == StructuralPlaceKind::Parameter {
-            position: image.position, is_self: false,
+            position: image.position,
         }
         && storage_place.id == storage.place
         && storage_place.kind == StructuralPlaceKind::Parameter {
-            position: storage.position, is_self: false,
+            position: storage.position,
         })
         || !matches!(entry.entry_claims.as_slice(), [image_claim, storage_claim]
             if image_claim.input == image.place

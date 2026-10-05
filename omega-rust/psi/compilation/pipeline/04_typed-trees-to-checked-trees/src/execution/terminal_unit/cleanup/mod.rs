@@ -116,7 +116,6 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         let parameter_shape = shapes.types.get(&checked_parameter.type_identity)?;
         if (source_parameter.is_const)
             || source_parameter.is_mutable
-            || checked_parameter.is_self
             || usize::try_from(checked_parameter.position).ok()? != position
             || !matches!(
                 checked_parameter.multiplicity,

@@ -867,9 +867,8 @@ fn entry_operand_name_at(
     {
         return None;
     }
-    let (machine, state) =
-        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
-    let symbol = receiver_parameter_symbol(program, machine, state, path).unwrap_or(path.symbol);
+    crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+    let symbol = path.symbol;
     entry_operand_symbol_at(
         program,
         machine_symbol,
@@ -955,65 +954,6 @@ fn entry_operand_symbol_at(
 /// `structural_fields::exact_self_parameter` applies for authored contract
 /// predicates. Bind the name to the state's `is_self` parameter so receiver
 /// projections take the parameter path below.
-fn receiver_parameter_symbol(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    path: &TableNamePath,
-) -> Option<SymbolHandle> {
-    let [member] = program.expression_table.name_path_members(path.members) else {
-        return None;
-    };
-    if !member.is_self_receiver()
-        || (path.symbol != machine.symbol && path.symbol != machine.attached_data_symbol)
-    {
-        return None;
-    }
-    program
-        .state_parameters(state)
-        .iter()
-        .find(|_parameter| false)
-        .map(|parameter| parameter.symbol)
-}
-
-/// Whether the receiver's storage — the machine's attached data — is stable
-/// under shared observation. A `self` parameter's type names the machine
-/// through `Self`, which the contents classifier cannot resolve to the data
-/// declaration, so this checks the declaration itself: the exact resolved
-/// owner application for a generic attachment, else each member's declared
-/// type under the same root gates `check_contents` applies (no linear
-/// custody, no attached `::drop` machine, no erased-relevance fields). Cycles
-/// stay inside the per-field call's active set, so member-by-member checking
-/// cannot diverge.
-fn receiver_contents_stable(program: &TypedTrees, machine: &typed_trees::machine::Machine) -> bool {
-    if machine.attached_data_application.is_valid() {
-        return has_stable_observable_contents(program, machine.attached_data_application);
-    }
-    let mut owners = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == machine.attached_data_symbol);
-    let Some(data) = owners.next() else {
-        return false;
-    };
-    if owners.next().is_some()
-        || !program.data_type_parameters(data).is_empty()
-        || data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        || crate::lookup::symbols::attached_drop_machine_exists(program, data.symbol)
-    {
-        return false;
-    }
-    program.data_members(data).iter().all(|member| {
-        let fields: &[typed_trees::data::DataField] = match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
-        fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && has_stable_observable_contents(program, field.type_reference)
-        })
-    })
-}
 
 fn builtin_binary_meaning(
     program: &TypedTrees,

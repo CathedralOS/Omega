@@ -51,8 +51,7 @@ pub(crate) fn build_claim_free_affine_structural_return_machine(
     let [structural_parameter] = structural_parameters.as_slice() else {
         return None;
     };
-    if structural_parameter.is_self
-        || structural_parameter.multiplicity != Multiplicity::Affine
+    if structural_parameter.multiplicity != Multiplicity::Affine
         || structural_parameter.access != CheckedStructuralAccess::Owned
         || !structural_parameter.qualifications.is_empty()
         || structural_parameter.fused_service_erasure.is_some()

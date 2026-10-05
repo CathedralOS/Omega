@@ -303,7 +303,6 @@ fn scalar_storage_matches(
     storage: terminal_psi::TerminalSuspensionStorage,
 ) -> bool {
     match storage {
-        terminal_psi::TerminalSuspensionStorage::Persistent => false,
         terminal_psi::TerminalSuspensionStorage::Parameter => machine
             .parameters
             .iter()
@@ -329,14 +328,10 @@ fn structural_storage_matches(
     storage: terminal_psi::TerminalSuspensionStorage,
 ) -> bool {
     match storage {
-        terminal_psi::TerminalSuspensionStorage::Persistent => machine
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == place && parameter.is_self),
         terminal_psi::TerminalSuspensionStorage::Parameter => machine
             .structural_parameters
             .iter()
-            .any(|parameter| parameter.place == place && !parameter.is_self),
+            .any(|parameter| parameter.place == place),
         terminal_psi::TerminalSuspensionStorage::Local => block.operations[..operation_index]
             .iter()
             .filter_map(|operation| operation.result.structural())

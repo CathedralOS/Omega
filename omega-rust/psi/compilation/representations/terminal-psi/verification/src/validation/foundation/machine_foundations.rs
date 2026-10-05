@@ -505,7 +505,6 @@ pub(super) fn validate_structural_parameters(machine: &TerminalMachine) -> Resul
         for parameter in &machine.structural_parameters {
             let expected = StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             };
             if !machine
                 .structural_places

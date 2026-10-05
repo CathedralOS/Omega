@@ -100,7 +100,6 @@ pub(super) fn encode_provider_candidate(
     encode_len(bytes, provider.signature.parameters.len());
     for parameter in &provider.signature.parameters {
         bytes.extend_from_slice(&parameter.position.to_le_bytes());
-        bytes.push(u8::from(parameter.is_self));
         bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_access(bytes, parameter.access);

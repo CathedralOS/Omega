@@ -18,7 +18,6 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 pub(super) fn instantiate_source(
     program: &TypedTrees,
     caller_machine: &Machine,
-    callee_machine: &Machine,
     parameter: &StateParameter,
     actual: ExpressionHandle,
     relative: &FramePlaceOrigin,

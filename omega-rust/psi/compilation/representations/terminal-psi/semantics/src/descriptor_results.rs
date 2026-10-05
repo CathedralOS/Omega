@@ -418,16 +418,14 @@ fn terminal_definition(
     kind: StructuralPlaceKind,
 ) -> Option<DescriptorDefinition> {
     match kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             let mut matching =
                 machine
                     .structural_parameters
                     .iter()
                     .enumerate()
                     .filter(|(_, parameter)| {
-                        parameter.place == place
-                            && parameter.position == position
-                            && parameter.is_self == is_self
+                        parameter.place == place && parameter.position == position
                     });
             let (position, parameter) = matching.next()?;
             if matching.next().is_some() {

@@ -102,9 +102,7 @@ pub(super) fn call_result_origins(
     instantiate_result_origins(
         program,
         caller_machine,
-        machine,
         parameters,
-        call.receiver.is_valid().then_some(call.receiver),
         arguments,
         &mut relative,
         symbols,
@@ -724,7 +722,6 @@ fn merge_named_edge<'program>(
         program,
         machine,
         source_state,
-        target_machine,
         target_state,
         boundary,
         boundary_index,
@@ -745,7 +742,6 @@ fn instantiate_edge_origins(
     program: &TypedTrees,
     machine: &Machine,
     source_state: &State,
-    target_machine: &Machine,
     target_state: &State,
     boundary: &StatementNode,
     boundary_index: usize,
@@ -765,9 +761,7 @@ fn instantiate_edge_origins(
         let instantiated = instantiate_result_origins(
             program,
             machine,
-            target_machine,
             parameters,
-            None,
             arguments,
             target_relative,
             symbols,
@@ -829,16 +823,13 @@ fn instantiate_edge_origins(
 
 /// Substitute a state's own-namespace result relation through actual argument
 /// expressions. This is the shared tail of both the public call boundary and
-/// a named completion. An absent receiver can retain a `self` origin only
-/// within the same machine namespace; an external receiver needs its own
-/// proven source before any self-relative result can cross that boundary.
+/// a named completion. Every returned origin must resolve to an explicit
+/// input parameter before its source crosses that boundary.
 #[allow(clippy::too_many_arguments)]
 fn instantiate_result_origins(
     program: &TypedTrees,
     host_machine: &Machine,
-    callee_machine: &Machine,
     parameters: &[StateParameter],
-    receiver: Option<ExpressionHandle>,
     arguments: &[ExpressionHandle],
     relative: &mut AggregateOrigins,
     symbols: &TopLevelSymbols<'_>,
@@ -889,7 +880,6 @@ fn instantiate_result_origins(
         for origin in input_sources::instantiate_source(
             program,
             host_machine,
-            callee_machine,
             parameter,
             actual,
             origin,

@@ -136,11 +136,11 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 {
                     return unsupported("service argument fabricates a permission-claim transfer");
                 }
-                let expression = source_call
-                    .structural_argument(formal.position, formal.is_self)
-                    .ok_or(LoweringError::Unsupported(
+                let expression = source_call.structural_argument(formal.position).ok_or(
+                    LoweringError::Unsupported(
                         "service argument lost its exact authored actual position",
-                    ))?;
+                    ),
+                )?;
                 let source_index =
                     argument
                         .source_parameter_index()

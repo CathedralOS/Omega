@@ -258,7 +258,6 @@ pub enum ContentPlaceRoot {
         position: u32,
         symbol: SymbolHandle,
         name: String,
-        is_self: bool,
     },
     Result,
 }
@@ -404,10 +403,8 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
                 ContentPlaceVersion::Current => 2,
             });
             match &subject.root {
-                ContentPlaceRoot::Parameter {
-                    position, is_self, ..
-                } => {
-                    output.push(if *is_self { 2 } else { 1 });
+                ContentPlaceRoot::Parameter { position, .. } => {
+                    output.push(1);
                     output.extend_from_slice(&position.to_le_bytes());
                 }
                 ContentPlaceRoot::Result => output.push(3),
@@ -761,7 +758,6 @@ mod tests {
                 position: 0,
                 symbol: SymbolHandle::from_arena_index(symbol_index),
                 name: name.to_owned(),
-                is_self: false,
             },
             segments: Vec::new(),
         };

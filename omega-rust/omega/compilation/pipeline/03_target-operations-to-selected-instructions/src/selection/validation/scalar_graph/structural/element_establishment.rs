@@ -426,7 +426,6 @@ fn local_home_root(
     terminal_psi::StructuralParameterDeclaration {
         place: home.place,
         position: 0,
-        is_self: false,
         structural_type: home.structural_type,
         multiplicity: home.multiplicity,
         access: StructuralAccess::Owned,

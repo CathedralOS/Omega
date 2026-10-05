@@ -100,7 +100,6 @@ impl Emission<'_, '_, '_> {
                 structural_parameters.push(StructuralParameterDeclaration {
                     place,
                     position,
-                    is_self: false,
                     structural_type,
                     multiplicity,
                     // Owner slots keep owned custody; the result slot

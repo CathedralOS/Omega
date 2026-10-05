@@ -186,7 +186,6 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
             };
             if !function.parameters.is_empty()
                 || returned_parameter.place != *source
-                || returned_parameter.is_self
                 || returned_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                 || result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
                 || returned_parameter.structural_type != result.structural_type
@@ -198,9 +197,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                     .iter()
                     .skip(1)
                     .any(|parameter| {
-                        parameter.is_self
-                            || parameter.multiplicity
-                                != terminal_psi::StructuralMultiplicity::Affine
+                        parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                             || !parameter.qualifications.is_empty()
                             || !parameter.projected_qualifications.is_empty()
                     })

@@ -47,7 +47,6 @@ pub(super) fn validate_terminal_rows(
             || settlement.source().receiver().source_position() != Some(source_position)
             || parameter.structural_type != attachment
             || parameter.access != terminal_psi::StructuralAccess::MutableBorrow
-            || parameter.is_self != entry.attachment.is_some()
             || entry
                 .attachment
                 .is_some_and(|identity| identity != attachment)
@@ -61,7 +60,7 @@ pub(super) fn validate_terminal_rows(
             || entry
                 .structural_parameters
                 .iter()
-                .any(|parameter| parameter.is_self))
+                .any(|parameter| parameter.position == source_position))
     {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     }

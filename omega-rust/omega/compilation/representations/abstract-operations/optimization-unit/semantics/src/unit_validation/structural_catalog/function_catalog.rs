@@ -118,11 +118,11 @@ pub(crate) fn validate_function_structural_catalog(
                 .is_some_and(|parameter| {
                     parameter.place == place.id && parameter.position == position
                 }),
-            StructuralPlaceKind::Parameter { position, is_self } => function
+            StructuralPlaceKind::Parameter { position } => function
                 .structural_parameters
                 .get(position as usize)
                 .is_some_and(|parameter| {
-                    parameter.place == place.id && parameter.is_self == is_self
+                    parameter.place == place.id && parameter.position == position
                 }),
             StructuralPlaceKind::Result => function
                 .result
@@ -217,7 +217,6 @@ pub(crate) fn validate_function_structural_catalog(
         if places.get(&parameter.place)
             != Some(&StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             })
         {
             return Err(mismatch());

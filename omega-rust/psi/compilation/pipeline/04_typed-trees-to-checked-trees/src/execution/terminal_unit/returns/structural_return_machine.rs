@@ -56,11 +56,10 @@ pub(crate) fn build_structural_return_machine(
     .collect::<Vec<_>>();
     let input = structural_parameters.first()?;
     if input.multiplicity != Multiplicity::Linear
-        || input.is_self
         || structural_parameters
             .iter()
             .skip(1)
-            .any(|discarded| discarded.multiplicity != Multiplicity::Affine || discarded.is_self)
+            .any(|discarded| discarded.multiplicity != Multiplicity::Affine)
     {
         return None;
     }

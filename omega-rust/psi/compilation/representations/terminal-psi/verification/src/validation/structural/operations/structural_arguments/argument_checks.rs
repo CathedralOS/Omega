@@ -329,7 +329,6 @@ pub(in crate::validation) fn validate_structural_argument(
                         (admitted_transfer
                             && expected.access == StructuralAccess::Owned
                             && expected.multiplicity == StructuralMultiplicity::Affine
-                            && !expected.is_self
                             && result.place == argument.place
                             && result.structural_type == structural_type
                             && result.multiplicity == StructuralMultiplicity::Affine
@@ -449,7 +448,6 @@ pub(in crate::validation) fn validate_structural_argument(
             let backing = StructuralParameterDeclaration {
                 place: argument.place,
                 position: expected.position,
-                is_self: false,
                 structural_type: root_type,
                 multiplicity: actual_multiplicity,
                 access: actual_access,
@@ -481,7 +479,6 @@ pub(in crate::validation) fn validate_structural_argument(
         && actual_multiplicity == StructuralMultiplicity::Unrestricted
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && root_type == expected.structural_type
-        && !expected.is_self
         && expected.projected_qualifications.is_empty()
         && !caller
             .entry_claims
@@ -725,7 +722,6 @@ fn owned_bounded_owner_presentation(
         )
         || expected.access != argument.access
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
-        || expected.is_self
         || !expected.projected_qualifications.is_empty()
         || caller
             .entry_claims

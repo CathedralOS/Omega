@@ -19,7 +19,7 @@
 // lays out through its concrete clones, which the layout builder names for
 // exactly this case, and both halves are canaried —
 // `tests/omega/pass/generics/runtime_container_setter_matrix_exit`
-// (`Cell<T>` with `Cell::touch_count(&self)`) and
+// (`Cell<T>` with `Cell::touch_count(cell: &Cell<T>)`) and
 // `.../runtime_const_container_methods_exit` (`FixedBuffer<const N: u64>`
 // with attached accessors). What is still unproven is this file's own shape:
 // a field that binds BOTH a type and a const extent, `[T; N]`, carrying an

@@ -248,7 +248,6 @@ impl<'u> FunctionContext<'u> {
                 parameter.place,
                 Some(StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 }),
             );
         }

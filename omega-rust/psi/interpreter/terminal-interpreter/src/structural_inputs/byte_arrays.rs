@@ -584,7 +584,6 @@ impl TerminalExecution {
                 Some(StructuralParameterDeclaration {
                     place: result.place,
                     position: 0,
-                    is_self: false,
                     structural_type,
                     multiplicity: result.multiplicity,
                     access: StructuralAccess::Owned,

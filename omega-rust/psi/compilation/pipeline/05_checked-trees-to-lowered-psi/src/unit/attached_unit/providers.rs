@@ -491,7 +491,6 @@ pub(super) fn conformances(
                         .iter()
                         .map(|parameter| ProviderSignatureParameter {
                             position: parameter.position,
-                            is_self: parameter.is_self,
                             structural_type: parameter.structural_type,
                             multiplicity: parameter.multiplicity,
                             access: parameter.access,

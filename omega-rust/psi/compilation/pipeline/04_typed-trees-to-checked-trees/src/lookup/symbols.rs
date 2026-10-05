@@ -38,13 +38,6 @@ pub(crate) fn data_definition_by_symbol(
     program.data_definition_by_symbol(symbol)
 }
 
-pub(crate) fn attached_drop_machine_exists(
-    program: &typed_trees::TypedTrees,
-    data_symbol: SymbolHandle,
-) -> bool {
-    program.attached_drop_machine_exists(data_symbol)
-}
-
 pub(crate) fn state_by_symbol<'program>(
     program: &'program typed_trees::TypedTrees,
     machine: &'program typed_trees::machine::Machine,

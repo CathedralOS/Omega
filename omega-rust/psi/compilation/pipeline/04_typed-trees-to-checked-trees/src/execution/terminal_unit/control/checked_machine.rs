@@ -21,11 +21,7 @@ use crate::execution::terminal_unit::{
     TypedTrees,
 };
 
-/// `build_checked_machine` with a trace of where construction stopped.
-/// Borrowed `self` is retained exactly when the body's own reads, published
-/// crash predicates, or scalar-computation receiver contract demand it;
-/// receiver-call reconciliation asks for retained self explicitly through
-/// `build_checked_machine_with` once completed callee signatures demand it.
+/// Build the ordinary explicit-parameter machine, retaining construction diagnostics.
 pub(crate) fn build_checked_machine_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -35,57 +31,12 @@ pub(crate) fn build_checked_machine_traced(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectMachinePlan> {
-    build_checked_machine_with_trace(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        false,
-        call_frames,
-        trace,
-    )
-}
-
-pub(crate) fn build_checked_machine_with(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    retain_reference_self: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<CheckedUnitEffectMachinePlan> {
-    build_checked_machine_with_trace(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        retain_reference_self,
-        call_frames,
-        &LocalConstructionTrace::default(),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_checked_machine_with_trace(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    retain_reference_self: bool,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_residual_parts(
         program,
         facts,
         scalar_callees,
         shapes,
         machine,
-        retain_reference_self,
         call_frames,
         trace,
     )
@@ -94,7 +45,7 @@ fn build_checked_machine_with_trace(
     })
 }
 
-/// `build_checked_machine_with_trace` retaining the exit edge's residual
+/// Build the machine while retaining the exit edge's residual
 /// discards alongside the machine plan. The ordinary Unit roster publishes
 /// only machines whose argument custody is whole-root; a body that moved an
 /// owned parameter through a projection is republished by the partial-affine
@@ -107,7 +58,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    retain_reference_self: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<(
@@ -119,24 +69,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    // Ambient attachment cannot replace runtime field observations or published
-    // crash predicates: both need the invocation's actual receiver. Contextual
-    // cleanup requirements retain their separate receipt-bound environment.
-    let _retain_reference_self = retain_reference_self
-        || crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
-            program, facts, machine, state,
-        )
-        || facts
-            .contract_plans
-            .for_machine(machine.symbol)
-            .is_some_and(|contract| {
-                contract.crash.published().iter().any(|bucket| {
-                    bucket
-                        .alternative_guards()
-                        .iter()
-                        .any(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_)))
-                })
-            });
     trace.phase("result type");
     if !is_unit(program, state.return_type)
         && validation::reference_result_custody::parts(program, state.return_type).is_none()

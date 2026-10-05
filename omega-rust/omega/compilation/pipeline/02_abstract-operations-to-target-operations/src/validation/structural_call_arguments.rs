@@ -224,7 +224,6 @@ impl RootDeclaration {
         .then(|| StructuralParameterDeclaration {
             place: semantic.place,
             position: declared.position,
-            is_self: false,
             structural_type: self.structural_type,
             multiplicity: self.multiplicity,
             access: self.access,

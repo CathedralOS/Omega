@@ -71,11 +71,7 @@ pub(super) fn declared_dynamic_parameters(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let nonself_structural_count = source
-        .structural_parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let structural_count = source.structural_parameters.len();
     if source
         .operations
         .iter()
@@ -90,7 +86,7 @@ pub(super) fn declared_dynamic_parameters(
             parameter.owner != source.machine
                 || parameter.ordinal != u32::try_from(index).unwrap_or(u32::MAX)
                 || parameter.source_position
-                    != u32::try_from(source.parameters.len() + nonself_structural_count + index)
+                    != u32::try_from(source.parameters.len() + structural_count + index)
                         .unwrap_or(u32::MAX)
                 || !matches!(
                     parameter.access,

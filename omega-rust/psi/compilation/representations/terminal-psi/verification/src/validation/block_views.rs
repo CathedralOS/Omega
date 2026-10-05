@@ -92,9 +92,7 @@ pub(super) fn parameter(
         .find(|candidate| candidate.id == block)?
         .structural_parameters
         .get(position as usize)
-        .filter(|parameter| {
-            parameter.place == place && parameter.position == position && !parameter.is_self
-        })
+        .filter(|parameter| parameter.place == place && parameter.position == position)
 }
 
 pub(super) fn validate_declarations(
@@ -204,7 +202,6 @@ pub(super) fn qualified_shared_byte_view(
 ) -> bool {
     declaration.access == StructuralAccess::SharedBorrow
         && declaration.multiplicity == StructuralMultiplicity::Unrestricted
-        && !declaration.is_self
         && !declaration.qualifications.is_empty()
         && declaration.projected_qualifications.is_empty()
         && module.structural_types.iter().any(|row| {
@@ -276,7 +273,6 @@ fn bounded_owner_parameter(
         declaration.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) && declaration.multiplicity == StructuralMultiplicity::Unrestricted
-        && !declaration.is_self
         && declaration.projected_qualifications.is_empty()
         && module.structural_types.iter().any(|row| {
             row.id == declaration.structural_type

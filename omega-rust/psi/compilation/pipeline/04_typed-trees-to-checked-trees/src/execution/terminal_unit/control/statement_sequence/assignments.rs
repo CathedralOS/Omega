@@ -618,8 +618,7 @@ fn bound_value_source(
             .iter()
             .enumerate()
             .find(|(_, plan)| plan.position == position)?;
-        if parameter.is_self
-            || parameter.access != CheckedStructuralAccess::Owned
+        if parameter.access != CheckedStructuralAccess::Owned
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {

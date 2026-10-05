@@ -465,10 +465,7 @@ fn replay_equation(
     let mut input_identities = Vec::new();
     for subject in inputs {
         let ContentPlaceRoot::Parameter {
-            position,
-            symbol,
-            is_self,
-            ..
+            position, symbol, ..
         } = subject.root
         else {
             return false;
@@ -482,7 +479,7 @@ fn replay_equation(
         let Some(path) = content_segments_to_fact_path(&subject.segments) else {
             return false;
         };
-        if subject.version != ContentPlaceVersion::Entry || parameter.symbol != symbol || is_self {
+        if subject.version != ContentPlaceVersion::Entry || parameter.symbol != symbol {
             return false;
         }
         let Some(identity) = input_claim(

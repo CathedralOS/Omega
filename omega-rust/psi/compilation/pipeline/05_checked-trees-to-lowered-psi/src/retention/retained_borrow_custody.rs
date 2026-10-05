@@ -75,7 +75,6 @@ fn lower_custody(
         position,
         symbol,
         name,
-        is_self,
     } = &fact.source.root
     else {
         return unsupported("retained-borrow source is not a direct parameter");
@@ -88,7 +87,6 @@ fn lower_custody(
         ))?;
     if parameter.symbol != *symbol
         || parameter.name.as_str() != name
-        || *is_self
         || fact.source.version != language_semantics::content::ContentPlaceVersion::Entry
         || !fact.source.segments.is_empty()
         || fact.access != language_semantics::ReferenceAccess::Shared
@@ -158,7 +156,6 @@ fn lower_custody(
             root: terminal_psi::RetainedBorrowPlaceRoot::Parameter {
                 position: *position,
                 identity: source_identity,
-                is_self: false,
             },
             segments: Vec::new(),
         },

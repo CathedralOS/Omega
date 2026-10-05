@@ -74,9 +74,8 @@ pub(super) fn parameter(
         return None;
     }
     let matches = match declaration.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             position == parameter.position
-                && is_self == parameter.is_self
                 && signature
                     .parameters
                     .get(position as usize)
@@ -84,7 +83,6 @@ pub(super) fn parameter(
         }
         StructuralPlaceKind::BlockParameter { block, position } => {
             block != source.entry_block
-                && !parameter.is_self
                 && position == parameter.position
                 && source
                     .blocks

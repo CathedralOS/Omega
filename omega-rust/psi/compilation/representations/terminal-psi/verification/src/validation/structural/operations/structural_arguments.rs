@@ -210,9 +210,7 @@ pub(crate) fn validate_structural_arguments(
             expected,
         )?;
     }
-    argument_pairs::validate_argument_pairs(
-        module, caller, arguments, expected, operation, &shape,
-    )?;
+    argument_pairs::validate_argument_pairs(module, caller, arguments, operation, &shape)?;
     Ok(())
 }
 
@@ -255,7 +253,7 @@ fn structural_access_is_exclusive(access: StructuralAccess) -> bool {
     )
 }
 
-pub(crate) use terminal_semantics::{interior_member_borrow, structural_paths_may_overlap};
+pub(crate) use terminal_semantics::structural_paths_may_overlap;
 
 fn literal_index_path(path: &[StructuralPathSegment]) -> Option<&[StructuralPathSegment]> {
     let field_count = path
@@ -556,7 +554,6 @@ fn completed_local_backing(
     .then(|| StructuralParameterDeclaration {
         place: argument.place,
         position: 0,
-        is_self: false,
         structural_type: result.structural_type,
         // The backing presents the result's own multiplicity; each caller
         // re-presents whatever its loan arm admits.

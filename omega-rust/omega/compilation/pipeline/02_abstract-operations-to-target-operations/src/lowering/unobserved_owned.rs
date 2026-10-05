@@ -20,7 +20,6 @@ pub(super) fn parameter(parameter: &terminal_psi::StructuralParameterDeclaration
             parameter.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         )
-        && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
 }

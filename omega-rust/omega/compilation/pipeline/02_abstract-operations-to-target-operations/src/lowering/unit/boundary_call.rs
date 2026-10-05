@@ -349,7 +349,6 @@ pub(in crate::lowering) fn lower_boundary_call(
                     };
                     if !argument.path.is_empty()
                         || parameter.position != 0
-                        || parameter.is_self
                         || parameter.structural_type != structural_type.id
                         || parameter.multiplicity
                             != terminal_psi::StructuralMultiplicity::Unrestricted

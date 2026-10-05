@@ -44,7 +44,6 @@ pub(super) fn consume(
             if !allow_projected
                 || argument.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Affine
-                || parameter.is_self
                 || frontier.owned_places.get(&argument.place)
                     != Some(&StructuralMultiplicity::Affine)
                 || frontier

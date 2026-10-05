@@ -68,7 +68,6 @@ pub(crate) fn exact_plain_affine_structural_call(
         && callee.parameters.is_empty()
         && arguments.is_empty()
         && parameter.position == 0
-        && !parameter.is_self
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
         && parameter.structural_type == signature.structural_type

@@ -675,7 +675,6 @@ fn close_return_structural(
         && matches!(machine.structural_parameters.as_slice(), [parameter]
             if parameter.place == *source
                 && parameter.position == 0
-                && !parameter.is_self
                 && parameter.access == StructuralAccess::Owned);
     // Claim-free descriptors retain the body's original external backing.
     // The return availability check is independent of this loan judgment.
@@ -803,7 +802,6 @@ fn close_return_structural(
         // whether its exact result contract needs return claims.
         && machine.structural_parameters.iter().any(|parameter| {
             parameter.place == *source
-                && !parameter.is_self
                 && parameter.multiplicity == StructuralMultiplicity::Affine
                 && parameter.access == StructuralAccess::Owned
                 && parameter.qualifications.is_empty()

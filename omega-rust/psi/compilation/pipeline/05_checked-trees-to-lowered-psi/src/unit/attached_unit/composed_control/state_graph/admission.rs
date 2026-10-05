@@ -308,7 +308,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // classifier grants neither construction nor copy permission.
                 if source.is_const
                     || source.is_mutable
-                    || parameter.is_self
                     || parameter.fused_service_erasure.is_some()
                     || validation::structural_result_qualifications(
                         &checked.typed,
@@ -914,16 +913,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         return unsupported("free Unit graph cannot retain provider attachment requirements");
     }
     for (boundary, _) in &boundaries {
-        let has_receiver = boundary
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self);
-        let source_has_receiver = if boundary.machine == boundary.state {
+        if boundary.machine == boundary.state {
             // Static trait signatures have no runtime provider receiver.
             if boundary.attachment_type_identity.is_some() {
                 return unsupported("Unit graph static trait boundary acquired an attachment");
             }
-            false
         } else {
             let (owner, _) = crate::declarations::state_declaration(checked, boundary.state)?;
             // A qualified top-level requirement such as `Float::add` names a
@@ -967,32 +961,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     );
                 }
             }
-            false
-        };
-        if has_receiver != source_has_receiver {
-            return unsupported(
-                "Unit graph boundary receiver disagrees with its authored signature",
-            );
-        }
-        // An attached declaration retains its nominal owner even when its
-        // signature is static. Only an actual self parameter receives custody;
-        // the attachment alone must not invent a receiver or constrain results.
-        if has_receiver && boundary.attachment_type_identity.is_none() {
-            return unsupported("Unit graph boundary attachment disagrees with its receiver");
-        }
-        if has_receiver
-            && let Some(attachment) = &boundary.attachment_type_identity
-            && (!matches!(boundary.structural_parameters.as_slice(), [parameter]
-                if parameter.is_self
-                    && parameter.type_identity == *attachment
-                    && parameter.multiplicity == Multiplicity::Linear
-                    && parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                    && parameter.qualifications.is_empty())
-                || !boundary.result.is_unit())
-        {
-            return unsupported(
-                "Unit graph attached boundary requires exact linear receiver custody",
-            );
         }
         // Domain requirements on borrowed inputs lower into the emitted
         // boundary's `requires` rows; qualified affine results mint their
@@ -1318,9 +1286,6 @@ fn borrowed_parameter(
             "Unit graph borrowed parameter qualifications differ from invocation custody",
         );
     }
-    if parameter.is_self {
-        return unsupported("static state acquired an unauthored receiver");
-    }
     let exclusive = matches!(
         parameter.access,
         checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -1366,7 +1331,6 @@ fn forwards_qualified_parameter(
         return false;
     };
     if target_index == 0
-        || parameter.is_self
         || !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
             || (matches!(
                 parameter.access,
@@ -1457,8 +1421,7 @@ fn forwards_qualified_parameter(
                                 }
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                                     source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
-                                        !forwarded.is_self
-                                            && forwarded.type_identity == parameter.type_identity
+                                        forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
                                             && forwarded.multiplicity == parameter.multiplicity
                                             && forwarded.qualifications == parameter.qualifications

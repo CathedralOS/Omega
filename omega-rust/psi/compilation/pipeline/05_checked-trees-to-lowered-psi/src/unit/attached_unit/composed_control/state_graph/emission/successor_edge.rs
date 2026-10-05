@@ -177,9 +177,7 @@ impl StateGraphEmission<'_, '_> {
                     .iter()
                     .any(|parameter| parameter.source_position as usize == argument_position);
             if !runtime_row {
-                // The proof-only formals emit through the erased lane below;
-                // a `self` slot no signature row claims is a receiver the
-                // graph erased and owes no operand.
+                // Proof-only formals emit through the erased lane below.
                 let erased_row = target_state
                     .erased_scalar_parameters
                     .iter()
@@ -199,35 +197,6 @@ impl StateGraphEmission<'_, '_> {
                 .enumerate()
                 .find(|(_, (parameter, _))| parameter.position as usize == argument_position)
             {
-                if target_parameter.is_self {
-                    // A carried `self` names its source parameter's place;
-                    // a self-less source forwards the machine's ambient
-                    // receiver — the entry place itself in either shape.
-                    let source_place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                            index,
-                        } => state_parameters
-                            .get(index as usize)
-                            .map(|parameter| parameter.place),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
-                            self.parameters
-                                .iter()
-                                .find(|parameter| parameter.is_self)
-                                .map(|parameter| parameter.place)
-                        }
-                        _ => return unsupported("Unit graph receiver cannot be rebound"),
-                    };
-                    if source_place
-                        != self
-                            .parameters
-                            .iter()
-                            .find(|parameter| parameter.is_self)
-                            .map(|parameter| parameter.place)
-                    {
-                        return unsupported("Unit graph receiver lost original invocation place");
-                    }
-                    continue;
-                }
                 if let Some(root) = self
                     .admitted
                     .claim_transport
@@ -235,14 +204,14 @@ impl StateGraphEmission<'_, '_> {
                     .get(target)
                     .and_then(|aliased| aliased.get(&(target_index as u32)))
                 {
-                    // A claim or a forwarded whole receiver carried across
+                    // A claim or a forwarded whole parameter carried across
                     // the edge keeps the entry parameter's place; the block
                     // does not rebind it, so the transfer row must still
                     // name that exact parameter and no edge argument is
                     // emitted. The entry place is read from the machine
                     // parameters directly: state_views drains as each target
                     // block seals, so a backward edge sees an emptied roster
-                    // there. The ambient receiver is that entry place itself.
+                    // there.
                     let entry_place = self
                         .parameters
                         .get(*root as usize)
@@ -253,14 +222,6 @@ impl StateGraphEmission<'_, '_> {
                         } => state_parameters
                             .get(index as usize)
                             .map(|parameter| parameter.place),
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver
-                            if self
-                                .parameters
-                                .get(*root as usize)
-                                .is_some_and(|parameter| parameter.is_self) =>
-                        {
-                            entry_place
-                        }
                         _ => {
                             return unsupported(
                                 "Unit graph aliased successor is not a whole parameter transfer",
@@ -572,11 +533,6 @@ impl StateGraphEmission<'_, '_> {
                                 },
                             );
                             destination
-                        }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
-                            return unsupported(
-                                "Unit graph machine receiver has no argument place",
-                            );
                         }
                     };
                 // A member of a later state's loan chain (`loan_chains`)

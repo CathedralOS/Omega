@@ -56,9 +56,8 @@ impl AbstractFunction {
                 }
                 // Entry block parameters are forbidden by abstract-program
                 // validation: function formals live only in the signature.
-                // Block positions are dense and never carry receiver identity.
+                // Block positions are dense within their owning block.
                 if block.block == self.entry
-                    || parameter.is_self
                     || parameter.position as usize != position
                     || found.replace(parameter).is_some()
                 {

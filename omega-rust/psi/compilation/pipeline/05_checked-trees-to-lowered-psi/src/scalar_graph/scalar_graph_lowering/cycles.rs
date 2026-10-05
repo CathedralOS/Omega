@@ -210,17 +210,6 @@ pub(super) fn prepare(
         }));
     }
     if parameters.iter().any(|parameter| {
-        // Signature replay preserves the receiver's exact shared or mutable
-        // access. It remains the same invocation-scoped loan throughout the
-        // loop and never binds on a backedge; only explicit formals need
-        // loop-carrier admission. Requiring a shared receiver here would
-        // reject an already admitted exclusive loan without improving custody.
-        if parameter.is_self {
-            return !matches!(
-                parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            );
-        }
         // A borrowed runtime-length view rebinds as a shared loan on the
         // backedge: it carries no owned disposal, so the plain-owned loop
         // rule does not apply, but every other custody shape still rejects.
@@ -260,11 +249,7 @@ pub(super) fn prepare(
         return unsupported("scalar loop requires plain owned values or whole supported loans");
     }
     let mut loop_parameters = parameters.to_vec();
-    for (position, parameter) in loop_parameters
-        .iter_mut()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-    {
+    for (position, parameter) in loop_parameters.iter_mut().enumerate() {
         parameter.position = u32::try_from(position)
             .map_err(|_| LoweringError::Unsupported("scalar loop descriptor index exceeds u32"))?;
         parameter.place = place_id(allocate_dense(next_place)?);

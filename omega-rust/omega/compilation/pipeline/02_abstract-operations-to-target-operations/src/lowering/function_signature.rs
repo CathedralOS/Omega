@@ -100,21 +100,15 @@ pub(super) fn prepare_function_signature(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let nonself_structural_count = function
-        .structural_parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let structural_count = function.structural_parameters.len();
     for (index, parameter) in declared_dynamic_parameters.iter().enumerate() {
         let ordinal =
             u32::try_from(index).map_err(|_| LoweringError::InvalidDynamicDescriptorParameter {
                 machine: function.machine,
                 ordinal: parameter.ordinal,
             })?;
-        let source_position = u32::try_from(
-            function.parameters.len() + nonself_structural_count + index,
-        )
-        .map_err(|_| LoweringError::InvalidDynamicDescriptorParameter {
+        let source_position = u32::try_from(function.parameters.len() + structural_count + index)
+            .map_err(|_| LoweringError::InvalidDynamicDescriptorParameter {
             machine: function.machine,
             ordinal: parameter.ordinal,
         })?;

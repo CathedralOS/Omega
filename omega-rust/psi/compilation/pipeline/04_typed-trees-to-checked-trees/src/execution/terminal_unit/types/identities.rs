@@ -224,53 +224,6 @@ pub(in crate::execution::terminal_unit) fn substituted_formal_type(
     }
 }
 
-pub(in crate::execution::terminal_unit) fn attached_data_identity(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<String> {
-    // A machine attached to generic data retains the exact owner application
-    // its binder scope resolved: a receiver-specialized clone's `Task<Token>`
-    // is the call edge's checked evidence where the declared `Task<T>` data
-    // still names the open parameter.
-    if machine.attached_data_application.is_valid() {
-        return Some(
-            program
-                .normalized_type_identity(machine.attached_data_application)
-                .into_string(),
-        );
-    }
-    let data = program.data_definitions().iter().find(|data| {
-        machine.attached_data_symbol.is_valid() && data.symbol == machine.attached_data_symbol
-    })?;
-    if !program.data_type_parameters(data).is_empty() {
-        return None;
-    }
-    Some(closed_data_identity(program, data, &[]))
-}
-
-/// An attached `self` formal carries `Named { machine, "Self" }`, the
-/// machine's alias for its owner application. Resolve it through the
-/// retained application so a receiver-specialized callee's concrete
-/// `Task<Token>` — not the alias — supplies multiplicity and claim-path
-/// evidence. Only a `self` formal may carry the alias; anything else, or a
-/// machine predating retained applications, declines to expand.
-pub(in crate::execution::terminal_unit) fn attached_self_application(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    if name.as_str() != "Self" || !symbol.is_valid() {
-        return None;
-    }
-    crate::lookup::machine_by_symbol(program, *symbol)
-        .map(|machine| machine.attached_data_application)
-        .filter(|application| application.is_valid() && *application != type_reference)
-}
-
 pub(in crate::execution::terminal_unit) fn closed_data_identity(
     program: &TypedTrees,
     data: &typed_trees::data::DataDefinition,

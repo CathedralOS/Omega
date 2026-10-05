@@ -24,7 +24,7 @@ use terminal_psi::{
 pub(crate) fn lower_caller_store_operations(
     store: Option<&CheckedStructuralScalarFieldStorePlan>,
     plan: &DynamicCallView<'_>,
-    caller_self: &StructuralParameterDeclaration,
+    caller_parameter: &StructuralParameterDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
     next_operation: &mut u64,
@@ -33,8 +33,8 @@ pub(crate) fn lower_caller_store_operations(
     let Some(store) = store else {
         return Ok(Vec::new());
     };
-    if caller_self.access != StructuralAccess::MutableBorrow
-        || store.destination.parameter_position() != Some(caller_self.position)
+    if caller_parameter.access != StructuralAccess::MutableBorrow
+        || store.destination.parameter_position() != Some(caller_parameter.position)
         || store.carrier_path != plan.source_path
     {
         return unsupported("direct dynamic caller store lost mutable carrier custody");
@@ -106,7 +106,7 @@ pub(crate) fn lower_caller_store_operations(
             id: store_operation,
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
-                destination: caller_self.place,
+                destination: caller_parameter.place,
                 path: lower_structural_path(&store.carrier_path)?,
                 field: field.id,
                 value,
@@ -134,7 +134,7 @@ pub(crate) fn lower_realization_operations(
     )?;
     // The checked plan retains any scalar `Return` expression, so the body
     // lowers through the shared expression pipeline bound to the
-    // realization's one borrowed self parameter. Realization machines carry
+    // realization's one borrowed context parameter. Realization machines carry
     // an empty contract and emit no proof-bundle evidence, so only
     // obligation-free leaves may reach emission.
     let parameters = [(parameter.position, parameter.clone())];
@@ -171,7 +171,7 @@ pub(crate) fn lower_realization_operations(
     Ok(operations)
 }
 
-/// The realization's return leaves compose through one borrowed self view:
+/// The realization's return leaves compose through one borrowed context view:
 /// field observations, literals, wrapping or saturating arithmetic, widening,
 /// bitwise complements, integer comparisons, and Boolean negation or
 /// equality. Shapes needing scalar locals, erased formals, byte storage,

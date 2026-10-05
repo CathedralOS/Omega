@@ -44,7 +44,6 @@ pub fn is_bounded_owner_loan<'a>(
         parameter.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
             matches!(
@@ -82,7 +81,6 @@ pub fn is_shared_byte_view<'a>(
 ) -> bool {
     parameter.access == StructuralAccess::SharedBorrow
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
             matches!(
@@ -135,7 +133,6 @@ pub fn is_owned_bounded_byte_parameter<'a>(
 ) -> bool {
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
             matches!(
@@ -174,7 +171,6 @@ pub fn is_shared_view_carrier_loan<'a>(
 ) -> bool {
     parameter.access == StructuralAccess::SharedBorrow
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type)
             .is_some_and(|declaration| view_carrier_shape(declaration, types, &mut Vec::new()))

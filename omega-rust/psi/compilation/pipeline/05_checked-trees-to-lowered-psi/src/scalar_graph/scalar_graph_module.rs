@@ -210,20 +210,13 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .iter()
         .map(|(_, parameter)| parameter.clone())
         .collect();
-    // A retained receiver remains a machine parameter across every iteration.
-    // A re-entered entry's loop header owns only the explicit formals carried
+    // A re-entered entry's loop header owns the explicit formals carried
     // by source edges; a loop re-entering later rows leaves the entry as the
     // machine's own prologue block.
     let reenters_entry = loop_plan.is_some_and(ScalarLoopPlan::reenters_entry);
     let loop_header_parameters = loop_plan
         .and_then(ScalarLoopPlan::entry_header_parameters)
-        .map(|parameters| {
-            parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .cloned()
-                .collect::<Vec<_>>()
-        });
+        .map(|parameters| parameters.to_vec());
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -391,14 +384,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             if !block.structural_parameters.is_empty() {
                 return unsupported("structural binding collided with an existing block namespace");
             }
-            // A borrowed receiver is declared once at machine scope; it is
-            // never a block parameter, so edges carry no lane for it.
-            block.structural_parameters = state
-                .structural_parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .cloned()
-                .collect();
+            block.structural_parameters = state.structural_parameters.clone();
         }
     }
     // Stage 04 publishes only graphs whose owned formals are no-code
@@ -658,7 +644,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter {
                     position: parameter.position,
-                    is_self: parameter.is_self,
                 },
             },
         )?;
@@ -706,7 +691,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: structural_parameters
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .map(|parameter| StructuralArgument {
                         place: parameter.place,
                         path: Vec::new(),
@@ -772,10 +756,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: terminal_machine,
-                attachment: structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.is_self)
-                    .map(|parameter| parameter.structural_type),
+                attachment: None,
                 nominal_cleanup_subject: None,
                 structural_parameters: structural_parameters.to_vec(),
                 ranked_scc: None,

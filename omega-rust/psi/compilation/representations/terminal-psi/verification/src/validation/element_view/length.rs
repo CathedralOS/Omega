@@ -49,15 +49,11 @@ pub(in crate::validation) fn validate_source(
         .find(|place| place.id == source)
         .ok_or_else(&invalid)?;
     let structural_type = match place.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             let parameter = machine
                 .structural_parameters
                 .iter()
-                .find(|parameter| {
-                    parameter.place == source
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })
+                .find(|parameter| parameter.place == source && parameter.position == position)
                 .ok_or_else(&invalid)?;
             if !matches!(
                 parameter.access,
@@ -85,13 +81,15 @@ pub(in crate::validation) fn validate_source(
             parameter.structural_type
         }
         StructuralPlaceKind::OperationResult { .. } => {
-            crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, source)
-                .map(|result| result.structural_type)
-                .or_else(|| {
-                    crate::validation::element_view::write::mutable_result(module, machine, source)
-                        .map(|result| result.structural_type)
-                })
-                .ok_or_else(&invalid)?
+            crate::validation::element_view::subslice::borrowed_result_in_module(
+                module, machine, source,
+            )
+            .map(|result| result.structural_type)
+            .or_else(|| {
+                crate::validation::element_view::write::mutable_result(module, machine, source)
+                    .map(|result| result.structural_type)
+            })
+            .ok_or_else(&invalid)?
         }
         _ => return Err(invalid()),
     };

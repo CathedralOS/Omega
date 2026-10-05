@@ -459,8 +459,7 @@ pub(in crate::legalization) fn block_home_layout(
             parameter,
             &plan.structural_types,
         );
-    if !(!parameter.is_self
-        && parameter.access == terminal_psi::StructuralAccess::Owned
+    if !(parameter.access == terminal_psi::StructuralAccess::Owned
         && (parameter.qualifications.is_empty() || owned_bounded_bytes)
         && parameter.projected_qualifications.is_empty())
     {
@@ -496,8 +495,7 @@ fn borrowed_view_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
-    !parameter.is_self
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && matches!(
             parameter.access,
             terminal_psi::StructuralAccess::SharedBorrow
@@ -519,8 +517,7 @@ fn byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
-    !parameter.is_self
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && matches!(
             parameter.access,
             terminal_psi::StructuralAccess::SharedBorrow

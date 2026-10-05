@@ -124,8 +124,6 @@ pub(in crate::legalization) fn installed_operation(
     {
         if expected.position != actual.position
             || expected.position != signature.position
-            || expected.is_self != actual.is_self
-            || expected.is_self != signature.is_self
             || expected.structural_type != actual.structural_type
             || expected.structural_type != signature.structural_type
             || expected.access != actual.access

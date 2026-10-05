@@ -10,10 +10,8 @@
 //! - the loan attributor (`borrow::loans`) links the returned view's loan to
 //!   the borrowed argument at each call site.
 //!
-//! The rules (Rust's, frozen decision 15):
+//! Returned-view source rules:
 //!
-//! - a `&self`/`&mut self` parameter links the output to self (elision rule 3),
-//!   regardless of other ref inputs;
 //! - an EXPLICIT output lifetime (`-> &'buf T` or `-> Message<'buf>`) links the
 //!   output to every input carrying the same lifetime name (stage 2); the
 //!   returned view's sources form the union of those inputs' matching leaves;
@@ -42,12 +40,9 @@ pub(crate) enum ViewReturnSource {
     /// The return type is not a view, or there is nothing to link (an elided
     /// output with zero ref inputs). No loan, no diagnostic.
     NotApplicable,
-    /// The output borrows the `&self` receiver (elision rule 3).
-    SelfReceiver,
-    /// The output borrows exactly one non-self ref parameter. `non_self_index`
-    /// is the ordinal among NON-SELF parameters, which equals the positional
+    /// The output borrows exactly one reference parameter at its positional
     /// argument index at a call site.
-    Parameter { non_self_index: usize },
+    Parameter { parameter_index: usize },
     /// Each result reference maps to the input named by its instantiated
     /// lifetime. A direct reference result has an empty output owner path.
     Fields { fields: Vec<ViewReturnFieldSource> },
@@ -61,7 +56,7 @@ pub(crate) struct ViewReturnFieldSource {
     pub(crate) owner_path: Vec<BorrowOwnerSegment>,
     pub(crate) source_path: Vec<BorrowOwnerSegment>,
     pub(crate) source_type: TypeReferenceHandle,
-    pub(crate) non_self_index: usize,
+    pub(crate) parameter_index: usize,
     pub(crate) kind: checked_trees::BorrowAccessKind,
 }
 
@@ -101,10 +96,10 @@ pub(crate) fn resolve_signature_view_return_source(
 
     // Reference parameters paired with their argument ordinal and lifetime.
     let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
-    let mut non_self_index = 0usize;
+    let mut parameter_index = 0usize;
     for parameter in parameters {
-        let index = non_self_index;
-        non_self_index = non_self_index.saturating_add(1);
+        let index = parameter_index;
+        parameter_index = parameter_index.saturating_add(1);
         if is_reference_type(program, parameter.type_reference) {
             ref_parameters.push((
                 index,
@@ -137,7 +132,7 @@ pub(crate) fn resolve_signature_view_return_source(
                     lifetime: output_lifetime.to_owned(),
                 }),
                 [single] => ViewReturnSource::Parameter {
-                    non_self_index: single.0,
+                    parameter_index: single.0,
                 },
                 // Several inputs carry the selected lifetime: each
                 // contributes its reference as a candidate source and the
@@ -149,7 +144,7 @@ pub(crate) fn resolve_signature_view_return_source(
         None => match ref_parameters.as_slice() {
             [] => ViewReturnSource::NotApplicable,
             [single] => ViewReturnSource::Parameter {
-                non_self_index: single.0,
+                parameter_index: single.0,
             },
             _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
                 candidates: ref_parameters
@@ -191,10 +186,10 @@ pub(crate) fn resolve_substituted_view_return_source(
     }
 
     let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
-    let mut non_self_index = 0usize;
+    let mut parameter_index = 0usize;
     for parameter in parameters {
-        let index = non_self_index;
-        non_self_index = non_self_index.saturating_add(1);
+        let index = parameter_index;
+        parameter_index = parameter_index.saturating_add(1);
         if substituted_is_reference_type(program, parameter.type_reference, substitutions) {
             ref_parameters.push((
                 index,
@@ -215,7 +210,7 @@ pub(crate) fn resolve_substituted_view_return_source(
                     lifetime: output_lifetime.to_owned(),
                 }),
                 [single] => ViewReturnSource::Parameter {
-                    non_self_index: single.0,
+                    parameter_index: single.0,
                 },
                 _ => structural_view_return_source(program, parameters, return_type, substitutions),
             }
@@ -223,7 +218,7 @@ pub(crate) fn resolve_substituted_view_return_source(
         None => match ref_parameters.as_slice() {
             [] => ViewReturnSource::NotApplicable,
             [single] => ViewReturnSource::Parameter {
-                non_self_index: single.0,
+                parameter_index: single.0,
             },
             _ => ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs {
                 candidates: ref_parameters
@@ -397,7 +392,7 @@ fn structural_view_return_source(
                 owner_path: output.owner_path.clone(),
                 source_path: input.owner_path.clone(),
                 source_type: parameter.type_reference,
-                non_self_index: *index,
+                parameter_index: *index,
                 kind: match output.access {
                     language_semantics::ReferenceAccess::Mutable => {
                         checked_trees::BorrowAccessKind::Mutable
@@ -448,7 +443,7 @@ fn whole_elided_result_source(
         ));
     }
     Some(ViewReturnSource::Parameter {
-        non_self_index: index,
+        parameter_index: index,
     })
 }
 

@@ -131,7 +131,7 @@ fn case_source(
         declaration.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     );
-    if (!borrowed && (declaration.access != StructuralAccess::Owned || declaration.is_self))
+    if (!borrowed && declaration.access != StructuralAccess::Owned)
         || declaration.multiplicity == StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()

@@ -66,8 +66,7 @@ pub(super) fn checked_provider_attachment_requirements(
         .iter()
         .any(|(field, _)| field.identity.starts_with('#'))
         || structural_parameters.iter().any(|parameter| {
-            !parameter.is_self
-                && parameter_is_provider_carrier(shapes, parameter, attachment_type_identity)
+            parameter_is_provider_carrier(shapes, parameter, attachment_type_identity)
         })
     {
         return None;
@@ -235,7 +234,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 // Composed collection has no roster; its already-planned call
                 // independently checked the same source parameter position.
                 if !structural_parameters.is_empty() && !structural_parameters.iter().any(|parameter| {
-                    !parameter.is_self && parameter.type_identity == attachment_type_identity
+                    parameter.type_identity == attachment_type_identity
                         && program.state_parameters(state).get(parameter.position as usize)
                             .is_some_and(|parameter| parameter.symbol == source.symbol)
                 }) {

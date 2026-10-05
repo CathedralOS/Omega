@@ -43,7 +43,6 @@ fn is_plain_address_join<'a>(
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && is_plain_referent(parameter.structural_type, lookup, &mut Vec::new())

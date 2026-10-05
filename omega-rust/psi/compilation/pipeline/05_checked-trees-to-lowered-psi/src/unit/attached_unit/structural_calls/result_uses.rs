@@ -129,7 +129,6 @@ fn validate_linear_result_consumer(
         || !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
-        || parameter.is_self
         || parameter.fused_service_erasure.is_some()
         || result.type_identity != argument.type_identity
         || parameter.type_identity != result.type_identity
@@ -338,7 +337,6 @@ fn validate_argument_construction_consumer(
         || !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
-        || parameter.is_self
         || parameter.fused_service_erasure.is_some()
         || (!parameter.qualifications.is_empty() && !copied_qualifications)
         || source.result.multiplicity != parameter.multiplicity
@@ -1234,10 +1232,8 @@ pub(crate) fn validate_consumer(
                 .is_some_and(|custody| custody.reference_loan.is_valid()));
     // A structural call keeps its transfers in its custody record; a boundary
     // call's are its completion receipts.
-    let (coordinate, target_machine, target_state, structural_arguments, claim_transfers) = (
+    let (coordinate, structural_arguments, claim_transfers) = (
         call.coordinate,
-        call.target.machine,
-        call.target.state,
         &call.structural_arguments,
         call.claim_transfers(),
     );
@@ -1297,7 +1293,6 @@ pub(crate) fn validate_consumer(
             )?
         {
             if authored.boundary
-                || parameter.is_self
                 || target_entry_claims
                     .iter()
                     .any(|claim| claim.parameter_index as usize == parameter_index)
@@ -1308,25 +1303,6 @@ pub(crate) fn validate_consumer(
                 return unsupported(
                     "reference result consumer acquired unrelated boundary or claim custody",
                 );
-            }
-            continue;
-        }
-        if parameter.is_self
-            && binding_ordinal.is_some()
-            && matches!(
-                argument.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-            )
-        {
-            if target_entry_claims
-                .iter()
-                .any(|claim| claim.parameter_index as usize == parameter_index)
-                || claim_transfers
-                    .iter()
-                    .any(|transfer| transfer.argument_index as usize == index)
-            {
-                return unsupported("plain local receiver acquired transferred claims");
             }
             continue;
         }
@@ -1361,7 +1337,6 @@ pub(crate) fn validate_consumer(
                     || !parameter.qualifications.is_empty()
                     || source.fused_service_erasure.is_some()
                     || parameter.fused_service_erasure.is_some()
-                    || parameter.is_self
                     || !expression.is_some_and(|expression| matches!(
                         checked.expression_table.expression(expression), ExpressionNode::Name(name)
                             if name.symbol == source_parameter.symbol
@@ -1414,36 +1389,10 @@ pub(crate) fn validate_consumer(
             && parameter.access == checked_trees::CheckedStructuralAccess::Owned
             && parameter.multiplicity == Multiplicity::Linear
             && parameter.type_identity == argument.type_identity
-            && !parameter.is_self
             && parameter.fused_service_erasure.is_none()
             && claim_transfers
                 .iter()
                 .any(|transfer| transfer.argument_index as usize == index);
-        // A claim-carrying `self` formal is the terminal consumer instead:
-        // it carries no completion receipt, so the callee's entry-claim plan
-        // and the caller's consume event must jointly prove that exact
-        // result custody moves into it.
-        // A receiver with no linear claim uses ordinary owned-value custody;
-        // being spelled `self` does not create a claim-bearing obligation.
-        if parameter.is_self && parameter.multiplicity == Multiplicity::Linear {
-            claimed_result_consumer(
-                checked,
-                caller,
-                operation,
-                operation_index,
-                coordinate,
-                authored.source_target,
-                target_machine,
-                target_state,
-                index,
-                argument,
-                parameter,
-                &producer,
-                target_entry_claims,
-                claim_transfers,
-            )?;
-            continue;
-        }
         // A construction authored as this call's own argument moves whole
         // into the formal it was written for, and into no other consumer.
         let argument_construction = matches!(
@@ -1543,7 +1492,6 @@ pub(crate) fn validate_consumer(
                     )
                 });
             if (authored.boundary && !boundary_shared_view)
-                || parameter.is_self
                 || parameter.fused_service_erasure.is_some()
                 || target_entry_claims
                     .iter()
@@ -1585,7 +1533,6 @@ pub(crate) fn validate_consumer(
             })
             && lent_access
             && argument.access == parameter.access
-            && !parameter.is_self
             && parameter.type_identity == argument.type_identity
             && parameter.multiplicity == Multiplicity::Unrestricted
             && parameter.qualifications.is_empty()
@@ -2280,237 +2227,6 @@ fn validate_operand_producers(
         }
         // Source-path replay above owns access as well as identity. A second
         // syntax-only pass would mistake a stored reference for owned storage.
-    }
-    Ok(())
-}
-
-/// One linear structural result moved whole into a claim-carrying `self`
-/// formal. The claim plan is the evidence rather than a bypass: the callee
-/// must publish exactly one whole-value `StateEntry` claim on this parameter
-/// owned by the target state, and the caller's own consume event at this
-/// exact call must retire precisely the claim the producing statement
-/// established. A claim consumed twice, established elsewhere, or attached to
-/// a different parameter is still a rejection.
-#[allow(clippy::too_many_arguments)]
-fn claimed_result_consumer(
-    checked: &CheckedTrees,
-    caller: &CallerView<'_>,
-    operation: &CheckedUnitEffectOperationPlan,
-    operation_index: usize,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    source_target: symbols::SymbolHandle,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
-    argument_index: usize,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
-    producer: &Producer<'_>,
-    target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-) -> Result<(), LoweringError> {
-    let result = producer.result;
-    if producer.discard
-        || producer.operation_index >= operation_index
-        || !producer.precedes_consumer(coordinate)
-        || call_structural_result(operation)
-            .is_some_and(|consumer| result.binding_ordinal >= consumer.binding_ordinal)
-        || result.multiplicity != Multiplicity::Linear
-        || parameter.multiplicity != Multiplicity::Linear
-        || !parameter.is_self
-        || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
-        || parameter.access != argument.access
-        || argument.type_identity != result.type_identity
-        || parameter.type_identity != argument.type_identity
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || parameter.fused_service_erasure.is_some()
-        || claim_transfers
-            .iter()
-            .any(|transfer| transfer.argument_index as usize == argument_index)
-    {
-        return unsupported("Unit structural result argument has invalid claim-carrying custody");
-    }
-    let mut entry_claims = target_entry_claims
-        .iter()
-        .filter(|claim| claim.parameter_index as usize == argument_index);
-    let Some(entry_claim) = entry_claims.next() else {
-        return unsupported("Unit structural result claim custody has no exact callee entry claim");
-    };
-    if entry_claims.next().is_some()
-        || !entry_claim.path.is_empty()
-        || entry_claim.carry != language_semantics::CarryPolicy::STRICT
-        || !matches!(
-            entry_claim.claim_identity,
-            language_semantics::PermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source: language_semantics::PermissionEventSource::StateEntry,
-                ..
-            } if machine_symbol == target_machine && state_symbol == target_state
-        )
-    {
-        return unsupported("Unit structural result claim custody has no exact callee entry claim");
-    }
-    // The consuming call must retire the exact claim the producing statement
-    // established for this result: one owned linear consume at this authored
-    // call occurrence carrying a statement-established caller claim.
-    let call_source = language_semantics::PermissionEventSource::Call {
-        statement_index: coordinate.statement_index as usize,
-        call_ordinal: coordinate.call_ordinal as usize,
-        target_symbol: source_target,
-    };
-    let consumed = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == caller.machine
-                && event.state_symbol == caller.state
-                && event.source == call_source
-                && event.kind == language_semantics::PermissionEventKind::Consume
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-                && checked
-                    .facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(event.segments)
-                    .is_empty())
-            .then_some(event)
-        })
-        .collect::<Vec<_>>();
-    let [consumed] = consumed.as_slice() else {
-        return unsupported(
-            "Unit structural result claim custody lost its exact caller consume event",
-        );
-    };
-    let language_semantics::PermissionClaimIdentity::Established {
-        machine_symbol,
-        state_symbol,
-        source: language_semantics::PermissionEventSource::Statement { statement_index },
-        ..
-    } = consumed.claim_identity
-    else {
-        return unsupported(
-            "Unit structural result claim custody lost its exact caller consume event",
-        );
-    };
-    if machine_symbol != caller.machine
-        || state_symbol != caller.state
-        || statement_index != result.statement_index as usize
-        || consumed.provenance
-            != (language_semantics::PermissionProvenance::Established {
-                machine_symbol: caller.machine,
-                state_symbol: caller.state,
-                source: language_semantics::PermissionEventSource::Statement { statement_index },
-            })
-    {
-        return unsupported(
-            "Unit structural result claim custody lost its exact caller consume event",
-        );
-    }
-    // The producing statement must have minted this claim identity, and this
-    // consume must be its only retirement: a second consume, transfer, or
-    // drop of the same identity spends the custody twice.
-    let lifecycle = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == caller.machine
-                && event.state_symbol == caller.state
-                && event.claim_identity == consumed.claim_identity)
-                .then_some(event)
-        })
-        .collect::<Vec<_>>();
-    let establishes = lifecycle
-        .iter()
-        .filter(|event| {
-            event.kind == language_semantics::PermissionEventKind::Establish
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-                && event.source
-                    == language_semantics::PermissionEventSource::Statement { statement_index }
-        })
-        .count();
-    let retirements = lifecycle
-        .iter()
-        .filter(|event| event.kind != language_semantics::PermissionEventKind::Establish)
-        .count();
-    if establishes != 1 || retirements != 1 {
-        return unsupported(
-            "Unit structural result claim custody was not established and consumed exactly once",
-        );
-    }
-    // The bound local's producing statement establishes the whole claim
-    // frontier the consume retires: a sibling mint at the same coordinate —
-    // or an establish event re-minting an identity established elsewhere —
-    // leaves claim custody this consume never carries.
-    let (_, source_state) = crate::declarations::state_declaration(checked, caller.state)?;
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source_state.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return unsupported("Unit structural result claim custody has no authored local");
-    };
-    if checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == caller.machine
-                && event.state_symbol == caller.state
-                && event.source
-                    == language_semantics::PermissionEventSource::Statement { statement_index }
-                && event.kind == language_semantics::PermissionEventKind::Establish
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(local.symbol)
-        })
-        .count()
-        != 1
-    {
-        return unsupported(
-            "Unit structural result claim custody was not established and consumed exactly once",
-        );
-    }
-    for candidate in caller
-        .operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        let arguments = candidate.call_structural_arguments();
-        if arguments.iter().enumerate().any(|(position, argument)| {
-            argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                && argument.access == checked_trees::CheckedStructuralAccess::Owned
-                && !(candidate == operation && position == argument_index)
-        }) {
-            return unsupported(
-                "Unit structural result claim custody was not established and consumed exactly once",
-            );
-        }
-    }
-    if caller.structural_result.is_some_and(|returned| {
-        returned.source
-            == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            })
-    }) {
-        return unsupported(
-            "Unit structural result claim custody was not established and consumed exactly once",
-        );
     }
     Ok(())
 }

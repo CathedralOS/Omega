@@ -79,7 +79,7 @@ pub(super) fn replaces_binding(
     {
         return Some(false);
     }
-    let reference = source_root_type(program, machine, state, index, target.root)?;
+    let reference = source_root_type(program, state, index, target.root)?;
     Some(
         type_reference_is_reference(program, reference)
             && local_aliases::expression_may_rebind_mutable_alias(
@@ -469,7 +469,7 @@ fn declared_initializer_origins(
         return None;
     }
     let source = FrameSourcePlace::from_expression(program, expression);
-    let reference = source_root_type(program, machine, state, index, source.root)?;
+    let reference = source_root_type(program, state, index, source.root)?;
     if projections::validate_owned_source(program, machine, reference, &source).is_none() {
         return frozen_reference_origin(
             program, machine, state, index, expression, aliases, stored,
@@ -505,7 +505,7 @@ fn frozen_reference_origin(
     let source = stored_origins::binding_source(program, expression, aliases)?;
     let reference = carrier_storage_type(
         program,
-        source_root_type(program, machine, state, index, source.root)?,
+        source_root_type(program, state, index, source.root)?,
     )?;
     let carrier = stored
         .iter()
@@ -550,7 +550,7 @@ pub(super) fn validate_source_projection(
     source: &FrameSourcePlace,
     stored: &[StoredLocalOrigins],
 ) -> Option<()> {
-    let reference = source_root_type(program, machine, state, index, source.root)?;
+    let reference = source_root_type(program, state, index, source.root)?;
     if projections::validate_owned_source(program, machine, reference, source).is_some() {
         return Some(());
     }
@@ -595,7 +595,6 @@ pub(super) fn validate_source_projection(
 
 fn source_root_type(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     index: usize,
     root: SymbolHandle,

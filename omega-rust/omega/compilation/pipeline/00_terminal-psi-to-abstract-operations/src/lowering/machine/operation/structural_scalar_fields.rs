@@ -84,7 +84,6 @@ fn lower_store(
             };
             if matches.next().is_some()
                 || owner == machine.entry
-                || parameter.is_self
                 || parameter.position as usize != position
                 || parameter.access != StructuralAccess::MutableBorrow
                 || machine
@@ -422,8 +421,8 @@ pub(super) fn exact_parameter(
     if places.next().is_some()
         || !matches!(
             declaration.kind,
-            StructuralPlaceKind::Parameter { position, is_self }
-                if position == parameter.position && is_self == parameter.is_self
+            StructuralPlaceKind::Parameter { position }
+                if position == parameter.position
         )
     {
         return None;

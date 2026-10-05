@@ -19,7 +19,6 @@ fn plain(parameter: &StructuralParameterDeclaration) -> bool {
             parameter.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         )
-        && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
 }
@@ -332,7 +331,6 @@ pub(super) fn validate(
                 && place.kind
                     == (semantic_vocabulary::StructuralPlaceKind::Parameter {
                         position: parameter.position,
-                        is_self: false,
                     })
         });
         let arrival = function.blocks.iter().any(|block| {

@@ -78,8 +78,7 @@ pub(super) fn promote_shared_handoffs(
             })
     };
     let plain_loan = |parameter: &CheckedUnitStructuralParameterPlan| {
-        !parameter.is_self
-            && parameter.multiplicity == Multiplicity::Unrestricted
+        parameter.multiplicity == Multiplicity::Unrestricted
             && parameter.qualifications.is_empty()
             && parameter.fused_service_erasure.is_none()
             && block_loan_referent(parameter)

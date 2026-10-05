@@ -92,7 +92,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             id: parameter.place,
             kind: StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             },
         })
         .collect::<Vec<_>>();
@@ -214,17 +213,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             )?;
             let mut block_position = 0_u32;
             for (dense, parameter) in block_parameters.iter_mut().enumerate() {
-                if parameter.is_self {
-                    // Keep the state's admitted access view while referring
-                    // to the original invocation storage, never a copied receiver.
-                    parameter.place = parameters
-                        .iter()
-                        .find(|entry| entry.is_self)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph receiver invocation is missing",
-                        ))?
-                        .place;
-                } else if let Some(root) = admitted
+                if let Some(root) = admitted
                     .claim_transport
                     .aliased
                     .get(position)
@@ -242,7 +231,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     // Exclusive plain storage crosses an edge by address.
                     // Retain write-only access on the arriving name: moving
                     // the loan cannot grant observation of its referent.
-                    // The persistent receiver and claim aliases are not block
+                    // The entry claim aliases are not block
                     // parameters. Only transferred structural values occupy
                     // its dense namespace.
                     parameter.position = block_position;
@@ -258,13 +247,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 block_parameters
                     .iter()
                     .enumerate()
-                    .filter(|(dense, parameter)| {
-                        !parameter.is_self
-                            && !admitted
-                                .claim_transport
-                                .aliased
-                                .get(position)
-                                .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                    .filter(|(dense, _)| {
+                        !admitted
+                            .claim_transport
+                            .aliased
+                            .get(position)
+                            .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                     })
                     .map(|(_, parameter)| StructuralPlaceDeclaration {
                         id: parameter.place,
@@ -365,13 +353,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 structural_arguments: parameters
                     .iter()
                     .enumerate()
-                    .filter(|(dense, parameter)| {
-                        !parameter.is_self
-                            && !admitted
-                                .claim_transport
-                                .aliased
-                                .first()
-                                .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
+                    .filter(|(dense, _)| {
+                        !admitted
+                            .claim_transport
+                            .aliased
+                            .first()
+                            .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                     })
                     .map(|(_, parameter)| StructuralArgument {
                         place: parameter.place,

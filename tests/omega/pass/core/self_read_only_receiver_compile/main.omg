@@ -1,6 +1,5 @@
-// Chapter 1: a machine can read receiver state through `&self`. `render` takes a
-// read-only receiver plus a shared borrow and writes only through its `&mut`
-// output parameter.
+// A static machine reads the explicit shared Room parameter and writes only
+// through its separately supplied mutable output parameter.
 data Room {
     exits: i32;
 }

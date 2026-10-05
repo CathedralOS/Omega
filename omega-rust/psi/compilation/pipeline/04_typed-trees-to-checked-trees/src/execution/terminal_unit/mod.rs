@@ -319,15 +319,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &candidates,
         &composed_machines,
     );
-    receiver_calls::reconcile(
-        program,
-        facts,
-        scalar_callees,
-        &mut shapes,
-        &mut candidates,
-        &mut composed_machines,
-        call_frames,
-    );
     cleanup::normal_edges::retain_planned(
         program,
         facts,
@@ -1232,19 +1223,17 @@ pub(super) fn structural_scalar_graph_signature(
     let mut shapes = ShapeCollector::new(program);
     let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
     if structural.iter().any(|parameter| {
-        parameter.is_self
-            || !matches!(
-                (parameter.access, parameter.multiplicity),
-                (_, Multiplicity::Unrestricted)
-                    | (
-                        CheckedStructuralAccess::Owned
-                            | CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::WriteOnlyBorrow,
-                        Multiplicity::Affine
-                    )
-            )
-            || !parameter.qualifications.is_empty()
+        !matches!(
+            (parameter.access, parameter.multiplicity),
+            (_, Multiplicity::Unrestricted)
+                | (
+                    CheckedStructuralAccess::Owned
+                        | CheckedStructuralAccess::SharedBorrow
+                        | CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow,
+                    Multiplicity::Affine
+                )
+        ) || !parameter.qualifications.is_empty()
     }) {
         return None;
     }

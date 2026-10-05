@@ -354,7 +354,6 @@ fn view_argument(
         if block.id == caller.entry
             || parameter.access != access
             || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || parameter.is_self
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());

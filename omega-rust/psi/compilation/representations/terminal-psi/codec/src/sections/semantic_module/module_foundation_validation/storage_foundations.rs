@@ -392,11 +392,10 @@ pub(super) fn validate_structural_byte_sequence_field_store(
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } => structural_type,
-        StructuralPlaceKind::Parameter { position, is_self } => {
+        StructuralPlaceKind::Parameter { position } => {
             let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
                 parameter.place == *source
                     && parameter.position == position
-                    && parameter.is_self == is_self
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && parameter.projected_qualifications.is_empty()
                     && ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
@@ -423,7 +422,6 @@ pub(super) fn validate_structural_byte_sequence_field_store(
                 .filter(|parameter| {
                     parameter.place == *source
                         && parameter.position == position
-                        && !parameter.is_self
                         && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
                         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                         && parameter.qualifications.is_empty()
@@ -913,14 +911,12 @@ pub(super) fn validate_write_only_primitive_store(
                 return false;
             }
             match place.kind {
-                StructuralPlaceKind::Parameter { position, is_self } => {
+                StructuralPlaceKind::Parameter { position } => {
                     position == parameter.position
-                        && is_self == parameter.is_self
                         && machine.structural_parameters.contains(parameter)
                 }
                 StructuralPlaceKind::BlockParameter { block, position } => {
                     position == parameter.position
-                        && !parameter.is_self
                         && machine
                             .blocks
                             .iter()
@@ -1439,11 +1435,7 @@ pub(super) fn validate_integer_structural_field(
                 .find(|candidate| candidate.id == block)?
                 .structural_parameters
                 .get(position as usize)
-                .filter(|parameter| {
-                    parameter.place == *source
-                        && parameter.position == position
-                        && !parameter.is_self
-                })
+                .filter(|parameter| parameter.place == *source && parameter.position == position)
         })
     else {
         return malformed("scalar structural field source is not a parameter");

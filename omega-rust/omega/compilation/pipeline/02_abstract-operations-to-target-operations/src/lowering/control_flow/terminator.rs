@@ -362,7 +362,6 @@ pub(super) fn lower_terminator(
                                     )
                                     && parameter.multiplicity
                                         == StructuralMultiplicity::Unrestricted
-                                    && !parameter.is_self
                                     && parameter.qualifications == result.qualifications
                                     && parameter.projected_qualifications.is_empty()
                             })
@@ -411,7 +410,6 @@ pub(super) fn lower_terminator(
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if parameter.access != StructuralAccess::Owned
                     || parameter.multiplicity == StructuralMultiplicity::Linear
-                    || parameter.is_self
                     || parameter.structural_type != result.structural_type
                     || parameter.multiplicity != result.multiplicity
                     || !parameter.qualifications.is_empty()

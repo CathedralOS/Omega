@@ -186,7 +186,6 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: parameter,
                 position: 0,
-                is_self: false,
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
@@ -205,10 +204,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             structural_places: vec![
                 StructuralPlaceDeclaration {
                     id: parameter,
-                    kind: StructuralPlaceKind::Parameter {
-                        position: 0,
-                        is_self: false,
-                    },
+                    kind: StructuralPlaceKind::Parameter { position: 0 },
                 },
                 StructuralPlaceDeclaration {
                     id: tail_result,

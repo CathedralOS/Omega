@@ -279,12 +279,10 @@ pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiO
 // `map` custody, the freshest snapshot/key, the stale-key `remaining` bound,
 // and the terminal edges on `terminal`.
 //
-// The cyclic-custody envelope admits only the bare persistent `&mut self`
-// receiver with empty structural paths, so calls out of the cycle must not
-// name `uefi_os_handoff_cycle.legs`/`uefi_os_handoff_cycle.terminal` receivers directly. Each leg and terminal
-// machine gains a thin acyclic forwarder on this record; projected receivers
-// are legal inside the acyclic forwarding bodies, and field reads/writes
-// through `uefi_os_handoff_cycle.legs.*`/`uefi_os_handoff_cycle.terminal.*` stay admitted inside the cycle.
+// The current lowering uses whole-context arguments on cyclic call edges.
+// The forwarding machines below isolate the projected loans of `legs` and
+// `terminal`. This is a lowering limitation, not an implicit receiver or a
+// language restriction on ordinary projected arguments.
 pub data UefiOsHandoffCycle {
     legs: UefiOsHandoffLegs;
     terminal: UefiOsHandoffTerminal;
@@ -459,7 +457,7 @@ pub machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoffCyc
     // The live leg status is not an admitted rejection: the invocation's
     // firmware return carries it with the retained custody intact.
     state reject_status(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) {
-        // Copy the status before `uefi_os_handoff_cycle` lends the whole receiver.
+        // Copy the status before lending the whole cycle context.
         let status: u64 = uefi_os_handoff_cycle.legs.status;
         UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle, status);
         transition { _ -> reject_status(uefi_os_handoff_cycle) }

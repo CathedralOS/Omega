@@ -642,19 +642,7 @@ pub(super) fn validate(
             {
                 return unsupported("Unit case payload field missing");
             }
-            let argument_position = (parameter.source_position as usize)
-                .checked_sub(
-                    target
-                        .structural_parameters
-                        .iter()
-                        .filter(|candidate| {
-                            candidate.is_self && candidate.position < parameter.source_position
-                        })
-                        .count(),
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "Unit case payload argument position invalid",
-                ))?;
+            let argument_position = parameter.source_position as usize;
             arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(

@@ -101,7 +101,6 @@ fn projected_transfers<'a>(
                 if parameter.structural_type != moved_type
                     || parameter.multiplicity != StructuralMultiplicity::Affine
                     || parameter.position != index as u32
-                    || parameter.is_self
                     || parameter.access != StructuralAccess::Owned
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
@@ -214,15 +213,10 @@ fn exact_fixed_array_element_sink(callee: &TerminalMachine, moved_type: Structur
         && parameter.structural_type == moved_type
         && parameter.multiplicity == StructuralMultiplicity::Affine
         && parameter.position == 0
-        && !parameter.is_self
         && parameter.access == StructuralAccess::Owned
         && parameter.qualifications.is_empty()
         && place.id == parameter.place
-        && place.kind
-            == StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: false,
-            }
+        && place.kind == StructuralPlaceKind::Parameter { position: 0 }
         && callee.entry_claims.is_empty()
         && callee.published_service_ceiling.is_empty()
         && callee.content_entry_claims.is_empty()
@@ -345,7 +339,6 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                 StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
             )
             || parameter.access != StructuralAccess::Owned
-            || parameter.is_self
             || !parameter.qualifications.is_empty()
         {
             return Err(invalid(block.id));
@@ -504,7 +497,6 @@ pub(super) fn valid_nominal_cleanup_requirements(
                         place.kind
                             == StructuralPlaceKind::Parameter {
                                 position: parameter.position,
-                                is_self: parameter.is_self,
                             }
                     }) && target
                         .structural_places

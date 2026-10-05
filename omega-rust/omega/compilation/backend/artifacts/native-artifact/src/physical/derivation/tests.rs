@@ -658,7 +658,6 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
             place: PlaceId::new(place).unwrap(),
             position,
-            is_self: false,
             structural_type: StructuralTypeId::new(40 + place).unwrap(),
             multiplicity: StructuralMultiplicity::Unrestricted,
             access,
@@ -956,7 +955,6 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
             place: PlaceId::new(place).unwrap(),
             position,
-            is_self: false,
             structural_type: StructuralTypeId::new(40 + place).unwrap(),
             multiplicity: StructuralMultiplicity::Unrestricted,
             access,
@@ -1016,11 +1014,10 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         );
     }
 
-    for mutation in 0..8 {
+    for mutation in [0, 2, 3, 4, 5, 6, 7] {
         let mut changed = structural_parameters.clone();
         match mutation {
             0 => changed[0].position = 7,
-            1 => changed[0].is_self = true,
             2 => changed[0].structural_type = StructuralTypeId::new(91).unwrap(),
             3 => changed[0].multiplicity = StructuralMultiplicity::Affine,
             4 => changed[0].access = StructuralAccess::Owned,

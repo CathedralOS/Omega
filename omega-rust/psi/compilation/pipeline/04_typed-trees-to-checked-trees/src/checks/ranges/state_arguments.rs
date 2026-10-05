@@ -82,7 +82,6 @@ struct StorageFacts {
 struct ParameterFacts {
     symbol: SymbolHandle,
     name: String,
-    is_self: bool,
     length: MergedFact<usize>,
     /// A floor shared by all incoming collection values, not an exact extent.
     minimum_length: MergedBound,

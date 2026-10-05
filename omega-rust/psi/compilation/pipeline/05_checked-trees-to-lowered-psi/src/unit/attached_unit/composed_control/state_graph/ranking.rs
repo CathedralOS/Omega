@@ -480,7 +480,7 @@ pub(super) fn view_argument_position(
         .structural_parameters
         .iter()
         .enumerate()
-        .filter(|(dense, parameter)| !parameter.is_self && !aliased.contains_key(&(*dense as u32)))
+        .filter(|(dense, _)| !aliased.contains_key(&(*dense as u32)))
         .position(|(_, candidate)| candidate.position == parameter.position)
 }
 

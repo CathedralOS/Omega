@@ -28,7 +28,6 @@ pub(crate) fn has_claim_free_affine_identity_custody(returned: &StructuralReturn
         && returned.parameters.len() == 1
         && returned.parameters.first() == Some(&returned.source)
         && returned.source.position == 0
-        && !returned.source.is_self
         && returned.source.place != returned.result.place
         && returned.source.structural_type == returned.result.structural_type
         && returned.source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -148,7 +147,7 @@ pub(crate) fn validate_structural_return_record(
             .iter()
             .enumerate()
             .any(|(index, parameter)| {
-                parameter.is_self || usize::try_from(parameter.position) != Ok(index)
+                usize::try_from(parameter.position) != Ok(index)
             })
         || returned.parameters.first() != Some(&returned.source)
         || returned.parameters.iter().skip(1).any(|parameter| {

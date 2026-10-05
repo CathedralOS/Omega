@@ -517,38 +517,6 @@ pub(super) fn struct_literal_type_is_caller_isolated(
         )
 }
 
-pub(super) fn data_definition_has_only_owned_storage(
-    program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-) -> bool {
-    // Definition verdicts key on the definition's own address, not its
-    // symbol: test fixtures can forge duplicate symbols, and two definitions
-    // sharing one must keep independent verdicts. The verdict slot rebuilds
-    // whenever the definition table mutates, so an address can never be
-    // recycled under a live verdict — the memo's freshness window bounds the
-    // slice.
-    let key = definition as *const typed_trees::data::DataDefinition as usize;
-    if let Some(verdict) =
-        with_isolation_cache(program, |cache| cache.definitions.get(&key).copied())
-    {
-        return verdict;
-    }
-    let verdict = data_definition_is_caller_isolated(
-        program,
-        definition,
-        None,
-        &mut Vec::new(),
-        false,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut TypeIdentityMemo::default(),
-    );
-    with_isolation_cache(program, |cache| {
-        cache.definitions.insert(key, verdict);
-    });
-    verdict
-}
-
 /// `container` is the instantiated type whose member walk is about to run;
 /// a genuinely recursive instantiation revisits an equal container, while a
 /// nested application at different arguments is a distinct finite shape. A

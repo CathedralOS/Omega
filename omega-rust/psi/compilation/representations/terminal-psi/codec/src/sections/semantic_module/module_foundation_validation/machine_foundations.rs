@@ -65,8 +65,8 @@ fn validate_block_parameters(
         return malformed("entry block cannot declare structural parameters");
     }
     for (position, parameter) in block.structural_parameters.iter().enumerate() {
-        if parameter.position as usize != position || parameter.is_self {
-            return malformed("structural block parameters require dense positions and no self");
+        if parameter.position as usize != position {
+            return malformed("structural block parameters require dense positions");
         }
         if !machine.structural_places.iter().any(|place| {
             place.id == parameter.place
@@ -114,7 +114,6 @@ fn validate_parameter_places(machine: &TerminalMachine) -> Result<(), CodecError
         if place.kind
             != (StructuralPlaceKind::Parameter {
                 position: parameter.position,
-                is_self: parameter.is_self,
             })
         {
             return malformed("structural parameter place kind disagrees with its signature");
@@ -300,9 +299,7 @@ fn validate_partial_affine_discards(
                 .structural_parameters
                 .get(position as usize)
                 .filter(|parameter| {
-                    parameter.place == discard.place
-                        && parameter.position == position
-                        && !parameter.is_self
+                    parameter.place == discard.place && parameter.position == position
                 })
         };
         let supported_root = parameter.map_or_else(

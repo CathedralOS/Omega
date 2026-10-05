@@ -21,8 +21,7 @@ pub(super) fn is_primitive_reference(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
-    !parameter.is_self
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.access != StructuralAccess::Owned
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

@@ -974,8 +974,7 @@ fn receiver_layout(
         || parameter.multiplicity == StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || (parameter.is_self && function.attachment != Some(parameter.structural_type))
-        || (!parameter.is_self && function.attachment.is_some())
+        || function.attachment.is_some()
         || target.graph.call_plan.policy != expected_policy
         || target.graph.call_plan.parameters.as_slice() != [native.placement.clone()]
         || target.graph.call_plan.result.is_some()

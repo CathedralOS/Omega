@@ -75,7 +75,6 @@ pub fn stored_view_field_presentation<'types>(
 ) -> Option<terminal_psi::ByteSequencePredicateSet> {
     if argument.access != StructuralAccess::SharedBorrow
         || expected.access != StructuralAccess::SharedBorrow
-        || expected.is_self
         || !expected.projected_qualifications.is_empty()
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type

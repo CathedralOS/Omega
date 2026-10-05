@@ -195,7 +195,6 @@ pub(crate) fn materialize_dynamic_realizations(
             let parameter = StructuralParameterDeclaration {
                 place,
                 position: 0,
-                is_self: true,
                 structural_type: source_type,
                 multiplicity: LOAN_MULTIPLICITY,
                 access: match plan.source_access {
@@ -267,7 +266,6 @@ pub(crate) fn materialize_dynamic_realizations(
                     id: parameter.place,
                     kind: StructuralPlaceKind::Parameter {
                         position: parameter.position,
-                        is_self: parameter.is_self,
                     },
                 }],
                 entry_claims: Vec::new(),

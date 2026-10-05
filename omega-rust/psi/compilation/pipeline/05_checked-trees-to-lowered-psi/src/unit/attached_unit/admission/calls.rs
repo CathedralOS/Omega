@@ -34,9 +34,8 @@ use super::super::{
 };
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
-    CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
+    CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan, CheckedUnitCallResult,
+    CheckedUnitCallRoute, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
 
@@ -52,9 +51,6 @@ pub(in crate::unit::attached_unit) struct CallerView<'a> {
         &'a [CheckedUnitStructuralParameterPlan],
     /// The claims the body (ordinary) or the state (composed) holds on entry.
     pub(in crate::unit::attached_unit) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    /// The value the sequence returns whole, if it completes with one.
-    pub(in crate::unit::attached_unit) structural_result:
-        Option<&'a CheckedUnitStructuralReturnPlan>,
 }
 
 impl<'a> CallerView<'a> {
@@ -65,7 +61,6 @@ impl<'a> CallerView<'a> {
             operations: &plan.operations,
             structural_parameters: &plan.structural_parameters,
             entry_claims: &plan.entry_claims,
-            structural_result: plan.structural_result.as_ref(),
         }
     }
 
@@ -79,12 +74,6 @@ impl<'a> CallerView<'a> {
             operations: &state.operations,
             structural_parameters: &state.structural_parameters,
             entry_claims: &state.entry_claims,
-            structural_result: match &state.terminator {
-                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
-                    Some(result)
-                }
-                _ => None,
-            },
         }
     }
 }

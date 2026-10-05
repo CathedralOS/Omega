@@ -60,7 +60,6 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 },
                 shapes,
                 machine,
-                false,
                 None,
                 &control::LocalConstructionTrace::default(),
             )
@@ -122,8 +121,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             .iter()
             .zip(&structural_parameters)
             .any(|(source, checked)| {
-                (checked.is_self)
-                    || checked.position != 0
+                checked.position != 0
                     || checked.multiplicity != Multiplicity::Affine
                     || checked.access != CheckedStructuralAccess::Owned
                     || !checked.qualifications.is_empty()
@@ -303,7 +301,6 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
         if target_parameter.type_identity != argument.type_identity
             || target_parameter.access != CheckedStructuralAccess::Owned
             || !target.scalar_parameters.is_empty()
-            || target_parameter.is_self
             || target_parameter.multiplicity != Multiplicity::Affine
             || !target_parameter.qualifications.is_empty()
             || !target.entry_claims.is_empty()

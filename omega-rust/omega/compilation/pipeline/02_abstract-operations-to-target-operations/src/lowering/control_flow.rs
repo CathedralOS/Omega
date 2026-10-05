@@ -167,9 +167,7 @@ pub(super) fn lower(
                                             terminal_psi::StructuralTypeShape::Sum { .. }
                                                 | terminal_psi::StructuralTypeShape::Record { .. }
                                         )
-                                    })))
-                        && (!parameter.is_self
-                            || owned_arguments::is_owned_parameter(parameter, structural_types))))
+                                    })))))
         }))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

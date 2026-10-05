@@ -60,7 +60,7 @@ pub(super) fn ineligibility(
             && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !(persistent_receiver(module, parameter)
+                || !(borrowed_record_parameter(module, parameter)
                     || block_views::mutable_records::parameter_type(module, parameter)
                     // A shared loan freezes its referent, so it cannot admit
                     // less than an exclusive loan of the same carrier: this
@@ -1039,8 +1039,7 @@ fn confined_case_source(
                 .iter()
                 .find(|parameter| parameter.place == *source)
                 .filter(|parameter| {
-                    !parameter.is_self
-                        && parameter.access == StructuralAccess::Owned
+                    parameter.access == StructuralAccess::Owned
                         && parameter.multiplicity == StructuralMultiplicity::Affine
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty()
@@ -1071,8 +1070,7 @@ fn confined_case_source(
 }
 
 fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
-    !parameter.is_self
-        && parameter.access == StructuralAccess::Owned
+    parameter.access == StructuralAccess::Owned
         && matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
@@ -1296,16 +1294,14 @@ fn byte_field_boundary_loan(
     false
 }
 
-fn persistent_receiver(
+fn borrowed_record_parameter(
     module: &TerminalModule,
     parameter: &StructuralParameterDeclaration,
 ) -> bool {
-    parameter.is_self
-        && matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && module.structural_types.iter().any(|declaration| {

@@ -160,7 +160,9 @@ pub(crate) fn retain_suspension_call_plans(
                 value_type: terminal_psi::TerminalSuspensionValueType::Scalar(value.scalar_type),
                 storage: match live.storage {
                     checked_trees::SuspensionCrossingStorage::Persistent => {
-                        terminal_psi::TerminalSuspensionStorage::Persistent
+                        return unsupported(
+                            "unimplemented: suspension field storage requires an explicit parameter-place join",
+                        );
                     }
                     checked_trees::SuspensionCrossingStorage::Parameter => {
                         terminal_psi::TerminalSuspensionStorage::Parameter

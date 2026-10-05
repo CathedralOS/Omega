@@ -22,7 +22,6 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
     let parameter = terminal_psi::StructuralParameterDeclaration {
         place,
         position: 0,
-        is_self: false,
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: StructuralMultiplicity::Affine,
         access: StructuralAccess::Owned,
