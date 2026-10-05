@@ -227,7 +227,6 @@ impl OperationFrame<'_, '_> {
         let structural_arguments = &call.structural_arguments;
         // A boundary call's claim transfers are its completion receipts.
         let completion_receipts = call.claim_transfers();
-        let target = unique_unit_boundary(self.callees.plans, target_machine)?;
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;

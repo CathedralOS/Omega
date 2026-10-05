@@ -1380,6 +1380,7 @@ fn append_reference_releases(
         };
         if let Some((result, loan)) = reference_result {
             if reference_retirement::transferred_paths(
+                program,
                 facts,
                 results,
                 result.binding_ordinal,
@@ -1441,6 +1442,7 @@ fn append_reference_releases(
         // may still end at their own checked boundary; a whole-value transfer
         // leaves no initializer custody here at all.
         let transferred_paths = reference_retirement::transferred_paths(
+            program,
             facts,
             results,
             result.binding_ordinal,
@@ -1600,6 +1602,7 @@ fn append_exit_reference_releases(
             // ordinary statement. A prior constructor/call transfer already
             // moved this descriptor to another holder.
             if reference_retirement::transferred_paths(
+                program,
                 facts,
                 results,
                 result.binding_ordinal,

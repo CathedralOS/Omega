@@ -85,7 +85,6 @@ pub(super) fn prepare(
     structural_result_places: &[(Option<StructuralPlaceDeclaration>, bool)],
     primitive_local_places: &[primitive_locals::PrimitiveLocal],
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
-    type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],

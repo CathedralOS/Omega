@@ -13,10 +13,9 @@
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
-    Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeShape, allocate_dense, lookup_type_id, place_id, terminal_scalar_type,
-    unsupported,
+    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, allocate_dense,
+    lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use crate::unit::StructuralTypeDeclaration;
 use checked_trees::CheckedCallScalarArgument;
@@ -27,7 +26,6 @@ pub(super) mod unit_calls;
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub declaration: StructuralPlaceDeclaration,
-    pub scalar_type: ScalarType,
 }
 
 /// The one authored mutable primitive declaration of `symbol` in `state`
@@ -253,7 +251,6 @@ impl OperationFrame<'_, '_> {
             .push((*symbol, place, initializer.scalar_type));
         Ok(PrimitiveLocal {
             symbol: *symbol,
-            scalar_type: initializer.scalar_type,
             declaration: StructuralPlaceDeclaration {
                 id: place,
                 kind: StructuralPlaceKind::OperationResult {

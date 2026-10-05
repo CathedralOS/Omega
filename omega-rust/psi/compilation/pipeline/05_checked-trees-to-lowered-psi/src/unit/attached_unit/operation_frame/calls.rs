@@ -362,7 +362,6 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            self.type_ids,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.caller.claims.bindings(),

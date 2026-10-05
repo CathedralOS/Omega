@@ -64,36 +64,20 @@ pub(crate) enum PreparedStructuralPathSegment {
 /// The actual endpoint of a prepared projection, including inline carriers
 /// that have no separate structural declaration.
 #[derive(Debug)]
-pub(crate) enum PreparedArgumentTip<'a> {
+enum PreparedArgumentTip<'a> {
     Declaration(&'a terminal_psi::StructuralTypeDeclaration),
     Inline(&'a terminal_psi::StructuralFieldType),
     ByteElement,
     ByteWindow,
 }
 
-/// Geometry resolved against the original source catalog. Reference and view crossings
-/// retain their access in path order; callers must authenticate loan authority
-/// separately, including every crossing rather than only the final carrier.
-#[derive(Debug)]
-pub(crate) struct PreparedArgumentProjection<'a> {
-    pub(crate) path: Vec<PreparedStructuralPathSegment>,
-    pub(crate) tip: PreparedArgumentTip<'a>,
-    pub(crate) crossed_accesses: Vec<StructuralAccess>,
-}
-
+/// Resolve the path against its original source declaration. Only runtime
+/// selector values and their bound obligations remain for the emitting call.
 pub(crate) fn prepare_argument_path(
     path: &[CheckedUnitStructuralPathSegment],
     root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    Ok(prepare_argument_projection(path, root, types)?.path)
-}
-
-pub(crate) fn prepare_argument_projection<'a>(
-    path: &[CheckedUnitStructuralPathSegment],
-    root: semantic_vocabulary::StructuralTypeId,
-    types: &'a [terminal_psi::StructuralTypeDeclaration],
-) -> Result<PreparedArgumentProjection<'a>, LoweringError> {
     use PreparedArgumentTip as Tip;
     use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeShape};
     let declaration = |id| {
@@ -111,7 +95,6 @@ pub(crate) fn prepare_argument_projection<'a>(
     let mut tip = Tip::Declaration(declaration(root)?);
     let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     let mut prepared = Vec::with_capacity(path.len());
-    let mut crossed_accesses = Vec::new();
     for step in path {
         if selected_case.is_some() && !matches!(step, CheckedUnitStructuralPathSegment::Field(_)) {
             return Err(LoweringError::Unsupported(
@@ -130,26 +113,6 @@ pub(crate) fn prepare_argument_projection<'a>(
             Tip::Inline(field) => field.byte_sequence_carrier(),
             Tip::ByteElement | Tip::ByteWindow => None,
         };
-        // Indexing or slicing enters a view's backing; selecting its field
-        // alone only selects the descriptor. Standalone carriers omit access
-        // and inherit the surrounding custody instead of inventing authority.
-        if matches!(
-            step,
-            CheckedUnitStructuralPathSegment::FixedIndex(_)
-                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
-        ) && let Some(
-            ByteSequenceCarrier::BorrowedView {
-                access: Some(access),
-            }
-            | ByteSequenceCarrier::BoundedView {
-                access: Some(access),
-                ..
-            },
-        ) = bytes
-        {
-            crossed_accesses.push(access);
-        }
         let lowered = match step {
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 let cases = match shape {
@@ -251,13 +214,12 @@ pub(crate) fn prepare_argument_projection<'a>(
                 PreparedStructuralPathSegment::RuntimeIndex(index.clone())
             }
             CheckedUnitStructuralPathSegment::Referent => {
-                let Some(StructuralTypeShape::Reference { referent, access }) = shape else {
+                let Some(StructuralTypeShape::Reference { referent, .. }) = shape else {
                     return Err(LoweringError::Unsupported(
                         "argument referent requires a reference carrier",
                     ));
                 };
                 tip = Tip::Declaration(declaration(*referent)?);
-                crossed_accesses.push(*access);
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Referent)
             }
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
@@ -308,11 +270,7 @@ pub(crate) fn prepare_argument_projection<'a>(
             "argument case has no payload field",
         ));
     }
-    Ok(PreparedArgumentProjection {
-        path: prepared,
-        tip,
-        crossed_accesses,
-    })
+    Ok(prepared)
 }
 
 pub(crate) fn prepare_unscoped_path(

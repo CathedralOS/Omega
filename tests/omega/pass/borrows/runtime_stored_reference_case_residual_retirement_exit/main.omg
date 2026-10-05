@@ -1,4 +1,4 @@
-// The case edge disposes the surviving leaf after capturing its scalar argument.
+// Case-selected cleanup disposes the surviving leaf after capturing its scalar argument.
 use omega_language_std::console;
 use omega::language::core::binding;
 

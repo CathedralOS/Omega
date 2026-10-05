@@ -926,10 +926,16 @@ impl ScalarBindings {
             }
             _ => return unsupported("computed primitive borrow has no supported source place"),
         };
-        structural_paths::prepare_argument_projection(&argument.path, root_type, structural_types)?;
         Ok(StructuralArgument {
             place,
-            path: structural_paths::lower_structural_path(&argument.path)?,
+            path: structural_paths::lower_typed_argument_path(
+                &argument.path,
+                root_type,
+                structural_types,
+                None,
+                &mut std::iter::empty(),
+                None,
+            )?,
             access,
         })
     }

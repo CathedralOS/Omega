@@ -11,99 +11,23 @@ use checked_trees::{BorrowLoanFact, CheckedStructuralValueKind, CheckedUnitStruc
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
+mod transfers;
+use transfers::transfers;
+
 pub(super) fn transferred_paths(
+    program: &TypedTrees,
     facts: &CheckFacts,
     results: &Results,
     binding_ordinal: u32,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
-    let belongs = |argument: &CheckedUnitStructuralArgumentPlan| {
-        argument.access == CheckedStructuralAccess::Owned
-            && match argument.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: source,
-                } => source == binding_ordinal,
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                    results.iter().any(|(result, root)| {
-                        result.binding_ordinal == binding_ordinal
-                            && *root == facts::PlaceRoot::Symbol(symbol)
-                    })
-                }
-                _ => false,
-            }
-    };
-    let mut paths = Vec::new();
-    let values = &facts.values.structural_values;
-    for operation in operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        for argument in operation.call_structural_arguments() {
-            if belongs(argument) {
-                paths.push(argument.path.clone());
-            }
-        }
-        match operation {
-            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-                if belongs(value) =>
-            {
-                paths.push(value.path.clone())
-            }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } => {
-                let mut pending = vec![(*value, Vec::new())];
-                let mut visited = Vec::new();
-                while let Some((value, suffix)) = pending.pop() {
-                    if !values.nodes.is_valid(value) {
-                        return None;
-                    }
-                    if visited
-                        .iter()
-                        .any(|(prior, path)| *prior == value && *path == suffix)
-                    {
-                        continue;
-                    }
-                    visited.push((value, suffix.clone()));
-                    match &values.nodes.get(value).kind {
-                        CheckedStructuralValueKind::Place(argument) if belongs(argument) => {
-                            let mut path = argument.path.clone();
-                            path.extend(suffix);
-                            paths.push(path);
-                        }
-                        CheckedStructuralValueKind::Projection { source, path, .. } => {
-                            let mut projected = path.clone();
-                            projected.extend(suffix);
-                            pending.push((*source, projected));
-                        }
-                        CheckedStructuralValueKind::Record { fields, .. }
-                        | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
-                            for field in values.record_fields.span(*fields)? {
-                                if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value {
-                                    pending.push((value, Vec::new()));
-                                }
-                            }
-                        }
-                        CheckedStructuralValueKind::FixedArray { elements } => {
-                            pending.extend(elements.iter().map(|value| (*value, Vec::new())));
-                        }
-                        CheckedStructuralValueKind::Dispatch { arms, .. } => {
-                            pending.extend(
-                                values
-                                    .dispatch_arms
-                                    .span(*arms)?
-                                    .iter()
-                                    .map(|arm| (arm.value, suffix.clone())),
-                            );
-                        }
-                        // Calls' arguments occur in the retained call schedule
-                        // above. Captures and copies do not transfer an owner.
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    Some(paths)
+    Some(
+        transfers(program, facts, results, binding_ordinal, operations)?
+            .possible
+            .into_iter()
+            .map(|transfer| transfer.source)
+            .collect(),
+    )
 }
 
 pub(super) struct Retirement<'a> {
@@ -243,6 +167,28 @@ impl Retirement<'_> {
     }
 
     pub(super) fn holder_retired(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
+        self.holder_retired_following(handle, &mut Vec::new())
+    }
+
+    fn holder_retired_following(
+        &self,
+        handle: arena::Handle<BorrowLoanFact>,
+        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+    ) -> bool {
+        if active.contains(&handle) {
+            return false;
+        }
+        active.push(handle);
+        let retired = self.holder_retired_inner(handle, active);
+        active.pop();
+        retired
+    }
+
+    fn holder_retired_inner(
+        &self,
+        handle: arena::Handle<BorrowLoanFact>,
+        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+    ) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
         if loan.statement_index >= self.statement_index as usize {
             return true;
@@ -288,7 +234,7 @@ impl Retirement<'_> {
         if holders.next().is_some() {
             return false;
         }
-        self.operations.iter().chain(self.pending).any(|operation| match operation {
+        if self.operations.iter().chain(self.pending).any(|operation| match operation {
             CheckedUnitEffectOperationPlan::ReleaseReference {
                 binding_ordinal, loan: released, defer_to_exit: false, ..
             } => *binding_ordinal == holder.binding_ordinal && *released == handle,
@@ -301,7 +247,94 @@ impl Retirement<'_> {
                 })
             }
             _ => false,
-        })
+        }) {
+            return true;
+        }
+        let Some(transfers) = transfers(
+            self.program,
+            self.facts,
+            self.results,
+            holder.binding_ordinal,
+            self.operations,
+        ) else {
+            return false;
+        };
+        let Some((_, local)) = self
+            .program
+            .state_local_declaration(self.state, loan.owner_symbol)
+        else {
+            return false;
+        };
+        let owner_path = self.facts.borrow.loan_owner_path(loan);
+        let selected_path = |path: &[CheckedUnitStructuralPathSegment]| {
+            validation::reference_result_custody::loan_place_segments(
+                self.program,
+                local.type_reference,
+                path,
+            )
+            .and_then(|segments| {
+                segments
+                    .into_iter()
+                    .map(|segment| match segment {
+                        facts::PlaceSegment::Field { symbol } => {
+                            Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
+                        }
+                        facts::PlaceSegment::FixedIndex { index } => {
+                            Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+        };
+        if !transfers
+            .definite
+            .iter()
+            .any(|path| selected_path(path).is_some_and(|path| owner_path.starts_with(&path)))
+        {
+            return false;
+        }
+        let mut found = false;
+        for transfer in transfers.possible {
+            let Some(selected) = selected_path(&transfer.source) else {
+                return false;
+            };
+            if !owner_path.starts_with(&selected) {
+                continue;
+            }
+            found = true;
+            let Some((destination, mut path)) = transfer.destination else {
+                return false;
+            };
+            // Formation at this boundary establishes live custody; it is not
+            // the absent-future-child case handled by holder_retired_inner.
+            if destination.statement_index >= self.statement_index {
+                return false;
+            }
+            path.extend_from_slice(&owner_path[selected.len()..]);
+            let mut bindings = self
+                .results
+                .iter()
+                .filter(|(binding, _)| binding == &destination);
+            let Some((_, facts::PlaceRoot::Symbol(owner))) = bindings.next() else {
+                return false;
+            };
+            if bindings.next().is_some() {
+                return false;
+            }
+            let mut receiving = self.facts.borrow.loans.iter().filter(|(_, candidate)| {
+                candidate.owner_symbol == *owner
+                    && candidate.statement_index == destination.statement_index as usize
+                    && self.facts.borrow.loan_owner_path(candidate) == path
+            });
+            let Some((received, _)) = receiving.next() else {
+                return false;
+            };
+            if receiving.next().is_some() || !self.holder_retired_following(received, active) {
+                return false;
+            }
+        }
+        found
     }
 }
 
