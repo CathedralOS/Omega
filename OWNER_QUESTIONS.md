@@ -174,3 +174,85 @@ Fused provider for boundary `FilesystemHost`" or its reachable-requirement
 twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
+
+### Q3 - May the trusted-surface ledger be re-recorded on a proof of no semantic change?
+
+Named decision: `trusted-surface-digest-reconciliation`.
+
+**Customer:** `python3 tools/trusted_surface_digests.py` reports **47 stale
+digests** on a clean `main`, and 19 `TEST_ONLY_SOURCES` rows name files that no
+longer exist. Nobody may refresh a digest for a file they did not author, so the
+drift has no owner and has sat unreconciled.
+
+**Existing rules:** `sites.rs` pins a SHA-256 for every bound verifier
+implementation file, and terminal-verifier's
+`recorded_digests_match_the_working_tree` enforced it. `tools/landing.py`'s
+`stale_trusted_sites` guard refuses a candidate that changes a pinned file
+without re-recording, but by design it inspects only the candidate's own
+changes, so drift already on main never blocks anyone.
+
+**What is measured, so the decision costs no re-reading:** all 47 files were
+last touched by one commit, `55a502d211b`, which also deleted that enforcing
+test. Every one of the 47 diffs is a **pure deletion** with zero non-blank added
+lines, and the 49 removed regions are all `#[cfg(test)]`-gated -- 48 beginning
+at the attribute, one at the doc comment above a
+`#[cfg(test)] pub(crate) fn proposition_observes_write`. Twelve of the 47
+removed only `#[cfg(test)]` + `mod <name>;`, their tests having lived in the
+sibling file the same commit deleted. **No verification judgment in any of the
+47 changed**, so revalidating the entries that cite them is satisfied by that
+fact rather than by re-reading 47 rules.
+
+**Decision needed:** may the ledger be re-recorded on that proof, and by whom?
+Three edits close it and must land together, or the restored test is red:
+delete the 19 dead `TEST_ONLY_SOURCES` rows; run
+`tools/trusted_surface_digests.py --write` for the 47; and restore
+`recorded_digests_match_the_working_tree` as a `[[test]]` under
+`terminal-psi/verification` (`autotests = false`). That test calls
+`check_source_coverage(&repository_root())` and hashes files -- it reads no
+Omega source, so the test-cut policy keeps it, and it was collateral of a
+43-crate sweep rather than a decision about this gate.
+
+Until the third edit lands the ledger has no enforcement outside the landing
+queue, and the queue cannot see drift already on main, so a re-record alone
+buys one clean report before the next sweep silently reopens the hole. This is
+recorded rather than done because `sites.rs` is a trust record: an automated
+edit to it was refused as audit tampering, which is the correct outcome.
+
+### Q4 - What does a locally declared boundary schema mean against the target's own?
+
+Named decision: `entry-slot-schema-resolved-by-bare-name`.
+
+**Customer:** `tests/omega/fail/build/uefi_program_entry_wrong_calling_policy`
+is the FAIL canary for the two-surface program entry's physical
+calling-convention check -- `uefi_x86_64::ProgramEntry` declares MicrosoftX64,
+the package's `WrongUefiPolicy` plans SystemVAMD64, and
+`build-evaluation/src/admission/selection.rs` must refuse the mismatch. It
+never reaches that check. It is one of only two fixtures in the corpus
+rejecting for the wrong reason, a condition `tools/corpus_gate.py` now names on
+every run.
+
+**Existing rules:** the entry slot resolves its schema **by bare name** over
+every loaded boundary trait, and bundled std declares an application schema for
+all six targets that name one (`UefiApplication`, `MacosApplication`,
+`LinuxX86_64Application`, `LinuxArm64Application`, `MacosX64Application`,
+`WindowsX86_64Application`). A package declaring its own therefore always makes
+two, and the slot stops at "requires exactly one loaded `UefiApplication`
+boundary schema, but found 2". Measured: the duplicate does not come from the
+fixture's imports -- dropping `use omega_language_std::calling;` leaves the
+count at 2, because the library's target entry loads with the target rather
+than with the import. And the policy cannot be varied from the library surface:
+`CallingPolicy` lives only in `std/calling.omg` and the library schema is bound
+to `Calling<UefiX86_64>`, which plans MicrosoftX64 on every route. So a wrong
+policy requires a local schema, and a local schema is what stops you.
+
+**Decision needed:** does a locally declared schema shadow the target's own or
+conflict with it, and should the slot resolve by owning package or requirement
+identity rather than by bare name? Resolving by identity gives this rule a
+source-level customer; declaring it a conflict means the rule can only ever be
+exercised from a package that owns its target. Do not repin the fixture onto
+the duplicate -- that would cement one answer. The rule has no Rust-side
+customer either, since `BoundaryCallingPlanRealization` seals
+`exact_boundary_entry_plan` and `materialized_signature` to
+`provider-planning`, so a `build-evaluation` unit test cannot construct one.
+Until this is answered the physical calling-convention check is unexercised by
+any program or test.
