@@ -1038,22 +1038,18 @@ pass/types/runtime_i16_signed_arith_exit built 1657ms exit:70 @2d8ed253669f+wt
 pass/versioning/migration_generic_trait built 578ms @2d8ed253669f+wt
 pass/versioning/runtime_version_migration_exit built 3079ms exit:70 @2d8ed253669f+wt
 pass/wire/numbered_case_identities checked 518ms @2d8ed253669f+wt
-pass/wire/runtime_wire_decode_byte_slice_exit rejected 1477ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/wire/runtime_wire_decode_ranged_field_exit rejected 1330ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
+pass/wire/runtime_wire_decode_byte_slice_exit built 16659ms exit:70 @fa71a470ad1
+pass/wire/runtime_wire_decode_ranged_field_exit built 29631ms exit:70 @fa71a470ad1
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 6602ms exit:70 @9baafc0ace88
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 73459ms exit:70 @9baafc0ace88
-pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 957ms @34627c25182b
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(196), place: PlaceId(3) }))
-pass/wire/runtime_wire_encode_byte_slice_exit rejected 827ms @655eb1d82b+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(86), place: PlaceId(3) }))
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 12535ms exit:70 @fa71a470ad1
+pass/wire/runtime_wire_encode_byte_slice_exit built 8533ms exit:70 @fa71a470ad1
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 12615ms exit:70 @fa71a470ad1
 pass/wire/runtime_wire_exact_array_without_count_exit built 10428ms exit:70 @9baafc0ace88
 pass/wire/runtime_wire_policy_authored_plan_exit built 38977ms exit:70 @866d948d5b4a
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit timeout 120000ms @9baafc0ace88
-pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1664ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
-pass/wire/wire_compatibility_migration_across_shapes built 524ms @2d8ed253669f+wt
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 36126ms exit:70 @fa71a470ad1
+pass/wire/runtime_wire_utf8_edge_verdicts_exit built 35899ms exit:70 @fa71a470ad1
+pass/wire/wire_compatibility_migration_across_shapes built 5019ms exit:0 @fa71a470ad1
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
 pass/wire/wire_preserving_decode_relay_exit built 13841ms exit:70 @176f9a7001a
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
