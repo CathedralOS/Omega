@@ -2220,8 +2220,8 @@ check corpus and the native corpus unchanged on the slices it names.
   affine operands); those refusals stay until the route items admit the
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 777 such
-  references across 505 files. Acceptance: both modules are gone, the guard
+  `StatementNode::` or `ExpressionNode::`; today there are 766 such
+  references across 73 files. Acceptance: both modules are gone, the guard
   passes, and the full check corpus and the native corpus are unchanged.
 
 - **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on

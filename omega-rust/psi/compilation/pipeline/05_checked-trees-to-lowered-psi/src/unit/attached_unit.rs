@@ -120,7 +120,7 @@ pub(crate) use composed_control::dynamic_result::{
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
 pub(crate) use parameters::{
-    checked_scalar_source_parameters, literal_argument_places, lower_boundary_parameter_order,
+    literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, mint_element_view_length_observations,
     mint_runtime_index_selectors, statement_receiver_path, structural_carrier_type,

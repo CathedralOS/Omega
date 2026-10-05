@@ -15,12 +15,11 @@ use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNormalCleanupAction,
-    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralReturnMachinePlan,
-    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
-    CheckedStructuralScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    ClosedScalarContractValue,
+    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpressionRole,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
+    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnMachinePlan,
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, ServiceReachId, ServiceReachSummary,
@@ -81,9 +80,9 @@ use crate::terminal_identities::{
     structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
-    checked_unit_boundary_identity, checked_unit_target_reach_matches,
-    collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    checked_unit_boundary_identity, collect_installation_machine_contract_services,
+    collect_published_contract_services, collect_service_summary,
+    lower_installation_machine_service_ceiling, lower_root_service_reach,
     lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
     validate_transfer_shape,
 };

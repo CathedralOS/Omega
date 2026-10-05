@@ -20,7 +20,6 @@ use crate::unit::attached_unit::argument_evaluation;
 mod emission;
 mod memberships;
 mod requirements;
-mod source_custody;
 mod validation;
 
 pub(crate) use emission::{
