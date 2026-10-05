@@ -2342,6 +2342,35 @@ crash and native exit behavior.
   checkout before recording anything.
 
 
+- **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
+  `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now
+  record `timeout 120000ms` stamped `@98ac0f8c4db`. That is a **load-relative
+  row, which is worse than the stale one it replaced** -- the x86 fixture takes
+  about 520s to reach its real verdict and the default per-fixture cap is 120s,
+  so it times out on any busy box and the row flaps with the machine.
+
+  **Their true content, measured at `e399918ecac`:** both reject with **8
+  diagnostics and no unit-plan omission**, every one of the form
+  `selected compiler intrinsic
+  <selected target>::FloatNativeProvider::satisfies::operator::F{32,64}::{classify,is_finite,is_normal,is_subnormal}
+  ... has no native boundary realization`. The frontier is the separately-owned
+  **x86 float classification realization** gap, not Psi.
+
+  **A stale row here already caused one wrong item.**
+  `FLOAT-OPERATOR-NOT-RECOGNIZED-AS-SCALAR-INTRINSIC` was filed from the
+  previous row, which still carried the retired omission
+  "`x86_baseline_float_twin_code` has no admitted body ... unconsumed nested
+  call in a local initializer", 445 commits behind HEAD. It was refuted by
+  measurement and deleted. `OPERATOR-BOUNDARY-CALLS` already recorded that the
+  unconsumed-call failure was repaired by `6ef30fb818e6`, so the new item also
+  contradicted an existing one in this file. **Read the frontier of a long
+  fixture from a measurement, never from its row.**
+
+  Acceptance: re-record both rows **on an idle box** with
+  `OMEGA_CORPUS_FIXTURE_SECS` above 600 so the x86 fixture reaches its verdict,
+  and confirm each row carries the realization diagnostics rather than
+  `timeout`.
+
 - **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
   A comparison between a **computed** f32/f64 value and an **unsuffixed** float
   literal does not lower. Two-line repro:
@@ -2381,36 +2410,7 @@ crash and native exit behavior.
   whether the computation graph claimed the coordinate. Fixture to add once
   ruled: `tests/omega/pass/float/computed_float_bare_literal_comparison/`.
 
-- **FLOAT-OPERATOR-NOT-RECOGNIZED-AS-SCALAR-INTRINSIC.** (new-scope)
-  `scalar_intrinsic` (`terminal_unit/control/call_occurrences.rs:243`) reports
-  **false for every float operator and builtin** that
-  `pass/float/build_runtime_semantics_twins_*` use -- `F64::square_root`,
-  `F64::is_nan`, `F64::minimum`, `Float::add::add`, `Float::divide::divide` --
-  measured from the roster dump. Its own comment states the opposite: "A pure
-  scalar builtin (min/max/sqrt, float rounding and classification) ... is never
-  an outer or nested call to sequence." `builtin_function_for_symbol` does not
-  recognize the conformance-operator symbols these calls actually target, so the
-  predicate is narrower than its stated rule **by exactly the set the comment
-  names**. This is the twins' primary Psi wall.
 
-  **The twins are double-blocked; do not assign them as one repair.** Measured:
-  dropping the 64-bit half removes the unit-plan omission entirely and the
-  fixture then stops on a backend wall -- `selected compiler intrinsic
-  <selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal
-  / ::classify / ::is_finite / ::is_normal has no native boundary realization`
-  on `linux_x86_64`. So a perfect Psi repair still leaves them behind the x86
-  float classification realization gap.
-
-- **RECEIVER-RECONCILIATION-STAGE-MISNAMED.** (new-scope)
-  `CheckedUnitPlanOmissionStage::ReceiverReconciliation` is **live but
-  describes deleted machinery**. It is recorded at `terminal_unit/mod.rs:353`,
-  reporting machines dropped by `cleanup::normal_edges::retain_planned` *and* by
-  builder-overlap resolution, while its doc comment, its stage-05 text ("was
-  dropped while reconciling retained receivers") and its omega rendering all
-  describe the receiver machinery `c4e69244207` deleted. No golden or wiki text
-  carries that wording, so the change is golden-neutral. **It conflates two
-  causes, so the honest repair is a split, not a one-word rename** -- a reader
-  currently cannot tell which of the two dropped a machine.
 
 - **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/core/interrupt_obligations_surface` has one blocking line, proved by
