@@ -2278,6 +2278,45 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
+- **RECAST-OFFSET-EQUALITY-TRANSPORT.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
+  `pass/dependent/boundary_equality_recast_witness_compile` lost `checked`. It
+  is the authored customer for transporting an offset bound across a proved
+  equality: `buf: [u8; 12]`, the recast is `&main.buf[size] as &u32` in state
+  `read`, and the boundary states `ensures size == cap && cap <= 8`, so
+  `size <= 8` and `8 + 4 == 12` fits the region exactly. The fixture's name says
+  this is the mechanism it pins.
+
+  **Primary gap:** none of the three offset-bound candidates in
+  `checking/src/value_custody/recasts/raw_byte_region.rs:157-197`
+  (`standing_integer_interval`, `composite_offset_upper_bound`,
+  `occurrence_integer_expression_bounds`) applies a proved equation, so
+  `size <= 8` is never derived from `size == cap` plus `cap <= 8`. The spec hook
+  is `ValueEqualityTransport` (`wiki/spec/terminal-psi/verification.md:255-264`).
+
+  **Secondary defect, independently fixable and admission-neutral.** The
+  diagnostic reads "the recast target `u32` needs 4 bytes at offset 4294967295,
+  but the region holds 12", which sends the author hunting for an offset their
+  program does not contain. 4294967295 is `u32`'s carrier maximum, not an
+  offset: for a non-literal index the three candidates produce *upper bounds*
+  and `min()` returns one as `InteriorByteRegion::Bounded { offset }`.
+  `occurrence_integer_expression_bounds`
+  (`arithmetic_domains/guard_narrowing/arrivals.rs:66`) returns its observation
+  interval unfiltered, so an unnarrowed `size: u32` yields `(0, 4294967295)` and
+  wins the `min()`. Its sibling `standing_integer_interval`
+  (`invariant_bounds.rs:109-114`) explicitly refuses exactly that value --
+  "a place's bare carrier range states nothing beyond its type" -- so the
+  asymmetry is already decided in one place and unapplied in the other. With the
+  bare carrier range rejected the offset is `None` and the existing
+  `OffsetUnproven` arm fires, whose message already tells the author what to do
+  (declare a range, guard the arm, or `ensures`-bound the boundary). Both paths
+  refuse, so fixing this changes no admission -- only what the author is told.
+
+  Refuted, so nobody re-derives it: `standing_integer_interval` is NOT the
+  source of the bogus bound; it already applies the carrier-range filter.
+  Acceptance: `--filter dependent/boundary_equality_recast_witness_compile`
+  reaches `checked`. The secondary defect can land first and alone, pinned by a
+  fixture whose offset has no bound at all.
+
 - **DECIMAL-PLACE-DIVISOR-NONZERO.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/text/runtime_number_to_decimal_exit` lost `built+exit:70` and now
   rejects with "partial wrapping division in machine `Main::main` state
