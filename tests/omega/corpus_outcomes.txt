@@ -1103,8 +1103,8 @@ fail/proofs/quotient_define_transport_role_rejected rejected 25ms expected @2d8e
 	`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role
 fail/proofs/quotient_lift_congruence_missing_rejected rejected 48ms expected @2d8ed253669f
 	`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order
-fail/proofs/quotient_lift_missing_respect rejected 224ms expected @2d8ed253669f
-	cannot implicitly lift representative operation `advance` onto quotient `EquivalenceClass`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance
+fail/proofs/quotient_lift_missing_respect rejected 395ms expected @81dd8ed2ed3
+	argument `value` for state `advance::entry` expects the `Representative` data type but got `EquivalenceClass` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 	machine `bad_lift` state `entry` expects the `EquivalenceClass` data type but got `Representative` in the `return value` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/proofs/quotient_lift_surplus_role_rejected rejected 32ms expected @2d8ed253669f
 	`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order
@@ -1385,9 +1385,8 @@ fail/termination/saved_rank_authored_operator_rejected rejected 177ms expected @
 	machine call cycle: `Main::count`, `Main::step` -- a call argument has effects or non-builtin operator meaning; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stale_state_rank_premise_rejected rejected 184ms expected @68fba6a896c8+wt
 	machine call cycle: `Main::count`, `Main::next` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/stored_reference_endpoint_reseat rejected 744ms expected @2d8ed253669f
+fail/termination/stored_reference_endpoint_reseat rejected 775ms expected @81dd8ed2ed3
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
-	the use-site subtraction `terminates by limit - index` on machine Main::walk is retired: spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance` (the tuple lists the ranked subjects, bound in order to the view's (lower, upper) parameters)
 fail/termination/unproved_state_rank_arrival_rejected rejected 345ms expected @68fba6a896c8+wt
 	cannot prove requires contract for call hold from Main::count: remaining > 0 && remaining <= 9 (needs fact `pending > 0 && pending <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/text/bounded_carrier_growth_overflow_rejected rejected 216ms expected @c08960bee2b1+wt
