@@ -13,7 +13,6 @@
 //! Unsupported source constructs fail closed.
 
 pub(crate) mod bounded_callbacks;
-mod checked_ledger;
 pub(crate) mod conformance_publication;
 pub(crate) mod debug_map;
 pub(crate) mod float_meanings;
@@ -54,7 +53,6 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
 ) -> Result<LoweredPsi, LoweringError> {
-    checked_ledger::verify(checked)?;
     let selection = select_terminal_machine(checked, machine)?;
     lower_terminal_selection(checked, selection)
 }

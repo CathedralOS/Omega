@@ -3377,21 +3377,6 @@ slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
-- **CHECKED-LEDGER-VERIFY-ONCE.** (new-scope) Stage 05's
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/checked_ledger.rs::verify`
-  runs once per `lower_machine` call, so once per entry and callback artifact
-  over the same whole-program ledger; it should run once per `CheckedTrees`.
-  Do not hoist the call into `lower_machine`'s callers: three sites construct a
-  `TerminalProductionRequest`
-  (`omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs`,
-  `omega-rust/omega/compilation/driver/src/terminal/native_proposal/mod.rs`,
-  `omega-rust/omega/compilation/products/src/checked_compilation/terminal.rs`),
-  and hoisting turns a guaranteed invariant into an obligation each must
-  remember. Verify the ledger where the `CheckedTrees` is frozen, so it holds
-  by construction before any artifact is produced; land with
-  **CHECKING-FROZEN-PROGRAM-CONTEXT**. Acceptance: one `verify` call per
-  `CheckedTrees`, and the check corpus is unchanged.
-
 - **CALLABLE-IDENTITY-INTERNED.** (new-scope) `NormalizedNamedCallableIdentity`
   (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/normalized_identities.rs`)
   holds its `path` and `parameters` as rendered, escaped `String`s, and
