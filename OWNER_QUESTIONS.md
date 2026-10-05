@@ -401,3 +401,52 @@ land together or the restored test is red:
 Until (3) lands the ledger has no enforcement outside the landing queue, and the
 queue cannot see drift that is already on main. A re-record without (3) buys one
 clean report and the next sweep silently re-opens the hole.
+
+## Q8 — `boundary-requirement-call-without-installation`
+
+**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** records this as undecided between
+"the receiver form was lax, so both fixtures need a selected provider" and "a
+value-rooted boundary requirement call stays provider-free and needs a static
+spelling". Measured 2026-10-04 at `cf06f90068e`, it is neither: the static
+spelling already works, and what separates an admitted call from a refused one
+is where it is called from.
+
+**Both customers already spell the static form and still reject.**
+`address_translation_canary/main.omg:152` is `Shootdown::discharge(owed);` and
+`secondary_processor_canary/cathedral/processor_startup.omg:217,315` is
+`StartupEnvelope::confirm(envelope);`. Each rejects with "direct call names
+public boundary requirement ..., which has no selected provider". So the item's
+second option is not open: the static spelling is not what is refused.
+
+**The discriminator is installation, not the call form.** `grep` for
+`satisfies InterruptAcknowledgement::complete`, `satisfies Shootdown::discharge`
+and `satisfies StartupEnvelope::confirm` finds **zero** rows repository-wide --
+no provider exists for any of the three. Yet
+`InterruptAcknowledgement::complete(acknowledgement)` is admitted, in
+`interrupt_table_canary/cathedral/interrupt_roots.omg:161,271`. The difference
+is that those two call sites are inside machines that
+`satisfies InterruptEntry::enter`, while `discharge` and `confirm` are called
+from ordinary machines. `source/library/core/interrupt.omg` describes exactly
+that rule for `complete`: installation, "not an ordinary call", turns the
+parameter route into an introduction, and "installation resolves this entry row
+to the selected provider's exact reach; provider/token lineage, never equality
+of the two rows, binds completion to the same execution."
+
+**So the question is narrower than the item states.** Is reaching a public
+boundary requirement from outside an installed root always provider-demanding,
+with these two canaries simply owing a provider and a changed pin? Or does a
+linear carrier whose domain is extinguished only by that requirement
+(`Shootdown` is TLB debt; `StartupEnvelope` is a startup obligation) carry its
+own installation lineage to an ordinary caller, the way `InterruptAcknowledgement`
+does through `InterruptEntry::enter`?
+
+Both canaries are written as if the second answer holds: their prose says the
+carrier itself threads the obligation to whoever holds it, and neither declares
+a provider. If the first answer is intended, both need an authored provider and
+their headers need rewriting, which changes what they pin -- an authoring
+decision, which is why it is here and not on the board.
+
+A third fixture has since stopped elsewhere and is not part of this:
+`interrupt_table_canary` now reaches "cannot prove the `terminates by` ranking
+for machine `DescriptorTableValidation::run`", a 768-fuel bounded scan every
+working edge of which decrements, which is an engineering frontier.
