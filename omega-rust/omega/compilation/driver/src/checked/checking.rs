@@ -49,7 +49,6 @@ fn compile_checked_with_build_owner(
             result: Err(diagnostics),
             prepared_source: None,
             independent_components: IndependentComponentDiscovery::default(),
-            build_accounting: Default::default(),
         })
 }
 
@@ -139,7 +138,6 @@ pub fn prepare_package_build(
         .unwrap_or_else(|diagnostics| PackageBuildOutcome {
             result: Err(diagnostics),
             prepared_source: None,
-            build_accounting: Default::default(),
         })
 }
 
@@ -184,7 +182,6 @@ fn prepare_package_build_worker(
     };
     let prepared_source = request.retain_prepared_source.then(|| source.clone());
     let prepared = prepare_build_source(&request.root_path, source, child, None, owner.as_ref())?;
-    let build_accounting = prepared.build_accounting.clone();
     let result = PreparedPackageBuild::seal(
         request.root_path,
         selected_target,
@@ -196,7 +193,6 @@ fn prepare_package_build_worker(
     Ok(PackageBuildOutcome {
         result,
         prepared_source,
-        build_accounting,
     })
 }
 
@@ -207,8 +203,6 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
     counters::record_checked_compilation();
     compile_thread::run_on_compile_thread(move || {
         let (_root_path, target, inputs, rollback, mut prepared) = build.into_continuation();
-        // The preparation outcome already reported this activation's accounting.
-        prepared.build_accounting = Default::default();
         Ok(check_completed_build(
             prepared,
             Some(target),
@@ -221,7 +215,6 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
         result: Err(diagnostics),
         prepared_source: None,
         independent_components: IndependentComponentDiscovery::default(),
-        build_accounting: Default::default(),
     })
 }
 
@@ -329,14 +322,13 @@ fn prepare_build_source(
         .and_then(|(inputs, builds)| builds.begin_target(inputs));
     match completed {
         Some(mut prepared) => {
-            prepared.build_accounting = Default::default();
             drop(source);
             drop(child);
             Ok(prepared)
         }
         None => {
             let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
-            let (built, build_sources, build_accounting) =
+            let (built, build_sources) =
                 timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
                     build_continuation::evaluate_build_and_continue(
                         root_path,
@@ -350,7 +342,6 @@ fn prepare_build_source(
                 built,
                 build_sources,
                 timings,
-                build_accounting,
             };
             if let Some((inputs, builds)) = reuse {
                 builds.retain_completed(inputs, &prepared);
@@ -371,7 +362,6 @@ fn check_completed_build(
         built,
         mut build_sources,
         mut timings,
-        build_accounting,
     } = prepared;
     let independent_components = built.computed_build_config.independent_components();
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
@@ -392,7 +382,6 @@ fn check_completed_build(
         prepared_source: None,
         result,
         independent_components,
-        build_accounting,
     }
 }
 

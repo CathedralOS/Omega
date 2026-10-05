@@ -1,10 +1,6 @@
-//! Ordered target results and their batch commitment, without compilation authority.
+//! Ordered target results, without compilation authority.
 
 use crate::CompileReport;
-use crate::{
-    BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
-    ProductionArtifactIdentity,
-};
 use diagnostics::{Diagnostic, ExceededProvision};
 use target::TargetProfile;
 
@@ -61,8 +57,6 @@ pub struct CheckedCompileOutcome {
     pub result: Result<crate::CheckedCompilation, Vec<Diagnostic>>,
     pub prepared_source: Option<crate::PreparedCheckedSource>,
     pub independent_components: crate::IndependentComponentDiscovery,
-    /// Build completion survives failed product settlement without granting it.
-    pub build_accounting: crate::BuildEvaluationAccounting,
 }
 
 /// An ordinary target product or its diagnostics. None identifies target-neutral
@@ -106,75 +100,27 @@ impl CompileTargetOutcome {
     }
 }
 
-/// Outcomes in the order supplied by the coordinator, including failures,
-/// plus the batch manifest binding that explicit set and
-/// each child's commitment/outcome. The collection grants no deployment,
-/// platform-support, test, or audit claim.
+/// Outcomes in the order supplied by the coordinator, including failures.
+/// The collection grants no deployment, platform-support, test, or audit
+/// claim.
 #[derive(Debug)]
 pub struct CompileOutcomes {
     outcomes: Box<[CompileTargetOutcome]>,
-    batch_manifest: BatchCompilationManifest,
 }
 
 impl CompileOutcomes {
-    /// Retain all supplied results and bind their exact order and diagnostics.
-    /// The request owner determines canonical configuration order; this owner
-    /// neither drops failed children nor invents missing target results.
-    pub fn new(outcomes: Vec<CompileTargetOutcome>) -> Result<Self, Vec<Diagnostic>> {
-        let rows = outcomes
-            .iter()
-            .map(|outcome| {
-                batch_child_outcome(outcome).map(|child| BatchChildRow::new(outcome.target, child))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let batch_manifest = BatchCompilationManifest::new(rows)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-        Ok(Self {
+    /// Retain all supplied results in the coordinator's order; failed
+    /// children are kept and missing target results are not invented.
+    pub fn new(outcomes: Vec<CompileTargetOutcome>) -> Self {
+        Self {
             outcomes: outcomes.into_boxed_slice(),
-            batch_manifest,
-        })
+        }
     }
     pub fn outcomes(&self) -> &[CompileTargetOutcome] {
         &self.outcomes
     }
-    /// The invocation's batch manifest: it binds the explicit configured
-    /// target set and each child's commitment/outcome in canonical order —
-    /// never a completeness, support, test, or deployment claim.
-    pub const fn batch_manifest(&self) -> &BatchCompilationManifest {
-        &self.batch_manifest
-    }
     pub fn into_outcomes(self) -> Box<[CompileTargetOutcome]> {
         self.outcomes
-    }
-
-    /// The strongest commitment a child's retained report carries: its own
-    /// production manifest when package-aware custody exists, else the
-    /// produced artifact identity, else the check-only marker.
-    fn report_commitment(report: &CompileReport) -> BatchChildCommitment {
-        if let Some(manifest) = report.production_manifest() {
-            return BatchChildCommitment::Manifest(manifest.identity());
-        }
-        if let Some(native) = report.retained_native_artifact() {
-            return BatchChildCommitment::Artifact(ProductionArtifactIdentity::Native(
-                native.identity(),
-            ));
-        }
-        if let Some(dynamic) = report.retained_dynamic_elf_artifact() {
-            return BatchChildCommitment::Artifact(ProductionArtifactIdentity::DynamicElf(
-                dynamic.identity(),
-            ));
-        }
-        if let Some(artifact) = report.artifact() {
-            return BatchChildCommitment::Artifact(ProductionArtifactIdentity::Terminal(
-                artifact.manifest().identity(),
-            ));
-        }
-        if let Some(outputs) = report.build_outputs() {
-            return BatchChildCommitment::Artifact(ProductionArtifactIdentity::BuildOutputs(
-                *outputs.identity(),
-            ));
-        }
-        BatchChildCommitment::Checked
     }
 
     /// Explicit extraction for consumers that requested exactly one product.
@@ -192,23 +138,4 @@ impl CompileOutcomes {
             .ok_or_else(|| vec![Diagnostic::error("compilation outcome is missing")])?
             .into_result()
     }
-}
-
-fn batch_child_outcome(
-    outcome: &CompileTargetOutcome,
-) -> Result<BatchChildOutcome, Vec<Diagnostic>> {
-    let refusal = match &outcome.result {
-        Ok(report) => {
-            return Ok(BatchChildOutcome::Succeeded {
-                commitment: CompileOutcomes::report_commitment(report),
-            });
-        }
-        Err(diagnostics) => match CompilerRequestOutcome::of_refusal(diagnostics) {
-            CompilerRequestOutcome::Incomplete(provision) => {
-                BatchChildOutcome::incomplete(provision, diagnostics)
-            }
-            _ => BatchChildOutcome::rejected(diagnostics),
-        },
-    };
-    refusal.map_err(|message| vec![Diagnostic::error(message)])
 }

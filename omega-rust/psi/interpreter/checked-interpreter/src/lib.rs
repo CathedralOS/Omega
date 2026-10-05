@@ -109,7 +109,7 @@ pub mod interpreter;
 mod value;
 
 pub use build_evaluation_sponsor::{
-    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationConsumptionReceipt,
+    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, 
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
 };
 pub use build_evaluation_usage::{BuildEvaluationUsage, BuildEvaluationUsageError};

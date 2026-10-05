@@ -22,14 +22,7 @@ pub(crate) fn evaluate_build_and_continue(
     frontier: TypedCompilationFrontier,
     timings: &mut CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<
-    (
-        BuiltTypedProgram,
-        BuildSourceCustody,
-        compilation_products::BuildEvaluationAccounting,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(BuiltTypedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedExecutionRequest {
         selected_target_profile: _,
         build_execution_profile,
@@ -55,7 +48,6 @@ pub(crate) fn evaluate_build_and_continue(
     } = frontier;
     let build_evaluation::EvaluatedBuild {
         configuration: computed_build_config,
-        accounting,
         restricted_build_requests,
         base_source_consumption_commitment,
     } = build_evaluation::evaluate_build(
@@ -104,7 +96,6 @@ pub(crate) fn evaluate_build_and_continue(
             admission,
         },
         sources,
-        accounting,
     ))
 }
 

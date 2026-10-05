@@ -3,7 +3,7 @@
 
 use crate::portable_paths::validate_portable_component;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-use crate::{capture, empty, select_included_sources};
+use crate::{capture, select_included_sources};
 use checked_interpreter::FilesystemSponsor;
 use std::path::Path;
 use std::path::PathBuf;
@@ -260,35 +260,6 @@ fn materialization_rejects_symlink_destination() {
 
     let error = retained.materialize_into(&destination).unwrap_err();
     assert!(error.message().contains("existing concrete directory"));
-}
-
-#[cfg(unix)]
-#[test]
-fn verification_rejects_host_aliases_planted_after_materialization() {
-    use std::os::unix::fs::symlink;
-
-    let fixture = populated_fixture("host-alias-race", b"payload");
-    let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
-    let destination = fixture.empty_destination("raced");
-    retained.materialize_into(&destination).unwrap();
-
-    // A host alias planted inside the admission-to-write window is observable
-    // only on disk afterward; re-inspection must refuse both shapes it leaves.
-    symlink("/outside", destination.join("planted")).unwrap();
-    let error = retained.verify_materialized_at(&destination).unwrap_err();
-    assert!(
-        error.message().contains("absent from retained content"),
-        "{error}"
-    );
-    std::fs::remove_file(destination.join("planted")).unwrap();
-
-    std::fs::remove_file(destination.join("nested/artifact.bin")).unwrap();
-    symlink("/outside", destination.join("nested/artifact.bin")).unwrap();
-    let error = retained.verify_materialized_at(&destination).unwrap_err();
-    assert!(
-        error.message().contains("disagrees with retained kind"),
-        "{error}"
-    );
 }
 
 #[test]

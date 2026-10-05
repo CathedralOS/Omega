@@ -230,11 +230,8 @@ command stages, not an exhaustive internal pass profile. A failed command still
 reports its elapsed total. Normal compilation leaves timing collection disabled
 and does not install an allocation-counting global allocator.
 
-Canonical source rows append directly into the retained production manifest;
-report assembly does not build a second inventory of individually allocated
-serialized rows. Source-consumption hashing reuses one row buffer. Both routes
-use the package owner's canonical row encoder, preserving the existing byte
-format and identities.
+Source-consumption hashing reuses one row buffer and the package owner's
+canonical row encoder, preserving the existing byte format and identities.
 
 ## Intrinsic settlement conversion
 
@@ -264,9 +261,8 @@ policy, package sources and the target set once. Compilation collects one
 ordered outcome per realized target without fail-fast; a shared checking
 failure supplies the same diagnostics to every realization, and one
 realization's failure never suppresses another's. Success retains the ordinary
-standalone artifact/manifest identity. The collection carries an optional
-batch manifest binding the realization set and each realization's
-commitment/outcome; it grants no support, test or audit claim.
+standalone artifact identity. The collection grants no support, test or audit
+claim.
 
 Today's implementation instead retains one immutable source parse checkpoint
 ([package source preparation](../../packages/compilation-inputs/src/source_assembly.rs))

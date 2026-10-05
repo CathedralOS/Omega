@@ -80,8 +80,8 @@ impl RetainedBuildOutputs {
         self.published_directory.as_deref()
     }
 
-    /// Install the content-addressed file set and its manifest, or verify an
-    /// existing set against these retained bytes. The manifest is installed last.
+    /// Install the content-addressed file set and its manifest; an existing set
+    /// with the same content name is reused. The manifest is installed last.
     /// Failure may leave a partial copy but never records successful publication.
     pub fn publish(&mut self, build_directory: &Path) -> Result<(), String> {
         if self.published_directory.is_some() {
@@ -113,24 +113,6 @@ impl RetainedBuildOutputs {
                 &manifest,
                 self.manifest_bytes(),
             )?;
-        } else {
-            let metadata =
-                std::fs::symlink_metadata(&directory).map_err(|error| error.to_string())?;
-            if !metadata.is_dir() || metadata.file_type().is_symlink() {
-                return Err("completed-output set is not a concrete directory".into());
-            }
-            let metadata =
-                std::fs::symlink_metadata(&manifest).map_err(|error| error.to_string())?;
-            if !metadata.is_file()
-                || metadata.file_type().is_symlink()
-                || std::fs::read(&manifest).map_err(|error| error.to_string())?
-                    != self.manifest_bytes()
-            {
-                return Err("completed-output manifest differs from this compilation".into());
-            }
-            self.files()
-                .verify_materialized_at(&files)
-                .map_err(|error| error.to_string())?;
         }
         self.published_directory = Some(directory);
         Ok(())

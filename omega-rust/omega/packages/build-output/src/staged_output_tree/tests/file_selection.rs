@@ -4,29 +4,6 @@ use crate::{OutputTreeEntry, empty, from_entries};
 use std::sync::Arc;
 
 #[test]
-fn verifies_existing_materialization_and_rejects_changed_or_extra_content() {
-    let session = super::Session::new();
-    let tree = baseline_tree();
-    let destination = session.destination("verify-existing");
-    tree.materialize_into(&destination).unwrap();
-    assert_eq!(
-        tree.verify_materialized_at(&destination).unwrap(),
-        tree.commitment()
-    );
-
-    let artifact = destination.join("report.txt");
-    std::fs::write(&artifact, b"changed!!!!").unwrap();
-    assert!(tree.verify_materialized_at(&destination).is_err());
-    assert_eq!(std::fs::read(&artifact).unwrap(), b"changed!!!!");
-
-    std::fs::write(&artifact, b"report-body").unwrap();
-    let extra = destination.join("scratch.txt");
-    std::fs::write(&extra, b"scratch").unwrap();
-    assert!(tree.verify_materialized_at(&destination).is_err());
-    assert!(extra.exists());
-}
-
-#[test]
 fn selects_only_requested_files_and_ancestors_in_canonical_order() {
     let tree = baseline_tree();
     let selected = tree

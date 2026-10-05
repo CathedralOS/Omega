@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 pub use checked_interpreter::{
-    BuildEvaluationConsumptionReceipt, BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
     FilesystemAccess as BuildMachineFilesystemAccess,
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,

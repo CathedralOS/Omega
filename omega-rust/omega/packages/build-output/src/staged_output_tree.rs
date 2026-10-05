@@ -4,8 +4,6 @@
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
 use crate::materialization::materialize_retained_tree;
-use crate::materialization::validate_retained_tree;
-use crate::materialization::verify_materialized_tree;
 use diagnostics::Diagnostic;
 use sha2::Digest;
 use sha2::Sha256;
@@ -217,19 +215,6 @@ impl BuildStagedOutputTree {
         destination: impl AsRef<Path>,
     ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
         materialize_retained_tree(self, destination.as_ref())
-    }
-
-    /// Verify an existing concrete directory against this retained commitment
-    /// without writing or deleting anything. Missing or extra entries, changed
-    /// bytes, kinds, modes, or link spellings reject. Success describes the
-    /// observed materialization; it does not prevent later host mutation.
-    pub fn verify_materialized_at(
-        &self,
-        destination: &Path,
-    ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
-        validate_retained_tree(self)?;
-        verify_materialized_tree(destination, self)?;
-        Ok(self.commitment)
     }
 
     /// Directly enumerate the retained sealed entries in canonical

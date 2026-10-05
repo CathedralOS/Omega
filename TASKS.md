@@ -2213,7 +2213,7 @@ crash and native exit behavior.
   - Frontier: `CompileReportSettlement` owns construction for all five stops
     (`finish_terminal`, `finish_native`, and the Check and artifact-only arms
     inside `prepare_product_report`), carrying root path, source count,
-    production subject, `pcc_requests` and native application metadata
+    `pcc_requests` and native application metadata
     captured before lowering (`33d5557dc4f`). `terminal_report`,
     `native_report`, `check_report`, `CompileReport::verify_native_source_metadata`
     and the CLI's hand-derived Check rollback predicate are deleted. The
@@ -3402,37 +3402,33 @@ of a check the same flow already performed, not the check itself.
   fixture shows one read per consumed file and one index capture per
   package, and the check corpus is unchanged.
 
-- **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) Delete the in-process
-  bookkeeping around build evaluation and keep only the real confinement:
-  - `omega-rust/omega/packages/package-manager/src/review/candidate/compilation/session_accounting.rs::verify_build_session_accounting`
-    (usage reconciliations against `BuildEvaluationSponsor`);
-  - `FilesystemSponsor`'s mirror namespace, its sponsor/host divergence halt,
-    and its quiescence snapshots (the dangling-symlink escape the mirror used
-    to be the only guard against is now refused by
-    `omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/filesystem/real.rs`
-    resolution);
-  - the observation identity and production-subject chain
-    (`omega-rust/omega/packages/compilation-inputs/src/build_execution/observation_identity.rs`,
-    `omega-rust/omega/packages/compilation-inputs/src/production_subject.rs`,
-    `omega-rust/omega/compilation/products/src/checked_compilation/production_subject.rs`,
-    the admitted-checkpoint symbol check in
-    `omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs`);
-  - `omega-rust/omega/compilation/build-evaluation/src/completed_pure_build.rs`
-    logical charges;
-  - re-reading the materialized source copy (`verify_materialized_source`)
-    and written outputs (`verify_materialized_tree`,
-    `omega-rust/omega/packages/compilation-inputs/src/build_execution/completed_outputs.rs::publish`).
-
-  Also in this commit:
-  - pure builds skip source capture;
-  - the captured source inventory is served from memory, which
-    `wiki/spec/build/scoped_execution.md` allows, instead of a temp-directory
-    copy;
+- **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) The production-subject and
+  batch-manifest chain, the report custody replays, retained Pure Build
+  charges and completed-output re-reads are deleted. What remains:
+  - `FilesystemSponsor`
+    (`omega-rust/psi/interpreter/checked-interpreter/src/filesystem_sponsor.rs`)
+    mirrors the build write root as a namespace of objects and descriptors so
+    `interpreter/evaluator/filesystem/real.rs` can prepare and commit every
+    mutation against it, and staged-output capture
+    (`omega-rust/omega/packages/build-output/src/capture/mod.rs`) cross-checks
+    the host tree against its namespace snapshot. The mirror is also how the
+    entry, total-byte and object-extent limits are counted exactly across hard
+    links, renames and unlinks. Replace it with limit counters over the host
+    write root (the spec's staging protocol has no hard links, renames or
+    overwrites, which removes the exact-ownership case), drop the
+    divergence halt and quiescence snapshot, and have capture read the host
+    tree alone. Alias and dangling-link refusal already live in `real.rs`
+    resolution.
   - `PackageBuildSession`
     (`omega-rust/omega/packages/package-manager/src/build_session.rs`)
-    creates its write root once per invocation, not once per pass.
+    creates a write root and sponsors per review pass; sharing one per
+    invocation needs each pass's package builds to stage into fresh
+    subdirectories, because a second pass re-runs the same builds.
+  - Pure builds still capture source, and the captured inventory is copied
+    into a temporary directory instead of served from memory
+    (`wiki/spec/build/scoped_execution.md` allows memory).
 
-  Acceptance: none of the named functions exists; the
+  Acceptance: no namespace mirror or snapshot remains in the sponsor; the
   `filesystem/real/confinement_tests.rs` tests pass; grant refusal, fuel
   exhaustion, and alias and size rejection still reject (add a corpus fixture
   for each case the build corpus does not already cover); the build and

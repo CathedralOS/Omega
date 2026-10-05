@@ -207,9 +207,7 @@ realization. Return one outcome per realized target; one realization's failure
 cannot suppress another's. An aggregate exit code or human summary is
 orchestration, not support, audit, or completeness evidence.
 
-An optional batch manifest binds the realization set and each realization's
-commitment/outcome, not completeness of a support/test/deployment matrix. A
-fat/universal artifact is a separate explicit envelope over independently
+A fat/universal artifact is a separate explicit envelope over independently
 committed realizations. CI may cross-compile several targets on one host or
 check without physical realization; neither activity creates a language
 support set.

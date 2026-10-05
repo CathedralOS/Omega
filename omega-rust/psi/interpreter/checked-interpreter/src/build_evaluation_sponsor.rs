@@ -13,9 +13,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::{
-    BuildEvaluationUsage, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
-};
 
 pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 7;
 
@@ -145,20 +142,6 @@ pub struct BuildEvaluationSponsor {
     account: Arc<BuildEvaluationSponsorAccount>,
 }
 
-/// One current-account policy charge for consuming an already-completed Pure Build.
-/// The producing usage remains unchanged. This receipt is not an execution,
-/// live allocation, observed peak, or reusable permission to consume again.
-#[derive(Debug, Clone)]
-pub struct BuildEvaluationConsumptionReceipt {
-    usage: BuildEvaluationUsage,
-}
-
-impl BuildEvaluationConsumptionReceipt {
-    pub const fn producing_usage(&self) -> BuildEvaluationUsage {
-        self.usage
-    }
-}
-
 impl BuildEvaluationSponsor {
     pub fn new(limits: BuildEvaluationSponsorLimits) -> Self {
         Self {
@@ -250,74 +233,6 @@ impl BuildEvaluationSponsor {
         }
     }
 
-    /// Reserve one retained Pure occurrence under this account's current policy.
-    /// All cumulative accounts change atomically or none do. Retained invocation
-    /// peaks are eligibility bounds only: consuming a result creates no live
-    /// evaluator cells and cannot manufacture this session's observed peaks.
-    pub fn charge_retained_pure_usage(
-        &self,
-        usage: BuildEvaluationUsage,
-    ) -> Result<BuildEvaluationConsumptionReceipt, String> {
-        usage
-            .validate()
-            .map_err(|error| format!("retained Build usage is inconsistent: {error:?}"))?;
-        if usage.usage_schema_version != CURRENT_EVALUATION_USAGE_SCHEMA.schema_version()
-            || usage.step_schedule_marker != CURRENT_EVALUATION_STEP_SCHEDULE.marker()
-            || usage.filesystem_operation_attempts != 0
-        {
-            return Err("retained Pure Build usage has unsupported telemetry".to_owned());
-        }
-        let limits = self.account.limits;
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation retained-consumption account is unavailable".to_owned()
-        })?;
-        if consumed.live_cells != 0
-            || consumed.live_text_bytes != 0
-            || consumed.live_filesystem_handles != 0
-        {
-            return Err("retained Pure Build requires a quiescent evaluation account".to_owned());
-        }
-        if usage.peak_live_cells > limits.maximum_live_cells()
-            || usage.peak_live_text_bytes > limits.maximum_live_text_bytes()
-        {
-            return Err("retained Pure Build exceeds current live-resource provisions".to_owned());
-        }
-        let reserve = |current: u64, additional: u64, maximum: u64, name: &str| {
-            current
-                .checked_add(additional)
-                .filter(|total| *total <= maximum)
-                .ok_or_else(|| format!("retained Pure Build exceeds current {name} provision"))
-        };
-        let fuel_units = reserve(
-            consumed.fuel_units,
-            usage.fuel_units,
-            limits.maximum_fuel_units(),
-            "fuel",
-        )?;
-        let build_log_bytes = reserve(
-            consumed.build_log_bytes,
-            usage.build_log_bytes,
-            limits.maximum_build_log_bytes(),
-            "BuildLog",
-        )?;
-        let result_cells = reserve(
-            consumed.result_cells,
-            usage.result_cells,
-            limits.maximum_result_cells(),
-            "result-cell",
-        )?;
-        let result_text_bytes = reserve(
-            consumed.result_text_bytes,
-            usage.result_text_bytes,
-            limits.maximum_result_text_bytes(),
-            "result-Text",
-        )?;
-        consumed.fuel_units = fuel_units;
-        consumed.build_log_bytes = build_log_bytes;
-        consumed.result_cells = result_cells;
-        consumed.result_text_bytes = result_text_bytes;
-        Ok(BuildEvaluationConsumptionReceipt { usage })
-    }
 
     /// Require each issued charge exactly once, in issuance order, for this
     /// exact account. Equal limits never make a foreign receipt acceptable.

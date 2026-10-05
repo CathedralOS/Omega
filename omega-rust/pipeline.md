@@ -149,7 +149,7 @@ an independent package beside their Psi admission owner at
 
 [`omega/compilation/products/`](omega/compilation/products/README.md)
 owns invocation configuration and product eligibility, finished report payloads,
-production/batch manifests and publication of exact artifact/proof pairs.
+and publication of exact artifact/proof pairs.
 It also owns the retained evaluated-Build records and checked compilation product:
 source-custody sealing, immutable stage results and their metadata/subject
 projections. The Build evaluator produces this shared data contract; product

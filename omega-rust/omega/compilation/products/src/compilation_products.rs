@@ -11,9 +11,8 @@
 use target::NativeApplicationMetadata;
 
 use crate::{
-    FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
-    ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
-    RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
+    OptimizationRollbackReceipt, PccPublicationReceipt, RetainedNativeArtifact,
+    RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::{
@@ -164,40 +163,6 @@ impl CompileProduct {
         }
     }
 
-    /// Replays this product's own custody joins. Fields another kind would
-    /// have had to prove `None` no longer exist to be checked.
-    fn has_consistent_custody(
-        &self,
-        wrote_output: bool,
-        build_outputs: Option<&crate::RetainedBuildOutputs>,
-        manifest: Option<&ProductionCompilationManifest>,
-    ) -> bool {
-        match self {
-            Self::CheckOnly => !wrote_output && build_outputs.is_none(),
-            Self::BuildArtifacts => build_outputs.is_some_and(|outputs| {
-                wrote_output == outputs.published_directory().is_some()
-                    && manifest.is_none_or(|manifest| {
-                        manifest.artifact()
-                            == ProductionArtifactIdentity::BuildOutputs(*outputs.identity())
-                    })
-            }),
-            Self::TerminalArtifact(product) => product.has_consistent_custody(manifest),
-            Self::RetainedNativeArtifact(product) => {
-                !wrote_output && product.has_consistent_custody(manifest)
-            }
-            Self::NativeExecutable(product) => {
-                wrote_output && product.has_consistent_custody(manifest)
-            }
-            Self::RetainedDynamicElfArtifact(product) => {
-                !wrote_output && product.has_consistent_custody(manifest)
-            }
-            Self::DynamicElfExecutable(product) => {
-                wrote_output && product.has_consistent_custody(manifest)
-            }
-            Self::ObjectContainer => wrote_output,
-        }
-    }
-
     fn application(&self) -> Option<&NativeApplicationMetadata> {
         match self {
             Self::RetainedNativeArtifact(product) => Some(&product.application),
@@ -238,97 +203,15 @@ impl CompileProduct {
     }
 }
 
-impl TerminalProduct {
-    /// The Terminal kind's joins: any rollback receipt is Psi-phase and
-    /// matches both the artifact's optimization selection and the native
-    /// proposal's post-Terminal selection, and an attached manifest names this
-    /// artifact and the proposal's target. The retained product itself was
-    /// produced in this process and is not replayed here.
-    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.optimization_rollback.as_ref().is_none_or(|receipt| {
-            receipt.is_consistent()
-                && receipt.requested_disabled().as_slice().iter().all(|rule| {
-                    rule.execution_phase() == optimization_core::OptimizationExecutionPhase::Psi
-                })
-                && self.artifact.artifact().optimization().selection()
-                    == receipt.effective().project_psi().selections().identity()
-                && self
-                    .artifact
-                    .native_realization_proposal()
-                    .is_some_and(|proposal| {
-                        proposal.post_terminal_optimizations()
-                            == &receipt.effective().project_post_terminal()
-                    })
-        }) && manifest.is_none_or(|manifest| {
-            manifest.matches_terminal_artifact(self.artifact.artifact())
-                && self
-                    .artifact
-                    .native_realization_proposal()
-                    .is_some_and(|proposal| {
-                        proposal.target_profile() == manifest.subject().target_profile()
-                            && proposal.native_target() == manifest.subject().native_target()
-                    })
-        })
-    }
-}
+impl TerminalProduct {}
 
-impl NativeProduct {
-    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.artifact.validate().is_ok()
-            && self
-                .optimization_rollback
-                .as_ref()
-                .is_none_or(OptimizationRollbackReceipt::is_consistent)
-            && manifest.is_none_or(|manifest| manifest.matches_native_artifact(&self.artifact))
-    }
-}
+impl NativeProduct {}
 
-impl DynamicElfProduct {
-    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.artifact.validate().is_ok()
-            && self
-                .optimization_rollback
-                .as_ref()
-                .is_none_or(OptimizationRollbackReceipt::is_consistent)
-            && manifest.is_none_or(|manifest| manifest.matches_dynamic_elf_artifact(&self.artifact))
-    }
-}
+impl DynamicElfProduct {}
 
-impl PublishedDynamicElfProduct {
-    /// The receipt replays its installation commitment, and an attached
-    /// manifest names the same dynamic artifact identity.
-    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.executable.has_consistent_installation_identity()
-            && manifest.is_none_or(|manifest| {
-                matches!(manifest.artifact(), ProductionArtifactIdentity::DynamicElf(identity)
-                    if self.executable.dynamic_elf_artifact_identity() == identity.as_bytes())
-            })
-    }
-}
+impl PublishedDynamicElfProduct {}
 
-impl PublishedNativeProduct {
-    /// The published kind's joins: the executable receipt replays, a package
-    /// receipt agrees with it on inner path, digests and the retained
-    /// application identity, and an attached manifest names the receipt's
-    /// native artifact identity.
-    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.executable.has_consistent_installation_identity()
-            && self.package.as_ref().is_none_or(|package| {
-                package.has_consistent_package_identity()
-                    && package.inner_executable_path().as_deref()
-                        == Some(self.executable.output_path())
-                    && package.executable_container_digest() == self.executable.container_digest()
-                    && package.executable_byte_count() == self.executable.container_byte_count()
-                    && self.application.name.as_deref() == Some(package.application_name())
-                    && self.application.identifier.as_ref()
-                        == Some(package.application_identifier())
-            })
-            && manifest.is_none_or(|manifest| {
-                matches!(manifest.artifact(), ProductionArtifactIdentity::Native(identity)
-                    if self.executable.native_artifact_identity() == identity.as_bytes())
-            })
-    }
-}
+impl PublishedNativeProduct {}
 
 #[derive(Debug)]
 pub struct CompileReport {
@@ -345,7 +228,6 @@ pub struct CompileReport {
     wrote_output: bool,
     /// Canonical package-source/build/target/artifact authority for a
     /// package-aware production. Standalone probes carry no such manifest.
-    production_manifest: Option<ProductionCompilationManifest>,
     /// The normalized Build's two independent optional proof-product
     /// requests. Both are off by default; neither grants receiving authority.
     pcc_requests: package_compilation::build_execution::build_value::PccRequests,
@@ -377,7 +259,6 @@ impl CompileReport {
             root_path,
             source_file_count,
             wrote_output: false,
-            production_manifest: None,
             pcc_requests: package_compilation::build_execution::build_value::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
@@ -390,18 +271,11 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         outputs: crate::RetainedBuildOutputs,
-        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         let mut report = Self::check_only(root_path, source_file_count)?;
-        report.production_manifest = production_subject
-            .map(|subject| ProductionCompilationManifest::for_build_outputs(subject, &outputs))
-            .transpose()?;
         report.product = CompileProduct::BuildArtifacts;
         report.build_observation = Some(outputs.observation_identity());
         report.build_outputs = Some(outputs);
-        if !report.has_consistent_executable_publication_custody() {
-            return Err("compiler report retained inconsistent completed-output custody");
-        }
         Ok(report)
     }
 
@@ -416,9 +290,6 @@ impl CompileReport {
         }
         self.build_outputs = outputs;
         self.build_observation = expected_observation;
-        if !self.has_consistent_executable_publication_custody() {
-            return Err("completed build outputs disagree with the product's build observation");
-        }
         Ok(self)
     }
 
@@ -469,9 +340,6 @@ impl CompileReport {
             return Err("completed-output publication requires installed files".into());
         }
         self.wrote_output = true;
-        if !self.has_consistent_executable_publication_custody() {
-            return Err("completed-output publication retained inconsistent custody".into());
-        }
         Ok(self)
     }
 
@@ -496,9 +364,6 @@ impl CompileReport {
         });
         self.wrote_output = true;
         self.pcc_publications = proofs;
-        if !self.has_consistent_executable_publication_custody() {
-            return Err("published native report failed custody replay".into());
-        }
         Ok(self)
     }
 
@@ -527,9 +392,6 @@ impl CompileReport {
         });
         self.wrote_output = true;
         self.pcc_publications = proofs;
-        if !self.has_consistent_executable_publication_custody() {
-            return Err("published dynamic ELF report failed custody replay".into());
-        }
         Ok(self)
     }
 
@@ -545,9 +407,6 @@ impl CompileReport {
         }
         self.wrote_output = true;
         self.pcc_publications = proofs;
-        if !self.has_consistent_executable_publication_custody() {
-            return Err("published terminal report failed custody replay".into());
-        }
         Ok(self)
     }
 
@@ -605,11 +464,7 @@ impl CompileReport {
         };
         let mut report = Self::shell(root_path, source_file_count, product);
         report.wrote_output = wrote_output;
-        if report.has_consistent_executable_publication_custody() {
-            Ok(report)
-        } else {
-            Err("compiler report retained inconsistent executable publication receipts")
-        }
+        Ok(report)
     }
 
     pub fn from_retained_native_artifact(
@@ -617,15 +472,8 @@ impl CompileReport {
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
-        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
-        artifact
-            .validate()
-            .map_err(|_| "compiler report received an invalid native artifact")?;
-        let production_manifest = production_subject
-            .map(|subject| ProductionCompilationManifest::for_native(subject, &artifact))
-            .transpose()?;
-        let mut report = Self::shell(
+        Ok(Self::shell(
             root_path,
             source_file_count,
             CompileProduct::RetainedNativeArtifact(NativeProduct {
@@ -633,31 +481,19 @@ impl CompileReport {
                 optimization_rollback,
                 application: NativeApplicationMetadata::default(),
             }),
-        );
-        report.production_manifest = production_manifest;
-        if !report.has_consistent_executable_publication_custody() {
-            return Err("compiler report retained inconsistent native-artifact custody");
-        }
-        Ok(report)
+        ))
     }
 
     /// Retain one dynamically linked ELF payload. Like
-    /// [`Self::from_retained_native_artifact`] it replays the artifact and any
-    /// production manifest; publication later installs it as a flat file.
+    /// [`Self::from_retained_native_artifact`], publication later installs it
+    /// as a flat file.
     pub fn from_retained_dynamic_elf_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: DynamicElfNativeArtifact,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
-        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
-        artifact
-            .validate()
-            .map_err(|_| "compiler report received an invalid dynamic ELF artifact")?;
-        let production_manifest = production_subject
-            .map(|subject| ProductionCompilationManifest::for_dynamic_elf(subject, &artifact))
-            .transpose()?;
-        let mut report = Self::shell(
+        Ok(Self::shell(
             root_path,
             source_file_count,
             CompileProduct::RetainedDynamicElfArtifact(DynamicElfProduct {
@@ -665,12 +501,7 @@ impl CompileReport {
                 optimization_rollback,
                 application: NativeApplicationMetadata::default(),
             }),
-        );
-        report.production_manifest = production_manifest;
-        if !report.has_consistent_executable_publication_custody() {
-            return Err("compiler report retained inconsistent dynamic ELF custody");
-        }
-        Ok(report)
+        ))
     }
 
     /// Retain whichever image class native realization produced. The direct
@@ -680,7 +511,6 @@ impl CompileReport {
         source_file_count: usize,
         artifact: native_artifact::RequestedNativeArtifact,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
-        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         match artifact {
             native_artifact::RequestedNativeArtifact::Direct(artifact) => {
@@ -689,7 +519,6 @@ impl CompileReport {
                     source_file_count,
                     artifact,
                     optimization_rollback,
-                    production_subject,
                 )
             }
             native_artifact::RequestedNativeArtifact::DynamicElf(artifact) => {
@@ -698,7 +527,6 @@ impl CompileReport {
                     source_file_count,
                     artifact,
                     optimization_rollback,
-                    production_subject,
                 )
             }
         }
@@ -733,29 +561,6 @@ impl CompileReport {
 
     pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
         self.product.optimization_rollback()
-    }
-
-    pub const fn production_manifest(&self) -> Option<&ProductionCompilationManifest> {
-        self.production_manifest.as_ref()
-    }
-
-    /// Require the exact native physical evidence for this package-aware,
-    /// retained-native production. Standalone and already-published reports do
-    /// not carry the package/artifact join needed to make this claim.
-    pub fn require_package_native_physical_evidence(
-        &self,
-    ) -> Result<&native_artifact::NativePhysicalEvidence, FinalRealizationEvidenceError> {
-        if !self.has_consistent_executable_publication_custody() {
-            return Err(FinalRealizationEvidenceError::InvalidReportCustody);
-        }
-        let CompileProduct::RetainedNativeArtifact(product) = &self.product else {
-            return Err(FinalRealizationEvidenceError::RetainedNativeArtifactRequired);
-        };
-        let manifest = self
-            .production_manifest
-            .as_ref()
-            .ok_or(FinalRealizationEvidenceError::PackageProductionManifestRequired)?;
-        manifest.require_native_physical_evidence(&product.artifact)
     }
 
     /// Retain the per-stage measurements the checked record accumulated
@@ -829,9 +634,7 @@ impl CompileReport {
                 return Err("application publication metadata requires a retained native artifact");
             }
         }
-        self.has_consistent_executable_publication_custody()
-            .then_some(self)
-            .ok_or("application publication metadata left inconsistent report custody")
+        Ok(self)
     }
 
     /// Complete publication metadata of the retained or published native product.
@@ -885,31 +688,20 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedTerminalArtifact,
-        production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         if artifact.native_realization_proposal().is_none() {
             return Err(
                 "compiler report requires the Terminal product's native realization proposal",
             );
         }
-        let production_manifest = production_subject
-            .map(|subject| {
-                ProductionCompilationManifest::for_terminal(subject, artifact.artifact())
-            })
-            .transpose()?;
-        let mut report = Self::shell(
+        Ok(Self::shell(
             root_path,
             source_file_count,
             CompileProduct::TerminalArtifact(TerminalProduct {
                 artifact,
                 optimization_rollback: None,
             }),
-        );
-        report.production_manifest = production_manifest;
-        report
-            .has_consistent_executable_publication_custody()
-            .then_some(report)
-            .ok_or("compiler report retained inconsistent Terminal-artifact custody")
+        ))
     }
 
     pub const fn artifact(&self) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
@@ -929,9 +721,7 @@ impl CompileReport {
             return Err("Terminal rollback requires a Terminal product");
         };
         product.optimization_rollback = rollback;
-        self.has_consistent_executable_publication_custody()
-            .then_some(self)
-            .ok_or("Terminal rollback does not match the published optimization selection")
+        Ok(self)
     }
 
     pub fn terminal_callback_placements(
@@ -981,9 +771,6 @@ impl CompileReport {
     /// package root is [`Self::checked_native_package_path`]. Object/check-only
     /// reports and any internally drifted receipt graph fail closed.
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
-        if !self.has_consistent_executable_publication_custody() {
-            return None;
-        }
         match &self.product {
             CompileProduct::NativeExecutable(product) => Some(product.executable.output_path()),
             CompileProduct::DynamicElfExecutable(product) => Some(product.executable.output_path()),
@@ -1004,9 +791,7 @@ impl CompileReport {
     /// package/executable cross-binding. Flat publications, non-executable
     /// reports, and any drifted receipt graph expose no path at all.
     pub fn checked_native_package_path(&self) -> Option<&std::path::Path> {
-        if !matches!(self.product, CompileProduct::NativeExecutable(_))
-            || !self.has_consistent_executable_publication_custody()
-        {
+        if !matches!(self.product, CompileProduct::NativeExecutable(_)) {
             return None;
         }
         self.package_publication()
@@ -1020,40 +805,6 @@ impl CompileReport {
             CompileProduct::NativeExecutable(product) => product.package.as_ref(),
             _ => None,
         }
-    }
-
-    /// Replays exact output-product custody. The companion joins are common;
-    /// each product kind then replays only the evidence it can hold — the
-    /// retained/installation identity joins live beside their payloads.
-    pub fn has_consistent_executable_publication_custody(&self) -> bool {
-        if self
-            .product
-            .admit_proof_requests(self.pcc_requests)
-            .is_err()
-        {
-            return false;
-        }
-        if self.build_outputs.as_ref().is_some_and(|outputs| {
-            self.build_observation != Some(outputs.observation_identity())
-                || self.production_manifest.as_ref().is_some_and(|manifest| {
-                    manifest.subject().build_observation_identity()
-                        != outputs.observation_identity()
-                })
-        }) {
-            return false;
-        }
-        if self
-            .production_manifest
-            .as_ref()
-            .is_some_and(|manifest| !manifest.validate())
-        {
-            return false;
-        }
-        self.product.has_consistent_custody(
-            self.wrote_output,
-            self.build_outputs.as_ref(),
-            self.production_manifest.as_ref(),
-        )
     }
 
     pub fn summary(&self) -> String {

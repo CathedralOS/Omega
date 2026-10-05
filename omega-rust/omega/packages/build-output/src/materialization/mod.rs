@@ -1,13 +1,9 @@
-//! Materializing a retained tree onto the host filesystem, and verifying a
-//! directory an earlier compilation wrote against this tree's commitment.
+//! Materializing a retained tree onto the host filesystem.
 //!
-//! Materialization does not re-read what it just wrote: the writer and the
-//! verifier would be this same code on this same retained tree. The verifier
-//! is reached only through `BuildStagedOutputTree::verify_materialized_at`,
-//! whose subject is a content-addressed directory a *previous* compilation
-//! left on disk.
+//! Materialization does not re-read what it writes, and a content-addressed
+//! output set an earlier compilation left in the build directory is trusted
+//! by its name, not re-read.
 
-use crate::capture::{is_executable, same_file_observation};
 use crate::portable_paths::{
     canonical_relative_path, canonical_symlink_target, validate_portable_component,
 };
@@ -20,10 +16,7 @@ use crate::{
 };
 use diagnostics::Diagnostic;
 use sha2::Digest;
-use sha2::Sha256;
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::Read;
-use std::io::Seek;
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -31,7 +24,6 @@ pub(crate) fn materialize_retained_tree(
     tree: &BuildStagedOutputTree,
     destination: &Path,
 ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
-    validate_retained_tree(tree)?;
     validate_empty_destination(destination)?;
 
     for entry in &tree.entries {
@@ -194,262 +186,6 @@ fn validate_empty_destination(
             destination.display()
         ))),
     }
-}
-
-pub(crate) fn verify_materialized_tree(
-    root: &Path,
-    expected_tree: &BuildStagedOutputTree,
-) -> Result<(), BuildStagedOutputMaterializationError> {
-    let metadata = std::fs::symlink_metadata(root).map_err(|error| {
-        materialization_error(format!(
-            "cannot re-inspect staged-output destination `{}`: {error}",
-            root.display()
-        ))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(materialization_error(format!(
-            "staged-output destination `{}` changed from a concrete directory",
-            root.display()
-        )));
-    }
-
-    let expected = expected_tree
-        .entries
-        .iter()
-        .map(|entry| (entry.relative_path.as_slice(), &entry.kind))
-        .collect::<BTreeMap<_, _>>();
-    let mut observed_paths = BTreeSet::new();
-    let mut pending = vec![root.to_path_buf()];
-    let mut total_path_bytes = 0usize;
-    while let Some(directory) = pending.pop() {
-        let metadata = std::fs::symlink_metadata(&directory).map_err(|error| {
-            materialization_error(format!(
-                "cannot re-inspect materialized staged-output directory `{}`: {error}",
-                directory.display()
-            ))
-        })?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(materialization_error(format!(
-                "materialized staged-output directory `{}` changed kind",
-                directory.display()
-            )));
-        }
-        let children = std::fs::read_dir(&directory).map_err(|error| {
-            materialization_error(format!(
-                "cannot enumerate materialized staged-output directory `{}`: {error}",
-                directory.display()
-            ))
-        })?;
-        let mut bounded_children = Vec::new();
-        for child in children {
-            if observed_paths.len() + bounded_children.len() == MAX_STAGED_OUTPUT_ENTRIES {
-                return Err(materialization_error(format!(
-                    "materialized staged-output tree exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
-                )));
-            }
-            bounded_children.push(child.map_err(|error| {
-                materialization_error(format!(
-                    "cannot enumerate materialized staged-output directory `{}`: {error}",
-                    directory.display()
-                ))
-            })?);
-        }
-        bounded_children.sort_by_key(|entry| entry.file_name());
-        for child in bounded_children {
-            let path = child.path();
-            let relative_native = path.strip_prefix(root).map_err(|_| {
-                materialization_error(format!(
-                    "materialized staged-output entry `{}` escaped destination `{}`",
-                    path.display(),
-                    root.display()
-                ))
-            })?;
-            let relative_path = canonical_relative_path(relative_native, &path)
-                .map_err(materialization_diagnostics)?;
-            let expected_kind = expected.get(relative_path.as_slice()).ok_or_else(|| {
-                materialization_error(format!(
-                    "materialized staged-output entry `{}` is absent from retained content",
-                    path.display()
-                ))
-            })?;
-            if !observed_paths.insert(relative_path.clone()) {
-                return Err(materialization_error(format!(
-                    "materialized staged-output entry `{}` was observed more than once",
-                    path.display()
-                )));
-            }
-            total_path_bytes =
-                reserve_materialization_path_bytes(total_path_bytes, relative_path.len())?;
-            let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
-                materialization_error(format!(
-                    "cannot inspect materialized staged-output entry `{}`: {error}",
-                    path.display()
-                ))
-            })?;
-            match (*expected_kind, metadata.file_type()) {
-                (RetainedStagedOutputEntryKind::Directory, file_type) if file_type.is_dir() => {
-                    pending.push(path);
-                }
-                (RetainedStagedOutputEntryKind::File { bytes, executable }, file_type)
-                    if file_type.is_file() =>
-                {
-                    if metadata.len() != bytes.len() as u64
-                        || is_executable(&metadata) != *executable
-                    {
-                        return Err(materialization_error(format!(
-                            "materialized staged-output file `{}` disagrees with retained length or mode",
-                            path.display()
-                        )));
-                    }
-                    verify_materialized_file(&path, &metadata, bytes)?;
-                }
-                (RetainedStagedOutputEntryKind::Symlink { target }, file_type)
-                    if file_type.is_symlink() =>
-                {
-                    let observed_target = std::fs::read_link(&path).map_err(|error| {
-                        materialization_error(format!(
-                            "cannot read materialized staged-output symlink `{}`: {error}",
-                            path.display()
-                        ))
-                    })?;
-                    let observed_target =
-                        canonical_symlink_target(&observed_target, &relative_path, &path)
-                            .map_err(materialization_diagnostics)?;
-                    total_path_bytes = reserve_materialization_path_bytes(
-                        total_path_bytes,
-                        observed_target.len(),
-                    )?;
-                    if observed_target != *target {
-                        return Err(materialization_error(format!(
-                            "materialized staged-output symlink `{}` disagrees with retained spelling",
-                            path.display()
-                        )));
-                    }
-                }
-                _ => {
-                    return Err(materialization_error(format!(
-                        "materialized staged-output entry `{}` disagrees with retained kind",
-                        path.display()
-                    )));
-                }
-            }
-        }
-    }
-    if observed_paths.len() != expected.len() {
-        let missing = expected
-            .keys()
-            .find(|path| !observed_paths.contains(**path))
-            .expect("unequal retained and observed entry counts have one missing path");
-        return Err(materialization_error(format!(
-            "retained staged-output entry `{}` is missing after materialization",
-            String::from_utf8_lossy(missing)
-        )));
-    }
-    if commitment_for_retained_entries(&expected_tree.entries) != Some(expected_tree.commitment) {
-        return Err(materialization_error(
-            "materialized staged-output tree no longer verifies against its commitment",
-        ));
-    }
-    Ok(())
-}
-
-fn verify_materialized_file(
-    path: &Path,
-    path_metadata: &std::fs::Metadata,
-    expected: &[u8],
-) -> Result<(), BuildStagedOutputMaterializationError> {
-    let mut file = std::fs::File::open(path).map_err(|error| {
-        materialization_error(format!(
-            "cannot open materialized staged-output file `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    let before = file.metadata().map_err(|error| {
-        materialization_error(format!(
-            "cannot inspect opened materialized staged-output file `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    if !same_file_observation(path_metadata, &before) || before.len() != expected.len() as u64 {
-        return Err(materialization_error(format!(
-            "materialized staged-output file `{}` changed before verification",
-            path.display()
-        )));
-    }
-    let first = verify_materialized_reader(&mut file, expected, path)?;
-    file.rewind().map_err(|error| {
-        materialization_error(format!(
-            "cannot rewind materialized staged-output file `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    let second = verify_materialized_reader(&mut file, expected, path)?;
-    let after = file.metadata().map_err(|error| {
-        materialization_error(format!(
-            "cannot re-inspect materialized staged-output file `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    let final_path_metadata = std::fs::symlink_metadata(path).map_err(|error| {
-        materialization_error(format!(
-            "cannot re-inspect materialized staged-output path `{}`: {error}",
-            path.display()
-        ))
-    })?;
-    let expected_digest: [u8; 32] = Sha256::digest(expected).into();
-    if first != expected_digest
-        || second != expected_digest
-        || !same_file_observation(&before, &after)
-        || !same_file_observation(&after, &final_path_metadata)
-    {
-        return Err(materialization_error(format!(
-            "materialized staged-output file `{}` drifted during verification",
-            path.display()
-        )));
-    }
-    Ok(())
-}
-
-fn verify_materialized_reader(
-    reader: &mut std::fs::File,
-    expected: &[u8],
-    path: &Path,
-) -> Result<[u8; 32], BuildStagedOutputMaterializationError> {
-    let mut digest = Sha256::new();
-    let mut offset = 0usize;
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let read = reader.read(&mut buffer).map_err(|error| {
-            materialization_error(format!(
-                "cannot read materialized staged-output file `{}`: {error}",
-                path.display()
-            ))
-        })?;
-        if read == 0 {
-            break;
-        }
-        let end = offset.checked_add(read).ok_or_else(|| {
-            materialization_error(format!(
-                "materialized staged-output file `{}` length overflowed during verification",
-                path.display()
-            ))
-        })?;
-        if expected.get(offset..end) != Some(&buffer[..read]) {
-            return Err(materialization_error(format!(
-                "materialized staged-output file `{}` disagrees with retained bytes",
-                path.display()
-            )));
-        }
-        digest.update(&buffer[..read]);
-        offset = end;
-    }
-    if offset != expected.len() {
-        return Err(materialization_error(format!(
-            "materialized staged-output file `{}` changed length during verification",
-            path.display()
-        )));
-    }
-    Ok(digest.finalize().into())
 }
 
 pub(crate) fn retained_native_path(

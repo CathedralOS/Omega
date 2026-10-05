@@ -83,9 +83,6 @@ build companions. Proof pairs are prepared and verified before installing bytes.
 Platform custody owns file staging; native artifacts own executable/package
 receipts; package compilation owns completed-output installation.
 
-[production_manifest.rs](src/production_manifest.rs) binds a package-owned
-production subject to one artifact. [batch_manifest.rs](src/batch_manifest.rs)
-commits the configured target outcomes, not a target-support claim.
 [pcc.rs](src/pcc.rs) records published pair sizes and routes receiver checking
 to the Psi or native checker according to the decoded envelope.
 

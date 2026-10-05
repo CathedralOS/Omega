@@ -41,7 +41,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 source.and_then(|source| compile_target(&shared, target, source, &mut builds));
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
-        CompileOutcomes::new(outcomes)
+        Ok(CompileOutcomes::new(outcomes))
     })
 }
 

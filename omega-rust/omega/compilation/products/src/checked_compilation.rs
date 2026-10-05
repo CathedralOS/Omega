@@ -18,7 +18,6 @@ use provider_planning::ProviderSettlement;
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 
-mod production_subject;
 mod report;
 mod terminal;
 

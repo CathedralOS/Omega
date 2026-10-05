@@ -345,7 +345,7 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
     match activation.build_execution_profile() {
         Some(profile) => {
             out.push(1);
-            out.push(crate::production_subject::target_profile_tag(profile));
+            out.push(crate::target_profile_tags::target_profile_tag(profile));
         }
         None => out.push(0),
     }
@@ -416,7 +416,7 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
     let root_role = recover_optional(cursor, recover_declaration_kind)?;
     let build_execution_profile = match cursor.u8()? {
         0 => None,
-        1 => Some(crate::production_subject::recover_target_profile_tag(
+        1 => Some(crate::target_profile_tags::recover_target_profile_tag(
             cursor.u8()?,
         )?),
         _ => return None,
@@ -613,14 +613,14 @@ pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &m
     match request.build_execution_profile() {
         Some(profile) => {
             out.push(1);
-            out.push(crate::production_subject::target_profile_tag(profile));
+            out.push(crate::target_profile_tags::target_profile_tag(profile));
         }
         None => out.push(0),
     }
     match request.selected_target_profile() {
         Some(profile) => {
             out.push(1);
-            out.push(crate::production_subject::target_profile_tag(profile));
+            out.push(crate::target_profile_tags::target_profile_tag(profile));
         }
         None => out.push(0),
     }
@@ -669,14 +669,14 @@ pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<Restricte
     };
     let build_execution_profile = match cursor.u8()? {
         0 => None,
-        1 => Some(crate::production_subject::recover_target_profile_tag(
+        1 => Some(crate::target_profile_tags::recover_target_profile_tag(
             cursor.u8()?,
         )?),
         _ => return None,
     };
     let selected_target_profile = match cursor.u8()? {
         0 => None,
-        1 => Some(crate::production_subject::recover_target_profile_tag(
+        1 => Some(crate::target_profile_tags::recover_target_profile_tag(
             cursor.u8()?,
         )?),
         _ => return None,

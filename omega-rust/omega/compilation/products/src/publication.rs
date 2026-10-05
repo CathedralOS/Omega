@@ -19,8 +19,8 @@ pub fn publish_compilation(
     report: CompileReport,
     build_dir: &Path,
 ) -> Result<CompileReport, String> {
-    if report.wrote_output() || !report.has_consistent_executable_publication_custody() {
-        return Err("publication requires an unpublished product with consistent custody".into());
+    if report.wrote_output() {
+        return Err("publication requires an unpublished product".into());
     }
     let mut report = match report.output_kind() {
         CompileOutputKind::RetainedNativeArtifact => native::publish(report, build_dir)?,

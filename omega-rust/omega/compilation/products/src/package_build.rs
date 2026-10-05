@@ -5,7 +5,7 @@
 //! consumers. If an actual independent product is requested, its retained typed
 //! continuation proceeds to final checking without executing the Build again.
 
-use crate::{BuildEvaluationAccounting, ComputedBuildConfig, PreparedBuild};
+use crate::{ComputedBuildConfig, PreparedBuild};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
@@ -20,8 +20,6 @@ pub struct PackageBuildOutcome {
     pub result: Result<PreparedPackageBuild, Vec<Diagnostic>>,
     /// Retained source preparation belongs to this invocation, not its acceptance.
     pub prepared_source: Option<crate::PreparedCheckedSource>,
-    /// Preserve completed execution accounting even when output sealing fails.
-    pub build_accounting: BuildEvaluationAccounting,
 }
 
 pub struct PreparedPackageBuild {

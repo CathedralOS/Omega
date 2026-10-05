@@ -573,11 +573,6 @@ fn captured_os_str_bytes(name: &std::ffi::OsStr) -> Option<Vec<u8>> {
     Some(name.as_bytes().to_vec())
 }
 
-#[cfg(not(unix))]
-fn captured_os_str_bytes(name: &std::ffi::OsStr) -> Option<Vec<u8>> {
-    name.to_str().map(|name| name.as_bytes().to_vec())
-}
-
 #[cfg(unix)]
 fn set_captured_dir_mode(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
     use std::os::unix::fs::PermissionsExt;
@@ -662,11 +657,6 @@ fn validate_captured_executable_mode(
 fn captured_file_is_executable(metadata: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
     metadata.permissions().mode() & 0o111 != 0
-}
-
-#[cfg(not(unix))]
-fn captured_file_is_executable(_metadata: &std::fs::Metadata) -> bool {
-    false
 }
 
 fn materialization_error(message: impl Into<String>) -> CapturedSourceMaterializationError {

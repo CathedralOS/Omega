@@ -5,15 +5,15 @@
 //! back is the only way the Terminal and native stage sequences turn their
 //! produced artifact into a report. Check and artifact-only builds finish
 //! inside the admission itself. Nothing downstream re-admits the stop or
-//! re-decorates the report: the production subject, application metadata,
-//! proof-product context, completed build outputs and
+//! re-decorates the report: application metadata, proof-product context,
+//! completed build outputs and
 //! timing snapshot are all captured here, before the stage sequence consumes
 //! the checked record.
 
 use super::CheckedCompilation;
 use crate::{
-    CompileOutputKind, CompileReport, ProductionCompilationSubject, RequestedCompileProduct,
-    RetainedBuildOutputs, RetainedTerminalArtifact,
+    CompileOutputKind, CompileReport, RequestedCompileProduct, RetainedBuildOutputs,
+    RetainedTerminalArtifact,
 };
 use artifacts::compile_timings::PhaseTiming;
 use diagnostics::Diagnostic;
@@ -37,10 +37,6 @@ pub struct CompileReportSettlement {
     expected_kind: CompileOutputKind,
     root_path: PathBuf,
     source_file_count: usize,
-    /// The package production subject settled before lowering, or `None` for a
-    /// compilation without package custody. Production never reconstructs it
-    /// from the checked record it is consuming.
-    production_subject: Option<ProductionCompilationSubject>,
     pcc_requests: PccRequests,
     application: NativeApplicationMetadata,
     build_outputs: Option<RetainedBuildOutputs>,
@@ -76,12 +72,7 @@ impl CheckedCompilation {
             )?;
             // A check never acquires completed output files.
             return CompileReport::check_only(root_path, source_file_count)
-                .map(|report| {
-                    CheckedProductReport::Complete(
-                        report
-                            .with_timings(timings),
-                    )
-                })
+                .map(|report| CheckedProductReport::Complete(report.with_timings(timings)))
                 .map_err(diagnostics);
         }
         // Preserve the checked route's refusal order: completed-file custody
@@ -92,19 +83,9 @@ impl CheckedCompilation {
         if artifact_only {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
-            return CompileReport::from_build_outputs(
-                root_path,
-                source_file_count,
-                outputs,
-                self.production_subject()?,
-            )
-            .map(|report| {
-                CheckedProductReport::Complete(
-                    report
-                        .with_timings(timings),
-                )
-            })
-            .map_err(diagnostics);
+            return CompileReport::from_build_outputs(root_path, source_file_count, outputs)
+                .map(|report| CheckedProductReport::Complete(report.with_timings(timings)))
+                .map_err(diagnostics);
         }
         let terminal = requested == RequestedCompileProduct::TerminalArtifact;
         if !terminal {
@@ -122,9 +103,6 @@ impl CheckedCompilation {
             },
             root_path,
             source_file_count,
-            // Package production custody is required before the artifact
-            // exists, not after a produced report fails to carry a manifest.
-            production_subject: self.production_subject()?,
             pcc_requests,
             application: self.build_admission().native_application_metadata(
                 &self.build().config.settings,
@@ -143,13 +121,6 @@ impl CheckedCompilation {
 }
 
 impl CompileReportSettlement {
-    /// The production subject this admission settled. A route that assembles
-    /// its own intermediate product reuses this exact custody rather than
-    /// reconstructing it from the checked record production has consumed.
-    pub const fn production_subject(&self) -> Option<&ProductionCompilationSubject> {
-        self.production_subject.as_ref()
-    }
-
     /// Production legs that extend the checked record's ladder after this
     /// settlement's snapshot replace it, so the finished report carries the
     /// post-production row set.
@@ -170,7 +141,6 @@ impl CompileReportSettlement {
             self.root_path.clone(),
             self.source_file_count,
             artifact,
-            self.production_subject.clone(),
         )
         .and_then(|report| report.with_terminal_optimization_rollback(rollback))
         .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
@@ -192,7 +162,6 @@ impl CompileReportSettlement {
             self.source_file_count,
             artifact,
             rollback,
-            self.production_subject.clone(),
         )
         .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
         .and_then(|report| report.with_application_metadata(self.application.clone()))
@@ -217,8 +186,7 @@ impl CompileReportSettlement {
                 } else {
                     report.timings().to_vec()
                 };
-                report
-                    .with_timings(timings)
+                report.with_timings(timings)
             })
             .map_err(diagnostics)
     }

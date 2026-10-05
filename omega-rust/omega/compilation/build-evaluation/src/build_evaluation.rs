@@ -7,7 +7,6 @@
 use crate::PureBuildCompilation;
 use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
-use compilation_products::BuildEvaluationAccounting;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
@@ -46,7 +45,6 @@ pub struct BuildEvaluationRequest<'request> {
 /// retains the admitted source commitment, not reusable grants or a live activation.
 pub struct EvaluatedBuild {
     pub configuration: Arc<crate::ComputedBuildConfig>,
-    pub accounting: BuildEvaluationAccounting,
     pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
 }
@@ -116,7 +114,6 @@ pub fn evaluate_build(
                 selected_build_machine_symbol: None,
                 generated_sources: Vec::new(),
             }),
-            accounting: BuildEvaluationAccounting::Unreported,
             restricted_build_requests: Vec::new(),
             base_source_consumption_commitment,
         });
@@ -161,7 +158,7 @@ pub fn evaluate_build(
     // Product bindings and target custody may differ, so neither a whole
     // checked result nor an old grant is reusable. Fresh admission above fixes
     // the current checked Build meaning; exact equality below permits only its
-    // completed Pure value to be consumed with a new current-account charge.
+    // completed Pure value to be reused.
     let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot);
     let reusable = inputs
         .as_ref()
@@ -169,40 +166,22 @@ pub fn evaluate_build(
         .map(|(inputs, owner)| owner.matching_configuration(inputs))
         .transpose()?
         .flatten();
-    let (configuration, accounting) = if let Some(configuration) = reusable {
-        let sponsor = evaluation_sponsor.as_ref().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "completed Pure Build consumption requires a current evaluation sponsor",
-            )]
-        })?;
-        let usage = configuration.evaluation_usage.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "completed Pure Build is missing its producing usage",
-            )]
-        })?;
-        let receipt = sponsor
-            .charge_retained_pure_usage(usage)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+    let configuration = if let Some(configuration) = reusable {
         admitted
             .filesystem_scope
             .captured_snapshot_release()
             .release();
-        (configuration, BuildEvaluationAccounting::Consumed(receipt))
+        configuration
     } else {
         let configuration = Arc::new(admitted.execute()?);
         if let Some((inputs, owner)) = inputs.zip(pure_build_compilation) {
             owner.retain_completed(inputs, Arc::clone(&configuration))?;
         }
-        let accounting = configuration
-            .evaluation_usage
-            .map(BuildEvaluationAccounting::Executed)
-            .unwrap_or_default();
-        (configuration, accounting)
+        configuration
     };
     drop(restricted_build_grants);
     Ok(EvaluatedBuild {
         configuration,
-        accounting,
         restricted_build_requests,
         base_source_consumption_commitment,
     })

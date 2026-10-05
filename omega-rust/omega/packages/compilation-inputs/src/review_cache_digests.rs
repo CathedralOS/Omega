@@ -192,11 +192,13 @@ fn hash_dependency_closure(digest: &mut Sha256, closure: &PackageDependencyClosu
 fn hash_generated_bundle(digest: &mut Sha256, bundle: &PackageGeneratedSourceBundle) {
     digest.update(bundle.package().digest());
     digest.update([purpose_tag(bundle.purpose())]);
-    digest.update([crate::production_subject::target_profile_tag(
+    digest.update([crate::target_profile_tags::target_profile_tag(
         bundle.target(),
     )]);
     match bundle.build_execution_profile() {
-        Some(profile) => digest.update([1, crate::production_subject::target_profile_tag(profile)]),
+        Some(profile) => {
+            digest.update([1, crate::target_profile_tags::target_profile_tag(profile)])
+        }
         None => digest.update([0]),
     };
     hash_dependency_closure(digest, bundle.dependency_closure());

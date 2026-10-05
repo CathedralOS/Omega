@@ -119,7 +119,7 @@ root-policy replay. Re-entry binds the retained production report to the accepte
 root's dependency closure, consumed sources, selected build machine,
 invocation-local evaluation usage, build observations, and target. Aggregate
 sponsor/session peaks remain orchestration custody, not invocation identity.
-Retained profile/native target and production subject must agree. A constructed
+A constructed
 policy, reconstructed proposal, or Terminal module cannot grant package admission.
 When receiver admission is requested, its exact policy version and strong
 commitment survive admission replay against the native artifact. Ordinary

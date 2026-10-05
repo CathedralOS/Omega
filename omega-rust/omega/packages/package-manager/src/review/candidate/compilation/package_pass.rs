@@ -797,7 +797,6 @@ impl ClosurePass<'_> {
             result: checked,
             prepared_source: mut retained,
             independent_components: component_discovery,
-            build_accounting: _,
         } = outcome;
         let (checked, occurrence_inputs) = match checked {
             Ok(checked) => (checked, unanswered_inputs),
