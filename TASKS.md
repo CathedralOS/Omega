@@ -2492,26 +2492,6 @@ lands alone with its corpus slice unchanged and no fallback path.
   `tests/omega/fail/capabilities/provider_widens_requirement_ceiling` still
   reject from Psi, and the provider corpus slice is unchanged.
 
-- **SERVICE-CUSTODY-DELETED.** (new-scope)
-  `omega-rust/omega/compilation/products/src/checked_compilation/terminal.rs::admit_terminal_production`
-  calls:
-  - `validate_fused_service_terminal_custody`
-    (`omega-rust/omega/compilation/realization/selected-dispatch/src/service_custody/`),
-    which re-joins checking's erasure receipts to plans settlement just
-    authorized;
-  - `validate_selected_operator_terminal_custody`, an unsupported crash-site
-    shape gate;
-  - `verify_selected_compositions_are_realized`
-    (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/composition_modes.rs`),
-    which re-rejects `Independent` modes that settlement already rejected.
-
-  Delete the custody validator, report the operator shape gap from lowering
-  where it arises, and drop the duplicate composition check. Acceptance:
-  `service_custody/` holds only `root.rs`'s establishment derivation; the
-  operator crash-site fail fixtures (e.g.
-  `tests/omega/fail/operators/selected_crash_invocation`) keep their
-  diagnostics; the native corpus is unchanged.
-
 - **ADMISSIONS-FILE-DELETED.** (new-scope) Delete the `omega.admissions`
   file and the `trust-ledger` crate. Owner ruling 2026-10-03: `omega.lock` is
   the one acceptance record; a second admissions file was never sanctioned

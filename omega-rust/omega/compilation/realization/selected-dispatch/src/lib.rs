@@ -34,7 +34,6 @@ pub use intrinsic_review::{
 
 pub use service_custody::{
     derive_fused_program_entry_establishments, program_entry_service_requirements,
-    validate_fused_service_terminal_custody,
 };
 
 pub use selected_dispatch::{
@@ -44,5 +43,5 @@ pub use selected_dispatch::{
     derive_checked_specialized_operator_application_realizations,
     derive_selected_compiler_intrinsic_execution_identity,
     derive_selected_primitive_float_binary_execution, settle_selected_comparison_execution,
-    settle_selected_execution_dispatch, validate_selected_operator_terminal_custody,
+    settle_selected_execution_dispatch,
 };

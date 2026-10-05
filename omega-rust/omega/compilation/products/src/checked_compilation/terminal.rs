@@ -36,11 +36,6 @@ impl CheckedCompilation {
                 "terminal-artifact production requires one exact selected program entry",
             )]
         })?;
-        selected_dispatch::validate_selected_operator_terminal_custody(self)?;
-        selected_dispatch::validate_fused_service_terminal_custody(
-            self,
-            execution.selected_provider_provenance.as_slice(),
-        )?;
         Ok(entry)
     }
 

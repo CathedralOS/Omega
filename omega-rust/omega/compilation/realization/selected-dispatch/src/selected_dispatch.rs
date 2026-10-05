@@ -28,7 +28,6 @@ pub use operator_adapter::{
     CheckedSpecializedOperatorApplicationRealization,
     derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
-    validate_selected_operator_terminal_custody,
 };
 
 /// Settle selected execution for the checked program the caller hands over.
