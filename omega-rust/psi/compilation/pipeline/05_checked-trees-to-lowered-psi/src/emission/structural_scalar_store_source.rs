@@ -1,8 +1,5 @@
 //! Independent source occurrence custody for ordered projected scalar stores.
-use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    unsupported,
-};
+use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
@@ -43,46 +40,6 @@ pub(crate) fn local_destination<'a>(
         return unsupported("record store lost its earlier structural declaration");
     }
     Ok(local)
-}
-
-/// A `Local` store destination roots two ways: an owned structural local
-/// (`let mut`) is its own root with an empty prefix, while a borrowed-view
-/// local writes through its loan — the authored target resolves through
-/// that same loan, so the destination's path continues the place the view's
-/// own initializer resolves to. Returns the path prefix the store's carrier
-/// path completes.
-pub(crate) fn local_store_destination(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::state::State,
-    state_symbol: symbols::SymbolHandle,
-    statement: u32,
-    symbol: symbols::SymbolHandle,
-) -> Result<Vec<CheckedUnitStructuralPathSegment>, LoweringError> {
-    let local = local_destination(checked, state, statement, symbol)?;
-    if !matches!(
-        checked.expression_table.expression(local.initial_value),
-        ExpressionNode::Borrow(_) | ExpressionNode::Cast(_)
-    ) {
-        return Ok(Vec::new());
-    }
-    let statements = checked.statement_table.statements(state.statement_nodes);
-    let declaration = statements
-        .iter()
-        .position(|statement| {
-            matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "record store has no source local",
-        ))?;
-    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine,
-        state_symbol,
-        Some(declaration),
-        local.initial_value,
-    )?;
-    Ok(source.path)
 }
 
 /// Select a computation only through its exact authored assignment coordinate.

@@ -6,7 +6,7 @@ use checked_trees::CheckedScalarCaseConstruction;
 use checked_trees::CheckedTrees;
 use language_semantics::Multiplicity;
 type Computation = checked_trees::CheckedScalarComputationHandle;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 
 pub(crate) fn construction(
     checked: &CheckedTrees,
@@ -39,42 +39,4 @@ pub(crate) fn construction(
         .zip(retained)
         .map(|((_, expression, _), field)| (expression, field.value))
         .collect())
-}
-
-/// Whether statement `index` is an erased runtime-indexed dispatch subject: an
-/// immutable shared borrow followed by nothing but transitions. It plans no
-/// operation of its own.
-pub(crate) fn is_erased_dispatch_subject(
-    checked: &CheckedTrees,
-    statements: &[checked_trees::statement::StatementNode],
-    index: usize,
-) -> bool {
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) = statements.get(index)
-    else {
-        return false;
-    };
-    !local.is_mutable
-        && local.symbol.is_valid()
-        && matches!(
-            checked.expression_table.expression(local.initial_value),
-            ExpressionNode::Borrow(borrow)
-                if borrow.access == language_core::ReferenceAccess::Shared
-                    && matches!(
-                        checked.expression_table.expression(borrow.target),
-                        ExpressionNode::Indexed(indexed)
-                            if checked
-                                .expression_table
-                                .constant_integer_value(indexed.index)
-                                .is_none()
-                    )
-        )
-        && statements.get(index + 1..).is_some_and(|arms| {
-            !arms.is_empty()
-                && arms.iter().all(|statement| {
-                    matches!(
-                        statement,
-                        checked_trees::statement::StatementNode::Transition(_)
-                    )
-                })
-        })
 }

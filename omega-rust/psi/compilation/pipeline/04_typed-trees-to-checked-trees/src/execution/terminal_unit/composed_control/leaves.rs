@@ -18,7 +18,8 @@ pub(super) fn build(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
 ) -> Option<CheckedComposedUnitControlStatePlan> {
-    let [statement] = program.statement_table.statements(state.statement_nodes) else {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let [statement] = statements else {
         return None;
     };
     if !matches!(statement, StatementNode::Call(_))
@@ -97,6 +98,13 @@ pub(super) fn build(
         binding_initializers: Vec::new(),
         operations: vec![operation],
         terminator: CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+        terminator_statement_ordinal: u32::try_from(
+            super::super::state_graph::terminator_statement_index(
+                statements,
+                &checked_trees::CheckedControlResultPlan::Unit,
+            ),
+        )
+        .ok()?,
     })
 }
 

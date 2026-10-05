@@ -137,6 +137,12 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
     pub terminator: CheckedComposedUnitControlTerminatorPlan,
+    /// The authored statement where `terminator` begins: the state's first
+    /// transition, or the final expression that completes a value-returning
+    /// state. A body with neither completes after its last statement, so the
+    /// ordinal is the statement count. Each terminator arm reads its authored
+    /// transition at this ordinal plus its arm position.
+    pub terminator_statement_ordinal: u32,
     pub normal_exit_cleanups: Vec<super::CheckedNormalExitCleanupPlan>,
 }
 

@@ -166,61 +166,6 @@ pub(super) fn validate_composed_establishment(
     Ok(())
 }
 
-/// A reference result's release in a composed state replays the weakening
-/// the borrow checker recorded for the producing call's loan: the release
-/// must pair with the unique earlier `StructuralCall` carrying that loan
-/// under the same binding, at exactly the recorded boundary statement.
-pub(super) fn validate_composed_release(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    release_index: usize,
-    binding_ordinal: u32,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
-    statement_index: u32,
-) -> Result<(), LoweringError> {
-    let mut producers = state
-        .operations
-        .iter()
-        .enumerate()
-        .filter(|(index, operation)| {
-            *index < release_index
-                && ordinary_structural_result(operation).is_some_and(|(result, custody)| {
-                    result.binding_ordinal == binding_ordinal && custody.reference_loan == loan
-                })
-        });
-    let Some((producer_index, _)) = producers.next() else {
-        return unsupported("reference release has no retained result loan");
-    };
-    if producers.next().is_some() {
-        return unsupported("reference release pairs with more than one result loan");
-    }
-    let boundary = validation::reference_result_custody::release_statement(
-        &checked.facts,
-        machine,
-        state.state,
-        loan,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "reference carrier has no exact weakening boundary",
-    ))?;
-    if boundary != statement_index || release_index <= producer_index {
-        return unsupported("reference release differs from captured weakening");
-    }
-    // The boundary is before the first source operation at that statement,
-    // never merely a matching coordinate emitted after a conflicting read.
-    if state.operations[producer_index + 1..release_index]
-        .iter()
-        .any(|operation| {
-            super::statement_custody::source_statement(operation)
-                .is_some_and(|statement| statement >= boundary)
-        })
-    {
-        return unsupported("reference loan release follows an already resumed source statement");
-    }
-    Ok(())
-}
-
 pub(super) fn validate_releases(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
@@ -281,7 +226,8 @@ pub(super) fn validate_releases(
         if machine.operations[index + 1..release_index]
             .iter()
             .any(|operation| {
-                super::statement_custody::source_statement(operation)
+                operation
+                    .source_statement_index()
                     .is_some_and(|statement| statement >= boundary)
             })
         {

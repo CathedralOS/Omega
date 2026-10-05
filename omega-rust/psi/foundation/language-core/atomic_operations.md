@@ -31,13 +31,13 @@ sealed operation, the accessed place, and the authored operands. Checking
 plans one `CheckedAtomicAccessPlan` per operation (typed-trees-to-checked-trees
 `execution/terminal_unit/atomic_operations.rs`): a writing carrier's result
 placeholder reserves the dense binding the event binds to the observed prior,
-and each operand keeps its own `AtomicOperand` scalar row. Lowering rejoins
-the plan to the carrier (`emission/atomic_sources.rs`) and emits one Terminal
-`AtomicAccess` on a record's scalar field, the location a scalar field store
-names (terminal-psi `control_flow/atomic.rs`). The codec, independent
-verifier (`validation/atomic_access.rs`) and interpreter consume that event;
-the verifier refuses illegal orderings, runtime-selected locations, bounded
-fields, mistyped operands or results, and events on ordinary scalar storage.
+and each operand keeps its own `AtomicOperand` scalar row. Lowering emits
+the plan as one Terminal `AtomicAccess` on a record's scalar field, the
+location a scalar field store names (terminal-psi `control_flow/atomic.rs`).
+The codec, independent verifier (`validation/atomic_access.rs`) and
+interpreter consume that event; the verifier refuses illegal orderings,
+runtime-selected locations, bounded fields, mistyped operands or results, and
+events on ordinary scalar storage.
 `StructuralFieldType::Atomic` retains dedicated-cell identity separately from
 its scalar carrier. Shared loans authorize these events, not ordinary stores
 or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.

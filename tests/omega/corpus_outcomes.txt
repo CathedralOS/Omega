@@ -2275,8 +2275,8 @@ pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
 pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
-pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1141ms @cfe60a3a242
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph dropped or added a body effect"))
+pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 2294ms @bb72b3c36cfc
+	terminal-artifact production failed: Lowering(Unsupported("Unit structural argument is neither a parameter nor a supported literal"))
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt

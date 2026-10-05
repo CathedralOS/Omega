@@ -191,6 +191,28 @@ fn fused_target_index(
         .position(|(_, state)| state.symbol == entry.symbol)
 }
 
+/// The authored statement where a state's terminator begins: its first
+/// transition, or the final expression that completes a value-returning
+/// state. Only that final expression completes the state; earlier Unit calls
+/// are ordinary operations even when their source nodes are expressions, so
+/// they stay in the statement sequence with their call occurrences in order.
+/// A body with neither completes after its last statement.
+pub(in crate::execution::terminal_unit) fn terminator_statement_index(
+    statements: &[StatementNode],
+    result: &checked_trees::CheckedControlResultPlan,
+) -> usize {
+    statements
+        .iter()
+        .enumerate()
+        .position(|(statement_index, statement)| {
+            matches!(statement, StatementNode::Transition(_))
+                || (*result != checked_trees::CheckedControlResultPlan::Unit
+                    && statement_index + 1 == statements.len()
+                    && matches!(statement, StatementNode::Expression(_)))
+        })
+        .unwrap_or(statements.len())
+}
+
 /// `build` with a trace of the phase, state, and statement where the general
 /// state-graph route stopped when it declines a body.
 ///
@@ -562,20 +584,8 @@ fn build_traced_with(
         let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
         bindings.truncate(binding_initializers.len());
         let binding_count = bindings.len();
-        // Only a final expression completes a value-returning state. Earlier
-        // Unit calls are ordinary operations, even when their source nodes
-        // are expressions. Keep them in the shared statement sequence so
-        // their call occurrences and following operations remain in order.
-        let terminator_index = statements
-            .iter()
-            .enumerate()
-            .position(|(statement_index, statement)| {
-                matches!(statement, StatementNode::Transition(_))
-                    || (result != checked_trees::CheckedControlResultPlan::Unit
-                        && statement_index + 1 == statements.len()
-                        && matches!(statement, StatementNode::Expression(_)))
-            })
-            .unwrap_or(statements.len());
+        let terminator_index = terminator_statement_index(statements, &result);
+        let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
@@ -759,6 +769,7 @@ fn build_traced_with(
             binding_initializers,
             operations,
             terminator,
+            terminator_statement_ordinal,
         });
     }
     // Persistent receivers keep their invocation place. Other structural

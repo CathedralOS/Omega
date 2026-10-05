@@ -2453,8 +2453,10 @@ check corpus and the native corpus unchanged on the slices it names.
   it receives:
   - `.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission/`
     and `admission.rs`;
-  - `unit/attached_unit/statement_custody.rs`;
   - `unit/dynamic_composed_unit/plan_validation.rs`;
+  - the terminator, edge and case checks against source in
+    `unit/attached_unit/composed_control/state_graph/admission.rs` (the
+    state body rejoin is gone; the terminator ordinal is a plan field);
   - every refusal whose message asserts a stage 04 invariant ("disagrees
     with its checked …", "omits or duplicates", "declared more than once",
     "not canonical source order", "substituted", "rejoin"). The standalone
@@ -3596,8 +3598,12 @@ deletions, which its commit lists.
   - Encoded-storage references:
     `tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit`
     (helpers write -128 and 127 through a legal `&mut i64` loan to signed
-    eight-bit storage; neighboring byte 85 must survive) fails in lowering
-    with a dropped/added body effect at the recast alias. Reference formation
+    eight-bit storage; neighboring byte 85 must survive) fails in stage 05
+    call emission: stage 04 plans `set(leaf, -128)`'s argument as a
+    `StructuralLocal` naming `leaf`, which has no storage home because it is
+    an exclusive place loan derived from the recast `view`, so
+    `attached_unit/parameters.rs` refuses "Unit structural argument is
+    neither a parameter nor a supported literal". Reference formation
     and transport must carry the actual backing address together with its
     canonical storage encoding, correlated through calls, joins, returns,
     recursion and reference-bearing records (specialization alone cannot

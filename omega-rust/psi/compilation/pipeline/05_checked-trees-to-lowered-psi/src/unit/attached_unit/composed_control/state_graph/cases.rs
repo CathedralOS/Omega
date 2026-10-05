@@ -4,20 +4,8 @@ use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsuppor
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
 use checked_trees::data::DataMember;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
-
-fn root(
-    checked: &CheckedTrees,
-    expression: ExpressionHandle,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    matches!(checked.expression_table.expression(expression), ExpressionNode::Name(path)
-        if path.head_symbol == symbol
-            && path.symbol == symbol
-            && checked.expression_table.name_path_members(path.members).len() == 1)
-}
 
 /// The sum a Unit case dispatch reads.
 #[derive(Clone, Copy)]
@@ -194,130 +182,6 @@ fn result_source<'a>(
         return unsupported("Unit case lacks exact plain non-linear sum custody");
     }
     Ok((symbol, declaration, provenance))
-}
-
-pub(super) fn validate_markers(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    end: usize,
-) -> Result<usize, LoweringError> {
-    if !matches!(
-        state.terminator,
-        CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
-    ) {
-        return Ok(0);
-    }
-    let (subject, declaration, _) = result_source(checked, machine, source, state)?;
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    // Marker lets are parsed as the contiguous run immediately ahead of the
-    // dispatch's first arm statement — the same convention the checker uses
-    // (04_typed-trees' `closed_sum` finds them by trailing run). Operation
-    // counts cannot locate the window: one authored statement may plan
-    // several effect operations, so `bindings + operations` overruns `end`.
-    let start = statements[..end]
-        .iter()
-        .rposition(|statement| {
-            !matches!(statement, StatementNode::LocalData(local)
-                if local.name.as_str().starts_with("__arm_destructure#V="))
-        })
-        .map_or(0, |index| index + 1);
-    let markers = statements
-        .get(start..end)
-        .ok_or(LoweringError::Unsupported("Unit case body roster drifted"))?;
-    // A computed subject has no place for a marker to re-read; its payload
-    // reads are the subject copies `validate` rejoins arm by arm.
-    let Some(result_symbol) = subject.place() else {
-        if !markers.is_empty() {
-            return unsupported("Unit case computed subject carries destructure markers");
-        }
-        return Ok(0);
-    };
-    let mut spelled_fields = Vec::new();
-    for statement in markers {
-        let StatementNode::LocalData(local) = statement else {
-            return unsupported("Unit case skipped a source effect");
-        };
-        let Some(encoded) = local.name.as_str().strip_prefix("__arm_destructure#V=") else {
-            return unsupported("Unit case skipped a non-marker local");
-        };
-        let Some((variant_name, fields)) = encoded.split_once('#') else {
-            return unsupported("Unit case marker has no declared case");
-        };
-        let variant = checked
-            .data_members(declaration)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.name.as_str() == variant_name => {
-                    Some(variant)
-                }
-                _ => None,
-            })
-            .ok_or(LoweringError::Unsupported(
-                "Unit case marker names an unknown case",
-            ))?;
-        let Some((fields, suffix)) = fields.split_once("~subject=") else {
-            return unsupported("Unit case marker lost its subject");
-        };
-        let fields = fields
-            .trim_end_matches('#')
-            .split('#')
-            .filter(|field| !field.is_empty())
-            .collect::<Vec<_>>();
-        let (subject, rest) = suffix
-            .split_once('#')
-            .map_or((suffix, false), |(subject, tail)| {
-                (subject, tail == "~rest")
-            });
-        let declared = checked.data_payload_fields(variant);
-        if local.is_mutable
-            || !root(checked, local.initial_value, result_symbol)
-            || subject.parse::<u32>().is_err()
-            || fields.iter().enumerate().any(|(position, field)| {
-                fields[..position].contains(field)
-                    || !declared
-                        .iter()
-                        .any(|declaration| declaration.name.as_str() == *field)
-            })
-            || (!rest && fields.len() != declared.len())
-        {
-            return unsupported("Unit case destructure marker disagrees with source declaration");
-        }
-        for field_name in fields {
-            let field = declared
-                .iter()
-                .find(|field| field.name.as_str() == field_name)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit case destructure field missing",
-                ))?;
-            let field_identity = field.path_identity();
-            let spelling = (variant.path_identity(), field_identity);
-            if spelled_fields.contains(&spelling) {
-                return unsupported("Unit case duplicated a destructure marker field");
-            }
-            spelled_fields.push(spelling);
-        }
-    }
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &state.terminator
-    else {
-        return unsupported("Unit case marker lost its terminator");
-    };
-    // A marker establishes available fields, not mandatory transfers. Payloads
-    // of plain owned contents may remain unused; result_source checks that
-    // restriction independently, and validate retains any affine disposal
-    // obligation.
-    // Every actual transfer still needs its exact authored destructure below.
-    if cases.iter().any(|case| {
-        case.payloads.iter().any(|payload| {
-            !spelled_fields.iter().any(|(variant, field)| {
-                variant == &case.case_identity && field == &payload.field_identity
-            })
-        })
-    }) {
-        return unsupported("Unit case destructure and payload rosters disagree");
-    }
-    Ok(markers.len())
 }
 
 pub(super) fn validate(

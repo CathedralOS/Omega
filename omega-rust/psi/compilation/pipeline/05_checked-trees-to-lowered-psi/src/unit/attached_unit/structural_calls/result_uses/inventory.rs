@@ -6,7 +6,6 @@
 
 use super::*;
 use crate::emission::call_source_custody::authored::nested;
-use crate::unit::attached_unit::statement_custody;
 
 pub(crate) fn with_expression_consumers(
     checked: &CheckedTrees,
@@ -107,7 +106,7 @@ pub(crate) fn with_expression_consumers(
                 insertion = index;
                 break;
             }
-            let Some(statement) = statement_custody::source_statement(candidate) else {
+            let Some(statement) = candidate.source_statement_index() else {
                 continue;
             };
             if statement > coordinate.statement_index {

@@ -90,7 +90,7 @@ pub(super) fn build_operations(
     let mut steps = Vec::new();
     let mut index = 0;
     while index < operations.len() {
-        if let Some(statement) = super::statement_custody::source_statement(&operations[index]) {
+        if let Some(statement) = operations[index].source_statement_index() {
             steps.push(Step::CaptureBefore(statement));
         }
         // A nested boundary structural result joins its argument group below.

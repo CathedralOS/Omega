@@ -12,8 +12,10 @@
 //! (`ranking::validate_witness`), computes the reachable states
 //! (`topology::live`), then checks each state in authored order: its
 //! structural parameters (the persistent receiver through `parameters`), its
-//! scalar prefix (`scalars`), its body statements (`body`), and its
-//! terminator through `guarded`, `cases`, `returns` or `edges`. It then
+//! scalar prefix (`scalars`), and its terminator, at the statement ordinal
+//! the stage 04 plan records, through `guarded`, `cases`, `returns` or
+//! `edges`. The body's effect operations are stage 04's plan and emit as
+//! planned; nothing here rejoins them to their authored statements. It then
 //! resolves claim transport across edges (`claims::resolve`) and admits the
 //! reachable states' calls.
 //!
@@ -101,9 +103,7 @@ mod exclusive_handoffs;
 mod ranking;
 mod topology;
 
-// Within one state: the persistent receiver, the body statements, and the
-// state-local scalar values.
-mod body;
+// Within one state: the state-local scalar values.
 pub(super) mod scalars;
 
 // A state's terminator and successor edges: closed-case dispatch and

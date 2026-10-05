@@ -702,9 +702,7 @@ pub(super) fn plan(
 /// so the name denotes one place for its whole scope and carries no runtime
 /// value of its own: every write through it is the ordinary store of that
 /// place, rejoined by `structural_scalar_store::destination`. The statement
-/// therefore plans no operation, like a record pattern's marker, and
-/// `composed_control`'s body count recognizes it as the same kind of
-/// compile-time carrier.
+/// therefore plans no operation, like a record pattern's marker.
 ///
 /// The conditions are what make that rejoin exact, not a convenience. The
 /// place must root at a structural parameter this state already writes

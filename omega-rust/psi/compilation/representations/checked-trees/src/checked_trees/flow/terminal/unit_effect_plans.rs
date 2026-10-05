@@ -472,6 +472,58 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// The authored statement this operation belongs to in the plan's
+    /// statement order: emission captures loans before it and places nested
+    /// operand evaluation by it. A structural call result names its binding
+    /// statement; every other call names its invocation statement. A
+    /// continuation cleanup, a reference release and a completion run between
+    /// statements and answer `None`.
+    pub fn source_statement_index(&self) -> Option<u32> {
+        match self {
+            Self::EstablishStructuralValue { result, .. }
+            | Self::EstablishReference { result, .. }
+            | Self::EstablishByteSequence { result, .. }
+            | Self::EstablishViewSubslice { result, .. }
+            | Self::EstablishScalarArray { result, .. }
+            | Self::MoveStructuralField { result, .. } => Some(result.statement_index),
+            Self::EstablishScalarLocal { result, .. } => Some(result.statement_index),
+            Self::Call(call) => Some(
+                call.structural_result()
+                    .map_or(call.coordinate.statement_index, |result| {
+                        result.statement_index
+                    }),
+            ),
+            Self::EstablishPrimitiveLocal {
+                statement_index, ..
+            }
+            | Self::WriteOnlyPrimitiveStore {
+                statement_index, ..
+            }
+            | Self::EstablishTrivialAffineLocal {
+                statement_index, ..
+            }
+            | Self::EstablishStructuralLocal {
+                statement_index, ..
+            }
+            | Self::StoreStructuralField {
+                statement_index, ..
+            } => Some(*statement_index),
+            Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),
+            Self::AtomicAccess(access) => Some(access.statement_index),
+            Self::StructuralScalarFieldStore(store) => Some(store.statement_index),
+            Self::StructuralCaseFieldStore(store) => Some(store.statement_index),
+            Self::StructuralCaseLiteralFieldStore(store) => Some(store.statement_index),
+            Self::ByteSequenceStore(store) => Some(store.statement_index),
+            Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
+            Self::ByteSequenceWrite(write) => Some(write.statement_index),
+            Self::ElementViewWrite(write) => Some(write.statement_index),
+            Self::RepresentationViewStore(store) => Some(store.statement_index),
+            Self::ContinuationCleanup { .. }
+            | Self::ReleaseReference { .. }
+            | Self::Complete { .. } => None,
+        }
+    }
+
     /// The authored structural arguments of an ordinary call — Unit, scalar,
     /// structural or boundary — in argument order; empty for every other
     /// operation. Selected-operator calls keep their own operand lanes.

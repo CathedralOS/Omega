@@ -379,7 +379,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
-        let terminator_ordinal = super::body::validate(checked, owner.symbol, source, state)?;
+        let terminator_ordinal = state.terminator_statement_ordinal as usize;
         let tail =
             typed_trees::statement::reachable_transition_prefix(&statements[terminator_ordinal..]);
         match (&state.terminator, tail) {
@@ -392,8 +392,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             {
                 edges::return_discards(checked, owner.symbol, source, state)?;
             }
-            // The unconditional terminal machine call `body::validate` rejoined
-            // as the state's last operation completes the machine with Unit.
+            // The unconditional terminal machine call stage 04 planned as the
+            // state's last operation completes the machine with Unit.
             (
                 CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
                 [StatementNode::Transition(transition)],

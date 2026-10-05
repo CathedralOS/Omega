@@ -1,7 +1,7 @@
 //! Structural completion rejoins the exact returned owner, not an array-only
 //! or fresh-constructor route. Producers validate construction/call/selection
-//! custody; this boundary checks the authored return and complete statement
-//! coverage before an ordinary result can leave its enclosing machine.
+//! custody; this boundary checks the authored return before an ordinary
+//! result can leave its enclosing machine.
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, unsupported,
@@ -271,35 +271,6 @@ pub(super) fn validate(
             }
         }
         _ => return unsupported("structural return source is not an owned whole value"),
-    }
-    // Every authored statement owes an operation, except a final binding use
-    // and an erased fact-only citation.
-    for index in 0..statements.len() {
-        if !super::statement_custody::statement_owes_operation(
-            checked,
-            machine.machine,
-            machine.state,
-            index,
-            &statements[index],
-        ) {
-            continue;
-        }
-        if index + 1 == statements.len()
-            && expression.is_some_and(|expression| {
-                matches!(
-                    checked.typed.expression_table.expression(expression),
-                    ExpressionNode::Name(_)
-                )
-            })
-        {
-            continue;
-        }
-        if !machine.operations.iter().any(|operation| {
-            super::statement_custody::covered_statements(operation)
-                .any(|statement| statement == index as u32)
-        }) {
-            return unsupported("structural result body omits an authored statement");
-        }
     }
     Ok(())
 }
