@@ -2,12 +2,15 @@
 // selects the acknowledgement's physical representation so the authored
 // boundary machines materialize against an exact carrier. The build file
 // shares the program namespace — `use` here would re-declare the roots
-// module — so the selection names program declarations directly. No
-// ordinary package dependencies: the checked-only canary stays on the
-// bundled toolchain libraries.
+// module — so the selection names program declarations directly. The
+// bundled `omega::language::core` namespace needs no declaration, but
+// `std` is an ordinary package: the roots reach its calling vocabulary
+// through the requester-local `omega_language_std` alias this dependency
+// establishes.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "interrupt_table_canary");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::select_representation<
         InterruptAcknowledgement,
         CriticalAcknowledgementRepresentation

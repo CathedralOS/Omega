@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 17.28, "load1_start": 17.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 48.69, "load1_start": 47.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2279,10 +2279,10 @@ pass/locals/static_local_field_names_exit checked 1406ms @cfe60a3a242
 pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms @2d8ed253669f
-pass/memory/interrupt_table_canary rejected 6ms @c5d32a00863
-	package-aware import `omega::language::std::calling` in tests/omega/pass/memory/interrupt_table_canary/cathedral/interrupt_roots.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
-pass/memory/secondary_processor_canary rejected 3ms @cfe60a3a242
-	package-aware import `omega::language::std::calling` in tests/omega/pass/memory/secondary_processor_canary/cathedral/processor_startup.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
+pass/memory/interrupt_table_canary rejected 4267ms @5894026c3703+wt
+	cannot prove the `terminates by` ranking for machine DescriptorTableValidation::run
+pass/memory/secondary_processor_canary rejected 5098ms @5894026c3703+wt
+	direct call `confirm` names public boundary requirement `StartupEnvelope::confirm`, which has no selected provider; select an admitted provider whose checked machine `satisfies StartupEnvelope::confirm` before calling it
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f
 pass/modules/aggregate_machine_indices checked 308ms @2d8ed253669f
 pass/modules/boolean_equality_indices checked 354ms @2d8ed253669f

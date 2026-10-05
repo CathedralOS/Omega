@@ -34,7 +34,7 @@
 
 use omega::language::core::assembly;
 use omega::language::core::representation;
-use omega::language::std::calling;
+use omega_language_std::calling;
 
 // ---------------------------------------------------------------------------
 // The startup acknowledgement contract

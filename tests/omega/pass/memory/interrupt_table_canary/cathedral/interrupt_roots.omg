@@ -24,7 +24,7 @@
 // own selected provider plan.
 
 use omega::language::core::interrupt;
-use omega::language::std::calling;
+use omega_language_std::calling;
 
 // The acknowledgement's physical carrier: five aligned u64 cells hold the
 // physical-root, execution, invocation, policy, and acknowledgement words
@@ -158,7 +158,7 @@ machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement 
     satisfies InterruptEntry::enter
     reaches PortIo
 {
-    acknowledgement.complete();
+    InterruptAcknowledgement::complete(acknowledgement);
 }
 
 // The timer root's calling policy: the same validated envelope as
@@ -268,7 +268,7 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
     satisfies InterruptEntry::enter
     reaches PortIo
 {
-    acknowledgement.complete();
+    InterruptAcknowledgement::complete(acknowledgement);
 }
 
 // The mask-guard provider the entry's `InterruptMaskGuard in Active`
@@ -278,6 +278,6 @@ pub data InterruptMaskProvider {
 }
 pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;
 
-machine InterruptMaskProvider::save_and_mask(interrupt_mask_provider: &mut InterruptMaskProvider) -> InterruptMaskGuard in Active
+machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via ForeignBinding::CompilerIntrinsic;
