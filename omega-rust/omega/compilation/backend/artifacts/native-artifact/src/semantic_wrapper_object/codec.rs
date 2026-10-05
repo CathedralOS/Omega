@@ -60,6 +60,17 @@ pub fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
     encode_validated_container(object)
 }
 
+/// Encode a plan `construct_object` sealed in this compile, without re-running
+/// its shape and template checks.
+pub(crate) fn encode_sealed_optimized_program_storage_semantic_wrapper_object(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+> {
+    encode_validated_container(object)
+}
+
 fn encode_validated_container(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
 ) -> Result<

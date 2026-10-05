@@ -1,7 +1,10 @@
 //! Optimizer module role: executable entrance. Owning object join for the optimized semantic ProgramStorage wrapper.
 //!
-//! The stage entrance composes one compiler-owned wrapper with one validated
-//! relocation-free child, independently replays the join, and grants custody.
+//! The stage entrance composes one compiler-owned wrapper with one
+//! relocation-free child staged in this compile and grants custody. It does
+//! not replay the settlement, encoding or child its producers just built;
+//! `validate_optimized_program_storage_semantic_wrapper_object` replays the
+//! whole join for retained readers.
 //! The wrapper object's durable records, their construction, shape checks,
 //! and codec belong to their representation owner,
 //! `crate::semantic_wrapper_object`; this stage binds them to the
@@ -12,13 +15,10 @@ use crate::{
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
-    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
+use crate::semantic_wrapper_object::encode_sealed_optimized_program_storage_semantic_wrapper_object;
 use object_file::StagedValidatedOptimizedObjectArtifact;
-use program_entry_plan::{
-    StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    validate_optimized_program_storage_semantic_wrapper_encoding,
-};
+use program_entry_plan::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 mod error;
@@ -36,10 +36,7 @@ pub use validation::{
 };
 
 use object::construct_object;
-use validation::{
-    replay_semantic_contract, replay_settlement, validate_entry_shape,
-    validate_retained_installed_provider_continuation,
-};
+use validation::validate_entry_shape;
 
 pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     settlement: ValidatedNativeProgramEntrySettlement,
@@ -49,20 +46,12 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
-    replay_settlement(&settlement, &source)?;
-    // The object artifact was staged in this compile; it is not decoded again.
-    validate_retained_installed_provider_continuation(&source)?;
-    validate_optimized_program_storage_semantic_wrapper_encoding(&encoding)
-        .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
-    let contract = replay_semantic_contract(&settlement, &encoding, &source)?;
+    // The receiver must be zero-valid so the wrapper's zero-fill establishes
+    // it: an admission rule of this composition, not a replay of an input.
+    let contract = validation::bind_semantic_contract(&settlement)?;
     validate_entry_shape(&source, &settlement, &contract)?;
     let object = construct_object(&settlement, &source, &encoding)?;
-    // `construct_object` sealed the plan one statement ago; the encode join
-    // re-runs every shape and template check without reserializing the seal.
-    let container = encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
-        &object,
-        encoding.template(),
-    )?;
+    let container = encode_sealed_optimized_program_storage_semantic_wrapper_object(&object)?;
     let manifest = ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest::construct(
         &object, &container,
     )?;
@@ -80,9 +69,6 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
         manifest,
         custody,
     };
-    // `validate_optimized_program_storage_semantic_wrapper_object` replays
-    // this join for retained-artifact readers and tests; the stage does not
-    // replay what it just built.
     Ok(staged)
 }
 

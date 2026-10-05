@@ -56,11 +56,12 @@ use codec::{
 
 use reconstruction::{manifest, receipt, reconstruct};
 
+/// Stage the entry over an object artifact staged in this compile. The
+/// source is consumed as produced; `validate_optimized_ordinary_callable_entry`
+/// replays it for retained readers.
 pub fn stage_validated_optimized_ordinary_callable_entry(
     source: StagedValidatedOptimizedObjectArtifact,
 ) -> Result<StagedValidatedOptimizedOrdinaryCallableEntry, OptimizedOrdinaryCallableEntryError> {
-    validate_optimized_object_artifact(&source)
-        .map_err(OptimizedOrdinaryCallableEntryError::Source)?;
     let entry = reconstruct(&source)?;
     let manifest = manifest(&entry)?;
     let custody = receipt(&entry, &manifest);

@@ -34,6 +34,7 @@ pub use codec::{
     encode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
+pub(crate) use codec::encode_sealed_optimized_program_storage_semantic_wrapper_object;
 pub use composition::compose_optimized_program_storage_semantic_wrapper_object;
 
 use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
