@@ -704,19 +704,21 @@ pub(crate) fn validate_usage(
             })
     {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal, ..
+            binding_ordinal,
+            path,
+            defer_to_exit: false,
+            ..
         } = operation
             && *binding_ordinal == result.binding_ordinal
         {
-            super::super::reference_results::validate_releases(checked, caller)?;
-            if consumed
-                || disposed
-                || operation_index <= producer.operation_index
-                || producer.discard
-            {
-                return unsupported("reference carrier is released after losing custody");
+            // Checking has selected this exact lifetime boundary. A leaf
+            // release removes only its custody, leaving scalar siblings and
+            // the owner's scheduled residual cleanup available.
+            if path.is_empty() {
+                disposed = true;
+            } else {
+                projected_paths.push(path);
             }
-            disposed = true;
             continue;
         }
         if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -1122,25 +1124,6 @@ pub(crate) fn validate_usage(
             if producer.discard || disposed || !projected_paths.is_empty() {
                 return unsupported("returned reference also acquired disposal custody");
             }
-            let boundary = validation::reference_result_custody::release_boundary(
-                &checked.typed,
-                &checked.facts,
-                caller.machine,
-                caller.state,
-                custody.reference_loan,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "returned reference has no exact transfer boundary",
-            ))?;
-            let (_, authored) = crate::declarations::state_declaration(checked, caller.state)?;
-            if (boundary as usize)
-                < checked
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .len()
-            {
-                return unsupported("returned reference loan ends before completion");
-            }
             return Ok(());
         }
         if consumed || !projected_paths.is_empty() || (disposed && producer.discard) {
@@ -1152,25 +1135,6 @@ pub(crate) fn validate_usage(
             // therefore have kept on the result.
             if !producer.discard {
                 return unsupported("reference result omits its carrier disposal");
-            }
-            let boundary = validation::reference_result_custody::release_boundary(
-                &checked.typed,
-                &checked.facts,
-                caller.machine,
-                caller.state,
-                custody.reference_loan,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "reference result has no exact weakening boundary",
-            ))?;
-            let (_, authored) = crate::declarations::state_declaration(checked, caller.state)?;
-            if (boundary as usize)
-                < checked
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .len()
-            {
-                return unsupported("reference result omits its loan release");
             }
         }
         return Ok(());

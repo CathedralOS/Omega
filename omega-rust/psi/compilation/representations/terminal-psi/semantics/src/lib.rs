@@ -115,9 +115,9 @@ pub use semantic_rows::{
 pub use service_binding::{fused_service_field_carrier, fused_service_field_matches};
 pub use shared_mutation::{SharedMutation, shared_mutation};
 pub use static_path::{
-    canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
-    runtime_index_bound, runtime_index_selects, structural_paths_may_overlap,
-    structural_paths_select_same_location,
+    canonical_case_leaf_type, canonical_structural_path_tip, constant_runtime_index,
+    interior_member_borrow, runtime_index_bound, runtime_index_selects,
+    structural_paths_may_overlap, structural_paths_select_same_location,
 };
 pub use storage_regions::{
     StorageRegion, canonical_field_storage_region, projected_storage_region,

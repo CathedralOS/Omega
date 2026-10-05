@@ -342,6 +342,9 @@ pub(super) fn operation(
             None,
             true,
         )],
+        OperationKind::ReleaseReference { source, path } => {
+            vec![projected(*source, path, None, true)]
+        }
         OperationKind::PrimitiveScalarRead { source, path }
         | OperationKind::StructuralCaseMembership { source, path, .. }
         | OperationKind::StructuralLeafCopy { source, path } => {

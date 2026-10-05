@@ -587,27 +587,39 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
-                O::ReleaseReference { source, .. } => {
-                    // The verifier ends any live carrier; replay checks only
-                    // that the source is a reference place. Referent shape is
-                    // not constrained to established `&scalar` carriers — a
-                    // relocated loan may point at any declared type.
+                O::ReleaseReference { source, path, .. } => {
+                    // A projection consumes one owned descriptor slot, never
+                    // a referent or a borrowed carrier's sibling authority.
+                    // Current ownership separately authenticates availability
+                    // and the exact live loan at this declared path.
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function, *source,
                         )
                         .is_some_and(|signature| {
-                            structural_types
-                                .get(&signature.structural_type)
+                            (path.is_empty()
+                                || (signature.access == terminal_psi::StructuralAccess::Owned
+                                    && signature.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Affine
+                                    && signature.is_unqualified()
+                                    && !signature.has_result_evidence()))
+                                && path.iter().all(|segment| {
+                                    matches!(
+                                        segment,
+                                        terminal_psi::StructuralPathSegment::Field(_)
+                                            | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                                    )
+                                })
+                                && crate::unit_validation::references::leaf_type(
+                                    structural_types,
+                                    signature.structural_type,
+                                    path,
+                                )
+                                .and_then(|selected| structural_types.get(&selected))
                                 .is_some_and(|declaration| {
                                     matches!(
                                         declaration.shape,
-                                        terminal_psi::StructuralTypeShape::Reference {
-                                            access: terminal_psi::StructuralAccess::SharedBorrow
-                                                | terminal_psi::StructuralAccess::MutableBorrow
-                                                | terminal_psi::StructuralAccess::WriteOnlyBorrow,
-                                            ..
-                                        }
+                                        terminal_psi::StructuralTypeShape::Reference { .. }
                                     )
                                 })
                         });

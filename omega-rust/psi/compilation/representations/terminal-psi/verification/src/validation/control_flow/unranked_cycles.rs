@@ -203,7 +203,7 @@ fn operation_leaves_custody(
     match &operation.kind {
         OperationKind::EstablishReference { source } => clears(source.place),
         OperationKind::ByteSequencePredicate { operand, .. } => clears(operand.source()),
-        OperationKind::ReleaseReference { source }
+        OperationKind::ReleaseReference { source, .. }
         | OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralByteSequenceFieldRead { source, .. }

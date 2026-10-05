@@ -1584,6 +1584,7 @@ fn emit_state(
                     erased_arguments: when_true_erased_arguments,
                     erased_proof_arguments: when_true_erased_proof_arguments,
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
                     structural_arguments: Vec::new(),
@@ -1595,6 +1596,7 @@ fn emit_state(
                     erased_arguments: when_false_erased_arguments,
                     erased_proof_arguments: when_false_erased_proof_arguments,
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 },
             }
         }
@@ -1754,6 +1756,7 @@ fn emit_state(
                         Vec::new()
                     },
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 });
             }
             Terminator::StructuralCase {
@@ -1843,6 +1846,7 @@ fn emit_state(
                         case: *case,
                         payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     });
                 } else {
                     if fallback_block.is_none() {
@@ -1903,6 +1907,7 @@ fn emit_state(
                         case: *case,
                         payload_fields: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     });
                 }
             }

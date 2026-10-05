@@ -358,7 +358,7 @@ fn borrowed_place_leaf_type(
     program: &TypedTrees,
     target: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    match program.expression_table.expression(target) {
+    let leaf = match program.expression_table.expression(target) {
         ExpressionNode::Name(path)
             if path.symbol.is_valid()
                 && path.head_symbol == path.symbol
@@ -370,6 +370,15 @@ fn borrowed_place_leaf_type(
             projected_leaf_type(program, target)
         }
         _ => None,
+    }?;
+    // Borrowing a stored descriptor captures its referent with the requested
+    // access; it does not borrow the descriptor's own storage as an &&T.
+    match program.type_reference_table.type_reference(leaf) {
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } if *access != language_semantics::ReferenceAccess::WriteOnly => Some(*referee),
+        TypeReferenceNode::Reference { .. } => None,
+        _ => Some(leaf),
     }
 }
 
@@ -820,9 +829,25 @@ impl Builder<'_, '_> {
             }
             CheckedStructuralValueKind::Place(argument)
         } else if validation::reference_result_custody::stored_loan_parts(self.program, expected)
-            .is_some_and(|(_, access)| {
-                access == checked_trees::CheckedStructuralAccess::MutableBorrow
-            })
+            .is_some()
+            && match self.program.expression_table.expression(expression) {
+                ExpressionNode::Borrow(borrow) => {
+                    borrow.access != language_semantics::ReferenceAccess::Shared
+                }
+                // Borrowed formals denote ingress referents; unlike retained
+                // locals, they do not own stored descriptor values to move.
+                ExpressionNode::Name(name) => {
+                    self.structural_parameter(name.symbol)
+                        .is_some_and(|(_, declared)| {
+                            validation::reference_result_custody::stored_loan_parts(
+                                self.program,
+                                declared,
+                            )
+                            .is_some()
+                        })
+                }
+                _ => false,
+            }
         {
             let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
                 |machine| {
@@ -844,7 +869,7 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
         ) && validation::scalar_case_constructor(self.program, expression).is_none()
-            && let Some(argument) = self.owned_record_place(expression, expected)
+            && let Some(argument) = self.owned_structural_place(expression, expected)
             && matches!(
                 argument.source,
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
@@ -900,7 +925,7 @@ impl Builder<'_, '_> {
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
         ) && validation::scalar_case_constructor(self.program, expression).is_none()
-            && let Some(argument) = self.owned_record_place(expression, expected)
+            && let Some(argument) = self.owned_structural_place(expression, expected)
         {
             // Reading unrestricted storage snapshots its current contents at
             // this evaluation point. Try the copy routes before whole-place
@@ -1396,12 +1421,23 @@ impl Builder<'_, '_> {
             return None;
         };
         let source = self.structural_source(symbol);
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-        )?;
+        let (mut projected, mut path) =
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+            )?;
+        if let TypeReferenceNode::Reference {
+            referee, access, ..
+        } = self.program.type_reference_table.type_reference(projected)
+        {
+            if *access == language_semantics::ReferenceAccess::WriteOnly {
+                return None;
+            }
+            projected = *referee;
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        }
         if self.program.normalized_type_identity(projected)
             != self.program.normalized_type_identity(referent)
         {
@@ -1420,7 +1456,7 @@ impl Builder<'_, '_> {
         })
     }
 
-    fn owned_record_place(
+    fn owned_structural_place(
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
@@ -1437,18 +1473,9 @@ impl Builder<'_, '_> {
             // neither transport grants no-code disposal of the moved value.
             || !(validation::has_cleanup_owned_contents(self.program, expected)
                     || validation::has_linear_owned_contents(self.program, expected)
-                || validation::has_owned_or_shared_view_contents(self.program, expected))
-        {
-            return None;
-        }
-        let data = self.program.data_definitions().iter().find(|data| {
-            validation::member_type_substitutions(self.program, data, expected).is_some()
-        })?;
-        if self
-            .program
-            .data_members(data)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+                || validation::has_owned_or_shared_view_contents(self.program, expected)
+                || validation::reference_result_custody::is_reference_record(self.program, expected)
+                || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some())
         {
             return None;
         }
@@ -1485,8 +1512,13 @@ impl Builder<'_, '_> {
             != self.program.normalized_type_identity(expected)
             || !(validation::has_cleanup_owned_contents(self.program, reference)
                 || validation::has_linear_owned_contents(self.program, reference)
-                || validation::has_owned_or_shared_view_contents(self.program, reference))
-            || validation::member_type_substitutions(self.program, data, reference).is_none()
+                || validation::has_owned_or_shared_view_contents(self.program, reference)
+                || validation::reference_result_custody::is_reference_record(
+                    self.program,
+                    reference,
+                )
+                || validation::reference_result_custody::stored_loan_parts(self.program, reference)
+                    .is_some())
         {
             return None;
         }

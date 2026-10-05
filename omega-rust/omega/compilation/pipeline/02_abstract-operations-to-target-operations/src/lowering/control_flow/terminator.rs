@@ -161,17 +161,8 @@ fn residual_cleanup(
     {
         return false;
     }
-    // Only a plain subtree needs no executable disposal; a loan anchored
-    // inside or above the discarded boundary has no custody to move to. The
-    // retained path must also resolve to the declared residual type.
-    if super::references::contains_reference(structural_types, discard.structural_type)
-        || live.references.keys().any(|(carrier, leaf_path)| {
-            *carrier == discard.place
-                && (leaf_path.starts_with(&discard.path) || discard.path.starts_with(leaf_path))
-        })
-    {
-        return false;
-    }
+    // Custody replay disposes the exact remaining subtree separately from its
+    // declaration and overlap checks here. No executable destructor is needed.
     owned_root_type(live, function, discard.place).is_some_and(|root| {
         structural_types.subtree(root, &discard.path) == Some(discard.structural_type)
     }) && !super::references::is_suspended_root(live, discard.place)
@@ -231,6 +222,13 @@ pub(super) fn plain_home_cleanup(
                 ) {
                     return Ok(false);
                 }
+                super::references::discard_subtree(
+                    function,
+                    structural_types,
+                    live,
+                    discard.place,
+                    &discard.path,
+                )?;
                 discarded_residuals.insert((discard.place, discard.path.clone()));
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {

@@ -248,9 +248,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_argument(bytes, source);
                     super::calling::encode_shape(bytes, *shape);
                 }
-                LegalizedScalarInstructionKind::ReleaseReference { source } => {
+                LegalizedScalarInstructionKind::ReleaseReference { source, path } => {
                     bytes.push(30);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
                 }
                 LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                     result,

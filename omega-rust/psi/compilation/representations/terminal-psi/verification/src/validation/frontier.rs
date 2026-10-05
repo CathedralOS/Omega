@@ -179,12 +179,10 @@ pub(super) struct StructuralOwnershipFrontier {
     pub(super) claims: BTreeMap<ClaimId, LiveClaim>,
     pub(super) owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
     /// Exact projected paths already transferred from an otherwise-live owned
-    /// root. This is independent of the root's multiplicity: no whole-root use
-    /// is legal while a hole remains. Affine roots close through explicit
-    /// residual cleanup; a fixed-array root closes only after its complete
-    /// dense sibling set has moved. Linear arrays retain their existing general
-    /// rule, while affine arrays admit only the exact two-element/no-residual
-    /// carrier so no cleanup order is inferred.
+    /// root. No whole-root use is legal while a hole remains. Empty structural
+    /// complement removes disposal debt but retains these paths: disjoint scalar
+    /// storage stays initialized until exit or a fresh whole establishment.
+    /// Nonempty complements close through exact ordered residual cleanup.
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
     /// Open borrowed-storage windows: `MoveStructuralField` keys the exact
     /// canonical hole under its borrowed root and records the declared type
@@ -580,6 +578,9 @@ fn validate_owned_reads(
                         && parameter.multiplicity == StructuralMultiplicity::Affine
                 }))
     }) {
+        if partial_storage_available(module, machine, operation, frontier, place) {
+            continue;
+        }
         if frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine) {
             return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                 operation: operation.id,
@@ -596,6 +597,130 @@ fn validate_owned_reads(
         }
     }
     Ok(())
+}
+
+/// Window extraction/reseating has its own ordered debt checks, but must also
+/// respect permanently retired owned storage. Keep its regions local to this
+/// judgment so a valid restoration store can still close its own open window.
+fn partial_storage_regions(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
+    let mut regions =
+        super::structural::access_regions::operation_regions(module, machine, operation);
+    if let OperationKind::MoveStructuralField { source, .. }
+    | OperationKind::StoreStructuralField {
+        destination: source,
+        ..
+    } = &operation.kind
+    {
+        regions.push(
+            super::structural::operations::structural_field_store_write_path(
+                module, machine, operation,
+            )
+            .unwrap_or((*source, Vec::new())),
+        );
+    }
+    if let OperationKind::StoreStructuralField { value, .. } = &operation.kind {
+        regions.push(super::structural::access_regions::argument_region(
+            module, machine, value,
+        ));
+    }
+    if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind {
+        regions.push(super::structural::access_regions::argument_region(
+            module,
+            machine,
+            &terminal_psi::StructuralArgument {
+                place: *source,
+                path: path.clone(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ));
+    }
+    regions
+}
+
+/// Partial disposal settles ownership obligations, not disjoint scalar storage.
+/// Every access still names an initialized region outside the retired paths.
+fn partial_storage_available(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    frontier: &StructuralOwnershipFrontier,
+    place: PlaceId,
+) -> bool {
+    let Some(moved) = frontier.partial_custody_paths.get(&place) else {
+        return false;
+    };
+    let regions = partial_storage_regions(module, machine, operation);
+    let mut found = false;
+    for (_, region) in regions.iter().filter(|(root, _)| *root == place) {
+        found = true;
+        if region.is_empty()
+            || moved.iter().any(|path| {
+                let (_, retired) = super::structural::access_regions::argument_region(
+                    module,
+                    machine,
+                    &terminal_psi::StructuralArgument {
+                        place,
+                        path: path.clone(),
+                        access: StructuralAccess::Owned,
+                    },
+                );
+                retired.is_empty() || retired.starts_with(region) || region.starts_with(&retired)
+            })
+        {
+            return false;
+        }
+    }
+    found
+}
+
+fn validate_partial_storage_access(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    frontier: &StructuralOwnershipFrontier,
+) -> Result<(), ModuleError> {
+    for (place, _) in partial_storage_regions(module, machine, operation) {
+        if frontier.partial_custody_paths.contains_key(&place)
+            && !partial_storage_available(module, machine, operation, frontier, place)
+        {
+            return Err(
+                ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+                    operation: operation.id,
+                    place,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Exits can forget retained storage frontiers only after proving that no
+/// structural disposal obligation, carried reference or claim remains.
+fn forget_empty_partial_storage(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    frontier: &mut StructuralOwnershipFrontier,
+) {
+    let complete = frontier
+        .partial_custody_paths
+        .keys()
+        .copied()
+        .filter(|place| {
+            !frontier.owned_places.contains_key(place)
+                && !frontier
+                    .references
+                    .iter()
+                    .any(|reference| reference.carrier == *place)
+                && projected_root_is_fully_consumed(module, machine, frontier, *place)
+        })
+        .collect::<Vec<_>>();
+    for place in complete {
+        frontier.partial_custody_paths.remove(&place);
+    }
 }
 
 fn release_reference_discards(
@@ -706,6 +831,7 @@ fn validate_return_cleanup_actions(
         }
     };
     let mut frontier = frontier.clone();
+    forget_empty_partial_storage(module, machine, &mut frontier);
     let mut actions = actions.iter();
 
     // Every live, claim-free affine operation result follows the same reverse
@@ -891,15 +1017,18 @@ fn validate_return_residual_cleanup(
         .ok_or_else(mismatch)?;
     let residuals =
         partial_affine_residuals(module, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
-    if residuals.is_empty()
-        || frontier
-            .references
-            .iter()
-            .any(|reference| reference.carrier == place)
-    {
+    if residuals.is_empty() {
         return Err(mismatch());
     }
     for (path, structural_type) in residuals {
+        super::references::discard_residual(
+            module,
+            machine,
+            &mut frontier.references,
+            place,
+            &path,
+            structural_type,
+        )?;
         let expected =
             TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
                 place,
@@ -1165,6 +1294,16 @@ fn apply_continuation_residual_discards(
             || frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine)
         {
             return Err(invalid());
+        }
+        for (path, structural_type) in &expected {
+            super::references::discard_residual(
+                module,
+                machine,
+                &mut frontier.references,
+                place,
+                path,
+                *structural_type,
+            )?;
         }
         frontier.partial_custody_paths.remove(&place);
         frontier.owned_places.remove(&place);

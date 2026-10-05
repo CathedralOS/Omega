@@ -183,10 +183,10 @@ pub(super) fn operation(
                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source
             )).count() == 1
         }
-        AbstractOperation::ReleaseReference { psi_operation, source } => {
+        AbstractOperation::ReleaseReference { psi_operation, source, path } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
-                TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source }
-                if retained == psi_operation && retained_source == source
+                TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source, path: retained_path }
+                if retained == psi_operation && retained_source == source && retained_path == path
             )).count() == 1
         }
         AbstractOperation::CallStructural {

@@ -1,0 +1,30 @@
+// Retire one fixed-array reference leaf while the other leaf and scalar sibling remain.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
+data Pack { prefix: i32; cells: [&Cell; 2]; }
+data Main { console: Binding<Console>; first: Cell; second: Cell; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.first.stamp = 3;
+    main.first.value = 70;
+    main.first.ready = true;
+    main.second.stamp = 5;
+    main.second.value = 11;
+    main.second.ready = false;
+    let pack: Pack = Pack { prefix: 29, cells: [&main.first, &main.second] };
+    let observed: i32 [0..=100] = pack.cells[0].value;
+    let ready: bool = pack.cells[0].ready;
+    main.first.value = 81;
+    let other: i32 [0..=100] = pack.cells[1].value;
+    let other_ready: bool = pack.cells[1].ready;
+    main.second.value = 82;
+    let prefix: i32 = pack.prefix;
+    transition observed == 70 && ready && other == 11 && !other_ready && prefix == 29 && main.first.value == 81 && main.second.value == 82 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

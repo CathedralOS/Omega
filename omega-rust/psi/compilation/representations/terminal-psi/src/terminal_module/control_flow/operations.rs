@@ -206,6 +206,9 @@ pub enum OperationKind {
     /// This restores parent access without disposing of referent storage.
     ReleaseReference {
         source: PlaceId,
+        /// Exact owned descriptor home. Empty selects the reference root;
+        /// finite field/index projections end one leaf and retain siblings.
+        path: Vec<StructuralPathSegment>,
     },
     /// Atomically establish an owned, unrestricted fixed array whose recursive
     /// elements end in a primitive scalar. Operands are the complete scalar

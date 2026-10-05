@@ -184,7 +184,7 @@ impl OperationKind {
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
             }
-            Self::ReleaseReference { source } => {
+            Self::ReleaseReference { source, .. } => {
                 *source = map(*source, StructuralAccess::Owned);
             }
             Self::MoveStructuralField { source, .. }

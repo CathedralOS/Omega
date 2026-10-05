@@ -144,6 +144,7 @@ pub(crate) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<Successor
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
         trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+        residual_affine_discards: Vec::new(),
     })
 }
 

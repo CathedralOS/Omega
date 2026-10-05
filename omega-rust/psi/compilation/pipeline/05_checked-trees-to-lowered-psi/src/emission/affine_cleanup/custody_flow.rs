@@ -51,7 +51,8 @@ fn transfers(
                 missing: "scalar graph owned operand transfers an unavailable affine parameter",
             });
         }
-        if let OperationKind::ReleaseReference { source } = &operation.kind
+        if let OperationKind::ReleaseReference { source, path } = &operation.kind
+            && path.is_empty()
             && let Some(position) = position(*source)
         {
             transfers.push(Transfer::Consume {

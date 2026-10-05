@@ -400,9 +400,14 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::ReleaseReference { .. } => {
-            super::references::release(operation, function, live, operations, provenance)
-        }
+        AbstractOperation::ReleaseReference { .. } => super::references::release(
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
         // Every other direct call, whatever its result, lowers to one `Call`
         // row through the shared direct-call lowering.
         AbstractOperation::CallStructural { .. } | AbstractOperation::Call { .. } => {

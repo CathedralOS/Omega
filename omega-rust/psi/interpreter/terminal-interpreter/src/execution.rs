@@ -441,8 +441,8 @@ impl TerminalExecution {
                         self.establish_reference(operation, source)?;
                         OperationFlow::Advance
                     }
-                    OperationKind::ReleaseReference { source } => {
-                        self.release_reference(operation, source)?;
+                    OperationKind::ReleaseReference { source, ref path } => {
+                        self.release_reference(operation, source, path)?;
                         OperationFlow::Advance
                     }
                     OperationKind::EstablishZeroedStructural { .. } => {

@@ -45,6 +45,7 @@ mod assignments;
 pub(in crate::execution::terminal_unit) mod bounded_byte_values;
 mod completion;
 mod local_data;
+mod reference_retirement;
 mod statement_call;
 mod storage_initializer;
 
@@ -706,6 +707,28 @@ fn erased_alias_locals(
         super::super::receiver_aliases::restored_call_alias_locals(program, facts, machine, state)
             .unwrap_or_default(),
     );
+    // A checked capture that establishes a descriptor is an ordinary value
+    // binding, even when it also admits an alias of its backing. Erasing that
+    // declaration leaves later descriptor transfers with no producer.
+    erased.retain(|symbol| {
+        let Some((statement_index, local)) = program.state_local_declaration(state, *symbol) else {
+            return true;
+        };
+        validation::reference_result_custody::primitive_local_source(
+            program,
+            state,
+            statement_index,
+        )
+        .or_else(|| {
+            validation::reference_result_custody::borrowed_initializer_source(
+                program,
+                state,
+                local.initial_value,
+                local.type_reference,
+            )
+        })
+        .is_none()
+    });
     erased
 }
 
@@ -1342,20 +1365,73 @@ fn append_reference_releases(
     let mut pending = Vec::new();
     let mut retired = Vec::new();
     for operation in operations.iter().rev() {
-        if let Some(call) = operation.call()
-            && let Some(custody) = call.structural_custody()
-            && let Some(result) = call.structural_result()
-            && custody.reference_loan.is_valid()
-        {
-            let loan = custody.reference_loan;
+        let reference_result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+                reference_retirement::local_reference_loan(facts, result, results)
+                    .map(|loan| (result, loan))
+            }
+            _ => operation.call().and_then(|call| {
+                let custody = call.structural_custody()?;
+                let result = call.structural_result()?;
+                custody
+                    .reference_loan
+                    .is_valid()
+                    .then_some((result, custody.reference_loan))
+            }),
+        };
+        if let Some((result, loan)) = reference_result {
+            if reference_retirement::transferred_paths(
+                facts,
+                results,
+                result.binding_ordinal,
+                operations,
+            )?
+            .iter()
+            .any(|path| path.is_empty())
+            {
+                // The receiving constructor or call owns the descriptor now.
+                // Its former holder cannot release that transferred custody.
+                continue;
+            }
+
             let boundary = super::super::reference_results::release_boundary(
                 program, facts, machine, state, loan,
             )?;
-            if boundary == statement_index && !operations.iter().any(|operation| {
+            if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
+                eprintln!(
+                    "retirement schedule state={:?} current={} boundary={} transitions={:?}",
+                    state,
+                    statement_index,
+                    boundary,
+                    program
+                        .statement_table
+                        .statements(authored_state.statement_nodes)
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, statement)| matches!(
+                            statement,
+                            StatementNode::Transition(_)
+                        )
+                        .then_some(index))
+                        .collect::<Vec<_>>()
+                );
+            }
+            let retirement = reference_retirement::Retirement {
+                program,
+                facts,
+                machine,
+                state: authored_state,
+                statement_index,
+                results,
+                operations,
+                pending: &pending,
+            };
+            if boundary <= statement_index && retirement.children_retired(loan) && !operations.iter().any(|operation| {
                 matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
             }) {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
-                    statement_index, binding_ordinal: result.binding_ordinal, loan,
+                    statement_index, binding_ordinal: result.binding_ordinal,
+                    path: Vec::new(), defer_to_exit: false, loan,
                 });
             }
             continue;
@@ -1381,18 +1457,16 @@ fn append_reference_releases(
         }) {
             continue;
         }
-        // A moved subtree keeps the root's disposal debt until its exact
-        // complement is retired. An initializer loan roster cannot authorize
-        // whole disposal of that partial ownership frontier.
-        if operations.iter().any(|operation| {
-            operation.with_value_calls().any(|operation| {
-                operation.call_structural_arguments().iter().any(|argument| {
-                    argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                        && argument.access == CheckedStructuralAccess::Owned
-                })
-            }) || matches!(operation, CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-                if value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal))
-        }) {
+        // Transfers remove only their selected subtree. Other stored leaves
+        // may still end at their own checked boundary; a whole-value transfer
+        // leaves no initializer custody here at all.
+        let transferred_paths = reference_retirement::transferred_paths(
+            facts,
+            results,
+            result.binding_ordinal,
+            operations,
+        )?;
+        if transferred_paths.iter().any(|path| path.is_empty()) {
             continue;
         }
         // A replacement creates a different captured occurrence. This roster
@@ -1414,7 +1488,55 @@ fn append_reference_releases(
         ) else {
             continue;
         };
-        if boundary > statement_index {
+        let retains_siblings = boundary > statement_index || !transferred_paths.is_empty();
+        let retirement = reference_retirement::Retirement {
+            program,
+            facts,
+            machine,
+            state: authored_state,
+            statement_index,
+            results,
+            operations,
+            pending: &pending,
+        };
+        let local_loans = validation::reference_result_custody::local_record_loans(
+            program,
+            facts,
+            machine,
+            authored_state,
+            result.statement_index,
+        )?;
+        if !retains_siblings
+            && local_loans
+                .iter()
+                .any(|(_, loan)| !retirement.children_retired(*loan))
+        {
+            continue;
+        }
+        let leaf_releases = if retains_siblings {
+            local_loans
+                .into_iter()
+                .rev()
+                .filter(|(source, loan)| {
+                    retirement.children_retired(*loan)
+                        && !transferred_paths.iter().any(|path| {
+                            path.starts_with(&source.path) || source.path.starts_with(path)
+                        })
+                        && validation::reference_result_custody::release_statement(
+                            facts, machine, state, *loan,
+                        )
+                        .is_some_and(|boundary| boundary <= statement_index)
+                        && !operations.iter().chain(&pending).any(|operation| {
+                            matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                            loan: released, ..
+                        } if released == loan)
+                        })
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        if retains_siblings && leaf_releases.is_empty() {
             continue;
         }
         // Lexically expired leaves can remain stored in a live aggregate.
@@ -1428,68 +1550,25 @@ fn append_reference_releases(
             state,
             local.symbol,
         )?;
-        if storage_loans.into_iter().any(|handle| {
-            let loan = facts.borrow.loans.get(handle);
-            if loan.statement_index >= statement_index as usize {
-                return false;
+        if storage_loans
+            .into_iter()
+            .any(|handle| !retirement.holder_retired(handle))
+        {
+            continue;
+        }
+        // A leaf's checked weakening retires only that descriptor. Its scalar
+        // siblings remain established storage; the later whole death schedule
+        // is completed from the exact released-path complement during lowering.
+        if retains_siblings {
+            for (source, loan) in leaf_releases {
+                pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+                    statement_index,
+                    binding_ordinal: result.binding_ordinal,
+                    path: source.path,
+                    defer_to_exit: false,
+                    loan,
+                });
             }
-            let mut holders = results.iter().filter(|(holder, root)| {
-                *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
-                    && holder.statement_index as usize == loan.statement_index
-            });
-            let Some((holder, _)) = holders.next() else {
-                // A checked place alias with no established value or emitted
-                // result has no stored descriptor to dispose. Its own checked
-                // weakening ends the storage dependency. Unknown aggregate or
-                // replacement occurrences cannot borrow that alias rule.
-                let Some((ordinal, alias)) =
-                    program.state_local_declaration(authored_state, loan.owner_symbol)
-                else {
-                    return true;
-                };
-                let unmaterialized_alias = ordinal == loan.statement_index
-                    && facts.borrow.loan_owner_path(loan).is_empty()
-                    && validation::reference_result_custody::shared_place_borrowed_parts(
-                        program,
-                        alias.type_reference,
-                    )
-                    .is_some()
-                    && !results.iter().any(|(_, root)| {
-                        *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
-                    })
-                    && u32::try_from(ordinal).ok().is_some_and(|ordinal| {
-                        facts.values.structural_values.root_for_expression(
-                            state,
-                            ordinal,
-                            alias.initial_value,
-                        ).is_none()
-                    });
-                return !(unmaterialized_alias
-                    && validation::reference_result_custody::release_boundary(
-                        program, facts, machine, state, handle,
-                    )
-                    .is_some_and(|boundary| boundary <= statement_index));
-            };
-            if holders.next().is_some() {
-                return true;
-            }
-            !operations.iter().chain(&pending).any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::ReleaseReference {
-                    binding_ordinal,
-                    loan: released,
-                    ..
-                } => *binding_ordinal == holder.binding_ordinal && *released == handle,
-                CheckedUnitEffectOperationPlan::ContinuationCleanup { affine_discards, .. } => {
-                    affine_discards.iter().any(|discard| {
-                        discard.path.is_empty()
-                            && matches!(discard.source,
-                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-                                    if binding_ordinal == holder.binding_ordinal)
-                    })
-                }
-                _ => false,
-            })
-        }) {
             continue;
         }
         retired.push(result.binding_ordinal);
@@ -1526,6 +1605,7 @@ fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let mut pending = Vec::new();
@@ -1536,6 +1616,20 @@ fn append_exit_reference_releases(
             && let Some(result) = call.structural_result()
             && custody.reference_loan.is_valid()
         {
+            // The exit boundary consumes the same current custody as an
+            // ordinary statement. A prior constructor/call transfer already
+            // moved this descriptor to another holder.
+            if reference_retirement::transferred_paths(
+                facts,
+                results,
+                result.binding_ordinal,
+                operations,
+            )?
+            .iter()
+            .any(|path| path.is_empty())
+            {
+                continue;
+            }
             let loan = custody.reference_loan;
             // Completion transfers this exact carrier and its retained ingress
             // rather than releasing it before the return. Earlier weakening
@@ -1573,6 +1667,13 @@ fn append_exit_reference_releases(
                 pending.push((boundary, CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index: boundary,
                     binding_ordinal: result.binding_ordinal,
+                    path: Vec::new(),
+                    defer_to_exit: matches!(
+                        program.statement_table.statements(
+                            program.state_by_symbol(state)?.statement_nodes,
+                        ).get(boundary.checked_sub(1)? as usize)?,
+                        StatementNode::Transition(_)
+                    ),
                     loan,
                 }));
             }
@@ -1820,12 +1921,11 @@ fn consume_result(
         // its referent leaves disposal with the producer; it does not require
         // an owned-result discard flag or transfer the borrowed backing.
         // Argument admission retains exact access, path and loan lifetime.
-        // A borrowed result is used by a borrow of matching access:
-        // `&mut` results only by a projected `&mut` argument (a re-borrow —
-        // the whole exclusive loan cannot move), while a `&` result's loan
-        // is shareable, so a `&` argument admits the forward projected or
-        // whole. The forward names the shelled referent, not a copy.
-        return (access == CheckedStructuralAccess::SharedBorrow
+        // A whole owned operand transfers the descriptor itself, including
+        // its loan and later retirement, to the receiving value. Lending the
+        // referent keeps that descriptor in this holder instead.
+        return ((!projected && access == CheckedStructuralAccess::Owned)
+            || access == CheckedStructuralAccess::SharedBorrow
             || (projected && access == CheckedStructuralAccess::MutableBorrow))
             .then_some(());
     }

@@ -62,6 +62,8 @@ fn collect_partial_affine_residuals(
                                 | StructuralFieldType::Scalar(_)
                                 | StructuralFieldType::Atomic(_)
                                 | StructuralFieldType::IeeeFloat(_)
+                                | StructuralFieldType::BoundedInteger(_)
+                                | StructuralFieldType::RefinedScalar(_)
                                 | StructuralFieldType::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )

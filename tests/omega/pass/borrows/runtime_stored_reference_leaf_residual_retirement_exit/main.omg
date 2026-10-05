@@ -1,0 +1,24 @@
+// The first leaf ends in the body; the second remains live until the transition.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32 [0..=100]; ready: bool; }
+data Pair { first: &Cell; second: &Cell; stamp: i32; }
+data Main { console: Binding<Console>; first: Cell; second: Cell; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.first.value = 70;
+    main.first.ready = true;
+    main.second.value = 11;
+    main.second.ready = true;
+    let pair: Pair = Pair { first: &main.first, second: &main.second, stamp: 29 };
+    let observed: i32 [0..=100] = pair.first.value;
+    main.first.value = 81;
+    let stamp: i32 = pair.stamp;
+    transition observed == 70 && stamp == 29 && main.first.value == 81 && pair.second.ready && pair.second.value == 11 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

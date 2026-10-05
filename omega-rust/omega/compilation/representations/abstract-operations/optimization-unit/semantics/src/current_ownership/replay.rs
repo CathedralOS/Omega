@@ -181,6 +181,47 @@ pub(super) fn validate_current_ownership_cfg(
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
 
+            // Restoration windows may repair their own temporary holes, but
+            // cannot reanimate subtrees permanently consumed by an owned move
+            // or descriptor release. Check the selected storage region before
+            // loan replay, whose live roster no longer contains retired leaves.
+            if let O::MoveStructuralField {
+                source: root,
+                path,
+                field,
+                ..
+            }
+            | O::StoreStructuralField {
+                destination: root,
+                path,
+                field,
+                ..
+            } = &node.operation
+                && let Some(consumed) = frontier.partial_custody_paths.get(&root.place())
+            {
+                let available = super::references::window_hole(
+                    function,
+                    structural_types,
+                    root.place(),
+                    root.structural_type(),
+                    path,
+                    *field,
+                )
+                .is_some_and(|selected| {
+                    consumed.iter().all(|absent| {
+                        !terminal_semantics::structural_paths_may_overlap(absent, &selected)
+                    })
+                });
+                if !available {
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+                        machine: function.machine,
+                        block: block_id,
+                        node: node_index,
+                        place: root.place(),
+                    });
+                }
+            }
+
             // Loan replay runs inside the same operation transaction as the
             // owned-place checks below: establishment, release, record
             // relocation, call transfer, and suspended-root access all settle
@@ -260,10 +301,36 @@ pub(super) fn validate_current_ownership_cfg(
                             source: *source,
                         },
                     )?;
+                let partially_unavailable =
+                    frontier
+                        .partial_custody_paths
+                        .get(source)
+                        .is_some_and(|consumed| match &node.operation {
+                            O::StructuralScalarFieldRead { path, field, .. } => {
+                                let observed = terminal_semantics::canonical_field_storage_region(
+                                    structural_types.values().copied(),
+                                    signature.structural_type,
+                                    path,
+                                    *field,
+                                );
+                                consumed.iter().any(|path| {
+                                    terminal_semantics::structural_paths_may_overlap(
+                                        path, &observed,
+                                    )
+                                })
+                            }
+                            _ => true,
+                        });
                 if signature.access == StructuralAccess::Owned
                     && signature.multiplicity != StructuralMultiplicity::Unrestricted
-                    && (!frontier.owned_places.contains_key(source)
-                        || frontier.partial_custody_paths.contains_key(source))
+                    && ((!frontier.owned_places.contains_key(source)
+                        && !projected_root_is_fully_consumed(
+                            function,
+                            structural_types,
+                            &frontier,
+                            *source,
+                        ))
+                        || partially_unavailable)
                 {
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                         machine: function.machine,
@@ -422,7 +489,8 @@ pub(super) fn validate_current_ownership_cfg(
             // keeps its original home and is never disposed here. Copyable
             // carriers hold no owned-place slot — `release` already ended
             // the live reference, and there is nothing left to consume.
-            if let O::ReleaseReference { source, .. } = &node.operation
+            if let O::ReleaseReference { source, path, .. } = &node.operation
+                && path.is_empty()
                 && crate::unit_validation::operation_contracts::structural_source_contract(
                     function, *source,
                 )
@@ -671,8 +739,45 @@ pub(super) fn validate_current_ownership_cfg(
                     &frontier,
                     argument.place,
                 ) {
+                    // Disposal debt is empty, but scalar siblings retain
+                    // storage and the absent-path history still fences whole uses.
                     frontier.owned_places.remove(&argument.place);
-                    frontier.partial_custody_paths.remove(&argument.place);
+                }
+            }
+
+            if let O::ReleaseReference { source, path, .. } = &node.operation
+                && !path.is_empty()
+            {
+                // A released descriptor becomes absent just like a transferred
+                // owned subtree, but creates no borrowed-window repair debt.
+                // Keep its root available for nonoverlapping scalar siblings,
+                // including when no structural disposal obligations remain.
+                if frontier.owned_places.get(source) != Some(&StructuralMultiplicity::Affine) {
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+                        machine: function.machine,
+                        block: block_id,
+                        node: node_index,
+                        place: *source,
+                    });
+                }
+                let consumed = frontier.partial_custody_paths.entry(*source).or_default();
+                if consumed
+                    .iter()
+                    .any(|existing| existing.starts_with(path) || path.starts_with(existing))
+                    || !consumed.insert(path.clone())
+                {
+                    return Err(
+                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap {
+                            machine: function.machine,
+                            block: block_id,
+                            node: node_index,
+                            place: *source,
+                        },
+                    );
+                }
+                if projected_root_is_fully_consumed(function, structural_types, &frontier, *source)
+                {
+                    frontier.owned_places.remove(source);
                 }
             }
 

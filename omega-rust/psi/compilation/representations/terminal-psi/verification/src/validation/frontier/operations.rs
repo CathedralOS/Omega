@@ -27,6 +27,29 @@ pub(super) fn apply_operation(
         machines,
         ..
     } = *walk;
+    if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
+        eprintln!(
+            "retirement machine={:?} operation={:?} kind={:?} partial={:?} references={:?}",
+            machine.id,
+            operation.id,
+            operation.kind,
+            frontier.partial_custody_paths,
+            frontier.references
+        );
+    }
+    super::validate_partial_storage_access(module, machine, operation, frontier)?;
+    if let OperationKind::ReleaseReference { source, path } = &operation.kind
+        && !path.is_empty()
+        && frontier
+            .claims
+            .values()
+            .any(|claim| claim.input == Some(*source))
+    {
+        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: operation.id,
+            place: *source,
+        });
+    }
     // An operation touching an open borrowed-storage window's absent subtree
     // rejects before any custody effect of its own is applied.
     super::super::borrowed_windows::check_operation(walk, operation, frontier)?;
@@ -35,6 +58,18 @@ pub(super) fn apply_operation(
     // Check before applying effects, which may publish this result's loans.
     if let Some(result) = operation.result.structural() {
         super::super::references::check_root_access(machine, &frontier.references, result.place)?;
+        if frontier.partial_custody_paths.contains_key(&result.place) {
+            if !frontier.owned_places.contains_key(&result.place)
+                && projected_root_is_fully_consumed(module, machine, frontier, result.place)
+            {
+                frontier.partial_custody_paths.remove(&result.place);
+            } else {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: result.place,
+                });
+            }
+        }
     }
     // A projected reference establishment selects its carrier's leaf: the
     // carrier is consumed whole by that move, so detect it before the
@@ -215,7 +250,18 @@ pub(super) fn apply_operation(
     // opens or closes its restoration debt; the result place installs below
     // through the ordinary structural-result block.
     super::super::borrowed_windows::apply_operation(walk, operation, frontier)?;
-    let projected_arguments = projected_arguments(operation);
+    let released_argument = match &operation.kind {
+        OperationKind::ReleaseReference { source, path } if !path.is_empty() => {
+            Some(terminal_psi::StructuralArgument {
+                place: *source,
+                path: path.clone(),
+                access: StructuralAccess::Owned,
+            })
+        }
+        _ => None,
+    };
+    let mut projected_arguments = projected_arguments(operation);
+    projected_arguments.extend(released_argument.as_ref());
     for argument in projected_arguments
         .iter()
         .filter(|argument| !argument.path.is_empty() && argument.access == StructuralAccess::Owned)
@@ -298,7 +344,6 @@ pub(super) fn apply_operation(
         }
         if projected_root_is_fully_consumed(module, machine, frontier, argument.place) {
             frontier.owned_places.remove(&argument.place);
-            frontier.partial_custody_paths.remove(&argument.place);
         }
     }
     // Borrowing the backing does not remove affine custody of the descriptor.
@@ -386,7 +431,7 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
         ..
     } = *walk;
     match &operation.kind {
-        OperationKind::ReleaseReference { source } => vec![*source],
+        OperationKind::ReleaseReference { source, path } if path.is_empty() => vec![*source],
         OperationKind::EstablishRecord { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishStructuralArray { .. } => operation

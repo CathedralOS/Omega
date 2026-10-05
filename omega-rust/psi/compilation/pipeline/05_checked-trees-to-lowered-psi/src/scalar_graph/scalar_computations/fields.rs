@@ -239,35 +239,16 @@ pub(crate) fn prepare_place_observations(
             LoweringError::Unsupported("place observation statement ordinal overflow")
         })?;
         let primitive = checked.primitive_type_reference(*referee).is_some();
-        let operations = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine)
-            .map(|plan| plan.operations.as_slice())
-            .or_else(|| {
-                checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .composed_for_machine(machine)
-                    .and_then(|plan| plan.states.iter().find(|row| row.state == state))
-                    .map(|state| state.operations.as_slice())
-            });
-        let established = operations.is_some_and(|operations| operations.iter().any(|operation| {
-            matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                if result.statement_index == statement_index)
-        }));
-        if primitive
-            && (established
-                || checked
-                    .facts
-                    .values
-                    .structural_values
-                    .root_for_expression(state, statement_index, local.initial_value)
-                    .is_some())
+        if established_reference_local(checked, machine, state, statement_index)
+            || checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(state, statement_index, local.initial_value)
+                .is_some()
         {
-            // An actual reference carrier owns its capture and observations.
+            // An actual descriptor owns its capture and observations for every
+            // referent shape. Its initializer is not a second storage binding.
             continue;
         }
         let identity = checked.normalized_type_identity(*referee);
@@ -397,6 +378,30 @@ struct CapturedPlaceSubject {
     element_suffix: Vec<terminal_psi::StructuralPathSegment>,
 }
 
+/// Checking has already selected storage for this local's descriptor. Silent
+/// place aliases alone need the legacy captured-place observation route.
+fn established_reference_local(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+) -> bool {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let operations = plans
+        .for_machine(machine)
+        .map(|plan| plan.operations.as_slice())
+        .or_else(|| {
+            plans
+                .composed_for_machine(machine)
+                .and_then(|plan| plan.states.iter().find(|row| row.state == state))
+                .map(|state| state.operations.as_slice())
+        });
+    operations.is_some_and(|operations| operations.iter().any(|operation| {
+        matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            if result.statement_index == statement_index)
+    }))
+}
+
 /// A captured place observation is a silent loan marker: it mints no established
 /// place of its own, so a member read through it must resolve the structural
 /// parameter the loan captured plus the canonical path from that root to the
@@ -414,17 +419,19 @@ fn captured_place_subject(
     if source_machine.symbol != machine {
         return Ok(None);
     }
-    let Some(local) = checked
-        .statement_table
-        .statements(source_state.statement_nodes)
-        .iter()
-        .find_map(|node| match node {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        })
+    let Some((statement_index, local)) =
+        checked.typed.state_local_declaration(source_state, symbol)
     else {
         return Ok(None);
     };
+    if u32::try_from(statement_index)
+        .ok()
+        .is_some_and(|statement_index| {
+            established_reference_local(checked, machine, state, statement_index)
+        })
+    {
+        return Ok(None);
+    }
     if local.is_mutable {
         return Ok(None);
     }

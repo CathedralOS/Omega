@@ -224,3 +224,6 @@ pub(super) const PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 106;
 
 /// Complete owned structural array construction.
 pub(super) const ESTABLISH_STRUCTURAL_ARRAY: u8 = 107;
+
+/// Reference release at a nonempty owned descriptor path.
+pub(super) const PROJECTED_RELEASE_REFERENCE: u8 = 108;

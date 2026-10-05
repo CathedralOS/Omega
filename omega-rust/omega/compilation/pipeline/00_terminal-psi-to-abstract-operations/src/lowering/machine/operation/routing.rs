@@ -37,10 +37,13 @@ pub(super) fn lower(
                 source: source.clone(),
             })
         }
-        OperationKind::ReleaseReference { source } => Ok(AbstractOperation::ReleaseReference {
-            psi_operation: operation.id,
-            source: *source,
-        }),
+        OperationKind::ReleaseReference { source, path } => {
+            Ok(AbstractOperation::ReleaseReference {
+                psi_operation: operation.id,
+                source: *source,
+                path: path.clone(),
+            })
+        }
         OperationKind::StructuralCaseMembership { source, path, case } => {
             let result = operation
                 .result

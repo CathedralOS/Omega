@@ -410,7 +410,7 @@ pub fn borrowed_initializer_source(
     // Reference access and reference storage are separate facts. Borrowing a
     // scalar produces a reference but does not dereference the scalar itself.
     let leaf = if let Some(shell) = crate::reference_shell(program, owner_type) {
-        if shell.access != borrow.access {
+        if !reference_parameter_can_supply(program, owner_type, reference) {
             return None;
         }
         segments.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
@@ -556,24 +556,20 @@ fn construction_sources_with_calls(
             holder_path: Vec::new(),
         }]);
     }
-    if stored_loan_parts(program, reference).is_some()
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Member(_)
-        )
-    {
-        let (_, source) = expression_source_leaf(program, state, expression, reference)?;
-        return Some(vec![ConstructionSource {
-            value: checked_trees::CheckedReferenceResultSourcePlan {
-                path: Vec::new(),
-                source,
-            },
-            holder: SymbolHandle::default(),
-            holder_path: Vec::new(),
-        }]);
-    }
     if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
         return Some(Vec::new());
+    }
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return projected_construction_sources(
+            program,
+            state,
+            expression,
+            reference,
+            active_origins,
+        );
     }
     if stored_loan_parts(program, reference).is_none() && !is_reference_record(program, reference) {
         return None;
@@ -654,6 +650,121 @@ fn construction_sources_with_calls(
     } else {
         aggregate_construction_sources(program, state, expression, reference, active_origins)
     }
+}
+
+/// Selecting an existing value preserves the backing and immediate holder of
+/// every selected descriptor. The projection removes only its owner prefix;
+/// the holder path stays relative to the storage actually supplying the loan.
+fn projected_construction_sources(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+    active_origins: &mut Vec<SymbolHandle>,
+) -> Option<Vec<ConstructionSource>> {
+    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
+    let mut projections = Vec::new();
+    let mut root = expression;
+    loop {
+        if projections.len() >= MAX_REFERENCE_ORIGIN_DEPTH || projections.contains(&root) {
+            return None;
+        }
+        match program.expression_table.expression(root) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                projections.push(root);
+                root = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                projections.push(root);
+                root = indexed.collection;
+            }
+            _ => break,
+        }
+    }
+    let root_type = match program.expression_table.expression(root) {
+        ExpressionNode::Name(name) => program
+            .state_local_declaration(state, name.symbol)
+            .map(|(_, local)| local.type_reference)
+            .or_else(|| {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == name.symbol)
+                    .map(|parameter| parameter.type_reference)
+            })?,
+        ExpressionNode::Call(call) => {
+            let (_, destination) =
+                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+                    .or_else(|| {
+                    let machine = program.machine_by_symbol(call.target_symbol)?;
+                    Some((machine, program.machine_states(machine).first()?))
+                })?;
+            destination.return_type
+        }
+        _ => return None,
+    };
+    let mut selected = root_type;
+    let mut path = Vec::with_capacity(projections.len());
+    for projection in projections.into_iter().rev() {
+        selected = crate::peel_declared_constraints(program, selected);
+        match program.expression_table.expression(projection) {
+            ExpressionNode::Member(member) => {
+                // Value transport stays in owned storage; crossing a reference
+                // requires an authored borrow rather than moving its referent.
+                if crate::reference_shell(program, selected).is_some() {
+                    return None;
+                }
+                let data = nominal_member_owner_type(program, selected)?;
+                let field = crate::value_custody::places::exact_data_member_field(
+                    program,
+                    data,
+                    member.member_symbol,
+                    member.member.as_str(),
+                    None,
+                )?;
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                path.push(Segment::Field(field.path_identity()));
+                selected = field.type_reference;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Integer(index) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                let index = usize::try_from(index.value_i64()?).ok()?;
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(selected)
+                else {
+                    return None;
+                };
+                if index >= *length {
+                    return None;
+                }
+                path.push(Segment::FixedIndex(u64::try_from(index).ok()?));
+                selected = *element_type;
+            }
+            _ => return None,
+        }
+    }
+    if program.normalized_type_identity(selected) != program.normalized_type_identity(reference) {
+        return None;
+    }
+    let sources = construction_sources_with_calls(program, state, root, root_type, active_origins)?;
+    Some(
+        sources
+            .into_iter()
+            .filter_map(|mut source| {
+                let suffix = source.value.path.strip_prefix(path.as_slice())?;
+                source.value.path = suffix.to_vec();
+                Some(source)
+            })
+            .collect(),
+    )
 }
 
 /// Substitute returned permission leaves through the exact resolved invocation.

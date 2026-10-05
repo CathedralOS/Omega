@@ -2,104 +2,13 @@
 use super::super::StructuralArgument;
 use super::admission::CallerView;
 use super::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, LoweringError, Operation, OperationKind,
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind,
     OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 use checked_trees::statement::StatementNode;
-
-pub(super) fn validate_establishment(
-    checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishReference {
-        result: binding,
-        source,
-    } = operation
-    else {
-        return unsupported("reference establishment has no carrier producer");
-    };
-    let (_, state) = crate::declarations::state_declaration(checked, machine.state)?;
-    if matches!(
-        checked
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(binding.statement_index as usize),
-        Some(StatementNode::LocalData(_))
-    ) {
-        return validate_local_establishment(checked, machine.state, binding);
-    }
-    let returned = machine
-        .structural_result
-        .as_ref()
-        .ok_or(LoweringError::Unsupported(
-            "reference establishment has no returned carrier",
-        ))?;
-    let [_] = returned.reference_sources.as_slice() else {
-        return unsupported("reference completion source roster changed");
-    };
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-    else {
-        return unsupported("reference establishment requires retained ingress custody");
-    };
-    if machine
-        .structural_parameters
-        .get(parameter_index as usize)
-        .is_none()
-    {
-        return unsupported("reference ingress parameter is absent");
-    }
-    // The authored tail names the whole ingress, a projected leaf, or a
-    // borrowed field loan.
-    let borrowed_tail = || {
-        let expression = crate::reference_custody::tail_return_expression(checked, state)?;
-        validation::reference_result_custody::borrowed_initializer_source(
-            &checked.typed,
-            state,
-            expression,
-            state.return_type,
-        )
-    };
-    if !crate::reference_custody::tail_names_source_parameter(checked, state)
-        && !crate::reference_custody::tail_selects_source_leaf(checked, state)
-        && borrowed_tail().is_none()
-    {
-        return unsupported("reference completion has no exact ingress source");
-    }
-    Ok(())
-}
-
-/// A local loan replays the exact authored primitive source and retains the
-/// full reference shell independently of the backing carrier.
-pub(super) fn validate_local_establishment(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    result: &CheckedUnitStructuralResultBindingPlan,
-) -> Result<(), LoweringError> {
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    let ordinal = result.statement_index as usize;
-    if validation::reference_result_custody::primitive_local_source(
-        &checked.typed,
-        authored,
-        ordinal,
-    )
-    .is_none()
-    {
-        return unsupported("primitive reference lost its authored source");
-    }
-    let Some(StatementNode::LocalData(_)) = checked
-        .statement_table
-        .statements(authored.statement_nodes)
-        .get(ordinal)
-    else {
-        return unsupported("primitive reference has no local declaration");
-    };
-    Ok(())
-}
 
 /// An ordinary structural call's result binding and custody.
 fn ordinary_structural_result(
@@ -110,150 +19,6 @@ fn ordinary_structural_result(
 )> {
     let call = operation.call().filter(|call| !call.is_boundary())?;
     Some((call.structural_result()?, call.structural_custody()?))
-}
-
-/// Rejoin a composed reference completion to its authored source. Shared
-/// returns reconstruct the same initializer custody as ordinary completions;
-/// exclusive returns also retain the borrow checker's exact return path.
-pub(super) fn validate_composed_establishment(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    result: &CheckedUnitStructuralResultBindingPlan,
-    source: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> Result<(), LoweringError> {
-    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
-    if crate::reference_custody::shared_borrow_parts(checked, authored.return_type).is_some() {
-        // A shared result may weaken mutable ingress; its exact authored
-        // initializer must resolve.
-        if validation::reference_result_custody::initializer_source(
-            &checked.typed,
-            authored,
-            expression,
-            authored.return_type,
-        )
-        .is_none()
-        {
-            return unsupported("shared reference return has no exact ingress source");
-        }
-        return Ok(());
-    }
-    let Some(_) = validation::reference_result_custody::mutable_return_source(
-        &checked.typed,
-        &checked.facts,
-        machine,
-        authored,
-        result.statement_index as usize,
-        expression,
-    ) else {
-        return unsupported("mutable reference return has no exact ingress source");
-    };
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-    else {
-        return unsupported("mutable reference return requires retained ingress custody");
-    };
-    if state
-        .structural_parameters
-        .get(parameter_index as usize)
-        .is_none()
-    {
-        return unsupported("mutable reference ingress parameter is absent");
-    }
-    if crate::reference_custody::mutable_borrow_parts(checked, authored.return_type).is_none() {
-        return unsupported("mutable reference return lost its declared referee");
-    }
-    Ok(())
-}
-
-pub(super) fn validate_releases(
-    checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-) -> Result<(), LoweringError> {
-    for (index, operation) in machine.operations.iter().enumerate() {
-        // Only an ordinary structural call carries a reference loan.
-        let Some((result, custody)) = ordinary_structural_result(operation) else {
-            continue;
-        };
-        if !custody.reference_loan.is_valid() {
-            continue;
-        }
-        let boundary = validation::reference_result_custody::release_boundary(
-            &checked.typed,
-            &checked.facts,
-            machine.machine,
-            machine.state,
-            custody.reference_loan,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "reference carrier has no exact weakening boundary",
-        ))?;
-        let (_, authored) = crate::declarations::state_declaration(checked, machine.state)?;
-        if boundary as usize
-            >= checked
-                .statement_table
-                .statements(authored.statement_nodes)
-                .len()
-        {
-            // The loan's last use is the final statement: the state exit
-            // retires the custody itself, so no release operation exists.
-            continue;
-        }
-        let mut releases = machine.operations.iter().enumerate().filter_map(
-            |(index, operation)| match operation {
-                CheckedUnitEffectOperationPlan::ReleaseReference {
-                    binding_ordinal,
-                    loan,
-                    statement_index,
-                } if *binding_ordinal == result.binding_ordinal => {
-                    Some((index, *loan, *statement_index))
-                }
-                _ => None,
-            },
-        );
-        let (release_index, loan, statement_index) = releases.next().ok_or(
-            LoweringError::Unsupported("reference carrier omits its loan release"),
-        )?;
-        if releases.next().is_some()
-            || release_index <= index
-            || loan != custody.reference_loan
-            || statement_index != boundary
-        {
-            return unsupported("reference carrier release differs from captured weakening");
-        }
-        // The boundary is before the first source operation at that statement,
-        // never merely a matching coordinate emitted after a conflicting read.
-        if machine.operations[index + 1..release_index]
-            .iter()
-            .any(|operation| {
-                operation
-                    .source_statement_index()
-                    .is_some_and(|statement| statement >= boundary)
-            })
-        {
-            return unsupported(
-                "reference loan release follows an already resumed source statement",
-            );
-        }
-    }
-    for operation in &machine.operations {
-        if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
-            loan,
-            ..
-        } = operation
-            && !machine.operations.iter().any(|producer| {
-                ordinary_structural_result(producer).is_some_and(|(result, custody)| {
-                    result.binding_ordinal == *binding_ordinal
-                        && custody.reference_loan == *loan
-                        && loan.is_valid()
-                })
-            })
-        {
-            return unsupported("reference release has no retained result loan");
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn validate_consumer(
@@ -362,10 +127,7 @@ pub(super) fn validate_consumer(
         return unsupported("reference consumer has no plain record or primitive referent");
     }
     let loan = match producer {
-        CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
-            validate_local_establishment(checked, caller.state, result)?;
-            None
-        }
+        CheckedUnitEffectOperationPlan::EstablishReference { .. } => None,
         _ => {
             let Some((_, custody)) = ordinary_structural_result(producer) else {
                 return unsupported("reference carrier producer has no retained custody");

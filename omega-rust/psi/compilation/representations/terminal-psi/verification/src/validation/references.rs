@@ -1774,23 +1774,97 @@ pub(super) fn establishment_moves_leaf(
     .then_some((source.place, position))
 }
 
+/// A release names a descriptor in owned storage, never its referent.
+pub(super) fn validate_release(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(), ModuleError> {
+    if path.is_empty() {
+        return carrier_type(module, machine, source)
+            .map(|_| ())
+            .ok_or_else(|| invalid(machine, "release source is not a reference carrier"));
+    }
+    let root =
+        super::partial_affine::partial_affine_root_type(machine, source).ok_or_else(|| {
+            invalid(
+                machine,
+                "projected release requires an owned affine carrier",
+            )
+        })?;
+    for end in 0..path.len() {
+        let ancestor = leaf_reference_type(module, root, &path[..end])
+            .ok_or_else(|| invalid(machine, "release has no owned ancestor declaration"))?;
+        if module
+            .machines
+            .iter()
+            .any(|candidate| candidate.nominal_cleanup_subject == Some(ancestor))
+        {
+            return Err(invalid(
+                machine,
+                "projected release would bypass whole-value nominal cleanup",
+            ));
+        }
+    }
+    if path.iter().any(|segment| {
+        !matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) || leaf_reference_type(module, root, path)
+        .and_then(|leaf| referent(module, leaf))
+        .is_none()
+    {
+        return Err(invalid(
+            machine,
+            "projected release does not select one exact reference leaf",
+        ));
+    }
+    Ok(())
+}
+
+fn release_leaf(
+    live: &mut Vec<LiveReference>,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(), &'static str> {
+    let mut matching = live
+        .iter()
+        .enumerate()
+        .filter(|(_, reference)| reference.carrier == source && reference.carrier_path == path);
+    let position = matching
+        .next()
+        .map(|(position, _)| position)
+        .ok_or("release requires one live reference carrier")?;
+    if matching.next().is_some() {
+        return Err("release requires a unique live reference carrier");
+    }
+    if live.iter().any(|reference| {
+        matches!(&reference.parent,
+        ReferenceParent::Reference(identity) if identity == &live[position].identity)
+    }) {
+        return Err("a reference cannot end before its child");
+    }
+    if live.iter().enumerate().any(|(index, reference)| {
+        index != position
+            && reference.any_origin_region(|place, origin| {
+                place == source && terminal_semantics::structural_paths_may_overlap(origin, path)
+            })
+    }) {
+        return Err("reference descriptor storage is still borrowed");
+    }
+    live.remove(position);
+    Ok(())
+}
+
 pub(super) fn release(
     machine: &TerminalMachine,
     live: &mut Vec<LiveReference>,
     source: PlaceId,
+    path: &[StructuralPathSegment],
 ) -> Result<(), ModuleError> {
-    let position = live
-        .iter()
-        .position(|reference| reference.carrier == source && reference.carrier_path.is_empty())
-        .ok_or_else(|| invalid(machine, "release requires one live reference carrier"))?;
-    if live
-        .iter()
-        .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &live[position].identity))
-    {
-        return Err(invalid(machine, "a reference cannot end before its child"));
-    }
-    live.remove(position);
-    Ok(())
+    release_leaf(live, source, path).map_err(|message| invalid(machine, message))
 }
 
 /// Whole-owner disposal visits reference leaves in reverse declaration order.
@@ -1841,6 +1915,51 @@ pub(super) fn discard_owned(
         ));
     }
     live.retain(|reference| !released.contains(&reference.identity));
+    Ok(())
+}
+
+/// Residual cleanup retires only the selected subtree's descriptors. Its
+/// ownership caller separately verifies that these subtrees are the exact
+/// remaining complement; live children or storage borrowers still forbid it.
+pub(super) fn discard_residual(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &mut Vec<LiveReference>,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+    structural_type: StructuralTypeId,
+) -> Result<(), ModuleError> {
+    let signature = super::structural::result_contracts::source_signature(machine, source)
+        .ok_or_else(|| invalid(machine, "residual cleanup has no owned source"))?;
+    if path.is_empty()
+        || leaf_reference_type(module, signature.structural_type, path) != Some(structural_type)
+    {
+        return Err(invalid(
+            machine,
+            "residual cleanup changed its exact subtree",
+        ));
+    }
+    let paths = leaf_paths(module, structural_type, live.len())
+        .ok_or_else(|| invalid(machine, "residual reference roster exceeds live custody"))?;
+    let mut remaining = live.clone();
+    for leaf in paths.iter().rev() {
+        let mut selected = path.to_vec();
+        selected.extend_from_slice(leaf);
+        release_leaf(&mut remaining, source, &selected)
+            .map_err(|message| invalid(machine, message))?;
+    }
+    if remaining.iter().any(|reference| {
+        (reference.carrier == source && reference.carrier_path.starts_with(path))
+            || reference.any_origin_region(|place, origin| {
+                place == source && terminal_semantics::structural_paths_may_overlap(origin, path)
+            })
+    }) {
+        return Err(invalid(
+            machine,
+            "residual cleanup still contains borrowed storage",
+        ));
+    }
+    *live = remaining;
     Ok(())
 }
 
@@ -2090,7 +2209,9 @@ pub(super) fn apply_operation(
     live: &mut Vec<LiveReference>,
 ) -> Result<(), ModuleError> {
     match &operation.kind {
-        OperationKind::ReleaseReference { source } => return release(machine, live, *source),
+        OperationKind::ReleaseReference { source, path } => {
+            return release(machine, live, *source, path);
+        }
         OperationKind::EstablishStructuralArray { .. } | OperationKind::EstablishRecord { .. } => {
             return establish_constructor(module, machine, operation, live);
         }

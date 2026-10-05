@@ -75,10 +75,21 @@ Structural result signatures bind each returned reference leaf to a nonempty,
 ordered set of possible formal ingress sources. Independent verification
 reconstructs actual origins from establishments and call substitution, rejects
 local escapes, and checks the result mapping against the returned carrier.
-Returning or moving a carrier does not end its loan. `ReleaseReference` ends
-it only after its descendants
-have ended; same-block restoration therefore precedes any renewed parent use.
-Formation, release, and successful return commit only after their fuel charge.
+Returning or moving a carrier does not end its loan. `ReleaseReference` names
+an owned carrier root and its exact finite field/fixed-index path; an empty
+path selects the root itself. It ends that descriptor only after its descendants
+have ended. It neither crosses a reference nor disposes the referent. A projected
+release consumes that leaf's ownership, retains disjoint siblings, and makes the
+ancestor unavailable for whole-value use. Subsequent cleanup reconstructs the
+exact remaining structural complement, excluding released leaves.
+
+An empty structural complement settles disposal obligations, not the initialized
+storage of scalar siblings. Their nonoverlapping observations remain available
+under ordinary producer dominance, while the consumed paths stay unavailable.
+Release opens no borrowed-storage repair obligation. Same-block restoration
+precedes any renewed parent use, and shared backing stays frozen until the
+complete shared cohort ends. Formation, release, and successful return commit
+only after their fuel charge.
 
 The current executable slice retains whole mutable primitive references,
 mutable references to plain records, and record-contained reference leaves

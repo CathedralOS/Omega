@@ -511,6 +511,7 @@ impl GraphEmission<'_> {
                             erased_arguments: when_true_erased,
                             erased_proof_arguments: when_true_proof,
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             structural_arguments: Vec::new(),
@@ -520,6 +521,7 @@ impl GraphEmission<'_> {
                             erased_arguments: when_false_erased,
                             erased_proof_arguments: when_false_proof,
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                     }
                 }
@@ -714,6 +716,7 @@ impl GraphEmission<'_> {
                                 Vec::new()
                             },
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         })
                         .collect(),
                 }
@@ -873,6 +876,7 @@ impl GraphEmission<'_> {
                             case: *case,
                             payload_fields: Vec::new(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         });
                         continue;
                     };
@@ -957,6 +961,7 @@ impl GraphEmission<'_> {
                         case: *case,
                         payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     });
                 }
                 Terminator::StructuralCase {

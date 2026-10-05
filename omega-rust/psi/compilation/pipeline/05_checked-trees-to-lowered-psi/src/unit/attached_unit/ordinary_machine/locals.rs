@@ -15,8 +15,13 @@ impl MachineEmission<'_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<Option<OperationKind>, LoweringError> {
+        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
+            eprintln!("retirement ordinary plan operation={:?}", operation);
+        }
         let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal, ..
+            binding_ordinal,
+            path,
+            ..
         } = operation
         else {
             unreachable!("dispatched release_reference")
@@ -35,6 +40,9 @@ impl MachineEmission<'_> {
             .id;
         Ok(Some(OperationKind::ReleaseReference {
             source: self.evaluation.current_structural_place(source),
+            path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                path,
+            )?,
         }))
     }
 

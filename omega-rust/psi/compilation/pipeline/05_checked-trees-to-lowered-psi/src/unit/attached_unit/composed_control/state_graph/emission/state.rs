@@ -1257,6 +1257,7 @@ impl StateGraphEmission<'_, '_> {
                             case: case.identity,
                             payload_fields: case.fields.clone(),
                             trivial_affine_discards: case_subject_discards.clone(),
+                            residual_affine_discards: Vec::new(),
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1641,5 +1642,6 @@ fn decision_edge(
             .collect(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     })
 }

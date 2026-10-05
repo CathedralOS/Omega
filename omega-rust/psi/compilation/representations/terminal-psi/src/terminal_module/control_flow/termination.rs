@@ -206,6 +206,8 @@ pub struct SuccessorEdge {
     /// Exact no-code affine discards committed only when this successor is
     /// selected, in reverse parameter declaration order.
     pub trivial_affine_discards: Vec<PlaceId>,
+    /// Exact maximal live residual subtrees disposed on this selected edge.
+    pub residual_affine_discards: Vec<StructuralAffineDiscard>,
 }
 
 /// One exhaustive closed-sum successor. `payload_fields` is positional with
@@ -218,4 +220,6 @@ pub struct StructuralCaseSuccessorEdge {
     pub case: StructuralCaseId,
     pub payload_fields: Vec<StructuralFieldId>,
     pub trivial_affine_discards: Vec<PlaceId>,
+    /// Exact maximal live residual subtrees disposed after payload observation.
+    pub residual_affine_discards: Vec<StructuralAffineDiscard>,
 }

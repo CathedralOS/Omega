@@ -89,6 +89,16 @@ pub(super) fn apply_edge_partial_affine_discards(
         {
             return Err(mismatch());
         }
+        for discard in group {
+            super::references::discard_subtree(
+                function,
+                structural_types,
+                block,
+                &mut frontier.live_references,
+                root,
+                &discard.path,
+            )?;
+        }
         frontier.partial_custody_paths.remove(&root);
         frontier.owned_places.remove(&root);
         remaining = rest;

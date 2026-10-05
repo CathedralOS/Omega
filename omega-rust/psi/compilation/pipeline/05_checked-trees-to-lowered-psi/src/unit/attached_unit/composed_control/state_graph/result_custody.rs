@@ -2,8 +2,7 @@
 //!
 //! StateExit records the selected affine remainder at each exact normal exit.
 //! Distinct outgoing edges retain distinct evaluation coordinates.
-//! Reconstruct the transfer roster from source, check its exact permission rows,
-//! then subtract the selected edge's transfers. A transfer is a whole local
+//! Consume the checked transfer roster and subtract the selected edge's transfers. A transfer is a whole local
 //! passed to the target state or, after selection, into one of the edge's
 //! own operand calls (`next(consume(local))`); either moves the local on that
 //! edge alone, and every sibling edge still disposes of it. The resulting
@@ -16,7 +15,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
-use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+use language_semantics::PermissionEventSource;
 
 /// A call or constructed-value result that no automatic return discard
 /// retires: the selected edge owns its disposal.
@@ -101,7 +100,6 @@ pub(super) fn selection_role(
 /// retains the root for residual disposal rather than consuming it whole.
 struct BodyInput<'input> {
     operation_index: usize,
-    source: PermissionEventSource,
     argument: &'input checked_trees::CheckedUnitStructuralArgumentPlan,
     projected: bool,
 }
@@ -119,26 +117,15 @@ fn body_inputs<'input>(
                 // Boundary and ordinary calls retire owned operands by the
                 // same authored transfer. Boundary completion receipts govern
                 // returned custody, not ownership of the caller's inputs.
-                let authored = crate::call_sites::locate(checked, state.state, call.coordinate)?;
-                let source = PermissionEventSource::Call {
-                    statement_index: call.coordinate.statement_index as usize,
-                    call_ordinal: call.coordinate.call_ordinal as usize,
-                    target_symbol: authored.source_target,
-                };
                 inputs.extend(call.structural_arguments.iter().map(|argument| BodyInput {
                     operation_index,
-                    source,
                     argument,
                     projected: false,
                 }));
             }
-            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
-                operation
+            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation
             else {
                 continue;
-            };
-            let source = PermissionEventSource::Statement {
-                statement_index: result.statement_index as usize,
             };
             let mut pending = vec![(*value, false)];
             let mut visited = Vec::new();
@@ -166,7 +153,6 @@ fn body_inputs<'input>(
                     } => {
                         inputs.push(BodyInput {
                             operation_index,
-                            source,
                             argument,
                             projected,
                         });
@@ -224,7 +210,6 @@ fn body_inputs<'input>(
 /// Shared call admission checks each authored operand before emission.
 fn retired_in_body(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<u32>, LoweringError> {
@@ -299,23 +284,18 @@ fn retired_in_body(
     for operation in &state.operations {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
             binding_ordinal,
-            loan,
+            path,
+            defer_to_exit: false,
             ..
         } = operation
-            && !super::super::emission::reference_release_is_deferred(
-                checked,
-                machine,
-                state.state,
-                *loan,
-            )?
+            && path.is_empty()
         {
             retired.push(*binding_ordinal);
         }
     }
-    // Calls and value construction both transfer whole operands. A result's
-    // discard flag alone cannot prove retirement: rejoin its one consuming
-    // operand and exact establishment/transfer receipts. Each consumer also
-    // independently validates its authored operands before emission.
+    // Calls and value construction both transfer whole operands. Use the
+    // checked producer/consumer order to exclude transferred homes from exit
+    // cleanup. Source ownership admission already accounted for the move.
     let inputs = body_inputs(checked, state)?;
     for (producer_index, operation) in state.operations.iter().enumerate() {
         let Some(result) = result(operation) else {
@@ -372,7 +352,7 @@ fn retired_in_body(
         {
             return unsupported("Unit graph operand retirement duplicates or precedes its owner");
         }
-        let Some(local) = local else {
+        if local.is_none() {
             // The inventory includes calls retained inside selected values.
             // Only the direct body operation proves this anonymous operand
             // is consumed on every path before control reaches an exit.
@@ -391,43 +371,6 @@ fn retired_in_body(
             ))?;
             retired.push(result.binding_ordinal);
             continue;
-        };
-        let establishment = PermissionEventSource::Statement {
-            statement_index: result.statement_index as usize,
-        };
-        let transfer = consumer.source;
-        // A local move preserves its value's original provenance. Reuse the
-        // construction replay (including its borrowed-loan checks), then
-        // require this precise consuming operand as the sole final disposition.
-        let mut establishes = 0;
-        let mut transfers = 0;
-        for (_, event) in checked
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter(|(_, event)| {
-                event.machine_symbol == machine
-                    && event.state_symbol == state.state
-                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
-                    && event.access == PermissionAccess::Owned
-            })
-        {
-            if event.kind == PermissionEventKind::Establish && event.source == establishment {
-                establishes += 1;
-            } else if matches!(
-                event.kind,
-                PermissionEventKind::Transfer | PermissionEventKind::Consume
-            ) && event.source == transfer
-            {
-                transfers += 1;
-            } else {
-                return unsupported("Unit graph moved local retains another disposition");
-            }
-        }
-        if establishes != 1 || transfers != 1 {
-            return unsupported("Unit graph operand retirement lost its exact ownership receipts");
         }
         retired.push(result.binding_ordinal);
     }
@@ -466,7 +409,7 @@ pub(super) fn local_discards(
     edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
+    let cleanup_discards = retired_in_body(checked, source, state)?;
     let mut discards = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {
@@ -651,7 +594,7 @@ pub(super) fn selection_edge_discards(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
 ) -> Result<Vec<PlaceId>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
+    let cleanup_discards = retired_in_body(checked, source, state)?;
     let mut roots = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {

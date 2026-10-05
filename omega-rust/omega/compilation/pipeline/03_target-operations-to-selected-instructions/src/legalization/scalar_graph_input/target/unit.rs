@@ -261,12 +261,16 @@ pub(super) fn validate_operation(
             TargetUnitOperation::ReleaseReference {
                 psi_operation,
                 source,
+                path,
             },
             AbstractOperation::ReleaseReference {
                 psi_operation: expected_operation,
                 source: expected_source,
+                path: expected_path,
             },
-        ) if psi_operation == expected_operation && source == expected_source => {}
+        ) if psi_operation == expected_operation
+            && source == expected_source
+            && path == expected_path => {}
         (
             _,
             AbstractOperation::EstablishStructuralArray { .. }

@@ -476,6 +476,7 @@ impl GraphEmission<'_> {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -485,6 +486,7 @@ impl GraphEmission<'_> {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                 }
             }

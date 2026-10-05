@@ -458,5 +458,6 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         erased_arguments: Vec::new(),
         erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     })
 }

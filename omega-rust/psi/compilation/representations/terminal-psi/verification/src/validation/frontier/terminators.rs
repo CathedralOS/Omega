@@ -2,8 +2,8 @@
 //! block's successors.
 //!
 //! Every successor-bearing edge closes in the same diagnostic order:
-//! owned successor sources are consumed before that edge's residual and
-//! trivial discard rosters run, and the target's parameters are established
+//! owned successor sources are consumed before that edge's trivial and
+//! residual discard rosters run, and the target's parameters are established
 //! last. Residual evidence exists only on `Jump` edges; `Conditional` and
 //! `StructuralCase` edges carry trivial discards only, and `Conditional`
 //! handles each arm against its own frontier clone in the same order.
@@ -31,7 +31,7 @@ use super::{
 pub(super) fn close_block(
     walk: &FrontierWalk<'_>,
     block: &terminal_psi::Block,
-    frontier: StructuralOwnershipFrontier,
+    mut frontier: StructuralOwnershipFrontier,
     snapshots: &mut VerifiedMachineStructuralFrontiers,
     incoming: &mut BTreeMap<BlockId, Vec<StructuralOwnershipFrontier>>,
     returned_reference_sources: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
@@ -41,13 +41,19 @@ pub(super) fn close_block(
     } = *walk;
     walk.descriptor_loans
         .check_terminator(module, machine, block)?;
+    if matches!(
+        block.terminator,
+        Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
+            | Terminator::ReturnStructural { .. }
+    ) {
+        super::forget_empty_partial_storage(module, machine, &mut frontier);
+    }
     // Disposal closes owned loans, never borrowed ingress. The ordinary
     // ownership checks below independently validate the cleanup roster.
     let closing = match &block.terminator {
-        Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            ..
-        } => Some(trivial_affine_discards.clone()),
         Terminator::ReturnUnitNominalAffine { .. } => Some(Vec::new()),
         _ => None,
     };
@@ -117,14 +123,6 @@ fn close_jump(
         true,
         walk.window_aliases,
     )?;
-    apply_continuation_residual_discards(
-        module,
-        machine,
-        block.id,
-        parameter_order,
-        &mut frontier,
-        residual_affine_discards,
-    )?;
     apply_edge_trivial_affine_discards(
         module,
         machine,
@@ -132,6 +130,14 @@ fn close_jump(
         &mut frontier,
         *edge,
         trivial_affine_discards,
+    )?;
+    apply_continuation_residual_discards(
+        module,
+        machine,
+        block.id,
+        parameter_order,
+        &mut frontier,
+        residual_affine_discards,
     )?;
     super::block_parameters::establish(
         module,
@@ -500,6 +506,24 @@ fn close_return_unit_partial_affine(
             claim: *claim,
         });
     }
+    release_reference_discards(
+        module,
+        machine,
+        &mut frontier.references,
+        trivial_affine_discards,
+    )?;
+    for residual in residual_affine_discards {
+        super::super::references::discard_residual(
+            module,
+            machine,
+            &mut frontier.references,
+            residual.place,
+            &residual.path,
+            residual.structural_type,
+        )?;
+    }
+    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
+
     Ok(())
 }
 

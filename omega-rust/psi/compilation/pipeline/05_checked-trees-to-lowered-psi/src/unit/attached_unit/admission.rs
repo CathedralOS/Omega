@@ -14,8 +14,8 @@ pub(super) use calls::{CallerView, admit as admit_call};
 use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
 use super::{
-    reference_results, retain_admitted_unit_boundary, retain_exact_unit_boundary,
-    structural_completion, validate_unit_operation_sequence,
+    retain_admitted_unit_boundary, retain_exact_unit_boundary, structural_completion,
+    validate_unit_operation_sequence,
 };
 use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;
@@ -158,7 +158,6 @@ fn validate_ordinary(
         return unsupported("Unit closure is missing its canonical checked contract");
     }
     validate_unit_operation_sequence(checked, machine)?;
-    reference_results::validate_releases(checked, machine)?;
     // The checked nominal plan owns its empty completion wherever the machine
     // occurs in a closure. Its exact plan identity, not entry selection, grants
     // the shared cleanup finalizer authority to install the return actions.

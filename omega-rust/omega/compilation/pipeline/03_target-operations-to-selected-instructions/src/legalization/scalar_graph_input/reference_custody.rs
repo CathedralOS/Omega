@@ -1296,43 +1296,72 @@ fn combine_candidate_origins(
     Ok((Root::Alternatives(place, paths), None))
 }
 
-/// Remove every leaf an owned carrier at `place` still holds, in reverse
-/// declaration order. The entire schedule is checked before any loan ends;
-/// a live external child keeps its parent suspended.
+/// Whole cleanup uses the same declaration-derived subtree release as a
+/// partial complement. Storage keys, not shared loan provenance, select rows.
 fn discard_owned(
     function: &PsiOptimizationFunction,
     custody: &mut Custody,
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
 ) -> Result<bool, LegalizationError> {
+    discard_subtree(function, custody, types, source, &[])
+}
+
+fn discard_subtree(
+    function: &PsiOptimizationFunction,
+    custody: &mut Custody,
+    types: &[StructuralTypeDeclaration],
+    source: PlaceId,
+    prefix: &[StructuralPathSegment],
+) -> Result<bool, LegalizationError> {
     let Some(contract) = source_contract(function, custody, source) else {
         return Ok(false);
     };
-    if !contains_reference(types, contract) {
+    let selected = leaf_type(types, contract, prefix).ok_or_else(invalid)?;
+    if !contains_reference(types, selected) {
         return Ok(false);
     }
-    let paths = leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
+    let paths = leaf_paths(types, selected, custody.leaves.len()).ok_or_else(invalid)?;
     let mut released = BTreeSet::new();
+    let mut released_paths = BTreeSet::new();
     for path in paths.iter().rev() {
-        let leaf = custody.leaf(source, path).ok_or_else(|| invalid())?;
+        let mut selected_path = prefix.to_vec();
+        selected_path.extend_from_slice(path);
+        let leaf = custody.leaf(source, &selected_path).ok_or_else(invalid)?;
         if custody.leaves.values().any(|child| {
             child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
         }) {
             return Err(invalid());
         }
         released.insert(leaf.identity.clone());
+        released_paths.insert(selected_path);
     }
-    if custody
-        .leaves
-        .iter()
-        .any(|((carrier, _), leaf)| *carrier == source && !released.contains(&leaf.identity))
-    {
+    if custody.leaves.keys().any(|(carrier, path)| {
+        *carrier == source && path.starts_with(prefix) && !released_paths.contains(path)
+    }) {
         return Err(invalid());
     }
     custody
         .leaves
-        .retain(|_, leaf| !released.contains(&leaf.identity));
+        .retain(|(carrier, path), _| *carrier != source || !released_paths.contains(path));
     Ok(true)
+}
+
+fn discard_residual(
+    function: &PsiOptimizationFunction,
+    custody: &mut Custody,
+    types: &[StructuralTypeDeclaration],
+    discard: &terminal_psi::StructuralAffineDiscard,
+) -> Result<(), LegalizationError> {
+    let root = source_contract(function, custody, discard.place).ok_or_else(invalid)?;
+    if discard.path.is_empty()
+        || leaf_type(types, root, &discard.path) != Some(discard.structural_type)
+        || is_suspended_root(custody, discard.place)
+    {
+        return Err(invalid());
+    }
+    discard_subtree(function, custody, types, discard.place, &discard.path)?;
+    Ok(())
 }
 
 /// Stage every selected reference leaf before committing the constructor.
@@ -1503,8 +1532,20 @@ pub(in crate::legalization) fn apply(
             };
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
-        AbstractOperation::ReleaseReference { source, .. } => {
-            let leaf = custody.leaves.remove(&(*source, Vec::new()));
+        AbstractOperation::ReleaseReference { source, path, .. } => {
+            if custody.leaves.values().any(|enclosing| {
+                enclosing.root.place() == *source
+                    && enclosing.root.paths().iter().any(|origin_path| {
+                        source_contract(function, custody, *source)
+                            .and_then(|contract| leaf_type(types, contract, origin_path))
+                            == Some(enclosing.referent)
+                            && terminal_semantics::structural_paths_may_overlap(origin_path, path)
+                    })
+            }) {
+                return Err(invalid());
+            }
+            let key = (*source, path.clone());
+            let leaf = custody.leaves.remove(&key);
             let Some(leaf) = leaf else {
                 return Err(invalid());
             };
@@ -1513,7 +1554,7 @@ pub(in crate::legalization) fn apply(
                 .values()
                 .any(|child| child.parent.as_ref() == Some(&leaf.identity))
             {
-                custody.leaves.insert(leaf.identity.clone(), leaf);
+                custody.leaves.insert(key, leaf);
                 return Err(invalid());
             }
         }
@@ -1698,7 +1739,8 @@ pub(in crate::legalization) fn apply_terminator(
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let types = &plan.structural_types[..];
-    let mut places: Vec<PlaceId> = Vec::new();
+    use terminal_psi::TerminalAffineCleanupAction;
+    let mut actions = Vec::new();
     match operation {
         AbstractOperation::Return {
             cleanup_actions, ..
@@ -1713,24 +1755,9 @@ pub(in crate::legalization) fn apply_terminator(
                 let place = match action {
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
                     terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        // The ownership receiver already checked the complete
-                        // complement and action order. This replay independently
-                        // confirms that this exact subtree holds no loan; its
-                        // containing carrier may have transferred other leaves.
-                        let root = source_contract(function, custody, discard.place)
-                            .ok_or_else(|| invalid())?;
-                        if discard.path.is_empty()
-                            || leaf_type(types, root, &discard.path)
-                                != Some(discard.structural_type)
-                            || is_suspended_root(custody, discard.place)
-                            || custody.leaves.keys().any(|(carrier, path)| {
-                                *carrier == discard.place
-                                    && (path.starts_with(&discard.path)
-                                        || discard.path.starts_with(path))
-                            })
-                        {
-                            return Err(invalid());
-                        }
+                        actions.push(TerminalAffineCleanupAction::DiscardResidual(
+                            discard.clone(),
+                        ));
                         continue;
                     }
                     terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
@@ -1746,24 +1773,55 @@ pub(in crate::legalization) fn apply_terminator(
                     }
                     _ => return Err(invalid()),
                 };
-                places.push(place);
+                actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
             }
         }
         AbstractOperation::Jump {
             trivial_affine_discards,
+            residual_affine_discards,
             ..
-        } => places.extend(trivial_affine_discards.iter().copied()),
+        } => {
+            actions.extend(
+                trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
+            actions.extend(
+                residual_affine_discards
+                    .iter()
+                    .cloned()
+                    .map(TerminalAffineCleanupAction::DiscardResidual),
+            );
+        }
         AbstractOperation::Conditional {
             when_true,
             when_false,
             ..
         } => {
-            places.extend(when_true.trivial_affine_discards.iter().copied());
-            places.extend(when_false.trivial_affine_discards.iter().copied());
+            actions.extend(
+                when_true
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
+            actions.extend(
+                when_false
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
         }
         AbstractOperation::StructuralCase { cases, .. } => {
             for case in cases {
-                places.extend(case.trivial_affine_discards.iter().copied());
+                actions.extend(
+                    case.trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .map(TerminalAffineCleanupAction::DiscardRoot),
+                );
             }
         }
         _ => {}
@@ -1774,7 +1832,15 @@ pub(in crate::legalization) fn apply_terminator(
     // discardable. Deduplicate sibling-edge repeats without sorting away
     // that dependency.
     let mut visited = BTreeSet::new();
-    for place in places {
+    for action in actions {
+        let place = match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => place,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                discard_residual(function, custody, types, &discard)?;
+                continue;
+            }
+            TerminalAffineCleanupAction::InvokeNominal(_) => return Err(invalid()),
+        };
         if !visited.insert(place) {
             continue;
         }

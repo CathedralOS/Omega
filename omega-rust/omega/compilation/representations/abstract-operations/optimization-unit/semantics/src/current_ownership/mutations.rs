@@ -28,6 +28,9 @@ pub(super) fn insert_owned_result(
             place,
         });
     }
+    // A new establishment replaces drained scalar storage only after the
+    // operation's pin replay has established that no prior loan survives.
+    frontier.partial_custody_paths.remove(&place);
     Ok(())
 }
 

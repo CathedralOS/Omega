@@ -537,6 +537,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                             trivial_affine_discards: lower_discards(
                                 &successor.trivial_affine_discard_parameter_positions,
                             )?,
+                            residual_affine_discards: Vec::new(),
                         })
                     };
                 let false_edge = edge_id(allocate_dense(&mut next_edge)?);
@@ -891,6 +892,7 @@ fn lower_ranked_structural_unit_countdown(
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -900,6 +902,7 @@ fn lower_ranked_structural_unit_countdown(
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                 },
             },

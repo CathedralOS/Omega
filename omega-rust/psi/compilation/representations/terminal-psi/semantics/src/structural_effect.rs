@@ -727,6 +727,7 @@ pub enum StructuralEffectObservation {
     },
     ReferenceReleased {
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     ScalarArrayEstablished {
         destination: PlaceId,
@@ -1465,9 +1466,13 @@ pub fn structural_effect_leaf_observation_in(
                 destination: result.place,
             }
         }
-        (StructuralEffectAction::ReleaseReference, OperationKind::ReleaseReference { source }) => {
-            StructuralEffectObservation::ReferenceReleased { source: *source }
-        }
+        (
+            StructuralEffectAction::ReleaseReference,
+            OperationKind::ReleaseReference { source, path },
+        ) => StructuralEffectObservation::ReferenceReleased {
+            source: *source,
+            path: path.clone(),
+        },
         (
             StructuralEffectAction::EstablishPrimitiveLocal,
             OperationKind::EstablishPrimitiveLocal { value },

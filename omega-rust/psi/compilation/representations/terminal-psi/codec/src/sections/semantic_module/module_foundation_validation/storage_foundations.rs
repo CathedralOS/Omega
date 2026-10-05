@@ -163,17 +163,28 @@ pub(super) fn validate_release_reference(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ReleaseReference { source } = &operation.kind else {
+    let OperationKind::ReleaseReference { source, path } = &operation.kind else {
         unreachable!("dispatched validate_release_reference")
     };
+    let Some(source_type) = structural_place_type(machine, *source) else {
+        return malformed("reference release source is absent");
+    };
     if operation.result != OperationResult::Unit
-        || !structural_place_type(machine, *source).is_some_and(|source_type| {
-            module.structural_types.iter().any(|row| {
-                row.id == source_type && matches!(row.shape, StructuralTypeShape::Reference { .. })
-            })
+        || path.iter().any(|segment| {
+            !matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
         })
     {
-        return malformed("reference release requires a reference carrier and Unit result");
+        return malformed("reference release requires an owned descriptor path and Unit result");
+    }
+    let leaf_type = validate_structural_path(module, source_type, path)?;
+    if !module.structural_types.iter().any(|row| {
+        row.id == leaf_type && matches!(row.shape, StructuralTypeShape::Reference { .. })
+    }) {
+        return malformed("reference release requires a reference carrier");
     }
     Ok(())
 }

@@ -143,6 +143,12 @@ fn mutation_region(
     // Field writes and extraction already have one canonical region owner.
     // A failed projection must still interfere with the whole spelled root.
     let root = match &operation.kind {
+        OperationKind::ReleaseReference { source, path } => {
+            return Some((
+                *source,
+                canonical_field_path(module, machine, *source, path).unwrap_or_default(),
+            ));
+        }
         OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
         | OperationKind::StructuralByteViewFieldStore { destination, .. }

@@ -20,6 +20,13 @@ pub(super) fn projected(
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> terminal_semantics::StorageRegion {
+    let path = abstract_operations::values::resolve_constant_runtime_indexes(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter().map(|node| &node.operation)),
+        path,
+    );
     structural_source_contract(function, place).map_or_else(
         || terminal_semantics::StorageRegion {
             path: Vec::new(),
@@ -29,7 +36,7 @@ pub(super) fn projected(
             let mut region = terminal_semantics::projected_storage_region(
                 types.values().copied(),
                 root.structural_type,
-                path,
+                &path,
                 field,
             );
             // Keep the first dynamic selector for current-graph range replay.

@@ -332,9 +332,25 @@ pub(super) fn emit_call_operations(
             _ => return unsupported("composed call schedule disagrees with its argument group"),
         };
         let operation = &planned_operations[operation_index];
-        if let CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. } = operation
-            && reference_release_is_deferred(checked, machine, state.state, *loan)?
+        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some()
+            && matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                    | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
+            )
         {
+            eprintln!(
+                "retirement composed plan state={:?} operation={:?}",
+                state.state, operation
+            );
+        }
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ReleaseReference {
+                defer_to_exit: true,
+                ..
+            }
+        ) {
             continue;
         }
         let source_value_count = retained_source_count.unwrap_or(values.len());
@@ -454,49 +470,4 @@ pub(super) fn emit_call_operations(
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
     }
     windows.require_closed()
-}
-
-/// Transition reads run after this state's body. A loan last used by those
-/// reads dies on the selected edge; a loan expiring before the transition
-/// must end in the body so the transition can observe its original referent.
-pub(super) fn reference_release_is_deferred(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
-) -> Result<bool, LoweringError> {
-    let boundary = validation::reference_result_custody::release_statement(
-        &checked.facts,
-        machine,
-        state,
-        loan,
-    )
-    .and_then(|boundary| boundary.checked_sub(1))
-    .ok_or(LoweringError::Unsupported(
-        "reference release has no exact last-use boundary",
-    ))?;
-    let source = checked
-        .machines()
-        .iter()
-        .find(|source| source.symbol == machine)
-        .and_then(|machine| {
-            checked
-                .machine_states(machine)
-                .iter()
-                .find(|source| source.symbol == state)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "reference release source state missing",
-        ))?;
-    let last_use = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(boundary as usize)
-        .ok_or(LoweringError::Unsupported(
-            "reference release last use is outside its state",
-        ))?;
-    Ok(matches!(
-        last_use,
-        checked_trees::statement::StatementNode::Transition(_)
-    ))
 }

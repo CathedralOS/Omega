@@ -931,6 +931,7 @@ impl StateGraphEmission<'_, '_> {
                     .collect(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
             })
         } else {
             let successor_edge = edge_id(allocate_dense(next_edge)?);
@@ -952,6 +953,7 @@ impl StateGraphEmission<'_, '_> {
                 erased_arguments,
                 erased_proof_arguments,
                 trivial_affine_discards,
+                residual_affine_discards: Vec::new(),
             })
         }
     }

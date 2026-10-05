@@ -388,11 +388,13 @@ pub(super) fn validate(
             && *shape
                 == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
         (
-            LegalizedScalarInstructionKind::ReleaseReference { source },
+            LegalizedScalarInstructionKind::ReleaseReference { source, path },
             AbstractOperation::ReleaseReference {
-                source: expected, ..
+                source: expected,
+                path: expected_path,
+                ..
             },
-        ) if source == expected => {}
+        ) if source == expected && path == expected_path => {}
         (
             _,
             AbstractOperation::CallStructural {

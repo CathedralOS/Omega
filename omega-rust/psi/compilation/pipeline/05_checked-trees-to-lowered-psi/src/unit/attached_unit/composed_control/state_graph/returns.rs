@@ -290,6 +290,7 @@ pub(super) fn validate_structural(
                     || matches!(
                         operation,
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     )
                 {
                 } else if matches!(
@@ -305,18 +306,6 @@ pub(super) fn validate_structural(
                         checked,
                         state.state,
                         operation,
-                    )?;
-                } else if let CheckedUnitEffectOperationPlan::EstablishReference {
-                    source, ..
-                } = operation
-                {
-                    super::super::super::reference_results::validate_composed_establishment(
-                        checked,
-                        super::owner(checked, state.state)?,
-                        state,
-                        binding,
-                        source,
-                        *expression,
                     )?;
                 } else {
                     return unsupported(

@@ -20,7 +20,7 @@ pub(in crate::validation) fn argument_region(
     machine: &TerminalMachine,
     argument: &StructuralArgument,
 ) -> (PlaceId, Vec<CanonicalStructuralPathSegment>) {
-    let mut path = argument.path.clone();
+    let mut path = resolve_constant_indexes(machine, &argument.path);
     if path.last() == Some(&StructuralPathSegment::Referent) {
         path.pop();
     }
@@ -28,6 +28,22 @@ pub(in crate::validation) fn argument_region(
         .or_else(|| canonical_field_path(module, machine, argument.place, &path))
         .unwrap_or_default();
     (argument.place, region)
+}
+
+fn resolve_constant_indexes(
+    machine: &TerminalMachine,
+    path: &[StructuralPathSegment],
+) -> Vec<StructuralPathSegment> {
+    path.iter()
+        .map(|segment| match segment {
+            StructuralPathSegment::RuntimeIndex { index, .. } => {
+                terminal_semantics::constant_runtime_index(machine, *index)
+                    .map(StructuralPathSegment::FixedIndex)
+                    .unwrap_or_else(|| segment.clone())
+            }
+            _ => segment.clone(),
+        })
+        .collect()
 }
 
 /// The (spelled place, canonical region) pairs an operation reads, writes,
@@ -40,8 +56,9 @@ pub(in crate::validation) fn operation_regions(
     operation: &terminal_psi::Operation,
 ) -> Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
     let canonical_region = |place: PlaceId, path: &[StructuralPathSegment]| {
-        canonical_mutable_record_referent_path(module, machine, place, path)
-            .or_else(|| canonical_field_path(module, machine, place, path))
+        let path = resolve_constant_indexes(machine, path);
+        canonical_mutable_record_referent_path(module, machine, place, &path)
+            .or_else(|| canonical_field_path(module, machine, place, &path))
     };
     let field_region = |place: &PlaceId, path: &[StructuralPathSegment], field| {
         let region = canonical_region(*place, path).map_or_else(Vec::new, |mut region| {
@@ -50,12 +67,16 @@ pub(in crate::validation) fn operation_regions(
         });
         (*place, region)
     };
-    // A primitive leaf's region is its canonical path; a runtime-selected
-    // element touches the whole array it selects in.
+    // Known immutable selectors name one slot. An unresolved runtime selector
+    // touches its whole array; crossing a reference touches its descriptor.
     let primitive_region = |place: &PlaceId, path: &[StructuralPathSegment]| {
+        let path = resolve_constant_indexes(machine, path);
         let static_prefix = path
             .iter()
-            .position(|segment| segment.runtime_index().is_some())
+            .position(|segment| {
+                segment.runtime_index().is_some()
+                    || matches!(segment, StructuralPathSegment::Referent)
+            })
             .unwrap_or(path.len());
         (
             *place,
@@ -77,7 +98,7 @@ pub(in crate::validation) fn operation_regions(
         OperationKind::EstablishReference { source } => {
             vec![argument_region(module, machine, source)]
         }
-        OperationKind::ReleaseReference { source } => vec![(*source, Vec::new())],
+        OperationKind::ReleaseReference { source, path } => vec![primitive_region(source, path)],
         OperationKind::PrimitiveScalarRead { source, path } => {
             vec![primitive_region(source, path)]
         }

@@ -171,7 +171,7 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
 /// the empty path of a root window's whole referent. `None` means the
 /// destination does not host a structural field there — the unit's catalog
 /// contract rejects that shape separately.
-fn window_hole(
+pub(super) fn window_hole(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     place: PlaceId,
@@ -616,18 +616,37 @@ fn normalized_direct_source(
     }
 }
 
-/// End the whole carrier at `source` after every child loan has ended. This
-/// removes the carrier row; referent storage is unaffected.
+/// End one exact stored carrier after every child loan and enclosing storage
+/// loan has ended. The empty path names the root carrier. Referent storage is
+/// unaffected, and sibling descriptor identities remain live.
 pub(super) fn release(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: Option<u32>,
     live: &mut Vec<LiveReference>,
     source: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
+    if !access_paths::descriptor_storage_available(
+        function,
+        structural_types,
+        live,
+        source,
+        path,
+        &[],
+        StructuralAccess::Owned,
+    ) {
+        return Err(invalid(
+            function,
+            block,
+            node,
+            "release carrier storage remains borrowed",
+        ));
+    }
     let position = live
         .iter()
-        .position(|reference| reference.carrier == source && reference.carrier_path.is_empty())
+        .position(|reference| reference.carrier == source && reference.carrier_path == path)
         .ok_or_else(|| {
             invalid(
                 function,
@@ -651,9 +670,7 @@ pub(super) fn release(
     Ok(())
 }
 
-/// Whole-owner disposal visits reference leaves in reverse declaration order.
-/// Validate the entire schedule before ending any loan; a live external child
-/// (or an incorrectly ordered contained child) keeps its parent suspended.
+/// Whole-owner cleanup is the empty projection of the same subtree disposal.
 pub(super) fn discard_owned(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -661,35 +678,50 @@ pub(super) fn discard_owned(
     live: &mut Vec<LiveReference>,
     source: PlaceId,
 ) -> Result<(), OptimizationUnitValidationError> {
+    discard_subtree(function, structural_types, block, live, source, &[])
+}
+
+/// Reconstruct every live descriptor in one exact owned subtree. The complete
+/// schedule is checked before removing storage keys, so shared provenance in
+/// another carrier is never mistaken for the descriptor being disposed.
+pub(super) fn discard_subtree(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    live: &mut Vec<LiveReference>,
+    source: PlaceId,
+    prefix: &[terminal_psi::StructuralPathSegment],
+) -> Result<(), OptimizationUnitValidationError> {
     let Some(signature) = structural_source_contract(function, source) else {
         return Ok(());
     };
-    let paths =
-        leaf_paths(structural_types, signature.structural_type, live.len()).ok_or_else(|| {
-            invalid(
-                function,
-                block,
-                None,
-                "discard type requires more reference leaves than are live",
-            )
-        })?;
+    let invalid_discard = || {
+        invalid(
+            function,
+            block,
+            None,
+            "discard requires an exact live reference subtree",
+        )
+    };
+    let selected = leaf_type(structural_types, signature.structural_type, prefix)
+        .ok_or_else(invalid_discard)?;
+    let paths = leaf_paths(structural_types, selected, live.len()).ok_or_else(invalid_discard)?;
     let mut released = BTreeSet::new();
+    let mut released_paths = BTreeSet::new();
     for path in paths.iter().rev() {
+        let mut selected_path = prefix.to_vec();
+        selected_path.extend_from_slice(path);
         let reference = live
             .iter()
-            .find(|reference| reference.carrier == source && reference.carrier_path == *path)
-            .ok_or_else(|| {
-                invalid(
-                    function,
-                    block,
-                    None,
-                    "discard requires every owned reference leaf to be live",
-                )
-            })?;
-        if live
-            .iter()
-            .any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity) && !released.contains(&child.identity))
-        {
+            .find(|reference| {
+                reference.carrier == source && reference.carrier_path == selected_path
+            })
+            .ok_or_else(invalid_discard)?;
+        if live.iter().any(|child| {
+            matches!(&child.parent, ReferenceParent::Reference(identity)
+                if identity == &reference.identity)
+                && !released.contains(&child.identity)
+        }) {
             return Err(invalid(
                 function,
                 block,
@@ -698,19 +730,18 @@ pub(super) fn discard_owned(
             ));
         }
         released.insert(reference.identity.clone());
+        released_paths.insert(selected_path);
     }
-    if live
-        .iter()
-        .any(|reference| reference.carrier == source && !released.contains(&reference.identity))
-    {
-        return Err(invalid(
-            function,
-            block,
-            None,
-            "discard reference roster differs from its owned type",
-        ));
+    if live.iter().any(|reference| {
+        reference.carrier == source
+            && reference.carrier_path.starts_with(prefix)
+            && !released_paths.contains(&reference.carrier_path)
+    }) {
+        return Err(invalid_discard());
     }
-    live.retain(|reference| !released.contains(&reference.identity));
+    live.retain(|reference| {
+        reference.carrier != source || !released_paths.contains(&reference.carrier_path)
+    });
     Ok(())
 }
 
@@ -916,8 +947,16 @@ pub(super) fn apply_operation(
                 )?;
             }
         }
-        O::ReleaseReference { source, .. } => {
-            return release(function, block, Some(node), live, *source);
+        O::ReleaseReference { source, path, .. } => {
+            return release(
+                function,
+                structural_types,
+                block,
+                Some(node),
+                live,
+                *source,
+                path,
+            );
         }
         O::EstablishCase { fields, .. } => {
             // Plain case payloads carry owned data, not relocated references.

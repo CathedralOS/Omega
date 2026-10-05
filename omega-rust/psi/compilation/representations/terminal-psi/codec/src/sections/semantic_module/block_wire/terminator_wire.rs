@@ -329,6 +329,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                     case: reader.id("StructuralCaseId")?,
                     payload_fields: decode_ids(reader, "StructuralFieldId")?,
                     trivial_affine_discards: decode_ids(reader, "PlaceId")?,
+                    residual_affine_discards: Vec::new(),
                 })
             })?,
         },

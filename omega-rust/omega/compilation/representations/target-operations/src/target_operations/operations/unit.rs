@@ -449,6 +449,7 @@ pub enum TargetUnitOperation {
     ReleaseReference {
         psi_operation: OperationId,
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     /// One direct call, independent of its scalar/structural argument mix.
     /// Scalar arguments occupy the prefix of the complete ABI plan;

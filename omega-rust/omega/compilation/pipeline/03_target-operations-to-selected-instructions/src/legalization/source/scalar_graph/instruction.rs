@@ -141,8 +141,11 @@ pub(super) fn project(
                 shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             }
         }
-        AbstractOperation::ReleaseReference { source, .. } => {
-            LegalizedScalarInstructionKind::ReleaseReference { source: *source }
+        AbstractOperation::ReleaseReference { source, path, .. } => {
+            LegalizedScalarInstructionKind::ReleaseReference {
+                source: *source,
+                path: path.clone(),
+            }
         }
         AbstractOperation::EstablishZeroedStructural { result, .. } => {
             LegalizedScalarInstructionKind::EstablishZeroedStructural {

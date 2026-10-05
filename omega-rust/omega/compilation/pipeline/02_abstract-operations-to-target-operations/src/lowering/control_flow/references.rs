@@ -1568,10 +1568,12 @@ fn transferred_ingress_leaf(
     .then_some(key)
 }
 
-/// Close the loan on the carrier at `source`; referent storage is unaffected.
+/// Close the exact stored carrier; path and stable loan identity survive
+/// relocation. The operation affects custody only, never referent storage.
 pub(super) fn release(
     operation: &AbstractOperation,
     function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -1579,75 +1581,104 @@ pub(super) fn release(
     let AbstractOperation::ReleaseReference {
         psi_operation,
         source,
+        path,
     } = operation
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
+    // Releasing stored pointer bytes cannot bypass a loan over their owner.
+    if live.references.values().any(|enclosing| {
+        enclosing.root.place() == *source
+            && enclosing.root.paths().iter().any(|origin_path| {
+                source_contract(function, live, *source)
+                    .and_then(|(contract, _)| leaf_type(types, contract, origin_path))
+                    == Some(enclosing.referent)
+                    && terminal_semantics::structural_paths_may_overlap(origin_path, path)
+            })
+    }) {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let key = (*source, path.clone());
     let leaf = live
         .references
-        .remove(&(*source, Vec::new()))
+        .remove(&key)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if live
         .references
         .values()
         .any(|child| child.parent.as_ref() == Some(&leaf.identity))
     {
-        live.references.insert(leaf.identity.clone(), leaf);
+        live.references.insert(key, leaf);
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::ReleaseReference {
         psi_operation: *psi_operation,
         source: *source,
+        path: path.clone(),
     });
     provenance.operations.push(*psi_operation);
     Ok(())
 }
 
-/// Whole-owner disposal visits reference leaves in reverse declaration order.
-/// The entire schedule is checked before any loan ends; a live external child
-/// (or an incorrectly ordered contained child) keeps its parent suspended.
+/// Whole cleanup is the empty projection of exact subtree disposal.
 pub(super) fn discard_owned(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     source: PlaceId,
 ) -> Result<bool, LoweringError> {
+    if live.drained_loan_roots.contains(&source) {
+        return Ok(true);
+    }
+    let discarded = discard_subtree(function, types, live, source, &[])?;
+    if discarded {
+        live.drained_loan_roots.insert(source);
+    }
+    Ok(discarded)
+}
+
+/// Dispose only the live descriptor slots selected by an authenticated cleanup
+/// subtree. Identity follows loan provenance; removal follows current storage.
+pub(super) fn discard_subtree(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &mut LiveDefinitions,
+    source: PlaceId,
+    prefix: &[StructuralPathSegment],
+) -> Result<bool, LoweringError> {
     let Some((contract, _)) = source_contract(function, live, source) else {
         return Ok(false);
     };
-    if !contains_reference(types, contract) {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let selected = leaf_type(types, contract, prefix).ok_or_else(invalid)?;
+    if !contains_reference(types, selected) {
         return Ok(false);
     }
-    if live.drained_loan_roots.contains(&source) {
-        // A sibling edge already released this root's leaves: every edge
-        // cleanup roster declares the same places.
-        return Ok(true);
-    }
-    let paths = leaf_paths(types, contract, live.references.len())
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let paths = leaf_paths(types, selected, live.references.len()).ok_or_else(invalid)?;
     let mut released = BTreeSet::new();
+    let mut released_paths = BTreeSet::new();
     for path in paths.iter().rev() {
+        let mut selected_path = prefix.to_vec();
+        selected_path.extend_from_slice(path);
         let leaf = live
             .references
-            .get(&(source, path.clone()))
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            .get(&(source, selected_path.clone()))
+            .ok_or_else(invalid)?;
         if live.references.values().any(|child| {
             child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
         }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+            return Err(invalid());
         }
         released.insert(leaf.identity.clone());
+        released_paths.insert(selected_path);
     }
-    if live
-        .references
-        .iter()
-        .any(|((carrier, _), leaf)| *carrier == source && !released.contains(&leaf.identity))
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+    if live.references.keys().any(|(carrier, path)| {
+        *carrier == source && path.starts_with(prefix) && !released_paths.contains(path)
+    }) {
+        return Err(invalid());
     }
     live.references
-        .retain(|_, leaf| !released.contains(&leaf.identity));
-    live.drained_loan_roots.insert(source);
+        .retain(|(carrier, path), _| *carrier != source || !released_paths.contains(path));
     Ok(true)
 }
 

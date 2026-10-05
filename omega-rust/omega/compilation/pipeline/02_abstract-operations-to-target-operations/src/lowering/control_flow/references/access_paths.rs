@@ -120,9 +120,14 @@ pub(super) fn access_reference_custody(
             let root_type = source_contract(function, live, place)
                 .map(|(contract, _)| contract)
                 .ok_or_else(invalid)?;
-            let candidates =
-                descriptor_candidates(types, root_type, &selected_path, live.references.len())
-                    .ok_or_else(invalid)?;
+            let candidates = descriptor_candidates(
+                function,
+                types,
+                root_type,
+                &selected_path,
+                live.references.len(),
+            )
+            .ok_or_else(invalid)?;
             for path in candidates {
                 if source_contract(function, live, place)
                     .map(|(contract, _)| contract)
@@ -233,6 +238,7 @@ pub(super) fn access_reference_custody(
 /// Missing live rows cannot shrink the required coverage; the roster bounds
 /// construction before any dynamic product is expanded.
 fn descriptor_candidates(
+    function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     mut current: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -242,7 +248,11 @@ fn descriptor_candidates(
         return None;
     }
     let mut candidates = vec![Vec::new()];
-    for segment in path {
+    let path = abstract_operations::values::resolve_constant_runtime_indexes(
+        function.operations.iter(),
+        path,
+    );
+    for segment in &path {
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             let StructuralTypeShape::FixedArray { element, length } = types.get(&current)?.shape
             else {

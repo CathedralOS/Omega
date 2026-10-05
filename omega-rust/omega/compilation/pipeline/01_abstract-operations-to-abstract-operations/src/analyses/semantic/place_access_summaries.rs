@@ -812,9 +812,9 @@ fn scan_operation(
                 }
             }
         }
-        O::ReleaseReference { source, .. } => {
-            // Releasing the carrier vacates the caller-visible cell.
-            pending.attribute(context, *source, Vec::new(), AccessKind::Write);
+        O::ReleaseReference { source, path, .. } => {
+            // Release consumes only the selected descriptor cell.
+            pending.attribute(context, *source, runtime_prefix(path), AccessKind::Write);
         }
         O::AtomicEvent { event, .. } => {
             if let Some(location) = event.location() {

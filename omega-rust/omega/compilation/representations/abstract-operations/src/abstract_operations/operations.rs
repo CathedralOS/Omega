@@ -725,6 +725,7 @@ pub enum AbstractOperation {
     ReleaseReference {
         psi_operation: OperationId,
         source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     /// A verified no-successor terminal. The audit-only site guard and frontier
     /// remain attached at the Omega boundary even though native realization

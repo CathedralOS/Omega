@@ -2846,6 +2846,7 @@ impl Emission<'_, '_, '_> {
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         })
     }
 

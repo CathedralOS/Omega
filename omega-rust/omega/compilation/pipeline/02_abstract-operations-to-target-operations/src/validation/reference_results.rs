@@ -1315,28 +1315,38 @@ fn discard_owned(
     Some(())
 }
 
-/// A residual retires only its selected storage subtree. The native producer
-/// admits non-reference residuals; other siblings may still retain live loans.
-/// Whole ownership conservation is replayed upstream, while this pass checks
-/// the exact type/path and refuses any overlap with its current reference map.
+/// A residual retires the declaration-derived descriptor roster below its
+/// selected storage subtree. Siblings retain their current custody keys;
+/// whole ownership conservation is replayed by the optimization receiver.
 fn discard_residual(
     function: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
-    custody: &Custody,
+    custody: &mut Custody,
     discard: &terminal_psi::StructuralAffineDiscard,
 ) -> Option<()> {
     let (root, multiplicity) = source_contract(function, custody, discard.place)?;
     if discard.path.is_empty()
         || multiplicity != StructuralMultiplicity::Affine
         || leaf_type(declarations, root, &discard.path) != Some(discard.structural_type)
-        || contains_reference(declarations, discard.structural_type)
-        || custody.leaves.keys().any(|(carrier, path)| {
-            *carrier == discard.place
-                && (path.starts_with(&discard.path) || discard.path.starts_with(path))
-        })
     {
         return None;
     }
+    let paths = leaf_paths(declarations, discard.structural_type, custody.leaves.len())?;
+    let mut selected = BTreeSet::new();
+    for path in paths {
+        let mut path_at_root = discard.path.clone();
+        path_at_root.extend(path);
+        custody.leaves.get(&(discard.place, path_at_root.clone()))?;
+        selected.insert(path_at_root);
+    }
+    if custody.leaves.keys().any(|(carrier, path)| {
+        *carrier == discard.place && path.starts_with(&discard.path) && !selected.contains(path)
+    }) {
+        return None;
+    }
+    custody
+        .leaves
+        .retain(|(carrier, path), _| *carrier != discard.place || !selected.contains(path));
     Some(())
 }
 
@@ -1375,8 +1385,8 @@ fn apply(
                 },
             );
         }
-        AbstractOperation::ReleaseReference { source, .. } => {
-            custody.leaves.remove(&(*source, Vec::new()))?;
+        AbstractOperation::ReleaseReference { source, path, .. } => {
+            custody.leaves.remove(&(*source, path.clone()))?;
         }
         AbstractOperation::EstablishStructuralArray {
             result, elements, ..
@@ -1521,7 +1531,7 @@ fn apply_terminator(
     function: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
-    let mut discards = Vec::new();
+    let mut actions = Vec::new();
     match operation {
         AbstractOperation::Return {
             cleanup_actions, ..
@@ -1534,12 +1544,16 @@ fn apply_terminator(
         } => {
             for action in cleanup_actions {
                 match action {
-                    TerminalAffineCleanupAction::DiscardRoot(place) => discards.push(*place),
+                    TerminalAffineCleanupAction::DiscardRoot(place) => {
+                        actions.push(TerminalAffineCleanupAction::DiscardRoot(*place))
+                    }
                     TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        discard_residual(function, declarations, custody, discard)?;
+                        actions.push(TerminalAffineCleanupAction::DiscardResidual(
+                            discard.clone(),
+                        ));
                     }
                     TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        discards.push(cleanup.place)
+                        actions.push(TerminalAffineCleanupAction::DiscardRoot(cleanup.place))
                     }
                 }
             }
@@ -1549,23 +1563,51 @@ fn apply_terminator(
             residual_affine_discards,
             ..
         } => {
-            for discard in residual_affine_discards {
-                discard_residual(function, declarations, custody, discard)?;
-            }
-            discards.extend(trivial_affine_discards.iter().copied());
+            actions.extend(
+                trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
+            actions.extend(
+                residual_affine_discards
+                    .iter()
+                    .cloned()
+                    .map(TerminalAffineCleanupAction::DiscardResidual),
+            );
         }
         AbstractOperation::Conditional {
             when_true,
             when_false,
             ..
         } => {
-            discards.extend(when_true.trivial_affine_discards.iter().copied());
-            discards.extend(when_false.trivial_affine_discards.iter().copied());
+            actions.extend(
+                when_true
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
+            actions.extend(
+                when_false
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot),
+            );
         }
         _ => {}
     }
-    for place in discards {
-        discard_owned(function, declarations, custody, place)?;
+    for action in actions {
+        match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => {
+                discard_owned(function, declarations, custody, place)?
+            }
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                discard_residual(function, declarations, custody, &discard)?
+            }
+            TerminalAffineCleanupAction::InvokeNominal(_) => return None,
+        }
     }
     Some(())
 }

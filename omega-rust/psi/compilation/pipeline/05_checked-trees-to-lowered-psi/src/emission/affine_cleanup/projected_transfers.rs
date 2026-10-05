@@ -1,7 +1,8 @@
 //! Complete scheduled disposal from the exact transferred paths on each edge.
 //!
 //! This pass never chooses a root's lifetime. It changes an already scheduled
-//! whole discard into the maximal complement of its earlier owned transfers.
+//! whole discard into the maximal complement of its earlier owned transfers
+//! and ended reference leaves. Storage remains available to scalar siblings.
 //! Joins require identical transfer frontiers; a result birth starts a fresh
 //! occurrence. The independent receiver authenticates source custody and the
 //! cleanup-free meaning of every residual.
@@ -30,7 +31,8 @@ pub(super) fn complete(
 ) -> Result<(), LoweringError> {
     if !blocks.iter().any(|block| {
         block.operations.iter().any(|operation| {
-            operands(&operation.kind).iter().any(|argument| {
+            matches!(&operation.kind, OperationKind::ReleaseReference { path, .. } if !path.is_empty())
+                || operands(&operation.kind).iter().any(|argument| {
                 argument.access == StructuralAccess::Owned && !argument.path.is_empty()
             })
         }) || match &block.terminator {
@@ -135,6 +137,9 @@ pub(super) fn complete(
         for operation in &blocks[position].operations {
             for argument in operands(&operation.kind) {
                 transfer(&mut frontier, argument)?;
+            }
+            if let OperationKind::ReleaseReference { source, path } = &operation.kind {
+                remove_path(&mut frontier, *source, path)?;
             }
             if let Some(result) = operation.result.structural() {
                 frontier.retain(|root| root.place != result.place);
@@ -283,22 +288,8 @@ pub(super) fn complete(
             _ => {}
         }
         for (target, mut outgoing) in successors {
-            // Match the receiving affine frontier's covering-transfer rule;
-            // this is not a declaration-wide claim about scalar siblings.
-            outgoing.retain(|root| {
-                !roots
-                    .iter()
-                    .find(|(place, _)| *place == root.place)
-                    .is_some_and(|(_, root_type)| {
-                        terminal_semantics::partial_affine_residuals(
-                            types,
-                            *root_type,
-                            &root.paths,
-                            0,
-                        )
-                        .is_some_and(|residuals| residuals.is_empty())
-                    })
-            });
+            // Empty ownership complements do not end the storage occurrence:
+            // scalar siblings may still be observed before scheduled cleanup.
             let target = block_position(blocks, target)?;
             // Destination parameters bind new occurrences simultaneously.
             outgoing.retain(|root| {
@@ -344,28 +335,33 @@ fn transfer(frontier: &mut Frontier, argument: &StructuralArgument) -> Result<()
     if argument.access != StructuralAccess::Owned {
         return Ok(());
     }
-    if argument.path.is_empty() {
-        if frontier.iter().any(|root| root.place == argument.place) {
+    remove_path(frontier, argument.place, &argument.path)
+}
+
+fn remove_path(
+    frontier: &mut Frontier,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(), LoweringError> {
+    if path.is_empty() {
+        if frontier.iter().any(|root| root.place == place) {
             return unsupported("whole transfer consumes a partially transferred root");
         }
         return Ok(());
     }
-    if let Some(root) = frontier
-        .iter_mut()
-        .find(|root| root.place == argument.place)
-    {
+    if let Some(root) = frontier.iter_mut().find(|root| root.place == place) {
         if root
             .paths
             .iter()
-            .any(|path| path.starts_with(&argument.path) || argument.path.starts_with(path))
+            .any(|earlier| earlier.starts_with(path) || path.starts_with(earlier))
         {
-            return unsupported("projected owned operands overlap an earlier transfer");
+            return unsupported("projected custody overlaps an earlier transfer or release");
         }
-        root.paths.insert(argument.path.clone());
+        root.paths.insert(path.to_vec());
     } else {
         frontier.push(MovedRoot {
-            place: argument.place,
-            paths: BTreeSet::from([argument.path.clone()]),
+            place,
+            paths: BTreeSet::from([path.to_vec()]),
         });
         frontier.sort_by_key(|root| root.place);
     }

@@ -306,6 +306,7 @@ impl StateGraphEmission<'_, '_> {
             erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         })
     }
 }

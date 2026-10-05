@@ -236,6 +236,7 @@ pub(super) fn lower<Call: DynamicCall>(
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 },
                 when_false: terminal_psi::SuccessorEdge {
                     structural_arguments: Vec::new(),
@@ -245,6 +246,7 @@ pub(super) fn lower<Call: DynamicCall>(
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 },
             },
         },

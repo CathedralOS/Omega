@@ -429,12 +429,17 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // An empty body cannot have established a call-result reference. Do not
     // require a last-statement coordinate for an ordinary empty helper/state.
     trace.phase("statement sequence: returned carrier releases");
-    if let Some(statement_index) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .len()
-        .checked_sub(1)
-    {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    // A transition evaluates its guard and arguments after body operations.
+    // Statement storage may retain later non-body nodes; their coordinates
+    // must not advance disposal past a transition whose reads have not run.
+    // Body expiry ends at the first transition's entry. Loans used by that
+    // transition remain for the selected edge's existing cleanup.
+    let completion_entry = statements
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+        .or_else(|| statements.len().checked_sub(1));
+    if let Some(statement_index) = completion_entry {
         append_reference_releases(
             program,
             facts,
@@ -515,6 +520,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         machine.symbol,
         state.symbol,
         structural_result.as_ref(),
+        &structural_results,
         &mut operations,
     )?;
     trace.phase("statement sequence: call count agreement");

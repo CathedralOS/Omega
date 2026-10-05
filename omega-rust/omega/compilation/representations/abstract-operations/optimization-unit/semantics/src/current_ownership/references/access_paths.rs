@@ -93,9 +93,14 @@ pub(super) fn access_reference_custody(
             let root_type = structural_source_contract(function, place)
                 .ok_or_else(invalid_path)?
                 .structural_type;
-            let candidates =
-                descriptor_candidates(structural_types, root_type, &selected_path, live.len())
-                    .ok_or_else(invalid_live)?;
+            let candidates = descriptor_candidates(
+                function,
+                structural_types,
+                root_type,
+                &selected_path,
+                live.len(),
+            )
+            .ok_or_else(invalid_live)?;
             for path in candidates {
                 let actual = structural_source_contract(function, place)
                     .and_then(|signature| {
@@ -192,6 +197,7 @@ pub(super) fn access_reference_custody(
 /// from whichever live rows happen to remain. Each candidate needs a distinct
 /// live descriptor, bounding expansion by that roster before allocation.
 fn descriptor_candidates(
+    function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     mut current: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
@@ -201,7 +207,14 @@ fn descriptor_candidates(
         return None;
     }
     let mut candidates = vec![Vec::new()];
-    for segment in path {
+    let path = abstract_operations::values::resolve_constant_runtime_indexes(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter().map(|node| &node.operation)),
+        path,
+    );
+    for segment in &path {
         if matches!(
             segment,
             terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
@@ -243,7 +256,7 @@ fn descriptor_candidates(
 /// permission. Traversing that very loan supplies authority; observing the
 /// descriptor directly cannot bypass it. Opaque ingress identities are not
 /// concrete storage coordinates merely because their spelling is similar.
-fn descriptor_storage_available(
+pub(super) fn descriptor_storage_available(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     live: &[LiveReference],

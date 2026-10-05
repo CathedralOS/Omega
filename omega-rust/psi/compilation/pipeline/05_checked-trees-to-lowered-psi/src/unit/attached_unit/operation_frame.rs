@@ -794,9 +794,6 @@ impl OperationFrame<'_, '_> {
                 .get(result.statement_index as usize),
             Some(checked_trees::statement::StatementNode::LocalData(_))
         );
-        if local {
-            reference_results::validate_local_establishment(self.checked, self.state, result)?;
-        }
         self.results.push(declaration, local);
         self.evaluation.establish_structural_binding(
             self.checked,
@@ -884,8 +881,13 @@ impl OperationFrame<'_, '_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
+        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
+            eprintln!("retirement operation frame plan operation={:?}", operation);
+        }
         let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal, ..
+            binding_ordinal,
+            path,
+            ..
         } = operation
         else {
             unreachable!("dispatched release_reference")
@@ -895,6 +897,7 @@ impl OperationFrame<'_, '_> {
             .continuation_place(*binding_ordinal, self.operations)?;
         self.push_unit(OperationKind::ReleaseReference {
             source: self.evaluation.current_structural_place(source),
+            path: lower_structural_path(path)?,
         });
         Ok(())
     }

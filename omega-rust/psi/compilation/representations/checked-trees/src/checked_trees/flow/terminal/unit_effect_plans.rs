@@ -137,6 +137,11 @@ pub enum CheckedUnitEffectOperationPlan {
     ReleaseReference {
         statement_index: u32,
         binding_ordinal: u32,
+        /// Exact stored descriptor; an empty path releases the result itself.
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        /// A transition observes its operands before its selected edge closes
+        /// their custody. Lowering consumes this checked timing directly.
+        defer_to_exit: bool,
         loan: arena::Handle<crate::BorrowLoanFact>,
     },
     /// Establish the byte value declared by one local initializer.

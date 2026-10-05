@@ -150,6 +150,12 @@ pub(super) fn access_reference_custody(
         )
     };
     let invalid_live = || {
+        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
+            eprintln!(
+                "retirement invalid reference access machine={:?} argument={:?} live={:?}",
+                machine.id, argument, live
+            );
+        }
         invalid(
             machine,
             "reference access descriptor is absent, ambiguous or suspended",
@@ -207,8 +213,9 @@ pub(super) fn access_reference_custody(
                 super::super::structural::result_contracts::source_signature(machine, place)
                     .ok_or_else(invalid_path)?
                     .structural_type;
-            let candidates = descriptor_candidates(module, root_type, &selected_path, live.len())
-                .ok_or_else(invalid_live)?;
+            let candidates =
+                descriptor_candidates(module, machine, root_type, &selected_path, live.len())
+                    .ok_or_else(invalid_live)?;
             for path in candidates {
                 let actual =
                     super::super::structural::result_contracts::source_signature(machine, place)
@@ -306,6 +313,7 @@ pub(super) fn access_reference_custody(
 /// allocation bound. Runtime view extents supply no fixed owned leaf roster.
 fn descriptor_candidates(
     module: &TerminalModule,
+    machine: &TerminalMachine,
     mut current: StructuralTypeId,
     path: &[StructuralPathSegment],
     maximum: usize,
@@ -315,6 +323,14 @@ fn descriptor_candidates(
     }
     let mut candidates = vec![Vec::new()];
     for segment in path {
+        let resolved = match segment {
+            StructuralPathSegment::RuntimeIndex { index, .. } => {
+                terminal_semantics::constant_runtime_index(machine, *index)
+                    .map(StructuralPathSegment::FixedIndex)
+            }
+            _ => None,
+        };
+        let segment = resolved.as_ref().unwrap_or(segment);
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             let declaration = terminal_semantics::runtime_structural_path_tip(
                 module.structural_types.iter(),

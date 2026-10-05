@@ -53,6 +53,7 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
         owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
     ) -> Result<StructuralAccess, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
@@ -74,11 +75,19 @@ impl TerminalExecution {
             }
             return Ok(parameter.access);
         }
+        // A partial owner retains authority over each live residual subtree.
+        // Only the prefix before the first pointer crossing is carrier storage;
+        // the suffix is governed by that descriptor's captured loan.
+        let prefix = &path[..path
+            .iter()
+            .position(|segment| *segment == StructuralPathSegment::Referent)
+            .unwrap_or(path.len())];
         self.live_affine_frontier
-            .contains(&StructuralAffineDiscard {
-                place,
-                path: Vec::new(),
-                structural_type: owner.structural_type,
+            .iter()
+            .any(|entry| {
+                entry.place == place
+                    && prefix.starts_with(&entry.path)
+                    && (!entry.path.is_empty() || entry.structural_type == owner.structural_type)
             })
             .then_some(StructuralAccess::Owned)
             .ok_or_else(invalid)
@@ -164,30 +173,36 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
         source: PlaceId,
+        path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let carrier = self.structural_values.get(&source).ok_or_else(invalid)?;
+        let owner = self.structural_values.get(&source).ok_or_else(invalid)?;
+        let carrier = project_structural_value(&self.program.structural_types, owner, path)?;
         self.reference_contract(carrier.structural_type)?;
-        let key = StructuralRuntimePlace::from(carrier);
-        let frontier = StructuralAffineDiscard {
-            place: source,
-            path: Vec::new(),
-            structural_type: carrier.structural_type,
-        };
-        if operation.result != OperationResult::Unit
-            || !carrier.path.is_empty()
-            || !self.reference_referents.contains_key(&key)
-            || !self.live_affine_frontier.contains(&frontier)
+        let key = StructuralRuntimePlace::from(&carrier);
+        if operation.result != OperationResult::Unit || !self.reference_referents.contains_key(&key)
         {
             return Err(invalid());
         }
-        discard_structural_value(
-            &mut self.structural_values,
-            &mut self.reference_referents,
-            &mut self.structural_element_view_fields,
-            source,
-        );
-        self.live_affine_frontier.remove(&frontier);
+        // Release consumes the descriptor's ordinary owned projection, leaving
+        // exactly the same affine complement as transfer. It never removes the
+        // referent or the scalar storage of surviving siblings.
+        let mut frontier = self.live_affine_frontier.clone();
+        crate::custody::consume_affine_projection(
+            &self.program.structural_types,
+            &self.structural_values,
+            &mut frontier,
+            &StructuralArgument {
+                place: source,
+                path: path.to_vec(),
+                access: StructuralAccess::Owned,
+            },
+        )?;
+        self.reference_referents.remove(&key);
+        self.live_affine_frontier = frontier;
+        if path.is_empty() {
+            self.structural_values.remove(&source);
+        }
         Ok(())
     }
 
@@ -212,7 +227,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let owner = self.structural_values.get(&place).ok_or_else(invalid)?;
         if path.contains(&StructuralPathSegment::Referent) {
-            let authority = self.reference_carrier_access(place, owner)?;
+            let authority = self.reference_carrier_access(place, owner, path)?;
             if !access_covers(authority, access) {
                 return Err(invalid());
             }

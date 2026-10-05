@@ -44,13 +44,8 @@ pub(crate) fn validate_unit_operation_static(
                 module, machine, operation, source,
             )?;
         }
-        OperationKind::ReleaseReference { source } => {
-            if crate::validation::references::carrier_type(module, machine, *source).is_none() {
-                return Err(crate::validation::references::invalid(
-                    machine,
-                    "release source is not a reference carrier",
-                ));
-            }
+        OperationKind::ReleaseReference { source, path } => {
+            crate::validation::references::validate_release(module, machine, *source, path)?;
         }
         OperationKind::EstablishScalarArray { .. } => {
             crate::validation::scalar::array::shape(module, machine, operation)?;

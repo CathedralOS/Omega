@@ -80,7 +80,6 @@ pub(super) fn consume(
             // discard; it leaves both frontier maps at this edge.
             if projected_root_is_fully_consumed(module, machine, frontier, argument.place) {
                 frontier.owned_places.remove(&argument.place);
-                frontier.partial_custody_paths.remove(&argument.place);
             }
             continue;
         }

@@ -330,10 +330,12 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         O::ReleaseReference {
             psi_operation,
             source,
+            path,
         } => {
             bytes.u8(80);
             bytes.id(*psi_operation);
             bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
         }
         O::MoveStructuralField {
             psi_operation,

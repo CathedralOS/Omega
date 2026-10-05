@@ -41,18 +41,34 @@ pub(super) fn decode_establish_reference(
 pub(super) fn encode_release_reference(
     writer: &mut Writer,
     source: PlaceId,
+    path: Vec<StructuralPathSegment>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::RELEASE_REFERENCE);
+    writer.u8(if path.is_empty() {
+        operation_tags::RELEASE_REFERENCE
+    } else {
+        operation_tags::PROJECTED_RELEASE_REFERENCE
+    });
     writer.id(source);
+    if !path.is_empty() {
+        encode_structural_path(writer, "reference release path", &path)?;
+    }
     Ok(())
 }
 
 pub(super) fn decode_release_reference(
     reader: &mut Reader<'_>,
+    projected: bool,
 ) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ReleaseReference {
-        source: reader.id("PlaceId")?,
-    })
+    let source = reader.id("PlaceId")?;
+    let path = if projected {
+        decode_structural_path(reader)?
+    } else {
+        Vec::new()
+    };
+    if projected && path.is_empty() {
+        return crate::codec_error::malformed("projected release requires a nonempty path");
+    }
+    Ok(OperationKind::ReleaseReference { source, path })
 }
 
 pub(super) fn encode_primitive_scalar_read(

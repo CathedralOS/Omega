@@ -19,9 +19,36 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
+
+/// An immutable selector whose unique SSA producer is an integer constant.
+/// This establishes its exact coordinate, not its bounds or storage authority.
+/// Unknown computations and block parameters retain their runtime geometry.
+pub fn constant_runtime_index(machine: &TerminalMachine, index: ValueId) -> Option<u64> {
+    let mut producers = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            operation
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == index)
+        });
+    let producer = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
+    let OperationKind::IntegerConstant { value } = producer.kind else {
+        return None;
+    };
+    match value {
+        IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+        IntegerValue::Signed(value) => u64::try_from(value).ok(),
+    }
+}
 
 /// The bounds relation a `RuntimeIndex` segment's obligation proves for an
 /// index of `index_type` selecting one element of a fixed array with `extent`

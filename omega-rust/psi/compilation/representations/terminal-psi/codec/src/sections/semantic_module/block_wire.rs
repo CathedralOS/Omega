@@ -120,8 +120,8 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::EstablishReference { source } => {
             storage_operations::encode_establish_reference(writer, source)?
         }
-        OperationKind::ReleaseReference { source } => {
-            storage_operations::encode_release_reference(writer, source)?
+        OperationKind::ReleaseReference { source, path } => {
+            storage_operations::encode_release_reference(writer, source, path)?
         }
         OperationKind::EstablishPrimitiveLocal { value } => {
             value_operations::encode_establish_primitive_local(writer, value)?
@@ -812,7 +812,12 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::ESTABLISH_REFERENCE => {
             storage_operations::decode_establish_reference(reader)?
         }
-        operation_tags::RELEASE_REFERENCE => storage_operations::decode_release_reference(reader)?,
+        operation_tags::RELEASE_REFERENCE => {
+            storage_operations::decode_release_reference(reader, false)?
+        }
+        operation_tags::PROJECTED_RELEASE_REFERENCE => {
+            storage_operations::decode_release_reference(reader, true)?
+        }
         operation_tags::PRIMITIVE_SCALAR_READ => {
             storage_operations::decode_primitive_scalar_read(reader)?
         }

@@ -374,35 +374,20 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
-    if let Some(source) =
-        validation::reference_result_custody::primitive_local_source(program, state, index)
-    {
-        local_phase("statement sequence: local data: primitive reference");
-        let storage = match source.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
-                parameter_index,
-            } => {
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| {
-                        !parameter.is_const
-                            && !parameter.relevance.is_erased()
-                            && program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
-                    })
-                    .nth(parameter_index as usize)?
-                    .type_reference
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
-                program
-                    .state_local_declaration(state, symbol)?
-                    .1
-                    .type_reference
-            }
-            _ => return None,
-        };
+    if let Some(source) = validation::reference_result_custody::primitive_local_source(
+        program, state, index,
+    )
+    .or_else(|| {
+        validation::reference_result_custody::borrowed_initializer_source(
+            program,
+            state,
+            local.initial_value,
+            local.type_reference,
+        )
+    }) {
+        local_phase("statement sequence: local data: reference capture");
+        let (storage, _) =
+            validation::reference_result_custody::stored_loan_parts(program, local.type_reference)?;
         if shapes.add_type(storage, binders, &[])? != source.type_identity {
             return None;
         }

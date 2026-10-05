@@ -26,6 +26,9 @@ pub(super) fn validate_unit_cleanup_actions(
         machine: function.machine,
         block,
     };
+    let mut remaining_storage = frontier.clone();
+    forget_drained_partial_roots(function, structural_types, &mut remaining_storage);
+    let frontier = &remaining_storage;
     let has_residual = actions
         .iter()
         .any(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)));
@@ -99,8 +102,7 @@ pub(super) fn validate_unit_cleanup_actions(
         {
             return Err(mismatch());
         }
-        // Whole-root discards release their carrier leaves; the residual root
-        // itself may hold none once partial custody moved its leaves.
+        // Whole roots and partial complements share exact subtree disposal.
         for place in &roots {
             super::references::discard_owned(
                 function,
@@ -108,6 +110,16 @@ pub(super) fn validate_unit_cleanup_actions(
                 block,
                 &mut remaining.live_references,
                 *place,
+            )?;
+        }
+        for discard in &residuals {
+            super::references::discard_subtree(
+                function,
+                structural_types,
+                block,
+                &mut remaining.live_references,
+                discard.place,
+                &discard.path,
             )?;
         }
         super::references::validate_normal_return(
@@ -202,6 +214,7 @@ pub(super) fn validate_scalar_cleanup_actions(
         block,
     };
     let mut remaining = frontier.clone();
+    forget_drained_partial_roots(function, structural_types, &mut remaining);
     let mut actions = actions.iter();
 
     // Completed affine results are cleaned before locals and parameters, in
@@ -375,15 +388,18 @@ fn validate_scalar_residual_cleanup(
         .ok_or_else(mismatch)?;
     let residuals =
         partial_affine_residuals(types, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
-    if residuals.is_empty()
-        || remaining
-            .live_references
-            .iter()
-            .any(|reference| reference.carrier == place)
-    {
+    if residuals.is_empty() {
         return Err(mismatch());
     }
     for (path, structural_type) in residuals {
+        super::references::discard_subtree(
+            function,
+            types,
+            block,
+            &mut remaining.live_references,
+            place,
+            &path,
+        )?;
         let expected = TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
             place,
             path,
@@ -548,4 +564,35 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                 | StructuralFieldType::BoundedInteger(_) => false,
             }
     })
+}
+
+/// Scalar storage may outlive its last structural disposal obligation. Only
+/// the declaration-derived empty complement permits dropping that path history
+/// at frame exit; an unaccounted live child or partial debt still rejects.
+fn forget_drained_partial_roots(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    frontier: &mut CurrentOwnership,
+) {
+    let drained = frontier
+        .partial_custody_paths
+        .keys()
+        .copied()
+        .filter(|place| {
+            !frontier.owned_places.contains_key(place)
+                && !frontier
+                    .live_references
+                    .iter()
+                    .any(|reference| reference.carrier == *place)
+                && super::structural::projected_root_is_fully_consumed(
+                    function,
+                    structural_types,
+                    frontier,
+                    *place,
+                )
+        })
+        .collect::<Vec<_>>();
+    for place in drained {
+        frontier.partial_custody_paths.remove(&place);
+    }
 }

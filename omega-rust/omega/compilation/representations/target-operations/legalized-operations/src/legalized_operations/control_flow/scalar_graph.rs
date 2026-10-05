@@ -372,6 +372,7 @@ pub enum LegalizedScalarInstructionKind {
     /// referent storage is unaffected.
     ReleaseReference {
         source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     EstablishPrimitiveLocal {
         result: terminal_psi::StructuralOperationResult,
@@ -979,7 +980,8 @@ mod structural_result_tests {
         assert_eq!(zeroed.get_structural_result(), Some(&linear));
         assert!(
             LegalizedScalarInstructionKind::ReleaseReference {
-                source: expected.place
+                source: expected.place,
+                path: Vec::new(),
             }
             .get_structural_result()
             .is_none()
