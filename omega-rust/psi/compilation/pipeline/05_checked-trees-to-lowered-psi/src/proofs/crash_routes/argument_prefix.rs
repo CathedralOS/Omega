@@ -14,7 +14,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
-    structural_results: &[(StructuralPlaceDeclaration, bool)],
+    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     structural_types: &[StructuralTypeDeclaration],
     primitive_locals: &[PrimitiveLocal],
 ) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
@@ -37,7 +37,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
         .or_else(|| {
             structural_results
                 .iter()
-                .map(|(place, _)| place)
+                .filter_map(|(place, _)| place.as_ref())
                 // These are the established caller referents, with their original producers.
                 .chain(primitive_locals.iter().map(|local| &local.declaration))
                 .find_map(|local| {

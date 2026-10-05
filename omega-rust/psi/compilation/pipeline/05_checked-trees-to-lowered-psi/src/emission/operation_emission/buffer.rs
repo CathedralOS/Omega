@@ -15,6 +15,10 @@ pub(crate) struct SourceCallCoordinate {
 
 /// One authored structural binding. Literal storage is established by a Unit
 /// operation; it does not acquire a structural operation result or its claims.
+/// A projected alias establishes no storage at all: transferring an owned
+/// child consumes that subtree's custody and preserves its siblings
+/// (`wiki/spec/terminal-psi/structural_access.md`), so the binding names a
+/// path under an already established place rather than producing one.
 #[derive(Debug, Clone)]
 pub(crate) enum StructuralBinding {
     OperationResult(terminal_psi::StructuralOperationResult),
@@ -23,13 +27,37 @@ pub(crate) enum StructuralBinding {
         structural_type: semantic_vocabulary::StructuralTypeId,
         declaration_ordinal: u32,
     },
+    /// One authored binding of an owned subtree of a live root. The alias
+    /// carries the composed path so every later use projects it at its own
+    /// consuming operation, which is the lane Terminal Psi admits for a
+    /// partial move; the Jump lane refuses a projected owned linear leaf.
+    ProjectedAlias {
+        place: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+        /// The claims the root already publishes under `path`, rebased onto
+        /// the aliased leaf. The alias mints nothing; it names where the
+        /// root's own bindings live so a consuming operation transfers
+        /// exactly those.
+        claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    },
 }
 
 impl StructuralBinding {
     pub(crate) fn place(&self) -> PlaceId {
         match self {
             Self::OperationResult(result) => result.place,
-            Self::ByteSequenceLiteral { place, .. } => *place,
+            Self::ByteSequenceLiteral { place, .. } | Self::ProjectedAlias { place, .. } => *place,
+        }
+    }
+
+    /// The path the binding names under `place`. Only a projected alias has
+    /// one: an established value occupies its whole place.
+    pub(crate) fn path(&self) -> &[terminal_psi::StructuralPathSegment] {
+        match self {
+            Self::OperationResult(_) | Self::ByteSequenceLiteral { .. } => &[],
+            Self::ProjectedAlias { path, .. } => path,
         }
     }
 
@@ -37,6 +65,9 @@ impl StructuralBinding {
         match self {
             Self::OperationResult(result) => result.structural_type,
             Self::ByteSequenceLiteral {
+                structural_type, ..
+            }
+            | Self::ProjectedAlias {
                 structural_type, ..
             } => *structural_type,
         }
@@ -46,6 +77,7 @@ impl StructuralBinding {
         match self {
             Self::OperationResult(result) => result.multiplicity,
             Self::ByteSequenceLiteral { .. } => terminal_psi::StructuralMultiplicity::Unrestricted,
+            Self::ProjectedAlias { multiplicity, .. } => *multiplicity,
         }
     }
 
@@ -53,6 +85,10 @@ impl StructuralBinding {
         match self {
             Self::OperationResult(result) => &result.claims,
             Self::ByteSequenceLiteral { .. } => &[],
+            // The alias mints no claim. These are the root's own bindings,
+            // rebased onto the aliased leaf, so a consuming operation
+            // transfers exactly the obligations the leaf carries.
+            Self::ProjectedAlias { claims, .. } => claims,
         }
     }
 
@@ -63,6 +99,9 @@ impl StructuralBinding {
             Self::OperationResult(result) => Ok(result),
             Self::ByteSequenceLiteral { .. } => Err(LoweringError::Unsupported(
                 "literal binding has no structural operation result",
+            )),
+            Self::ProjectedAlias { .. } => Err(LoweringError::Unsupported(
+                "projected alias binding has no structural operation result",
             )),
         }
     }

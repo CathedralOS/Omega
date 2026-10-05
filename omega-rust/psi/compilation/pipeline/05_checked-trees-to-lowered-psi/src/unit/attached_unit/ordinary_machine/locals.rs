@@ -28,6 +28,10 @@ impl MachineEmission<'_> {
                 "released reference result is absent",
             ))?
             .0
+            .as_ref()
+            .ok_or(LoweringError::Unsupported(
+                "released reference result is a projected alias",
+            ))?
             .id;
         Ok(Some(OperationKind::ReleaseReference {
             source: self.evaluation.current_structural_place(source),
@@ -90,7 +94,8 @@ impl MachineEmission<'_> {
             &mut self.operations,
         )?;
         self.scalar_result_values.truncate(leaf_start);
-        self.structural_result_places.push((declaration, false));
+        self.structural_result_places
+            .push((Some(declaration), false));
         if *source == checked_trees::CheckedArrayConstructionSource::Statement {
             structural_values::bind_local(
                 checked,

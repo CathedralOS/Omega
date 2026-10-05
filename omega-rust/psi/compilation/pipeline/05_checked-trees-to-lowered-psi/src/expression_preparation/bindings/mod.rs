@@ -91,13 +91,18 @@ pub(crate) struct ScalarBindings {
 }
 
 impl ScalarBindings {
-    /// Retire the source name only after its whole value has moved to its consumer.
+    /// Retire the source name only after its whole value has moved to its
+    /// consumer. A projected owned alias names a subtree of a live root, so
+    /// retiring it must remove that one name and leave every sibling alias
+    /// and the root's own binding in place.
     pub(crate) fn retire_structural_local(
         &mut self,
         symbol: symbols::SymbolHandle,
         place: PlaceId,
     ) -> Result<(), LoweringError> {
-        self.structural_locals
+        let root = facts::PlaceRoot::Symbol(symbol);
+        let position = self
+            .structural_locals
             .iter()
             .position(
                 |StructuralLocalBinding {
@@ -105,25 +110,31 @@ impl ScalarBindings {
                      argument,
                      ..
                  }| {
-                    *candidate == facts::PlaceRoot::Symbol(symbol)
+                    *candidate == root
                         && argument.place == place
                         && argument.access == StructuralAccess::Owned
-                        && argument.path.is_empty()
                 },
             )
             .ok_or(LoweringError::Unsupported(
                 "moved local lost its exact source home",
             ))?;
-        self.structural_locals
-            .retain(|binding| binding.argument.place != place);
+        if self.structural_locals[position].argument.path.is_empty() {
+            self.structural_locals
+                .retain(|binding| binding.argument.place != place);
+        } else {
+            self.structural_locals.remove(position);
+        }
         Ok(())
     }
 
     /// Make the completed whole result visible to subsequent computations.
+    /// `path` is empty for an established value and names the owned subtree
+    /// for a projected alias, which holds no storage of its own.
     pub(crate) fn establish_structural_local(
         &mut self,
         symbol: symbols::SymbolHandle,
         place: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         structural_type: StructuralTypeId,
     ) -> Result<(), LoweringError> {
         if !symbol.is_valid()
@@ -140,7 +151,7 @@ impl ScalarBindings {
             structural_type,
             argument: StructuralArgument {
                 place,
-                path: Vec::new(),
+                path,
                 access: StructuralAccess::Owned,
             },
         });
@@ -891,7 +902,9 @@ impl ScalarBindings {
 
     /// The owned home a whole copyable local's snapshot reads. The copy plan
     /// is a shared read of the complete local; binding this home into a fresh
-    /// unrestricted home copies its current contents and leaves it live.
+    /// unrestricted home copies its current contents and leaves it live. A
+    /// projected owned alias answers at its root's place under the alias
+    /// path, which the copy reads exactly as it reads a whole home.
     pub(crate) fn copied_local_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -911,7 +924,6 @@ impl ScalarBindings {
             || locals.next().is_some()
             || !argument.path.is_empty()
             || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || !source.path.is_empty()
             || source.access != StructuralAccess::Owned
         {
             return unsupported("copied record changes its source custody");
@@ -975,7 +987,12 @@ impl ScalarBindings {
         })
     }
 
-    /// Resolve a source-validated whole owned home without inventing a loan.
+    /// Resolve a source-validated owned home without inventing a loan. An
+    /// established value answers at its own place; a projected owned alias
+    /// answers at its root's place under the alias path. Transferring an
+    /// owned child consumes that subtree's custody and preserves its
+    /// siblings, so naming the alias path is the authorized reading of a
+    /// whole-value use rather than a widening.
     pub(crate) fn owned_argument(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -996,7 +1013,6 @@ impl ScalarBindings {
                 || locals.next().is_some()
                 || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                || !source.path.is_empty()
                 || source.access != StructuralAccess::Owned
             {
                 return unsupported("computed owned structural operand changes its source custody");

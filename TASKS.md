@@ -2518,83 +2518,61 @@ check corpus and the native corpus unchanged on the slices it names.
     error;
   - no corpus outcome changes otherwise.
 
-- **PROJECTED-OWNED-LET-CONTINUATION.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
-  `let child: T = root.field;` over an owned projection reaches
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs:1028`
-  with `continuation == None` and fails "projected selection requires a
-  structural continuation".
+- **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
+  `pass/ownership/linear_transparent_record_frontier` now lowers both
+  `let extracted_left: Receipt = forwarded.left;` statements and rejects in
+  Terminal verification instead: `terminal-artifact production failed:
+  Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))`.
+  OperationId(5) is the `Pair { left: left, right: right }` `EstablishRecord`,
+  and the refusing condition is `complete_root_custody` in
+  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/record.rs:224-231`
+  (measured with a per-condition probe, not inferred): that match requires an
+  `Affine` or `Unrestricted` record result to be **claim-free**, while a
+  transparent affine record over two linear members publishes one claim per
+  member at that member's path. Only the `Linear` arm admits claims, and it
+  admits exactly one whole-root claim.
+  This is the same mismatch the contract paragraph below already names, so the
+  amendment and this check move together: `fields` must admit an affine or
+  unrestricted record result whose claim roster is exactly the type's linear
+  claim frontier, each at its own path, and keep refusing a whole-root claim on
+  a non-linear result. Acceptance: that fixture reaches `checked`, with a
+  full-corpus before/after showing 0 regressions, and
+  `fail/ownership/linear_transparent_record_member_scope_loss` keeps rejecting
+  with ``linear value `pair.right` reaches scope exit without being consumed or
+  transferred``.
 
-  **The item's name records the first reading of that message and is
-  superseded: do not build the continuation.** Synthesizing the join would be
-  wrong, not incomplete. The Jump lane categorically refuses a projected owned
-  `Linear` leaf -- `terminal-psi/verification/src/validation/frontier/block_parameters.rs:46-53`
-  (receiving parameter must be `Affine`, live root must be `Affine`, root must
-  carry no live claim), `validation/affine_cleanup/continuation.rs:58`,
-  `validation/block_views.rs:567` -- and `complete_value`'s residual schedule
-  reaches `unit/unit_cleanup/partial/residuals.rs`, which never consults
-  multiplicity and would emit a `StructuralAffineDiscard` for the live linear
-  sibling `forwarded.right`. That is the exact hole the invalid-ownership
-  control catches. `wiki/spec/terminal-psi/ownership.md:41` confines the
-  residual-complement derivation to a dying **affine** root, which this is not.
+  What landed at __LAND__, so it is not re-derived. An owned projection of an
+  already established place needs no structural continuation: the authored
+  binding establishes no storage, so stage 05 binds it as a projected alias
+  (`StructuralBinding::ProjectedAlias`) over the root's place, emits no
+  operation and no edge, and each later use projects the composed path at its
+  real consuming operation -- the lane
+  `validation/frontier/operations.rs:218-303` admits by recording the hole in
+  `partial_custody_paths` while the root stays live.
+  **Do not rebuild the continuation.** The Jump lane categorically refuses a
+  projected owned `Linear` leaf
+  (`terminal-psi/verification/src/validation/frontier/block_parameters.rs:46-53`,
+  `validation/affine_cleanup/continuation.rs:58`, `validation/block_views.rs:567`),
+  and `complete_value`'s residual schedule reaches
+  `unit/unit_cleanup/partial/residuals.rs`, which never consults multiplicity
+  and would emit a `StructuralAffineDiscard` for the live linear sibling
+  `forwarded.right`. `wiki/spec/terminal-psi/ownership.md:41` confines the
+  residual-complement derivation to a dying affine root, which this is not.
 
-  **The cause is two stages upstream and is a stale row model.**
-  `04_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation/claim_frontier.rs:116-171`
-  pushes one `LinearPlace` per contained linear claim and pushes the whole-root
-  affine row only when `claims.is_empty()`, so `Pair { left: Receipt, right:
-  Receipt }` has rows `[left]` and `[right]`, both `Linear`, and no whole-root
-  row at all. `checks/multiplicity/projected_affine.rs:45-57` then requires
-  exactly 1 row for the symbol, that row's path empty, and that row `Affine`,
-  and `:83-84` separately requires the projected **leaf** type `Affine`. All
-  four fail, so no `Transfer` event is recorded and stage 05 has nothing to
-  lower. That module cannot fire for any affine root holding linear members; it
-  was written against the pre-`ed49c3cb9de` aggregate-root model, and its
-  judgment duplicates `type_multiplicity` plus
-  `value_custody/claim_frontier.rs`, which are already total.
-
-  **The admitted lane is the operation lane, never the edge.**
-  `validation/structural/operations/structural_arguments/argument_checks.rs:644-653`
-  already presents an owned root's partial move as linear and accepts a
-  `Linear` callee formal; `validation/frontier/operations.rs:218-303` records
-  the hole in `partial_custody_paths` while leaving the root live
-  (`frontier.rs:188`: "independent of the root's multiplicity"); and
-  `projected_root_is_fully_consumed` (`frontier.rs:631-688`) settles the root
-  once every claim on it is consumed and its affine complement is empty. So the
-  statement lowers to **no operation and no edge**: bind a projected alias
-  `StructuralArgument { place: root, path, access: Owned }` and let each later
-  use project at its real consuming operation, per
-  `wiki/spec/terminal-psi/structural_access.md:303-305` ("Its transfer consumes
-  the current subtree custody and preserves the remaining siblings"),
-  `wiki/spec/language/ownership.md:95-97` and
-  `wiki/spec/terminal-psi/ownership.md:38-41`.
-
-  **One change, two halves, both required.** (a) Generalize
-  `projected_affine.rs` to record a projected transfer keyed on the root's type
-  multiplicity and the leaf's own path-indexed claim identity, routed through
-  `claim_frontier`, deleting its three row-shape guards. (b) Make stage 05 bind
-  the projected alias and emit no producer; the alias surface is four sites that
-  refuse a non-empty source path instead of composing it --
-  `expression_preparation/bindings/mod.rs:137` (hardcodes an empty path),
-  `owned_argument` (`mod.rs:999`), `copied_local_home` (`mod.rs:914`),
-  `operation_frame.rs:1016` -- plus `retire_structural_local`
-  (`mod.rs:103-119`). (b) alone has no transfer to lower and (a) alone still
-  hits `emission.rs:1028`, so they land together or not at all.
-
-  Customer: `pass/ownership/linear_transparent_record_frontier` at
-  `let extracted_left: Receipt = forwarded.left;`, reached as of
-  `ed49c3cb9de`; a record mixing one linear member with a scalar member
-  reaches the same point, so the gap is not keyed to the two-linear-field
-  shape. Third rung of the ladder `abbd563760a` and `ed49c3cb9de` climbed.
-  Acceptance: that fixture advances past `emission.rs:1028`, with a
-  full-corpus before/after showing 0 regressions, and the invalid control
-  still refuses -- leaving one of two linear members undischarged must keep
-  rejecting with ``linear value `pair.right` reaches scope exit without being
-  consumed or transferred``, which names a path-indexed obligation.
-
-  `pass/ownership/linear_ambiguous_state_result_mapping` has the identical two
-  projected-owned linear `let`s but is **not** a second customer yet: it stops
-  earlier, on "conditional result custody requires Terminal exit-alternative
-  correspondence" from its `transition` arms. That was inferred to be a second
-  customer and a recorded baseline disproved it, so do not count it.
+  Settled by measurement, against the earlier reading of this family: stage 04
+  already admits the statement, so there is **nothing to fix upstream**. The
+  recorded row carries only a stage-05 `Lowering` error, which means the
+  checker's linear validation discharged both path-indexed obligations. The
+  ordinary branch in
+  `04_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation/permission_production.rs:138-185`
+  records the `Transfer` with the leaf's own `Linear` multiplicity and claim
+  identity, because `move_selects_claim` tests
+  `claim.path.starts_with(event_path)`.
+  `checks/multiplicity/projected_affine.rs::append_transfer` is the disjoint
+  fallback taken only when `matching.is_empty()` -- an affine root with no
+  linear members at all -- so its three row-shape guards are not on this
+  customer's path, and generalizing them would record the transfer twice.
+  Leave that module alone until a customer needs it.
 
   Latent, same family, no customer yet:
   `structural_values/emission/completed_storage.rs:52` keys a block-parameter
@@ -2605,31 +2583,14 @@ check corpus and the native corpus unchanged on the slices it names.
   `:2386`, `dispatch` at `dispatch.rs:124`); adding a fifth is a sign of
   rebuilding the refuted mechanism.
 
-  **NESTED-RECORD-LINEAR-CUSTODY is closed** by `ed49c3cb9de`. The refusal had
-  gated on the wrong subject: `record.rs` derived the nested operand's
-  result-place multiplicity from the field's DECLARED TYPE, before knowing
-  whether the operand establishes a new result at all, and the customer's
-  operand takes the `Place` transfer route which never reads that value. Seven
-  hand-written `Multiplicity -> StructuralMultiplicity` matches -- the three
-  that omitted `Linear` and refused (`record.rs`, `fixed_array.rs`,
-  `structural_case.rs`) and the four that spelled the total mapping correctly
-  -- collapsed into one `terminal_identities::structural_multiplicity`. A
-  second blocker fell with it: `calls.rs:501` called `establishment_claims`
-  only when the ROOT's multiplicity was `Linear`, so an affine root with linear
-  children collected none of its claims. `ordinary_machine.rs`'s `Linear` arm
-  is deliberately left alone -- it refuses by a genuinely different rule
-  ("structural completion requires retained linear result claims"), a real
-  distinction rather than a narrower copy.
-
-  Contract text still owed there, deliberately not written:
+  Contract text still owed, to be written with the `record.rs` repair above:
   `wiki/spec/terminal-psi/calls_and_outcomes.md:105-106` says record results are
   "unqualified, claim-free, and affine or unrestricted. Erased fields and
   linear custody remain outside this operation." That reads as "not modelled
   by it" rather than "reject" -- the same sentence says it of erased fields,
   which `record.rs` skips rather than refuses -- and it is already contradicted
   by `operation_contracts/records.rs:131-133`, which admits a `Linear` result
-  with one whole-root claim. Amend it once the fixture compiles end to end, not
-  before.
+  with one whole-root claim.
 
 - **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
   `tests/omega/pass/filesystem/dir_walk_wrappers_exit` compiles no unit plan

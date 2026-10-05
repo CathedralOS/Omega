@@ -341,12 +341,19 @@ impl Evaluation {
                 return unsupported("structural value repeats or substitutes its local binding");
             }
             local_symbol = local.symbol;
-            self.structural_fields.register_local(
-                local.symbol,
-                produced.place(),
-                produced.structural_type(),
-                structural_types,
-            );
+            // A projected owned alias names a subtree of the root's place, so
+            // its scalar fields sit under the alias path rather than at the
+            // place's own offset. The field roster keys a whole carrier only;
+            // leave an alias out of it so a field read refuses instead of
+            // addressing the root's own layout.
+            if produced.path().is_empty() {
+                self.structural_fields.register_local(
+                    local.symbol,
+                    produced.place(),
+                    produced.structural_type(),
+                    structural_types,
+                );
+            }
             self.structural_locals.push(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
                     result_binding_ordinal: Some(result.binding_ordinal),
@@ -354,7 +361,7 @@ impl Evaluation {
                     structural_type: produced.structural_type(),
                     argument: StructuralArgument {
                         place: produced.place(),
-                        path: Vec::new(),
+                        path: produced.path().to_vec(),
                         access: if shared_borrow.is_some() {
                             StructuralAccess::SharedBorrow
                         } else if mutable_borrow.is_some() {
@@ -367,11 +374,14 @@ impl Evaluation {
             );
             // A view local's published place is what its lengths and element
             // reads observe; record the family its produced type declares.
-            if let Some(carrier) =
-                crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
-                    produced.structural_type(),
-                    structural_types,
-                )
+            // A view observes the place it names; an alias names a subtree
+            // of another place, which this roster cannot express.
+            if produced.path().is_empty()
+                && let Some(carrier) =
+                    crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
+                        produced.structural_type(),
+                        structural_types,
+                    )
             {
                 self.view_locals.push(
                     crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
@@ -390,7 +400,10 @@ impl Evaluation {
                 );
             }
         }
-        if multiplicity == StructuralMultiplicity::Affine {
+        // Residual cleanup tracks values this statement established. A
+        // projected owned alias established none: the root it names keeps its
+        // own owner row and its own residual complement.
+        if multiplicity == StructuralMultiplicity::Affine && produced.path().is_empty() {
             self.structural_value_owners.push(StructuralValueOwner {
                 symbol: local_symbol,
                 statement: result.statement_index,

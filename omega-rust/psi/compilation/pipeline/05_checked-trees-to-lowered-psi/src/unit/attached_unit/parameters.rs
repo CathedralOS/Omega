@@ -620,7 +620,7 @@ pub(crate) fn validate_transfer_shape(
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     caller_parameters: &[StructuralParameterDeclaration],
     caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
-    caller_structural_results: &[(StructuralPlaceDeclaration, bool)],
+    caller_structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
@@ -716,6 +716,27 @@ pub(crate) fn validate_transfer_shape(
             continue;
         }
         if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
+            // A projected owned alias transfers one owned child and preserves
+            // its siblings. Its leaf identity and owned custody are what this
+            // row validates; the claim it consumes is the one the root already
+            // published at the alias path, and the emitted frontier records
+            // the hole at the consuming operation.
+            if let Some(projected_alias) = result_custody
+                .as_ref()
+                .and_then(|custody| projected_alias(custody.results, binding_ordinal))
+            {
+                if argument.type_identity != target.type_identity
+                    || !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || target.access != checked_trees::CheckedStructuralAccess::Owned
+                    || projected_alias.structural_type
+                        != lookup_type_id(type_ids, &argument.type_identity)?
+                    || target.fused_service_erasure.is_some()
+                {
+                    return unsupported("projected alias argument has invalid checked custody");
+                }
+                continue;
+            }
             let source =
                 structural_result_source(caller_structural_results, binding_ordinal, argument)?;
             if let StructuralPlaceKind::ByteSequenceLiteral { .. } = source.kind {
@@ -1178,7 +1199,7 @@ pub(crate) fn mint_runtime_index_selectors(
 pub(crate) fn mint_element_view_length_observations(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
-    structural_results: &[(StructuralPlaceDeclaration, bool)],
+    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     structural_types: &[StructuralTypeDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
@@ -1202,6 +1223,9 @@ pub(crate) fn mint_element_view_length_observations(
                     .ok_or(LoweringError::Unsupported(
                         "Unit structural result binding is not produced",
                     ))?;
+                let Some(source) = source else {
+                    continue;
+                };
                 let StructuralPlaceKind::OperationResult {
                     structural_type, ..
                 } = source.kind
@@ -1251,7 +1275,11 @@ pub(crate) fn lower_structural_arguments(
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
-    structural_results: &[(StructuralPlaceDeclaration, bool)],
+    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
+    completed_results: &[(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
     caller_scalar_values: Option<&[ValueDeclaration]>,
@@ -1306,6 +1334,20 @@ pub(crate) fn lower_structural_arguments(
                 });
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
+                // A projected owned alias declares no place: it names an
+                // owned subtree of a live root, so the argument is that
+                // root's place walked to the leaf, and the use's own
+                // projection continues from there. This is the operation
+                // lane Terminal Psi admits for a partial move.
+                if let Some(projected_alias) = projected_alias(completed_results, binding_ordinal) {
+                    let mut path = projected_alias.path.to_vec();
+                    path.extend(lower_typed_argument_path(&argument.path, projected_alias.structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?);
+                    return Ok(StructuralArgument {
+                        place: projected_alias.place,
+                        path,
+                        access: terminal_access(argument.access),
+                    });
+                }
                 let source = structural_result_source(structural_results, binding_ordinal, argument)?;
                 let structural_type = match source.kind {
                     StructuralPlaceKind::OperationResult { structural_type, .. }
@@ -1356,8 +1398,44 @@ pub(crate) fn lower_structural_arguments(
         })
 }
 
+/// One completed binding that is a projected owned alias: the place that
+/// holds the storage, the walk to the aliased leaf, and the leaf's declared
+/// carrier. Every other binding occupies its whole place and answers here
+/// with `None`.
+struct ProjectedAliasBinding<'results> {
+    place: PlaceId,
+    path: &'results [terminal_psi::StructuralPathSegment],
+    structural_type: StructuralTypeId,
+}
+
+fn projected_alias<'results>(
+    completed_results: &'results [(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
+    binding_ordinal: u32,
+) -> Option<ProjectedAliasBinding<'results>> {
+    let (_, binding) = completed_results
+        .iter()
+        .find(|(ordinal, _)| *ordinal == binding_ordinal)?;
+    let crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
+        place,
+        path,
+        structural_type,
+        ..
+    } = binding
+    else {
+        return None;
+    };
+    Some(ProjectedAliasBinding {
+        place: *place,
+        path,
+        structural_type: *structural_type,
+    })
+}
+
 fn structural_result_source<'results>(
-    results: &'results [(StructuralPlaceDeclaration, bool)],
+    results: &'results [(Option<StructuralPlaceDeclaration>, bool)],
     binding_ordinal: u32,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<&'results StructuralPlaceDeclaration, LoweringError> {
@@ -1368,6 +1446,12 @@ fn structural_result_source<'results>(
         .ok_or(LoweringError::Unsupported(
             "Unit structural result binding is not produced",
         ))?;
+    // A projected owned alias declares no place of its own, so there is no
+    // producer custody for this join to read. Its uses resolve through the
+    // local namespace, which composes the alias path with the use's own.
+    let source = source.as_ref().ok_or(LoweringError::Unsupported(
+        "Unit structural result binding is a projected alias",
+    ))?;
     // A whole owned move must not come from a result still marked for its
     // return drop. A projected owned move is different: the subtree's custody
     // was proven upstream (the bare reference result's leaf loan), and the

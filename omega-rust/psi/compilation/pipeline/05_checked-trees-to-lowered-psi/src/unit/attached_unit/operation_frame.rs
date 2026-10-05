@@ -298,8 +298,15 @@ impl StructuralTypeRoster<'_> {
 /// Where the emitting body keeps its completed structural results.
 pub(super) enum StructuralResults<'f> {
     /// The ordinary machine's roster: one row per authored result binding in
-    /// ordinal order, with whether the machine's return discards it.
-    Dense(&'f mut Vec<(StructuralPlaceDeclaration, bool)>),
+    /// ordinal order, with whether the machine's return discards it. A row
+    /// holds no declaration when its binding is a projected owned alias:
+    /// that binding names a subtree of an already established place, so it
+    /// declares no place of its own and the composed alias lives in the
+    /// operation buffer's `structural_values` registry instead. Keeping the
+    /// ordinal slot preserves the density every later ordinal is checked
+    /// against, and makes every reader that needs a produced place refuse
+    /// the alias explicitly rather than silently drop its path.
+    Dense(&'f mut Vec<(Option<StructuralPlaceDeclaration>, bool)>),
     /// A composed state: each binding is registered in the operation buffer,
     /// and every result place joins the machine-wide place catalog.
     StateGraph {
@@ -360,6 +367,9 @@ impl StructuralResults<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "call continuation result has not been produced",
                         ))?;
+                let place = place.as_ref().ok_or(LoweringError::Unsupported(
+                    "call continuation result is a projected alias",
+                ))?;
                 if *discard_on_return {
                     return unsupported("call continuation cleanup has conflicting custody");
                 }
@@ -393,6 +403,9 @@ impl StructuralResults<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "borrowed-window repair binding is absent",
                         ))?;
+                let declaration = declaration.as_ref().ok_or(LoweringError::Unsupported(
+                    "borrowed-window repair binding is a projected alias",
+                ))?;
                 let structural_type = match declaration.kind {
                     StructuralPlaceKind::OperationResult {
                         structural_type, ..
@@ -476,10 +489,13 @@ impl StructuralResults<'_> {
         arguments: &[CheckedUnitStructuralArgumentPlan],
         operations: &OperationBuffer,
         evaluation: &Evaluation,
-    ) -> Result<Cow<'_, [(StructuralPlaceDeclaration, bool)]>, LoweringError> {
+    ) -> Result<Cow<'_, [(Option<StructuralPlaceDeclaration>, bool)]>, LoweringError> {
         let places = match self {
             Self::Dense(roster) => {
                 for (ordinal, (declaration, _)) in roster.iter().enumerate() {
+                    let Some(declaration) = declaration else {
+                        continue;
+                    };
                     if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. })
                         && arguments.iter().any(|argument| {
                             argument
@@ -531,8 +547,11 @@ impl StructuralResults<'_> {
                         if producers.next().is_some() || producer.result != OperationResult::Unit {
                             return unsupported("literal binding repeats or changes its establishment");
                         }
-                        Ok((declaration, false))
+                        Ok((Some(declaration), false))
                     }
+                    StructuralBinding::ProjectedAlias { .. } => unsupported(
+                        "composed call result binding is a projected alias",
+                    ),
                     StructuralBinding::OperationResult(result) => {
                         let mut declarations = places.iter().filter(|place| place.id == result.place);
                         let declaration = declarations.next().ok_or(LoweringError::Unsupported(
@@ -549,7 +568,7 @@ impl StructuralResults<'_> {
                         {
                             validate_completed_arrival(declaration, evaluation)?;
                         }
-                        Ok((*declaration, false))
+                        Ok((Some(*declaration), false))
                     }
                 }
             })
@@ -561,8 +580,25 @@ impl StructuralResults<'_> {
     /// return-discard custody, or the machine-wide composed catalog.
     fn push(&mut self, declaration: StructuralPlaceDeclaration, discard_on_return: bool) {
         match self {
-            Self::Dense(roster) => roster.push((declaration, discard_on_return)),
+            Self::Dense(roster) => roster.push((Some(declaration), discard_on_return)),
             Self::StateGraph { places, .. } => places.push(declaration),
+        }
+    }
+
+    /// Reserve one ordinal slot for a projected owned alias. The binding
+    /// declares no place and emits no operation, so there is nothing to
+    /// catalog or discard; the slot keeps later ordinals dense.
+    fn push_projected_alias(&mut self) -> Result<(), LoweringError> {
+        match self {
+            Self::Dense(roster) => {
+                roster.push((None, false));
+                Ok(())
+            }
+            // A composed state resolves operands through the operation
+            // buffer's registry alone, and its catalog has no slotless row.
+            Self::StateGraph { .. } => {
+                unsupported("composed state cannot bind a projected owned alias")
+            }
         }
     }
 }
@@ -1013,8 +1049,8 @@ impl OperationFrame<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",
                         ))?;
-                    if source.access != StructuralAccess::Owned || !source.path.is_empty() {
-                        return unsupported("primitive store local is not an owned whole place");
+                    if source.access != StructuralAccess::Owned {
+                        return unsupported("primitive store local is not an owned place");
                     }
                     let (_, authored) =
                         crate::declarations::state_declaration(self.checked, self.state)?;
@@ -1038,9 +1074,20 @@ impl OperationFrame<'_, '_> {
                         path,
                         self.structural_types.declarations(),
                     )?;
+                    // A projected owned alias contributes its own walk: the
+                    // destination is the leaf under the place that actually
+                    // holds the storage. The alias path is static by
+                    // construction, so it composes as ordinary steps.
+                    let mut composed = source
+                        .path
+                        .iter()
+                        .cloned()
+                        .map(crate::emission::runtime_elements::ProjectionStep::Static)
+                        .collect::<Vec<_>>();
+                    composed.extend(steps);
                     crate::emission::primitive_store::Destination {
                         place: source.place,
-                        path: steps,
+                        path: composed,
                     }
                 }
             }
@@ -2389,7 +2436,7 @@ impl OperationFrame<'_, '_> {
         };
         let produced = produced.clone();
         match &mut self.results {
-            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
             // The composed namespace resolves later operands through the
             // operation buffer's registry, so the moved value registers there.
             StructuralResults::StateGraph { places, .. } => {
@@ -2509,7 +2556,7 @@ impl OperationFrame<'_, '_> {
         // The literal roster owns its declaration. Dense bindings index that
         // same place; a graph's registry retains its explicit literal kind.
         if let StructuralResults::Dense(roster) = &mut self.results {
-            roster.push((declaration, false));
+            roster.push((Some(declaration), false));
         }
         self.evaluation.establish_structural_binding(
             self.checked,
@@ -2556,7 +2603,7 @@ impl OperationFrame<'_, '_> {
                 self.operations,
             )?;
         match &mut self.results {
-            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
             StructuralResults::StateGraph { places, .. } => places.push(declaration),
         }
         self.evaluation.establish_structural_result(
@@ -2687,7 +2734,7 @@ impl OperationFrame<'_, '_> {
                 "view subslice established no structural value",
             ))?;
         match &mut self.results {
-            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
             StructuralResults::StateGraph { places, .. } => places.push(declaration),
         }
         self.evaluation.establish_structural_result(

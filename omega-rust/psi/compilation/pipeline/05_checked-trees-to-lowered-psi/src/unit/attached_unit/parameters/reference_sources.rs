@@ -18,7 +18,7 @@ pub(crate) fn lower_reference_source(
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
-    structural_results: &[(StructuralPlaceDeclaration, bool)],
+    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     primitive_locals: &[super::super::primitive_locals::PrimitiveLocal],
 ) -> Result<StructuralArgument, LoweringError> {
     if source.access == CheckedStructuralAccess::Owned {
@@ -38,6 +38,9 @@ pub(crate) fn lower_reference_source(
         parameters,
         trivial_affine_locals,
         structural_results,
+        // A reference source never transfers owned custody, so no projected
+        // owned alias can answer here.
+        &[],
         &[],
         primitive_locals,
         None,

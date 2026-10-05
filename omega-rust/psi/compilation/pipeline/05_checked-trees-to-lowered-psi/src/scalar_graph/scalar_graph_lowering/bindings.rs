@@ -616,9 +616,12 @@ fn prepare_operation(
         for (symbol, place) in &prepared.consumed {
             bindings.retire_structural_local(*symbol, *place)?;
         }
+        // The graph route establishes produced storage, never a projected
+        // alias: its binding occupies its whole place.
         bindings.establish_structural_local(
             prepared.symbol,
             prepared.place,
+            Vec::new(),
             prepared.structural_type,
         )?;
         Ok(PreparedOperation::Structural(prepared))

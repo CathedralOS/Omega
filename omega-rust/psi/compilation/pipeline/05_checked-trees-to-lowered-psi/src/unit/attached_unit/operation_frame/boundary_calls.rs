@@ -304,6 +304,7 @@ impl OperationFrame<'_, '_> {
             self.parameters,
             &[],
             &earlier,
+            &self.operations.structural_values,
             inputs.byte_places,
             self.primitive_locals,
             Some(self.values),

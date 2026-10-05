@@ -332,6 +332,103 @@ pub(crate) fn emit(
         published_places: Vec::new(),
         arrival_claims: Vec::new(),
     };
+    // An owned projection of an already established place transfers one child
+    // and preserves the remaining siblings
+    // (`wiki/spec/terminal-psi/structural_access.md`,
+    // `wiki/spec/language/ownership.md`): the authored binding establishes no
+    // storage of its own, so it lowers to no operation and no edge. Bind it as
+    // a projected alias over the root's place and let each later use project
+    // the composed path at its real consuming operation, which is the lane
+    // Terminal Psi admits (`validation/frontier/operations.rs` records the
+    // hole in `partial_custody_paths` while the root stays live). The Jump
+    // lane categorically refuses a projected owned `Linear` leaf, so
+    // synthesizing a selection join here would open a linearity hole instead.
+    //
+    // Two restrictions are deliberate. A statement that carries an
+    // owned-selection receipt keeps the selection route, because that receipt
+    // schedules its sources' residual cleanup on the edge and an alias has no
+    // edge to carry it. And only a `Place` source aliases: a projection of a
+    // call result names a temporary whose own residual complement nothing else
+    // consumes, so that shape keeps the route it already had.
+    if emission.sources.is_empty()
+        && let CheckedStructuralValueKind::Projection {
+            source,
+            path,
+            type_identity,
+        } = checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(*value)
+            .kind
+            .clone()
+        && matches!(
+            checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(source)
+                .kind,
+            CheckedStructuralValueKind::Place(_)
+        )
+    {
+        let projected = emission.projected_root(source, path, type_identity)?;
+        let alias_path = projected.lowered_path()?;
+        // The leaf's claim is published where its root was established: the
+        // alias names that exact place and path, so the consuming operation
+        // resolves the binding already on the root's result. An alias has no
+        // result of its own, so a claim this statement minted fresh would
+        // have nowhere to land; require the root to carry each one.
+        // The root's claim roster is on its producing operation's result,
+        // or -- when its value completed at a control join -- on the
+        // completed binding the join published for it.
+        let published_claims = emission
+            .operations
+            .structural_values
+            .iter()
+            .map(|(_, root)| (root.place(), root.claims()))
+            .chain(
+                emission
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .map(|produced| (produced.place, produced.claims.as_slice())),
+            )
+            .filter(|(place, _)| *place == projected.root)
+            .flat_map(|(_, claims)| claims)
+            .cloned()
+            .collect::<Vec<_>>();
+        for binding in &result_claims {
+            let mut published_path = alias_path.clone();
+            published_path.extend(binding.path.iter().cloned());
+            if !published_claims.iter().any(|published| {
+                published.claim == binding.claim && published.path == published_path
+            }) {
+                return unsupported("projected alias claim is not published by its root");
+            }
+        }
+        let alias =
+            crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
+                place: projected.root,
+                path: alias_path,
+                structural_type,
+                multiplicity,
+                claims: result_claims,
+            };
+        emission.evaluation.establish_structural_binding(
+            checked,
+            state,
+            result,
+            true,
+            alias,
+            structural_types,
+            emission.operations,
+        )?;
+        return Ok(None);
+    }
     let place = if emission.sources.is_empty()
         && let Some((source, region, loan)) = match &checked
             .facts
@@ -724,10 +821,23 @@ pub(super) struct ValueContinuation {
 /// leaf type while residual reconstruction replays the root's complement.
 pub(super) struct ProjectedMove {
     pub(super) root: PlaceId,
+    /// The already lowered walk from `root`'s storage to the checked source
+    /// the projection reads. It is empty unless that source is itself a
+    /// projected owned alias, which holds no storage of its own.
+    pub(super) root_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub(super) leaf_type_identity: String,
     pub(super) root_type_identity: String,
     pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+}
+
+impl ProjectedMove {
+    /// The complete walk from `root`'s storage to the projected leaf.
+    fn lowered_path(&self) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
+        let mut path = self.root_path.clone();
+        path.extend(lower_structural_path(&self.path)?);
+        Ok(path)
+    }
 }
 
 impl Emission<'_, '_, '_> {
@@ -906,7 +1016,7 @@ impl Emission<'_, '_, '_> {
             let projected = self.projected_root(source, path, type_identity)?;
             return Ok(StructuralArgument {
                 place: projected.root,
-                path: lower_structural_path(&projected.path)?,
+                path: projected.lowered_path()?,
                 access: StructuralAccess::Owned,
             });
         }
@@ -1994,6 +2104,7 @@ impl Emission<'_, '_, '_> {
             .nodes
             .get(source)
             .clone();
+        let mut root_alias_path = Vec::new();
         let (root, root_type_identity, root_source) = match node.kind {
             CheckedStructuralValueKind::Place(argument) => {
                 let root_source = argument.source.clone();
@@ -2014,9 +2125,17 @@ impl Emission<'_, '_, '_> {
                         .structural_locals
                         .iter()
                         .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
-                        .map(|local| local.argument.place)
+                        .map(|local| &local.argument)
                     {
-                        Some(place) => place,
+                        // A root that is itself a projected alias contributes
+                        // its own path: the composed walk names the leaf under
+                        // the place that actually holds the storage. Every
+                        // other established local occupies its whole place and
+                        // contributes nothing here.
+                        Some(source) => {
+                            root_alias_path = source.path.clone();
+                            source.place
+                        }
                         None => {
                             self.parameter_source(&argument)?
                                 .ok_or(LoweringError::Unsupported(
@@ -2078,6 +2197,7 @@ impl Emission<'_, '_, '_> {
         };
         Ok(ProjectedMove {
             root,
+            root_path: root_alias_path,
             path,
             leaf_type_identity,
             root_type_identity,
@@ -2183,7 +2303,14 @@ impl Emission<'_, '_, '_> {
         // terminal verifier replays it independently.
         let residual_affine_discards = match projection {
             Some(projected) => {
-                if projected.root != selected || projected.path.is_empty() {
+                // The residual complement is derived against the checked
+                // root type, so the selected place must be that whole root.
+                // An aliased root holds no storage of its own and has no
+                // residual schedule to derive here.
+                if projected.root != selected
+                    || projected.path.is_empty()
+                    || !projected.root_path.is_empty()
+                {
                     return unsupported(
                         "projected selection root disagrees with its moved argument",
                     );

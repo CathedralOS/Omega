@@ -120,7 +120,7 @@ pub(super) struct MachineEmission<'a> {
     borrowed_windows: crate::emission::borrowed_window::BorrowedWindowLedger,
     scalar_result_values: Vec<ValueDeclaration>,
     primitive_local_places: Vec<primitive_locals::PrimitiveLocal>,
-    structural_result_places: Vec<(StructuralPlaceDeclaration, bool)>,
+    structural_result_places: Vec<(Option<StructuralPlaceDeclaration>, bool)>,
     local_places: Vec<StructuralPlaceDeclaration>,
     private_places: Vec<StructuralPlaceDeclaration>,
     next_literal_argument: usize,
@@ -309,7 +309,7 @@ pub(super) fn emit(
     let next_value_identity = next_value;
     let scalar_result_values = scalar_parameters.clone();
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
-    let structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
+    let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
@@ -519,9 +519,12 @@ pub(super) fn emit(
     // of a result carrier, in which case the frontier retires the place at
     // the consuming call and the return roster must not discard its root.
     let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
+    // A projected owned alias row owns no place: its storage is the root's,
+    // which keeps its own row and its own residual schedule.
     let mut selection_roster = structural_result_places
         .iter()
         .rev()
+        .filter_map(|(place, discard)| Some((place.as_ref()?, discard)))
         .map(|(place, discard)| {
             let retired = moved_subtrees
                 .get(&evaluation.current_structural_place(place.id))
@@ -620,6 +623,13 @@ pub(super) fn emit(
                             "returned structural binding is absent",
                         ))?
                         .0
+                        .as_ref()
+                        // Returning a projected owned alias would forward the
+                        // root place and silently widen the returned subtree
+                        // to the whole root.
+                        .ok_or(LoweringError::Unsupported(
+                            "returned structural binding is a projected alias",
+                        ))?
                         .id
                 }
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -799,7 +809,7 @@ pub(super) fn emit(
         .filter(|place| {
             !structural_result_places
                 .iter()
-                .any(|(existing, _)| existing.id == place.id)
+                .any(|(existing, _)| existing.is_some_and(|existing| existing.id == place.id))
                 && !private_places
                     .iter()
                     .any(|existing| existing.id == place.id)
@@ -828,10 +838,11 @@ pub(super) fn emit(
         .chain(
             structural_result_places
                 .iter()
-                .filter(|(place, _)| {
+                .filter_map(|(place, _)| place.as_ref())
+                .filter(|place| {
                     !matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
                 })
-                .map(|(place, _)| *place),
+                .copied(),
         )
         .chain(computed_array_places)
         .collect::<Vec<_>>();

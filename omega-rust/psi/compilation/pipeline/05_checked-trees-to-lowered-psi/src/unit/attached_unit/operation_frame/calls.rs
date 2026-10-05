@@ -602,7 +602,7 @@ impl OperationFrame<'_, '_> {
                 let declaration = match &results {
                     StructuralResults::Dense(roster) => {
                         roster.iter().find_map(|(declaration, _)| {
-                            (declaration.id == place).then_some(*declaration)
+                            declaration.filter(|declaration| declaration.id == place)
                         })
                     }
                     StructuralResults::StateGraph { places, .. } => places
@@ -638,9 +638,26 @@ impl OperationFrame<'_, '_> {
         results.require_next(result, "structural value result binding is not dense")?;
         // A call-rooted value's place was catalogued by the call emitter
         // itself as its own call result; there is no fresh declaration to
-        // republish.
-        if let Some(declaration) = declaration {
-            results.push(declaration, *discard_result_on_return);
+        // republish. A projected owned alias declares no place either, but it
+        // still occupies its ordinal slot so later ordinals stay dense.
+        match declaration {
+            Some(declaration) => results.push(declaration, *discard_result_on_return),
+            None if matches!(
+                operations
+                    .structural_values
+                    .iter()
+                    .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
+                    .map(|(_, binding)| binding),
+                Some(
+                    crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
+                        ..
+                    }
+                )
+            ) =>
+            {
+                results.push_projected_alias()?;
+            }
+            None => {}
         }
         Ok(())
     }
@@ -872,6 +889,7 @@ impl OperationFrame<'_, '_> {
                     self.parameters,
                     self.caller.local_places,
                     &earlier,
+                    &self.operations.structural_values,
                     inputs.byte_places,
                     self.primitive_locals,
                     Some(self.values),

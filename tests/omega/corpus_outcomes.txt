@@ -1009,6 +1009,8 @@ fail/ownership/linear_scope_loss rejected 512ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_second_transfer rejected 566ms expected @2d8ed253669f
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
+fail/ownership/linear_transparent_record_member_scope_loss rejected 328ms expected @b69e30357ca8+wt
+	linear value `pair.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_zero_storage_not_established rejected 626ms expected @2d8ed253669f
 	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78cf629f34f9+wt
@@ -2386,8 +2388,8 @@ pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume rejected 2366ms @b5d8c6882a8
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 0, place: PlaceId(4) }))
-pass/ownership/linear_transparent_record_frontier rejected 4727ms @8fcb2e7f049f+wt
-	terminal-artifact production failed: Lowering(Unsupported("projected selection requires a structural continuation"))
+pass/ownership/linear_transparent_record_frontier rejected 1843ms @b69e30357ca8+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms @2d8ed253669f
