@@ -376,9 +376,10 @@ helper that passes does not close an item.
     consume those identities without an implicit receiver parameter. The
     checked structural signatures, Terminal parameters, provider signatures,
     retained-borrow roots and Omega artifacts no longer carry receiver flags.
-    Retire remaining attachment helpers, including implicit machine storage in
-    `omega-rust/omega/compilation/backend/layout/src/builder/data_and_machine_layouts.rs`
-    and task stack sizing in `provider-planning/src/task_plans/stack_graphs.rs`.
+    Retire remaining attachment helpers, including namespace-dependent proof
+    machine classification in `typed-trees/src/typed_trees/evidence/proof_only.rs`.
+    Layout and task stack sizing no longer manufacture namespace storage;
+    activation storage comes from explicit parameters, locals and call arguments.
     Carry no longer derives storage or reachability from namespace fields;
     activation planning combines direct envelopes over its checked call graph.
     Structural suspension frontiers still need exact place and claim joins.

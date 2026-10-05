@@ -1,1 +1,1 @@
-proof-only data lives in facts and lemmas, never at runtime
+parameter `main` mentions proof-only `Main`, which has no runtime layout

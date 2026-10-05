@@ -270,15 +270,6 @@ impl Default for DataLayout {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineLayout {
-    pub symbol: SymbolHandle,
-    pub name: Identifier,
-    pub attached_data: Option<Identifier>,
-    pub fields: HandleSpan<FieldLayout>,
-    pub layout: TypeLayout,
-}
-
 /// One semantic-field-free callback destination after the selected target has
 /// supplied its function-pointer extent and alignment. The canonical strings
 /// remain audit provenance; outbound plan validation consumes only the nominal
@@ -364,18 +355,6 @@ impl TargetClosedPrivateCallbackDemand {
     }
 }
 
-impl Default for MachineLayout {
-    fn default() -> Self {
-        Self {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::default(),
-            attached_data: None,
-            fields: HandleSpan::empty(),
-            layout: TypeLayout::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutPlan {
     pub data_layouts: Arena<DataLayout>,
@@ -383,7 +362,6 @@ pub struct LayoutPlan {
     pub bit_fields: Vec<BitFieldLayout>,
     pub stored_integers: Vec<StoredIntegerLayout>,
     pub repeated_fields: Vec<RepeatedFieldLayout>,
-    pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
     pub private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
     pub plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,

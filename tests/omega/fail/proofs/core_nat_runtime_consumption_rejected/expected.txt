@@ -1,1 +1,1 @@
-`Main` is proof-only: field `n` holds proof-only `Nat`
+parameter `main` mentions proof-only `Main`, which has no runtime layout

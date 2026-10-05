@@ -83,7 +83,6 @@ pub fn derive_call_target_bindings(
     program: &CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    layouts: &layout::LayoutPlan,
     plan: &ValidatedActivationPlan,
     assignments: &[CallTargetAssignment],
 ) -> Result<Vec<CallTargetBinding>, Vec<Diagnostic>> {
@@ -143,7 +142,6 @@ pub fn derive_call_target_bindings(
             program,
             target,
             opaque_representation_selections,
-            layouts,
             machine,
             entry,
         )?;

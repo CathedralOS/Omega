@@ -1,13 +1,13 @@
 //! The layout plan builder.
 //!
 //! This file owns the plan entry points, the builder and its visit stack.
-//! `data_and_machine_layouts.rs` computes data and machine layouts,
+//! `data_layouts.rs` computes record and sum layouts,
 //! `type_reference_layouts.rs` lays out type references under generic
 //! bindings, `generic_bindings.rs` resolves those bindings,
 //! `private_callback_closure.rs` closes private callback demands and
 //! `semantic_ranges.rs` derives plan-laid semantic ranges.
 
-mod data_and_machine_layouts;
+mod data_layouts;
 mod generic_bindings;
 mod private_callback_closure;
 mod semantic_ranges;
@@ -21,9 +21,9 @@ use crate::builder::generic_bindings::fixed_array_length;
 use crate::builder::private_callback_closure::close_two_hop_private_callback_paths;
 use crate::sizing::fat_descriptor_layout;
 use crate::{
-    BitFieldLayout, DataLayout, FieldLayout, LayoutPlan, MachineLayout, RepeatedFieldLayout,
-    StoredIntegerLayout, TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
-    TypeLayout, TypeLayoutDescriptor, VariantLayout,
+    BitFieldLayout, DataLayout, FieldLayout, LayoutPlan, RepeatedFieldLayout, StoredIntegerLayout,
+    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
+    TypeLayoutDescriptor, VariantLayout,
 };
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -32,7 +32,6 @@ use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
-use typed_trees::machine::Machine;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -73,30 +72,6 @@ pub fn build_layout_plan(
             continue;
         }
         builder.layout_data_definition(data_definition.symbol)?;
-    }
-
-    for machine in program.machines() {
-        // A generic TEMPLATE machine (unresolved type parameters -- e.g. the
-        // `Box::stored<T>` a container instance was cloned FROM) has no
-        // layout; its concrete clones lay out instead. Stage-1
-        // monomorphization clears the parameter span when it substitutes
-        // in place, so anything still carrying parameters here is
-        // template-only (its value calls stay behind the validation fence).
-        // The same holds for a machine ATTACHED to generic template data
-        // (`Cell::touch_count(&self)` -- no own params, but `self` is the
-        // template `Cell<T>`): its clones attach to the concrete instances.
-        if !program.machine_type_parameters(machine).is_empty() {
-            continue;
-        }
-        if machine.attached_data.as_ref().is_some_and(|attached| {
-            program.data_definitions().iter().any(|definition| {
-                definition.name.as_str() == attached.as_str()
-                    && !definition.type_parameters.is_empty()
-            })
-        }) {
-            continue;
-        }
-        builder.layout_machine(machine.symbol)?;
     }
 
     builder.finish()
@@ -154,9 +129,6 @@ struct LayoutBuilder<'program> {
     /// ONE argument list; a second, DIFFERENT instantiation is a clean error
     /// until per-instance identity is threaded through descriptors.
     generic_instance_signatures: Vec<(SymbolHandle, String)>,
-    machine_definitions: &'program [Machine],
-    machine_layouts: Arena<MachineLayout>,
-    machine_visiting: LayoutVisitStack,
     trait_definitions: &'program [TraitDefinition],
     program: &'program TypedTrees,
     target: NativeTarget,
@@ -221,7 +193,6 @@ impl<'program> LayoutBuilder<'program> {
         opaque_representation_demand: OpaqueRepresentationDemand,
     ) -> Self {
         let data_definitions = program.data_definitions();
-        let machine_definitions = program.machines();
         let field_capacity = data_definitions
             .iter()
             .map(|definition| {
@@ -231,14 +202,7 @@ impl<'program> LayoutBuilder<'program> {
                     .filter(|member| matches!(member, DataMember::Field(_)))
                     .count()
             })
-            .sum::<usize>()
-            .checked_add(
-                machine_definitions
-                    .iter()
-                    .map(|machine| program.machine_owned_data(machine).len())
-                    .sum::<usize>(),
-            )
-            .expect("layout field capacity overflow");
+            .sum::<usize>();
         let variant_capacity = data_definitions
             .iter()
             .map(|definition| {
@@ -263,9 +227,6 @@ impl<'program> LayoutBuilder<'program> {
             opaque_representation_selections,
             opaque_representation_demand,
             generic_instance_signatures: Vec::new(),
-            machine_definitions,
-            machine_layouts: Arena::with_capacity(machine_definitions.len()),
-            machine_visiting: LayoutVisitStack::with_capacity(machine_definitions.len()),
             trait_definitions: program.traits(),
             program,
             target,
@@ -287,7 +248,6 @@ impl<'program> LayoutBuilder<'program> {
             bit_fields: self.bit_fields,
             stored_integers: self.stored_integers,
             repeated_fields: self.repeated_fields,
-            machine_layouts: self.machine_layouts,
             variants: self.variants,
             private_callback_demands: self.private_callback_demands,
             plan_laid_layout_identities: self.plan_laid_layout_identities,
@@ -339,35 +299,6 @@ impl<'program> LayoutBuilder<'program> {
         Ok(layout)
     }
 
-    fn layout_machine(&mut self, symbol: SymbolHandle) -> Result<TypeLayout, Diagnostic> {
-        if let Some(machine_layout) = self
-            .machine_layouts
-            .iter()
-            .find(|(_, machine_layout)| machine_layout.symbol == symbol)
-            .map(|(_, machine_layout)| machine_layout)
-        {
-            return Ok(machine_layout.layout);
-        }
-
-        if self.machine_visiting.contains(symbol) {
-            return Err(Diagnostic::error(format!(
-                "recursive machine layout is not supported yet for symbol {}",
-                symbol.arena_index()
-            )));
-        }
-
-        self.machine_visiting.push(symbol);
-
-        let machine = self.machine_definition_by_symbol(symbol)?;
-        let machine_layout = self.compute_machine_layout(machine)?;
-        let layout = machine_layout.layout;
-
-        self.machine_layouts.insert(machine_layout);
-        self.machine_visiting.pop();
-
-        Ok(layout)
-    }
-
     fn slice_layout(&self) -> TypeLayout {
         fat_descriptor_layout(self.target)
     }
@@ -389,18 +320,6 @@ impl<'program> LayoutBuilder<'program> {
             .find(|definition| definition.symbol == symbol)
             .ok_or_else(|| {
                 Diagnostic::error(format!("unknown data type symbol {}", symbol.arena_index()))
-            })
-    }
-
-    fn machine_definition_by_symbol(
-        &self,
-        symbol: SymbolHandle,
-    ) -> Result<&'program Machine, Diagnostic> {
-        self.machine_definitions
-            .iter()
-            .find(|machine| machine.symbol == symbol)
-            .ok_or_else(|| {
-                Diagnostic::error(format!("unknown machine symbol {}", symbol.arena_index()))
             })
     }
 

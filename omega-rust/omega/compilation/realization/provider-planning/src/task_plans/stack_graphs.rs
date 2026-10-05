@@ -15,9 +15,8 @@
 //! admitted same-stack contribution, or proving the transfer off this stack.
 //!
 //! A frame's local demand is its worst-case resident extent while any child
-//! runs: the resume-state word, the machine's own persistent storage layout,
-//! every non-erased state parameter and local binding of every reachable
-//! state, and the staged call-argument carry recorded at that state's
+//! runs: the resume-state word, every non-erased state parameter and local
+//! binding of every reachable state, and the staged call-argument carry recorded at that state's
 //! suspension crossings. Erased proof bindings own no runtime storage and are
 //! skipped the way layout skips them. Liveness-exact slot packing belongs to
 //! physical frame realization; this derivation is the conservative exact
@@ -62,7 +61,6 @@ pub(crate) fn task_call_graph<'program>(
     program: &'program CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    layouts: &layout::LayoutPlan,
     root_machine: &checked_trees::machine::Machine,
     root_entry: &checked_trees::state::State,
 ) -> Result<TaskCallGraph<'program>, Vec<Diagnostic>> {
@@ -85,7 +83,6 @@ pub(crate) fn task_call_graph<'program>(
             program,
             target,
             opaque_representation_selections,
-            layouts,
             machine,
             entry,
             &mut pending,
@@ -144,7 +141,6 @@ fn task_frame_summary<'program>(
     program: &'program CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    layouts: &layout::LayoutPlan,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
     pending: &mut Vec<SymbolHandle>,
@@ -153,16 +149,6 @@ fn task_frame_summary<'program>(
     let frame = frame_identity(program, machine, entry)?;
     let states = frame_state_closure(program, machine, entry)?;
 
-    let machine_layout = layouts
-        .machine_layouts
-        .iter()
-        .find_map(|(_, layout)| (layout.symbol == machine.symbol).then_some(layout.layout))
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "task WCSU frame `{}` has no concrete machine layout",
-                machine.name
-            ))]
-        })?;
     // Every frame keeps an explicit resume-state word so a parked live chain
     // retains where each caller resumes, even when the machine stores nothing.
     let state_word = TypeLayout {
@@ -172,7 +158,6 @@ fn task_frame_summary<'program>(
     let mut base_size = 0usize;
     let mut base_alignment = 1usize;
     append_layout(&mut base_size, &mut base_alignment, state_word)?;
-    append_layout(&mut base_size, &mut base_alignment, machine_layout)?;
     base_size = align_to(base_size, base_alignment)?;
 
     let mut local_bytes = base_size;

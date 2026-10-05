@@ -1,6 +1,6 @@
 // N4 first slice, consumption twin: core Nat is proof-only (N1's
-// classification: recursive data has no layout), so a machine field
-// holding it refuses at the machine face with the chain named.
+// classification: recursive data has no layout). A record holding it cannot
+// be supplied as an explicit runtime parameter. Its namespace adds no storage.
 use omega::language::core::nat;
 use omega::language::std::console;
 use omega::language::core::binding;

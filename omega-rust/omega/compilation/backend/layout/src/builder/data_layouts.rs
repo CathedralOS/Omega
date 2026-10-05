@@ -1,5 +1,4 @@
-//! Computing the layouts of data definitions, case-bearing shapes and
-//! machines.
+//! Computing the layouts of records and case-bearing data.
 
 use crate::builder::LayoutBuilder;
 use crate::builder::generic_bindings::GenericLayoutBinding;
@@ -9,13 +8,12 @@ use crate::packing::{
     PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
 };
 use crate::{
-    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, MachineLayout, RepeatedFieldLayout,
+    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, RepeatedFieldLayout,
     StoredIntegerLayout, TargetClosedPlanLaidDataLayoutIdentity, TypeLayout, VariantLayout,
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
 use diagnostics::Diagnostic;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
-use typed_trees::machine::Machine;
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn compute_data_layout(
@@ -435,88 +433,6 @@ impl<'program> LayoutBuilder<'program> {
                 variants,
             },
             layout: TypeLayout { size, alignment },
-        })
-    }
-
-    pub(crate) fn compute_machine_layout(
-        &mut self,
-        machine: &Machine,
-    ) -> Result<MachineLayout, Diagnostic> {
-        let data_field_capacity = self
-            .data_definitions
-            .iter()
-            .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
-            .map(|definition| {
-                self.program
-                    .data_members(definition)
-                    .iter()
-                    .filter(|member| {
-                        matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
-                    })
-                    .count()
-            })
-            .unwrap_or(0);
-        let field_capacity = data_field_capacity
-            .checked_add(self.program.machine_owned_data(machine).len())
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "machine `{}` field inventory overflows the compiler host",
-                    machine.name
-                ))
-            })?;
-        let mut fields = Vec::with_capacity(field_capacity);
-
-        if let Some(data_definition) = self
-            .data_definitions
-            .iter()
-            .find(|definition| Some(&definition.name) == machine.attached_data.as_ref())
-        {
-            for member in self.program.data_members(data_definition) {
-                let DataMember::Field(field) = member else {
-                    continue;
-                };
-                if field.relevance.is_erased() {
-                    continue;
-                }
-
-                fields.push(PlannedField {
-                    symbol: field.symbol,
-                    name: field.name.clone(),
-                    type_symbol: self.program.type_reference_symbol(field.type_reference),
-                    type_name: self
-                        .program
-                        .display_type_reference_with_constraints(field.type_reference)
-                        .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference, &[]),
-                    layout: self.layout_type_reference_handle(field.type_reference, &[])?,
-                });
-            }
-        }
-
-        for owned_data in self.program.machine_owned_data(machine) {
-            fields.push(PlannedField {
-                symbol: owned_data.symbol,
-                name: owned_data.name.clone(),
-                type_symbol: self
-                    .program
-                    .type_reference_symbol(owned_data.type_reference),
-                type_name: self
-                    .program
-                    .display_type_reference_with_constraints(owned_data.type_reference)
-                    .into(),
-                type_descriptor: self.type_descriptor(owned_data.type_reference, &[]),
-                layout: self.layout_type_reference_handle(owned_data.type_reference, &[])?,
-            });
-        }
-
-        let (fields, layout) = pack_fields(&mut self.fields, fields)?;
-
-        Ok(MachineLayout {
-            symbol: machine.symbol,
-            name: machine.name.clone(),
-            attached_data: machine.attached_data.clone(),
-            fields,
-            layout,
         })
     }
 }

@@ -425,14 +425,6 @@ impl<'program> LayoutBuilder<'program> {
             return self.layout_data_definition(symbol);
         }
 
-        if self
-            .machine_definitions
-            .iter()
-            .any(|machine| machine.symbol == symbol)
-        {
-            return self.layout_machine(symbol);
-        }
-
         if self.trait_definitions.iter().any(|trait_definition| {
             trait_definition.symbol == symbol && trait_definition.is_boundary
         }) {

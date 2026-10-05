@@ -1,7 +1,8 @@
 // Math roster N1: recursive data is LEGAL and proof-only (computed, never
 // spelled). What refuses is runtime CONSUMPTION: `Main` holds `n: Node`
-// inline, so `Main` is proof-only by contagion, and a machine cannot run
-// on proof-only data. The diagnostic names the classification chain, not
+// inline, so `Main` is proof-only by contagion, and borrowing it as an
+// explicit runtime parameter rejects. Namespace qualification adds no storage.
+// The diagnostic names the parameter's classification, not
 // an internal symbol index. (Before N1 this canary pinned the layout-side
 // "no finite size" refusal; declaration itself now passes -- see
 // pass/data/runtime_proof_only_data_declared_exit.)

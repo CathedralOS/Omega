@@ -55,8 +55,6 @@ pub fn elaborate_task_activation_plans(
     if selections.is_empty() {
         return Ok(TaskActivationPlanSet::default());
     }
-    let layouts = layout::build_layout_plan(program, target, opaque_representation_selections)
-        .map_err(|error| vec![error])?;
     let mut activations = Vec::new();
 
     for selection in selections {
@@ -169,7 +167,6 @@ pub fn elaborate_task_activation_plans(
             program,
             target,
             opaque_representation_selections,
-            &layouts,
             target_machine,
             entry,
         )?;

@@ -1,7 +1,7 @@
 //! The proof-only fence (math roster N1): every RUNTIME consumption face
 //! refuses proof-only data with the classification named. Legal homes for
 //! proof-only types are fact positions (contracts, lemmas -- N2 evaluates
-//! them); a machine's storage, params, locals, returns, and wire schemas
+//! them); explicit parameters, locals, returns, and wire schemas
 //! are runtime faces. Declaring proof-only data is always legal; the
 //! contagion (a runtime-looking holder BECOMES proof-only) is computed in
 //! `typed_trees::proof_only`, not refused here.
@@ -70,26 +70,11 @@ pub(crate) fn validate_proof_only_consumption(
         ) {
             continue;
         }
-        // A computed proof machine emits no runtime code. This includes both
-        // free machines whose signatures mention proof-only values and
-        // by-value operations attached directly to a proof-only carrier; the
-        // latter's receiver is a proof term, never storage or runtime
-        // dispatch. Borrowed or mutable receivers intentionally fall through
-        // to the attached-storage fence below.
+        // Computed proof machines emit no runtime code. A declaration's
+        // namespace contributes no storage; only explicit value occurrences
+        // below are runtime consumption faces.
         if classification.is_proof_machine(program, machine) {
             continue;
-        }
-
-        // The machine's own storage: `machine Main::main` runs ON `Main`.
-        if let Some(attached) = machine.attached_data.as_ref()
-            && let Some(definition) = program.attached_data_definition(machine)
-            && let Some(reason) = classification.describe(attached.as_str(), definition.symbol)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` runs on data `{attached}`, but {reason}; proof-only data \
-                 lives in facts and lemmas, never at runtime",
-                machine.name
-            )));
         }
 
         // Machine-owned data slots.
