@@ -160,6 +160,22 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     `CallStructuralScalar` shared borrows
     stop at the Terminal verifier's cyclic fence
     (`omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`).
+    Linear `Owned` argument transfers additionally stand on cyclic claim
+    custody that no stage admits today: `cycle_operation_eligible`
+    requires `claim_transfers.is_empty()` on cyclic
+    `CallUnit`/`CallStructuralScalar`, and `owned_call_result` requires
+    both transfer rosters empty for an owned `CallStructural` result —
+    the fence comment says claim movement stays closed until cyclic
+    claim custody is supported. Upstream, a linear consumer's operand
+    must chain from a call result (`05_checked-trees-to-lowered-psi`
+    `result_uses.rs`) whose own linear result cannot be established in a
+    state body (`04_typed-trees-to-checked-trees` `linear_validation.rs`),
+    composed callee lowering refuses the local handoff's graph custody,
+    and edge transport rejoins only machine-parameter claims
+    (`state_graph/claims.rs`), which pinning then freezes. The narrowest
+    enabling dependency is a block-confined claim: a member-local
+    `EstablishRecord` consumed by a same-member `drop`/call, while
+    `claim_transfers` stay fenced for any claim that outlives its block.
   - Structural predicates in crash-continuation rosters: structural-signature
     calls still require scalar-only predicates because canonical
     structural-path substitution is missing.
