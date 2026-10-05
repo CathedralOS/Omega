@@ -5242,6 +5242,74 @@ wait for Cathedral's instruction coverage. The interpreter is
     the mixed trait. Update `samples/cli/systems/file_journal/main.omg`,
     which uses the raw service directly, to the family trait for its targets.
 
+  Frontier measured at `72a43a5bee1`: the split is a hard prerequisite for any
+  macOS provider, and the portable wrapper half of it is blocked on
+  **Q2** (`portable-service-per-family-binding-carrier`). The trait declares
+  50 machines; 12 are Windows-only (`find_first`, `find_next`, `find_close`,
+  `create_hard_link`, `open_path_handle`, `close_handle`, `get_osfhandle`,
+  `final_path_name_by_handle`, `set_file_time`, `lock_file_ex`, `unlock_file`,
+  `get_last_error`), 11 are POSIX-only (`open_at`, `unlink_at`, `read_dir`,
+  `set_file_permissions`, `set_file_times`, `sync_data`, `duplicate`,
+  `lock_file`, `change_owner`, `change_owner_no_follow`, `change_file_owner`),
+  and `errno` is libc-backed-target-only — bound on Darwin (`___error`) and
+  Windows (`_errno`), unbound on direct-Linux-syscall targets, which carry
+  `-errno` in the result instead. The remaining 26 are portable by name over
+  POSIX `fd: i32` handles. A provider must bind every schema method exactly
+  once (`covers_schema`,
+  `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan.rs:881`)
+  against the whole trait, because `service_schema::from_typed` collects every
+  trait method with no demand filtering — so no honest macOS provider exists
+  while the Windows family stays in the trait, and sentinel rows are exactly
+  what the spec forbids.
+
+  Call-site confinement is better than the item assumed. All 35 Windows-only
+  call sites sit in `targets/windows_x86_64/filesystem_impl.omg` plus exactly
+  one fixture, `tests/omega/pass/filesystem/windows_set_file_time_exit`; the
+  portable `filesystem.omg` calls none. But `filesystem.omg` does call 7
+  POSIX-only operations (`change_owner`, `change_owner_no_follow`,
+  `change_file_owner`, `duplicate`, `errno`, `set_file_permissions`,
+  `sync_data`), so those 7 portable wrapper machines become target-scoped
+  families whose Windows body returns `ErrorKind::Unsupported`. Omega
+  consumers that name the trait: `filesystem.omg`, 5 target impls (4724 lines,
+  242 `.host.` call sites), 17 fixtures under `tests/omega/pass/filesystem`,
+  `tests/omega/pass/time/runtime_fs_mtime_system_time_interop_exit`,
+  `samples/cli/systems/file_journal` and `samples/gui/image_viewer`; four more
+  (`pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`)
+  reach it only through `Filesystem`, so they are the ones Q2 holds.
+
+  Rust consumers the split must move together, none of them optional:
+  `omega-rust/psi/interpreter/checked-interpreter/build.rs` code-generates
+  `FilesystemHostOperation` by parsing `filesystem_host.omg` and asserting
+  every `machine` line ends `reaches FilesystemHost;`; the evaluator's
+  `execution/boundary_console.rs:24` falls back to the trait's bare name;
+  `packages/package-manager/src/review/candidate/semantic_bindings.rs:314`
+  maps the name to `AcceptedSemanticBindingRole::FilesystemHostService`, which
+  `packages/compilation-inputs/src/review_record_encoding.rs:85` wire-encodes;
+  plus `review-evidence/src/capture/{authority.rs:188,
+  providers/policy/toolchain_settled.rs:30}`,
+  `realization/selected-dispatch/src/{intrinsic_review.rs:43,
+  execution_settlement.rs:217}`, and the driver test support in
+  `tests/support/{fixture_package_inputs.rs:776,
+  dangerous_service_acceptance.rs:139}`.
+
+  The macOS binding payloads are already catalogued, so the provider rows are
+  transcription rather than discovery: `HostOperation::from_name`
+  (`omega-rust/omega/compilation/backend/calling-conventions/src/host_operations.rs:641`)
+  names every libc operation the seam needs, `darwin_import_library`
+  (`omega-rust/omega/compilation/backend/calling-conventions/src/hosts/darwin.rs`)
+  resolves the `_`-prefixed symbol to `/usr/lib/libSystem.B.dylib`, and
+  `ProviderBinding::Import` is what an authored
+  `via ForeignBinding::DllImport { MachODylibSymbol { .. } }` row becomes. The
+  msvcrt mirror in `hosts/windows.rs:53` lists which operations have no clean
+  CRT equivalent and so must answer `Unsupported` on Windows.
+
+  Per-target state: macOS and `linux_arm64` have no `FilesystemHost` rows at
+  all; `linux_x86_64` has the 11-leaf toolchain mint; `windows_x86_64` has
+  none. The mint already yields to an already-selected plan
+  (`canonical_filesystem_host.rs:224`), so an authored per-target provider may
+  land before the fallback is deleted — the fallback is retired by the change
+  that gives `linux_x86_64` its own authored provider, not before.
+
   Acceptance: `samples/cli/systems/file_journal` exits 7 on macOS, Linux and
   Windows; the `tests/omega/pass/filesystem/` fixtures run natively on each
   host; a fixture that opens a file with stdin closed (descriptor 0) is not

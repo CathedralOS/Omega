@@ -98,3 +98,79 @@ installed `InterruptEntry::enter` satisfiers, but the current recorded
 These outcomes do not by themselves decide the rule. Acceptance and
 the eventual compiler/fixture changes remain on
 **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** in `TASKS.md`.
+
+### Q2 - What carries a portable service's per-family raw binding?
+
+Named decision: `portable-service-per-family-binding-carrier`.
+
+**Customer:** one portable filesystem API over per-OS raw services, which
+[platform services](wiki/spec/build/platform_services.md) makes the shape for
+clocks, consoles and networking too. **FILESYSTEM-PLATFORM-SERVICES** rules
+that `FilesystemHost` splits into `PosixFilesystemHost` and
+`WindowsFilesystemHost`, each fully covered by the provider bound per target.
+The raw-seam half of that needs no decision: a program holding
+`Binding<FilesystemHost>` directly can hold `Binding<PosixFilesystemHost>`
+instead, and eleven red `tests/omega/pass/filesystem` fixtures are exactly
+that shape. The portable half has no spelling, and it is where the item's own
+customer lives — `samples/cli/systems/file_journal` and four wrapper
+fixtures declare the portable `Filesystem`, not a raw binding.
+
+**Existing rules:** `source/library/std/filesystem.omg:377` declares one
+portable `pub data Filesystem { host: Binding<FilesystemHost>; … }`. After the
+split that field's requirement differs per target, and none of the three ways
+to say so exists.
+[Machines](wiki/spec/language/machines.md#target-scoped-families) scopes
+families to machines only: "A machine declaration prefixed with a target name
+is one body of a family keyed by target under one path", so `data` cannot be
+target-scoped. Carrying one field per family does not work either, because
+`collect_service_fields`
+(`omega-rust/omega/compilation/realization/selected-dispatch/src/service_custody/root.rs:408`)
+walks every `Binding<R>` field of the entry receiver recursively and demands a
+selected Fused provider for each one regardless of reach (the "requires a
+selected Fused provider for boundary" rejection at `root.rs:160`) — a
+`Filesystem` holding both families would demand a POSIX provider on Windows.
+A generic `Filesystem<H>` with `host: Binding<H>` types correctly, since
+`Binding<R>` is already generic (`source/library/core/binding.omg`), but there
+is no target-scoped type alias to keep the family out of the portable API, and
+the spec requires that: "Raw handle types are per family (`PosixDescriptor`,
+`WindowsHandle`) and never appear in the portable API".
+
+**Decision needed:** three candidate answers, in the order I would pick them.
+
+1. **Keep one granted portable boundary and demote the families to requirement
+   namespaces.** `Filesystem.host` stays `Binding<FilesystemHost>`, where
+   `FilesystemHost` holds only the portable operations; each family's
+   OS-specific primitives become top-level boundary requirements under a
+   per-family provider data type, reached under the portable grant, exactly as
+   the macOS `TimeHost` provider reaches `TimeHostNativeProvider::poll`
+   (`source/library/std/targets/macos_arm64/time_host_impl.omg`).
+   [Provider selection](wiki/spec/build/provider_selection.md) already admits
+   that slot kind: "Slot resolves to one exact boundary trait,
+   package-qualified same-path boundary-operator family, or top-level boundary
+   requirement." Each requirement is then its own slot, so coverage is per
+   operation and a target selects only the family it has — no sentinel rows,
+   no per-family carrier, and no language change. It costs the ruling's exact
+   words: the portable wrapper would not be bound "over `PosixFilesystemHost`",
+   and a raw-seam program would name a family requirement rather than hold
+   `Binding<PosixFilesystemHost>`.
+2. **Demand only reached `Binding` fields**, so `Filesystem` may carry one
+   field per family and each target demands the one its selected bodies reach.
+   This weakens a custody rule that currently holds unconditionally and makes
+   the demand reach-dependent — a larger change to admission than to the
+   library.
+3. **Add target-scoped `data`, or a target-scoped type alias for a generic
+   `Filesystem<H>`.** The literal reading of the ruling and the cleanest
+   library; the only one needing new language surface.
+
+All three change what `FilesystemHost` means relative to the spec's three
+layers, which is why none of them is the implementer's call: (1) makes
+`FilesystemHost` the portable raw seam rather than a per-OS one, (2) changes a
+custody rule, (3) adds language surface.
+
+**Implementation customer:** `tests/omega/pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`
+and `samples/cli/systems/file_journal`, all currently rejecting with
+"selected ProgramEntry Binding field `Main::fs::host` requires a selected
+Fused provider for boundary `FilesystemHost`" or its reachable-requirement
+twin. The verified member classification, call-site confinement and the ten
+Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
+`TASKS.md`; that work is ordinary implementation once this is answered.
