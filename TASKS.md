@@ -877,7 +877,23 @@ defines the complete product bar.
     Keep `pass/filesystem/runtime_local_host_result_dispatch_exit` as the Linux
     effect-ordering customer.
   - **PROOF-CONTRACT-MIGRATION**: the local theorem repair checks
-    `pass/proofs/cauchy_predicates_compile`; publication still needs the native
+    `pass/proofs/cauchy_predicates_compile` -- note its frontier below
+    describes an UNPUBLISHED checkpoint; on main that fixture is `rejected`,
+    and its second diagnostic names the blocker the compiler itself cannot
+    satisfy: an `ensures` fact over proof-only `Nat` that "no entailment tier
+    judges yet", directing the reader to "wait for the structural extraction
+    tier (math roster N3)". **That roster is undocumented.** N1 through N4 are
+    cited in six places in code
+    (`checking/src/proof_contracts/contract_entailment.rs:413,859`, its
+    `stand_downs.rs:46` and `citations.rs:743`, stage 03's `equality.rs:271`,
+    `structural_equality.rs:346` and `lowerer.rs:33`) and in
+    `samples/cli/proofs/structural_proofs/README.md`, but the tiers appear
+    nowhere in `wiki/spec/` or on this board, so a user who reads that
+    diagnostic has nothing to look up and no tracked item to follow. Either
+    document the roster where the diagnostic can cite it, or stop naming an
+    internal taxonomy in user-facing text. Until then this fixture is blocked
+    on an untracked tier, not on the repair this bullet describes; publication
+    still needs the native
     `pass/proofs/runtime_static_result_projection_citation_exit` witness and
     generalized fact-only citation erasure. See the owning item's frontier.
     Keep exact bounds in
