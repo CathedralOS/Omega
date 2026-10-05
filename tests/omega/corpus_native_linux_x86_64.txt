@@ -525,7 +525,15 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 37145ms @226c4c4b57b
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 32917ms @226c4c4b57b
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(PrimitiveSnapshotReconstructionLimitExceeded(MachineId(14))))
-pass/float/build_runtime_semantics_twins_windows_x64 timeout 360000ms @a32d1a54af2
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 347240ms @dfb032403d4
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_normal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_normal(named(name(f32)))->named(name(bool))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(FloatClass))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(FloatClass))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_finite(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_finite(named(name(f64)))->named(name(bool))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
+	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 356690ms @a32d1a54af2
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
