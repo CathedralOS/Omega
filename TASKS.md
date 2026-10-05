@@ -2515,6 +2515,38 @@ check corpus and the native corpus unchanged on the slices it names.
   "Codex / static heat grid"'s whole-directory lease, so claim with
   `--allow-overlap` and name the files.
 
+- **DYN-CONTINUATION-ROOT-REJOIN.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
+  `pass/traits/runtime_local_named_dyn_devirtualized_exit` now publishes a
+  dynamic dispatch plan **with** a Unit continuation; `ef6e9f65647` cleared
+  four receiver-era admission gates in `composed_control/dynamic_result.rs`
+  that had made `build_direct_dynamic_unit_continuation` return `None` for
+  every program ever compiled. It still rejects at the Omega-side root
+  rejoin: `omega/compilation/realization/selected-dispatch/src/service_custody/root.rs`
+  builds `attachment_identities` from `terminal_unit_effects.machines` and
+  `composed_machines` only, so a `ProgramEntry` lowered through
+  `dynamic_dispatch` rejoins 0 Terminal context identities. The dyn plan
+  carries `source_parameter_position`, `caller_parameter_access` and
+  `caller_attachment_type_identity` but no structural-parameter roster;
+  publish that roster rather than adding a second `structural_identity` shape.
+  Beyond it, stage 05 `unit/dynamic_composed_unit/{continuation,plan_validation}.rs`
+  must lower a continuation whose successors carry a parameter transfer and
+  whose leaves carry structural parameters -- written for the `&[]` rosters the
+  dead lane always passed, and not yet measured.
+  Acceptance: `python3 tools/corpus_gate.py --filter traits/runtime_local_named_dyn_devirtualized_exit`
+  reaches `checked`, then `--native` reaches exit 70.
+
+- **DYN-JOIN-LANE-STILL-DEAD.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
+  `composed_control/dynamic_join.rs::admit_dynamic_join_control_topology`
+  holds the same two gates `ef6e9f65647` removed from `dynamic_result.rs`:
+  `!entry_structural.is_empty()` plus its two branch copies, and an
+  `attachment_type_identity?` on a `structural_scalar_signature` that routes
+  `AttachmentStorage::StaticQualification` to `None` and so never returns one.
+  It therefore returns `None` for every program and every joined dynamic
+  binding is unreachable. **No corpus fixture authors a joined `&dyn`
+  binding**, so this needs a fixture before it can be gated: author that
+  first, or fold this into DYN-CONTINUATION-ROOT-REJOIN once the single-call
+  route runs. Do not clear the gates without a fixture that engages them.
+
 - **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope) Today stage 04 drops an
   unsupported body silently:
   - its builders return `Option` (`return None` appears 1,459 times under
