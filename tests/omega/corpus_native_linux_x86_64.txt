@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 2.04, "load1_start": 1.96, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.47, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -469,7 +469,7 @@ pass/filesystem/native_metadata_blocks rejected 24844ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_metadata_ctime_dev rejected 55432ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_ino incomplete 136503ms @34627c25182b
+pass/filesystem/native_metadata_ino incomplete 61790ms @835baa6033eb
 	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 92 unproved; the module is not shown invalid
 pass/filesystem/native_metadata_nlink rejected 4005ms @3eebfe9c3de
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
