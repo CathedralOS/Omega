@@ -133,9 +133,7 @@ helper that passes does not close an item.
     - Stage 00 `verify_module` holds minutes 0-12: the module validation's
       structural frontier walk, obligation reconstruction, then certificate
       admission. It leaves with **OMEGA-READS-TERMINAL-UNVERIFIED** after
-      **PCC-CERTIFICATES-DELETED**. Inside the frontier walk,
-      `DescriptorLoans::new` still builds the whole-module `terminal_graph`
-      once per machine.
+      **PCC-CERTIFICATES-DELETED**.
     - Runtime-spill recovery holds minutes 13-36, about 396 steps. Each step
       still hashes the whole liveness and live-range plans
       (`liveness_identity`, `live_range_identity`). The legality identity
