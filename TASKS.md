@@ -1464,6 +1464,13 @@ then independent claimed restoration slices -> final closure.
   fails, and an unrelated checker rejection or timeout cannot satisfy the gap.
   Pending artifact-only Build fixtures remain separately attributed to their
   existing harness dependency; do not relabel that as interpreter coverage.
+  Current frontier: the gate accepts reviewed fixture/capability/task/route
+  designations with exact explicit producer refusals, retains authored oracles,
+  counts unresolved coverage separately and returns nonzero even when recorded.
+  Selected designations absent from runner output fail with the missing runner
+  hook instead of disappearing. The pending-canary collection hook in
+  `corpus_runner.rs` and a real preflight diagnostic producer/canary still need
+  implementation; do not designate arbitrary checker or runtime failures.
 
 - **INTERPRETER-CORE-ENTRY.** (new-scope) Make the existing Terminal engine's
   program/instance lifecycle the common execution entry, without checked-tree

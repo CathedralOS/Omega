@@ -198,11 +198,59 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
         except (OSError, UnicodeError, ValueError, KeyError) as error:
             failures.append(f"{record['fixture']}: invalid native exit expectation ({error})")
             continue
+        if corpus_records.migration_gap_route(record) in ("compile", "native"):
+            continue
         facts = record.get("facts", {})
         matches = all(facts.get(key) == value for key, value in expected.items())
         if record["status"] != "built" or not matches:
             failures.append(f"{record['fixture']}: expected native {expectation}, "
                             f"observed {record['status']} {facts}")
+    return failures
+
+
+def interpreter_exit_failures(records: list[dict], corpus: Path, target: str) -> list[str]:
+    """Preserve authored exit promises on interpreted execution too.
+
+    Native/interpreter agreement does not prove the author's result. Unix
+    presents the semantic i32 exit in its low byte; Windows presents it whole.
+    """
+    failures = []
+    for record in records:
+        path = native_exit_oracle(corpus / record["fixture"], target)
+        if not path.is_file():
+            continue
+        if corpus_records.migration_gap_route(record) in ("compile", "interpreter"):
+            continue
+        expectation = "unreadable"
+        try:
+            expectation = path.read_text(encoding="utf-8").strip()
+            facts = record["facts"]
+            if expectation == "trap":
+                # The portable engine reports a typed semantic trap. It is
+                # not an OS child process and has no signal/NT status to map.
+                # The present runner declines traps, so this observation is a
+                # named producer dependency rather than synthetic agreement.
+                matches = (facts.get("interpreter") == "trapped"
+                           and "interpreter-exit" not in facts
+                           and "interpreter-signal" not in facts)
+            else:
+                expected = int(expectation)
+                if not -(2 ** 31) <= expected < 2 ** 31:
+                    raise ValueError("exit code is outside i32")
+                actual = int(facts.get("interpreter-exit", ""))
+                if not -(2 ** 31) <= actual < 2 ** 31:
+                    raise ValueError("interpreter exit is outside i32")
+                presented = actual if target.startswith("windows_") else actual & 255
+                matches = presented == expected
+        except (OSError, UnicodeError, ValueError):
+            matches = False
+        accepted = (record["status"] in ("checked", "built")
+                    or corpus_records.migration_gap_route(record) == "native")
+        if not accepted or not matches:
+            detail = (" (requires an observed interpreter trap outcome)"
+                      if expectation == "trap" else "")
+            failures.append(f"{record['fixture']}: expected interpreted {expectation}{detail}, "
+                            f"observed {record['status']} {record['facts']}")
     return failures
 
 
@@ -223,9 +271,17 @@ def execution_stdout_failures(records: list[dict], corpus: Path,
     for record in records:
         if not (corpus / record["fixture"] / "expected_stdout.txt").exists():
             continue
+        if corpus_records.migration_gap_route(record) in ("compile", engine):
+            continue
         facts = record.get("facts", {})
-        completed = facts.get(prefix + "exit") not in (None, "timeout", "unrunnable")
-        if (record["status"] not in accepted_statuses or not completed
+        completed = (facts.get(prefix + "exit") not in (None, "timeout", "unrunnable")
+                     or engine == "interpreter" and facts.get("interpreter") == "trapped"
+                     and "interpreter-exit" not in facts
+                     and "interpreter-signal" not in facts)
+        accepted = (record["status"] in accepted_statuses or
+                    engine == "interpreter" and
+                    corpus_records.migration_gap_route(record) == "native")
+        if (not accepted or not completed
                 or facts.get(prefix + "stdout") != "match"):
             failures.append(
                 f"{record['fixture']}: expected {engine} stdout match from completed "
@@ -582,9 +638,14 @@ def baseline_path(leg: str = "") -> Path:
 
 
 def git_out(*arguments) -> str | None:
-    result = subprocess.run(["git", *arguments], cwd=ROOT,
-                            capture_output=True, text=True,
-                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    try:
+        result = subprocess.run(["git", *arguments], cwd=ROOT,
+                                capture_output=True, text=True,
+                                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    except OSError:
+        # Provenance is optional metadata, including when a test or caller
+        # supplies an isolated environment without the host's Git executable.
+        return None
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -787,6 +848,9 @@ def main() -> int:
                         help="also execute runnable fixtures on the checked "
                              "interpreter and diff against "
                              "tests/omega/corpus_interpreted.txt")
+    parser.add_argument("--migration-roster", type=Path, metavar="PATH",
+                        help="reviewed capability/task/route canary designations; "
+                             "explicit unimplemented debt never counts as success")
     parser.add_argument("--both", action="store_true",
                         help="run the native and interpreted legs together, "
                              "record whether they agree, and diff against "
@@ -891,12 +955,39 @@ def main() -> int:
             options, leg, target, "infrastructure_failed", code, [], [],
             [], str(error)))
         return code
+    try:
+        roster = corpus_records.migration_roster(
+            options.migration_roster, ROOT / "tests" / "omega")
+        missing = corpus_records.missing_migration_canaries(
+            records, roster, os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", ""),
+            os.environ.get("OMEGA_CORPUS_SHARD", ""))
+        if missing:
+            raise ValueError("selected migration canaries absent from runner: "
+                             + ", ".join(missing)
+                             + "; pending canaries require the corpus runner selection hook")
+        corpus_records.classify_migration(records, roster)
+    except (OSError, ValueError, TypeError) as error:
+        print(f"corpus_gate: invalid migration evidence: {error}", file=sys.stderr)
+        code = 125 if options.bisect else 4
+        write_verdict(options, verdict_document(
+            options, leg, target, "infrastructure_failed", code, records, [],
+            [], str(error)))
+        return code
+    gaps = [record for record in records
+            if corpus_records.migration_gap_route(record) is not None]
+    for record in gaps:
+        facts = record["facts"]
+        print(f"corpus_gate: {record['fixture']} unimplemented "
+              f"{facts['migration-capability']} ({facts['migration-task']}, "
+              f"{facts['migration-route']})")
     failures = []
     if options.native:
         failures.extend(native_exit_failures(records, ROOT / "tests" / "omega", target))
         failures.extend(execution_stdout_failures(
             records, ROOT / "tests" / "omega", "native"))
     if options.interpret:
+        failures.extend(interpreter_exit_failures(
+            records, ROOT / "tests" / "omega", target or host_target() or "unknown"))
         failures.extend(execution_stdout_failures(
             records, ROOT / "tests" / "omega", "interpreter"))
     if failures:
@@ -916,6 +1007,7 @@ def main() -> int:
     rendered = corpus_records.render(records, context)
 
     if options.record:
+        merged = records
         # A subset record merges into the golden: fixtures that ran get their
         # fresh records, everything else keeps its pin — so sharded/filtered
         # recordings assemble the same file an unfiltered record would. The
@@ -937,11 +1029,15 @@ def main() -> int:
         # rather than letting the platform translate the line endings.
         with options.golden.open("w", encoding="utf-8", newline="\n") as stream:
             stream.write(rendered)
+        recorded_gaps = [record for record in merged
+                         if record["status"] == "unimplemented"
+                         or record["facts"].get("interpreter") == "unimplemented"]
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
-              f"to {options.golden}")
+              f"to {options.golden}; {len(recorded_gaps)} unimplemented rows remain")
         write_verdict(options, verdict_document(
-            options, leg, target, "recorded", 0, records, [], [], None))
-        return 0
+            options, leg, target, "recorded_unimplemented" if recorded_gaps else "recorded",
+            1 if recorded_gaps else 0, records, [], [], None))
+        return 1 if recorded_gaps else 0
 
     if not options.golden.is_file():
         print(f"corpus_gate: no golden at {options.golden}; "
@@ -1098,6 +1194,14 @@ def main() -> int:
         print(f"corpus_gate: wrote {len(structured_diffs)} moved fixture(s) "
               f"to {options.write_moves}")
 
+    if gaps and not structural_moves and not perf_moves:
+        print(f"corpus_gate: coverage incomplete — {len(gaps)} unimplemented canaries")
+        write_moves()
+        code = 1
+        write_verdict(options, verdict_document(
+            options, leg, target, "unimplemented", code, records, classified,
+            [], None, golden_provenance, perf_context))
+        return code
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")
         print(provenance)

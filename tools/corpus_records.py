@@ -7,7 +7,11 @@ One line per fixture:
 
 `expected`/`unexpected` appear only when the fixture's `expected.txt`
 fragments were weighed against diagnostics; `key:value` execution facts
-from the native leg (`exit:70`, `stdout:match`) follow. Each fact key appears
+from the native leg (`exit:70`, `stdout:match`) follow. A future interpreter
+trap producer must emit `interpreter:trapped` only from TerminalExecutionStatus's
+Crashed outcome with CrashCause::Trap, without a numeric exit or physical signal;
+CrashCause::Abort, exhaustion, errors
+and a declined comparison cannot satisfy this fact. Each fact key appears
 once: repeated keys are malformed evidence, even when their values agree.
 A trailing `@<revision>` token records which checkout measured the row (`+wt` marks a
 dirty tree); a filtered `--record` merges old rows forward, so without the
@@ -24,6 +28,8 @@ Standard library only.
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 HEADER = """\
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
@@ -217,3 +223,144 @@ def provenance_line(report: dict) -> str:
         text += (f", oldest stamped row {oldest['commits_behind']} commits "
                  f"behind HEAD (@{oldest['revision']})")
     return text
+
+
+# This marker is an explicit producer refusal, never a guess from diagnostic
+# prose. A reviewed roster identifies each allowed capability/task/route. The
+# oracle is still present on disk and applies again as soon as execution works.
+MIGRATION_MARKER = re.compile(
+    r"^unimplemented: capability=([a-z][a-z0-9-]*) "
+    r"task=([A-Z][A-Z0-9-]*) route=(compile|native|interpreter): .+$")
+
+
+def migration_roster(path, corpus):
+    """Load reviewed designations; no supplied roster designates nothing.
+
+    Every entry names one existing canary, capability, owning task and route.
+    Fail fixtures cannot be designated: their refusals are semantic controls.
+    A real authored oracle must remain beside the canary.
+    """
+    if path is None:
+        return {}
+    entries = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(entries, list):
+        raise ValueError("migration roster must be a list")
+    roster = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {
+                "fixture", "capability", "task", "route"}:
+            raise ValueError("migration designation requires fixture/capability/task/route")
+        fixture = entry["fixture"]
+        if not isinstance(fixture, str) or any(
+                component in ("", ".", "..") for component in fixture.split("/")):
+            raise ValueError("invalid migration fixture path")
+        if "\\" in fixture or fixture.split("/", 1)[0] not in ("pass", "run", "pending"):
+            raise ValueError("migration fixture must be pass/run/pending")
+        directory = Path(corpus) / fixture
+        if not (directory / "main.omg").is_file():
+            raise ValueError(f"migration canary missing: {fixture}")
+        if not ((directory / "expected_stdout.txt").is_file()
+                or any(directory.glob("expected_native_exit*.txt"))):
+            raise ValueError(f"migration canary lacks authored oracle: {fixture}")
+        marker = (f"unimplemented: capability={entry['capability']} "
+                  f"task={entry['task']} route={entry['route']}: missing")
+        if not MIGRATION_MARKER.fullmatch(marker):
+            raise ValueError(f"invalid migration capability/task/route: {fixture}")
+        key = (fixture, entry["route"])
+        if key in roster:
+            raise ValueError(f"duplicate migration designation: {key}")
+        roster[key] = entry
+    return roster
+
+
+def migration_gap_route(record):
+    """Recorded debt route, never a successful execution or admission."""
+    facts = record.get("facts", {})
+    if (record["status"] == "unimplemented"
+            or facts.get("interpreter") == "unimplemented"):
+        return facts.get("migration-route")
+    return None
+
+
+def classify_migration(records, roster):
+    """Annotate only exact designated producer refusals before oracle checks.
+
+    Mixed checker diagnostics, generic failures, timeout/crash records and
+    partially executed routes cannot become gaps. No matching refusal leaves
+    a designation subject to its unchanged exit/stdout oracle.
+    """
+    for record in records:
+        diagnostics = record.get("diagnostics", [])
+        matches = [MIGRATION_MARKER.fullmatch(text) for text in diagnostics]
+        gap = None
+        if matches and all(matches):
+            identities = {match.groups() for match in matches}
+            if len(identities) == 1:
+                capability, task, route = next(iter(identities))
+                entry = roster.get((record["fixture"], route))
+                if entry and (entry["capability"], entry["task"]) == (capability, task):
+                    facts = record["facts"]
+                    blocked_keys = (("interpreter-exit", "interpreter-stdout", "interpreter-signal", "interpreter-stderr")
+                                    if route == "interpreter" else
+                                    ("exit", "stdout", "signal", "stderr"))
+                    if route == "compile":
+                        blocked_keys += ("interpreter-exit", "interpreter-stdout", "interpreter-signal", "interpreter-stderr")
+                    expected_status = (("checked", "built") if route == "interpreter"
+                                       else ("rejected", "unimplemented"))
+                    # A declined/unchecked/disagreeing execution is already
+                    # an observation, not a missing pre-execution capability.
+                    observed_route = facts.get("interpreter")
+                    if (record["status"] in expected_status
+                            and not any(key in facts for key in blocked_keys)
+                            and observed_route in (None, "unimplemented")
+                            and record["tier"] != "fail"):
+                        gap = (capability, task, route)
+        if gap is None:
+            if (record["facts"].get("interpreter") == "unimplemented"
+                    or record["status"] == "unimplemented"):
+                raise ValueError(f"unsubstantiated migration gap: {record['fixture']}")
+            continue
+        capability, task, route = gap
+        facts = record["facts"]
+        facts.update({"migration-capability": capability, "migration-task": task,
+                      "migration-route": route})
+        if route == "interpreter":
+            facts["interpreter"] = "unimplemented"
+        else:
+            record["status"] = "unimplemented"
+    return records
+
+
+def missing_migration_canaries(records, roster, fixture_filter="", shard=""):
+    """Do not let a pending designation disappear from the current runner.
+
+    Match its existing substring filter and stable FNV-1a shard contract. This
+    is coverage checking only: no copying canaries into another tier, alternate
+    compiler runner, or marking absent executions as diagnosed missing semantics.
+    """
+    fragments = [value.strip() for value in fixture_filter.split(",") if value.strip()]
+    selected_shard = None
+    if shard:
+        try:
+            tokens = [part.strip() for part in shard.split("/")]
+            if len(tokens) == 2 and all(re.fullmatch(r"\+?[0-9]+", part) for part in tokens):
+                index, count = (int(part) for part in tokens)
+                if 1 <= count < 2 ** 64 and 0 <= index < count:
+                    selected_shard = (index, count)
+        except ValueError:
+            pass  # The runner also treats a malformed shard as unsharded.
+    observed = {record["fixture"] for record in records}
+    missing = []
+    for fixture in sorted({key[0] for key in roster}):
+        if fragments and not any(fragment in fixture for fragment in fragments):
+            continue
+        if selected_shard is not None:
+            fingerprint = 0xcbf29ce484222325
+            for byte in fixture.encode("utf-8"):
+                fingerprint = ((fingerprint ^ byte) * 0x100000001b3) & ((1 << 64) - 1)
+            index, count = selected_shard
+            if fingerprint % count != index:
+                continue
+        if fixture not in observed:
+            missing.append(fixture)
+    return missing

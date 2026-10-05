@@ -53,12 +53,31 @@ def native_scoreboard(records, oracle_for=None):
     board = {"fixtures": len(records), "built": 0, "checked": 0,
              "rejected": 0, "other": 0, "executed": 0, "authored": 0,
              "unverified": 0, "oracle_mismatch": [],
-             "stdout_match": 0, "stdout_differs": 0}
+             "stdout_match": 0, "stdout_differs": 0,
+             "unimplemented": 0, "unimplemented_canaries": [], "malformed_migration": []}
     for record in records:
         status = record["status"]
-        board[status if status in ("built", "checked", "rejected")
-              else "other"] += 1
+        if status == "unimplemented" or record["facts"].get("interpreter") == "unimplemented":
+            board["unimplemented"] += 1
+            if (corpus_records.migration_gap_route(record) not in ("compile", "native", "interpreter")
+                    or not record["facts"].get("migration-capability")
+                    or not record["facts"].get("migration-task")):
+                board["malformed_migration"].append(record["fixture"])
+            board["unimplemented_canaries"].append({
+                "fixture": record["fixture"],
+                "capability": record["facts"].get("migration-capability"),
+                "task": record["facts"].get("migration-task"),
+                "route": corpus_records.migration_gap_route(record)})
+        if status != "unimplemented":
+            board[status if status in ("built", "checked", "rejected")
+                  else "other"] += 1
         facts = record["facts"]
+        if status == "unimplemented":
+            if "exit" in facts and record["fixture"] not in board["malformed_migration"]:
+                board["malformed_migration"].append(record["fixture"])
+            # A blocked native/compile route cannot also be an authored run,
+            # even if a malformed externally supplied golden has exit facts.
+            continue
         if "exit" in facts:
             board["executed"] += 1
             oracle = oracle_for(record["fixture"]) if oracle_for else None
@@ -86,7 +105,8 @@ def diff_scoreboards(base_records, head_records, oracle_for=None):
 
     def authored_in(fixture, table):
         record = table.get(fixture)
-        return (record is not None and "exit" in record["facts"]
+        return (record is not None and record["status"] != "unimplemented"
+                and "exit" in record["facts"]
                 and oracles.get(fixture) is not None
                 and oracle_matches(oracles[fixture], record["facts"]))
 
@@ -100,7 +120,8 @@ def diff_scoreboards(base_records, head_records, oracle_for=None):
 
     def executed_in(fixture, table):
         record = table.get(fixture)
-        return record is not None and "exit" in record["facts"]
+        return (record is not None and record["status"] != "unimplemented"
+                and "exit" in record["facts"])
 
     exit_changed = [
         fixture for fixture in fixtures
@@ -127,9 +148,10 @@ def diff_scoreboards(base_records, head_records, oracle_for=None):
 
 
 def summary_line(board, target):
+    debt = f", {board['unimplemented']} unimplemented" if board.get("unimplemented") else ""
     return (f"{target} native: {board['authored']} authored / "
             f"{board['executed']} executed / {board['fixtures']} fixtures, "
-            f"{board['rejected']} rejected "
+            f"{board['rejected']} rejected{debt} "
             f"({board['unverified']} executed without an oracle)")
 
 
