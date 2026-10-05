@@ -713,6 +713,13 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         golden_path = str(golden)
     by_status = collections.Counter(record["status"] for record in records)
     by_verdict = collections.Counter(entry["verdict"] for entry in classified)
+    # Named, not just counted: a caller reading the document needs to know
+    # WHICH fixture stopped pinning its reason to do anything about it.
+    wrong_reason = [record["fixture"] for record in records
+                    if record["expected_satisfied"] is False]
+    fail_not_rejected = [
+        record["fixture"] for record in records
+        if record["tier"] == "fail" and record["status"] == "checked"]
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
@@ -732,11 +739,10 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         "counts": {
             "fixtures": len(records),
             "by_status": dict(by_status),
-            "wrong_reason": sum(1 for record in records
-                                if record["expected_satisfied"] is False),
-            "fail_not_rejected": sum(
-                1 for record in records
-                if record["tier"] == "fail" and record["status"] == "checked"),
+            "wrong_reason": len(wrong_reason),
+            "wrong_reason_fixtures": wrong_reason,
+            "fail_not_rejected": len(fail_not_rejected),
+            "fail_not_rejected_fixtures": fail_not_rejected,
             "by_verdict": dict(by_verdict)},
         "oracle_failures": oracle_failures,
         "infrastructure_error": infrastructure_error,
@@ -1024,13 +1030,19 @@ def main() -> int:
     # without its fragment rejected for the WRONG reason; one that checked did
     # not reject at all, which for the fail tier usually means its expectation
     # names a stage this targetless route never reaches.
-    wrong_reason = sum(1 for r in records if r["expected_satisfied"] is False)
-    not_rejected = sum(
-        1 for r in records if r["tier"] == "fail" and r["status"] == "checked"
-    )
+    # Both conditions name their fixtures. A count alone is unactionable: a
+    # reader cannot tell which fixture stopped pinning its reason, and the
+    # number sat at 2 across unrelated sessions because nobody could.
+    wrong_reason_fixtures = [r["fixture"] for r in records
+                             if r["expected_satisfied"] is False]
+    not_rejected_fixtures = [
+        r["fixture"] for r in records
+        if r["tier"] == "fail" and r["status"] == "checked"
+    ]
     summary = (f"{len(records)} fixtures ({counts}), "
-               f"{wrong_reason} rejected without their expected fragment, "
-               f"{not_rejected} fail fixtures did not reject")
+               f"{len(wrong_reason_fixtures)} rejected without their expected "
+               f"fragment, "
+               f"{len(not_rejected_fixtures)} fail fixtures did not reject")
     executed = [r for r in records if "exit" in r.get("facts", {})]
     if executed:
         exits = collections.Counter(r["facts"]["exit"] for r in executed)
@@ -1057,6 +1069,26 @@ def main() -> int:
     perf_context = {"golden": golden_context, "current": context,
                     "warnings": perf_warnings}
 
+    def print_expectation_defects() -> None:
+        """Name the fixtures behind the two expectation counts.
+
+        These are not moves -- both sides of a comparison can carry the same
+        defect, so a `clean` run reports them too. A fail fixture that rejects
+        without its fragment rejects for the WRONG reason and no longer pins
+        what its directory claims; one that checked did not reject at all.
+        """
+        for fixture in wrong_reason_fixtures[:40]:
+            print(f"corpus_gate: {fixture} rejected without its expected "
+                  f"fragment — it no longer pins its authored reason")
+        if len(wrong_reason_fixtures) > 40:
+            print(f"corpus_gate: … {len(wrong_reason_fixtures) - 40} more "
+                  f"rejecting without their expected fragment")
+        for fixture in not_rejected_fixtures[:40]:
+            print(f"corpus_gate: {fixture} did not reject at all")
+        if len(not_rejected_fixtures) > 40:
+            print(f"corpus_gate: … {len(not_rejected_fixtures) - 40} more "
+                  f"fail fixtures that did not reject")
+
     def write_moves() -> None:
         if not options.write_moves:
             return
@@ -1069,6 +1101,7 @@ def main() -> int:
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")
         print(provenance)
+        print_expectation_defects()
         for line in perf_notes[:20]:
             print(line)
         for warning in perf_warnings:
@@ -1099,6 +1132,7 @@ def main() -> int:
           f"{len(perf_moves)} perf move(s) — {summary}")
     print(move_classes(structured_diffs))
     print(provenance)
+    print_expectation_defects()
     write_moves()
     if options.jev:
         jev_advise(structured_diffs)
