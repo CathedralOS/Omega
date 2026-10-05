@@ -1,5 +1,12 @@
 // The Omega standard filesystem RAW BOUNDARY — the per-OS seam beneath `std::fs`
-// (= Rust's `std::sys`). This is the SINGLE canonical declaration of the
+// (= Rust's `std::sys`).
+//
+// TARGET DESIGN (wiki/spec/build/platform_services.md): this single trait mixes
+// POSIX and Windows-only operations, so no provider can cover it honestly. It
+// is being split into `PosixFilesystemHost` and `WindowsFilesystemHost`, each
+// with its own handle type, fully covered by the provider bound per target
+// (TASKS.md FILESYSTEM-PLATFORM-SERVICES). Do not add operations to this mixed
+// trait. This is the SINGLE canonical declaration of the
 // `FilesystemHost` boundary trait and the `Path` byte-domain: the ergonomic
 // `omega::language::std::filesystem` wrapper imports it, and every filesystem
 // canary/sample obtains it via `use omega::language::std::filesystem_host;`

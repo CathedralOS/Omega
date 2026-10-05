@@ -108,7 +108,7 @@ helper that passes does not close an item.
   - Undecided: either the receiver form was lax (the static form is correct
     and both fixtures need a selected provider, changing what they pin), or a
     value-rooted boundary requirement call stays provider-free and needs a
-    static spelling. Record this in `OWNER_QUESTIONS.md` (it is next to Q2
+    static spelling. Record this in `OWNER_QUESTIONS.md` (it is next to Q1
     `trait-requirement-subject-binding`); it is not a fixture-authoring call.
   - Unverified: the corpus rows for both fixtures (`checked`) predate the
     parser's `self` rejection; re-run `python tools/corpus_gate.py --filter memory/`.
@@ -144,7 +144,7 @@ helper that passes does not close an item.
   unmigrated program pass.
   - Source remainder: boundary-trait requirements in
     `samples/gui/{window_app,window_demo,windowed_calculator}/main.omg`
-    (owner question Q2 `trait-requirement-subject-binding` and
+    (owner question Q1 `trait-requirement-subject-binding` and
     **STATELESS-PROVIDERS**) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
       for assumed bindings,
@@ -525,8 +525,8 @@ defines the complete product bar.
   - `systems/file_journal`: package review exits 200 because `Main::fs` /
     `Main::files::host` have no Darwin `FilesystemHost` provider
     (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
-    covers limited Linux x86-64 leaves). Blocked on owner question
-    `filesystem-host-platform-coverage`. Acceptance: the seven-step workflow,
+    covers limited Linux x86-64 leaves). Owned by
+    **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
     exit 7.
   - `systems/note_vault`: stops in `Filesystem::create_dir_all` ->
     `Filesystem::mkall_walk` state 0 with "qualified non-linear parameter":
@@ -875,7 +875,7 @@ defines the complete product bar.
     goes with it.
   - A foreign-bound provider whose fields hold vtable addresses
     (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
-    not from provider data; owner question Q2 covers the subject-free
+    not from provider data; owner question Q1 covers the subject-free
     requirement side.
 
   Acceptance: no satisfier declares a parameter its requirement lacks (a fail
@@ -4588,6 +4588,31 @@ wait for Cathedral's instruction coverage. The interpreter is
   duplicate, conflicting, cyclic or substituted classifications and violated
   physical exclusions reject. Explicit empty classes, service reach and review
   identity stay. No synthesized receiver-policy file.
+
+- **FILESYSTEM-PLATFORM-SERVICES.** (new-scope) Implement the
+  [platform services](wiki/spec/build/platform_services.md) shape for the
+  filesystem (owner ruling 2026-10-04). Today `source/library/std/filesystem_host.omg`
+  declares one `FilesystemHost` trait mixing POSIX and Windows-only operations
+  (`close_handle` takes a Windows `HANDLE`; `find_next` uses Windows
+  enumeration), so no provider covers it: macOS has none, and
+  `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
+  supplies partial Linux x86-64 rows.
+  - Split it into `PosixFilesystemHost` and `WindowsFilesystemHost` with
+    per-family handle types, and bind a complete checked-adapter provider
+    per target (macOS and Linux over `PosixFilesystemHost`, Windows over
+    `WindowsFilesystemHost`), as the macOS `TimeHost` provider does.
+  - Rewrite `source/library/std/targets/<target>/filesystem_impl.omg` to the
+    ZII portable shape: `File` stores descriptor + 1 on POSIX and the `HANDLE`
+    on Windows, zero `OpenOptions` means defaults, results fail closed, and an
+    operation a target lacks returns `ErrorKind::Unsupported`.
+  - Delete the partial compiler fallback `canonical_filesystem_host.rs` and
+    the mixed trait. Update `samples/cli/systems/file_journal/main.omg`,
+    which uses the raw service directly, to the family trait for its targets.
+
+  Acceptance: `samples/cli/systems/file_journal` exits 7 on macOS, Linux and
+  Windows; the `tests/omega/pass/filesystem/` fixtures run natively on each
+  host; a fixture that opens a file with stdin closed (descriptor 0) is not
+  treated as Closed.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Run
   `tests/omega/pass/filesystem/windows_canonicalize_exit` on Windows:

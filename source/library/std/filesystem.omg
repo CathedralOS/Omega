@@ -3,7 +3,9 @@
 //   - paths are a BYTE DOMAIN (`&[u8] in Path`), not a language `String`;
 //   - results are bespoke `data` case enums, not `Result<T, E>` (an Err in Rust
 //     is usually a bespoke enum anyway — we skip the wrapper);
-//   - the open-file handle `File` is ZII: a zero-initialized handle is Closed;
+//   - the open-file handle `File` is ZII: a zero-initialized handle is Closed
+//     (target design: the target implementation stores descriptor + 1 on POSIX,
+//     since descriptor 0 is a valid file; see wiki/spec/build/platform_services.md);
 //   - HUMAN method names only — no legacy C abbreviations (creat/unlink/stat).
 //
 // TWO LAYERS (= Rust's `std::fs` over `std::sys`):
@@ -38,7 +40,9 @@ use targets::linux_arm64::filesystem_impl;
 use omega::language::core::binding;
 
 // An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
-// it pass by value into read/write/close.
+// it pass by value into read/write/close. KNOWN GAP: `fd` holds the raw POSIX
+// descriptor today, so descriptor 0 is indistinguishable from Closed; the
+// platform-services split stores descriptor + 1 (FILESYSTEM-PLATFORM-SERVICES).
 pub data File [copy] {
     fd: i32;
 }

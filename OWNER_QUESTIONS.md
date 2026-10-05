@@ -68,56 +68,7 @@ its owning task.
 
 
 
-### Q1 - What is the platform coverage contract of the raw filesystem service?
-
-Named decision: `filesystem-host-platform-coverage`.
-
-**Customer:** `omega run samples/cli/systems/file_journal/main.omg` must
-create, write, inspect, read, rename and remove a real file, then exit 7.
-At `96b196739593` on macOS ARM64 it exits 200 during fresh package review:
-both `Main::fs` and `Main::files::host` lack a selected Fused `FilesystemHost`
-provider. No filesystem operation executes. The canonical fallback in
-`provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
-supplies only limited Linux x86-64 rows; the target `filesystem_impl.omg`
-files implement wrappers, not this missing boundary provider.
-
-**Contracts checked:**
-
-- [Provider selection](wiki/spec/build/provider_selection.md#derivation-and-retained-evidence)
-  requires a selected plan to cover its complete schema. Ordinary selection
-  enforces this through `selection_provenance.rs` and `ProviderPlan::covers_schema`.
-- [Toolchain-selected checked implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations)
-  already permits ordinary reviewed checked providers. The macOS `TimeHost`
-  provider implements this route; marshaling is not restricted to a new
-  syscall descriptor or synthesized compiler body. Those alternatives in the
-  former question were therefore not an outstanding owner choice.
-- [The raw filesystem contract](source/library/std/filesystem_host.omg)
-  puts POSIX and expressly Windows-only operations in one unconditional
-  trait. `find_next` returns zero for enumeration completion; `close_handle`
-  consumes a Windows HANDLE, not a POSIX descriptor. There is no specified
-  target-applicability rule or uniform Unsupported outcome for these members.
-- [Foreign storage](wiki/spec/build/foreign_storage.md) and
-  [boundary shapes](wiki/spec/build/boundary_shapes.md) already govern checked
-  path staging, pointer/count transport and authorized inbound views. Missing
-  implementation of those contracts remains engineering work.
-
-**Decision needed:** should the raw service have separate platform-specific
-schemas behind the portable `Filesystem` wrapper, or should the language gain
-target-applicable requirements within one schema? Alternatively, keeping one
-total schema needs explicit semantics for otherwise inapplicable operations.
-
-**Recommendation:** separate raw platform schemas, retaining the portable
-wrapper as the application API. Each provider then covers its entire honest
-schema through ordinary checked adapters and exact foreign bindings. This
-changes the public raw boundary and its consumer identities, so it is not a
-silent implementation rewrite.
-
-Do not weaken full coverage, alias Windows handles to descriptors, or insert
-constant failure/end-of-enumeration rows to select a partial provider. The
-existing partial toolchain syscall fallback is not evidence that an ordinary
-partial checked provider satisfies the complete service contract.
-
-### Q2 - How does a trait requirement name its subject without a receiver?
+### Q1 - How does a trait requirement name its subject without a receiver?
 
 Named decision: `trait-requirement-subject-binding`.
 
@@ -238,7 +189,7 @@ gap: no compiler change makes a receiver-form trait requirement into a static
 one without choosing a spelling, and a satisfier cannot diverge from the
 requirement it satisfies.
 
-### Q3 - Is the stored-reference custody join's superlinear build cost an accepted architecture cost?
+### Q2 - Is the stored-reference custody join's superlinear build cost an accepted architecture cost?
 
 Named decision: `custody-join-build-cost`.
 
@@ -276,7 +227,7 @@ recomputation and amortize repeated field-capture substitutions, with the
 fixture row as the regression witness. If profiling shows the cost is intrinsic
 to exact custody joins, the decision is to accept and document the envelope.
 
-### Q4 - Does Terminal Psi gain a descriptor store whose destination is a whole borrowed-view slot?
+### Q3 - Does Terminal Psi gain a descriptor store whose destination is a whole borrowed-view slot?
 
 Named decision: `borrowed-view-whole-slot-store`.
 
@@ -339,7 +290,7 @@ to discharge against) is only reachable after this one is answered.
 fails Omega lowering with `UnsupportedControlFlow` at
 `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/observations.rs:48`.
 
-### Q5 - How does a dyn-dispatching caller's data binding appear in the dynamic-dispatch Terminal plan?
+### Q4 - How does a dyn-dispatching caller's data binding appear in the dynamic-dispatch Terminal plan?
 
 Named decision: `dynamic-caller-subject-parameter`.
 

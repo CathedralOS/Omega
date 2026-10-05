@@ -146,7 +146,7 @@ Locks can deny others access and aliases can share state without becoming conten
 or metadata mutation. Adding a coordination class requires a concrete policy
 customer, a new accepted version/commitment, and revalidation. The six facets
 do not require six core traits. Services permit classes and selected mechanisms
-exercise them; source placement inside `FilesystemHost` cannot force a broader
+exercise them; source placement inside a raw filesystem service cannot force a broader
 mechanism into filesystem-only classes.
 
 ### Requested mutation versus incidental completion

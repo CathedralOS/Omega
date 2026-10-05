@@ -8,7 +8,7 @@ authority from durable selections and exact-target results.
 
 Build receives one immutable source root for the exact package occurrence and
 one fresh writable staging root for the build occurrence. Sponsored operations
-use compiler-owned facets, not runtime `FilesystemHost`. Roots, handles, and
+use compiler-owned facets, not the runtime filesystem services. Roots, handles, and
 rooted paths expire with the activation and cannot enter runtime data or the
 durable build result.
 
