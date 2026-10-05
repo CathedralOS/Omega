@@ -68,6 +68,28 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 `--filter` matches comma-separated `tier/group/name` fragments (also
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.
+`OMEGA_CORPUS_JOBS` overrides the worker count, which defaults to the CPU
+count -- cap it when several sessions measure at once, since N concurrent runs
+otherwise request N times the machine.
+
+A run outlasts a shell, so wait on **what the gate prints**, not on whether a
+process exists:
+
+```bash
+until grep -qE "corpus_gate: (clean|[0-9]+ structural)" "$LOG"; do sleep 30; done
+```
+
+Do not wait with `until ! pgrep -f "corpus_gate.py"`. `pgrep -f` matches full
+command lines, and the waiting shell's own command line contains the pattern as
+the `pgrep` argument, so the condition is never false and the loop never exits.
+`pgrep` excludes itself but not its parent shell. Sessions have lost hours to
+this, and the symptom is several identical waiters stacked on one target because
+each earlier one never returned. If you must match a process, bracket the
+pattern so it cannot match itself (`pgrep -f "[c]orpus_gate.py"`), or capture
+the PID and poll `kill -0`.
+
+Pipe a long run through `tee`, never `tail`: `tail` buffers until EOF, so a
+30-minute run shows nothing until it ends.
 
 Exit codes are the gate's verdict: 0 clean, 1 moved (structural or perf
 moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
@@ -135,6 +157,15 @@ and diff against it, rather than running the corpus twice per measurement:
 git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
 python3 tools/corpus_gate.py --baseline   # after every later edit
 ```
+
+**Build the runner from the tree you are measuring.** `--runner <binary>`
+reuses a prebuilt runner, which is a real saving and a real hazard: a stale
+binary records the *previous* compiler's verdicts against the current tree, and
+the `@<sha>` stamp names the tree rather than the binary, so the rows look
+freshly measured and attribute verdicts to a commit that cannot produce them.
+One re-record pinned fifteen rows to a diagnostic removed eleven commits
+earlier, and it was caught only because the text contradicted a landed change.
+Reuse a runner only within one tree state.
 
 `--baseline` keys its file on `git rev-parse HEAD` under ignored
 `build/corpus_baselines/`. Use it when the checked-in golden disagrees with
