@@ -1,7 +1,7 @@
 //! Independent aggregate layout and ordinary graph signature custody.
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
-    CallSignature, CallingPolicy, PsiOptimizationFunction, ScalarType, TargetFunction,
+    CallSignature, CallingPolicy, PsiOptimizationFunction, TargetFunction,
     TargetOperationPlan, ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
@@ -288,12 +288,10 @@ pub(super) fn header(
     }
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
-        AbstractFunctionResult::Scalar(result)
-            if matches!(
-                result.scalar_type,
-                ScalarType::Boolean | ScalarType::Integer(_)
-            ) =>
-        {
+        // Aggregate operands do not restrict a scalar result's carrier. Use
+        // the same ABI shape judgment as scalar parameters; this preserves
+        // floating-register placement instead of an integer-only whitelist.
+        AbstractFunctionResult::Scalar(result) => {
             Some(scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?)
         }
         AbstractFunctionResult::Structural(result) => Some(
@@ -340,7 +338,6 @@ pub(super) fn header(
                 .ok_or(LegalizationError::custody())?
             },
         ),
-        _ => return Err(LegalizationError::custody()),
     };
     let mut shapes = abstracted
         .parameters
