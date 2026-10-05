@@ -172,7 +172,12 @@ fn prepare_package_build_worker(
         build_dir: request.build_dir.as_deref(),
         filesystem_sponsor: request.filesystem_sponsor,
         evaluation_sponsor: request.evaluation_sponsor,
-        build_snapshot: request.build_snapshot,
+        // Explicit custody always wins; otherwise the root package's own
+        // canonical Source metadata selects its sealed inventory, the same
+        // way the product route derives it.
+        build_snapshot: request.build_snapshot.or_else(|| {
+            package_compilation::BuildSnapshotRequest::automatic_package_inventory(Some(&inputs))
+        }),
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: false,
@@ -254,7 +259,12 @@ fn compile_checked_worker(
         build_dir: request.build_dir.as_deref(),
         filesystem_sponsor: request.filesystem_sponsor,
         evaluation_sponsor: request.evaluation_sponsor,
-        build_snapshot: request.build_snapshot,
+        // Explicit custody always wins; otherwise the root package's own
+        // canonical Source metadata selects its sealed inventory, the same
+        // way the product route derives it.
+        build_snapshot: request.build_snapshot.or_else(|| {
+            package_compilation::BuildSnapshotRequest::automatic_package_inventory(package_inputs)
+        }),
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,

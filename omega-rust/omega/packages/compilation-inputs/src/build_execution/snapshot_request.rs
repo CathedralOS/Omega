@@ -63,6 +63,27 @@ impl BuildSnapshotRequest {
         }
     }
 
+    /// The capture a root package selects on its own, with no caller intent.
+    ///
+    /// Compiler-validated canonical Source metadata means the resolver has
+    /// already fixed this package's membership, so the activation captures
+    /// that sealed inventory into a fresh private backing and requires no
+    /// invocation roster — the same source custody package review uses. A
+    /// binding carrying no such index stays live and captures nothing.
+    ///
+    /// This belongs to the custody the package inputs carry, not to the
+    /// entrypoint a caller happened to use, so every route that assembles a
+    /// checked activation applies it and an explicitly supplied snapshot
+    /// always wins. Deriving it on one route only is what let a build machine
+    /// reach the filesystem with no staged-output custody behind it.
+    pub fn automatic_package_inventory(
+        package_inputs: Option<&crate::PackageCompilationInputs>,
+    ) -> Option<Self> {
+        package_inputs
+            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
+            .map(|_| Self::new(std::iter::empty::<Vec<u8>>()))
+    }
+
     /// A snapshot over exactly the files and subtrees the caller declared.
     /// Package capture additionally verifies this view against the complete
     /// resolver-owned source inventory; it never replaces package provenance.

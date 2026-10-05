@@ -2128,9 +2128,10 @@ crash and native exit behavior.
     production subject, `pcc_requests` and native application metadata
     captured before lowering (`33d5557dc4f`). `terminal_report`,
     `native_report`, `check_report`, `CompileReport::verify_native_source_metadata`
-    and the CLI's hand-derived Check rollback predicate are deleted. What
-    remains is coverage. Artifact-only admission is now authorable and verified
-    through the CLI, but has **no corpus exercise**. `d37ea22ec59` repaired the
+    and the CLI's hand-derived Check rollback predicate are deleted. The
+    coverage half is now closed. Artifact-only admission is authorable,
+    verified through the CLI, and exercised by the corpus. `d37ea22ec59`
+    repaired the
     prerequisite nobody knew was broken: `BuildOutput::require`/`complete`/`fail`
     and `RequiredOutput::path` selected by RECEIVER SHAPE and became silently
     unreachable when the receiver-to-explicit-argument migration retired that
@@ -2144,11 +2145,20 @@ crash and native exit behavior.
     and the obligation family did not. The receiver route and `output_facet_root`
     are deleted.
 
-    Three witnesses sit in `tests/omega/pending/build/artifact_only_*`, a tier
-    the runner does not walk, each with a README recording its exact diagnostic
-    and bounding variant. They cannot move into `pass`/`fail` until the harness
-    can bind a fixture root with canonical Source metadata -- see
-    **CORPUS-SEALED-SOURCE-STAGING**. Note also that an `OptimizationRollback`
+    The three witnesses now run in `pass`/`fail` under sealed fixture source
+    staging: `pass/build/artifact_only_required_output_completion` records
+    `checked`, `fail/build/artifact_only_rollback_overlay_refused` pins
+    "artifact-only builds execute no product optimization stages to roll back",
+    and `fail/build/artifact_only_unsealed_output_refused` pins the sticky
+    required-output failure -- measured over 1962 fixtures with 0 other rows
+    moved and 0 fail fixtures failing to reject. What remains is the
+    acceptance's second half: **no automated check asserts that the refused
+    overlay publishes no partial product set.** The corpus runner records
+    diagnostics, not build-directory contents, so "the refused invocation
+    leaves only the build-directory owner stamp" is still only the manual CLI
+    observation written in that fixture's README; closing it needs a
+    build-directory assertion the runner does not have today.
+    Note also that an `OptimizationRollback`
     cannot be authored in Omega at all: the only two non-test construction sites
     are the CLI's `--disable-optimization <ExactName>` and the corpus runner's
     `rollback.txt` sidecar, which 15 fixtures already use.
@@ -2187,38 +2197,6 @@ crash and native exit behavior.
   Acceptance: an [artifact-only](wiki/spec/build/scoped_execution.md) corpus
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
-
-- **CORPUS-SEALED-SOURCE-STAGING.** (new-scope) The corpus runner cannot host
-  any build machine that reaches the build filesystem, so `BuildSource` and
-  `BuildOutput` have **zero** authored exercise corpus-wide -- no `.omg` file
-  anywhere used `BuildOutput`, `BuildSource`, `builder.output` or
-  `builder.source` before `d37ea22ec59`. Three verified layers:
-  `omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs`
-  binds the root package straight to the working-tree directory and captures no
-  canonical Source metadata, so a fixture with a project declaration (which
-  forces package mode) records `rejected` with "package-aware build filesystem
-  access requires compiler-validated canonical Source metadata"; adding
-  `PackageSourceBinding::with_canonical_source_metadata()` moves the refusal to
-  "physical Source directory ... has noncanonical mode 0o755; expected 0o555";
-  and `0o555` is what package acquisition leaves on a snapshot, which the
-  harness never creates because it bypasses acquisition. The real CLI runs this
-  source out of `.../local-snapshots/source-<digest>/source/`, which is why it
-  works there.
-
-  Do not weaken either check to pass a test: they exist because package
-  acquisition is a trust boundary. Making the harness produce a genuinely
-  sealed root is in scope; making the compiler accept an unsealed one is not.
-
-  The design question is cost, not permission: staging and sealing a snapshot
-  per fixture relocates every fixture's source root into a temporary directory
-  and churns the repo-relative paths the golden's diagnostic lines carry. Count
-  the affected rows before accepting a mass re-record, and prefer a scheme that
-  preserves the printed paths. Acceptance:
-  `tests/omega/pending/build/artifact_only_required_output_completion` moves to
-  `pass/` with its golden row, and `artifact_only_rollback_overlay_refused` and
-  `artifact_only_unsealed_output_refused` to `fail/` with their `expected.txt`.
-  A measured recommendation NOT to do it, with the row count that decides it,
-  closes this item too.
 
 - **CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION.** (new-scope)
   `tests/omega/corpus_outcomes.txt` is one shared golden with **no host
@@ -2287,8 +2265,11 @@ crash and native exit behavior.
   verdict on another, `native_close` is representable honestly on both, and the
   change states how many of the ~1900 existing rows churn and why.
 
-  Sequencing: `corpus_runner.rs` and the shared golden are also the surface of
-  **CORPUS-SEALED-SOURCE-STAGING**, so the two coordinate rather than race.
+  Sequencing: sealed fixture source staging already landed in
+  `corpus_runner.rs` and the shared golden. It touches `sanitize`, the compile
+  legs, `run_one` and `main`, and `pass_realization_target` in zero lines, so
+  this item's edit site is clear; it also added 3 rows that need re-recording
+  in whatever host-dimensioned format replaces the golden.
 
 - **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
   The receiver-keyed build-facet census is closed. `BuildLog::write_line` was

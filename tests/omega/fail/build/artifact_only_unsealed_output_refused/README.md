@@ -19,14 +19,12 @@ observes the seal only through its own success.
 Verified through the real CLI on exactly this source, which produced the
 diagnostic above.
 
-## Why this is pending, not in `fail/`
+## How the corpus hosts it
 
-The same harness refusal described in
-`artifact_only_required_output_completion/README.md` reaches this case first:
-
-    package-aware build filesystem access requires compiler-validated
-    canonical Source metadata
-
-Move it into `fail/` with `expected.txt` holding the sticky-failure fragment
-above, and its golden row, once the harness can bind a fixture root with
-canonical Source metadata.
+This case reached the harness's own refusal before the rule it names, because
+the runner bound the root package straight to the writable fixture directory
+and so had no canonical Source metadata to offer a package-aware build
+activation. The runner now stages every fixture root as a sealed private
+snapshot and binds the root package to it, as
+`pass/build/artifact_only_required_output_completion/README.md` describes, so
+the rejection recorded here is the authored one.

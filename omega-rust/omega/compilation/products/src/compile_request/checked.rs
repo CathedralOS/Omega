@@ -88,9 +88,6 @@ impl ValidatedTargetCompilation {
         build_dir: &'request Path,
     ) -> CheckedExecutionRequest<'request> {
         let package_inputs = self.package_inputs();
-        let automatic_snapshot = package_inputs
-            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
-            .map(|_| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
         CheckedExecutionRequest {
             selected_target_profile: self.profile(),
             build_execution_profile: TargetProfile::host_if_supported(),
@@ -99,7 +96,10 @@ impl ValidatedTargetCompilation {
             filesystem_sponsor: None,
             evaluation_sponsor: None,
             // Explicit custody always wins; failed admission never falls back.
-            build_snapshot: self.build_snapshot().cloned().or(automatic_snapshot),
+            build_snapshot: self
+                .build_snapshot()
+                .cloned()
+                .or_else(|| BuildSnapshotRequest::automatic_package_inventory(package_inputs)),
             optimization_rollback: self.optimization_rollback().clone(),
             restricted_build_grants: None,
             permit_unsettled_fused_service_fields: false,

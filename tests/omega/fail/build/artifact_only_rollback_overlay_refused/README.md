@@ -21,15 +21,12 @@ leaves only the build-directory owner stamp and writes no `completed/` result
 set, while the same source without `--disable-optimization` publishes
 `files/manifest.txt`.
 
-## Why this is pending, not in `fail/`
+## How the corpus hosts it
 
-It does reject in the corpus today, but for the wrong reason — the harness
-refusal described in `artifact_only_required_output_completion/README.md`:
-
-    package-aware build filesystem access requires compiler-validated
-    canonical Source metadata
-
-A `fail/` case that rejects before reaching the rule it names pins nothing, so
-this stays a pending witness until the harness can bind a fixture root with
-canonical Source metadata. Move it into `fail/` then, with `expected.txt`
-holding the artifact-only rollback fragment above and its golden row recorded.
+This case reached the harness's own refusal before the rule it names, because
+the runner bound the root package straight to the writable fixture directory
+and so had no canonical Source metadata to offer a package-aware build
+activation. The runner now stages every fixture root as a sealed private
+snapshot and binds the root package to it, as
+`pass/build/artifact_only_required_output_completion/README.md` describes, so
+the rejection recorded here is the authored one.

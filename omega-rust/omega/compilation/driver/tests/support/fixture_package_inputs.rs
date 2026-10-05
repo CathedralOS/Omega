@@ -7,21 +7,25 @@
 //!
 //! - [`fixture_path_dependencies`] projects the `depend`/`depend_as`/
 //!   `build_depend*` rows a fixture authored in its own `build.omg`;
-//! - [`repository_fixture_package_inputs`] binds that closure with the
+//! - [`fixture_package_inputs_bound_to`] binds that closure with the
 //!   compilation root at marker 1 and the bundled standard library at
 //!   marker 2, the identity entry and dangerous-service acceptance name;
-//! - [`reviewed_repository_fixture_package_inputs`] adds this repository's
-//!   test acceptance: the target profile's reviewed `ProgramEntry` candidate
-//!   and the selected package-owned services the preliminary checked
-//!   graph requires;
+//! - [`reviewed_repository_fixture_package_inputs`] stages the fixture's
+//!   sealed source snapshot, binds the root package to it, and adds this
+//!   repository's test acceptance: the target profile's reviewed
+//!   `ProgramEntry` candidate and the selected package-owned services the
+//!   preliminary checked graph requires;
 //! - the `*_build` writers restate a fixture's authored rows for a scratch
 //!   copy of its source, through absolute paths, so no test target types the
 //!   standard library's location into a synthesized `build.omg`.
 //!
-//! A test target that must bind the standard library for a project which
-//! authors no dependency row — a scratch package with no `build.omg`, or a
-//! relocated copy of the library — says so through
-//! [`standard_library_package_inputs`] instead of restating the graph.
+//! The root package is always bound to a sealed snapshot staged by
+//! [`sealed_fixture_staging`], never to the checked-out fixture directory,
+//! because a package-aware build activation captures canonical Source
+//! metadata from the physical root and that capture admits only the modes
+//! acquisition leaves. The authored directory remains where dependency rows
+//! are read and where their relative locations resolve, so the two roots are
+//! threaded separately rather than one standing in for the other.
 //!
 //! Acceptance here is test policy, not evidence that an audit occurred and not
 //! production accepted-lock recovery; every admitted row is derived from and
@@ -62,6 +66,8 @@ pub mod linux_entry_acceptance;
 pub mod macos_entry_acceptance;
 #[path = "process_exit_acceptance.rs"]
 pub mod process_exit_acceptance;
+#[path = "sealed_fixture_staging.rs"]
+pub mod sealed_fixture_staging;
 #[path = "uefi_entry_acceptance.rs"]
 pub mod uefi_entry_acceptance;
 #[path = "windows_entry_acceptance.rs"]
@@ -342,46 +348,26 @@ fn fixture_root_declaration(project_root: &Path) -> (BuildDeclarationKind, Strin
     (root_role, root_name.into_string())
 }
 
-/// Package inputs for a repository fixture, or `None` when it authored no
-/// dependency at all and did not request package identity. A fixture that
-/// declares `Build::package` or `Build::application` compiles in package mode
-/// even with an empty dependency set.
+/// The root package's binding.
 ///
-/// Identities: the compilation root takes marker 1 and the bundled standard
-/// library marker 2 — pinned so entry and dangerous-service acceptance can
-/// name it — and every other package takes the next free marker in the order
-/// the walk reaches it. Edges project transitively: a dependency's own
-/// authored rows join the same inputs. Product edges authorize imports for
-/// every package in scope, while a build edge authorizes only the compilation
-/// root's build entry, exactly as the package manager's compiler input does,
-/// because a dependency's build context resolves in its own compilation where
-/// that package is the root.
-pub fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
-    let project_root = root_path
-        .parent()
-        .expect("fixture source has a project root");
-    fixture_package_inputs_bound_to(project_root, project_root)
-}
-
-/// Package inputs for a copy of a repository fixture staged under another
-/// directory: the rows are read from the fixture's authored project, where
-/// their relative locations resolve, and the root package is bound to the
-/// copy. `None` when the fixture authored no dependency or project declaration.
-pub fn copied_fixture_package_inputs(
-    authored_project_root: &Path,
-    copied_project_root: &Path,
-) -> Option<PackageCompilationInputs> {
-    fixture_package_inputs_bound_to(authored_project_root, copied_project_root)
-}
-
-/// Package inputs binding only the compilation root, for a fixture that
-/// authored no dependency but is still compiled in package mode.
-pub fn dependency_free_fixture_package_inputs(root_path: &Path) -> PackageCompilationInputs {
-    let project_root = root_path
-        .parent()
-        .expect("fixture source has a project root");
-    let (root_role, root_name) = fixture_root_declaration(project_root);
-    dependency_free_inputs(project_root, project_root, root_role, root_name)
+/// `bound_root` is a sealed source snapshot, so the binding carries the
+/// compiler-captured canonical Source metadata a package-aware build
+/// activation requires before any build effect runs. The capture re-inspects
+/// the physical modes itself; a root that is not sealed fails it, and that is
+/// this harness staging the root wrongly, never a fixture's own refusal.
+fn sealed_root_source_binding(
+    identity: PackageKeyIdentity,
+    canonical_name: String,
+    bound_root: &Path,
+) -> PackageSourceBinding {
+    PackageSourceBinding::new(identity, canonical_name, bound_root.to_path_buf())
+        .with_canonical_source_metadata()
+        .unwrap_or_else(|reason| {
+            panic!(
+                "fixture root {} is not a sealed source snapshot: {reason}",
+                bound_root.display()
+            )
+        })
 }
 
 fn dependency_free_inputs(
@@ -394,10 +380,10 @@ fn dependency_free_inputs(
     PackageCompilationInputs::new(
         root_identity,
         root_role,
-        vec![PackageSourceBinding::new(
+        vec![sealed_root_source_binding(
             root_identity,
             root_name,
-            bound_root.to_path_buf(),
+            bound_root,
         )],
         Vec::new(),
     )
@@ -423,39 +409,6 @@ fn dependency_free_package_inputs_bound_to(
         role,
         name.into_string(),
     ))
-}
-
-/// Package inputs binding `project_root` as the compilation root and one
-/// standard library at `standard_library_root` under its ordinary alias, for
-/// a project that authors no such row itself: a scratch package written
-/// without a `build.omg`, or a fixture pointed at a relocated copy of the
-/// library. A fixture that authored the row takes
-/// [`repository_fixture_package_inputs`] instead.
-pub fn standard_library_package_inputs(
-    project_root: &Path,
-    standard_library_root: &Path,
-) -> PackageCompilationInputs {
-    let (root_role, root_name) = fixture_root_declaration(project_root);
-    let root_identity = fixture_package_identity(1);
-    let standard_library_identity = fixture_package_identity(2);
-    PackageCompilationInputs::new(
-        root_identity,
-        root_role,
-        vec![
-            PackageSourceBinding::new(root_identity, root_name, project_root.to_path_buf()),
-            PackageSourceBinding::new(
-                standard_library_identity,
-                "omega_language_std",
-                standard_library_root.to_path_buf(),
-            ),
-        ],
-        vec![PackageDependencyBinding::new(
-            root_identity,
-            "omega_language_std",
-            standard_library_identity,
-        )],
-    )
-    .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()))
 }
 
 /// `location` itself when it is disjoint from every bound root, or a staged
@@ -506,6 +459,25 @@ fn copy_member_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Package inputs for a repository fixture, or `None` when it authored no
+/// dependency at all and did not request package identity. A fixture that
+/// declares `Build::package` or `Build::application` compiles in package mode
+/// even with an empty dependency set.
+///
+/// Identities: the compilation root takes marker 1 and the bundled standard
+/// library marker 2 — pinned so entry and dangerous-service acceptance can
+/// name it — and every other package takes the next free marker in the order
+/// the walk reaches it. Edges project transitively: a dependency's own
+/// authored rows join the same inputs. Product edges authorize imports for
+/// every package in scope, while a build edge authorizes only the compilation
+/// root's build entry, exactly as the package manager's compiler input does,
+/// because a dependency's build context resolves in its own compilation where
+/// that package is the root.
+///
+/// `bound_root` is where the root package's source is bound and
+/// `authored_root` is where its `build.omg` is read and its relative
+/// dependency locations resolve. They differ because the root is bound to a
+/// sealed snapshot staged out of the authored directory.
 fn fixture_package_inputs_bound_to(
     authored_root: &Path,
     bound_root: &Path,
@@ -519,10 +491,10 @@ fn fixture_package_inputs_bound_to(
     let standard_library_root = fs::canonicalize(bundled_standard_library_root())
         .expect("bundled standard library root resolves");
 
-    let mut packages = vec![PackageSourceBinding::new(
+    let mut packages = vec![sealed_root_source_binding(
         root_identity,
         root_name,
-        bound_root.to_path_buf(),
+        bound_root,
     )];
     let mut dependencies = Vec::new();
     let mut bound: HashMap<PathBuf, PackageKeyIdentity> = HashMap::new();
@@ -675,16 +647,47 @@ fn derive_program_entry_binding(
     })
 }
 
+/// One repository fixture prepared for compilation, the way a real build
+/// prepares a package.
+///
+/// [`root_path`](Self::root_path) is the staged snapshot's root source file,
+/// not the authored one: the root package is bound to the sealed snapshot, so
+/// the compilation that consumes these inputs has to read its root from the
+/// same place. Every leg compiles that path.
+pub struct ReviewedFixtureCompilation {
+    pub root_path: PathBuf,
+    pub package_inputs: Option<PackageCompilationInputs>,
+}
+
 /// The authored package graph plus this repository's test acceptance: the
 /// bundled library's target entry candidate when present, then the services the
-/// preliminary checked graph requires, including root-owned services. `None`
-/// for a fixture that stays standalone.
+/// preliminary checked graph requires, including root-owned services. The
+/// package inputs are `None` for a fixture that stays standalone; its source
+/// is staged either way, so one route compiles every fixture.
 pub fn reviewed_repository_fixture_package_inputs(
-    root_path: &Path,
+    authored_root_path: &Path,
     target_name: Option<&str>,
-) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
-    let Some(mut package_inputs) = repository_fixture_package_inputs(root_path) else {
-        return Ok(None);
+) -> Result<ReviewedFixtureCompilation, Vec<Diagnostic>> {
+    let authored_project_root = authored_root_path
+        .parent()
+        .expect("fixture source has a project root");
+    let staged_project_root =
+        sealed_fixture_staging::stage_sealed_snapshot(&repo_root(), authored_project_root);
+    let root_path = staged_project_root.join(
+        authored_root_path
+            .file_name()
+            .expect("fixture source has a file name"),
+    );
+    // Dependency rows are read and resolved against the authored project: a
+    // fixture spells the bundled library as a path relative to its own
+    // directory, which no snapshot location reproduces.
+    let Some(mut package_inputs) =
+        fixture_package_inputs_bound_to(authored_project_root, &staged_project_root)
+    else {
+        return Ok(ReviewedFixtureCompilation {
+            root_path,
+            package_inputs: None,
+        });
     };
     // Hosted entry acceptance belongs to the bundled standard library's exact
     // package identity. Service acceptance below follows each selected owner.
@@ -715,24 +718,34 @@ pub fn reviewed_repository_fixture_package_inputs(
     // commitments. Only the following accepted pass grants execution authority.
     // Reconstruct from this exact graph: a target/use-flags cache cannot retain
     // package ownership, source-dependent contracts or provider-plan identity.
+    // Discovery runs the fixture's own build machine, so it needs the same
+    // writable staging a real activation gets; the default beside the root
+    // source is inside the sealed snapshot.
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
         permit_unsettled_fused_service_fields: true,
-        ..CheckedCompileRequest::new(root_path, target_name)
+        build_dir: Some(sealed_fixture_staging::fresh_staging_build_dir(
+            &repo_root(),
+            authored_project_root,
+        )),
+        ..CheckedCompileRequest::new(&root_path, target_name)
     })?;
     for (owner, _) in package_inputs.packages() {
         let required =
             dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
         bindings.extend(dangerous_service_bindings(&preliminary, owner, &required)?);
     }
-    package_inputs
+    let package_inputs = package_inputs
         .with_accepted_semantic_bindings(bindings)
-        .map(Some)
         .map_err(|errors| {
             vec![Diagnostic::error(format!(
                 "cannot admit repository fixture semantic binding: {errors:?}"
             ))]
-        })
+        })?;
+    Ok(ReviewedFixtureCompilation {
+        root_path,
+        package_inputs: Some(package_inputs),
+    })
 }
 
 /// The entry binding depends only on the target and the bundled library, and

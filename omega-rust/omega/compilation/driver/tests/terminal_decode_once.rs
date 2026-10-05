@@ -51,18 +51,20 @@ const INDEPENDENT_PSI_REPLAY_DECODES: u64 = 1;
 fn native_realization_decodes_the_terminal_module_once() {
     let target_name = "linux_x86_64";
     let main = repo_root().join(FIXTURE);
-    let package_inputs = reviewed_repository_fixture_package_inputs(&main, Some(target_name))
+    let prepared = reviewed_repository_fixture_package_inputs(&main, Some(target_name))
         .unwrap_or_else(|diagnostics| panic!("{FIXTURE} package inputs: {diagnostics:#?}"));
     let root: PathBuf =
         std::env::temp_dir().join(format!("omega-terminal-decode-once-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
+    // The root package is bound to the sealed snapshot staged for this
+    // fixture, so the compilation reads its root from the snapshot too.
     let mut request = CompileRequest::new(CompileOptions {
-        root_path: main,
+        root_path: prepared.root_path,
         build_dir: Some(root),
         target_name: Some(target_name.to_owned()),
     })
     .with_requested_product(RequestedCompileProduct::TerminalArtifact);
-    if let Some(package_inputs) = package_inputs {
+    if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let retained = compile(request)

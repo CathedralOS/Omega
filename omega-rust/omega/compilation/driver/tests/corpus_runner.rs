@@ -94,7 +94,9 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
-use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
+use fixture_package_inputs::{
+    repo_root, reviewed_repository_fixture_package_inputs, sealed_fixture_staging,
+};
 
 fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -260,19 +262,32 @@ fn record_text(
 /// Records must be checkout-portable: diagnostics and panic payloads render
 /// `path:line:col` positions with absolute fixture paths, so strip the repo
 /// root prefix before a record reaches the golden.
+///
+/// Two prefixes name the same fixture. A fixture is compiled out of the
+/// sealed snapshot staged for it, which keeps its repository-relative path
+/// under a private per-process session root, so stripping that root yields
+/// the same relative spelling the repository root yields and no recorded
+/// position moved when the snapshot became the compiled source. Paths that
+/// still name the checkout — a sibling the harness read directly, an
+/// authored dependency location — keep the repository prefix.
 fn sanitize(diagnostic: &str) -> String {
     // Strip before escaping: a Windows backslash otherwise becomes two
     // characters and no longer matches the actual checkout path.
+    let diagnostic = strip_root_prefix(diagnostic, sealed_fixture_staging::staging_session_root());
     let root = repo_root();
-    let diagnostic = diagnostic
-        .replace(&format!("{}/", root.display()), "")
-        .replace(&format!("{}\\", root.display()), "");
+    let diagnostic = strip_root_prefix(&diagnostic, &root);
     if (diagnostic.starts_with("tests/") || diagnostic.starts_with("tests\\"))
         && let Some((location, message)) = diagnostic.split_once(": ")
     {
         return format!("{}: {message}", location.replace('\\', "/"));
     }
     diagnostic
+}
+
+fn strip_root_prefix(diagnostic: &str, root: &Path) -> String {
+    diagnostic
+        .replace(&format!("{}/", root.display()), "")
+        .replace(&format!("{}\\", root.display()), "")
 }
 
 fn unique_build_dir(sequence: usize) -> PathBuf {
@@ -328,9 +343,9 @@ fn produce_terminal_semantic(
     target: Option<String>,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
-    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
     let options = CompileOptions {
-        root_path: root_path.to_path_buf(),
+        root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),
         target_name: target,
     };
@@ -339,7 +354,7 @@ fn produce_terminal_semantic(
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
-    if let Some(package_inputs) = package_inputs {
+    if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let report =
@@ -423,15 +438,15 @@ fn check_pass_fixture(
     root_path: &Path,
     build_dir: PathBuf,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let options = CompileOptions {
-        root_path: root_path.to_path_buf(),
+        root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
     };
-    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let mut request =
         CompileRequest::new(options).with_requested_product(RequestedCompileProduct::Check);
-    if let Some(package_inputs) = package_inputs {
+    if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let result = compiler::compile(request)
@@ -481,6 +496,7 @@ fn interpreter_leg() -> bool {
 fn interpret_fixture(
     root_path: &Path,
     fixture_dir: &Path,
+    build_dir: PathBuf,
     rollback: Option<&OptimizationRollback>,
 ) -> Vec<String> {
     let Some(target) = native_target()
@@ -493,12 +509,14 @@ fn interpret_fixture(
     else {
         return vec!["interpreter:unchecked".to_owned()];
     };
-    let mut request = CheckedCompileRequest::new(root_path, Some(target.as_str()));
-    let Ok(package_inputs) = reviewed_repository_fixture_package_inputs(root_path, Some(&target))
-    else {
+    let Ok(prepared) = reviewed_repository_fixture_package_inputs(root_path, Some(&target)) else {
         return vec!["interpreter:unchecked".to_owned()];
     };
-    request.package_inputs = package_inputs;
+    let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target.as_str()));
+    request.package_inputs = prepared.package_inputs;
+    // Named for the same reason `check_fail_fixture` names it: the default
+    // staging is beside the root source, which is the sealed snapshot.
+    request.build_dir = Some(build_dir);
     if let Some(rollback) = rollback {
         request.optimization_rollback = rollback.clone();
     }
@@ -573,18 +591,18 @@ fn build_native_fixture(
     target: &str,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let options = CompileOptions {
-        root_path: root_path.to_path_buf(),
+        root_path: prepared.root_path,
         build_dir: Some(build_dir.to_path_buf()),
         target_name: Some(target.to_owned()),
     };
-    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let mut request = CompileRequest::new(options)
         .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
-    if let Some(package_inputs) = package_inputs {
+    if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let report =
@@ -706,14 +724,23 @@ fn execute_fixture(
 /// `rollback.txt` cannot fail the fixture on the wrong axis.
 fn check_fail_fixture(
     root_path: &Path,
+    build_dir: PathBuf,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let mut request = CheckedCompileRequest::new(root_path, None);
-    request.package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
+    request.package_inputs = prepared.package_inputs;
+    // A fail fixture's build machine may still reach the build filesystem
+    // before the rule it is pinned on refuses, and the staging a compilation
+    // defaults to is beside its root source, which is the sealed snapshot
+    // here. Name the same private directory every other leg uses.
+    request.build_dir = Some(build_dir.clone());
     if let Some(rollback) = rollback {
         request.optimization_rollback = rollback.clone();
     }
-    compile_to_checked(request).map(|_| ())
+    let result = compile_to_checked(request).map(|_| ());
+    let _ = fs::remove_dir_all(&build_dir);
+    result
 }
 
 /// Realize one fixture as a native artifact for the first target its own
@@ -735,10 +762,9 @@ fn realize_fixture(
     target_name: Option<String>,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let package_inputs =
-        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
+    let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let options = CompileOptions {
-        root_path: root_path.to_path_buf(),
+        root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),
         target_name,
     };
@@ -747,7 +773,7 @@ fn realize_fixture(
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
-    if let Some(package_inputs) = package_inputs {
+    if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     let result = compiler::compile(request)
@@ -907,7 +933,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     let mut realized = false;
     let mut outcome = match (&rollback_error, tier, &realization) {
         (Some(message), _, _) => Err(vec![diagnostics::Diagnostic::error(message.clone())]),
-        (_, "fail", _) => check_fail_fixture(main, declared_rollback.as_ref()),
+        (_, "fail", _) => {
+            check_fail_fixture(main, unique_build_dir(sequence), declared_rollback.as_ref())
+        }
         (_, _, Some((target, executes_here))) => {
             realized = true;
             let build_dir = unique_build_dir(sequence);
@@ -980,6 +1008,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         facts.extend(interpret_fixture(
             main,
             &fixture_dir,
+            unique_build_dir(sequence),
             declared_rollback.as_ref(),
         ));
         if let Some(agreement) = interpreter_agreement(&facts) {
@@ -1309,6 +1338,9 @@ fn main() {
     for record in records {
         println!("{record}");
     }
+    // Every record is written, so a detached straggler's reads no longer
+    // decide anything and the sealed snapshots it may still hold open can go.
+    sealed_fixture_staging::discard_staged_snapshots();
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }
