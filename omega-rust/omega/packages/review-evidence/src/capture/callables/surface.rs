@@ -129,7 +129,6 @@ pub(super) fn project<'a>(
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
-                is_self: false,
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

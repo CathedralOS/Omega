@@ -175,28 +175,15 @@ fn progress(
         return Ok(());
     };
     ordered(premises)?;
-    let count = callable
-        .parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let count = callable.parameters.len();
     for premise in premises {
         nominal(&premise.profile)?;
         match &premise.subject {
             PackageReviewProgressSubject::Declaration(declaration) => nominal(declaration)?,
-            PackageReviewProgressSubject::Receiver
-                if !callable
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self) =>
-            {
-                return Err("callable progress receiver is absent");
-            }
             PackageReviewProgressSubject::Parameter(position) if *position as usize >= count => {
                 return Err("callable progress subject lies outside its telescope");
             }
-            PackageReviewProgressSubject::Receiver | PackageReviewProgressSubject::Parameter(_) => {
-            }
+            PackageReviewProgressSubject::Parameter(_) => {}
         }
         for projection in &premise.projections {
             nominal(projection)?;

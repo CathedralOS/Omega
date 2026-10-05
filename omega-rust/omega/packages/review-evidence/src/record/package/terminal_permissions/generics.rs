@@ -12,8 +12,6 @@ pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'s
         static_offset: 0,
         lifetimes: service.lifetime_parameter_count as usize,
         parameters: 0,
-        nonself_parameters: 0,
-        has_self: false,
         result: false,
         domain_subject: false,
     };

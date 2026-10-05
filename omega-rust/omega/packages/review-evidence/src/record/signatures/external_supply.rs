@@ -304,7 +304,6 @@ pub struct PackageReviewExternalCallableParameter {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,
-    pub(crate) is_self: bool,
 }
 
 impl PackageReviewExternalCallableParameter {
@@ -318,10 +317,6 @@ impl PackageReviewExternalCallableParameter {
 
     pub const fn is_mutable(&self) -> bool {
         self.is_mutable
-    }
-
-    pub const fn is_self(&self) -> bool {
-        self.is_self
     }
 }
 

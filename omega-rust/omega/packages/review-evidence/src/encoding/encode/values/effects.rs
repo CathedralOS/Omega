@@ -72,7 +72,6 @@ pub(crate) fn encode_termination(
                         encoder.byte(0);
                         encode_nominal(encoder, identity)?;
                     }
-                    PackageReviewProgressSubject::Receiver => encoder.byte(1),
                     PackageReviewProgressSubject::Parameter(position) => {
                         encoder.byte(2);
                         encoder.u32(*position);

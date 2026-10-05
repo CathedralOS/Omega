@@ -45,7 +45,6 @@ pub struct PackageReviewPropositionParameterValue {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,
-    pub(crate) is_self: bool,
 }
 
 impl PackageReviewPropositionParameterValue {
@@ -59,10 +58,6 @@ impl PackageReviewPropositionParameterValue {
 
     pub const fn is_mutable(&self) -> bool {
         self.is_mutable
-    }
-
-    pub const fn is_self(&self) -> bool {
-        self.is_self
     }
 }
 
@@ -169,7 +164,6 @@ pub struct PackageReviewMachineParameterValue {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,
-    pub(crate) is_self: bool,
 }
 
 impl PackageReviewMachineParameterValue {
@@ -187,10 +181,6 @@ impl PackageReviewMachineParameterValue {
 
     pub const fn is_mutable(&self) -> bool {
         self.is_mutable
-    }
-
-    pub const fn is_self(&self) -> bool {
-        self.is_self
     }
 }
 

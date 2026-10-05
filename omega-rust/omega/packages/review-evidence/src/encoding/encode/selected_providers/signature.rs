@@ -50,10 +50,6 @@ pub(super) fn signature(
                 encoder.boolean(parameter.is_mutable);
                 Ok(())
             })?;
-            encoder.field("is_self", |encoder| {
-                encoder.boolean(parameter.is_self);
-                Ok(())
-            })?;
             Ok(())
         })
     })?;

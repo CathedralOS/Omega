@@ -23,9 +23,9 @@ mod values;
 pub use policy_rows::restricted_build_request_acceptance_text;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 139;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 140;
 pub(crate) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 97;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 98;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {

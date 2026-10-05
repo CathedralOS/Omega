@@ -130,7 +130,6 @@ pub(in crate::encoding) fn termination(
                         encoder.tag("declaration", 0);
                         encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
                     }
-                    PackageReviewProgressSubject::Receiver => encoder.tag("receiver", 1),
                     PackageReviewProgressSubject::Parameter(position) => {
                         encoder.tag("parameter", 2);
                         encoder.field("position", |encoder| { encoder.u32(*position); Ok(()) })?;

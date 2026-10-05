@@ -51,10 +51,6 @@ pub(in crate::encoding::encode) fn type_parameter(
                             encoder.boolean(parameter.is_mutable);
                             Ok(())
                         })?;
-                        encoder.field("is_self", |encoder| {
-                            encoder.boolean(parameter.is_self);
-                            Ok(())
-                        })?;
                         Ok(())
                     })
                 })?;
@@ -90,7 +86,6 @@ pub(in crate::encoding) fn machine_contract(
                         &parameter.type_identity,
                         parameter.is_const,
                         parameter.is_mutable,
-                        parameter.is_self,
                     )
                 })
             })?;
@@ -153,7 +148,6 @@ pub(super) fn formal(
     value: &PackageReviewTypeIdentity,
     is_const: bool,
     is_mutable: bool,
-    is_self: bool,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("name", |encoder| encoder.string(name))?;
     encoder.field("type_identity", |encoder| {
@@ -165,10 +159,6 @@ pub(super) fn formal(
     })?;
     encoder.field("is_mutable", |encoder| {
         encoder.boolean(is_mutable);
-        Ok(())
-    })?;
-    encoder.field("is_self", |encoder| {
-        encoder.boolean(is_self);
         Ok(())
     })?;
     Ok(())

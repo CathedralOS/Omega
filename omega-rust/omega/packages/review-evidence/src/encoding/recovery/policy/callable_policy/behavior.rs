@@ -105,7 +105,6 @@ pub(in crate::encoding::recovery) fn termination(
                     profile: nominal(reader)?,
                     subject: match reader.byte()? {
                         0 => PackageReviewProgressSubject::Declaration(nominal(reader)?),
-                        1 => PackageReviewProgressSubject::Receiver,
                         2 => PackageReviewProgressSubject::Parameter(reader.u32()?),
                         _ => return Err(Error::InvalidTag),
                     },

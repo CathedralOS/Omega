@@ -57,9 +57,7 @@ impl super::PackagePolicyServiceMethod {
                 .iter()
                 .any(|ordinal| *ordinal >= signature.schema_lifetime_parameter_count)
             || signature.parameters.iter().any(|parameter| {
-                parameter.is_self
-                    || parameter.name.is_empty()
-                    || parameter.type_identity.canonical.is_empty()
+                parameter.name.is_empty() || parameter.type_identity.canonical.is_empty()
             })
             || signature
                 .result
@@ -79,8 +77,6 @@ impl super::PackagePolicyServiceMethod {
             lifetimes: signature.schema_lifetime_parameter_count as usize
                 + signature.requirement_lifetime_parameter_count as usize,
             parameters: signature.parameters.len(),
-            nonself_parameters: signature.parameters.len(),
-            has_self: false,
             result: signature.result.is_some(),
             domain_subject: false,
         };

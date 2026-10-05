@@ -56,7 +56,7 @@ fn machine(
         signature.lifetime_parameter_count,
     )?;
     formals(&mut scope, &signature.parameters, |value| {
-        (&value.name, &value.type_identity, value.is_self)
+        (&value.name, &value.type_identity)
     })?;
     result(&mut scope, signature.return_type.as_ref())?;
     parameters(&scope, nesting + 1)?;
@@ -92,22 +92,20 @@ pub(super) fn child<'a>(
 pub(super) fn formals<'a, T>(
     scope: &mut Scope<'_>,
     parameters: &'a [T],
-    project: impl Fn(&'a T) -> (&'a str, &'a PackageReviewTypeIdentity, bool),
+    project: impl Fn(&'a T) -> (&'a str, &'a PackageReviewTypeIdentity),
 ) -> Result {
     for (index, parameter) in parameters.iter().enumerate() {
-        let (name, identity, receiver) = project(parameter);
+        let (name, identity) = project(parameter);
         text(name)?;
         value_type(identity)?;
         if parameters[..index].iter().any(|prior| {
-            let (prior_name, _, prior_receiver) = project(prior);
-            prior_name == name || (prior_receiver && receiver)
+            let (prior_name, _) = project(prior);
+            prior_name == name
         }) {
-            return Err("public signature repeats a formal name or receiver");
+            return Err("public signature repeats a formal name");
         }
     }
     scope.parameters = parameters.len();
-    scope.has_self = parameters.iter().any(|value| project(value).2);
-    scope.nonself_parameters = parameters.len() - usize::from(scope.has_self);
     Ok(())
 }
 

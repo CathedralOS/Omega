@@ -34,10 +34,7 @@ pub(super) fn signature(
                 encoder.boolean(parameter.is_mutable);
                 Ok(())
             })?;
-            encoder.field("self", |encoder| {
-                encoder.boolean(parameter.is_self);
-                Ok(())
-            })
+            Ok(())
         })
     })?;
     encoder.field("return_type", |encoder| {

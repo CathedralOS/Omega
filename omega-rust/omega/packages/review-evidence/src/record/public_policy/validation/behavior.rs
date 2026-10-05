@@ -28,7 +28,7 @@ pub(super) fn validate(
         match invocation {
             PackageReviewSynchronousInvocation::Service(service) => nominal(service)?,
             PackageReviewSynchronousInvocation::Parameter(ordinal)
-                if (*ordinal as usize) < scope.nonself_parameters => {}
+                if (*ordinal as usize) < scope.parameters => {}
             _ => return Err("public invocation escapes its explicit value telescope"),
         }
     }
@@ -41,9 +41,8 @@ pub(super) fn validate(
             }
             match &premise.subject {
                 PackageReviewProgressSubject::Declaration(value) => nominal(value)?,
-                PackageReviewProgressSubject::Receiver if scope.has_self => {}
                 PackageReviewProgressSubject::Parameter(ordinal)
-                    if (*ordinal as usize) < scope.nonself_parameters => {}
+                    if (*ordinal as usize) < scope.parameters => {}
                 _ => return Err("public progress subject escapes its declaration scope"),
             }
             ordered(&premise.establishment_routes)?;

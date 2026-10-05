@@ -12,13 +12,12 @@ pub(in crate::encoding::recovery) fn signature(
         requirement_lifetime_arguments: reader.sequence(4, Reader::u32)?,
         requirement_lifetime_parameter_count: reader.u32()?,
         static_parameters: reader.sequence(3, type_parameter)?,
-        parameters: reader.sequence(19, |reader| {
+        parameters: reader.sequence(18, |reader| {
             Ok(PackageReviewTraitRequirementParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,
                 is_mutable: reader.boolean()?,
-                is_self: reader.boolean()?,
             })
         })?,
         result: reader.option(type_identity)?,

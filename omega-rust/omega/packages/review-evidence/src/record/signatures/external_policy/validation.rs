@@ -80,16 +80,6 @@ impl PackagePolicyExternalExecutableSupply {
 fn signature(value: &PackagePolicyExternalCallableSignature) -> Result {
     let mut scope = scope(&value.static_parameters, value.lifetime_parameter_count);
     scope.parameters = value.parameters.len();
-    let receivers = value
-        .parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .count();
-    if receivers > 1 {
-        return Err("external signature repeats its receiver");
-    }
-    scope.has_self = receivers == 1;
-    scope.nonself_parameters = value.parameters.len() - receivers;
     scope.result = value.return_type.is_some();
     parameters(&scope, 0)?;
     bounds(&value.conformance_bounds, &scope)?;

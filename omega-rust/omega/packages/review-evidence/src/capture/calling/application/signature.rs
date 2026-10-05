@@ -292,7 +292,6 @@ fn project_with_binders(
             )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
-            is_self: false,
         });
     }
     let semantic_result = if signature.return_type.is_valid() {

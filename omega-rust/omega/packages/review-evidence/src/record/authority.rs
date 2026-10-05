@@ -353,7 +353,6 @@ impl PackageReviewCrash {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProgressSubject {
     Declaration(PackageReviewNominalIdentity),
-    Receiver,
     Parameter(u32),
 }
 
@@ -361,18 +360,14 @@ impl PackageReviewProgressSubject {
     pub const fn declaration(&self) -> Option<&PackageReviewNominalIdentity> {
         match self {
             Self::Declaration(identity) => Some(identity),
-            Self::Receiver | Self::Parameter(_) => None,
+            Self::Parameter(_) => None,
         }
-    }
-
-    pub const fn is_receiver(&self) -> bool {
-        matches!(self, Self::Receiver)
     }
 
     pub const fn parameter(&self) -> Option<u32> {
         match self {
             Self::Parameter(position) => Some(*position),
-            Self::Declaration(_) | Self::Receiver => None,
+            Self::Declaration(_) => None,
         }
     }
 }

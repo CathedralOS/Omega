@@ -107,10 +107,6 @@ pub(crate) fn encode_type_parameter(
                             encoder.boolean(parameter.is_mutable);
                             Ok(())
                         })?;
-                        encoder.field("is_self", |encoder| {
-                            encoder.boolean(parameter.is_self);
-                            Ok(())
-                        })?;
                         Ok(())
                     })
                 })?;
@@ -177,10 +173,6 @@ pub(crate) fn encode_machine_parameter_signature(
             })?;
             encoder.field("is_mutable", |encoder| {
                 encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
-            encoder.field("is_self", |encoder| {
-                encoder.boolean(parameter.is_self);
                 Ok(())
             })?;
             Ok(())

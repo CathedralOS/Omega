@@ -158,7 +158,7 @@ helper that passes does not close an item.
     identities; checking, interpretation, provider arity and review capture
     consume those identities without an implicit receiver parameter. Retire
     the remaining attachment helpers and the separate checked-plan, Terminal,
-    Omega and review-schema receiver flags through their producers and consumers.
+    and Omega receiver flags through their producers and consumers.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject

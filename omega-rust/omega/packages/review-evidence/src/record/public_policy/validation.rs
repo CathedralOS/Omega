@@ -109,8 +109,6 @@ pub(in crate::record) fn scope(
         static_offset: 0,
         lifetimes,
         parameters: 0,
-        nonself_parameters: 0,
-        has_self: false,
         result: false,
         domain_subject: false,
     }

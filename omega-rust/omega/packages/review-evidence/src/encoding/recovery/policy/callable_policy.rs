@@ -76,13 +76,12 @@ pub(in crate::encoding::recovery) fn callable(
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
         conformance_bounds: reader.sequence(1, conformance_bound)?,
-        parameters: reader.sequence(19, |reader| {
+        parameters: reader.sequence(18, |reader| {
             Ok(PackageReviewCallableParameter {
                 name: reader.string()?,
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,
                 is_mutable: reader.boolean()?,
-                is_self: reader.boolean()?,
             })
         })?,
         return_type: reader.option(type_identity)?,

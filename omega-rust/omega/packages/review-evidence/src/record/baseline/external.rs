@@ -42,7 +42,6 @@ impl PackagePolicyBaseline {
                         external.type_identity() != &formal.type_identity
                             || external.is_const() != formal.is_const
                             || external.is_mutable() != formal.is_mutable
-                            || external.is_self() != formal.is_self
                     },
                 )
             {

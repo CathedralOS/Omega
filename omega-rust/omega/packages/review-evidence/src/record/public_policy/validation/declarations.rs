@@ -50,7 +50,7 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
             requirement.lifetime_parameter_count,
         )?;
         signatures::formals(&mut scope, &requirement.parameters, |value| {
-            (&value.name, &value.type_identity, value.is_self)
+            (&value.name, &value.type_identity)
         })?;
         signatures::result(&mut scope, requirement.return_type.as_ref())?;
         signatures::parameters(&scope, 0)?;
@@ -72,7 +72,7 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
 pub(super) fn operator(value: &PackagePolicyOperatorShape) -> Result {
     let mut scope = super::scope(&value.type_parameters, value.lifetime_parameter_count);
     signatures::formals(&mut scope, &value.parameters, |value| {
-        (&value.name, &value.type_identity, value.is_self)
+        (&value.name, &value.type_identity)
     })?;
     signatures::result(&mut scope, value.return_type.as_ref())?;
     signatures::parameters(&scope, 0)?;
@@ -161,7 +161,6 @@ pub(super) fn proposition(
     let scope = Scope {
         proposition_binders: &value.binders,
         parameters: value.parameter_types.len(),
-        nonself_parameters: value.parameter_types.len(),
         ..super::scope(&[], 0)
     };
     signatures::parameters(&scope, 0)?;

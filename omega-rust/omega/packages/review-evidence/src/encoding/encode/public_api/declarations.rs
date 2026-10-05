@@ -78,7 +78,6 @@ pub(in crate::encoding::encode) fn trait_shape(
                         &parameter.type_identity,
                         parameter.is_const,
                         parameter.is_mutable,
-                        parameter.is_self,
                     )
                 })
             })?;
@@ -248,7 +247,6 @@ pub(in crate::encoding::encode) fn operator_shape(
                 &parameter.type_identity,
                 parameter.is_const,
                 parameter.is_mutable,
-                parameter.is_self,
             )
         })
     })?;

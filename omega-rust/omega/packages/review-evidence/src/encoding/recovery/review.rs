@@ -449,7 +449,7 @@ fn callable(reader: &mut Reader<'_>) -> Result<CheckedPackageCallableReview, Err
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(9, type_parameter)?,
         conformance_bounds: reader.sequence(16, conformance_bound)?,
-        parameters: reader.sequence(20, callable_parameter)?,
+        parameters: reader.sequence(18, callable_parameter)?,
         return_type: type_identity(reader)?,
         conformances: reader.sequence(20, callable_conformance)?,
         operator_realizations: reader.sequence(20, |reader| {
@@ -493,7 +493,6 @@ fn callable_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewCallablePa
         type_identity: type_identity(reader)?,
         is_const: reader.boolean()?,
         is_mutable: reader.boolean()?,
-        is_self: reader.boolean()?,
     })
 }
 
@@ -781,12 +780,11 @@ fn external_signature(
         lifetime_parameter_count: reader.usize()?,
         static_parameters: reader.sequence(9, external_static_parameter)?,
         conformance_bounds: reader.sequence(16, conformance_bound)?,
-        parameters: reader.sequence(20, |reader| {
+        parameters: reader.sequence(10, |reader| {
             Ok(PackageReviewExternalCallableParameter {
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,
                 is_mutable: reader.boolean()?,
-                is_self: reader.boolean()?,
             })
         })?,
         return_type: type_identity(reader)?,

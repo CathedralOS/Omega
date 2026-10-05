@@ -45,7 +45,6 @@ pub(crate) fn encode_callable(
         encode_type_identity(encoder, &parameter.type_identity)?;
         encoder.boolean(parameter.is_const);
         encoder.boolean(parameter.is_mutable);
-        encoder.boolean(parameter.is_self);
         Ok(())
     })?;
     encode_type_identity(encoder, &callable.return_type)?;
@@ -187,7 +186,6 @@ pub(super) fn encode_external_callable_signature(
         encode_type_identity(encoder, &parameter.type_identity)?;
         encoder.boolean(parameter.is_const);
         encoder.boolean(parameter.is_mutable);
-        encoder.boolean(parameter.is_self);
         Ok(())
     })?;
     encode_type_identity(encoder, &signature.return_type)

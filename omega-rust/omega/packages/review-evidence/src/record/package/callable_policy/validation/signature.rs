@@ -31,8 +31,6 @@ pub(in crate::record) struct Scope<'a> {
     pub static_offset: usize,
     pub lifetimes: usize,
     pub parameters: usize,
-    pub nonself_parameters: usize,
-    pub has_self: bool,
     pub result: bool,
     pub domain_subject: bool,
 }
@@ -97,15 +95,6 @@ fn scope(callable: &PackagePolicyCallable) -> Scope<'_> {
         static_offset: 0,
         lifetimes: callable.lifetime_parameter_count,
         parameters: callable.parameters.len(),
-        nonself_parameters: callable
-            .parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count(),
-        has_self: callable
-            .parameters
-            .iter()
-            .any(|parameter| parameter.is_self),
         result: callable.return_type.is_some(),
         domain_subject: false,
     }
@@ -119,9 +108,9 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         value_type(&parameter.type_identity)?;
         if callable.parameters[..index]
             .iter()
-            .any(|prior| prior.name == parameter.name || (prior.is_self && parameter.is_self))
+            .any(|prior| prior.name == parameter.name)
         {
-            return Err("callable signature repeats a formal name or receiver");
+            return Err("callable signature repeats a formal name");
         }
     }
     if let Some(result) = &callable.return_type {

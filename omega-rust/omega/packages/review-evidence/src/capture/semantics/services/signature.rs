@@ -91,7 +91,6 @@ pub(super) fn project(
                     type_identity: parameter.value_type.clone(),
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
-                    is_self: false,
                 })
                 .collect(),
             result: calling.semantic_result.clone(),
@@ -219,7 +218,6 @@ pub(super) fn project(
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
-                is_self: false,
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

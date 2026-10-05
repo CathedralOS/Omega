@@ -62,12 +62,11 @@ pub(in crate::encoding::recovery) fn external_signature(
         lifetime_parameter_count: reader.usize()?,
         static_parameters: reader.sequence(3, type_parameter)?,
         conformance_bounds: reader.sequence(1, conformance_bound)?,
-        parameters: reader.sequence(11, |reader| {
+        parameters: reader.sequence(10, |reader| {
             Ok(PackageReviewExternalCallableParameter {
                 type_identity: type_identity(reader)?,
                 is_const: reader.boolean()?,
                 is_mutable: reader.boolean()?,
-                is_self: reader.boolean()?,
             })
         })?,
         return_type: reader.option(type_identity)?,
@@ -171,4 +170,67 @@ pub(in crate::encoding::recovery) fn locator(
         },
         _ => return Err(Error::InvalidTag),
     })
+}
+
+#[cfg(test)]
+mod codec_tests {
+    use super::*;
+    use crate::record::{
+        PackageReviewNominalIdentity, PackageReviewNominalOwner,
+        PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    };
+
+    #[test]
+    fn explicit_parameter_flags_round_trip_and_old_schema_rejects() {
+        let identity = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::ToolchainSource(
+                PackageReviewToolchainSourceIdentity { digest: [1; 32] },
+            ),
+            path: "sample::operation".into(),
+        };
+        for (is_const, is_mutable) in [(false, false), (true, false), (false, true)] {
+            let signature = PackagePolicyExternalCallableSignature {
+                lifetime_parameter_count: 1,
+                static_parameters: Vec::new(),
+                conformance_bounds: Vec::new(),
+                parameters: vec![PackageReviewExternalCallableParameter {
+                    type_identity: PackageReviewTypeIdentity {
+                        canonical: "u32".into(),
+                    },
+                    is_const,
+                    is_mutable,
+                }],
+                return_type: None,
+            };
+            let supply = PackagePolicyExternalExecutableSupply {
+                callable: identity.clone(),
+                signature: signature.clone(),
+                requirement: PackagePolicyExternalRequirement::TopLevelRequirement {
+                    identity: identity.clone(),
+                    signature,
+                    alias: None,
+                },
+                binding: PackagePolicyExternalBinding::CompilerIntrinsic,
+            };
+            let bytes = supply.canonical_bytes().expect("encode inert policy");
+            let recovered = PackagePolicyExternalExecutableSupply::recover_canonical(
+                &bytes,
+                PackagePolicyRecoveryLimits::default(),
+            )
+            .expect("recover current parameter encoding");
+            assert_eq!(recovered, supply);
+
+            let mut old_version = bytes;
+            let offset = EXTERNAL_SUPPLY_POLICY_MAGIC.len();
+            old_version[offset..offset + 2]
+                .copy_from_slice(&(PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION - 1).to_le_bytes());
+            assert!(matches!(
+                PackagePolicyExternalExecutableSupply::recover_canonical(
+                    &old_version,
+                    PackagePolicyRecoveryLimits::default(),
+                ),
+                Err(Error::UnsupportedVersion),
+            ));
+        }
+    }
 }
