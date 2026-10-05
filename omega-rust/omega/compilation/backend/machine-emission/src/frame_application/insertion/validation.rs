@@ -157,10 +157,9 @@ fn validate_function(
                 source_row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
-            ) {
-                if index + 1 != source_block.instructions.len() || source_row.bytes.is_empty() {
-                    return Err(FrameApplicationError::MissingFinalReturn(source.machine));
-                }
+            ) && (index + 1 != source_block.instructions.len() || source_row.bytes.is_empty())
+            {
+                return Err(FrameApplicationError::MissingFinalReturn(source.machine));
             }
             if let FunctionFragmentControlProvenance::Return { psi_return_edge } =
                 source_row.control

@@ -77,7 +77,7 @@ helper that passes does not close an item.
   do not invent a new language decision to justify keeping it open.
 
 - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY)
-  Finish UEFI execution and alternate accepted-contract coverage after exact
+  Finish alternate accepted-contract coverage after exact
   [target-slot](wiki/spec/build/entry_roots.md#slots) selection.
   - The slot now selects its bundled source owner or explicit accepted
     package/declaration binding in
@@ -87,12 +87,14 @@ helper that passes does not close an item.
     neither shadow the selection nor create another candidate.
   - On macOS ARM64, `omega run tests/omega/pass/build/entry_schema_same_leaf_exit/main.omg`
     now exits 0; base `199028b84b4` rejected the same program for two loaded
-    `MacosApplication` declarations. `pass/build/uefi_entry_schema_same_leaf`
-    now reaches `Selection(Legalization(SourceCustodyMismatch))` at
-    `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/aggregate_results.rs::header`.
-    Base `199028b84b4` produces that same backend failure when the unrelated
-    declarations are renamed. Fix that producer/consumer mismatch, keeping
-    the authored image/storage roots; do not add a source-shape exception.
+    `MacosApplication` declarations. Rebased onto `4939829df0e`, this repair on macOS ARM64:
+    `python3 tools/corpus_gate.py --native --filter build/uefi_entry_schema_same_leaf,control_flow/nonreturning_callee_exit`
+    produces the UEFI artifact with its authored image/storage roots and runs
+    the hosted non-returning-callee witness with exit 0. Aggregate legalization
+    retains admitted content claims; machine-emission accepts an empty exit
+    roster without inventing a return or frame epilogue. UEFI execution was
+    not exercised on this host. The remaining acceptance here is the alternate
+    accepted-contract customer below, not another source-shape lowering path.
     `pass/build/uefi_os_handoff_invocation` retains its separate omitted
     `UefiOsHandoffCycle::acquire` lowering dependency.
   - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier
