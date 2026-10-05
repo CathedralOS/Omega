@@ -168,13 +168,10 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
-        let (authored_predicate, operand) = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operands(
+        let operand = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operand(
             self.checked,
             source_expression,
         )?;
-        if authored_predicate != predicate {
-            return unsupported("byte predicate changed its declared predicate");
-        }
         let mut range_slot = None;
         let private_bindings;
         let (bindings, root, path) = if let Some(range) = super::subslices::range(subject) {

@@ -52,30 +52,6 @@ pub(crate) fn existing_literal_view_type(
     Ok(declaration.id)
 }
 
-/// The schedule coordinate of a completed call consumer. Descriptor sources
-/// keep the authored expression; owned snapshots retain the occurrence inline.
-pub(crate) fn completed_call_binding(
-    store: &checked_trees::CheckedByteSequenceStorePlan,
-    state: symbols::SymbolHandle,
-) -> Result<Option<u32>, LoweringError> {
-    if let Some(binding) = store.value.completed_call_binding_ordinal() {
-        match store.value.nodes.get(store.value.root) {
-            ByteValue::CallResult {
-                state: source,
-                statement_index,
-                ..
-            } if *source == state && *statement_index == store.statement_index => {}
-            ByteValue::Descriptor { source, .. }
-                if source.path.is_empty()
-                    && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow => {}
-            _ => return unsupported("byte store changed its completed call coordinate"),
-        }
-        Ok(Some(binding))
-    } else {
-        Ok(None)
-    }
-}
-
 /// Rejoin a retained result ordinal to the already emitted authored call.
 /// Carrier shape and the permission to consume it remain the caller's checks.
 pub(crate) fn completed_call_result(

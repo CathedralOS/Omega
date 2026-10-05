@@ -753,9 +753,6 @@ fn lower_value(
                     "representation view store's scalar result is not the latest value",
                 );
             }
-            if values[position].scalar_type != view_scalar {
-                return unsupported("representation view store's scalar result changed its type");
-            }
             Ok(LoweredDirectExpression::Local {
                 position,
                 scalar_type: view_scalar,

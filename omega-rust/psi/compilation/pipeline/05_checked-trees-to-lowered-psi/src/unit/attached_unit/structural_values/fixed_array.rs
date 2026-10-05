@@ -6,8 +6,7 @@
 use super::super::{
     LoweringError, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, allocate_dense, lookup_type_id, place_id,
-    unsupported,
+    StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
 };
 use super::emission;
 use checked_trees::CheckedStructuralValueHandle;
@@ -23,12 +22,9 @@ impl emission::Emission<'_, '_, '_> {
             .iter()
             .find(|declaration| declaration.id == self.structural_type)
             .ok_or(LoweringError::Unsupported("fixed array carrier is missing"))?;
-        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
             return unsupported("fixed array literal has a nonarray carrier");
         };
-        if u64::try_from(elements.len()).ok() != Some(length) {
-            return unsupported("fixed array literal changed its declared extent");
-        }
         let reference = self
             .checked
             .typed
@@ -42,29 +38,6 @@ impl emission::Emission<'_, '_, '_> {
             return unsupported("fixed array source has a nonarray carrier");
         };
         let element_reference = *element_type;
-        let element_is_reference = self.structural_types.iter().any(|declaration| {
-            declaration.id == element
-                && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        });
-        let element_carrier = if element_is_reference {
-            super::super::structural_carrier_type(self.checked, element_reference)?
-        } else {
-            self.checked
-                .typed
-                .unwrapped_type_reference(element_reference)
-                .ok_or(LoweringError::Unsupported(
-                    "fixed array element carrier is missing",
-                ))?
-        };
-        if lookup_type_id(
-            self.type_ids,
-            self.checked
-                .normalized_type_identity(element_carrier)
-                .as_str(),
-        )? != element
-        {
-            return unsupported("fixed array element changed its exact carrier");
-        }
         let element_multiplicity = match validation::reference_result_custody::result_multiplicity(
             &self.checked.typed,
             element_reference,

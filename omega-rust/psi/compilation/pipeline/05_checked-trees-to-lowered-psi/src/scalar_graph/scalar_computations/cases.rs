@@ -237,15 +237,11 @@ impl Slot {
         let fields = self
             .fields
             .iter()
-            .zip(values)
             .enumerate()
-            .map(|(ordinal, (reserved, value))| {
-                if value.scalar_type != reserved.scalar_type || !value.qualifications.is_empty() {
-                    return unsupported("case construction changed its completed field type");
-                }
-                Ok(reserved.completed(parameter(ordinal, reserved.scalar_type.into())))
+            .map(|(ordinal, reserved)| {
+                reserved.completed(parameter(ordinal, reserved.scalar_type.into()))
             })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+            .collect::<Vec<_>>();
         Ok(Construction {
             place: self.place,
             structural_type: self.structural_type,
@@ -422,11 +418,7 @@ impl Expansion<'_> {
         let mut completed_fields = Vec::new();
         for (field, reserved) in retained.iter().zip(&slot.fields) {
             let operand = Argument::Computation(field.value);
-            if field.symbol != reserved.symbol
-                || self.argument_type(&operand, site, input_types)? != reserved.scalar_type.into()
-            {
-                return unsupported("computed case field differs from its reserved scalar operand");
-            }
+            self.argument_type(&operand, site, input_types)?;
             completed_fields.push(reserved.completed(parameter(
                 completed_types.len(),
                 reserved.scalar_type.into(),

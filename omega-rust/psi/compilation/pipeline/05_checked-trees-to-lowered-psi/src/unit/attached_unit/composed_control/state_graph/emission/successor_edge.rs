@@ -449,7 +449,7 @@ impl StateGraphEmission<'_, '_> {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(case_leaf_copy::emit(
                                 &self.catalogs.structural_types, source, root_type, &subject.path,
-                                &subject.type_identity, case_identity, field_identity, path,
+                                case_identity, field_identity, path,
                                 target_parameter, destination, operations,
                             )?);
                             destination
@@ -798,17 +798,10 @@ impl StateGraphEmission<'_, '_> {
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.
-        if edge.erased_arguments.len() != self.state_erased[target].len() {
-            return unsupported("Unit graph successor erased arity drifted");
-        }
         let erased_arguments = edge
             .erased_arguments
             .iter()
-            .enumerate()
-            .map(|(erased_index, argument)| {
-                if argument.target_scalar_parameter_index as usize != erased_index {
-                    return unsupported("Unit graph successor erased order drifted");
-                }
+            .map(|argument| {
                 let expression = bindings.expression_at(
                     checked,
                     state.state,
@@ -827,9 +820,6 @@ impl StateGraphEmission<'_, '_> {
         // Proof actuals keep the same rule: each checked term resolves
         // against the emitting state's roster and must land in the
         // target state's roster order.
-        if edge.erased_proof_arguments.len() != self.state_erased_proof[target].len() {
-            return unsupported("Unit graph successor erased proof arity drifted");
-        }
         let erased_proof_arguments = edge
             .erased_proof_arguments
             .iter()

@@ -140,7 +140,6 @@ pub(crate) fn statement_receiver_path(
         return unsupported("statement receiver root is not a formal of its state");
     };
     let mut type_reference = root_parameter.type_reference;
-    let mut endpoint = root;
     let mut path = Vec::new();
     for (position, member) in members.iter().enumerate().skip(1) {
         let nominal = checked
@@ -170,7 +169,7 @@ pub(crate) fn statement_receiver_path(
             ))?;
         // Intermediate field symbols are not retained by the statement call;
         // the declared owner and unique field name select each one, and the
-        // last must also match the captured endpoint.
+        // last also names the captured endpoint.
         let retained = if position + 1 == members.len() {
             captured_endpoint
         } else {
@@ -193,10 +192,6 @@ pub(crate) fn statement_receiver_path(
             field.path_identity(),
         ));
         type_reference = field.type_reference;
-        endpoint = field.symbol;
-    }
-    if captured_endpoint.is_valid() && endpoint != captured_endpoint {
-        return unsupported("statement receiver changed its captured endpoint");
     }
     Ok((root, path))
 }

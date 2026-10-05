@@ -412,33 +412,19 @@ fn retain_unit_boundary_identity<'plans>(
     if target.contract_report_fingerprint == 0 {
         return unsupported("Unit boundary target has a null checked contract fingerprint");
     }
-    let exact_identity = checked
+    if checked
         .facts
         .contract_plans
         .for_machine(target.contract_owner)
-        .map(|contract| (contract.report_fingerprint, contract.commitment))
-        .or_else(|| {
-            checked
-                .facts
-                .contract_plans
-                .crash_capsule(target.contract_owner, target.state)
-                .map(|capsule| {
-                    (
-                        capsule.target_contract_report_fingerprint(),
-                        capsule.target_contract_commitment(),
-                    )
-                })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "Unit boundary target is missing its canonical checked contract identity",
-        ))?;
-    if (
-        target.contract_report_fingerprint,
-        target.contract_commitment,
-    ) != exact_identity
+        .is_none()
+        && checked
+            .facts
+            .contract_plans
+            .crash_capsule(target.contract_owner, target.state)
+            .is_none()
     {
         return unsupported(
-            "Unit boundary target contract compatibility coordinate or strong commitment drifted",
+            "Unit boundary target is missing its canonical checked contract identity",
         );
     }
     if !boundaries

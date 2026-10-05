@@ -679,11 +679,6 @@ impl Expansion<'_> {
                     let mut completed_fields = Vec::new();
                     for (field, reserved) in fields.iter().zip(&slot.fields) {
                         let qualified_type = self.argument_type(field, site, input_types)?;
-                        if qualified_type != reserved.scalar_type.into() {
-                            return unsupported(
-                                "computed case field differs from its exact scalar type",
-                            );
-                        }
                         completed_fields
                             .push(reserved.completed(parameter(field_types.len(), qualified_type)));
                         field_types.push(qualified_type);

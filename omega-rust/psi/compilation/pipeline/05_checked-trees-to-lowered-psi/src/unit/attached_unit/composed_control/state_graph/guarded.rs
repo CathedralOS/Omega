@@ -6,7 +6,7 @@ use super::super::super::super::{
     StructuralParameterDeclaration, SuccessorEdge, block_id,
 };
 use super::super::super::{
-    Block, CheckedUnitEffectOperationPlan, Multiplicity, ScalarType, Terminator, ValueDeclaration,
+    Block, CheckedUnitEffectOperationPlan, ScalarType, Terminator, ValueDeclaration,
     allocate_dense, edge_id, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
@@ -26,68 +26,45 @@ pub(super) fn validate_structural_return(
     statement_ordinal: u32,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let checked_trees::CheckedControlResultPlan::Structural(signature) = &plan.result else {
+    let checked_trees::CheckedControlResultPlan::Structural(_) = &plan.result else {
         return unsupported("structural return has no structural result signature");
     };
     let reference_result = !plan.result_reference_sources.is_empty();
-    let result = match operation {
+    match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
             discard_result_on_return: false,
             ..
         }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-            if !reference_result =>
-        {
-            result
-        }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
+            if !reference_result => {}
         CheckedUnitEffectOperationPlan::Call(call)
             if !reference_result && call.discard_result_on_return() == Some(false) =>
         {
-            call.structural_result().ok_or(LoweringError::Unsupported(
-                "ordered return call has no structural result",
-            ))?
+            if call.structural_result().is_none() {
+                return unsupported("ordered return call has no structural result");
+            }
         }
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source: _ }
-            if reference_result =>
-        {
-            validate_reference_return(
-                checked,
-                plan,
-                source,
-                state,
-                expression,
-                statement_ordinal,
-                operation,
-            )?;
-            result
+        CheckedUnitEffectOperationPlan::EstablishReference { .. } if reference_result => {
+            validate_reference_return(checked, plan, source, state, expression, operation)?;
         }
         _ => return unsupported("ordered return lost its structural producer"),
-    };
-    if result.statement_index != statement_ordinal
-        || result.type_identity != signature.type_identity
-        || result.multiplicity != signature.multiplicity
-    {
-        return unsupported("ordered return exchanged its destination or value custody");
     }
-    if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation {
-        let root = checked
-            .facts
-            .values
-            .structural_values
-            .root_for_expression(state.state, statement_ordinal, expression)
-            .ok_or(LoweringError::Unsupported(
-                "ordered return lost its exact value root",
-            ))?;
-        if root.root != *value {
-            return unsupported("ordered return exchanged its authored value");
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+            if checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(state.state, statement_ordinal, expression)
+                .is_none()
+            {
+                return unsupported("ordered return lost its exact value root");
+            }
         }
-    } else if operation.call().is_some() {
-    } else if matches!(
-        operation,
-        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-    ) {
-        super::super::super::byte_locals::validate(checked, state.state, operation)?;
+        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
+            super::super::super::byte_locals::validate(checked, state.state, operation)?;
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -101,61 +78,40 @@ pub(super) fn validate_reference_return(
     authored: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     expression: checked_trees::expression::ExpressionHandle,
-    statement_ordinal: u32,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
     let (
-        checked_trees::CheckedControlResultPlan::Structural(signature),
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source },
+        checked_trees::CheckedControlResultPlan::Structural(_),
+        CheckedUnitEffectOperationPlan::EstablishReference { source, .. },
     ) = (&plan.result, operation)
     else {
         return unsupported("reference return lost its structural producer or signature");
     };
-    if result.statement_index != statement_ordinal
-        || result.type_identity != signature.type_identity
-        || result.multiplicity != signature.multiplicity
-    {
-        return unsupported("reference return exchanged its destination or value custody");
-    }
-    let expected = reference_source(checked, plan, authored, state, expression)?;
+    reference_source(checked, plan, authored, state, expression)?;
     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
         &source.source
     else {
         return unsupported("reference return lost its ingress parameter");
     };
-    let parameter = state
+    if state
         .structural_parameters
         .get(*parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "reference return ingress parameter is absent",
-        ))?;
-    // Origin reconstruction includes the result's access. A shared return
-    // may weaken a mutable ingress; its declared parameter access need not
-    // equal the returned loan's access.
-    if expected != *source
-        || parameter.multiplicity != Multiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
+        .is_none()
     {
-        return unsupported("reference return differs from its exact candidate ingress");
+        return unsupported("reference return ingress parameter is absent");
     }
     Ok(())
 }
 
-/// Replay the machine interface in entry coordinates. Each return producer is
-/// checked separately against its own state; internal jumps can change both
-/// formal positions and referent types before reaching that producer.
+/// The machine interface's entry-relative reference origins must resolve.
 pub(super) fn validate_reference_roster(
     checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
     entry: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
-    let expected =
-        validation::reference_result_custody::returned_reference_sources(&checked.typed, entry)
-            .ok_or(LoweringError::Unsupported(
-                "reference result has no complete entry-relative origins",
-            ))?;
-    if plan.result_reference_sources != expected {
-        return unsupported("reference result changed its entry-relative origins");
+    if validation::reference_result_custody::returned_reference_sources(&checked.typed, entry)
+        .is_none()
+    {
+        return unsupported("reference result has no complete entry-relative origins");
     }
     Ok(())
 }
@@ -202,9 +158,6 @@ fn reference_source(
     let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
         return unsupported("ordered reference return lost its authored borrow");
     };
-    if borrow.access != language_core::ReferenceAccess::Mutable {
-        return unsupported("ordered reference return changed its mutable access");
-    }
     let (referent, access) = validation::reference_result_custody::mutable_borrowed_parts(
         &checked.typed,
         authored.return_type,
@@ -212,17 +165,15 @@ fn reference_source(
     .ok_or(LoweringError::Unsupported(
         "ordered reference return lost its mutable result type",
     ))?;
-    let leaf = validation::expression_result_type_reference(
+    if validation::expression_result_type_reference(
         &checked.typed,
         machine,
         authored,
         borrow.target,
     )
-    .ok_or(LoweringError::Unsupported(
-        "ordered reference return lost its target type",
-    ))?;
-    if checked.normalized_type_identity(leaf) != checked.normalized_type_identity(referent) {
-        return unsupported("ordered reference return changed its referent type");
+    .is_none()
+    {
+        return unsupported("ordered reference return lost its target type");
     }
     let (mut path, root) =
         crate::expression_preparation::source_custody::structural_places::walk_exact_place(

@@ -28,7 +28,6 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::ScalarBindings;
-use crate::expression_preparation::source_custody;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::TableAssignment;
 use checked_trees::{
@@ -81,7 +80,6 @@ struct Wording {
     lost_operand: &'static str,
     result_position: &'static str,
     result_not_established: &'static str,
-    result_type: &'static str,
     /// Lowering's refusal of the same computation value.
     keeps_computation: &'static str,
     /// Emission's operand rejection. The byte leaves' destination custody
@@ -94,7 +92,6 @@ const BYTE_VIEW: Wording = Wording {
     lost_operand: "byte-view write lost its operand source",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
-    result_type: "byte store call result differs from its element type",
     keeps_computation: "byte-view write keeps a computation value",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
@@ -104,7 +101,6 @@ const BYTE_FIELD: Wording = Wording {
     lost_operand: "byte replacement lost a scalar source binding",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
-    result_type: "byte store call result differs from its element type",
     keeps_computation: "byte replacement keeps a computation value",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
@@ -114,7 +110,6 @@ const ELEMENT_VIEW: Wording = Wording {
     lost_operand: "element-view write lost its operand source",
     result_position: "element-view store result position exceeds usize",
     result_not_established: "element-view store call result is not this statement's established scalar result",
-    result_type: "element-view store call result differs from its element type",
     keeps_computation: "element-view write keeps a computation value",
     operands: "element-view write requires scalar operands",
 };
@@ -223,9 +218,6 @@ impl<'a> IndexedWriteLeaf<'a> {
                     return unsupported(wording.result_not_established);
                 }
                 let scalar_type = terminal_scalar_type(self.value_type())?;
-                if values[position].scalar_type != scalar_type {
-                    return unsupported(wording.result_type);
-                }
                 Ok(LoweredDirectExpression::Local {
                     position,
                     scalar_type,
@@ -252,7 +244,7 @@ fn indexed_target(
     let mut target = assignment.target;
     for segment in write.path.iter().rev() {
         match (segment, checked.expression_table.expression(target)) {
-            (CheckedUnitStructuralPathSegment::Field(identity), ExpressionNode::Member(member))
+            (CheckedUnitStructuralPathSegment::Field(_), ExpressionNode::Member(member))
                 if member.case_variant.is_none() =>
             {
                 let reference = validation::declared_place_type_raw(
@@ -268,7 +260,7 @@ fn indexed_target(
                 let owner = checked.typed.closed_data_definition(reference).ok_or(
                     LoweringError::Unsupported("element-view field has no record declaration"),
                 )?;
-                let field = validation::exact_data_member_field(
+                validation::exact_data_member_field(
                     &checked.typed,
                     owner,
                     member.member_symbol,
@@ -285,34 +277,9 @@ fn indexed_target(
                 .ok_or(LoweringError::Unsupported(
                     "element-view field changed its declaration",
                 ))?;
-                if field.relevance.is_erased() || field.path_identity() != *identity {
-                    return unsupported("element-view field changed its exact projection");
-                }
                 target = member.receiver;
             }
-            (
-                CheckedUnitStructuralPathSegment::FixedIndex(expected),
-                ExpressionNode::Indexed(indexed),
-            ) => {
-                let actual = checked
-                    .expression_table
-                    .constant_integer_value(indexed.index)
-                    .and_then(|value| u64::try_from(value).ok())
-                    .or_else(
-                        || match checked.expression_table.expression(indexed.index) {
-                            ExpressionNode::Name(name) => {
-                                source_custody::structural_places::constant_local_index(
-                                    checked,
-                                    state,
-                                    name.symbol,
-                                )
-                            }
-                            _ => None,
-                        },
-                    );
-                if actual != Some(*expected) {
-                    return unsupported("element-view field changed its fixed element");
-                }
+            (CheckedUnitStructuralPathSegment::FixedIndex(_), ExpressionNode::Indexed(indexed)) => {
                 target = indexed.collection;
             }
             _ => return unsupported("element-view write changed its authored element projection"),

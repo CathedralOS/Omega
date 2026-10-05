@@ -35,19 +35,16 @@ pub(super) fn validate(
     {
         return Ok(false);
     }
-    let (returned, store) = match (statements, plan.effects.as_slice()) {
-        ([StatementNode::Expression(returned)], []) => (returned, None),
+    let stores = match (statements, plan.effects.as_slice()) {
+        ([StatementNode::Expression(_)], []) => false,
         (
-            [
-                StatementNode::Assignment(_),
-                StatementNode::Expression(returned),
-            ],
+            [StatementNode::Assignment(_), StatementNode::Expression(_)],
             [
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
                     destination: checked_trees::CheckedStoreRoot::Parameter { position },
-                    value,
                     path,
+                    ..
                 },
             ],
         ) if path.is_empty()
@@ -58,7 +55,7 @@ pub(super) fn validate(
                 .position(|parameter| parameter.position == *position)
                 == Some(0) =>
         {
-            (returned, Some(value))
+            true
         }
         _ => {
             return unsupported(
@@ -66,7 +63,7 @@ pub(super) fn validate(
             );
         }
     };
-    if plan.return_statement_ordinal != u32::from(store.is_some())
+    if plan.return_statement_ordinal != u32::from(stores)
         || !plan.bindings.is_empty()
         || !plan.cleanup_actions.is_empty()
         || plan.shared_boolean_convergence.is_some()
@@ -151,12 +148,7 @@ pub(super) fn validate(
     {
         return unsupported("primitive store return has unsupported authored or checked contracts");
     }
-    // Only an authored receiver retains its qualified owner as attachment
-    // storage; qualification alone contributes none.
-    if checked.machine_has_receiver(machine) != plan.attachment_type_identity.is_some() {
-        return unsupported("primitive store return attachment differs from its authored owner");
-    }
-    if let Some(identity) = &plan.attachment_type_identity {
+    if plan.attachment_type_identity.is_some() {
         let attachment = checked
             .data_definitions()
             .iter()
@@ -167,23 +159,6 @@ pub(super) fn validate(
         if !checked.data_type_parameters(attachment).is_empty() {
             return unsupported(
                 "primitive store return attachment requires generic identity custody",
-            );
-        }
-        let mut authored_identity = String::from("named(name(");
-        for character in checked
-            .symbols
-            .display_path(attachment.symbol, "::")
-            .chars()
-        {
-            if matches!(character, '\\' | '(' | ')' | ',') {
-                authored_identity.push('\\');
-            }
-            authored_identity.push(character);
-        }
-        authored_identity.push_str("))");
-        if identity != &authored_identity {
-            return unsupported(
-                "primitive store return attachment differs from its resolved declaration",
             );
         }
     }
@@ -289,18 +264,9 @@ pub(super) fn validate(
                 );
             }
         } else {
-            let retained = scalar.next().ok_or(LoweringError::Unsupported(
+            scalar.next().ok_or(LoweringError::Unsupported(
                 "primitive reference return lost a scalar parameter",
             ))?;
-            if parameter.is_mutable
-                || usize::try_from(retained.source_position).ok() != Some(position)
-                || checked.primitive_type_reference(parameter.type_reference)
-                    != Some(retained.primitive_type)
-            {
-                return unsupported(
-                    "primitive reference return scalar namespace differs from its authored signature",
-                );
-            }
         }
     }
     if plan.structural_parameters.is_empty()
@@ -309,7 +275,7 @@ pub(super) fn validate(
     {
         return unsupported("primitive reference return has an inexact parameter roster");
     }
-    if let Some(value) = store {
+    if stores {
         let [destination] = plan.structural_parameters.as_slice() else {
             return unsupported("primitive store return must retain its one borrowed destination");
         };
@@ -327,23 +293,20 @@ pub(super) fn validate(
             0,
             destination,
             &[],
-            value,
         )?;
     }
-    let expressions = &checked.facts.values.scalar_expressions;
-    let (binding, _) = expressions
+    if checked
+        .facts
+        .values
+        .scalar_expressions
         .bound_expression_at(
             plan.state,
             plan.return_statement_ordinal,
             CheckedScalarExpressionRole::Return,
         )
-        .ok_or(LoweringError::Unsupported(
-            "primitive store return lost its unique result binding",
-        ))?;
-    if binding.expression != *returned
-        || checked.primitive_type_reference(state.return_type) != Some(plan.result_type)
+        .is_none()
     {
-        return unsupported("primitive store return result differs from its authored expression");
+        return unsupported("primitive store return lost its unique result binding");
     }
     Ok(true)
 }

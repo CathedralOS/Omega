@@ -20,7 +20,6 @@ use crate::emission::runtime_elements::ProjectionStep;
 pub(crate) struct Destination {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<ProjectionStep>,
-    pub(crate) scalar_type: ScalarType,
 }
 
 pub(crate) fn parameter_destination(
@@ -37,11 +36,10 @@ pub(crate) fn parameter_destination(
     {
         return unsupported("primitive store parameter lost its exclusive custody");
     }
-    let (path, scalar_type) = lower_destination_path(parameter.structural_type, path, types)?;
+    let (path, _) = lower_destination_path(parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
         path,
-        scalar_type,
     })
 }
 
@@ -94,9 +92,6 @@ pub(crate) fn emit_assignment(
         operations,
         calls,
     )?;
-    if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
-        return unsupported("primitive store RHS differs from its destination carrier");
-    }
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         destination: destination.place,
         path: super::runtime_elements::complete_path(destination.path, indexes, calls)?,
@@ -110,48 +105,25 @@ pub(crate) fn validate_assignment(
     statement_index: u32,
     destination: &CheckedUnitStructuralParameterPlan,
     path: &[CheckedUnitStructuralPathSegment],
-    value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
     let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    let parameter = checked
+    if checked
         .state_parameters(state)
         .get(destination.position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "primitive store lost its authored destination",
-        ))?;
-    validate_symbol_assignment(
-        checked,
-        state_symbol,
-        statement_index,
-        parameter.symbol,
-        path,
-        value,
-    )
+        .is_none()
+    {
+        return unsupported("primitive store lost its authored destination");
+    }
+    validate_symbol_assignment(checked, state_symbol, statement_index, path)
 }
 
 pub(crate) fn validate_symbol_assignment(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: u32,
-    destination: symbols::SymbolHandle,
     path: &[CheckedUnitStructuralPathSegment],
-    value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
-    let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
-    if !destination.is_valid() || target.root != destination {
-        return unsupported("primitive store destination differs from its authored parameter");
-    }
-    match value_role_at(checked, state_symbol, assignment, &target.path, path)? {
-        CheckedScalarExpressionRole::AssignmentValue => Ok(()),
-        role => validate_array_element_value(
-            checked,
-            state_symbol,
-            statement_index,
-            assignment,
-            role,
-            value,
-        ),
-    }
+    value_role(checked, state_symbol, statement_index, path).map(|_| ())
 }
 
 /// Where a primitive store's value was checked. A store whose path is its
@@ -447,58 +419,6 @@ fn value_role_at(
         source: checked_trees::CheckedArrayConstructionSource::Statement,
         element_ordinal: u32::try_from(ordinal).map_err(|_| mismatch())?,
     })
-}
-
-/// The authored-RHS custody of one element store of a whole array-literal
-/// replacement: the store's value is the element's own checked row, bound
-/// to exactly that authored element of the literal.
-fn validate_array_element_value(
-    checked: &CheckedTrees,
-    state_symbol: symbols::SymbolHandle,
-    statement_index: u32,
-    assignment: &checked_trees::statement::TableAssignment,
-    role: CheckedScalarExpressionRole,
-    value: &checked_trees::CheckedCallScalarArgument,
-) -> Result<(), LoweringError> {
-    let mismatch =
-        || LoweringError::Unsupported("array element store differs from its authored literal");
-    let CheckedScalarExpressionRole::ArrayElement {
-        element_ordinal, ..
-    } = role
-    else {
-        return Err(mismatch());
-    };
-    let (machine, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-    let expected = validation::declared_place_type_raw(
-        &checked.typed,
-        machine,
-        Some(state),
-        assignment.target,
-    )
-    .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
-    .ok_or_else(mismatch)?;
-    let element = validation::scalar_array_elements(
-        &checked.typed,
-        machine.symbol,
-        assignment.value,
-        expected,
-    )
-    .and_then(|array| array.elements.get(element_ordinal as usize).copied())
-    .map(|(element, _)| element)
-    .ok_or_else(mismatch)?;
-    let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
-        return Err(mismatch());
-    };
-    let (binding, expression) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(state_symbol, statement_index, role)
-        .ok_or_else(mismatch)?;
-    if binding.expression != element || binding.destination.is_valid() || expression != value {
-        return Err(mismatch());
-    }
-    Ok(())
 }
 
 pub(crate) fn emit(

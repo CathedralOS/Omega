@@ -186,37 +186,31 @@ impl Evaluation {
         ))?;
         let scalar_type = terminal_scalar_type(primitive_type)?;
         match value {
-            CheckedCallScalarArgument::Pure(value) => {
-                let (_, retained) = checked
+            CheckedCallScalarArgument::Pure(_) => {
+                if checked
                     .facts
                     .values
                     .scalar_expressions
                     .bound_expression_at(state, statement, role)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar value lost its pure source binding",
-                    ))?;
-                if retained != value {
-                    return unsupported("scalar value differs from its retained source binding");
+                    .is_none()
+                {
+                    return unsupported("scalar value lost its pure source binding");
                 }
             }
-            CheckedCallScalarArgument::Computation(handle) => {
-                let mut roots = checked
+            CheckedCallScalarArgument::Computation(_) => {
+                if !checked
                     .facts
                     .values
                     .scalar_computations
                     .roots
                     .iter()
-                    .map(|(_, root)| root)
-                    .filter(|root| {
+                    .any(|(_, root)| {
                         root.state == state
                             && root.statement_ordinal == statement
                             && root.role == role
-                    });
-                let root = roots.next().ok_or(LoweringError::Unsupported(
-                    "scalar value lost its computation root",
-                ))?;
-                if roots.next().is_some() || root.machine != machine || root.root != *handle {
-                    return unsupported("scalar value differs from its computation root");
+                    })
+                {
+                    return unsupported("scalar value lost its computation root");
                 }
             }
         }
@@ -245,9 +239,6 @@ impl Evaluation {
             .collect::<Vec<_>>();
         if let CheckedCallScalarArgument::Pure(value) = value {
             let expression = bindings.expression(value)?;
-            if expression.scalar_type() != scalar_type {
-                return unsupported("scalar value type differs from its destination carrier");
-            }
             if !direct_expression_contains_short_circuit(&expression) {
                 validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                 return Ok(ValueDeclaration {

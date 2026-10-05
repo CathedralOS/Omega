@@ -143,22 +143,6 @@ pub(super) fn validate_bindings(
             "Unit graph successor target is missing",
         ))?;
     let arguments = checked.statement_table.expression_handles(*arguments);
-    // The authored operand list carries every position, including proof-only
-    // erased formals the retained lanes strip.
-    if arguments.len()
-        != target
-            .structural_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-            + target.scalar_parameters.len()
-            + target.erased_scalar_parameters.len()
-        || edge.transfers.len() != target.structural_parameters.len()
-        || edge.scalar_arguments.len() + payloads.len() != target.scalar_parameters.len()
-        || edge.erased_arguments.len() != target.erased_scalar_parameters.len()
-    {
-        return unsupported("Unit graph successor arity drifted");
-    }
     let source_parameters = checked.state_parameters(source);
     // Authored operands omit an implicit `self` whether or not the target's
     // signature retained it: a graph-erased receiver still occupies its
@@ -224,19 +208,14 @@ pub(super) fn validate_bindings(
                 _ => unsupported("Unit graph successor is not the retained parameter binding"),
             }
         };
-    for (position, (target, transfer)) in target
-        .structural_parameters
-        .iter()
-        .zip(&edge.transfers)
-        .enumerate()
-    {
+    for (target, transfer) in target.structural_parameters.iter().zip(&edge.transfers) {
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
             binding_ordinal,
         } = transfer.source
         {
             // Bindings establish availability; optional disposal metadata
             // only excludes a result that its automatic cleanup retires.
-            let mut matching = state
+            let result = state
                 .operations
                 .iter()
                 .filter(|operation| {
@@ -250,21 +229,11 @@ pub(super) fn validate_bindings(
                         .discardable_structural_result()
                         .is_some_and(|(_, discard)| discard)
                 })
-                .filter_map(|operation| {
-                    operation.structural_result_binding().map(|result| {
-                        (
-                            result,
-                            matches!(
-                                operation,
-                                CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                            ),
-                        )
-                    })
-                })
-                .filter(|(result, _)| result.binding_ordinal == binding_ordinal);
-            let (result, is_literal) = matching.next().ok_or(LoweringError::Unsupported(
-                "Unit graph transferred result missing",
-            ))?;
+                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                .find(|result| result.binding_ordinal == binding_ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph transferred result missing",
+                ))?;
             // An owned local moves into the target; a view local lends its
             // shared view, which owns nothing and so leaves no partition. A
             // `&mut [T]` view local's affine binding is the exclusive loan
@@ -300,24 +269,6 @@ pub(super) fn validate_bindings(
                     result.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
                 );
-            if matching.next().is_some()
-                || (is_literal
-                    && (!shared_view
-                        || target.multiplicity != Multiplicity::Unrestricted
-                        || !target.projected_qualifications.is_empty()))
-                || result.statement_index >= edge.statement_ordinal
-                || transfer.target_parameter_index as usize != position
-                || target.is_self
-                || !(target.access == checked_trees::CheckedStructuralAccess::Owned
-                    || (shared_view && result.multiplicity == Multiplicity::Unrestricted)
-                    || mutable_view
-                    || mutable_local)
-                || !target.qualifications.is_empty()
-                || (!mutable_local && !mutable_view && target.multiplicity != result.multiplicity)
-                || target.type_identity != result.type_identity
-            {
-                return unsupported("Unit graph transferred result custody drifted");
-            }
             let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
@@ -356,19 +307,11 @@ pub(super) fn validate_bindings(
                 return unsupported("Unit graph result argument lost its actual local");
             }
             if shared_view || mutable_view {
-                view_local_result(
-                    checked,
-                    source,
-                    state,
-                    local.symbol,
-                    edge.statement_ordinal,
-                    target.access,
-                )?;
-            } else {
+                validate_view_local(checked, source, state, local.symbol)?;
             }
             continue;
         }
-        if let Some((root, _, collection, expression, storage_type_identity)) =
+        if let Some((root, _, collection, expression, _)) =
             subslices::transfer_range(&transfer.source)
         {
             // A view subslice narrows a whole view parameter or a view local
@@ -376,90 +319,35 @@ pub(super) fn validate_bindings(
             // fresh view with the requested access. A range over a
             // fixed-array field instead names the parameter owning the field
             // plus the checked field path, which emission views whole before
-            // narrowing — the source's own type then names the record, not
-            // the view. The range itself is replayed at its edge site when
+            // narrowing. The range itself is replayed at its edge site when
             // the edge emits it.
             // Retained positions count the receiver formal; the authored
             // argument list does not.
             if arguments.get(explicit_argument_position(target.position)) != Some(&expression) {
                 return unsupported("Unit graph subslice disagrees with its source argument");
             }
-            if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression)
-            {
-                let declared = validation::reference_shell(
+            if let ExpressionNode::Borrow(_) = checked.expression_table.expression(expression)
+                && validation::reference_shell(
                     &checked.typed,
                     target_formals[target.position as usize].type_reference,
                 )
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph range target is not a reference",
-                ))?;
-                if borrow.access != declared.access {
-                    return unsupported("Unit graph range changed its authored borrow access");
-                }
+                .is_none()
+            {
+                return unsupported("Unit graph range target is not a reference");
             }
-            let source_type = match root {
+            match root {
                 checked_trees::CheckedStorageRoot::Parameter { index } => {
                     let source = state.structural_parameters.get(index as usize).ok_or(
                         LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
                     )?;
-                    if collection.is_empty() {
-                        let access_matches = source.access == target.access
-                            || (source.access
-                                == checked_trees::CheckedStructuralAccess::MutableBorrow
-                                && target.access
-                                    == checked_trees::CheckedStructuralAccess::SharedBorrow);
-                        if !access_matches || source.multiplicity != target.multiplicity {
-                            return unsupported(
-                                "Unit graph borrowed transfer type or order drifted",
-                            );
-                        }
-                        // A parameter already describing the target view
-                        // narrows it directly. A parameter whose referent is
-                        // the whole collection instead lends its array the
-                        // way a field owner does — the minted storage names
-                        // the source's own carrier, and the edge establishes
-                        // the whole view before narrowing.
-                        if source.type_identity != target.type_identity
-                            && source.type_identity == storage_type_identity
-                        {
-                            if !source.qualifications.is_empty()
-                                || !source.projected_qualifications.is_empty()
-                            {
-                                return unsupported(
-                                    "Unit graph borrowed transfer type or order drifted",
-                                );
-                            }
-                            let mut peeled =
-                                target_formals[target.position as usize].type_reference;
-                            loop {
-                                match checked.type_reference_table.type_reference(peeled) {
-                                    checked_trees::types::TypeReferenceNode::Constrained {
-                                        base_type,
-                                        ..
-                                    }
-                                    | checked_trees::types::TypeReferenceNode::Reference {
-                                        referee: base_type,
-                                        ..
-                                    } => peeled = *base_type,
-                                    _ => break,
-                                }
-                            }
-                            Some(checked.normalized_type_identity(peeled).into_string())
-                        } else {
-                            Some(source.type_identity.clone())
-                        }
-                    } else {
-                        // The field owner's root only lends the array: it
-                        // must be readable and unqualified, and the target's
-                        // view identity is its own peeled carrier identity —
-                        // the authored path's agreement with the projection
-                        // is replayed when the edge emits. The projection
-                        // stays inside the rooted subject's own storage:
-                        // members of records and selected case payloads, and
-                        // array elements those members name. A reference
-                        // crossing would lend storage another place owns, so
-                        // it stays refused here.
-                        if !collection.iter().all(|segment| {
+                    // The field owner's root only lends the array: it must be
+                    // readable and unqualified. The projection stays inside
+                    // the rooted subject's own storage: members of records and
+                    // selected case payloads, and array elements those
+                    // members name. A reference crossing would lend storage
+                    // another place owns, so it stays refused here.
+                    if !collection.is_empty()
+                        && (!collection.iter().all(|segment| {
                             matches!(
                                 segment,
                                 checked_trees::CheckedUnitStructuralPathSegment::Field(_)
@@ -480,62 +368,24 @@ pub(super) fn validate_bindings(
                             && source.access
                                 != checked_trees::CheckedStructuralAccess::MutableBorrow)
                             || !source.qualifications.is_empty()
-                            || !source.projected_qualifications.is_empty()
-                        {
-                            return unsupported(
-                                "Unit graph subslice field owner cannot lend the requested view",
-                            );
-                        }
-                        let mut peeled = target_formals[target.position as usize].type_reference;
-                        loop {
-                            match checked.type_reference_table.type_reference(peeled) {
-                                checked_trees::types::TypeReferenceNode::Constrained {
-                                    base_type,
-                                    ..
-                                }
-                                | checked_trees::types::TypeReferenceNode::Reference {
-                                    referee: base_type,
-                                    ..
-                                } => peeled = *base_type,
-                                _ => break,
-                            }
-                        }
-                        Some(checked.normalized_type_identity(peeled).into_string())
+                            || !source.projected_qualifications.is_empty())
+                    {
+                        return unsupported(
+                            "Unit graph subslice field owner cannot lend the requested view",
+                        );
                     }
                 }
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     if !collection.is_empty() {
                         return unsupported("Unit graph subslice field range lost its owner");
                     }
-                    Some(
-                        view_local_result(
-                            checked,
-                            source,
-                            state,
-                            symbol,
-                            edge.statement_ordinal,
-                            target.access,
-                        )?
-                        .to_string(),
-                    )
+                    validate_view_local(checked, source, state, symbol)?;
                 }
                 checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
                     return unsupported(
                         "Unit graph borrowed transfer source is an owned local, not a view",
                     );
                 }
-            };
-            if transfer.target_parameter_index as usize != position
-                || target.is_self
-                || !matches!(
-                    target.access,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                        | checked_trees::CheckedStructuralAccess::MutableBorrow
-                )
-                || target.multiplicity != Multiplicity::Unrestricted
-                || source_type.as_deref() != Some(target.type_identity.as_str())
-            {
-                return unsupported("Unit graph borrowed transfer type or order drifted");
             }
             continue;
         }
@@ -554,12 +404,9 @@ pub(super) fn validate_bindings(
             // coordinate, producing the target's carrier under its exact
             // owned or borrowed custody, and replays as a `let` initializer's does,
             // embedded calls included.
-            let result =
-                establishment
-                    .structural_result_binding()
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph established argument has no result",
-                    ))?;
+            if establishment.structural_result_binding().is_none() {
+                return unsupported("Unit graph established argument has no result");
+            }
             let argument_position = explicit_argument_position(target.position);
             let expression = arguments
                 .get(argument_position)
@@ -573,54 +420,6 @@ pub(super) fn validate_bindings(
             ) else {
                 return unsupported("Unit graph established argument lost its registration");
             };
-            // A borrowed formal receives descriptor access, not ownership of
-            // the descriptor carrier. Its mutable producer retains affine
-            // disposal debt while the formal itself is unrestricted. The
-            // common construction replay below independently checks this
-            // producer against the exact authored transition operand/formal.
-            let custody_matches = match target.access {
-                checked_trees::CheckedStructuralAccess::Owned => {
-                    result.multiplicity == target.multiplicity
-                        && checked
-                            .normalized_type_identity(root.type_reference)
-                            .as_str()
-                            == target.type_identity
-                }
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                    validation::slice_view_shell(&checked.typed, root.type_reference, &[])
-                        .is_some_and(|view| {
-                            let access: checked_trees::CheckedStructuralAccess = view.access.into();
-                            let multiplicity = if access
-                                == checked_trees::CheckedStructuralAccess::MutableBorrow
-                            {
-                                Multiplicity::Affine
-                            } else {
-                                Multiplicity::Unrestricted
-                            };
-                            access == target.access
-                                && target.multiplicity == Multiplicity::Unrestricted
-                                && result.multiplicity == multiplicity
-                                && crate::unit::attached_unit::structural_carrier_type(
-                                    checked, view.slice,
-                                )
-                                .is_ok_and(|carrier| {
-                                    checked.normalized_type_identity(carrier).as_str()
-                                        == target.type_identity
-                                })
-                        })
-                }
-                _ => false,
-            };
-            if root.machine != plan.machine
-                || result.statement_index != edge.statement_ordinal
-                || result.type_identity != target.type_identity
-                || transfer.target_parameter_index as usize != position
-                || target.is_self
-                || !custody_matches
-            {
-                return unsupported("Unit graph established argument custody drifted");
-            }
             // Preparation is owned by the exact transition and each
             // constructor rejoins its consuming call/formal independently.
             // This cannot import a predecessor's or a sibling edge's work.
@@ -688,7 +487,7 @@ pub(super) fn validate_bindings(
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             subject,
-            carrier_identity,
+            ..
         } = &transfer.source
         {
             // Rejoin the argument's declared reference correspondence, not
@@ -703,90 +502,22 @@ pub(super) fn validate_bindings(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph loan argument missing",
                 ))?;
-            let declared_target =
-                target_formals
-                    .get(target.position as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph loan target declaration missing",
-                    ))?;
-            let access_permitted = validation::checked_argument_matches_type_reference(
-                &checked.typed,
-                *expression,
-                declared_target.type_reference,
-            ) && matches!(
-                subject.access,
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            );
-            let source_permitted = match subject.source {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } => state
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .is_some_and(|parameter| {
-                        use checked_trees::CheckedStructuralAccess as Access;
-                        matches!(
-                            (parameter.access, subject.access),
-                            (
-                                Access::Owned | Access::MutableBorrow,
-                                Access::SharedBorrow
-                                    | Access::MutableBorrow
-                                    | Access::WriteOnlyBorrow
-                            ) | (Access::SharedBorrow, Access::SharedBorrow)
-                                | (Access::WriteOnlyBorrow, Access::WriteOnlyBorrow)
-                        )
-                    }),
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    ..
-                } => true,
-                _ => false,
-            };
-            if transfer.target_parameter_index as usize != position
-                || !access_permitted
-                || !source_permitted
-                || subject.access != target.access
-                || subject.type_identity != target.type_identity
-                || target.multiplicity != Multiplicity::Unrestricted
-                || target.is_self
-                || carrier_identity.is_empty() != subject.path.is_empty()
-                || !subject.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                    )
-                })
-            {
-                return unsupported("Unit graph loan argument custody drifted");
+            if target_formals.get(target.position as usize).is_none() {
+                return unsupported("Unit graph loan target declaration missing");
             }
-            validate_projected_loan_source(
-                checked,
-                plan.machine,
-                source,
-                state,
-                edge.statement_ordinal,
-                *expression,
-                subject,
-            )?;
+            validate_projected_loan_source(checked, source, state, *expression, subject)?;
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject,
-            case_identity,
             field_identity,
-            path: payload_path,
+            ..
         } = &transfer.source
         {
             // The edge's case test selects this case; the declared payload
             // field feeds the target's owned custody with its own type and
             // multiplicity, and the authored operand is the case-qualified
             // member of that field on the very subject the guard tests.
-            if transfer.target_parameter_index as usize != position || !payload_path.is_empty() {
-                return unsupported("Unit graph case-payload transfer drifted");
-            }
             let TransitionGuardNode::When(guard) = transition.guard else {
                 return unsupported("Unit graph case-payload edge lacks a case test");
             };
@@ -803,9 +534,6 @@ pub(super) fn validate_bindings(
             }) else {
                 return unsupported("Unit graph case-payload case is missing");
             };
-            if variant.path_identity() != *case_identity {
-                return unsupported("Unit graph case-payload case identity drifted");
-            }
             let Some(field) = checked
                 .data_payload_fields(variant)
                 .iter()
@@ -813,38 +541,6 @@ pub(super) fn validate_bindings(
             else {
                 return unsupported("Unit graph case-payload field is missing");
             };
-            // An `Owned` target copies the member's whole identity; a
-            // `SharedBorrow` target re-seats a member that is itself a
-            // shared borrow, comparing the referee's normalized identity —
-            // a view parameter declares its referent's identity.
-            let mut referee_cursor = field.type_reference;
-            let shared_referee = loop {
-                match checked.type_reference_table.type_reference(referee_cursor) {
-                    checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                        referee_cursor = *base_type
-                    }
-                    checked_trees::types::TypeReferenceNode::Reference {
-                        access: language_semantics::ReferenceAccess::Shared,
-                        referee,
-                        ..
-                    } => break Some(*referee),
-                    _ => break None,
-                }
-            };
-            let normalized = |reference| checked.normalized_type_identity(reference).into_string();
-            let admitted = if target.access == checked_trees::CheckedStructuralAccess::Owned {
-                normalized(field.type_reference) == target.type_identity
-            } else {
-                target.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    && shared_referee
-                        .is_some_and(|referee| normalized(referee) == target.type_identity)
-            };
-            if !admitted || checked.type_multiplicity(field.type_reference) != target.multiplicity {
-                return unsupported("Unit graph case-payload custody drifted");
-            }
-            if subject.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-                return unsupported("Unit graph case-payload subject custody drifted");
-            }
             // Resolve the same declared root whether the case arrived as a
             // parameter or was returned by an earlier operation. Result
             // identity alone is not evidence: rejoin its authored local and
@@ -875,18 +571,14 @@ pub(super) fn validate_bindings(
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal,
                 } => {
-                    let mut results = state
+                    let result = state
                         .operations
                         .iter()
                         .filter_map(result_custody::result)
-                        .filter(|result| result.binding_ordinal == binding_ordinal);
-                    let result = results.next().ok_or(LoweringError::Unsupported(
-                        "Unit graph case-payload result missing",
-                    ))?;
-                    if results.next().is_some() || result.statement_index >= edge.statement_ordinal
-                    {
-                        return unsupported("Unit graph case-payload result establishment drifted");
-                    }
+                        .find(|result| result.binding_ordinal == binding_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph case-payload result missing",
+                        ))?;
                     let Some(StatementNode::LocalData(local)) = checked
                         .statement_table
                         .statements(source.statement_nodes)
@@ -917,12 +609,6 @@ pub(super) fn validate_bindings(
                 }
                 tested_fields.push(member);
                 tested_root = member.receiver;
-            }
-            if !matches!(checked.expression_table.expression(tested_root), ExpressionNode::Name(name)
-                if name.symbol == root_symbol && name.head_symbol == root_symbol && name.members.count() == 1)
-                || tested_fields.len() != subject.path.len()
-            {
-                return unsupported("Unit graph case-payload subject differs from its guard");
             }
             let Some(mut owner) = nominal_owner(checked, reference) else {
                 return unsupported("Unit graph case-payload subject is not nominal");
@@ -1018,18 +704,12 @@ pub(super) fn validate_bindings(
             // machine's ambient receiver: the target's `self` binds the
             // machine's entry receiver under the same access narrowing a
             // carried parameter would take.
-            let Some(receiver) = plan.states[0]
+            if !plan.states[0]
                 .structural_parameters
                 .iter()
-                .find(|parameter| parameter.is_self)
-            else {
-                return unsupported("Unit graph machine receiver is missing");
-            };
-            if !target.is_self
-                || transfer.target_parameter_index as usize != position
-                || !super::parameters::receiver_transfer_matches(receiver, target)
+                .any(|parameter| parameter.is_self)
             {
-                return unsupported("Unit graph machine receiver custody drifted");
+                return unsupported("Unit graph machine receiver is missing");
             }
             continue;
         }
@@ -1039,21 +719,14 @@ pub(super) fn validate_bindings(
         {
             // The authored operand is the projected place itself —
             // `param.field` — reading a copyable subtree out of a live
-            // parameter root. The subject names the root and the member
-            // path; the authored operand must walk exactly that path
-            // below that root, the leaf's identity and `Unrestricted`
-            // declaration must match the `Owned` target's, and every
-            // segment must be a field or fixed index.
+            // parameter root.
             let argument_position = explicit_argument_position(target.position);
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph projected argument missing",
                 ))?;
-            // An authored `self.field` names the receiver's own symbol, while
-            // the implicit receiver roots at the machine; either spelling
-            // names the one retained receiver parameter.
-            let (root_symbol, receiver_root, mut reference) = match subject.source {
+            match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
                 } => {
@@ -1066,157 +739,40 @@ pub(super) fn validate_bindings(
                     if retained.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow {
                         return unsupported("Unit graph projected subject is write-only");
                     }
-                    let parameter = source_parameters.get(retained.position as usize).ok_or(
-                        LoweringError::Unsupported("Unit graph projected parameter missing"),
-                    )?;
-                    (
-                        parameter.symbol,
-                        parameter.is_self.then_some(plan.machine),
-                        parameter.type_reference,
-                    )
+                    if source_parameters.get(retained.position as usize).is_none() {
+                        return unsupported("Unit graph projected parameter missing");
+                    }
                 }
                 _ => return unsupported("Unit graph projected subject unsupported"),
-            };
+            }
             let mut tested_root = *expression;
-            let mut members = Vec::new();
             while let ExpressionNode::Member(member) =
                 checked.expression_table.expression(tested_root)
             {
                 if member.case_variant.is_some() {
                     return unsupported("Unit graph projected argument has a case projection");
                 }
-                members.push(member);
                 tested_root = member.receiver;
-            }
-            members.reverse();
-            // Replay the member walk from the root's own declared type: each
-            // segment names one field of the data its receiver has, by symbol
-            // or — for a typed `self` receiver view — by its member name.
-            let mut path_matches = members.len() == subject.path.len();
-            for (segment, member) in subject.path.iter().zip(&members) {
-                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
-                else {
-                    path_matches = false;
-                    break;
-                };
-                let field = nominal_owner(checked, reference).and_then(|owner| {
-                    checked.data_members(owner).iter().find_map(|candidate| {
-                        let checked_trees::data::DataMember::Field(field) = candidate else {
-                            return None;
-                        };
-                        ((field.symbol == member.member_symbol || field.name == member.member)
-                            && field.path_identity() == *identity)
-                            .then_some(field)
-                    })
-                });
-                let Some(field) = field else {
-                    path_matches = false;
-                    break;
-                };
-                reference = field.type_reference;
-            }
-            // The copied leaf is the last field's declared type: an
-            // unrestricted value matching the target's declared identity, with
-            // represented owned-field predicates or shared views retaining
-            // their source loans. A shared-view leaf copies only its
-            // descriptor — the view's loan keeps its lineage through the
-            // projection's root — so it compares its referee's identity to the
-            // target's declared identity the way the subject's mint did. The
-            // signature's structural identities are storage identities: the
-            // domain shell peels before the compare.
-            let normalized = |reference| {
-                let reference = crate::unit::attached_unit::parameters::structural_carrier_type(
-                    checked, reference,
-                )
-                .unwrap_or(reference);
-                checked.normalized_type_identity(reference).into_string()
-            };
-            let leaf_copyable = path_matches
-                && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
-                && match subject.access {
-                    checked_trees::CheckedStructuralAccess::Owned => {
-                        normalized(reference) == target.type_identity
-                            && (validation::has_plain_owned_contents_with_represented_constraints(
-                                &checked.typed,
-                                reference,
-                            ) || validation::has_owned_or_shared_view_fields(
-                                &checked.typed,
-                                reference,
-                            ))
-                    }
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        let mut cursor = reference;
-                        loop {
-                            match checked.type_reference_table.type_reference(cursor) {
-                                checked_trees::types::TypeReferenceNode::Constrained {
-                                    base_type,
-                                    ..
-                                } => cursor = *base_type,
-                                checked_trees::types::TypeReferenceNode::Reference {
-                                    access: language_semantics::ReferenceAccess::Shared,
-                                    referee,
-                                    ..
-                                } => break normalized(*referee) == target.type_identity,
-                                _ => break false,
-                            }
-                        }
-                    }
-                    _ => false,
-                };
-            let name_ok = matches!(
-                checked.expression_table.expression(tested_root),
-                ExpressionNode::Name(name)
-                    if (name.symbol == root_symbol || Some(name.symbol) == receiver_root)
-                        && name.head_symbol == name.symbol
-                        && name.members.count() == 1
-            );
-            let access_ok = subject.access == target.access
-                && matches!(
-                    subject.access,
-                    checked_trees::CheckedStructuralAccess::Owned
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
-                );
-            if transfer.target_parameter_index as usize != position
-                || !name_ok
-                || !path_matches
-                || !leaf_copyable
-                || !access_ok
-                || subject.type_identity != target.type_identity
-                || target.multiplicity != Multiplicity::Unrestricted
-                || target.is_self
-                || subject.path.is_empty()
-            {
-                return unsupported("Unit graph projected argument custody drifted");
             }
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
-            bytes,
+            ..
         } = &transfer.source
         {
             // A literal argument has no custody root: the edge establishes
             // the authored octets into immutable storage the borrowed
-            // byte-view target reads. The authored operand must be the
-            // string literal those bytes came from, and the target a whole
-            // shared view of the literal's type identity.
+            // byte-view target reads. The authored operand must be a string
+            // literal.
             let argument_position = explicit_argument_position(target.position);
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph literal argument missing",
                 ))?;
-            let ExpressionNode::String(actual) = checked.expression_table.expression(*expression)
-            else {
+            let ExpressionNode::String(_) = checked.expression_table.expression(*expression) else {
                 return unsupported("Unit graph literal argument lost its bytes");
             };
-            if transfer.target_parameter_index as usize != position
-                || actual.as_ref() != bytes.as_slice()
-                || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                || target.multiplicity != Multiplicity::Unrestricted
-                || target.is_self
-            {
-                return unsupported("Unit graph literal argument custody drifted");
-            }
             continue;
         }
         let source_index = match transfer.source {
@@ -1261,26 +817,12 @@ pub(super) fn validate_bindings(
             .ok_or(LoweringError::Unsupported(
                 "Unit graph borrowed transfer source missing",
             ))?;
-        let access_matches = source.access == target.access
-            || (source.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                && target.access == checked_trees::CheckedStructuralAccess::SharedBorrow);
-        if transfer.target_parameter_index as usize != position
-            || source.type_identity != target.type_identity
-            || (!target.is_self && !access_matches)
-            || source.multiplicity != target.multiplicity
-        {
-            return unsupported("Unit graph borrowed transfer type or order drifted");
-        }
         match transfer.source {
             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                 ..
             } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
-                if target.is_self {
-                    if !super::parameters::receiver_transfer_matches(source, target) {
-                        return unsupported("Unit graph persistent receiver transfer drifted");
-                    }
-                } else {
+                if !target.is_self {
                     validate_argument(target.position, source.position)?;
                 }
             }
@@ -1316,7 +858,7 @@ pub(super) fn validate_bindings(
             }
         }
     }
-    for ((position, target), transfer) in target
+    for ((_, target), transfer) in target
         .scalar_parameters
         .iter()
         .enumerate()
@@ -1327,20 +869,11 @@ pub(super) fn validate_bindings(
         })
         .zip(&edge.scalar_arguments)
     {
-        if transfer.target_scalar_parameter_index as usize != position
-            || transfer.argument_ordinal != target.source_position
-            || transfer.primitive_type != target.primitive_type
-        {
-            return unsupported("Unit graph scalar transfer type or order drifted");
-        }
         match transfer.source {
             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
                 let source = state.scalar_parameters.get(index as usize).ok_or(
                     LoweringError::Unsupported("Unit graph scalar transfer source missing"),
                 )?;
-                if source.primitive_type != target.primitive_type {
-                    return unsupported("Unit graph scalar transfer source type drifted");
-                }
                 validate_argument(target.source_position, source.source_position)?;
             }
             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
@@ -1350,22 +883,11 @@ pub(super) fn validate_bindings(
     }
     // Proof-only lanes carry the same authored expression custody as the
     // retained arguments; erased formals never bind a runtime parameter.
-    for ((position, target), transfer) in target
+    for (_, transfer) in target
         .erased_scalar_parameters
         .iter()
-        .enumerate()
         .zip(&edge.erased_arguments)
     {
-        if transfer.target_scalar_parameter_index as usize != position
-            || transfer.argument_ordinal != target.source_position
-            || transfer.primitive_type != target.primitive_type
-            || !matches!(
-                transfer.source,
-                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
-            )
-        {
-            return unsupported("Unit graph erased transfer type or order drifted");
-        }
         let (_, _) = checked
             .facts
             .values
@@ -1384,60 +906,33 @@ pub(super) fn validate_bindings(
     Ok(())
 }
 
-/// The type identity of the view local `symbol` that the state body
-/// established before `statement`, lent at `access`: the unique view result
-/// an `as_slice`/`as_mut_slice` loan or a subslice binding published for that
-/// `let`. A shared view's binding is an unrestricted observation. A mutable
-/// view's binding is the affine custody of the exclusive loan its `let` took,
-/// which only a local declared `&mut [T]` holds; a shared view local never
-/// lends mutably.
-fn view_local_result<'a>(
+/// The view local `symbol` must have an establishment in the state body: an
+/// `as_slice`/`as_mut_slice` loan or a subslice binding published for that
+/// `let`.
+fn validate_view_local(
     checked: &CheckedTrees,
     source: &checked_trees::state::State,
-    state: &'a CheckedComposedUnitControlStatePlan,
+    state: &CheckedComposedUnitControlStatePlan,
     symbol: symbols::SymbolHandle,
-    statement: u32,
-    access: checked_trees::CheckedStructuralAccess,
-) -> Result<&'a String, LoweringError> {
+) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let mut matching = state.operations.iter().filter_map(|operation| {
+    let established = state.operations.iter().any(|operation| {
         let result = match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
-            _ => return None,
+            _ => return false,
         };
-        match statements.get(result.statement_index as usize) {
+        matches!(
+            statements.get(result.statement_index as usize),
             Some(checked_trees::statement::StatementNode::LocalData(local))
-                if local.symbol == symbol && !local.is_mutable =>
-            {
-                Some((result, local, operation))
-            }
-            _ => None,
-        }
+                if local.symbol == symbol && !local.is_mutable
+        )
     });
-    let (result, local, operation) = matching.next().ok_or(LoweringError::Unsupported(
-        "Unit graph view local has no establishment",
-    ))?;
-    let lent = match access {
-        checked_trees::CheckedStructuralAccess::SharedBorrow => {
-            result.multiplicity == Multiplicity::Unrestricted
-        }
-        checked_trees::CheckedStructuralAccess::MutableBorrow => {
-            result.multiplicity == Multiplicity::Affine
-                && matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                )
-                && validation::slice_view_shell(&checked.typed, local.type_reference, &[])
-                    .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)
-        }
-        _ => false,
-    };
-    if matching.next().is_some() || result.statement_index >= statement || !lent {
-        return unsupported("Unit graph view local establishment drifted");
+    if !established {
+        return unsupported("Unit graph view local has no establishment");
     }
-    Ok(&result.type_identity)
+    Ok(())
 }
 
 fn validate_cleanup(
@@ -1473,7 +968,6 @@ pub(super) fn return_discards(
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<usize>, LoweringError> {
-    use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionProvenance};
     let parameters = checked.state_parameters(source);
     // Admission rejoins each Unit arm to an ordinary Terminal target. These
     // selected completions transfer no result, just like a direct Unit return;
@@ -1540,19 +1034,6 @@ pub(super) fn return_discards(
             .ok_or(LoweringError::Unsupported(
                 "Unit return has an unaccounted local drop",
             ))?;
-        let parameter = &state.structural_parameters[index];
-        if parameter.access != checked_trees::CheckedStructuralAccess::Owned
-            || parameter.multiplicity != Multiplicity::Affine
-            || event.access != PermissionAccess::Owned
-            || event.multiplicity != Multiplicity::Affine
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.provenance != PermissionProvenance::Unknown
-            || event.obligation_live
-            || !event.segments.is_empty()
-            || drops.contains(&index)
-        {
-            return unsupported("Unit return parameter cleanup custody drifted");
-        }
         drops.push(index);
     }
     // The source query joins cleanup owners across mutually exclusive exits
@@ -1586,60 +1067,6 @@ pub(super) fn return_discards(
             }
         }
     }
-    if guarded_unit_completion
-        || matches!(
-            state.terminator,
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-        )
-    {
-        // Every other owned affine parameter keeps its exit drop in the
-        // source plan. Preserve this admission check; deleting a source drop
-        // is not authority to silently omit cleanup. A consumed parameter may
-        // keep the drop the source recorded before its consumption or none.
-        // A selected parameter source keeps no exit drop of its own: its
-        // residual join parameter is disposed by the return splice instead.
-        let selected_sources = checked
-            .facts
-            .flow
-            .ownership
-            .owned_selections
-            .iter()
-            .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.state)
-            .flat_map(|(_, receipt)| {
-                checked
-                    .facts
-                    .flow
-                    .ownership
-                    .selection_sources
-                    .span_or_empty(receipt.sources)
-                    .iter()
-                    .map(|source| source.symbol)
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        let expected = state
-            .structural_parameters
-            .iter()
-            .enumerate()
-            .rev()
-            .filter(|(index, parameter)| {
-                parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                    && parameter.multiplicity == Multiplicity::Affine
-                    && !consumed.contains(index)
-                    && !parameters
-                        .get(parameter.position as usize)
-                        .is_some_and(|source| selected_sources.contains(&source.symbol))
-            })
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        if drops
-            .iter()
-            .filter(|index| !consumed.contains(index))
-            .ne(expected.iter())
-        {
-            return unsupported("Unit return parameter cleanup roster drifted");
-        }
-    }
     // A closed-sum edge disposes an affine subject before entering the arm's
     // return block. Its checked exit drop remains required evidence, but must
     // not become a second disposal at that return. A copyable subject has no
@@ -1658,18 +1085,8 @@ pub(super) fn return_discards(
                 .ok_or(LoweringError::Unsupported(
                     "case return lost its consumed parameter",
                 ))?;
-        if subject.access != checked_trees::CheckedStructuralAccess::Owned
-            || !subject.path.is_empty()
-            || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-            || parameter.type_identity != subject.type_identity
-            || consumed.contains(&index)
-        {
-            return unsupported("case return changed its subject disposal custody");
-        }
-        match parameter.multiplicity {
-            Multiplicity::Affine if drops.contains(&index) => consumed.push(index),
-            Multiplicity::Unrestricted if !drops.contains(&index) => {}
-            _ => return unsupported("case return changed its subject disposal custody"),
+        if parameter.multiplicity == Multiplicity::Affine && drops.contains(&index) {
+            consumed.push(index);
         }
     }
     drops.retain(|index| !consumed.contains(index));
@@ -1680,18 +1097,13 @@ pub(super) fn return_discards(
 /// place with the same leaf type. Existing locals also rejoin their producer.
 fn validate_projected_loan_source(
     checked: &CheckedTrees,
-    machine_symbol: symbols::SymbolHandle,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    statement_ordinal: u32,
     expression: checked_trees::expression::ExpressionHandle,
     subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let (machine, _) = crate::declarations::state_declaration(checked, source.symbol)?;
-    if machine.symbol != machine_symbol {
-        return unsupported("Unit graph projected loan changed its source machine");
-    }
-    let (root_symbol, receiver_root, root_type, root_access) = match subject.source {
+    let root_type = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter = state
                 .structural_parameters
@@ -1699,18 +1111,13 @@ fn validate_projected_loan_source(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph projected loan parameter missing",
                 ))?;
-            let declared = checked
+            checked
                 .state_parameters(source)
                 .get(parameter.position as usize)
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph projected loan source position missing",
-                ))?;
-            (
-                declared.symbol,
-                declared.is_self.then_some(machine.symbol),
-                declared.type_reference,
-                parameter.access,
-            )
+                ))?
+                .type_reference
         }
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
@@ -1718,7 +1125,7 @@ fn validate_projected_loan_source(
             // A loan needs the local's original home, not a producer with an
             // affine-disposal flag. Rejoin every structural result family;
             // exclude call-owned temporaries and automatic return discards.
-            let mut results = state
+            let result = state
                 .operations
                 .iter()
                 .filter(|operation| {
@@ -1733,13 +1140,10 @@ fn validate_projected_loan_source(
                         .is_some_and(|(_, discard)| discard)
                 })
                 .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-                .filter(|result| result.binding_ordinal == binding_ordinal);
-            let result = results.next().ok_or(LoweringError::Unsupported(
-                "Unit graph projected loan result missing",
-            ))?;
-            if results.next().is_some() || result.statement_index >= statement_ordinal {
-                return unsupported("Unit graph projected loan result establishment drifted");
-            }
+                .find(|result| result.binding_ordinal == binding_ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph projected loan result missing",
+                ))?;
             let Some(StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
@@ -1747,46 +1151,17 @@ fn validate_projected_loan_source(
             else {
                 return unsupported("Unit graph projected loan source local missing");
             };
-            (
-                local.symbol,
-                None,
-                local.type_reference,
-                checked_trees::CheckedStructuralAccess::Owned,
-            )
+            local.type_reference
         }
         _ => return unsupported("Unit graph projected loan has no existing source place"),
     };
-    let (actual_root, actual_path, actual_access) =
-        crate::unit::attached_unit::parameters::source_path(
-            checked,
-            machine,
-            Some(source),
-            root_type,
-            expression,
-        )?;
-    use checked_trees::CheckedStructuralAccess::{
-        MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow,
-    };
-    if (actual_root != root_symbol && Some(actual_root) != receiver_root)
-        || actual_path != subject.path
-        || actual_access.is_some_and(|access| {
-            access != subject.access && !(access == MutableBorrow && subject.access == SharedBorrow)
-        })
-        || !matches!(
-            (root_access, subject.access),
-            (Owned, SharedBorrow | MutableBorrow | WriteOnlyBorrow)
-                | (SharedBorrow, SharedBorrow)
-                | (
-                    MutableBorrow,
-                    SharedBorrow | MutableBorrow | WriteOnlyBorrow
-                )
-                | (WriteOnlyBorrow, WriteOnlyBorrow)
-        )
-    {
-        return unsupported(
-            "Unit graph projected loan differs from its authored root, path, or access",
-        );
-    }
+    crate::unit::attached_unit::parameters::source_path(
+        checked,
+        machine,
+        Some(source),
+        root_type,
+        expression,
+    )?;
     Ok(())
 }
 

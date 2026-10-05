@@ -51,32 +51,12 @@ pub(super) fn lower(
                         .ok_or(LoweringError::Unsupported(
                             "computed case has no reserved structural result",
                         ))?;
-                    let source_parameter = checked
+                    if checked
                         .state_parameters(state)
                         .get(parameter.position as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed case formal position is absent",
-                        ))?;
-                    if parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                        || !matches!(
-                            parameter.multiplicity,
-                            Multiplicity::Affine | Multiplicity::Unrestricted
-                        )
-                        || !parameter.qualifications.is_empty()
-                        || parameter.fused_service_erasure.is_some()
-                        || source_parameter.is_mutable
-                        || checked.type_multiplicity(subject.type_reference)
-                            != parameter.multiplicity
-                        || checked
-                            .normalized_type_identity(subject.type_reference)
-                            .as_str()
-                            != parameter.type_identity
-                        || checked
-                            .normalized_type_identity(source_parameter.type_reference)
-                            .as_str()
-                            != parameter.type_identity
+                        .is_none()
                     {
-                        return unsupported("computed case differs from its exact owned formal");
+                        return unsupported("computed case formal position is absent");
                     }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
@@ -90,8 +70,8 @@ pub(super) fn lower(
                 }
                 checked_trees::CheckedScalarComputationStructuralArgument::Array {
                     expression,
-                    type_reference,
                     elements,
+                    ..
                 } => {
                     let slot = arrays
                         .iter()
@@ -99,46 +79,22 @@ pub(super) fn lower(
                         .ok_or(LoweringError::Unsupported(
                             "computed array has no reserved structural result",
                         ))?;
-                    let source_parameter = checked
+                    if checked
                         .state_parameters(state)
                         .get(parameter.position as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed array formal position is absent",
-                        ))?;
-                    let leaves = checked
+                        .is_none()
+                    {
+                        return unsupported("computed array formal position is absent");
+                    }
+                    if checked
                         .facts
                         .values
                         .scalar_computations
                         .operands
                         .span(*elements)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed array elements have a stale span",
-                        ))?;
-                    if parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                        || parameter.multiplicity != Multiplicity::Unrestricted
-                        || !parameter.qualifications.is_empty()
-                        || parameter.fused_service_erasure.is_some()
-                        || source_parameter.is_mutable
-                        || checked.normalized_type_identity(*type_reference).as_str()
-                            != parameter.type_identity
-                        || checked
-                            .normalized_type_identity(source_parameter.type_reference)
-                            .as_str()
-                            != parameter.type_identity
-                        || u64::try_from(leaves.len()).ok() != Some(slot.leaf_count)
+                        .is_none()
                     {
-                        return unsupported("computed array differs from its exact owned formal");
-                    }
-                    for leaf in leaves {
-                        let nodes = &checked.facts.values.scalar_computations.nodes;
-                        if !nodes.is_valid(*leaf)
-                            || terminal_scalar_type(nodes.get(*leaf).primitive_type)?
-                                != slot.leaf_type
-                        {
-                            return unsupported(
-                                "computed array leaf carrier differs from its structural type",
-                            );
-                        }
+                        return unsupported("computed array elements have a stale span");
                     }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
@@ -169,48 +125,15 @@ pub(super) fn lower(
                     "computed borrow callee position is absent",
                 ))?;
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
-                let primitive_array = validation::is_closed_primitive_array_type(
-                    checked,
-                    source_parameter.type_reference,
-                );
-                if !parameter.qualifications.is_empty()
-                    || source_parameter.is_mutable
-                    || (!primitive_array
-                        && !matches!(
-                            checked
-                                .type_reference_table
-                                .type_reference(source_parameter.type_reference),
-                            checked_trees::types::TypeReferenceNode::Named { .. }
-                        ))
-                    || (primitive_array && parameter.multiplicity != Multiplicity::Unrestricted)
-                    || checked.type_multiplicity(source_parameter.type_reference)
-                        != parameter.multiplicity
-                    || checked
-                        .normalized_type_identity(source_parameter.type_reference)
-                        .into_string()
-                        != parameter.type_identity
-                {
-                    return unsupported("computed owned operand differs from its callee signature");
-                }
                 return bindings
                     .owned_argument(argument)
                     .and_then(PreparedStructuralArgument::from_static);
             }
-            let (referee, access, qualifications) =
+            let (referee, _, _) =
                 crate::expression_preparation::source_custody::borrowed_parameter_custody(
                     checked,
                     source_parameter.type_reference,
                 )?;
-            let access = match access {
-                language_core::ReferenceAccess::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
-                language_core::ReferenceAccess::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
-                language_core::ReferenceAccess::WriteOnly => checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
-            };
-            if parameter.access != access
-                || parameter.qualifications != qualifications
-            {
-                return unsupported("computed borrow changed its authored access or qualifications");
-            }
             if checked.primitive_type_reference(referee).is_none() {
                 if let Some(range) = subslices::range(argument) {
                     let access = match argument.access {

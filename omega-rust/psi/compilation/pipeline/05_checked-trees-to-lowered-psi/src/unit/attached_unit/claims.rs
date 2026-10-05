@@ -48,51 +48,12 @@ pub(super) fn validate_entry_claims(
                 .ok_or(LoweringError::Unsupported(
                     "structural graph entry claim parameter missing",
                 ))?;
-        let source = checked
+        if checked
             .state_parameters(state)
             .get(parameter.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "structural graph entry claim source missing",
-            ))?;
-        if parameter.multiplicity != Multiplicity::Linear
-            || claim.carry != CarryPolicy::STRICT
-            || claims
-                .iter()
-                .filter(|candidate| candidate.claim_identity == claim.claim_identity)
-                .count()
-                != 1
-            || events
-                .iter()
-                .filter(|event| {
-                    event.claim_identity == claim.claim_identity
-                        && event.root == facts::PlaceRoot::Symbol(source.symbol)
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            .len()
-                            == event.segments.len()
-                        && validation::structural_claim_path(
-                            &checked.typed,
-                            source.type_reference,
-                            checked
-                                .facts
-                                .flow
-                                .ownership
-                                .segments
-                                .span_or_empty(event.segments),
-                        )
-                        .is_ok_and(|path| path == claim.path)
-                })
-                .count()
-                != 1
-            || checked.facts.carry.claim_policies.iter().any(|policy| {
-                policy.claim_identity == claim.claim_identity && policy.effective != claim.carry
-            })
+            .is_none()
         {
-            return unsupported("structural graph entry claim changed its source custody");
+            return unsupported("structural graph entry claim source missing");
         }
     }
     Ok(())

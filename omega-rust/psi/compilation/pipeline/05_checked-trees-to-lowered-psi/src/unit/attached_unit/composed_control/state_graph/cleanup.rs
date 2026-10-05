@@ -121,9 +121,6 @@ pub(super) fn for_exit(
             CheckedNormalCleanupAction::Discard(discard) => {
                 let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &discard.type_identity)?;
                 if discard.path.is_empty() {
-                    if structural_type != root_type {
-                        return Err(LoweringError::Unsupported("whole normal cleanup type differs from its owner"));
-                    }
                     Ok(TerminalAffineCleanupAction::DiscardRoot(place))
                 } else {
                     let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(

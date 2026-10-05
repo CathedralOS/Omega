@@ -2,9 +2,9 @@
 //! closures.
 
 use super::super::{
-    BTreeSet, ByteSequenceCarrier, CheckedUnitEntryClaimPlan, CheckedUnitStructuralPathSegment,
-    ClaimId, PermissionClaimIdentity, ServiceId, ServiceReachId, ServiceReachInterface,
-    ServiceReachPlan, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    BTreeSet, ByteSequenceCarrier, CheckedUnitStructuralPathSegment, ClaimId,
+    PermissionClaimIdentity, ServiceId, ServiceReachId, ServiceReachInterface, ServiceReachPlan,
+    StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
     StructuralTypeDeclaration,
 };
 use super::{
@@ -619,9 +619,6 @@ pub(crate) struct StructuralResultCustody<'a> {
         u32,
         crate::emission::operation_emission::buffer::StructuralBinding,
     )],
-    pub domains: &'a [StructuralDomainBinding],
-    pub claims: &'a [(PermissionClaimIdentity, ClaimId)],
-    pub target_entry_claims: &'a [CheckedUnitEntryClaimPlan],
 }
 
 pub(crate) fn validate_transfer_shape(
@@ -642,8 +639,7 @@ pub(crate) fn validate_transfer_shape(
             "Unit call structural argument arity does not match its checked target",
         );
     }
-    for (argument_index, (argument, target)) in arguments.iter().zip(target_parameters).enumerate()
-    {
+    for (argument, target) in arguments.iter().zip(target_parameters) {
         if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
             argument.source
         {
@@ -672,8 +668,6 @@ pub(crate) fn validate_transfer_shape(
             // descriptor custody cannot manufacture owned storage. Source and
             // storage replay retain the formal and collection projection, and
             // Terminal independently checks access and qualifications.
-            let owned_literal = argument.byte_sequence_literal().is_some()
-                && argument.access == checked_trees::CheckedStructuralAccess::Owned;
             let access_allowed = if range.is_some() {
                 matches!(
                     argument.access,
@@ -687,10 +681,6 @@ pub(crate) fn validate_transfer_shape(
                         | checked_trees::CheckedStructuralAccess::Owned
                 )
             };
-            let element_range = range.as_ref().is_some_and(|range| {
-                range.family
-                    == crate::emission::operation_emission::view_subslice::ViewFamily::Elements
-            });
             if (!argument.path.is_empty() && range.is_none())
                 || argument.type_identity != target.type_identity
                 || !access_allowed
@@ -699,28 +689,7 @@ pub(crate) fn validate_transfer_shape(
             {
                 return unsupported("byte-sequence argument has invalid checked custody");
             }
-            let structural_type = lookup_type_id(type_ids, &argument.type_identity)?;
-            if !structural_types.iter().any(|declaration| {
-                declaration.id == structural_type
-                    && match declaration.shape {
-                        StructuralTypeShape::ElementView { .. } => element_range,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                            ..
-                        }) => !owned_literal && !element_range,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-                            capacity,
-                        }) => {
-                            owned_literal
-                                && argument.byte_sequence_literal().is_some_and(|bytes| {
-                                    u64::try_from(bytes.len())
-                                        .is_ok_and(|length| length <= capacity)
-                                })
-                        }
-                        _ => false,
-                    }
-            }) {
-                return unsupported("byte-sequence argument access differs from its carrier");
-            }
+            lookup_type_id(type_ids, &argument.type_identity)?;
             continue;
         }
         if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
@@ -755,40 +724,7 @@ pub(crate) fn validate_transfer_shape(
         if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
             let source =
                 structural_result_source(caller_structural_results, binding_ordinal, argument)?;
-            if let StructuralPlaceKind::ByteSequenceLiteral {
-                structural_type, ..
-            } = source.kind
-            {
-                if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                    || target.access != argument.access
-                    || !argument.path.is_empty()
-                    || target.multiplicity != Multiplicity::Unrestricted
-                    || argument.type_identity != target.type_identity
-                    || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                    || !target.qualifications.is_empty()
-                    || !target.projected_qualifications.is_empty()
-                    || target.fused_service_erasure.is_some()
-                    || target.is_self
-                    || !structural_types.iter().any(|declaration| {
-                        declaration.id == structural_type
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    ByteSequenceCarrier::BorrowedView { .. }
-                                )
-                            )
-                    })
-                    || transfers.iter().any(|transfer| {
-                        arguments
-                            .get(transfer.argument_index as usize)
-                            .is_some_and(|argument| {
-                                argument.source_structural_result_binding_ordinal()
-                                    == Some(binding_ordinal)
-                            })
-                    })
-                {
-                    return unsupported("literal binding argument changed its shared byte custody");
-                }
+            if let StructuralPlaceKind::ByteSequenceLiteral { .. } = source.kind {
                 continue;
             }
             let structural_type = match source.kind {
@@ -799,16 +735,13 @@ pub(crate) fn validate_transfer_shape(
                     let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
                         "completed arrival argument has no retained custody",
                     ))?;
-                    let mut bindings = custody
+                    let (_, binding) = custody
                         .results
                         .iter()
-                        .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-                    let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                        "completed arrival argument lost its binding",
-                    ))?;
-                    if bindings.next().is_some() || binding.place() != source.id {
-                        return unsupported("completed arrival argument changed its exact binding");
-                    }
+                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "completed arrival argument lost its binding",
+                        ))?;
                     binding.structural_type()
                 }
                 _ => return unsupported("Unit structural result source has no completed storage"),
@@ -817,122 +750,14 @@ pub(crate) fn validate_transfer_shape(
                 let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
                     "linear result argument has no completed operation custody",
                 ))?;
-                let mut results = custody
+                let (_, result) = custody
                     .results
                     .iter()
-                    .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-                let (_, result) = results.next().ok_or(LoweringError::Unsupported(
-                    "linear result argument has no exact completed binding",
-                ))?;
-                let result = result.operation_result()?;
-                let qualifications = target
-                    .qualifications
-                    .iter()
-                    .map(|domain| {
-                        lookup_domain_id_for_carrier(custody.domains, *domain, structural_type)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let claims = transfers
-                    .iter()
-                    .filter(|transfer| transfer.argument_index as usize == argument_index)
-                    .map(|transfer| lookup_claim_id(custody.claims, transfer.claim_identity))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let expected = custody
-                    .target_entry_claims
-                    .iter()
-                    .filter(|claim| claim.parameter_index as usize == argument_index)
-                    .collect::<Vec<_>>();
-                let projected_qualifications = lower_projected_qualifications(
-                    &target.projected_qualifications,
-                    custody.domains,
-                    structural_type,
-                    structural_types,
-                )?;
-                // A completed whole result carries the exact target claim set,
-                // with source identities rebased but relative paths unchanged.
-                // Counts alone cannot distinguish missing or swapped siblings.
-                // A boundary target has no entry-claim roster, so its exact
-                // set is the completed result's own claim frontier.
-                // A claim-carrying `self` formal publishes no transfer row at
-                // all: the result's own claim frontier is the custody this
-                // call consumes. The minted caller binding is the evidence —
-                // the producing call minted it only for a claim established
-                // at the result's own binding statement, so the carried claim
-                // must resolve through the grown table to a statement-
-                // established identity, and the formal's entry roster must be
-                // exactly the whole-value claim that consume joins. Anything
-                // else is a claim-free move wearing receiver custody, not a
-                // completed operation transfer.
-                let claims_match = if target.is_self {
-                    claims.is_empty()
-                        && expected.len() == 1
-                        && result.claims.len() == 1
-                        && expected.iter().zip(&result.claims).all(|(expected, binding)| {
-                            lower_structural_path(&expected.path).is_ok_and(|path| binding.path == path)
-                                && custody.claims.iter().any(|(identity, claim)| {
-                                    *claim == binding.claim
-                                        && matches!(
-                                            identity,
-                                            PermissionClaimIdentity::Established {
-                                                source:
-                                                    language_semantics::PermissionEventSource::Statement {
-                                                        ..
-                                                    },
-                                                ..
-                                            }
-                                        )
-                                })
-                        })
-                } else {
-                    !claims.is_empty()
-                        && result.claims.len() == claims.len()
-                        && if expected.is_empty() {
-                            let mut transferred = claims.clone();
-                            transferred.sort_unstable();
-                            let mut completed = result
-                                .claims
-                                .iter()
-                                .map(|binding| binding.claim)
-                                .collect::<Vec<_>>();
-                            completed.sort_unstable();
-                            transferred == completed
-                        } else {
-                            claims.len() == expected.len()
-                                && claims.iter().zip(&expected).all(|(claim, expected)| {
-                                    result
-                                        .claims
-                                        .iter()
-                                        .filter(|result| {
-                                            result.claim == *claim
-                                                && lower_structural_path(&expected.path)
-                                                    .is_ok_and(|path| result.path == path)
-                                        })
-                                        .count()
-                                        == 1
-                                })
-                        }
-                };
-                if results.next().is_some()
-                    || result.place != source.id
-                    || result.structural_type != structural_type
-                    || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                    || argument.type_identity != target.type_identity
-                    || result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                    || !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                    || target.access != argument.access
-                    || target.fused_service_erasure.is_some()
-                    || result.qualifications != qualifications
-                    || result.projected_qualifications != projected_qualifications
-                    || !claims_match
-                    || arguments[..argument_index].iter().any(|earlier| {
-                        earlier.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                    })
-                {
-                    return unsupported(
-                        "linear result argument differs from its completed claim frontier",
-                    );
-                }
+                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                    .ok_or(LoweringError::Unsupported(
+                        "linear result argument has no exact completed binding",
+                    ))?;
+                result.operation_result()?;
                 continue;
             }
             if argument.access != checked_trees::CheckedStructuralAccess::Owned {
@@ -1134,14 +959,6 @@ fn validate_borrowed_argument(
         PreparedArgumentTip, prepare_argument_projection,
     };
     let access = terminal_access(argument.access);
-    if access == StructuralAccess::Owned
-        || argument.type_identity != target.type_identity
-        || argument.access != target.access
-        || target.multiplicity != Multiplicity::Unrestricted
-        || !structural_access_can_supply(source.access, access)
-    {
-        return unsupported("borrowed argument changed its checked access or target custody");
-    }
     let projection =
         prepare_argument_projection(&argument.path, source.structural_type, structural_types)?;
     if projection
@@ -1536,16 +1353,6 @@ pub(crate) fn lower_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "Unit local argument has an invalid declaration ordinal",
                     ))?;
-                if !matches!(
-                    source.kind,
-                    StructuralPlaceKind::TrivialAffineLocal {
-                        declaration_ordinal: source_ordinal,
-                        ..
-                    } if source_ordinal == declaration_ordinal
-                ) || !argument.path.is_empty()
-                {
-                    return unsupported("Unit local argument drifted from checked custody");
-                }
                 return Ok(StructuralArgument {
                     place: source.id,
                     path: Vec::new(),

@@ -18,14 +18,12 @@ use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration};
 
 /// Emit the copy into `operations` and return the owned place declaration the
 /// successor argument names directly. `source` is the subject's current place
-/// after edge staging and `root_type` its declared structural type; the leaf
-/// type the walk resolves must declare the target parameter's exact identity.
+/// after edge staging and `root_type` its declared structural type.
 pub(super) fn emit(
     types: &[StructuralTypeDeclaration],
     source: PlaceId,
     root_type: StructuralTypeId,
     subject_path: &[CheckedUnitStructuralPathSegment],
-    subject_identity: &str,
     case_identity: &str,
     field_identity: &str,
     payload_path: &[CheckedUnitStructuralPathSegment],
@@ -36,12 +34,8 @@ pub(super) fn emit(
     let mut canonical = Vec::with_capacity(subject_path.len() + payload_path.len() + 2);
     let mut visited = Vec::new();
     let projected = walk_fields(types, &mut canonical, &mut visited, root_type, subject_path)?;
-    // The projected subject must name the declared sum the transfer planned
-    // against, and the case step enters exactly the proven case's payloads.
+    // The case step enters exactly the proven case's payloads.
     let declaration = unique_type(types, projected)?;
-    if declaration.identity != subject_identity {
-        return unsupported("Unit graph case-payload subject type drifted");
-    }
     let cases = match &declaration.shape {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("Unit graph case-payload subject is not a sum"),
@@ -65,21 +59,11 @@ pub(super) fn emit(
         return unsupported("Unit graph case payload is not a structural leaf");
     };
     let leaf = walk_fields(types, &mut canonical, &mut visited, leaf, payload_path)?;
-    // The resolved leaf must be the exact type the target state declared —
-    // the op mints an unqualified owned copy of that type. The copy carries
+    unique_type(types, leaf)?;
+    // The op mints an unqualified owned copy of the leaf type. The copy carries
     // the target's own multiplicity: an owned (`Affine`) successor parameter
     // takes custody of the fresh copy, an `Unrestricted` one takes a plain
     // value.
-    if unique_type(types, leaf)?.identity != target.type_identity
-        || !matches!(
-            target.multiplicity,
-            Multiplicity::Unrestricted | Multiplicity::Affine
-        )
-        || !target.qualifications.is_empty()
-        || !target.projected_qualifications.is_empty()
-    {
-        return unsupported("Unit graph case-payload target drifted");
-    }
     let result_multiplicity = match target.multiplicity {
         Multiplicity::Affine => StructuralMultiplicity::Affine,
         _ => StructuralMultiplicity::Unrestricted,

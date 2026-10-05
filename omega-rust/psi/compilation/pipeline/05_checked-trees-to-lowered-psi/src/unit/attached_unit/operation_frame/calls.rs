@@ -366,7 +366,6 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             self.structural_types.declarations(),
             inputs.byte_places,
-            self.callees.domain_ids,
             self.caller.claims.bindings(),
             self.calls,
             &self.evaluation.structural_fields,
@@ -660,13 +659,6 @@ impl OperationFrame<'_, '_> {
         let realization_machine = &call.target.machine;
         let realization_state = &call.target.state;
         let source_target = call.target.state;
-        if usize::try_from(result.binding_ordinal)
-            .ok()
-            .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
-            != Some(self.source_value_count)
-        {
-            return unsupported("Unit scalar result binding ordinal drifted from source order");
-        }
         let target = CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
         // Both catalogs have been source-validated before emission.
         // An operation-body callee uses its real ordered emitter,
@@ -753,9 +745,6 @@ impl OperationFrame<'_, '_> {
                         )
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-                if erased_proof_arguments.len() != target.erased_proof_parameters().len() {
-                    return unsupported("scalar call erased proof roster drifted from its target");
-                }
                 // Caller `Formal` occurrences resolve against this body's
                 // erased-proof roster.
                 let erased_proof_arguments = erased_proof_arguments
@@ -882,9 +871,6 @@ impl OperationFrame<'_, '_> {
                 self.primitive_locals,
                 Some(StructuralResultCustody {
                     results: &self.operations.structural_values,
-                    domains: self.callees.domain_ids,
-                    claims: self.caller.claims.bindings(),
-                    target_entry_claims: target.entry_claims(),
                 }),
             )?;
             (

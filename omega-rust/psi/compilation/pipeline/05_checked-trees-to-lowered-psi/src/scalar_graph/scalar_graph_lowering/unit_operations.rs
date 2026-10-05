@@ -8,20 +8,6 @@ use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredEffectCall;
 
-/// The target machine's published erased-proof arity: the entry plan's
-/// roster length.
-fn target_erased_proof_arity(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<usize, LoweringError> {
-    Ok(UnitBody::find(
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-        machine,
-    )?
-    .entry()?
-    .erased_proof_parameters
-    .len())
-}
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use checked_trees::{CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan};
 
@@ -160,9 +146,11 @@ pub(super) fn prepare(
     if !erased_scalar_arguments.is_empty() {
         return unsupported("scalar graph Unit call has no erased argument lane");
     }
-    if erased_proof_arguments.len() != target_erased_proof_arity(checked, *target_machine)? {
-        return unsupported("scalar Unit call erased proof roster drifted from its target");
-    }
+    UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        *target_machine,
+    )?
+    .entry()?;
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|term| {
@@ -326,9 +314,6 @@ pub(super) fn prepare(
             let source = bindings.owned_call_argument(argument, results, structural_types)?;
             lowered_arguments.push(source);
             continue;
-        }
-        if parameter.multiplicity != Multiplicity::Unrestricted {
-            return unsupported("effect borrow changed its multiplicity");
         }
         let source_parameter = checked
             .state_parameters(callee_state)

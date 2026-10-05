@@ -77,16 +77,7 @@ impl OperationFrame<'_, '_> {
             .with_place_observations(&self.evaluation.place_observations);
         let structural_type =
             byte_store::existing_descriptor_value_type(self.structural_types.declarations())?;
-        if let Source::ByteSequenceSubslice {
-            expression: range_expression,
-            start,
-            end,
-            ..
-        } = &source.source
-        {
-            if range_expression != expression {
-                return unsupported("stored view range changed its source expression");
-            }
+        if let Source::ByteSequenceSubslice { start, end, .. } = &source.source {
             let storage = super::super::view_ranges::storage(
                 self.checked,
                 self.state,
@@ -128,7 +119,6 @@ impl OperationFrame<'_, '_> {
                     retained: Some((start, end)),
                 },
                 range_source,
-                &source.path,
                 result_type,
                 destination,
                 self.evaluation,

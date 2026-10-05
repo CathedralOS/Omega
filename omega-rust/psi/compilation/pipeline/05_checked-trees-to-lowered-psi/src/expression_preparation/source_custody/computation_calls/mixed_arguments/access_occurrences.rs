@@ -14,13 +14,7 @@ enum ObservationStep {
         kind: BorrowAccessKind,
         direct: bool,
     },
-    Exit {
-        expression: ExpressionHandle,
-        first_access: usize,
-    },
-    RetainReceiver {
-        first_access: usize,
-    },
+    Exit,
 }
 
 /// Argument evaluation may read selectors before retaining its operand loan.
@@ -191,7 +185,6 @@ pub(crate) fn replay(
             language_core::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
         })
     };
-    let mut observation_ends: Vec<Option<usize>> = Vec::new();
     let mut position = 0;
     let signature = crate::declarations::target_signature(checked, machine, call.target_symbol)?;
     let parameters = explicit_parameters(signature.parameters, arguments.len())?;
@@ -211,40 +204,11 @@ pub(crate) fn replay(
                     kind,
                     direct,
                 } => (expression, direct, Some((target, kind)), None),
-                ObservationStep::Exit {
-                    expression,
-                    first_access,
-                } => {
-                    // Completed plain-owned results retain no operand loan,
-                    // including affine results. Read-row expiry below still
-                    // requires copyability; completion grants no copy authority.
-                    if matches!(table.expression(expression), ExpressionNode::Call(_))
-                        && validation::expression_result_type_reference(
-                            &checked.typed,
-                            source_machine,
-                            source_state,
-                            expression,
-                        )
-                        .is_some_and(|reference| {
-                            validation::has_plain_owned_contents_with_numeric_constraints(
-                                &checked.typed,
-                                reference,
-                            )
-                        })
-                    {
-                        for end in &mut observation_ends[first_access..] {
-                            end.get_or_insert(position);
-                        }
-                    }
+                ObservationStep::Exit => {
                     active.pop();
                     continue;
                 }
-                ObservationStep::RetainReceiver { first_access } => {
-                    observation_ends[first_access..].fill(None);
-                    continue;
-                }
             };
-            let observing_loan = loan.is_some();
             if !table.expression_is_valid(expression)
                 || (loan.is_none() && active.contains(&expression))
             {
@@ -252,13 +216,9 @@ pub(crate) fn replay(
                     "computed shared borrow has a stale or cyclic source observation",
                 );
             }
-            let first_access = position;
             if loan.is_none() {
                 active.push(expression);
-                pending.push(ObservationStep::Exit {
-                    expression,
-                    first_access,
-                });
+                pending.push(ObservationStep::Exit);
                 let requested = match table.expression(expression) {
                     ExpressionNode::Borrow(borrow) => Some((
                         borrow.target,
@@ -403,8 +363,8 @@ pub(crate) fn replay(
                                     "byte observation has no positional operand custody",
                                 );
                             }
-                            let (_, operand) =
-                                super::super::byte_predicates::operands(checked, expression)?;
+                            let operand =
+                                super::super::byte_predicates::operand(checked, expression)?;
                             // Primitive observations read their operand; they
                             // have no machine signature or formal capable of
                             // lending mutable access. Ordinary resolved calls
@@ -524,27 +484,9 @@ pub(crate) fn replay(
                 let _ = rows.get(position).ok_or(LoweringError::Unsupported(
                     "computed shared borrow omits an authored observation",
                 ))?;
-                // Saved dispatch payloads finish before target access 0; other
-                // scalar copies finish here. Loans retain their call lifetime.
                 if direct {
                     operand = Some(position);
                 }
-                observation_ends.push(
-                    (!observing_loan
-                        && !matches!(table.expression(expression), ExpressionNode::Borrow(_))
-                        && plain_copy(expression))
-                    .then(|| {
-                        if dispatch_extraction.reads_extracted_copy(
-                            &checked.typed,
-                            expression,
-                            plain_copy,
-                        ) {
-                            0
-                        } else {
-                            position + 1
-                        }
-                    }),
-                );
                 position += 1;
             }
             pending.extend(
@@ -560,7 +502,6 @@ pub(crate) fn replay(
                     .map(|(expression, access)| ObservationStep::Enter(expression, false, access)),
             );
             if let Some(receiver) = receiver {
-                pending.push(ObservationStep::RetainReceiver { first_access });
                 pending.push(ObservationStep::Enter(receiver, false, None));
             }
         }
@@ -568,11 +509,6 @@ pub(crate) fn replay(
     }
     if position != rows.len() {
         return unsupported("computed shared borrow has extra observation rows");
-    }
-    for (position, row) in rows.iter().enumerate() {
-        if row.end_before_access != observation_ends[position] {
-            return unsupported("computed borrow changed its authored observation lifetime");
-        }
     }
     Ok(positions)
 }

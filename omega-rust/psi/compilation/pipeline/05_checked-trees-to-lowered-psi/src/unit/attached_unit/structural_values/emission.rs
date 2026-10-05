@@ -206,15 +206,6 @@ pub(crate) fn emit(
                         .ok_or(LoweringError::Unsupported(
                             "owned selection source has no established physical local",
                         ))?;
-                    if parameter.0 as u32 != source.statement_ordinal
-                        || parameter.1.is_self
-                        || parameter.1.is_const
-                        || parameter.1.is_mutable
-                    {
-                        return Err(LoweringError::Unsupported(
-                            "owned selection parameter source drifted from its authored origin",
-                        ));
-                    }
                     let declaration = evaluation
                         .structural_parameters
                         .iter()
@@ -422,37 +413,27 @@ pub(crate) fn emit(
         .find(|(arrival, _)| *arrival == place)
         .map(|(_, claims)| claims.as_slice())
         .unwrap_or_default();
-    match completed_declaration.kind {
-        StructuralPlaceKind::BlockParameter { .. } => {
-            if arrival_claims != result_claims {
-                return unsupported("linear arrival changed its transferred claim roster");
-            }
-        }
-        StructuralPlaceKind::OperationResult { .. } if !result_claims.is_empty() => {
-            let produced = emission
-                .operations
-                .operations
-                .iter_mut()
-                .filter_map(|operation| match &mut operation.result {
-                    OperationResult::Structural(result) => Some(result),
-                    _ => None,
-                })
-                .find(|result| result.place == place)
-                .ok_or(LoweringError::Unsupported(
-                    "linear structural value producer is missing",
-                ))?;
-            if !produced.claims.is_empty() && produced.claims != result_claims {
-                return unsupported("linear structural value changed its producer claims");
-            }
-            produced.claims = result_claims;
-        }
-        _ => {}
+    if let StructuralPlaceKind::OperationResult { .. } = completed_declaration.kind
+        && !result_claims.is_empty()
+    {
+        let produced = emission
+            .operations
+            .operations
+            .iter_mut()
+            .filter_map(|operation| match &mut operation.result {
+                OperationResult::Structural(result) => Some(result),
+                _ => None,
+            })
+            .find(|result| result.place == place)
+            .ok_or(LoweringError::Unsupported(
+                "linear structural value producer is missing",
+            ))?;
+        produced.claims = result_claims;
     }
     let completed = completed_storage::completed_result(
         place,
         completed_declaration,
         emission.operations,
-        emission.evaluation.current,
         &emission.evaluation.block_structural_parameters,
         arrival_claims,
     )?;
@@ -916,12 +897,6 @@ impl Emission<'_, '_, '_> {
                 CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
             )
         {
-            if path.is_empty()
-                || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
-                || self.multiplicity != StructuralMultiplicity::Affine
-            {
-                return unsupported("constructor projection changed its affine child carrier");
-            }
             let projected = self.projected_root(source, path, type_identity)?;
             return Ok(StructuralArgument {
                 place: projected.root,
@@ -1007,15 +982,9 @@ impl Emission<'_, '_, '_> {
                     return unsupported("structural operand call is duplicated");
                 }
                 let declaration = self.emit_operand_call(call)?;
-                let StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                } = declaration.kind
-                else {
+                let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("structural operand call has no result place");
                 };
-                if structural_type != self.structural_type {
-                    return unsupported("structural operand call changed its returned type");
-                }
                 if let Some(continuation) = continuation {
                     self.complete_value(declaration.id, None, continuation)?;
                 }
@@ -1030,11 +999,6 @@ impl Emission<'_, '_, '_> {
                 // projection instead transfers one child on the selected edge
                 // and disposes of the root's residual complement there. Only
                 // the owned transfer requires a structural continuation.
-                if path.is_empty()
-                    || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
-                {
-                    return unsupported("projected selection changed its moved child type");
-                }
                 if let CheckedStructuralValueKind::CopiedStructuralPlace {
                     source: copied, ..
                 } = &self
@@ -1051,11 +1015,6 @@ impl Emission<'_, '_, '_> {
                     // creates affine residuals. Source replay has rejoined the
                     // copied root independently; retain its complete path when
                     // appending the projection and publish one fresh leaf.
-                    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                        || self.multiplicity != StructuralMultiplicity::Unrestricted
-                    {
-                        return unsupported("copied projection changed its readable copy custody");
-                    }
                     let mut argument = self.copied_place_argument(copied)?;
                     argument.path.extend(lower_structural_path(&path)?);
                     return self.copied_leaf_place(&argument, continuation);
@@ -1086,9 +1045,6 @@ impl Emission<'_, '_, '_> {
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::ScalarCasePlace { source, .. } => {
-                if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
-                    return unsupported("scalar case place changed its leaf type");
-                }
                 let authored = crate::declarations::state_declaration(self.checked, self.state)?;
                 let argument = crate::expression_preparation::bindings::ScalarBindings::new(
                     self.values.iter().map(|value| value.scalar_type),
@@ -1105,23 +1061,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
                 self.view_element_copy(&reads, continuation)
             }
-            CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } => {
-                // Source replay retains the qualified leaf identity, while
-                // the catalog names its storage carrier. Resolve through the
-                // retained type, never by deleting text from an identity.
-                let identity = if self.checked.normalized_type_identity(leaf).as_str()
-                    == source.type_identity
-                {
-                    let carrier = super::super::structural_carrier_type(self.checked, leaf)?;
-                    self.checked.normalized_type_identity(carrier).into_string()
-                } else {
-                    // Borrowed view sources already name their projected
-                    // carrier; source custody independently checks that join.
-                    source.type_identity.clone()
-                };
-                if lookup_type_id(self.type_ids, &identity)? != self.structural_type {
-                    return unsupported("copied place changed its leaf type");
-                }
+            CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(&source)?;
                 self.copied_leaf_place(&argument, continuation)
             }
@@ -1273,7 +1213,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
                     let domains = source_custody::byte_literals::validate(
-                        self.checked, node.expression, self.type_reference, &argument,
+                        self.checked, self.type_reference, &argument,
                     )?;
                     let qualifications = domains.into_iter().map(|domain|
                         crate::terminal_identities::lookup_domain_id_for_carrier(
@@ -1452,11 +1392,6 @@ impl Emission<'_, '_, '_> {
             return unsupported("owned move source has duplicate completed bindings");
         }
         let source_claims = if let Some(binding) = binding {
-            if binding.structural_type() != self.structural_type
-                || binding.multiplicity() != self.multiplicity
-            {
-                return unsupported("owned move source changed its completed carrier");
-            }
             binding.claims().to_vec()
         } else if let Some(result) = self
             .operations
@@ -1464,28 +1399,17 @@ impl Emission<'_, '_, '_> {
             .filter_map(|operation| operation.result.structural())
             .find(|result| result.place == source)
         {
-            if result.structural_type != self.structural_type
-                || result.multiplicity != self.multiplicity
-            {
-                return unsupported("owned move source changed its produced carrier");
-            }
             result.claims.clone()
         } else {
-            let parameter = self
+            if !self
                 .evaluation
                 .structural_parameters
                 .iter()
                 .map(|(_, parameter)| parameter)
                 .chain(&self.evaluation.block_structural_parameters)
-                .find(|parameter| parameter.place == source)
-                .ok_or(LoweringError::Unsupported(
-                    "owned move has no source custody",
-                ))?;
-            if parameter.structural_type != self.structural_type
-                || parameter.multiplicity != self.multiplicity
-                || parameter.access != StructuralAccess::Owned
+                .any(|parameter| parameter.place == source)
             {
-                return unsupported("owned move source changed its parameter custody");
+                return unsupported("owned move has no source custody");
             }
             // Entry identities have no operation result. Source replay joined
             // the exact Transfer/Establish pair, and ClaimBindings resolved
@@ -1807,7 +1731,6 @@ impl Emission<'_, '_, '_> {
                     retained: Some((range.start, range.end)),
                 },
                 bound,
-                &source.path,
                 self.structural_type,
                 place,
                 self.evaluation,
@@ -2135,15 +2058,9 @@ impl Emission<'_, '_, '_> {
                 let root_type_identity = result.type_identity.clone();
                 let binding_ordinal = result.binding_ordinal;
                 let declaration = self.emit_operand_call(call)?;
-                let StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                } = declaration.kind
-                else {
+                let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("projected selection call has no result place");
                 };
-                if structural_type != lookup_type_id(self.type_ids, &root_type_identity)? {
-                    return unsupported("projected selection call changed its returned type");
-                }
                 (
                     declaration.id,
                     root_type_identity,
@@ -2282,7 +2199,6 @@ impl Emission<'_, '_, '_> {
                     &projected.root_source,
                     &projected.root_type_identity,
                     &moved,
-                    usize::MAX,
                 )?
                 .iter()
                 .map(|residual| {
@@ -2339,23 +2255,6 @@ impl Emission<'_, '_, '_> {
             return unsupported(match loan {
                 LoanAccess::Shared => "borrowed selection joined residual ownership",
                 LoanAccess::Mutable => "mutable borrowed selection joined residual ownership",
-            });
-        }
-        let parameter = &continuation.structural_parameters[0];
-        let multiplicity_matches = match loan {
-            LoanAccess::Shared => parameter.multiplicity == StructuralMultiplicity::Unrestricted,
-            LoanAccess::Mutable => true,
-        };
-        if parameter.place != continuation.place
-            || parameter.access != loan.structural_access()
-            || !multiplicity_matches
-            || parameter.structural_type != self.structural_type
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return unsupported(match loan {
-                LoanAccess::Shared => "borrowed selection parameter changed its custody",
-                LoanAccess::Mutable => "mutable borrowed selection parameter changed its custody",
             });
         }
         let edge = self.edge(
@@ -2660,15 +2559,13 @@ impl Emission<'_, '_, '_> {
             else {
                 return unsupported("view element copy field is not an element read");
             };
-            let scalar_type = match field.field_type {
-                terminal_psi::StructuralFieldType::Scalar(scalar_type) => scalar_type,
-                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
-                    semantic_vocabulary::ScalarType::IeeeFloat(format)
-                }
-                _ => {
-                    return unsupported("view element copy reads only plain scalar fields");
-                }
-            };
+            if !matches!(
+                field.field_type,
+                terminal_psi::StructuralFieldType::Scalar(_)
+                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
+            ) {
+                return unsupported("view element copy reads only plain scalar fields");
+            }
             if field.relevance.is_erased()
                 || element_path.as_slice()
                     != [checked_trees::CheckedStructuralPredicatePathSegment::Field(
@@ -2678,9 +2575,6 @@ impl Emission<'_, '_, '_> {
                 return unsupported("view element copy reordered or renamed a field");
             }
             let lowered = bindings.expression(read)?;
-            if lowered.scalar_type() != scalar_type {
-                return unsupported("view element copy read changed its field carrier");
-            }
             let value = crate::emission::operation_emission::expressions::emit_direct_expression(
                 &lowered,
                 self.values,

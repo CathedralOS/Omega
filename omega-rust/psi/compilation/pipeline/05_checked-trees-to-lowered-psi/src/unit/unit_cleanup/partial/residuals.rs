@@ -4,7 +4,7 @@ use super::super::CheckedUnitStructuralTypeShape;
 use super::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, LoweringError, checked_partial_affine_field_type, unsupported,
+    CheckedUnitStructuralTypePlan, LoweringError, checked_partial_affine_field_type,
 };
 fn validate_type(
     types: &[CheckedUnitStructuralTypePlan],
@@ -180,18 +180,7 @@ pub(super) fn reconstruct(
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    max_residuals: usize,
 ) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
-    if moved_paths.is_empty()
-        || moved_paths.iter().enumerate().any(|(index, (path, _))| {
-            path.is_empty()
-                || moved_paths[..index]
-                    .iter()
-                    .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
-        })
-    {
-        return unsupported("partial affine Unit field path or type identity drifted");
-    }
     let mut residuals = Vec::new();
     let count = visit(
         types,
@@ -205,13 +194,10 @@ pub(super) fn reconstruct(
     .ok_or(LoweringError::Unsupported(
         "partial affine Unit field path or type identity drifted",
     ))?;
-    if count > max_residuals {
-        return unsupported("partial affine Unit residual field partition drifted");
-    }
     residuals.try_reserve_exact(count).map_err(|_| {
         LoweringError::Unsupported("partial affine Unit residual allocation exceeds host capacity")
     })?;
-    let emitted = visit(
+    visit(
         types,
         source,
         root_type,
@@ -223,8 +209,5 @@ pub(super) fn reconstruct(
     .ok_or(LoweringError::Unsupported(
         "partial affine Unit field path or type identity drifted",
     ))?;
-    if emitted != count || residuals.len() != count {
-        return unsupported("partial affine Unit residual field partition drifted");
-    }
     Ok(residuals)
 }

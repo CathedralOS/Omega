@@ -155,13 +155,10 @@ pub(super) fn validate(
             state.return_type,
         )
     {
-        let expected =
-            validation::reference_result_custody::returned_reference_sources(&checked.typed, state)
-                .ok_or(LoweringError::Unsupported(
-                    "reference completion has no exact returned leaf origins",
-                ))?;
-        if expected != result.reference_sources {
-            return unsupported("reference completion changed its returned leaf origins");
+        if validation::reference_result_custody::returned_reference_sources(&checked.typed, state)
+            .is_none()
+        {
+            return unsupported("reference completion has no exact returned leaf origins");
         }
     } else if !result.reference_sources.is_empty() {
         return unsupported("structural completion invents returned reference origins");
@@ -262,9 +259,9 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "returned structural parameter is absent",
                 ))?;
-            let Some(expression) = expression else {
+            if expression.is_none() {
                 return unsupported("structural result source has no completion value");
-            };
+            }
             let source_parameter = checked
                 .typed
                 .state_parameters(state)
@@ -278,47 +275,15 @@ pub(super) fn validate(
                     .as_deref()
                     == Some(result.type_identity.as_str())
                 && result.multiplicity == Multiplicity::Unrestricted;
-            if (parameter.access != CheckedStructuralAccess::Owned && !shared_descriptor)
-                || source_parameter.is_const
-                || source_parameter.is_mutable
-                || source_parameter.is_self
-                || !matches!(
-                    parameter.multiplicity,
-                    Multiplicity::Unrestricted | Multiplicity::Affine
+            // A returned ingress descriptor needs no shape check; Terminal
+            // reconstructs its backing lifetime from the completed body.
+            if !shared_descriptor
+                && validation::is_closed_primitive_array_type(
+                    &checked.typed,
+                    source_parameter.type_reference,
                 )
-                || parameter.multiplicity != result.multiplicity
-                || !parameter.qualifications.is_empty()
-                || parameter.is_self
-                || parameter.fused_service_erasure.is_some()
-                || parameter.type_identity != result.type_identity
-                || (!shared_descriptor
-                    && checked
-                        .typed
-                        .normalized_type_identity(source_parameter.type_reference)
-                        .as_str()
-                        != result.type_identity)
-                || !matches!(checked.typed.expression_table.expression(expression),
-                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
-                        && path.head_symbol == source_parameter.symbol
-                        && checked.typed.expression_table.name_path_members(path.members).len() == 1)
             {
-                return unsupported("returned structural parameter differs from its owned source");
-            }
-            if shared_descriptor {
-                // The returned value is the ingress descriptor. Source access
-                // and identity were rejoined above; Terminal reconstructs its
-                // backing lifetime independently from the completed body.
-            } else if validation::is_closed_primitive_array_type(
-                &checked.typed,
-                source_parameter.type_reference,
-            ) {
                 super::scalar_arrays::validate_shape(checked, source_parameter.type_reference)?;
-            } else {
-                // Whole-value return does not inspect a record's fields or
-                // select an array element. Rejoin the declared owned carrier
-                // and exact transfer using the shared place validator; a
-                // Named-only record test would exclude fixed arrays and closed
-                // generic applications with the same ownership obligations.
             }
         }
         _ => return unsupported("structural return source is not an owned whole value"),

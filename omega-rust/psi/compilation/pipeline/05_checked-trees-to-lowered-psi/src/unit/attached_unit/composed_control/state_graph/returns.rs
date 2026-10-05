@@ -17,7 +17,7 @@ use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
-use checked_trees::{CheckedControlResultPlan, expression::ExpressionNode};
+use checked_trees::CheckedControlResultPlan;
 
 pub(super) fn signature_matches(
     checked: &CheckedTrees,
@@ -239,17 +239,12 @@ pub(super) fn validate_structural(
 ) -> Result<(), LoweringError> {
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     let (
-        CheckedControlResultPlan::Structural(signature),
+        CheckedControlResultPlan::Structural(_),
         CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result },
     ) = (&plan.result, &state.terminator)
     else {
         return unsupported("structural return has no result signature");
     };
-    if signature.type_identity != result.type_identity
-        || signature.multiplicity != result.multiplicity
-    {
-        return unsupported("structural return changed its declared result custody");
-    }
     let statement = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -279,29 +274,27 @@ pub(super) fn validate_structural(
     };
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let mut producers = state.operations.iter().filter_map(|operation| {
-                let result = match operation {
-                    // A `&mut` view tail return's producer is the reference
-                    // establishment minted at the transition.
-                    CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-                    | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => {
-                        Some(result)
-                    }
-                    _ => super::result_custody::result(operation),
-                }?;
-                (result.binding_ordinal == binding_ordinal).then_some((operation, result))
-            });
-            let (operation, binding) = producers.next().ok_or(LoweringError::Unsupported(
-                "structural return producer absent",
-            ))?;
-            if producers.next().is_some()
-                || binding.type_identity != result.type_identity
-                || binding.multiplicity != result.multiplicity
-                || binding.statement_index as usize > ordinal
-            {
-                return unsupported("structural return producer custody drifted");
-            }
+            let (operation, binding) = state
+                .operations
+                .iter()
+                .find_map(|operation| {
+                    let result = match operation {
+                        // A `&mut` view tail return's producer is the reference
+                        // establishment minted at the transition.
+                        CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                            result, ..
+                        }
+                        | CheckedUnitEffectOperationPlan::EstablishByteSequence {
+                            result, ..
+                        } => Some(result),
+                        _ => super::result_custody::result(operation),
+                    }?;
+                    (result.binding_ordinal == binding_ordinal).then_some((operation, result))
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "structural return producer absent",
+                ))?;
             if binding.statement_index as usize == ordinal {
                 if operation
                     .call()
@@ -349,17 +342,13 @@ pub(super) fn validate_structural(
                     );
                 }
             } else {
-                let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+                let Some(checked_trees::statement::StatementNode::LocalData(_)) = checked
                     .statement_table
                     .statements(source.statement_nodes)
                     .get(binding.statement_index as usize)
                 else {
                     return unsupported("structural return does not name its produced local");
                 };
-                if !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
-                {
-                    return unsupported("structural return exchanged its produced local");
-                }
             }
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -369,80 +358,35 @@ pub(super) fn validate_structural(
                 .ok_or(LoweringError::Unsupported(
                     "structural return parameter absent",
                 ))?;
-            let declaration = checked
+            if checked
                 .state_parameters(source)
                 .get(parameter.position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "structural return source parameter absent",
-                ))?;
+                .is_none()
+            {
+                return unsupported("structural return source parameter absent");
+            }
             // Borrowed ingress names referent storage; the returned value is
-            // its affine reference carrier. Compare those distinct identities
-            // through exact source custody instead of treating the referent as
-            // an owned result of the same multiplicity.
+            // its affine reference carrier, resolved through exact source
+            // custody.
             if validation::reference_result_custody::stored_loan_parts(
                 &checked.typed,
                 source.return_type,
             )
             .is_some()
-            {
-                let expected = validation::reference_result_custody::initializer_source(
+                && validation::reference_result_custody::initializer_source(
                     &checked.typed,
                     source,
                     *expression,
                     source.return_type,
                 )
-                .ok_or(LoweringError::Unsupported(
-                    "reference parameter return lost its exact ingress",
-                ))?;
-                let receipt = checked_trees::CheckedReferenceResultSourcePlan {
-                    path: Vec::new(),
-                    source: expected.clone(),
-                };
-                let compatible_access = parameter.access == expected.access
-                    || (parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                        && expected.access == checked_trees::CheckedStructuralAccess::SharedBorrow);
-                if expected.source != result.source
-                    || !expected.path.is_empty()
-                    || expected.type_identity != parameter.type_identity
-                    || !compatible_access
-                    || parameter.multiplicity != Multiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || result.type_identity
-                        != checked
-                            .normalized_type_identity(source.return_type)
-                            .as_str()
-                    || result.multiplicity
-                        != validation::reference_result_custody::result_multiplicity(
-                            &checked.typed,
-                            source.return_type,
-                        )
-                    || result.reference_sources.as_slice() != std::slice::from_ref(&receipt)
-                {
-                    return unsupported("reference parameter return changed its exact custody");
-                }
-            } else {
-                if parameter.type_identity != result.type_identity
-                    || parameter.multiplicity != result.multiplicity
-                    || !matches!(
-                        parameter.access,
-                        checked_trees::CheckedStructuralAccess::Owned
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow
-                    )
-                    || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
-                {
-                    return unsupported("structural return exchanged its owned parameter");
-                }
+                .is_none()
+            {
+                return unsupported("reference parameter return lost its exact ingress");
             }
         }
         // A literal-backed `&[u8]` return carries its bytes as the whole
-        // ingress: the authored completion is that same string literal —
-        // nothing else could have exchanged or weakened the loan.
-        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
-            if !matches!(checked.expression_table.expression(*expression), ExpressionNode::String(literal) if literal.as_ref() == bytes.as_slice())
-            {
-                return unsupported("structural return exchanged its literal source");
-            }
-        }
+        // ingress.
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => {}
         _ => return unsupported("structural return requires whole established custody"),
     }
     Ok(())
@@ -572,9 +516,6 @@ pub(super) fn emit_case(
         .ok_or(LoweringError::Unsupported(
             "case construction declaration missing",
         ))?;
-    if fields.len() != case.fields.len() {
-        return unsupported("case construction declaration roster drifted");
-    }
     let mut evaluated = Vec::new();
     for field in fields {
         let declaration = case

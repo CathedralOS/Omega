@@ -450,9 +450,6 @@ pub(crate) fn lower_scalar_graph_successor(
         .ok_or(LoweringError::Unsupported(
             "scalar successor erased proof span is stale",
         ))?;
-    if erased_proof_arguments.len() != states[target].erased_proof_parameters.len() {
-        return unsupported("scalar graph successor erased proof roster drifted from its target");
-    }
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|term| {

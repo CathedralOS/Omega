@@ -10,21 +10,16 @@ pub(crate) mod projected_receivers;
 /// A projected Fused binding selects an erased capability, not an implicit
 /// runtime borrow. Its boundary signature has no self operand, so argument
 /// access facts cannot stand in for the exact parameter and field custody.
-/// The replayed parameter and path let attachment validation retain the exact
-/// field requirement without mistaking an ordinary context for lexical self.
-pub(crate) struct ParameterBindingReceiver<'parameters> {
-    pub parameter: &'parameters checked_trees::CheckedUnitStructuralParameterPlan,
-    pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-}
-
-pub(crate) fn validate_parameter_binding_receiver<'parameters>(
+/// Reports whether the call's receiver is such a parameter-rooted binding, so
+/// attachment validation does not mistake an ordinary context for lexical self.
+pub(crate) fn validate_parameter_binding_receiver(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    caller_parameters: &'parameters [checked_trees::CheckedUnitStructuralParameterPlan],
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     call: &crate::call_sites::AuthoredCall,
-) -> Result<Option<ParameterBindingReceiver<'parameters>>, LoweringError> {
+) -> Result<bool, LoweringError> {
     use checked_trees::CheckedUnitStructuralTypeShape;
     use checked_trees::expression::ExpressionNode;
     use checked_trees::statement::StatementNode;
@@ -38,7 +33,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
                 .any(|signature| signature.symbol == call.source_target)
     }) else {
         // Boundary machines and operators have no Binding requirement receiver.
-        return Ok(None);
+        return Ok(false);
     };
     let (machine, state) = crate::declarations::state_declaration(checked, caller_state)?;
     if machine.symbol != caller_machine {
@@ -56,7 +51,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
                     ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 )
             {
-                return Ok(None);
+                return Ok(false);
             }
             let projected = projected_receivers::source(
                 checked,
@@ -85,21 +80,13 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
                 return unsupported("binding receiver lost its authored statement");
             };
             let members = checked.statement_table.name_path_members(source.receiver);
-            let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
+            if !checked.state_parameters(state).iter().any(|parameter| {
                 !parameter.is_self
                     && (parameter.symbol == source.receiver_root_symbol
                         || members.first() == Some(&parameter.name))
-            }) else {
-                return Ok(None);
-            };
-            if members.len() < 2 {
-                return Ok(None);
-            }
-            if members.first() != Some(&parameter.name)
-                || parameter.symbol != source.receiver_root_symbol
-                || !source.receiver_symbol.is_valid()
+            }) || members.len() < 2
             {
-                return unsupported("binding receiver changed its parameter or field identity");
+                return Ok(false);
             }
             let (root, path) = crate::unit::attached_unit::statement_receiver_path(
                 checked, machine, state, statement,
@@ -126,7 +113,7 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
             }
             (root, path, field.type_reference)
         }
-        _ => return Ok(None),
+        _ => return Ok(false),
     };
     let Some((position, source_parameter)) = checked
         .state_parameters(state)
@@ -135,10 +122,10 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
         .find(|(_, parameter)| parameter.symbol == root && !parameter.is_self)
     else {
         // Attached self and local receiver routes retain their existing owners.
-        return Ok(None);
+        return Ok(false);
     };
     if path.is_empty() {
-        return Ok(None);
+        return Ok(false);
     }
     let mut parameters = caller_parameters
         .iter()
@@ -153,15 +140,12 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     {
         return unsupported("binding receiver has inconsistent ordinary parameter custody");
     }
-    let source_type = checked
+    checked
         .typed
         .unwrapped_type_reference(source_parameter.type_reference)
         .ok_or(LoweringError::Unsupported(
             "binding receiver parameter has no declared carrier",
         ))?;
-    if parameter.type_identity != checked.normalized_type_identity(source_type).as_str() {
-        return unsupported("binding receiver parameter changed its retained carrier identity");
-    }
     let requirement =
         typed_trees::service::exact_bound_service_requirement(&checked.typed, carrier).ok_or(
             LoweringError::Unsupported("parameter receiver is not an exact Binding carrier"),
@@ -227,5 +211,5 @@ pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     {
         return unsupported("binding receiver lost its exact Fused field erasure receipt");
     }
-    Ok(Some(ParameterBindingReceiver { parameter, path }))
+    Ok(true)
 }

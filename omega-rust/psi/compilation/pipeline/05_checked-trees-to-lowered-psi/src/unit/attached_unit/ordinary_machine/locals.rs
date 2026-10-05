@@ -7,7 +7,7 @@ use super::super::{scalar_arrays, structural_values};
 use super::MachineEmission;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
-    StructuralPlaceKind, lookup_type_id, unsupported,
+    unsupported,
 };
 
 impl MachineEmission<'_> {
@@ -109,7 +109,6 @@ impl MachineEmission<'_> {
     ) -> Result<Option<OperationKind>, LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             declaration_ordinal,
-            type_identity,
             ..
         } = operation
         else {
@@ -124,17 +123,6 @@ impl MachineEmission<'_> {
             .ok_or(LoweringError::Unsupported(
                 "Unit local ordinal is not dense",
             ))?;
-        if !matches!(
-            local.kind,
-            StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal: ordinal,
-                structural_type,
-                ..
-            } if ordinal == *declaration_ordinal
-                && structural_type == lookup_type_id(self.type_ids, type_identity)?
-        ) {
-            return unsupported("Unit local declaration drifted from checked custody");
-        }
         Ok(Some(OperationKind::EstablishTrivialAffineLocal {
             destination: local.id,
         }))

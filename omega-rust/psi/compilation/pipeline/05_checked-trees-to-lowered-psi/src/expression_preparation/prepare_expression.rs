@@ -141,30 +141,20 @@ fn view_local_observation(
 }
 
 /// The place an owned structural local's establishment published, for scalar
-/// observations (element reads) rooted at it. The local keeps whole owned
-/// custody: an established view re-loan or a projected source means the read
-/// is no longer the plain owned-place read this root names.
+/// observations (element reads) rooted at it.
 fn owned_local_observation(
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     symbol: symbols::SymbolHandle,
 ) -> Result<PlaceId, LoweringError> {
-    let mut matches = structural_locals
-        .iter()
-        .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
     let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
         argument: source,
         ..
-    }) = matches.next()
+    }) = structural_locals
+        .iter()
+        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
     else {
         return unsupported("owned local observation lost its established place");
     };
-    if !symbol.is_valid()
-        || matches.next().is_some()
-        || source.access != StructuralAccess::Owned
-        || !source.path.is_empty()
-    {
-        return unsupported("owned local observation changed its local custody");
-    }
     Ok(source.place)
 }
 
@@ -174,7 +164,6 @@ fn lower_indexed_field_observation(
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     index: LoweredDirectExpression,
-    expected: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let (source, path, leaf, scalar_type) =
         crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
@@ -183,9 +172,6 @@ fn lower_indexed_field_observation(
             path,
             element_path,
         )?;
-    if scalar_type != expected {
-        return unsupported("indexed element field read drifted from its field type");
-    }
     use crate::emission::primitive_store::IndexedElementLeaf;
     Ok(match leaf {
         IndexedElementLeaf::Flat(element_path) => LoweredDirectExpression::IndexedPrimitiveRead {
@@ -669,9 +655,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         path,
                         inner_indexes.len(),
                     )?;
-                if scalar_type != terminal_scalar_type(*primitive_type)? {
-                    return unsupported("nested element read drifted from its leaf type");
-                }
                 return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                     source,
                     path,
@@ -700,16 +683,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         _
                     ))
                 ) {
-                    if structural_fields.observation_source(*root)?.0 != source {
-                        return unsupported("indexed local field changed its established source");
-                    }
                     return lower_indexed_field_observation(
                         structural_fields,
                         *root,
                         path,
                         element_path,
                         exact_u64_index(index)?,
-                        terminal_scalar_type(*primitive_type)?,
                     );
                 }
                 // A raw array uses its declared extent. A bounded byte owner
@@ -857,11 +836,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                     path,
                                     element_path,
                                 )?;
-                            if scalar_type != terminal_scalar_type(*primitive_type)? {
-                                return unsupported(
-                                    "indexed element read drifted from its element type",
-                                );
-                            }
                             use crate::emission::primitive_store::IndexedElementLeaf;
                             let IndexedElementLeaf::RuntimeTail { element_path, .. } = leaf else {
                                 return unsupported("indexed element runtime path did not lower");
@@ -917,7 +891,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 path,
                                 element_path,
                                 index,
-                                terminal_scalar_type(*primitive_type)?,
                             );
                         }
                         // A path ending at a fixed array declares its extent
@@ -930,11 +903,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 path,
                             )?
                         {
-                            if element_scalar != terminal_scalar_type(*primitive_type)? {
-                                return unsupported(
-                                    "indexed field read drifted from its element type",
-                                );
-                            }
                             return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                                 source,
                                 path,
@@ -1032,19 +1000,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             )?;
             let index = exact_u64_index(index)?;
             match element_scalar {
-                Some(scalar_type) => {
-                    if scalar_type != terminal_scalar_type(*primitive_type)? {
-                        return unsupported(
-                            "element-view indexed read drifted from its element type",
-                        );
-                    }
-                    Ok(LoweredDirectExpression::ElementViewRead {
-                        source,
-                        index: Box::new(index),
-                        path: Vec::new(),
-                        scalar_type,
-                    })
-                }
+                Some(scalar_type) => Ok(LoweredDirectExpression::ElementViewRead {
+                    source,
+                    index: Box::new(index),
+                    path: Vec::new(),
+                    scalar_type,
+                }),
                 None => Ok(LoweredDirectExpression::ByteSequenceRead {
                     source,
                     index: Box::new(index),

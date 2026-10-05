@@ -322,9 +322,6 @@ impl Preparation<'_> {
             return Ok(place);
         }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
-            if argument.type_identity != identity.as_str() {
-                return unsupported("scalar record transfer changed its carrier");
-            }
             let source = self.bindings.owned_argument(argument)?;
             return match self.checked.type_multiplicity(reference) {
                 Multiplicity::Unrestricted => self.bind_place(
@@ -363,11 +360,6 @@ impl Preparation<'_> {
             // A whole read of an earlier copyable local snapshots its current
             // contents: its owned home binds into a fresh unrestricted home,
             // the same copy an owned unrestricted transfer makes above.
-            if source.type_identity != identity.as_str()
-                || self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted
-            {
-                return unsupported("scalar record copy changed its carrier");
-            }
             let source = self.bindings.copied_local_home(source)?;
             return self.bind_place(
                 value,
@@ -747,16 +739,11 @@ pub(crate) fn emit(
     for (field, value) in &construction.fields {
         let value = match value {
             Field::Scalar {
-                position,
-                scalar_type,
-                bounded,
+                position, bounded, ..
             } => {
                 let value = values.get(*position).ok_or(LoweringError::Unsupported(
                     "record field lost its completed scalar",
                 ))?;
-                if value.scalar_type != *scalar_type {
-                    return unsupported("completed record field changed its carrier");
-                }
                 terminal_psi::RecordFieldValue::Scalar {
                     value: value.id,
                     range_obligation: if *bounded {

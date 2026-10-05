@@ -265,9 +265,6 @@ pub(super) fn emit(
     let target_machine = &call.target.machine;
     let target_state = &call.target.state;
     let structural_arguments = &call.structural_arguments;
-    if usize::try_from(result.binding_ordinal).ok() != Some(earlier_results.len()) {
-        return unsupported("ordinary structural result binding ordinal drifted from source order");
-    }
     let target = target(checked, *target_machine, *target_state)?;
     validate_transfer_shape(
         structural_arguments,

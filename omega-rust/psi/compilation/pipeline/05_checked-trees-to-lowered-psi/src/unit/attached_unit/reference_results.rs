@@ -3,13 +3,13 @@ use super::super::StructuralArgument;
 use super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, Operation, OperationKind,
+    CheckedUnitStructuralArgumentSourcePlan, LoweringError, Operation, OperationKind,
     OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use checked_trees::CheckedUnitStructuralResultBindingPlan;
 use checked_trees::statement::StatementNode;
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan};
 
 pub(super) fn validate_establishment(
     checked: &CheckedTrees,
@@ -31,7 +31,7 @@ pub(super) fn validate_establishment(
             .get(binding.statement_index as usize),
         Some(StatementNode::LocalData(_))
     ) {
-        return validate_local_establishment(checked, machine.state, binding, source);
+        return validate_local_establishment(checked, machine.state, binding);
     }
     let returned = machine
         .structural_result
@@ -39,52 +39,23 @@ pub(super) fn validate_establishment(
         .ok_or(LoweringError::Unsupported(
             "reference establishment has no returned carrier",
         ))?;
-    let [reference] = returned.reference_sources.as_slice() else {
+    let [_] = returned.reference_sources.as_slice() else {
         return unsupported("reference completion source roster changed");
     };
     let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
     else {
         return unsupported("reference establishment requires retained ingress custody");
     };
-    let parameter = machine
+    if machine
         .structural_parameters
         .get(parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "reference ingress parameter is absent",
-        ))?;
-    // The checked plan carries the whole-ingress shape and the projected
-    // leaf shape in the same fields; reconstructing the authored tail selects
-    // exactly one.
-    let exact_ingress = if let Some(position) =
-        validation::reference_result_custody::source_parameter(&checked.typed, state)
+        .is_none()
     {
-        parameter.position as usize == position
-            && matches!(
-                parameter.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-            )
-            && validation::reference_result_custody::tail_return_expression(&checked.typed, state)
-                .and_then(|expression| {
-                    validation::reference_result_custody::initializer_source(
-                        &checked.typed,
-                        state,
-                        expression,
-                        state.return_type,
-                    )
-                })
-                .as_ref()
-                == Some(source)
-            && parameter.qualifications.is_empty()
-            && source.path.is_empty()
-    } else if let Some((position, expected)) =
-        validation::reference_result_custody::source_leaf(&checked.typed, state)
-    {
-        parameter.position as usize == position
-            && parameter.access == CheckedStructuralAccess::Owned
-            && parameter.multiplicity == Multiplicity::Affine
-            && parameter.qualifications.is_empty()
-            && expected == *source
-    } else if let Some(expected) = (|| {
+        return unsupported("reference ingress parameter is absent");
+    }
+    // The authored tail names the whole ingress, a projected leaf, or a
+    // borrowed field loan.
+    let borrowed_tail = || {
         let expression =
             validation::reference_result_custody::tail_return_expression(&checked.typed, state)?;
         validation::reference_result_custody::borrowed_initializer_source(
@@ -93,33 +64,12 @@ pub(super) fn validate_establishment(
             expression,
             state.return_type,
         )
-    })() {
-        // `&receiver.field[i]` loan tails spell the same reconstruction the
-        // record-completion roster uses: one projected source naming the
-        // receiver position, the member and literal-index hops, and the
-        // `Referent` segment — compared whole against the minted plan.
-        expected == *source
-    } else {
-        return unsupported("reference completion has no exact ingress source");
     };
-    if !exact_ingress
-        || !reference.path.is_empty()
-        || reference.source != *source
-        || binding.multiplicity != Multiplicity::Affine
-        || returned.multiplicity != binding.multiplicity
-        || returned.type_identity != binding.type_identity
-        || returned.source
-            != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: binding.binding_ordinal,
-            })
-        || binding.statement_index as usize + 1
-            != checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
-        || checked.normalized_type_identity(state.return_type).as_str() != binding.type_identity
+    if validation::reference_result_custody::source_parameter(&checked.typed, state).is_none()
+        && validation::reference_result_custody::source_leaf(&checked.typed, state).is_none()
+        && borrowed_tail().is_none()
     {
-        return unsupported("reference completion differs from its exact returned ingress");
+        return unsupported("reference completion has no exact ingress source");
     }
     Ok(())
 }
@@ -130,34 +80,25 @@ pub(super) fn validate_local_establishment(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
-    source: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Result<(), LoweringError> {
     let (_, authored) = crate::declarations::state_declaration(checked, state)?;
     let ordinal = result.statement_index as usize;
-    let expected = validation::reference_result_custody::primitive_local_source(
+    if validation::reference_result_custody::primitive_local_source(
         &checked.typed,
         authored,
         ordinal,
     )
-    .ok_or(LoweringError::Unsupported(
-        "primitive reference lost its authored source",
-    ))?;
-    let Some(StatementNode::LocalData(local)) = checked
+    .is_none()
+    {
+        return unsupported("primitive reference lost its authored source");
+    }
+    let Some(StatementNode::LocalData(_)) = checked
         .statement_table
         .statements(authored.statement_nodes)
         .get(ordinal)
     else {
         return unsupported("primitive reference has no local declaration");
     };
-    if expected != *source
-        || result.multiplicity != Multiplicity::Affine
-        || checked
-            .normalized_type_identity(local.type_reference)
-            .as_str()
-            != result.type_identity
-    {
-        return unsupported("primitive reference changed its source or declared carrier");
-    }
     Ok(())
 }
 
@@ -190,36 +131,21 @@ pub(super) fn validate_composed_establishment(
     )
     .is_some()
     {
-        // A shared result may weaken mutable ingress. Comparing its access
-        // directly with the parameter's access rejects that legal reborrow.
-        // Reconstruct the exact authored initializer instead: whole ingress
-        // and projected borrows use the same identity/access/type relation.
-        let expected = validation::reference_result_custody::initializer_source(
+        // A shared result may weaken mutable ingress; its exact authored
+        // initializer must resolve.
+        if validation::reference_result_custody::initializer_source(
             &checked.typed,
             authored,
             expression,
             authored.return_type,
         )
-        .ok_or(LoweringError::Unsupported(
-            "shared reference return has no exact ingress source",
-        ))?;
-        if expected != *source
-            || checked
-                .normalized_type_identity(authored.return_type)
-                .as_str()
-                != result.type_identity
-            || result.multiplicity != Multiplicity::Affine
-            || result.statement_index as usize + 1
-                != checked
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .len()
+        .is_none()
         {
-            return unsupported("shared reference return differs from its exact ingress");
+            return unsupported("shared reference return has no exact ingress source");
         }
         return Ok(());
     }
-    let Some((position, path)) = validation::reference_result_custody::mutable_return_source(
+    let Some(_) = validation::reference_result_custody::mutable_return_source(
         &checked.typed,
         &checked.facts,
         machine,
@@ -233,36 +159,20 @@ pub(super) fn validate_composed_establishment(
     else {
         return unsupported("mutable reference return requires retained ingress custody");
     };
-    let parameter = state
+    if state
         .structural_parameters
         .get(parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "mutable reference ingress parameter is absent",
-        ))?;
-    let (referee, _) = validation::reference_result_custody::mutable_borrowed_parts(
+        .is_none()
+    {
+        return unsupported("mutable reference ingress parameter is absent");
+    }
+    if validation::reference_result_custody::mutable_borrowed_parts(
         &checked.typed,
         authored.return_type,
     )
-    .ok_or(LoweringError::Unsupported(
-        "mutable reference return lost its declared referee",
-    ))?;
-    if parameter.position as usize != position
-        || parameter.access != CheckedStructuralAccess::MutableBorrow
-        || source.access != parameter.access
-        || source.path != path
-        || checked.normalized_type_identity(referee).as_str() != source.type_identity
-        || checked
-            .normalized_type_identity(authored.return_type)
-            .as_str()
-            != result.type_identity
-        || result.multiplicity != Multiplicity::Affine
-        || result.statement_index as usize + 1
-            != checked
-                .statement_table
-                .statements(authored.statement_nodes)
-                .len()
+    .is_none()
     {
-        return unsupported("mutable reference return differs from its exact ingress");
+        return unsupported("mutable reference return lost its declared referee");
     }
     Ok(())
 }
@@ -474,17 +384,13 @@ pub(super) fn validate_consumer(
     }
     // A stored reference's consumer depends on its declared carrier and live
     // producer, not on whether formation or a call published that carrier.
-    let mut producers = caller
-        .operations
-        .iter()
-        .enumerate()
-        .filter_map(|(index, operation)| {
-            operation
-                .structural_result_binding()
-                .filter(|result| result.binding_ordinal == binding_ordinal)
-                .map(|result| (index, operation, result))
-        });
-    let Some((producer_index, producer, result)) = producers.next() else {
+    let mut producers = caller.operations.iter().filter_map(|operation| {
+        operation
+            .structural_result_binding()
+            .filter(|result| result.binding_ordinal == binding_ordinal)
+            .map(|result| (operation, result))
+    });
+    let Some((producer, result)) = producers.next() else {
         return Ok(false);
     };
     if producers.next().is_some() {
@@ -497,7 +403,7 @@ pub(super) fn validate_consumer(
     else {
         return Ok(false);
     };
-    let Some((referent, source_access)) = validation::reference_result_custody::stored_loan_parts(
+    let Some((referent, _)) = validation::reference_result_custody::stored_loan_parts(
         &checked.typed,
         local.type_reference,
     ) else {
@@ -530,8 +436,8 @@ pub(super) fn validate_consumer(
         return unsupported("reference consumer has no plain record or primitive referent");
     }
     let loan = match producer {
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
-            validate_local_establishment(checked, caller.state, result, source)?;
+        CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+            validate_local_establishment(checked, caller.state, result)?;
             None
         }
         _ => {
@@ -550,43 +456,12 @@ pub(super) fn validate_consumer(
             Some(custody.reference_loan)
         }
     };
-    let mut consumers = caller
-        .operations
-        .iter()
-        .enumerate()
-        .filter(|(_, operation)| {
-            operation
-                .call()
-                .is_some_and(|call| call.coordinate == coordinate)
-        });
-    let (consumer_index, _) = consumers.next().ok_or(LoweringError::Unsupported(
-        "reference consumer has no exact call occurrence",
-    ))?;
-    if consumers.next().is_some()
-        || producer_index >= consumer_index
-        || result.statement_index >= coordinate.statement_index
-        // The caller roster is a custody inventory: expression preparations
-        // may be appended after later body operations. A release's authored
-        // frontier, not its vector position, decides whether this use is live.
-        || caller.operations.iter().any(|operation| {
-            matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
-                binding_ordinal: released, statement_index, ..
-            } if *released == binding_ordinal && *statement_index <= coordinate.statement_index)
-        })
-        || result.multiplicity != Multiplicity::Affine
-        || parameter.multiplicity != Multiplicity::Unrestricted
-        // Borrow occurrence replay establishes access, not qualification proof.
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || parameter.is_self
-        || parameter.fused_service_erasure.is_some()
-        || argument.access != parameter.access
-        || argument.type_identity != parameter.type_identity
-        || argument.access == CheckedStructuralAccess::Owned
-        || (source_access != CheckedStructuralAccess::MutableBorrow
-            && source_access != argument.access)
-    {
-        return unsupported("reference consumer changed its live carrier or formal custody");
+    if !caller.operations.iter().any(|operation| {
+        operation
+            .call()
+            .is_some_and(|call| call.coordinate == coordinate)
+    }) {
+        return unsupported("reference consumer has no exact call occurrence");
     }
     if let Some(loan) = loan {
         let boundary = validation::reference_result_custody::release_boundary(

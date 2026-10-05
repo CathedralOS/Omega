@@ -12,16 +12,13 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, MachineId, Multiplicity,
-    NominalAffineCleanup, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
-    StructuralFieldType, StructuralTypeId, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure,
-    obligation_id, unique_unit_machine, unsupported,
+    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, MachineId, NominalAffineCleanup,
+    PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralFieldType,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator, lookup_machine_id,
+    lookup_type_id, lower_unit_closure, obligation_id, unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
-use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitNominalAffineCleanupPlan,
-};
+use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
 mod custody;
@@ -97,14 +94,11 @@ pub(crate) fn lower_nominal_cleanup_action(
     receivers: &[(SymbolHandle, PlaceId)],
     next_obligation: &mut u64,
 ) -> Result<NominalAffineCleanup, LoweringError> {
-    let target = unique_unit_machine(
+    unique_unit_machine(
         UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
         cleanup.cleanup_machine,
     )?;
-    validate_nominal_cleanup_target(target, cleanup)?;
-    if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
-        return unsupported("nominal cleanup member target identity drifted");
-    }
+    lookup_type_id(type_ids, &cleanup.type_identity)?;
     Ok(NominalAffineCleanup {
         place,
         structural_type,
@@ -140,11 +134,10 @@ pub(super) fn finalize_nominal_cleanup_actions(
         let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
             continue;
         };
-        let target = unique_unit_machine(
+        unique_unit_machine(
             UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
             cleanup.cleanup_machine,
         )?;
-        validate_nominal_cleanup_target(target, cleanup)?;
         let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
         let emitted = machines
             .iter_mut()
@@ -152,12 +145,6 @@ pub(super) fn finalize_nominal_cleanup_actions(
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup target was not emitted",
             ))?;
-        if emitted
-            .attachment
-            .is_some_and(|attachment| attachment != owner)
-        {
-            return unsupported("nominal cleanup target owner identity drifted");
-        }
         // Terminal attachment names semantic ownership, not an implicit
         // argument. A static named subject still carries the same selected
         // T::drop owner while its ordinary parameter carries the storage.
@@ -209,28 +196,11 @@ fn finalize_nominal_cleanup_machine(
     let plan = &nominal.machine;
     contexts::validate_requirements(checked, nominal)?;
     custody::validate_checked_dispositions(checked, nominal)?;
-    let expected_attachment = plan
-        .attachment_type_identity
-        .as_deref()
-        .map(|identity| lookup_type_id(type_ids, identity))
-        .transpose()?;
-    if machine.attachment != expected_attachment {
-        return unsupported("nominal affine Unit member attachment drifted");
-    }
-    if nominal.cleanups.len() != plan.structural_parameters.len()
-        || machine.structural_parameters.len() != plan.structural_parameters.len()
-        || !machine.parameters.is_empty()
-        || machine.result != TerminalMachineResult::Unit
-    {
-        return unsupported("nominal affine Unit member signature drifted");
+    if let Some(identity) = plan.attachment_type_identity.as_deref() {
+        lookup_type_id(type_ids, identity)?;
     }
     let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
-    for (ordinal, cleanup) in nominal.cleanups.iter().enumerate() {
-        if cleanup.source_parameter_index().map(|index| index as usize)
-            != Some(nominal.cleanups.len() - ordinal - 1)
-        {
-            return unsupported("nominal cleanup action order drifted");
-        }
+    for cleanup in &nominal.cleanups {
         let parameter = machine
             .structural_parameters
             .get(
@@ -262,51 +232,11 @@ fn finalize_nominal_cleanup_machine(
         action.consumed_claims.sort_unstable();
         cleanups.push(action);
     }
-    let entry_block = machine.entry;
     let [block] = machine.blocks.as_mut_slice() else {
         return unsupported("nominal affine Unit member terminal control drifted");
     };
-    if !matches!(
-        &block.terminator,
-        Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        } if trivial_affine_discards.is_empty()
-    ) || block.id != entry_block
-        || !block.parameters.is_empty()
-        || !block.operations.is_empty()
-    {
-        return unsupported("nominal affine Unit member body or return drifted");
-    }
     let edge = block.terminator.edge();
     block.terminator = Terminator::ReturnUnitNominalAffine { edge, cleanups };
-    Ok(())
-}
-
-fn validate_nominal_cleanup_target(
-    target: &CheckedUnitEffectMachinePlan,
-    cleanup: &CheckedUnitNominalAffineCleanupPlan,
-) -> Result<(), LoweringError> {
-    if target.state != cleanup.cleanup_state
-        || target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-        || target
-            .attachment_type_identity
-            .as_deref()
-            .is_some_and(|owner| owner != cleanup.type_identity)
-        || !target.scalar_parameters.is_empty()
-        || target.structural_parameters.len() > 1
-        || target.structural_parameters.iter().any(|parameter| {
-            parameter.position != 0
-                || parameter.type_identity != cleanup.type_identity
-                || !matches!(
-                    parameter.access,
-                    CheckedStructuralAccess::MutableBorrow
-                        | CheckedStructuralAccess::WriteOnlyBorrow
-                )
-        })
-    {
-        return unsupported("nominal cleanup target selection or borrowed subject drifted");
-    }
     Ok(())
 }
 

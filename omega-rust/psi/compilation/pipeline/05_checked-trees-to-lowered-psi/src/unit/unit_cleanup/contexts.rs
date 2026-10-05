@@ -188,12 +188,6 @@ pub(crate) fn prepare_signature(
                 .ok_or(LoweringError::Unsupported(
                     "nominal cleanup caller predicate parameter is absent",
                 ))?;
-            if !types.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
-                    && declaration.identity == checked_parameter.type_identity
-            }) {
-                return unsupported("nominal cleanup caller type identity drifted");
-            }
             requires.push(field_clause(
                 types,
                 parameter,
@@ -210,22 +204,12 @@ pub(crate) fn prepare_signature(
         if nominal.is_some() {
             return unsupported("nominal cleanup dispatcher is its own hook");
         }
-        if hooks.any(|other| {
-            other.type_identity != hook.type_identity
-                || other.cleanup_state != hook.cleanup_state
-                || other.cleanup_contract_report_fingerprint
-                    != hook.cleanup_contract_report_fingerprint
-                || other.requirements != hook.requirements
-        }) {
-            return unsupported("shared nominal cleanup target requirements drifted");
-        }
-        let target = super::unique_unit_machine(
+        super::unique_unit_machine(
             crate::unit::attached_unit::bodies::UnitPlans::published(
                 &checked.facts.flow.terminal_unit_effects,
             ),
             source,
         )?;
-        super::validate_nominal_cleanup_target(target, hook)?;
         let structural_type = types
             .iter()
             .find(|declaration| declaration.identity == hook.type_identity)
@@ -251,17 +235,6 @@ pub(crate) fn prepare_signature(
             });
         }
         if let Some(parameter) = predicate_parameters.first() {
-            if predicate_parameters.len() != 1
-                || parameter.position != 0
-                || parameter.structural_type != structural_type
-                || !matches!(
-                    parameter.access,
-                    terminal_psi::StructuralAccess::MutableBorrow
-                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                )
-            {
-                return unsupported("nominal cleanup hook subject drifted");
-            }
             receiver = Some(parameter.place);
             for requirement in &hook.requirements {
                 requires.push(field_clause(

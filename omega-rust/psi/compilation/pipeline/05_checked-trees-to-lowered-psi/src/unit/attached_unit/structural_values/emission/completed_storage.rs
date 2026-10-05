@@ -1,7 +1,7 @@
 //! Preserve producer-authored custody when publishing a completed source value.
 
 use super::{
-    BlockId, LoweringError, OperationBuffer, PlaceId, StructuralParameterDeclaration,
+    LoweringError, OperationBuffer, PlaceId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, unsupported,
 };
 
@@ -12,13 +12,9 @@ pub(super) fn completed_result(
     place: PlaceId,
     declaration: &StructuralPlaceDeclaration,
     operations: &OperationBuffer,
-    block: BlockId,
     parameters: &[StructuralParameterDeclaration],
     arrival_claims: &[terminal_psi::StructuralResultClaimBinding],
 ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
-    if declaration.id != place {
-        return unsupported("completed value changed its declared place");
-    }
     let mut producers = operations.iter().filter_map(|operation| {
         operation
             .result
@@ -40,34 +36,18 @@ pub(super) fn completed_result(
         return Ok(result.clone());
     }
     let StructuralPlaceDeclaration {
-        kind:
-            StructuralPlaceKind::BlockParameter {
-                block: declared_block,
-                position,
-            },
+        kind: StructuralPlaceKind::BlockParameter { .. },
         ..
     } = declaration
     else {
         return unsupported("completed value has no producer or arrival declaration");
     };
-    let mut arrivals = parameters
+    let parameter = parameters
         .iter()
-        .filter(|parameter| parameter.place == place);
-    let parameter = arrivals.next().ok_or(LoweringError::Unsupported(
-        "completed value has no current arrival",
-    ))?;
-    if arrivals.next().is_some()
-        || *declared_block != block
-        || parameter.position != *position
-        || parameter.is_self
-        || parameters
-            .iter()
-            .filter(|parameter| parameter.position == *position)
-            .count()
-            != 1
-    {
-        return unsupported("completed value changed its exact arrival");
-    }
+        .find(|parameter| parameter.place == place)
+        .ok_or(LoweringError::Unsupported(
+            "completed value has no current arrival",
+        ))?;
     if arrival_claims.windows(2).any(|pair| pair[0] >= pair[1])
         || (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             && arrival_claims.is_empty())

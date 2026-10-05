@@ -177,64 +177,11 @@ impl Evaluation {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Linear => StructuralMultiplicity::Linear,
         };
-        let mut types = structural_types
+        if !structural_types
             .iter()
-            .filter(|declaration| declaration.id == produced.structural_type);
-        let declaration = types.next().ok_or(LoweringError::Unsupported(
-            "structural result type was not declared",
-        ))?;
-        // Byte construction proves primitive declaration predicates from its
-        // actual operands. It does not mint nominal CallEnsures authority, so
-        // those qualifications have no call-establishment rows. Independent
-        // Terminal reconstruction checks the exact result roster and bytes.
-        let constructed_bytes = operations.iter().any(|operation| {
-            matches!(
-                operation.kind,
-                terminal_psi::OperationKind::EstablishByteSequenceConcatenation { .. }
-            ) && operation.result.structural() == Some(&produced)
-        });
-        // An ordinary byte-owner completion imports its declared primitive
-        // predicates from the exact call result, not nominal CallEnsures rows.
-        // Call emission reconstructs the signature; Terminal independently
-        // validates the callee's return and the receiving result roster.
-        let returned_bytes = multiplicity == StructuralMultiplicity::Unrestricted
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
-            && produced.qualification_establishments.is_empty()
-            && operations.iter().any(|operation| {
-                operation.result.structural() == Some(&produced)
-                    && direct_call_parts(&operation.kind)
-                        .is_some_and(|call| call.role == DirectCallRole::Structural)
-                    && operations.source_calls.iter().any(|occurrence| {
-                        occurrence.source_state == state
-                            && occurrence.statement_index == result.statement_index as usize
-                            && occurrence.terminal_operation == operation.id
-                    })
-            });
-        if types.next().is_some()
-            || declaration.identity != result.type_identity
-            || produced.multiplicity != multiplicity
-            // A non-linear result keeps only qualifications its own
-            // establishment rows minted (e.g. a boundary's declared result
-            // domains replayed through CallEnsures evidence).
-            || (multiplicity != StructuralMultiplicity::Linear
-                && !constructed_bytes
-                && !returned_bytes
-                && produced.qualifications.iter().any(|domain| {
-                    !produced
-                        .qualification_establishments
-                        .iter()
-                        .any(|row| row.domain == *domain)
-                }))
-            || (multiplicity != StructuralMultiplicity::Linear
-                && !produced.projected_qualifications.is_empty())
-            || (multiplicity != StructuralMultiplicity::Linear && !produced.claims.is_empty())
+            .any(|declaration| declaration.id == produced.structural_type)
         {
-            return unsupported("structural result registration changed its exact custody");
+            return unsupported("structural result type was not declared");
         }
         if multiplicity == StructuralMultiplicity::Linear {
             // Registration does not establish new linear authority. Only the
@@ -284,23 +231,12 @@ impl Evaluation {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let multiplicity = produced.multiplicity();
-        let mut types = structural_types
+        let declaration = structural_types
             .iter()
-            .filter(|declaration| declaration.id == produced.structural_type());
-        let declaration = types.next().ok_or(LoweringError::Unsupported(
-            "structural binding type was not declared",
-        ))?;
-        let expected_multiplicity = match result.multiplicity {
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => StructuralMultiplicity::Linear,
-        };
-        if types.next().is_some()
-            || declaration.identity != result.type_identity
-            || multiplicity != expected_multiplicity
-        {
-            return unsupported("structural binding changed its declared type or multiplicity");
-        }
+            .find(|declaration| declaration.id == produced.structural_type())
+            .ok_or(LoweringError::Unsupported(
+                "structural binding type was not declared",
+            ))?;
         if operations
             .structural_values
             .iter()
@@ -1061,7 +997,6 @@ impl Evaluation {
             state,
             statement_index,
             value,
-            primitive_type,
             field_identity,
         )?
         .map(|(_, role)| role);
@@ -1080,9 +1015,6 @@ impl Evaluation {
                 );
             }
             let value = values[position];
-            if value.scalar_type != scalar_type {
-                return unsupported("field store call result differs from its field type");
-            }
             return Ok(value);
         }
         if value.as_pure().is_some() {

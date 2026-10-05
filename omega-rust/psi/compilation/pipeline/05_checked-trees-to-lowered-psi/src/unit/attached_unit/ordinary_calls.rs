@@ -27,7 +27,6 @@ use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_val
 pub(super) struct Target<'a> {
     pub parameters: &'a [StructuralParameterDeclaration],
     pub scalar_parameters: &'a [ValueDeclaration],
-    pub erased_scalar_parameters: &'a [ValueDeclaration],
     pub predicate_parameters: &'a [StructuralParameterDeclaration],
     /// The exact `requires` rows the callee's emitted contract carries, in
     /// contract order: closed authored clauses merged ahead of runtime
@@ -89,7 +88,6 @@ pub(super) fn prepare(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
-    domain_ids: &[StructuralDomainBinding],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     calls: &mut CallEmissionContext<'_>,
     selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
@@ -116,12 +114,6 @@ pub(super) fn prepare(
     let structural_arguments = &call.structural_arguments;
     let claim_transfers = call.claim_transfers();
     let checked_target = UnitBody::find(plans, *target_machine)?.entry()?;
-    if target.erased_scalar_parameters.len() != checked_target.erased_scalar_parameters.len()
-        || erased_scalar_arguments.len() != checked_target.erased_scalar_parameters.len()
-        || erased_proof_arguments.len() != checked_target.erased_proof_parameters.len()
-    {
-        return unsupported("Unit call erased formal roster drifted from its checked target");
-    }
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|argument| {
@@ -220,9 +212,6 @@ pub(super) fn prepare(
         primitive_local_places,
         Some(StructuralResultCustody {
             results: completed_results,
-            domains: domain_ids,
-            claims: claim_bindings,
-            target_entry_claims: checked_target.entry_claims,
         }),
     )?;
     let claim_transfers = emitted_claim_transfers(

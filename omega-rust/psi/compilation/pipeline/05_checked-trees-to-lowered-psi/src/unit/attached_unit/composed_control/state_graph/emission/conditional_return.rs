@@ -199,8 +199,7 @@ impl StateGraphEmission<'_, '_> {
             // The arm alone evaluates the value checking retained under its
             // `Return` role, then disposes the roots a scalar return does.
             checked_trees::CheckedConditionalReturnArm::Scalar {
-                statement_ordinal,
-                primitive_type,
+                statement_ordinal, ..
             } => {
                 let role = CheckedScalarExpressionRole::Return;
                 let retained = match checked.facts.values.scalar_expressions.expression_at(
@@ -240,9 +239,6 @@ impl StateGraphEmission<'_, '_> {
                     &mut calls,
                 )?;
                 self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                if value.scalar_type != terminal_scalar_type(*primitive_type)? {
-                    return unsupported("Unit graph scalar return arm changed its carrier");
-                }
                 Terminator::Return {
                     edge: edge_id(allocate_dense(next_edge)?),
                     value: value.id,

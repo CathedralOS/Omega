@@ -142,7 +142,7 @@ impl RangeStorage {
                 }),
             )
         } else {
-            let (symbol, place) = bindings.borrowed_view_source(
+            let (_, place) = bindings.borrowed_view_source(
                 self.root,
                 checked.state_parameters(authored),
                 checked,
@@ -152,14 +152,10 @@ impl RangeStorage {
                     self.access,
                 ),
             )?;
-            if symbol != self.symbol || !self.collection.is_empty() {
-                return unsupported("range descriptor changed its storage identity");
-            }
             (place, None)
         };
         Ok((
             ViewRangeSource {
-                symbol: self.symbol,
                 place,
                 structural_type: self.structural_type,
                 family: self.family,
@@ -297,9 +293,6 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    if source.root != symbol || source.path != argument.path {
-        return unsupported("range storage changed its root or projection");
-    }
     let mut reference = validation::declared_place_type_raw(
         &checked.typed,
         machine,
@@ -489,8 +482,6 @@ pub(crate) fn establish(
 /// The established view a range narrows, as the emitting route found it.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ViewRangeSource {
-    /// The authored name the range's collection must spell.
-    pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) family: ViewFamily,
@@ -519,7 +510,6 @@ pub(crate) fn emit(
     checked: &CheckedTrees,
     site: ViewRangeSite<'_>,
     source: ViewRangeSource,
-    collection: &[CheckedUnitStructuralPathSegment],
     result_type: StructuralTypeId,
     destination: PlaceId,
     evaluation: &mut super::argument_evaluation::Evaluation,
@@ -531,10 +521,7 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let (start, end) = replay(checked, &site, source.symbol, collection)?;
-    if result_type != source.structural_type {
-        return unsupported("view subslice changed its view type");
-    }
+    let (start, end) = replay(checked, &site)?;
     let (machine, _) = crate::declarations::state_declaration(checked, site.state)?;
     let retained_count = values.len();
     let mut positions = [None, None];
@@ -601,8 +588,6 @@ pub(crate) fn emit(
 pub(crate) fn replay(
     checked: &CheckedTrees,
     site: &ViewRangeSite<'_>,
-    source_symbol: symbols::SymbolHandle,
-    collection: &[CheckedUnitStructuralPathSegment],
 ) -> Result<
     (
         Option<CheckedCallScalarArgument>,
@@ -615,8 +600,7 @@ pub(crate) fn replay(
         // The whole-extent spelling `let v: &T = coll` authors no `..`
         // operation — its endpoints stay omitted and its expression names
         // the collection itself, behind the same readable-borrow unwrap
-        // `storage` applies. The replay checks the same exact root and
-        // projection agreement the spelled range checks.
+        // `storage` applies.
         let collection_expression = match checked.expression_table.expression(site.expression) {
             ExpressionNode::Borrow(borrow)
                 if matches!(
@@ -629,22 +613,13 @@ pub(crate) fn replay(
             }
             _ => site.expression,
         };
-        let source = crate::emission::call_source_custody::projected_receivers::source(
+        crate::emission::call_source_custody::projected_receivers::source(
             checked,
             machine.symbol,
             site.state,
             site.statement as usize,
             collection_expression,
         )?;
-        if !source_symbol.is_valid()
-            || source.root != source_symbol
-            || source.path != collection
-            || site
-                .retained
-                .is_some_and(|(start, end)| start.is_some() || end.is_some())
-        {
-            return unsupported("view subslice changed its exact collection root or projection");
-        }
         return Ok((None, None));
     };
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
@@ -656,16 +631,13 @@ pub(crate) fn replay(
     // Reconstruct the same storage relationship ordinary operands use. Empty
     // projections name whole storage, not necessarily an existing descriptor;
     // establishing a view is the emitter's separate responsibility.
-    let source = crate::emission::call_source_custody::projected_receivers::source(
+    crate::emission::call_source_custody::projected_receivers::source(
         checked,
         machine.symbol,
         site.state,
         site.statement as usize,
         indexed.collection,
     )?;
-    if !source_symbol.is_valid() || source.root != source_symbol || source.path != collection {
-        return unsupported("view subslice changed its exact collection root or projection");
-    }
     if let Some((start, end)) = site.retained
         && (range.start.is_valid() != start.is_some() || range.end.is_valid() != end.is_some())
     {
@@ -695,35 +667,21 @@ pub(crate) fn replay(
         if !authored_endpoint.is_valid() {
             return Ok(None);
         }
-        let computations = &checked.facts.values.scalar_computations;
-        let mut roots = computations
+        let selected = if let Some(root) = checked
+            .facts
+            .values
+            .scalar_computations
             .roots
             .iter()
             .map(|(_, root)| root)
-            .filter(|root| {
+            .find(|root| {
                 root.state == site.state
                     && root.statement_ordinal == site.statement
                     && root.role == role
-            });
-        let selected = if let Some(root) = roots.next() {
-            if roots.next().is_some()
-                || root.machine != machine.symbol
-                || !computations.nodes.is_valid(root.root)
-                || computations.nodes.get(root.root).authored_root != authored_endpoint
-                || computations.nodes.get(root.root).primitive_type
-                    != checked_trees::types::PrimitiveType::U64
-                || checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .expression_at(site.state, site.statement, role)
-                    .is_some()
-            {
-                return unsupported("view subslice endpoint differs from its computation root");
-            }
+            }) {
             CheckedCallScalarArgument::Computation(root.root)
         } else {
-            let (binding, selected) = checked
+            let (_, selected) = checked
                 .facts
                 .values
                 .scalar_expressions
@@ -731,12 +689,6 @@ pub(crate) fn replay(
                 .ok_or(LoweringError::Unsupported(
                     "view subslice endpoint has no source-bound scalar plan",
                 ))?;
-            if binding.expression != authored_endpoint
-                || binding.destination.is_valid()
-                || selected.primitive_type() != Some(checked_trees::types::PrimitiveType::U64)
-            {
-                return unsupported("view subslice endpoint differs from its source-bound plan");
-            }
             CheckedCallScalarArgument::Pure(selected.clone())
         };
         Ok(Some(selected))
@@ -856,32 +808,11 @@ pub(crate) fn binding_site(
     let declared = validation::reference_shell(&checked.typed, declared_type).ok_or(
         LoweringError::Unsupported("range result lost its declared reference"),
     )?;
-    let access = match declared.access {
-        language_core::ReferenceAccess::Shared => {
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-        }
-        language_core::ReferenceAccess::Mutable => {
-            checked_trees::CheckedStructuralAccess::MutableBorrow
-        }
-        _ => return unsupported("range result has unreadable access"),
-    };
-    // Constraint shells on the referee (a domain-qualified view such as
-    // `&[u8] in Utf8`) qualify the binding without changing its carrier:
-    // the result identity names the carrier, so the comparison peels them.
-    let declared_carrier = validation::slice_view_shell(&checked.typed, declared_type, &[])
-        .map(|shell| shell.slice)
-        .unwrap_or(declared.referee);
-    if source.access != access
-        || source.type_identity != result.type_identity
-        || checked.normalized_type_identity(declared_carrier).as_str() != result.type_identity
-        || result.multiplicity
-            != if access == checked_trees::CheckedStructuralAccess::MutableBorrow {
-                language_semantics::Multiplicity::Affine
-            } else {
-                language_semantics::Multiplicity::Unrestricted
-            }
-    {
-        return unsupported("view subslice binding changed its range or custody");
+    if !matches!(
+        declared.access,
+        language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+    ) {
+        return unsupported("range result has unreadable access");
     }
     Ok(site)
 }

@@ -16,7 +16,6 @@ pub(crate) use locals::declaration as owned_local_declaration;
 pub(crate) struct ReceiverSource {
     pub(crate) root: SymbolHandle,
     pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,
-    pub(crate) stamp: SymbolHandle,
     /// Authored carrier and capture remain distinct from normalized self paths.
     owner: SymbolHandle,
     captured_place: checked_trees::CapturedPlace,
@@ -121,7 +120,6 @@ fn resolve_source(
     let mut cursor = expression;
     let mut path = Vec::new();
     let mut visited = Vec::new();
-    let mut stamp = SymbolHandle::invalid();
     let mut alias_bridges = Vec::new();
     let mut captured_segments = Vec::new();
     let owner;
@@ -193,9 +191,6 @@ fn resolve_source(
                     ))?;
                 if field.relevance.is_erased() {
                     return unsupported("projected receiver cannot select an erased field");
-                }
-                if cursor == expression {
-                    stamp = field.symbol;
                 }
                 path.push(field_segment(field));
                 let selected_case = if member.case_variant.is_some() {
@@ -475,9 +470,6 @@ fn resolve_source(
                     return unsupported("projected receiver root identity changed");
                 }
                 owner = name.symbol;
-                if cursor == expression {
-                    stamp = name.symbol;
-                }
                 if let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
                     parameter.symbol == name.symbol
                         || (parameter.is_self && name.symbol == machine.symbol)
@@ -589,7 +581,6 @@ fn resolve_source(
     Ok(ReceiverSource {
         root,
         path,
-        stamp,
         owner,
         captured_place: checked_trees::CapturedPlace {
             root_symbol: captured_root,

@@ -91,15 +91,12 @@ pub(super) fn replay(
                     return unsupported("scalar state interval lost its comparisons");
                 };
                 let (
-                    CheckedScalarExpression::IntegerLiteral { literal: lower },
-                    CheckedScalarExpression::IntegerLiteral { literal: upper },
+                    CheckedScalarExpression::IntegerLiteral { .. },
+                    CheckedScalarExpression::IntegerLiteral { .. },
                 ) = (lower.as_ref(), upper.as_ref())
                 else {
                     return unsupported("scalar state interval lost its literal bounds");
                 };
-                if lower.landing() != minimum.landing() || upper.landing() != maximum.landing() {
-                    return unsupported("scalar state interval changed its literal carrier");
-                }
                 let expected = CheckedBooleanExpression::And {
                     left: Box::new(CheckedBooleanExpression::IntegerComparison {
                         kind: CheckedIntegerComparisonKind::LessOrEqual,

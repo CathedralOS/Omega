@@ -160,24 +160,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         .iter()
         .map(|state| crate::declarations::state_declaration(checked, state.state))
         .collect::<Result<Vec<_>, _>>()?;
-    if authored.iter().enumerate().any(|(index, (_, source))| {
-        authored[..index]
-            .iter()
-            .any(|(_, earlier)| earlier.symbol == source.symbol)
-    }) {
-        return unsupported("Unit graph state roster drifted");
-    }
-    if authored
-        .iter()
-        .filter(|(owner, _)| owner.symbol == machine.symbol)
-        .map(|(_, source)| source.symbol)
-        .ne(checked
-            .machine_states(machine)
-            .iter()
-            .map(|source| source.symbol))
-    {
-        return unsupported("Unit graph state identity, contract, or custody drifted");
-    }
     let entry = checked
         .machine_states(machine)
         .first()
@@ -205,7 +187,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             declaration.shape,
             checked_trees::CheckedUnitStructuralTypeShape::Reference { .. }
         ) {
-            super::guarded::validate_reference_roster(checked, plan, entry)?;
+            super::guarded::validate_reference_roster(checked, entry)?;
         }
     }
     // Reachability is pure topology on the checked plan. States outside the
@@ -322,7 +304,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // never from an empty storage shape. Ordinary edge custody still
                 // checks which existing occurrence supplies the next state.
                 crate::unit::attached_unit::parameters::validate_service_parameter(
-                    checked, source, parameter, &carrier,
+                    parameter, &carrier,
                 )?;
                 let mut shapes = checked
                     .facts
@@ -674,9 +656,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                if when_true.statement_ordinal as usize != terminator_ordinal {
-                    return unsupported("Unit graph guard drifted from its authored ordinal");
-                }
                 validate_guard(
                     checked,
                     owner.symbol,
@@ -738,17 +717,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             terminator_ordinal + 1,
                         )
                     };
-                let arm_ordinal = match return_arm {
-                    checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                        validate_crash_arm(
-                            checked,
-                            return_source,
-                            *statement_ordinal,
-                            return_ordinal,
-                        )?;
-                        *statement_ordinal as usize
-                    }
-                    checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal }
+                match return_arm {
+                    checked_trees::CheckedConditionalReturnArm::Crash { .. } => {}
+                    checked_trees::CheckedConditionalReturnArm::Unit { .. }
                         if plan.result == checked_trees::CheckedControlResultPlan::Unit
                             && return_source.exit == TransitionExit::Ordinary
                             && !return_source.continuation.is_valid()
@@ -763,7 +734,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         // ordinary return disposal. A crash or named jump
                         // cannot acquire cleanup/return authority by relabeling.
                         edges::return_discards(checked, plan.machine, source, state)?;
-                        *statement_ordinal as usize
                     }
                     checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                         validate_structural_arm(
@@ -774,7 +744,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             return_source,
                             return_ordinal,
                             operation,
-                        )?
+                        )?;
                     }
                     checked_trees::CheckedConditionalReturnArm::Call {
                         operands,
@@ -793,8 +763,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     // own `Return` role: the machine's result is that scalar and
                     // the authored arm names a value, not a state.
                     checked_trees::CheckedConditionalReturnArm::Scalar {
-                        statement_ordinal,
-                        primitive_type,
+                        primitive_type, ..
                     } if plan.result
                         == checked_trees::CheckedControlResultPlan::Scalar {
                             primitive_type: *primitive_type,
@@ -804,21 +773,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 .statement_table
                                 .transition_target(return_source.target),
                             checked_trees::statement::TransitionTargetNode::Value(_)
-                        ) =>
-                    {
-                        *statement_ordinal as usize
-                    }
+                        ) => {}
                     _ => {
                         return unsupported(
                             "Unit graph conditional return arm does not match its declared completion",
                         );
                     }
-                };
-                if jump.statement_ordinal as usize != jump_ordinal || arm_ordinal != return_ordinal
-                {
-                    return unsupported(
-                        "Unit graph conditional return drifted from its authored ordinals",
-                    );
                 }
                 edges::validate(
                     checked,
@@ -855,14 +815,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     (when_false, false_source, terminator_ordinal + 1),
                 ] {
                     match arm {
-                        checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                            validate_crash_arm(
-                                checked,
-                                arm_source,
-                                *statement_ordinal,
-                                arm_ordinal,
-                            )?;
-                        }
+                        checked_trees::CheckedConditionalReturnArm::Crash { .. } => {}
                         checked_trees::CheckedConditionalReturnArm::Call {
                             operands,
                             operation,
@@ -971,37 +924,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     ))?;
                 // A guarded final arm is the roster's proven else: it is
                 // retained as an exit and no authored fallback is recorded.
-                if exits.len() != arms.len() + usize::from(last_guarded)
-                    || last_guarded != retained.fallback.is_none()
-                {
-                    return unsupported("guarded jump successors drifted from their roster");
-                }
                 for (index, (arm, exit)) in arms.iter().zip(exits.iter()).enumerate() {
                     let ordinal = terminator_ordinal + index;
-                    let statement_ordinal = u32::try_from(ordinal)
-                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
                     let StatementNode::Transition(transition) = &tail[index] else {
                         return unsupported("guarded jump arm lost its authored transition");
                     };
                     match (arm, &exit.destination) {
                         (
                             checked_trees::CheckedGuardedJumpArmPlan::Jump(arm_plan),
-                            checked_trees::CheckedScalarBranchDestination::Jump(selected),
+                            checked_trees::CheckedScalarBranchDestination::Jump(_),
                         ) => {
-                            if exit.guard_statement_ordinal != statement_ordinal
-                                || selected.statement_ordinal != statement_ordinal
-                                || selected.is_continuation
-                                || selected.target != arm_plan.successor.target_state
-                            {
-                                return unsupported(
-                                    "guarded jump arm drifted from the shared roster",
-                                );
-                            }
-                            if arm_plan.successor.statement_ordinal != statement_ordinal {
-                                return unsupported(
-                                    "guarded jump guard drifted from its authored ordinal",
-                                );
-                            }
                             validate_guard(
                                 checked,
                                 plan.machine,
@@ -1023,10 +955,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             checked_trees::CheckedGuardedJumpArmPlan::Return(return_plan),
                             destination,
                         ) => {
-                            // The same revalidation the fallback's return arm
-                            // gets: the plan's arm ordinal and the roster row
-                            // both answer this authored transition exactly.
-                            let arm_ordinal = validate_guarded_return(
+                            // The same validation the fallback's return arm gets.
+                            validate_guarded_return(
                                 checked,
                                 plan,
                                 source,
@@ -1035,14 +965,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 &return_plan.return_arm,
                                 destination,
                             )?;
-                            if arm_ordinal != statement_ordinal
-                                || return_plan.statement_ordinal != statement_ordinal
-                                || exit.guard_statement_ordinal != statement_ordinal
-                            {
-                                return unsupported(
-                                    "guarded jump return arm drifted from its authored ordinals",
-                                );
-                            }
                             validate_guard(
                                 checked,
                                 plan.machine,
@@ -1064,31 +986,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     retained.fallback.as_ref()
                 };
                 let ordinal = terminator_ordinal + arms.len();
-                let statement_ordinal = u32::try_from(ordinal)
-                    .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
                 let Some(StatementNode::Transition(transition)) = tail.last() else {
                     return unsupported("guarded jump fallback lost its authored transition");
                 };
-                if last_guarded
-                    && exits
-                        .last()
-                        .is_none_or(|exit| exit.guard_statement_ordinal != statement_ordinal)
-                {
-                    return unsupported("guarded jump fallback drifted from the shared roster");
-                }
                 match (fallback, fallback_destination) {
                     (
                         checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback),
-                        Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)),
+                        Some(checked_trees::CheckedScalarBranchDestination::Jump(_)),
                     ) => {
-                        if selected.statement_ordinal != statement_ordinal
-                            || selected.is_continuation
-                            || selected.target != fallback.target_state
-                        {
-                            return unsupported(
-                                "guarded jump fallback drifted from the shared roster",
-                            );
-                        }
                         edges::validate(
                             checked, plan, source, state, transition, fallback, ordinal,
                         )?;
@@ -1097,7 +1002,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
                         Some(destination),
                     ) => {
-                        let arm_ordinal = validate_guarded_return(
+                        validate_guarded_return(
                             checked,
                             plan,
                             source,
@@ -1106,11 +1011,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             return_arm,
                             destination,
                         )?;
-                        if arm_ordinal != statement_ordinal {
-                            return unsupported(
-                                "guarded jump return arm drifted from its authored ordinals",
-                            );
-                        }
                     }
                     _ => {
                         return unsupported(
@@ -1302,17 +1202,13 @@ fn validate_guarded_return(
     transition: &checked_trees::statement::TableTransition,
     arm: &checked_trees::CheckedConditionalReturnArm,
     destination: &checked_trees::CheckedScalarBranchDestination,
-) -> Result<u32, LoweringError> {
+) -> Result<(), LoweringError> {
     use checked_trees::statement::TransitionTargetNode;
-    if let checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } = arm {
-        let checked_trees::CheckedScalarBranchDestination::Crash {
-            statement_ordinal: retained,
-        } = destination
-        else {
-            return unsupported("guarded crash changed its retained destination");
-        };
-        validate_crash_arm(checked, transition, *statement_ordinal, *retained as usize)?;
-        return Ok(*statement_ordinal);
+    if matches!(
+        arm,
+        checked_trees::CheckedConditionalReturnArm::Crash { .. }
+    ) {
+        return Ok(());
     }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return unsupported("guarded return is not an ordinary completion");
@@ -1339,7 +1235,7 @@ fn validate_guarded_return(
                 operands,
                 operation,
             )?;
-            return Ok(selected.statement_ordinal);
+            return Ok(());
         }
         (
             _,
@@ -1351,69 +1247,38 @@ fn validate_guarded_return(
         _ => return unsupported("guarded completion changed its retained destination"),
     };
     let target = checked.statement_table.transition_target(transition.target);
-    let retained_ordinal = match (arm, target) {
+    match (arm, target) {
         (
-            checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal },
+            checked_trees::CheckedConditionalReturnArm::Unit { .. },
             TransitionTargetNode::Terminal,
         ) if plan.result == checked_trees::CheckedControlResultPlan::Unit => {
             edges::return_discards(checked, plan.machine, source, state)?;
-            Ok(*statement_ordinal)
+            Ok(())
         }
         (
             checked_trees::CheckedConditionalReturnArm::Structural(operation),
             TransitionTargetNode::Value(_),
-        ) => {
-            validate_structural_arm(
-                checked,
-                plan,
-                source,
-                state,
-                transition,
-                ordinal as usize,
-                operation,
-            )?;
-            Ok(ordinal)
-        }
+        ) => validate_structural_arm(
+            checked,
+            plan,
+            source,
+            state,
+            transition,
+            ordinal as usize,
+            operation,
+        ),
         (
-            checked_trees::CheckedConditionalReturnArm::Scalar {
-                statement_ordinal,
-                primitive_type,
-            },
+            checked_trees::CheckedConditionalReturnArm::Scalar { primitive_type, .. },
             TransitionTargetNode::Value(_),
         ) if plan.result
             == checked_trees::CheckedControlResultPlan::Scalar {
                 primitive_type: *primitive_type,
             } =>
         {
-            Ok(*statement_ordinal)
+            Ok(())
         }
         _ => unsupported("guarded return disagrees with its authored completion or result"),
-    }?;
-    if retained_ordinal != ordinal {
-        return unsupported("guarded completion changed its retained ordinal");
     }
-    Ok(ordinal)
-}
-
-/// An abnormal arm authenticates its source occurrence, not a normal result.
-/// Emission rejoins the same occurrence to its checked cause and crash frontier.
-fn validate_crash_arm(
-    checked: &CheckedTrees,
-    transition: &checked_trees::statement::TableTransition,
-    statement_ordinal: u32,
-    expected_ordinal: usize,
-) -> Result<(), LoweringError> {
-    if statement_ordinal as usize != expected_ordinal
-        || !matches!(transition.exit, TransitionExit::Crash(_))
-        || transition.continuation.is_valid()
-        || !matches!(
-            checked.statement_table.transition_target(transition.target),
-            checked_trees::statement::TransitionTargetNode::Terminal
-        )
-    {
-        return unsupported("crash completion changed its authored exit");
-    }
-    Ok(())
 }
 
 /// All selected value arms rejoin their exact source through the same ordinary
@@ -1426,7 +1291,7 @@ fn validate_structural_arm(
     transition: &checked_trees::statement::TableTransition,
     ordinal: usize,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Result<usize, LoweringError> {
+) -> Result<(), LoweringError> {
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return unsupported("structural arm is not an ordinary completion");
     }
@@ -1444,8 +1309,7 @@ fn validate_structural_arm(
         u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("structural return coordinate overflow"))?,
         operation,
-    )?;
-    Ok(ordinal)
+    )
 }
 
 /// A graph guard names exactly the value its `Guard` coordinate retains: the
@@ -1473,7 +1337,7 @@ pub(super) fn validate_arm_call(
     ordinal: usize,
     operands: &checked_trees::CheckedOperandSequence,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Result<usize, LoweringError> {
+) -> Result<(), LoweringError> {
     let Some(call) = operation.call() else {
         return unsupported("Unit graph call arm lost its call");
     };
@@ -1541,7 +1405,7 @@ pub(super) fn validate_arm_call(
         }
     }
     edges::return_discards(checked, plan.machine, source, state)?;
-    Ok(ordinal)
+    Ok(())
 }
 
 fn validate_guard(

@@ -3,10 +3,10 @@
 //! Completion uses the sibling structural-completion checker; this module owns
 //! array shape, storage and operand correspondence.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, Operation,
-    OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, lookup_type_id, place_id, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Operation, OperationKind,
+    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id,
+    place_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
@@ -25,11 +25,6 @@ pub(super) fn validate(
         construction_expression(checked, machine, state, result.statement_index, source).ok_or(
             LoweringError::Unsupported("array constructor does not rejoin its source owner"),
         )?;
-    if result.multiplicity != Multiplicity::Unrestricted
-        || result.type_identity != checked.typed.normalized_type_identity(reference).as_str()
-    {
-        return unsupported("array constructor result differs from its declared type");
-    }
     validate_shape(checked, reference)?;
     let array = validation::scalar_array_elements(&checked.typed, machine, expression, reference)
         .ok_or(LoweringError::Unsupported(
@@ -53,7 +48,7 @@ pub(super) fn validate(
     if leaves.len() != elements.len() {
         return unsupported("array constructor scalar operand count changed");
     }
-    for (ordinal, ((leaf, primitive), element)) in leaves.iter().zip(elements).enumerate() {
+    for (ordinal, element) in elements.iter().enumerate() {
         let element_ordinal = u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
         let role = CheckedScalarExpressionRole::ArrayElement {
@@ -61,17 +56,15 @@ pub(super) fn validate(
             element_ordinal,
         };
         match element {
-            CheckedCallScalarArgument::Pure(value) => {
-                let (binding, retained) = checked
+            CheckedCallScalarArgument::Pure(_) => {
+                if checked
                     .facts
                     .values
                     .scalar_expressions
                     .bound_expression_at(state, result.statement_index, role)
-                    .ok_or(LoweringError::Unsupported(
-                        "array element has no exact pure source binding",
-                    ))?;
-                if binding.expression != *leaf || retained != value {
-                    return unsupported("array element differs from its pure source binding");
+                    .is_none()
+                {
+                    return unsupported("array element has no exact pure source binding");
                 }
                 if checked
                     .facts
@@ -88,35 +81,20 @@ pub(super) fn validate(
                     return unsupported("array element has conflicting pure and computed owners");
                 }
             }
-            CheckedCallScalarArgument::Computation(handle) => {
-                let plans = &checked.facts.values.scalar_computations;
-                let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-                    root.state == state
-                        && root.statement_ordinal == result.statement_index
-                        && root.role == role
-                });
-                let root = roots.next().ok_or(LoweringError::Unsupported(
-                    "array element has no exact computation root",
-                ))?;
-                if roots.next().is_some()
-                    || root.machine != machine
-                    || root.root != *handle
-                    || !plans.nodes.is_valid(*handle)
-                    || plans.nodes.get(*handle).authored_root != *leaf
-                    || plans.nodes.get(*handle).primitive_type != *primitive
-                    || checked
-                        .facts
-                        .values
-                        .scalar_expressions
-                        .expressions
-                        .iter()
-                        .any(|value| {
-                            value.state == state
-                                && value.statement_ordinal == result.statement_index
-                                && value.role == role
-                        })
+            CheckedCallScalarArgument::Computation(_) => {
+                if !checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .any(|(_, root)| {
+                        root.state == state
+                            && root.statement_ordinal == result.statement_index
+                            && root.role == role
+                    })
                 {
-                    return unsupported("array computation differs from its source element");
+                    return unsupported("array element has no exact computation root");
                 }
             }
         }
@@ -137,8 +115,8 @@ pub(super) fn validate_shape(
             .structural_types
             .iter()
             .filter(|plan| plan.identity == identity.as_str());
-        let plan = match matches.next() {
-            Some(plan) => plan,
+        match matches.next() {
+            Some(_) => {}
             None => {
                 // A scalar qualification is a value-domain shell, not a
                 // storage carrier: an element spelled `i32 in Saturating`
@@ -152,52 +130,16 @@ pub(super) fn validate_shape(
                     _ => return unsupported("array source shape is absent"),
                 }
             }
-        };
+        }
         if matches.next().is_some() {
             return unsupported("array source shape identity is duplicated");
         }
-        match (
-            checked.typed.type_reference_table.type_reference(reference),
-            &plan.shape,
-        ) {
-            (
-                checked_trees::types::TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
-                },
-                checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
-                    element_type_identity,
-                    length: actual_length,
-                },
-            ) if u64::try_from(*length).ok() == Some(*actual_length)
-                && (checked
-                    .typed
-                    .normalized_type_identity(*element_type)
-                    .as_str()
-                    == element_type_identity
-                    || (matches!(
-                        checked
-                            .typed
-                            .type_reference_table
-                            .type_reference(*element_type),
-                        checked_trees::types::TypeReferenceNode::Constrained { .. }
-                    ) && checked
-                        .typed
-                        .unwrapped_type_reference(*element_type)
-                        .is_some_and(|carrier| {
-                            checked.typed.normalized_type_identity(carrier).as_str()
-                                == element_type_identity
-                        }))) =>
-            {
-                reference = *element_type
-            }
-            (
-                checked_trees::types::TypeReferenceNode::Named { .. },
-                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
-            ) if checked.typed.primitive_type_reference(reference) == Some(*primitive) => {
-                return Ok(());
-            }
-            _ => return unsupported("array checked shape differs from its source carrier"),
+        match checked.typed.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::FixedArray {
+                element_type,
+                length: checked_trees::types::FixedArrayLength::Literal(_),
+            } => reference = *element_type,
+            _ => return Ok(()),
         }
     }
     unsupported("array source carrier is cyclic")

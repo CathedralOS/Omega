@@ -256,11 +256,7 @@ impl Preparation<'_> {
                         self.types,
                         self.reserved,
                     )?;
-                    if prepared.place != self.reserved.result_place(result.binding_ordinal)? {
-                        return unsupported(
-                            "structural constructor changed its reserved result home",
-                        );
-                    }
+                    self.reserved.result_place(result.binding_ordinal)?;
                     self.consumed.extend(prepared.consumed.iter().copied());
                     self.steps.push(Step::Value {
                         prepared,

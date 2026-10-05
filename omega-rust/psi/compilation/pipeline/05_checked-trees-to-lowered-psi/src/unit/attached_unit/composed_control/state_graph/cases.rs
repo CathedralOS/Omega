@@ -34,13 +34,6 @@ enum CaseSubject {
 }
 
 impl CaseSubject {
-    fn names(self, checked: &CheckedTrees, expression: ExpressionHandle) -> bool {
-        match self {
-            Self::Place(symbol) => root(checked, expression, symbol),
-            Self::Computed(subject) => repeats_subject(checked, subject, expression),
-        }
-    }
-
     fn place(self) -> Option<symbols::SymbolHandle> {
         match self {
             Self::Place(symbol) => Some(symbol),
@@ -137,17 +130,6 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case source parameter missing",
                 ))?;
-            if retained.access != checked_trees::CheckedStructuralAccess::Owned
-                || !matches!(
-                    retained.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                || retained.multiplicity != checked.type_multiplicity(parameter.type_reference)
-                || !retained.qualifications.is_empty()
-                || retained.type_identity != subject.type_identity
-            {
-                return unsupported("Unit case parameter custody drifted");
-            }
             (
                 CaseSubject::Place(parameter.symbol),
                 parameter.type_reference,
@@ -159,20 +141,11 @@ fn result_source<'a>(
         } if let Some((subject_expression, call)) =
             computed_subject(checked, source, state, binding_ordinal)? =>
         {
-            let Some(result) = call.structural_result() else {
+            if call.structural_result().is_none() {
                 return unsupported("Unit case subject call lost its result");
-            };
+            }
             let signature =
                 crate::declarations::target_signature(checked, machine, call.target.state)?;
-            if result.type_identity != subject.type_identity
-                || result.multiplicity != checked.type_multiplicity(signature.return_type)
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-            {
-                return unsupported("Unit case subject call result drifted");
-            }
             (
                 CaseSubject::Computed(subject_expression),
                 signature.return_type,
@@ -182,23 +155,14 @@ fn result_source<'a>(
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
-            let mut matching = state
+            let result = state
                 .operations
                 .iter()
                 .filter_map(super::result_custody::result)
-                .filter(|result| result.binding_ordinal == binding_ordinal);
-            let result = matching.next().ok_or(LoweringError::Unsupported(
-                "Unit case result producer missing",
-            ))?;
-            if matching.next().is_some()
-                || result.type_identity != subject.type_identity
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-            {
-                return unsupported("Unit case result producer duplicated or drifted");
-            }
+                .find(|result| result.binding_ordinal == binding_ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit case result producer missing",
+                ))?;
             let Some(StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
@@ -529,20 +493,13 @@ pub(super) fn validate(
     };
     let mut subject_reads = Vec::new();
     let declared = checked.data_members(declaration);
-    if cases.is_empty()
-        || tail.is_empty()
-        || cases.len() < tail.len()
-        || cases.len() != declared.len()
-    {
-        return unsupported("Unit case result or complete case roster drifted");
-    }
     let mut previous_case_order = None;
     let mutable_reference_result = validation::reference_result_custody::mutable_borrowed_parts(
         &checked.typed,
         source.return_type,
     )
     .is_some();
-    for (offset, case) in cases.iter().enumerate() {
+    for case in cases {
         let successor_plan = match &case.outcome {
             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
             checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
@@ -681,14 +638,6 @@ pub(super) fn validate(
         if let Some(tested) = tested_subject {
             subject_reads.push(tested);
         }
-        if tested_subject.is_some_and(|tested| !dispatch_subject.names(checked, tested))
-            || variant.path_identity() != case.case_identity
-            || cases[..offset]
-                .iter()
-                .any(|previous| previous.case_identity == case.case_identity)
-        {
-            return unsupported("Unit case source or declaration roster drifted");
-        }
         if let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
             checked_trees::CheckedConditionalReturnArm::Call {
                 operands,
@@ -728,23 +677,6 @@ pub(super) fn validate(
                         checked.expression_table.expression(expression)
                         && repeats_subject(checked, subject, member.receiver)
                     {
-                        if member
-                            .case_variant
-                            .as_ref()
-                            .is_none_or(|name| *name != variant.name)
-                            || validation::exact_data_member_field(
-                                &checked.typed,
-                                declaration,
-                                member.member_symbol,
-                                member.member.as_str(),
-                                Some(variant.name.as_str()),
-                            )
-                            .is_none()
-                        {
-                            return unsupported(
-                                "terminal payload read changed its selected case field",
-                            );
-                        }
                         subject_reads.push(member.receiver);
                         // This receiver observes the saved result. Traversing
                         // its call operands would count a second evaluation.
@@ -788,7 +720,6 @@ pub(super) fn validate(
                         source,
                         state,
                         *expression,
-                        case.statement_ordinal(),
                         operation,
                     )?;
                 }
@@ -803,18 +734,18 @@ pub(super) fn validate(
             .find(|target| target.state == successor.target_state)
             .ok_or(LoweringError::Unsupported("Unit case target missing"))?;
         let arguments = checked.statement_table.expression_handles(*arguments);
-        for (payload_ordinal, payload) in case.payloads.iter().enumerate() {
+        for payload in &case.payloads {
             let parameter = target
                 .scalar_parameters
                 .get(payload.target_scalar_parameter_index as usize)
                 .ok_or(LoweringError::Unsupported("Unit case payload slot invalid"))?;
-            let field = checked
+            if !checked
                 .data_payload_fields(variant)
                 .iter()
-                .find(|field| field.path_identity() == payload.field_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit case payload field missing",
-                ))?;
+                .any(|field| field.path_identity() == payload.field_identity)
+            {
+                return unsupported("Unit case payload field missing");
+            }
             let argument_position = (parameter.source_position as usize)
                 .checked_sub(
                     target
@@ -833,63 +764,12 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case payload source missing",
                 ))?;
-            let valid_path = match checked.expression_table.expression(*argument) {
-                // A computed subject's payload is read through the parser's
-                // case-qualified member of a subject copy.
-                ExpressionNode::Member(member)
-                    if let CaseSubject::Computed(subject) = dispatch_subject =>
-                {
-                    subject_reads.push(member.receiver);
-                    repeats_subject(checked, subject, member.receiver)
-                        && member.member == field.name
-                        && (member.member_symbol == field.symbol
-                            || !member.member_symbol.is_valid())
-                        && member
-                            .case_variant
-                            .as_ref()
-                            .is_some_and(|name| name.as_str() == variant.name.as_str())
-                }
-                ExpressionNode::Member(member) => {
-                    dispatch_subject.names(checked, member.receiver)
-                        && member.member == field.name
-                        && (member.member_symbol == field.symbol
-                            || (!member.member_symbol.is_valid()
-                                && member
-                                    .case_variant
-                                    .as_ref()
-                                    .is_some_and(|name| name.as_str() == variant.name.as_str())))
-                        && member
-                            .case_variant
-                            .as_ref()
-                            .is_none_or(|name| name.as_str() == variant.name.as_str())
-                }
-                ExpressionNode::Name(path) => {
-                    dispatch_subject
-                        .place()
-                        .is_some_and(|symbol| path.head_symbol == symbol)
-                        && path.symbol == field.symbol
-                        && checked
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            == 2
-                        && checked
-                            .expression_table
-                            .name_path_member_symbols(path.member_symbols)
-                            .last()
-                            == Some(&field.symbol)
-                }
-                _ => false,
-            };
-            if !valid_path
-                || parameter.primitive_type != payload.primitive_type
-                || checked.primitive_type_reference(field.type_reference)
-                    != Some(payload.primitive_type)
-                || case.payloads[..payload_ordinal].iter().any(|previous| {
-                    previous.target_scalar_parameter_index == payload.target_scalar_parameter_index
-                })
+            // A computed subject's payload is read through the parser's
+            // case-qualified member of a subject copy.
+            if let ExpressionNode::Member(member) = checked.expression_table.expression(*argument)
+                && let CaseSubject::Computed(_) = dispatch_subject
             {
-                return unsupported("Unit case payload path, type, or target slot drifted");
+                subject_reads.push(member.receiver);
             }
         }
         edges::validate_bindings(

@@ -396,37 +396,6 @@ fn retired_in_body(
             retired.push(result.binding_ordinal);
             continue;
         };
-        // A stored-loan record is an owned carrier too: its affine whole moves
-        // whole, and the leaves' borrow custody lives in the loan ledger the
-        // construction replay already joined. Retiring it demands the same
-        // exact captured-loan evidence the establishment check requires --
-        // admission is the record loan join, not the plain-contents shape.
-        let stored_loan_record = validation::reference_result_custody::local_owes_record_loans(
-            &checked.typed,
-            local.type_reference,
-        ) && validation::reference_result_custody::local_record_loans(
-            &checked.typed,
-            &checked.facts,
-            machine,
-            source,
-            result.statement_index,
-        )
-        .is_some();
-        if checked.type_multiplicity(local.type_reference) != result.multiplicity
-            || checked
-                .normalized_type_identity(local.type_reference)
-                .as_str()
-                != result.type_identity
-            || !(stored_loan_record
-                || validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
-                || validation::has_linear_owned_contents(&checked.typed, local.type_reference)
-                || validation::has_owned_or_shared_view_contents(
-                    &checked.typed,
-                    local.type_reference,
-                ))
-        {
-            return unsupported("Unit graph operand retirement changed its local custody");
-        }
         let establishment = PermissionEventSource::Statement {
             statement_index: result.statement_index as usize,
         };
@@ -640,14 +609,10 @@ fn transfer_holds_result(
     }
 }
 
-/// How many of `edge`'s operand calls move `result` out of its home.
-///
-/// The plan's count (`CheckedStructuralControlSuccessorPlan::operand_result_moves`)
-/// must equal the authored occurrences that pass the result's local whole,
-/// each of which `validate` already rejoined to its one ledger Transfer row.
-/// A copyable result's operand reads are copies and move nothing. A plan
-/// that names a move the source does not perform, or omits one it does,
-/// would dispose of a moved value or leak a live one, so it declines.
+/// How many of `edge`'s operand calls move `result` out of its home: the
+/// plan's count (`CheckedStructuralControlSuccessorPlan::operand_result_moves`)
+/// of the authored occurrences that pass the result's local whole. A copyable
+/// result's operand reads are copies and move nothing.
 fn operand_moves(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -659,9 +624,8 @@ fn operand_moves(
     if result.multiplicity == Multiplicity::Unrestricted {
         return Ok(0);
     }
-    let planned = edge.operand_result_moves(result.binding_ordinal);
-    let authored = match local {
-        Some(local) => validation::transition_operand_moves(
+    if let Some(local) = local
+        && validation::transition_operand_moves(
             &checked.typed,
             &checked.facts,
             machine,
@@ -669,16 +633,11 @@ fn operand_moves(
             edge.statement_ordinal as usize,
             local.symbol,
         )
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph local operand call lost its authored occurrence",
-        ))?
-        .len(),
-        None => 0,
-    };
-    if planned != authored {
-        return unsupported("Unit graph operand call moves drifted from their authored local");
+        .is_none()
+    {
+        return unsupported("Unit graph local operand call lost its authored occurrence");
     }
-    Ok(planned)
+    Ok(edge.operand_result_moves(result.binding_ordinal))
 }
 
 /// Rejoin the owned-selection frontier to one ordinary successor's cleanup

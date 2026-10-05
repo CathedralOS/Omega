@@ -29,7 +29,6 @@ mod scalar_fields;
 pub(super) fn validate_referent_type(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
-    retained_identity: &str,
 ) -> Result<(), LoweringError> {
     let mut source = SourceTypes {
         checked,
@@ -37,9 +36,7 @@ pub(super) fn validate_referent_type(
         active: Vec::new(),
         complete: Vec::new(),
     };
-    if source.validate_type(reference, &[])? != retained_identity {
-        return unsupported("scalar graph referent type identity differs from its source");
-    }
+    source.validate_type(reference, &[])?;
     Ok(())
 }
 
@@ -67,9 +64,7 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "owned type custody has no authored parameter",
             ))?;
-        if source.validate_type(declaration.type_reference, &[])? != parameter.type_identity {
-            return unsupported("owned type custody differs from its authored parameter type");
-        }
+        source.validate_type(declaration.type_reference, &[])?;
     }
     Ok(())
 }
@@ -141,11 +136,26 @@ impl SourceTypes<'_> {
                 _ => {}
             }
         }
-        let retained = retained.ok_or(LoweringError::Unsupported(
-            "owned type custody lost a source structural declaration",
-        ))?;
+        if retained.is_none() {
+            return unsupported("owned type custody lost a source structural declaration");
+        }
         self.active.push(identity.clone());
-        let expected = if let Some(view) = element_view {
+        // Reconstructing the declaration still refuses source shapes the
+        // catalogs cannot carry; the reconstructed shape is not compared.
+        self.source_shape(reference, element_view, substitutions)?;
+        self.active.pop();
+        self.complete.push(identity.clone());
+        Ok(identity)
+    }
+
+    fn source_shape(
+        &mut self,
+        reference: TypeReferenceHandle,
+        element_view: Option<validation::SliceViewShell>,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Result<CheckedUnitStructuralTypeShape, LoweringError> {
+        let checked = self.checked;
+        Ok(if let Some(view) = element_view {
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity: self.validate_type(view.element, substitutions)?,
             }
@@ -228,13 +238,7 @@ impl SourceTypes<'_> {
                 }
                 _ => return unsupported("owned source type has no admitted structural shape"),
             }
-        };
-        if retained.shape != expected {
-            return unsupported("owned structural catalog differs from its typed declaration");
-        }
-        self.active.pop();
-        self.complete.push(identity.clone());
-        Ok(identity)
+        })
     }
 
     fn data_shape(

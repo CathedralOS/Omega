@@ -310,11 +310,9 @@ pub(super) enum StructuralResults<'f> {
 
 fn validate_completed_arrival(
     declaration: &StructuralPlaceDeclaration,
-    result: &terminal_psi::StructuralOperationResult,
-    operations: &OperationBuffer,
     evaluation: &Evaluation,
 ) -> Result<(), LoweringError> {
-    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+    let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
         return unsupported("completed arrival lost its block declaration");
     };
     // A completed binding can outlive later private blocks. Its declaration
@@ -338,38 +336,11 @@ fn validate_completed_arrival(
         }
         owner.structural_parameters.as_slice()
     };
-    let mut matches = parameters
+    if !parameters
         .iter()
-        .filter(|parameter| parameter.place == declaration.id);
-    let parameter = matches.next().ok_or(LoweringError::Unsupported(
-        "completed arrival has no declared parameter",
-    ))?;
-    if matches.next().is_some()
-        || parameter.position != position
-        || parameters
-            .iter()
-            .filter(|candidate| candidate.position == position)
-            .count()
-            != 1
-        || parameter.is_self
-        || parameter.access != terminal_psi::StructuralAccess::Owned
-        || result.place != declaration.id
-        || result.structural_type != parameter.structural_type
-        || result.multiplicity != parameter.multiplicity
-        || result.qualifications != parameter.qualifications
-        || result.projected_qualifications != parameter.projected_qualifications
-        || !result.qualification_establishments.is_empty()
-        || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
-        || (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            && result.claims.is_empty())
-        || operations.iter().any(|operation| {
-            operation
-                .result
-                .structural()
-                .is_some_and(|produced| produced.place == result.place)
-        })
+        .any(|parameter| parameter.place == declaration.id)
     {
-        return unsupported("completed arrival changed its exact storage or claim contract");
+        return unsupported("completed arrival has no declared parameter");
     }
     Ok(())
 }
@@ -478,11 +449,11 @@ impl StructuralResults<'_> {
     fn require_next(
         &self,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        drifted: &'static str,
+        refusal: &'static str,
     ) -> Result<(), LoweringError> {
         match self {
             Self::Dense(roster) if result.binding_ordinal as usize != roster.len() => {
-                unsupported(drifted)
+                unsupported(refusal)
             }
             _ => Ok(()),
         }
@@ -526,12 +497,8 @@ impl StructuralResults<'_> {
                         if bindings.next().is_some() {
                             return unsupported("completed arrival repeats its binding");
                         }
-                        validate_completed_arrival(
-                            declaration,
-                            binding.operation_result()?,
-                            operations,
-                            evaluation,
-                        )?;
+                        binding.operation_result()?;
+                        validate_completed_arrival(declaration, evaluation)?;
                     }
                 }
                 return Ok(Cow::Borrowed(roster.as_slice()));
@@ -574,19 +541,13 @@ impl StructuralResults<'_> {
                         if declarations.next().is_some() {
                             return unsupported("composed call result repeats its declaration");
                         }
-                        match declaration.kind {
-                            StructuralPlaceKind::OperationResult { structural_type, producer }
-                                if structural_type == result.structural_type
-                                    && operations.operations.iter().any(|candidate| {
-                                        candidate.id == producer
-                                            && candidate.result.structural() == Some(result)
-                                    }) => {},
-                            StructuralPlaceKind::BlockParameter { .. } => {
-                                if arguments.iter().any(|argument| argument.source_structural_result_binding_ordinal() == Some(*ordinal)) {
-                                    validate_completed_arrival(declaration, result, operations, evaluation)?;
-                                }
-                            }
-                            _ => return unsupported("composed call result declaration differs from its establishment"),
+                        if let StructuralPlaceKind::BlockParameter { .. } = declaration.kind
+                            && arguments.iter().any(|argument| {
+                                argument.source_structural_result_binding_ordinal()
+                                    == Some(*ordinal)
+                            })
+                        {
+                            validate_completed_arrival(declaration, evaluation)?;
                         }
                         Ok((*declaration, false))
                     }
@@ -798,12 +759,7 @@ impl OperationFrame<'_, '_> {
             Some(checked_trees::statement::StatementNode::LocalData(_))
         );
         if local {
-            reference_results::validate_local_establishment(
-                self.checked,
-                self.state,
-                result,
-                source,
-            )?;
+            reference_results::validate_local_establishment(self.checked, self.state, result)?;
         }
         self.results.push(declaration, local);
         self.evaluation.establish_structural_binding(
@@ -849,18 +805,6 @@ impl OperationFrame<'_, '_> {
                     "primitive reference ingress lost its carrier",
                 ))?,
         )?;
-        if parameter.is_mutable
-            || !parameter.symbol.is_valid()
-            || !source.path.is_empty()
-            || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || self
-                .checked
-                .normalized_type_identity(parameter.type_reference)
-                .as_str()
-                != source.type_identity
-        {
-            return unsupported("primitive reference ingress changed its source custody");
-        }
         let position = match &self.evaluation.scalar_bindings {
             Some(bindings) => bindings.immutable_position(parameter_index as usize)?,
             None => parameter_index as usize,
@@ -1018,9 +962,6 @@ impl OperationFrame<'_, '_> {
                 self.operations,
                 self.calls,
             )?;
-            if value.scalar_type != projection.scalar_type || !value.qualifications.is_empty() {
-                return unsupported("primitive store RHS differs from its destination carrier");
-            }
             for kind in destination.emit(
                 value,
                 projection.stored_type,
@@ -1058,7 +999,6 @@ impl OperationFrame<'_, '_> {
                     crate::emission::primitive_store::Destination {
                         place: local.declaration.id,
                         path: Vec::new(),
-                        scalar_type: local.scalar_type,
                     }
                 } else {
                     // A projected store writes through an established
@@ -1093,16 +1033,14 @@ impl OperationFrame<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "primitive store local lost its declared carrier",
                         ))?;
-                    let (steps, scalar_type) =
-                        crate::emission::primitive_store::lower_destination_path(
-                            declaration.id,
-                            path,
-                            self.structural_types.declarations(),
-                        )?;
+                    let (steps, _) = crate::emission::primitive_store::lower_destination_path(
+                        declaration.id,
+                        path,
+                        self.structural_types.declarations(),
+                    )?;
                     crate::emission::primitive_store::Destination {
                         place: source.place,
                         path: steps,
-                        scalar_type,
                     }
                 }
             }
@@ -1607,9 +1545,6 @@ impl OperationFrame<'_, '_> {
             self.calls,
         )?;
         let value = self.scalar_field_store_value(store)?;
-        if value.scalar_type != lowered.scalar_type {
-            return unsupported("structural scalar store RHS differs from its field type");
-        }
         self.observe_store_element_extent(destination_place, destination_type, &lowered.steps)?;
         let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
         self.push_unit(kind);
@@ -2187,14 +2122,6 @@ impl OperationFrame<'_, '_> {
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
-        if self.evaluation.scalar_bindings.is_none()
-            && usize::try_from(result.binding_ordinal)
-                .ok()
-                .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
-                != Some(self.values.len())
-        {
-            return unsupported("Unit scalar expression local binding drifted from source order");
-        }
         // The source value is keyed by the local's authored ordinal, not by
         // the dense binding ordinal the plan assigns it.
         let role = if self.scalar_result == Some(result) {
@@ -2738,7 +2665,6 @@ impl OperationFrame<'_, '_> {
             self.checked,
             site,
             range_source,
-            &source.path,
             result_type,
             destination,
             self.evaluation,

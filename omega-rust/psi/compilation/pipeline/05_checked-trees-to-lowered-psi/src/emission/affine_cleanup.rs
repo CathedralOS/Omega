@@ -102,9 +102,6 @@ fn complete_carriers(
     }
     let entry_position = block_position(blocks, entry)?;
     let reentered = !affine.is_empty() && !blocks[entry_position].structural_parameters.is_empty();
-    if reentered && blocks[entry_position].structural_parameters != parameters {
-        return unsupported("owned loop entry differs from its allocated parameter frontier");
-    }
     let mut incoming = vec![Vec::new(); blocks.len()];
     let mut successors = vec![Vec::new(); blocks.len()];
     for (position, block) in blocks.iter().enumerate() {

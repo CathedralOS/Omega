@@ -1268,10 +1268,7 @@ pub(crate) fn validate_consumer(
     let statements = checked.statement_table.statements(state.statement_nodes);
     let signature =
         crate::declarations::target_signature(checked, caller.machine, authored.source_target)?;
-    let retained = super::super::call_parameters::structural_parameters(checked, call)?;
-    if retained != target_parameters {
-        return unsupported("structural result consumer changed its retained target parameters");
-    }
+    super::super::call_parameters::structural_parameters(checked, call)?;
     let source_positions =
         super::super::call_parameters::structural_positions(checked, call, &signature)?;
     // Claims use dense runtime slots; constructions retain authored positions.

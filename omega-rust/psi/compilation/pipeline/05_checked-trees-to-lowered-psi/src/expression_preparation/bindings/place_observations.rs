@@ -10,7 +10,6 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 #[derive(Clone)]
 pub(crate) struct ByteOverlayField {
     pub offset: u64,
-    pub scalar_type: ScalarType,
     pub stored_type: ScalarType,
     pub indices: Vec<ByteOverlayIndex>,
 }
@@ -98,7 +97,6 @@ impl ByteOverlaySource {
             offset: u64::try_from(projection.offset).map_err(|_| {
                 LoweringError::Unsupported("record byte overlay offset exceeds u64")
             })?,
-            scalar_type,
             stored_type: projection
                 .stored_integer
                 .map(ScalarType::Integer)
@@ -133,7 +131,6 @@ pub(crate) struct PlaceObservationCapture {
     pub(crate) source: LoanedSource,
     pub(crate) carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
-    pub(crate) selector_primitive: Option<PrimitiveType>,
     pub(crate) observation: ObservationKind,
 }
 
@@ -211,9 +208,6 @@ pub(crate) fn byte_record_observation(
             "record byte observation lost its normalized scalar leaf",
         ))?;
     let projection = overlay.geometry(geometry, &leaf_path, scalar_type)?;
-    if projection.indices.len() != selectors.len() {
-        return unsupported("record byte observation changed its runtime coordinate roster");
-    }
     let source = bindings.observation_backing(loan.source)?;
     let (prefix, coordinate) = match &loan.runtime_index {
         Some(_) => (

@@ -10,7 +10,7 @@ use super::super::{
     allocate_dense, emit_direct_expression, place_id,
 };
 use super::{
-    CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, unsupported,
+    CheckedScalarComputationKind, CheckedTrees, LoweringError, unsupported,
     validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -24,8 +24,6 @@ pub(crate) struct Slot {
     pub(super) expression: ExpressionHandle,
     pub(super) place: PlaceId,
     pub(super) structural_type: StructuralTypeId,
-    pub(super) leaf_type: ScalarType,
-    pub(super) leaf_count: u64,
 }
 
 pub(crate) fn prepare(
@@ -71,7 +69,7 @@ pub(crate) fn prepare(
                 .ok_or(LoweringError::Unsupported(
                     "computed array has no structural type namespace",
                 ))?;
-            let (leaf_type, leaf_count) = layout(declaration.id, types)?;
+            validate_layout(declaration.id, types)?;
             if let Some(existing) = slots.iter().find(|slot| slot.expression == *expression) {
                 if existing.structural_type != declaration.id {
                     return unsupported("computed array occurrence has conflicting types");
@@ -82,18 +80,17 @@ pub(crate) fn prepare(
                 expression: *expression,
                 place: place_id(allocate_dense(next_place)?),
                 structural_type: declaration.id,
-                leaf_type,
-                leaf_count,
             });
         }
     }
     Ok(slots)
 }
 
-fn layout(
+/// A computed array is a fixed primitive array whose leaf count fits in u64.
+fn validate_layout(
     mut current: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
-) -> Result<(ScalarType, u64), LoweringError> {
+) -> Result<(), LoweringError> {
     let mut count = Some(1u64);
     let mut empty = false;
     for depth in 0..types.len() {
@@ -111,17 +108,11 @@ fn layout(
                 count = count.and_then(|count| count.checked_mul(length));
                 current = element;
             }
-            StructuralTypeShape::PrimitiveScalar(primitive) if depth != 0 => {
-                return Ok((
-                    primitive,
-                    if empty {
-                        0
-                    } else {
-                        count.ok_or(LoweringError::Unsupported(
-                            "computed array leaf count overflows",
-                        ))?
-                    },
-                ));
+            StructuralTypeShape::PrimitiveScalar(_) if depth != 0 => {
+                if !empty && count.is_none() {
+                    return unsupported("computed array leaf count overflows");
+                }
+                return Ok(());
             }
             _ => return unsupported("computed array requires a fixed primitive array shape"),
         }

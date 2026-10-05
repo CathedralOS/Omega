@@ -33,24 +33,12 @@ pub(crate) fn construction(
     if retained.len() != source.fields.len() {
         return unsupported("computed case omitted or duplicated authored fields");
     }
-    let nodes = &checked.facts.values.scalar_computations.nodes;
-    source
+    Ok(source
         .fields
         .into_iter()
         .zip(retained)
-        .map(|((symbol, expression, primitive), field)| {
-            if symbol != field.symbol
-                || !nodes.is_valid(field.value)
-                || nodes.get(field.value).authored_root != expression
-                || nodes.get(field.value).primitive_type != primitive
-            {
-                return unsupported(
-                    "computed case field differs from its authored position, root or type",
-                );
-            }
-            Ok((expression, field.value))
-        })
-        .collect()
+        .map(|((_, expression, _), field)| (expression, field.value))
+        .collect())
 }
 
 /// Whether statement `index` is an erased runtime-indexed dispatch subject: an

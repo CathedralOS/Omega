@@ -18,9 +18,7 @@ use crate::unit::{
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
-use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralFieldType,
-};
+use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess};
 
 impl OperationFrame<'_, '_> {
     pub(super) fn atomic_access(
@@ -57,9 +55,6 @@ impl OperationFrame<'_, '_> {
             &access.field_identity,
             self.structural_types.declarations(),
         )?;
-        if field.field_type != StructuralFieldType::Atomic(scalar_type) {
-            return unsupported("atomic event field differs from its checked carrier");
-        }
         let field = field.id;
         let mut operands = Vec::new();
         for (ordinal, operand) in access.event.operands().into_iter().enumerate() {
@@ -83,9 +78,6 @@ impl OperationFrame<'_, '_> {
                 self.operations,
                 self.calls,
             )?;
-            if value.scalar_type != scalar_type || !value.qualifications.is_empty() {
-                return unsupported("atomic event operand differs from its leaf carrier");
-            }
             operands.push(value.id);
         }
         let operand = |ordinal: usize| {
@@ -136,16 +128,7 @@ impl OperationFrame<'_, '_> {
             return unsupported("atomic event orderings are not source-legal");
         }
         let result = match (&access.result, event.observes_resident()) {
-            (Some(result), true) => {
-                if result.primitive_type != access.primitive_type
-                    || (self.evaluation.scalar_bindings.is_none()
-                        && usize::try_from(result.binding_ordinal)
-                            .ok()
-                            .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
-                            != Some(self.values.len()))
-                {
-                    return unsupported("atomic event prior binding drifted from source order");
-                }
+            (Some(_), true) => {
                 let value = ValueDeclaration {
                     qualifications: Default::default(),
                     id: crate::unit::value_id(allocate_dense(self.next_value)?),

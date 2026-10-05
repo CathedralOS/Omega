@@ -5,8 +5,8 @@ use super::super::{
 };
 use super::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, LoweringError, Multiplicity, PrimitiveType, Terminator,
-    lookup_type_id, unique_unit_machine, unsupported,
+    CheckedUnitStructuralFieldType, LoweringError, PrimitiveType, Terminator, lookup_type_id,
+    unique_unit_machine, unsupported,
 };
 use crate::producer_result::SourceMappedLowered;
 use crate::unit::attached_unit::bodies::UnitPlans;
@@ -62,12 +62,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     let Some((return_operation, call_operations)) = plan.operations.split_last() else {
         return unsupported("partial affine Unit cleanup operation sequence drifted");
     };
-    let CheckedUnitEffectOperationPlan::Complete {
-        statement_index,
-        trivial_affine_local_discard_ordinals,
-        trivial_affine_discards,
-    } = return_operation
-    else {
+    let CheckedUnitEffectOperationPlan::Complete { .. } = return_operation else {
         return unsupported("partial affine Unit cleanup operation sequence drifted");
     };
     if call_operations.is_empty() {
@@ -83,27 +78,14 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         ))
     });
     let (root_source, root_type, producer_count, anonymous) = match producer {
-        Some((coordinate, result, discard_result_on_return)) => {
-            if coordinate.statement_index != 0
-                || coordinate.call_ordinal > 1
-                || (coordinate.call_ordinal == 1 && call_operations.len() != 2)
-                || result.binding_ordinal != 0
-                || result.statement_index != 0
-                || result.multiplicity != Multiplicity::Affine
-                || discard_result_on_return
-                || plan.structural_parameters.len() > 1
-            {
-                return unsupported("partial affine result producer custody drifted");
-            }
-            (
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                },
-                result.type_identity.as_str(),
-                1,
-                coordinate.call_ordinal == 1,
-            )
-        }
+        Some((coordinate, result, _)) => (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            result.type_identity.as_str(),
+            1,
+            coordinate.call_ordinal == 1,
+        ),
         None => {
             let [parameter] = plan.structural_parameters.as_slice() else {
                 return unsupported(
@@ -127,35 +109,20 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         &str,
         symbols::SymbolHandle,
     )>::new();
-    for (operation_ordinal, operation) in projected_calls.iter().enumerate() {
+    for operation in projected_calls {
         // Each projected move is an ordinary Unit call.
         let Some(call) = operation.call().filter(|call| {
             !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
         }) else {
             return unsupported("partial affine Unit cleanup operation sequence drifted");
         };
-        let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
         let structural_arguments = &call.structural_arguments;
-        let claim_transfers = call.claim_transfers();
         let [argument] = structural_arguments.as_slice() else {
             return unsupported("partial affine Unit cleanup requires one structural argument");
         };
         if !checked_partial_affine_path(&argument.path) {
             return unsupported("partial affine Unit transfer is not an exact field path");
-        }
-        if coordinate.statement_index
-            != u32::try_from(operation_ordinal + producer_count - usize::from(anonymous))
-                .map_err(|_| LoweringError::Unsupported("partial affine call count exceeds u32"))?
-            || coordinate.call_ordinal != 0
-            || !claim_transfers.is_empty()
-            || argument.source != root_source
-            || argument.access != CheckedStructuralAccess::Owned
-            || moved_paths.iter().any(|(earlier, _, _)| {
-                earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
-            })
-        {
-            return unsupported("partial affine Unit cleanup signature or coordinates drifted");
         }
         moved_paths.push((
             argument.path.as_slice(),
@@ -169,27 +136,6 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .any(|residual| !checked_partial_affine_path(&residual.path))
     {
         return unsupported("partial affine Unit cleanup is not an exact field path");
-    }
-    if plan.structural_parameters.iter().any(|parameter| {
-        parameter.position != 0
-            || parameter.is_self
-            || parameter.access != CheckedStructuralAccess::Owned
-            || parameter.multiplicity != Multiplicity::Affine
-            || !parameter.qualifications.is_empty()
-    }) || !plan.scalar_parameters.is_empty()
-        || !plan.trivial_affine_locals.is_empty()
-        || !plan.entry_claims.is_empty()
-        || !plan.body_qualifications.is_empty()
-        || usize::try_from(*statement_index).ok()
-            != Some(call_operations.len() - usize::from(anonymous))
-        || partial
-            .residual_affine_discards
-            .iter()
-            .any(|residual| residual.source != root_source)
-        || !trivial_affine_local_discard_ordinals.is_empty()
-        || !trivial_affine_discards.is_empty()
-    {
-        return unsupported("partial affine Unit cleanup signature or coordinates drifted");
     }
     if anonymous {
         let (source_machine, source_state) =
@@ -223,7 +169,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     {
         return unsupported("partial affine Unit structural types are empty or duplicated");
     }
-    let expected_residuals = checked_partial_affine_residuals(
+    checked_partial_affine_residuals(
         partial_plans,
         &root_source,
         root_type,
@@ -231,26 +177,13 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             .iter()
             .map(|(path, moved_type, _)| (*path, *moved_type))
             .collect::<Vec<_>>(),
-        partial.residual_affine_discards.len(),
     )?;
-    if partial.residual_affine_discards != expected_residuals {
-        return unsupported("partial affine Unit residual field partition drifted");
-    }
     let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    for (_, moved_type, target_machine) in &moved_paths {
+    for (_, _, target_machine) in &moved_paths {
         let target = unique_unit_machine(published, *target_machine)?;
-        let [target_parameter] = target.structural_parameters.as_slice() else {
+        let [_] = target.structural_parameters.as_slice() else {
             return unsupported("partial affine Unit target signature drifted");
         };
-        if target_parameter.type_identity != *moved_type
-            || target_parameter.access != CheckedStructuralAccess::Owned
-            || !target.scalar_parameters.is_empty()
-            || target_parameter.is_self
-            || target_parameter.multiplicity != Multiplicity::Affine
-            || !target_parameter.qualifications.is_empty()
-        {
-            return unsupported("partial affine Unit target parameter drifted");
-        }
     }
 
     // Reuse the ordinary closure lowerer only after validating the separate
@@ -372,35 +305,23 @@ fn lower_general_partial_affine_unit_cleanup_machine(
     // root is then validated as fully covered and the ordinary terminator
     // stays.
     let parameter_index = residual_roots.iter().next().copied();
-    if let Some(parameter_index) = parameter_index {
-        let Some(root_parameter) = plan.structural_parameters.get(parameter_index as usize) else {
-            return unsupported("general partial affine residual root is not a parameter");
-        };
-        if root_parameter.access != CheckedStructuralAccess::Owned
-            || root_parameter.multiplicity != Multiplicity::Affine
-            || !root_parameter.qualifications.is_empty()
-        {
-            return unsupported("general partial affine residual root custody drifted");
-        }
+    if let Some(parameter_index) = parameter_index
+        && plan
+            .structural_parameters
+            .get(parameter_index as usize)
+            .is_none()
+    {
+        return unsupported("general partial affine residual root is not a parameter");
     }
     let mut moved_paths = Vec::<(&[CheckedUnitStructuralPathSegment], &str)>::new();
     let mut other_root_moves =
         std::collections::BTreeMap::<u32, Vec<(&[CheckedUnitStructuralPathSegment], &str)>>::new();
-    // A call coordinate names one authored call site, so no two retained
-    // operations may share it. Reconstructing the residual complement from
-    // the type plan cannot notice two rows that claim the same site, so the
-    // collision is checked here rather than inferred from the partition.
-    let mut call_coordinates = std::collections::BTreeSet::<(u32, u32)>::new();
     for operation in plan
         .operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
         if let Some(call) = operation.call() {
-            let coordinate = call.coordinate;
-            if !call_coordinates.insert((coordinate.statement_index, coordinate.call_ordinal)) {
-                return unsupported("partial affine Unit cleanup signature or coordinates drifted");
-            }
             for argument in &call.structural_arguments {
                 if argument.access != CheckedStructuralAccess::Owned {
                     continue;
@@ -413,20 +334,10 @@ fn lower_general_partial_affine_unit_cleanup_machine(
                             return unsupported("general partial affine residual root moved whole");
                         }
                     } else if parameter_index == Some(index) {
-                        if overlaps_an_earlier_move(&moved_paths, &argument.path) {
-                            return unsupported(
-                                "partial affine Unit cleanup signature or coordinates drifted",
-                            );
-                        }
                         moved_paths
                             .push((argument.path.as_slice(), argument.type_identity.as_str()));
                     } else {
                         let sibling = other_root_moves.entry(index).or_default();
-                        if overlaps_an_earlier_move(sibling, &argument.path) {
-                            return unsupported(
-                                "partial affine Unit cleanup signature or coordinates drifted",
-                            );
-                        }
                         sibling.push((argument.path.as_slice(), argument.type_identity.as_str()));
                     }
                 } else if !argument.path.is_empty()
@@ -478,7 +389,6 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             },
             &other_parameter.type_identity,
             other_paths,
-            usize::MAX,
         )?;
         if !other_residuals.is_empty() {
             return unsupported("general partial affine cleanup has a second residual root");
@@ -491,16 +401,12 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             .ok_or(LoweringError::Unsupported(
                 "general partial affine residual root is not a parameter",
             ))?;
-        let expected_residuals = checked_partial_affine_residuals(
+        checked_partial_affine_residuals(
             partial_plans,
             &CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
             &root_parameter.type_identity,
             &moved_paths,
-            partial.residual_affine_discards.len(),
         )?;
-        if partial.residual_affine_discards != expected_residuals {
-            return unsupported("partial affine Unit residual field partition drifted");
-        }
     }
     let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     for shape in partial_plans {
@@ -589,27 +495,13 @@ fn lower_general_partial_affine_unit_cleanup_machine(
     Ok(source_mapped)
 }
 
-/// Two moves out of one root must name disjoint subtrees. A path that
-/// prefixes an earlier move — or repeats it — transfers the same storage
-/// twice, and the reconstructed complement cannot expose that: the residual
-/// partition it derives from the type plan is the same either way.
-fn overlaps_an_earlier_move(
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    path: &[CheckedUnitStructuralPathSegment],
-) -> bool {
-    moved_paths
-        .iter()
-        .any(|(earlier, _)| earlier.starts_with(path) || path.starts_with(earlier))
-}
-
 pub(crate) fn checked_partial_affine_residuals(
     types: &[CheckedUnitStructuralTypePlan],
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    max_residuals: usize,
 ) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
-    residuals::reconstruct(types, source, root_type, moved_paths, max_residuals)
+    residuals::reconstruct(types, source, root_type, moved_paths)
 }
 
 fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {

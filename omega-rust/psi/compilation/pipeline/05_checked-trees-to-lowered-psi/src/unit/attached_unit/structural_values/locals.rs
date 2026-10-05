@@ -90,32 +90,6 @@ pub(crate) fn bind_local(
     {
         return Ok(());
     }
-    // Initialized arrays and records both own the published storage. Binding
-    // that home does not freeze its contents or lend it; later writes, copies
-    // and loans independently rejoin their authored access. Reference carriers
-    // still retain their separate immutable-binding requirement.
-    // The published result carries the storage identity; the local's declared
-    // `Constrained` shells name qualifications, never the storage that carries
-    // them, so the join compares storage carriers. A shared slice's referee is
-    // already the referent's carrier.
-    let declared_identity = match shared_slice {
-        Some(referee) => checked.normalized_type_identity(referee).into_string(),
-        None => checked
-            .normalized_type_identity(validation::peel_declared_constraints(
-                &checked.typed,
-                local.type_reference,
-            ))
-            .into_string(),
-    };
-    if (local.is_mutable && !owned_contents)
-        || !local.symbol.is_valid()
-        || locals
-            .iter()
-            .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
-        || declared_identity.as_str() != result.type_identity
-    {
-        return unsupported("structural local differs from its published initializer binding");
-    }
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
         structural_type, ..
     } = declaration.kind

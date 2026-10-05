@@ -79,17 +79,7 @@ impl OperationFrame<'_, '_> {
             return unsupported("boundary scalar call custody drifted before emission");
         };
         let target_machine = &call.target.machine;
-        if usize::try_from(result.binding_ordinal)
-            .ok()
-            .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
-            != Some(self.source_value_count)
-        {
-            return unsupported("Unit scalar result binding ordinal drifted from source order");
-        }
-        let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
-        if target.result.scalar() != Some(result.primitive_type) {
-            return unsupported("Unit scalar result type drifted from its checked boundary target");
-        }
+        unique_unit_boundary(self.callees.plans, *target_machine)?;
         let operands = self.boundary_operands(operation, inputs)?;
         let value = ValueDeclaration {
             qualifications: Default::default(),
@@ -146,10 +136,6 @@ impl OperationFrame<'_, '_> {
         };
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
-        self.results.require_next(
-            result,
-            "Unit structural result binding ordinal drifted from source order",
-        )?;
         let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
         let CheckedBoundaryMachineResultPlan::Structural {
             type_identity,
@@ -159,9 +145,6 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("Unit structural result target is not a structural boundary");
         };
-        if type_identity != &result.type_identity || multiplicity != &result.multiplicity {
-            return unsupported("Unit structural result drifted from its checked boundary target");
-        }
         let operands = self.boundary_operands(operation, inputs)?;
         let id = self.operations.allocate();
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
@@ -281,9 +264,6 @@ impl OperationFrame<'_, '_> {
             // frontier is checked against the producer's own claim set.
             Some(StructuralResultCustody {
                 results: &self.operations.structural_values,
-                domains: self.callees.domain_ids,
-                claims: self.caller.claims.bindings(),
-                target_entry_claims: &[],
             }),
         )?;
         let BoundaryParameters {

@@ -48,9 +48,9 @@ pub(crate) fn local_destination<'a>(
 /// A `Local` store destination roots two ways: an owned structural local
 /// (`let mut`) is its own root with an empty prefix, while a borrowed-view
 /// local writes through its loan — the authored target resolves through
-/// that same loan, so the destination's root and path must continue the
-/// place the view's own initializer resolves to. Returns the root and the
-/// path prefix the store's carrier path completes.
+/// that same loan, so the destination's path continues the place the view's
+/// own initializer resolves to. Returns the path prefix the store's carrier
+/// path completes.
 pub(crate) fn local_store_destination(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -58,13 +58,13 @@ pub(crate) fn local_store_destination(
     state_symbol: symbols::SymbolHandle,
     statement: u32,
     symbol: symbols::SymbolHandle,
-) -> Result<(symbols::SymbolHandle, Vec<CheckedUnitStructuralPathSegment>), LoweringError> {
+) -> Result<Vec<CheckedUnitStructuralPathSegment>, LoweringError> {
     let local = local_destination(checked, state, statement, symbol)?;
     if !matches!(
         checked.expression_table.expression(local.initial_value),
         ExpressionNode::Borrow(_) | ExpressionNode::Cast(_)
     ) {
-        return Ok((symbol, Vec::new()));
+        return Ok(Vec::new());
     }
     let statements = checked.statement_table.statements(state.statement_nodes);
     let declaration = statements
@@ -82,7 +82,7 @@ pub(crate) fn local_store_destination(
         Some(declaration),
         local.initial_value,
     )?;
-    Ok((source.root, source.path))
+    Ok(source.path)
 }
 
 /// Select a computation only through its exact authored assignment coordinate.
@@ -95,7 +95,6 @@ pub(crate) fn computation_root(
     state: symbols::SymbolHandle,
     statement_index: u32,
     value: &checked_trees::CheckedStoreValue,
-    primitive_type: typed_trees::types::PrimitiveType,
     field_identity: Option<&str>,
 ) -> Result<
     Option<(
@@ -147,9 +146,6 @@ pub(crate) fn computation_root(
         field_ordinal,
     } = root.role
     {
-        // The store's declared field must be exactly the literal position the
-        // computation root names; an ordinal pointing at a sibling field would
-        // otherwise write that field's value into this store's member.
         let ExpressionNode::StructLiteral(literal) =
             checked.expression_table.expression(expression)
         else {
@@ -162,34 +158,17 @@ pub(crate) fn computation_root(
             .ok_or(LoweringError::Unsupported(
                 "record store field ordinal escaped its literal",
             ))?;
-        let identity = checked
-            .data_definitions()
-            .iter()
-            .find_map(|data| {
-                checked
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        checked_trees::data::DataMember::Field(declaration)
-                            if declaration.symbol == field.field_symbol =>
-                        {
-                            Some(declaration.path_identity())
-                        }
-                        _ => None,
-                    })
+        if !checked.data_definitions().iter().any(|data| {
+            checked.data_members(data).iter().any(|member| {
+                matches!(member, checked_trees::data::DataMember::Field(declaration)
+                    if declaration.symbol == field.field_symbol)
             })
-            .ok_or(LoweringError::Unsupported(
-                "record store field declaration is missing",
-            ))?;
-        let field_identity = field_identity.ok_or(LoweringError::Unsupported(
-            "record store field has no field identity",
-        ))?;
-        if identity != field_identity {
-            return unsupported("record store field drifted from its literal ordinal");
+        }) {
+            return unsupported("record store field declaration is missing");
         }
-    }
-    if plans.nodes.get(handle).primitive_type != primitive_type {
-        return unsupported("field assignment computation differs from its field's carrier");
+        if field_identity.is_none() {
+            return unsupported("record store field has no field identity");
+        }
     }
     Ok(Some((handle, root.role)))
 }

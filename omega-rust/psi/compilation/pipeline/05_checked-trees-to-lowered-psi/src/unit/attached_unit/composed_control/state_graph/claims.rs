@@ -26,7 +26,7 @@ use super::{CheckedComposedUnitControlMachinePlan, successors};
 use checked_trees::CheckedStructuralControlTransferSourcePlan;
 use language_semantics::{
     CarryPolicy, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, PermissionProvenance,
+    PermissionEventSource,
 };
 
 /// Resolved claim custody for one composed machine. `aliased[position][dense]`
@@ -293,14 +293,14 @@ pub(super) fn resolve(
                     } else {
                         source_parameter_source.symbol
                     });
-                    let mut events = checked
+                    if !checked
                         .facts
                         .flow
                         .ownership
                         .permissions
                         .iter()
                         .map(|(_, event)| event)
-                        .filter(|event| {
+                        .any(|event| {
                             event.machine_symbol == plan.machine
                                 && event.state_symbol == source_state.state
                                 && event.kind == PermissionEventKind::Transfer
@@ -317,43 +317,9 @@ pub(super) fn resolve(
                                     && (target_symbol == edge.target_state
                                         || (target_symbol == plan.machine
                                             && edge.target_state == plan.states[0].state)))
-                        });
-                    let Some(event) = events.next() else {
-                        return unsupported("Unit graph claim transfer event is missing");
-                    };
-                    if events.next().is_some()
-                        || event.access != PermissionAccess::Owned
-                        || event.multiplicity != Multiplicity::Linear
-                        || !event.obligation_live
-                        || event.provenance
-                            != (PermissionProvenance::Established {
-                                machine_symbol: plan.machine,
-                                state_symbol: source_state.state,
-                                source: PermissionEventSource::StateEntry,
-                            })
-                        || checked
-                            .facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(event.segments)
-                            .len()
-                            != event.segments.len()
-                        || validation::structural_claim_path(
-                            &checked.typed,
-                            source_parameter_source.type_reference,
-                            checked
-                                .facts
-                                .flow
-                                .ownership
-                                .segments
-                                .span_or_empty(event.segments),
-                        )
-                        .ok()
-                        .as_ref()
-                            != Some(&claim.path)
+                        })
                     {
-                        return unsupported("Unit graph claim transfer custody drifted");
+                        return unsupported("Unit graph claim transfer event is missing");
                     }
                 }
             }

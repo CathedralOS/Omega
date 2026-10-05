@@ -161,7 +161,6 @@ pub(super) fn emit(
         checked,
         site,
         source,
-        &argument.path,
         structural_type,
         destination,
         evaluation,

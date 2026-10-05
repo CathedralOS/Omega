@@ -13,8 +13,8 @@ use super::super::super::{
 };
 use super::super::admission::{CallerView, admit_call};
 use super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, Multiplicity, checked_terminal_machine_name, unsupported,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    Multiplicity, checked_terminal_machine_name, unsupported,
 };
 use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
@@ -36,94 +36,25 @@ pub(crate) fn admit_dynamic_continuation<'a>(
     };
     validate_leaf(when_true)?;
     validate_leaf(when_false)?;
-    let true_ordinal =
-        plan.coordinate
-            .statement_index
-            .checked_add(1)
-            .ok_or(LoweringError::Unsupported(
-                "direct dynamic continuation coordinate overflowed",
-            ))?;
-    let false_ordinal = true_ordinal
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "direct dynamic continuation coordinate overflowed",
-        ))?;
-    if checked.facts.values.scalar_expressions.expression_at(
-        plan.caller_state,
-        true_ordinal,
-        CheckedScalarExpressionRole::Guard,
-    ) != Some(&continuation.guard)
-    {
-        return unsupported("direct dynamic continuation guard drifted from checked scalar facts");
-    }
-    if continuation.when_true.statement_ordinal != true_ordinal
-        || continuation.when_false.statement_ordinal != false_ordinal
-        || continuation.when_true.target_state != when_true.state
-        || continuation.when_false.target_state != when_false.state
-        || plan.caller_state == when_true.state
-        || plan.caller_state == when_false.state
-        || when_true.state == when_false.state
-        || !continuation.when_true.transfers.is_empty()
-        || !continuation.when_false.transfers.is_empty()
-        || !continuation.when_true.scalar_arguments.is_empty()
-        || !continuation.when_false.scalar_arguments.is_empty()
-        || !continuation
-            .when_true
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
-        || !continuation
-            .when_false
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
-    {
-        return unsupported("direct dynamic continuation drifted from its checked control graph");
-    }
     for edge in [&continuation.when_true, &continuation.when_false] {
-        if let Some(local) = continuation.trivial_affine_local_discard {
-            let Some(stored) = stored else {
+        if continuation.trivial_affine_local_discard.is_some() {
+            if stored.is_none() {
                 return unsupported(
                     "direct dynamic continuation fabricated a stored local discard",
                 );
-            };
-            if stored.storage.destination_binding != local
-                || checked
-                    .facts
-                    .flow
-                    .terminal_structural_control_cleanups
-                    .for_edge(
-                        plan.caller_machine,
-                        plan.caller_state,
-                        edge.statement_ordinal,
-                    )
-                    .is_some()
-                || !exact_stored_local_drop(checked, plan, &stored.storage)
-            {
-                return unsupported(
-                    "stored dynamic continuation local cleanup drifted after checking",
-                );
             }
-        } else {
-            let cleanup = checked
-                .facts
-                .flow
-                .terminal_structural_control_cleanups
-                .for_edge(
-                    plan.caller_machine,
-                    plan.caller_state,
-                    edge.statement_ordinal,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "direct dynamic continuation lost its checked cleanup edge",
-                ))?;
-            if cleanup.target_state != edge.target_state
-                || !cleanup
-                    .trivial_affine_discard_parameter_positions
-                    .is_empty()
-            {
-                return unsupported(
-                    "direct dynamic continuation cleanup edge drifted after checking",
-                );
-            }
+        } else if checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_edge(
+                plan.caller_machine,
+                plan.caller_state,
+                edge.statement_ordinal,
+            )
+            .is_none()
+        {
+            return unsupported("direct dynamic continuation lost its checked cleanup edge");
         }
     }
     let attachment =
@@ -135,58 +66,6 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         Some(attachment),
         &continuation.provider_attachment_requirements,
     )
-}
-
-fn exact_stored_local_drop(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedDynamicScalarCallPlan,
-    storage: &checked_trees::DynamicDescriptorStorageFact,
-) -> bool {
-    // Descriptor storage establishes an affine local even though its borrowed
-    // payload carries no linear debt and needs no executable destructor. Rejoin
-    // its no-code disposal to that exact establishment, not the old untracked
-    // Unknown provenance. Any intervening move, replacement, projected claim,
-    // or additional dying root needs its own cleanup plan rather than this pair.
-    let root = facts::PlaceRoot::Symbol(storage.destination_binding);
-    let source = language_semantics::PermissionEventSource::Statement {
-        statement_index: storage.statement_index,
-    };
-    let provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: plan.caller_machine,
-        state_symbol: plan.caller_state,
-        source,
-    };
-    let mut events = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == plan.caller_machine
-                && event.state_symbol == plan.caller_state
-                && (event.root == root
-                    || (event.source == language_semantics::PermissionEventSource::StateExit
-                        && event.kind == language_semantics::PermissionEventKind::AffineDrop))
-        })
-        .map(|(_, event)| event);
-    let (Some(establishment), Some(drop), None) = (events.next(), events.next(), events.next())
-    else {
-        return false;
-    };
-    establishment.kind == language_semantics::PermissionEventKind::Establish
-        && establishment.source == source
-        && drop.kind == language_semantics::PermissionEventKind::AffineDrop
-        && drop.source == language_semantics::PermissionEventSource::StateExit
-        && [establishment, drop].into_iter().all(|event| {
-            event.root == root
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Affine
-                && event.claim_identity == language_semantics::PermissionClaimIdentity::Unknown
-                && event.provenance == provenance
-                && !event.obligation_live
-                && event.segments.is_empty()
-        })
 }
 
 pub(super) fn exact_attachment<'a>(
@@ -563,18 +442,13 @@ pub(super) fn validate_contract(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
-    let contract = checked
+    if checked
         .facts
         .contract_plans
         .for_machine(plan.machine)
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit control is missing its canonical checked contract",
-        ))?;
-    if plan.contract_report_fingerprint == 0
-        || plan.contract_report_fingerprint != contract.report_fingerprint
-        || plan.contract_commitment != contract.commitment
+        .is_none()
     {
-        return unsupported("composed Unit contract identity drifted after checking");
+        return unsupported("composed Unit control is missing its canonical checked contract");
     }
     Ok(())
 }

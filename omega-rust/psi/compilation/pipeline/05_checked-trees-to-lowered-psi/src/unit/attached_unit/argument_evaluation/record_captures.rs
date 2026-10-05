@@ -66,14 +66,6 @@ impl Evaluation {
                     );
                 }
             };
-            if capture
-                .selector_primitive
-                .map(super::terminal_scalar_type)
-                .transpose()?
-                != Some(selector.scalar_type())
-            {
-                return super::unsupported("record coordinate changed its captured scalar carrier");
-            }
             let selector = exact_u64_index(selector)?;
             let scalar_type = selector.scalar_type();
             if scalar_type != super::terminal_scalar_type(typed_trees::types::PrimitiveType::U64)? {

@@ -14,7 +14,7 @@ use super::super::super::super::super::{
 use super::super::super::super::{
     Block, CheckedScalarExpression, Operation, OperationKind, OperationResult,
     StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
-    edge_id, lookup_claim_id, place_id, terminal_scalar_type, unsupported,
+    edge_id, lookup_claim_id, place_id, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -174,8 +174,6 @@ impl StateGraphEmission<'_, '_> {
                 checked,
                 state.state,
                 &evaluation.structural_parameters,
-                crate::expression_preparation::source_custody::primitive_references::ParameterNumbering::Authored,
-                &self.catalogs.structural_types,
             )?;
         let mut values = self.state_values[position].clone();
         let mut next_value = self.catalogs.next_value;
@@ -468,9 +466,6 @@ impl StateGraphEmission<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph scalar return binding is absent",
                     ))?;
-                if value.scalar_type != terminal_scalar_type(binding.primitive_type)? {
-                    return unsupported("Unit graph scalar return binding changed its carrier");
-                }
                 Some(value)
             }
             _ => None,
@@ -840,11 +835,6 @@ impl StateGraphEmission<'_, '_> {
                             let [reference] = result.reference_sources.as_slice() else {
                                 return unsupported("reference parameter return lost its single ingress");
                             };
-                            if !reference.path.is_empty()
-                                || reference.source.source != result.source
-                            {
-                                return unsupported("reference parameter return exchanged its ingress");
-                            }
                             let access = match reference.source.access {
                                 checked_trees::CheckedStructuralAccess::SharedBorrow => terminal_psi::StructuralAccess::SharedBorrow,
                                 checked_trees::CheckedStructuralAccess::MutableBorrow => terminal_psi::StructuralAccess::MutableBorrow,

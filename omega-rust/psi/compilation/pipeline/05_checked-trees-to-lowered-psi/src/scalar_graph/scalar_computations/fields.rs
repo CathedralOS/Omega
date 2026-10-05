@@ -304,7 +304,6 @@ pub(crate) fn prepare_place_observations(
                 source: loan.source,
                 carrier_path: loan.carrier_path,
                 runtime_index: loan.runtime_index,
-                selector_primitive: loan.selector_primitive,
                 observation,
             }))
         })();
@@ -392,9 +391,6 @@ struct CapturedPlaceSubject {
     /// The checked coordinate of the loan's non-literal index, when the
     /// captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
-    /// The selector's integer primitive for `Parameter`/`Local` coordinate
-    /// reads, `None` for a `StructuralField` selector or a static loan.
-    selector_primitive: Option<typed_trees::types::PrimitiveType>,
     /// `true` when the runtime index steps through an element view.
     view_container: bool,
     /// Terminal segments below the runtime index, inside the element.
@@ -574,7 +570,6 @@ fn captured_place_subject(
     let mut path = Vec::new();
     let mut carrier_path = Vec::new();
     let mut runtime_index = None;
-    let mut selector_primitive = None;
     let mut view_container = false;
     let mut runtime_split = None;
     // The last literal index step and the array extent it selected inside —
@@ -696,17 +691,16 @@ fn captured_place_subject(
                         expression,
                     )?,
                 );
-                selector_primitive = checked.typed.primitive_type_reference(
-                    validation::expression_result_type_reference(
-                        &checked.typed,
-                        source_machine,
-                        source_state,
-                        expression,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "record loan's index selector lost its leaf type",
-                    ))?,
-                );
+                if validation::expression_result_type_reference(
+                    &checked.typed,
+                    source_machine,
+                    source_state,
+                    expression,
+                )
+                .is_none()
+                {
+                    return unsupported("record loan's index selector lost its leaf type");
+                }
                 runtime_split = Some(path.len());
                 tail = None;
                 declaration = types
@@ -834,7 +828,6 @@ fn captured_place_subject(
         byte_overlay,
         typed_overlay,
         runtime_index,
-        selector_primitive,
         view_container,
         element_suffix,
     }))
@@ -1068,18 +1061,9 @@ pub(crate) fn prepare(
                     )
                 }
             };
-            let (walk, identity, expected_type, leaf_primitive) = match &typed_overlay {
-                Some(overlay) => {
-                    let (walk, identity, leaf_primitive) =
-                        record_view_source_walk(checked, overlay, subject, *field)?;
-                    (walk, identity, None, leaf_primitive)
-                }
-                None => (
-                    subject.path.clone(),
-                    identity,
-                    Some(subject.type_identity.as_str()),
-                    node.primitive_type,
-                ),
+            let (walk, identity, leaf_primitive) = match &typed_overlay {
+                Some(overlay) => record_view_source_walk(checked, overlay, subject, *field)?,
+                None => (subject.path.clone(), identity, node.primitive_type),
             };
             let mut primitive_path = carrier_path.clone();
             let mut selected_case_fields = None;
@@ -1185,9 +1169,6 @@ pub(crate) fn prepare(
                         "record read carrier type is absent",
                     ))?;
             }
-            if expected_type.is_some_and(|expected| declaration.identity != expected) {
-                return unsupported("record read carrier path changed its declared type");
-            }
             let fields = match selected_case_fields {
                 Some(fields) => fields,
                 None => {
@@ -1197,25 +1178,14 @@ pub(crate) fn prepare(
                     fields.as_slice()
                 }
             };
-            let mut fields = fields.iter().filter(|field| field.identity == identity);
-            let retained = fields.next().ok_or(LoweringError::Unsupported(
-                "record read has no declared field identity",
-            ))?;
+            let retained = fields
+                .iter()
+                .find(|field| field.identity == identity)
+                .ok_or(LoweringError::Unsupported(
+                    "record read has no declared field identity",
+                ))?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;
             let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
-            if fields.next().is_some()
-                || retained.relevance.is_erased()
-                || !matches!(
-                    retained.field_type,
-                    StructuralFieldType::Scalar(_)
-                        | StructuralFieldType::BoundedInteger(_)
-                        | StructuralFieldType::RefinedScalar(_)
-                        | StructuralFieldType::IeeeFloat(_)
-                )
-                || retained.field_type.scalar_type() != Some(leaf_scalar_type)
-            {
-                return unsupported("record read changed its scalar field carrier");
-            }
             let bounded_leaf =
                 terminal_semantics::scalar_field_requires_evidence(&retained.field_type);
             primitive_path.push(terminal_psi::StructuralPathSegment::Field(
@@ -1278,8 +1248,8 @@ pub(super) fn receiver_storage<'a>(
 /// path segments from the source record to the leaf's declaring record, the
 /// leaf's own field identity, and the leaf's declared carrier. Only a direct
 /// scalar field of the view is admitted. The leaf keeps its source carrier;
-/// the ordinary representation-view replay independently checks and emits
-/// the carrier relation after the source observation has been lowered.
+/// the ordinary representation-view replay emits the carrier relation after
+/// the source observation has been lowered.
 fn record_view_source_walk(
     checked: &CheckedTrees,
     overlay: &TypedRecordOverlay,

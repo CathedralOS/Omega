@@ -10,25 +10,6 @@ pub(crate) fn operands(
     let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
         return unsupported("byte comparison lost its authored operation");
     };
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) || checked
-        .facts
-        .operators
-        .expression_use(expression)
-        .is_some_and(|operator| {
-            operator.selected_operator_symbol.is_valid()
-                || operator.candidate_count != 0
-                || !matches!(
-                    operator.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                )
-        })
-    {
-        return unsupported("byte comparison changed its selected meaning");
-    }
     let negated = binary.operator == BinaryOperator::NotEqual;
     match (
         checked.expression_table.expression(binary.left),

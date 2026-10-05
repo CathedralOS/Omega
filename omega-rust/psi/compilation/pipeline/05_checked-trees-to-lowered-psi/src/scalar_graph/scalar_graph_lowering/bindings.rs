@@ -236,13 +236,8 @@ pub(super) fn prepare(
     // machine's and a composed state's formals do, so a bare referent read
     // (`leaf == 70` over `leaf: &u8`) observes the caller's storage through
     // the loan. The scalar slot namespace never receives a snapshot of it.
-    let parameter_references = source_custody::primitive_references::bindings(
-        checked,
-        state.state,
-        structural_namespace,
-        source_custody::primitive_references::ParameterNumbering::Dense,
-        structural_types,
-    )?;
+    let parameter_references =
+        source_custody::primitive_references::bindings(checked, state.state, structural_namespace)?;
     let storage_before = |statement: u32| {
         let mut storage = parameter_references.clone();
         storage.extend(primitive_locals::storage_before(

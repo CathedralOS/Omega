@@ -511,29 +511,12 @@ pub(crate) fn type_atoms(
                                 &mut Vec::new(),
                                 &mut atoms,
                             )?;
-                            let declaration = checked
+                            if !checked
                                 .domain_definitions()
                                 .iter()
-                                .find(|declaration| declaration.symbol == domain.symbol)
-                                .ok_or(LoweringError::Unsupported(
-                                    "scalar qualification lost its declaration",
-                                ))?;
-                            let roles = language_semantics::DomainSemanticRoles {
-                                denotation_dimension: declaration
-                                    .semantic_roles
-                                    .denotation_dimension
-                                    .map(|_| domain.semantic_id),
-                                arithmetic_policy: declaration
-                                    .semantic_roles
-                                    .arithmetic_policy
-                                    .map(|_| domain.semantic_id),
-                            };
-                            if domain.classification != declaration.classification
-                                || domain.semantic_roles != roles
+                                .any(|declaration| declaration.symbol == domain.symbol)
                             {
-                                return unsupported(
-                                    "scalar qualification changed its declared semantic roles",
-                                );
+                                return unsupported("scalar qualification lost its declaration");
                             }
                         }
                         _ => {
@@ -590,25 +573,10 @@ pub(crate) fn declared_atoms(
         );
     }
     let parameters = checked_trees::domain::index_parameters(checked, domain);
-    if parameters.len() != arguments.len()
-        || arguments.iter().any(|argument| {
-            !checked
-                .type_reference_table
-                .contains_type_reference(*argument)
-        })
-    {
-        return unsupported("scalar qualification changed its domain index arity or identity");
-    }
-    let identity =
-        checked_trees::domain::indexed_domain_instance_name(checked, domain, parameters, arguments)
-            .map_err(|_| {
-                LoweringError::Unsupported("scalar qualification has unresolved domain indices")
-            })?;
-    if checked.semantic_domains.name(semantic_id) != Some(identity.as_str())
-        || (arguments.is_empty() && semantic_id != domain.semantic_id)
-    {
-        return unsupported("scalar qualification changed its canonical domain instance");
-    }
+    checked_trees::domain::indexed_domain_instance_name(checked, domain, parameters, arguments)
+        .map_err(|_| {
+            LoweringError::Unsupported("scalar qualification has unresolved domain indices")
+        })?;
     if let Some(alias) = &domain.alias {
         if alias.constituents.is_empty() || !arguments.is_empty() {
             return unsupported("scalar qualification has an empty or indexed alias expansion");

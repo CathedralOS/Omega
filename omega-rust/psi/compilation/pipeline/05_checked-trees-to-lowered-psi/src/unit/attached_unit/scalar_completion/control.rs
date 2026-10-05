@@ -81,30 +81,8 @@ fn unconditional(
     let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     let prefix = statement_ordinal as usize;
-    let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
-        "ordered scalar return has an absent source statement",
-    ))?;
-    // Locating a Return value alone does not establish unconditional control:
-    // guarded transitions also carry Return-role expressions. Reconstruct the
-    // complete final statement before permitting its value to execute directly.
-    let complete_return = match tail {
-        [StatementNode::Expression(_)] => true,
-        [StatementNode::Transition(transition)] => {
-            transition.exit == TransitionExit::Ordinary
-                && transition.guard == TransitionGuardNode::Always
-                && !transition.continuation.is_valid()
-                && checked
-                    .statement_table
-                    .transition_target_is_valid(transition.target)
-                && matches!(
-                    checked.statement_table.transition_target(transition.target),
-                    checked_trees::statement::TransitionTargetNode::Value(_)
-                )
-        }
-        _ => false,
-    };
-    if !complete_return {
-        return unsupported("ordered scalar return differs from its unconditional authored tail");
+    if statements.get(prefix..).is_none() {
+        return unsupported("ordered scalar return has an absent source statement");
     }
     Ok(prefix)
 }
@@ -142,42 +120,23 @@ fn conditional(
     else {
         return unsupported("ordered scalar completion must retain a returning false arm");
     };
-    let shape_matches = match tail {
-        [StatementNode::Transition(_)] => *is_continuation && guard.continuation.is_valid(),
-        [StatementNode::Transition(_), StatementNode::Expression(_)] => {
-            !*is_continuation && !guard.continuation.is_valid()
-        }
-        [
-            StatementNode::Transition(_),
-            StatementNode::Transition(fallback),
-            rest @ ..,
-        ] => !*is_continuation
-            && !guard.continuation.is_valid()
-            && !fallback.continuation.is_valid()
-            && fallback.exit == TransitionExit::Ordinary
-            && (fallback.guard == TransitionGuardNode::Always
-                || crate::expression_preparation::source_custody::guard_complement::complementary(
-                    checked,
-                    state_symbol,
-                    *guard_statement_ordinal,
-                )?)
-            // Reachable arms end at the second transition. Trailing arms are
-            // the authored catch-alls an exhaustive pair leaves unreachable;
-            // each must stay an ordinary, unconditioned, non-continuing
-            // transfer exactly as the terminator's mint required.
-            && rest.iter().all(|statement| {
-                matches!(
-                    statement,
-                    StatementNode::Transition(dead)
-                        if dead.guard == TransitionGuardNode::Always
-                            && dead.exit == TransitionExit::Ordinary
-                            && !dead.continuation.is_valid()
-                )
-            }),
-        _ => false,
-    };
-    if !shape_matches {
-        return unsupported("ordered scalar completion differs from its complete authored tail");
+    // A guarded fallback must be the guard's resolved complement.
+    if let [
+        StatementNode::Transition(_),
+        StatementNode::Transition(fallback),
+        ..,
+    ] = tail
+        && !*is_continuation
+        && !guard.continuation.is_valid()
+        && !fallback.continuation.is_valid()
+        && fallback.exit == TransitionExit::Ordinary
+        && fallback.guard != TransitionGuardNode::Always
+    {
+        crate::expression_preparation::source_custody::guard_complement::complementary(
+            checked,
+            state_symbol,
+            *guard_statement_ordinal,
+        )?;
     }
     for destination in [when_true, when_false] {
         let CheckedScalarBranchDestination::Return { .. } = destination else {

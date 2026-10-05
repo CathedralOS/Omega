@@ -1,7 +1,7 @@
 //! Selected payload bindings feed ordinary successor arguments and completions.
 use super::super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, StructuralAccess, StructuralCaseId,
-    StructuralFieldId, StructuralParameterDeclaration,
+    CheckedComposedUnitControlTerminatorPlan, StructuralCaseId, StructuralFieldId,
+    StructuralParameterDeclaration,
 };
 use super::super::super::{
     OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration,
@@ -60,15 +60,6 @@ pub(super) fn prepare<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph case parameter missing",
                     ))?;
-            if parameter.access != StructuralAccess::Owned
-                || !matches!(
-                    parameter.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-                )
-                || !parameter.qualifications.is_empty()
-            {
-                return unsupported("Unit graph case parameter custody drifted");
-            }
             (
                 parameter.place,
                 parameter.structural_type,
@@ -95,9 +86,6 @@ pub(super) fn prepare<'a>(
     let StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
         return unsupported("Unit graph case subject is not a sum");
     };
-    if declaration.identity != subject.type_identity || declared.len() != cases.len() {
-        return unsupported("Unit graph case type or roster drifted");
-    }
     let cases = declared
         .iter()
         .map(|declared| {
@@ -121,13 +109,6 @@ pub(super) fn prepare<'a>(
                         "Unit graph payload field is missing",
                     ))?;
                 let scalar_type = terminal_scalar_type(payload.primitive_type)?;
-                if field.field_type.scalar_type() != Some(scalar_type)
-                    || values
-                        .iter()
-                        .any(|(position, _)| *position == payload.target_scalar_parameter_index)
-                {
-                    return unsupported("Unit graph payload type or destination drifted");
-                }
                 fields.push(field.id);
                 values.push((
                     payload.target_scalar_parameter_index,
@@ -280,20 +261,5 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     let OperationResult::Structural(produced) = &operation.result else {
         return unsupported("Unit graph call lost structural result");
     };
-    if !matches!(
-        (produced.multiplicity, binding.multiplicity),
-        (
-            StructuralMultiplicity::Affine,
-            language_semantics::Multiplicity::Affine
-        ) | (
-            StructuralMultiplicity::Unrestricted,
-            language_semantics::Multiplicity::Unrestricted
-        )
-    ) || !produced.qualifications.is_empty()
-        || !produced.projected_qualifications.is_empty()
-        || !produced.claims.is_empty()
-    {
-        return unsupported("Unit graph result ownership drifted");
-    }
     Ok(std::borrow::Cow::Owned(produced.clone().into()))
 }

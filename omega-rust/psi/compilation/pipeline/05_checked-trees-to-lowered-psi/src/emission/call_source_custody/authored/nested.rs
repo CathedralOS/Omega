@@ -108,27 +108,19 @@ fn authored_execution(
                 if states.next().is_some() {
                     return unsupported("nested receiver call has ambiguous captured states");
                 }
-                let mut occurrences = control
+                if !control
                     .calls
                     .span(captured_state.calls)
                     .ok_or(LoweringError::Unsupported(
                         "nested receiver call has an invalid occurrence span",
                     ))?
                     .iter()
-                    .filter(|occurrence| {
+                    .any(|occurrence| {
                         occurrence.statement_index == statement_index as usize
                             && occurrence.call_ordinal == 0
-                    });
-                let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
-                    "nested receiver call has no captured occurrence",
-                ))?;
-                if occurrences.next().is_some()
-                    || occurrence.authored_expression.is_valid()
-                    || occurrence.target_symbol != call.target_symbol
-                    || occurrence.has_receiver != !call.receiver.is_empty()
-                    || occurrence.receiver_symbol != call.receiver_symbol
+                    })
                 {
-                    return unsupported("nested receiver call changed its captured occurrence");
+                    return unsupported("nested receiver call has no captured occurrence");
                 }
             } else {
                 validate_static_receiver(
@@ -376,7 +368,7 @@ fn authored_execution(
                 if typed_trees::byte_predicates::byte_predicate_call(&checked.typed, expression)
                     .is_some()
                 {
-                    let (_, operand) = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operands(
+                    let operand = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operand(
                         checked, expression,
                     )?;
                     // The selected scalar observation owns this authored

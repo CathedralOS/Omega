@@ -2,15 +2,13 @@
 //! not moves from existing places. Replay bytes against the declared carrier and every
 //! selected byte predicate before emission attaches its qualification roster.
 
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{
-    CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedTrees, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
-use language_semantics::{Multiplicity, SemanticDomainId};
+use language_semantics::SemanticDomainId;
 
 use crate::lowering_error::{LoweringError, unsupported};
 
@@ -79,7 +77,7 @@ fn collect_domains(
                 ) =>
             {
                 requires_literal_view = true;
-                for domain in validate(checked, node.expression, reference, argument)? {
+                for domain in validate(checked, reference, argument)? {
                     if !domains.contains(&domain) {
                         domains.push(domain);
                     }
@@ -135,7 +133,6 @@ fn collect_domains(
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
-    expression: ExpressionHandle,
     expected: TypeReferenceHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
 ) -> Result<Vec<SemanticDomainId>, LoweringError> {
@@ -143,17 +140,6 @@ pub(crate) fn validate(
     else {
         return unsupported("record byte literal has no literal source");
     };
-    if !checked
-        .type_reference_table
-        .contains_type_reference(expected)
-        || !checked.expression_table.expression_is_valid(expression)
-        || !matches!(checked.expression_table.expression(expression), ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
-        || argument.access != CheckedStructuralAccess::Owned
-        || !argument.path.is_empty()
-        || checked.type_multiplicity(expected) != Multiplicity::Unrestricted
-    {
-        return unsupported("record byte literal changed its authored bytes or owned access");
-    }
     let mut reference = expected;
     let mut visited = Vec::new();
     let mut domains = Vec::new();

@@ -49,7 +49,6 @@ impl MachineSignature {
         ordinary_calls::Target {
             parameters: &self.parameters,
             scalar_parameters: &self.scalar_parameters,
-            erased_scalar_parameters: &self.erased_scalar_parameters,
             predicate_parameters: &self.predicate_parameters,
             requires: &self.requires,
             runtime_requirements: &self.runtime_requirements,

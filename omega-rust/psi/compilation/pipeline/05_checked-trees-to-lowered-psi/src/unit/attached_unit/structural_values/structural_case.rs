@@ -4,7 +4,7 @@ use super::super::{
     CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
     OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    allocate_dense, lookup_type_id, obligation_id, place_id, unsupported,
+    allocate_dense, obligation_id, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -182,15 +182,6 @@ impl emission::Emission<'_, '_, '_> {
                     let StructuralFieldType::Structural(child_type) = target.field_type else {
                         return unsupported("nested case operand has a scalar destination");
                     };
-                    if lookup_type_id(
-                        self.type_ids,
-                        self.checked
-                            .normalized_type_identity(field.type_reference)
-                            .as_str(),
-                    )? != child_type
-                    {
-                        return unsupported("nested case operand changed its exact carrier");
-                    }
                     let parent_type = self.structural_type;
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;

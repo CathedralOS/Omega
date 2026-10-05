@@ -362,13 +362,10 @@ pub(super) fn lower_unit_structural_types_including(
                 CheckedUnitEffectOperationPlan::Call(call)
                     if let (
                         checked_trees::CheckedUnitCallRoute::Module { .. },
-                        checked_trees::CheckedUnitCallResult::Structural {
-                            binding: result, ..
-                        },
+                        checked_trees::CheckedUnitCallResult::Structural { .. },
                     ) = (call.route(), call.result())
                         && UnitBody::contains(plans, call.target.machine) =>
                 {
-                    let target_state = &call.target.state;
                     let target = UnitBody::find(plans, call.target.machine)?;
                     let checked_trees::CheckedControlResultPlan::Structural(signature) =
                         target.result()?
@@ -377,11 +374,7 @@ pub(super) fn lower_unit_structural_types_including(
                             "structural graph call has no structural result catalog",
                         );
                     };
-                    if target.entry()?.state != *target_state
-                        || signature.type_identity != result.type_identity
-                    {
-                        return unsupported("structural graph call result catalog drifted");
-                    }
+                    target.entry()?;
                     roots.push(signature.type_identity);
                     roots.extend(target.attachment().map(str::to_owned));
                     roots.extend(

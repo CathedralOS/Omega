@@ -131,18 +131,14 @@ pub(super) fn source(
                 _ => return unsupported("borrowed operand widens source access"),
             };
             if source.is_self {
-                let TypeReferenceNode::Named { symbol, .. } =
+                let TypeReferenceNode::Named { .. } =
                     checked.type_reference_table.type_reference(reference)
                 else {
                     return unsupported("borrowed source self lost its nominal attachment");
                 };
-                if *symbol != caller.symbol && *symbol != caller.attached_data_symbol {
-                    return unsupported("borrowed source self changed its attachment");
-                }
                 // Projected loans reconstruct the endpoint from the authored
                 // place below. Their enclosing attachment need not have an
-                // incidentally interned named type; its identity was checked
-                // above independently of the producer's argument plan.
+                // incidentally interned named type.
                 if whole_source {
                     checked
                         .type_reference_table

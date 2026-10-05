@@ -431,9 +431,6 @@ impl ScalarBindings {
         else {
             return unsupported("case observation requires an exact parameter source");
         };
-        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-            return unsupported("case observation changed its parameter custody");
-        }
         let (parameter_position, _) = self
             .structural_parameters
             .get(usize::try_from(parameter_index).map_err(|_| {
@@ -688,37 +685,16 @@ impl ScalarBindings {
                         "record byte observation lost its backing parameter",
                     ),
                 )?;
-                if !matches!(
-                    parameter.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                ) || !parameter.projected_qualifications.is_empty()
-                {
-                    return unsupported("record byte observation changed its parameter custody");
-                }
                 Ok(parameter.place)
             }
             LoanedSource::Local(symbol) => {
-                let mut candidates = self
+                let Some(StructuralLocalBinding { argument, .. }) = self
                     .structural_locals
                     .iter()
-                    .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
-                let Some(StructuralLocalBinding { argument, .. }) = candidates.next() else {
+                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+                else {
                     return unsupported("record byte observation lost its live local backing");
                 };
-                if candidates.next().is_some()
-                    || !symbol.is_valid()
-                    || !argument.path.is_empty()
-                    || !matches!(
-                        argument.access,
-                        StructuralAccess::Owned
-                            | StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
-                    )
-                {
-                    return unsupported("record byte observation changed its local custody");
-                }
                 Ok(argument.place)
             }
         }
@@ -838,8 +814,6 @@ impl ScalarBindings {
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
-        use structural_paths::PreparedArgumentTip;
-        use terminal_psi::{StructuralFieldType, StructuralTypeShape};
         let access = structural_paths::terminal_access(argument.access);
         let permits = |granted, requested| {
             matches!(
@@ -914,29 +888,7 @@ impl ScalarBindings {
             }
             _ => return unsupported("computed primitive borrow has no supported source place"),
         };
-        let projection = structural_paths::prepare_argument_projection(
-            &argument.path,
-            root_type,
-            structural_types,
-        )?;
-        let actual_type = match projection.tip {
-            PreparedArgumentTip::Declaration(declaration) => match declaration.shape {
-                StructuralTypeShape::PrimitiveScalar(primitive) => Some(primitive),
-                _ => None,
-            },
-            PreparedArgumentTip::Inline(StructuralFieldType::Scalar(primitive)) => Some(*primitive),
-            _ => None,
-        };
-        if actual_type != Some(scalar_type)
-            || projection
-                .crossed_accesses
-                .iter()
-                .any(|granted| !permits(*granted, access))
-        {
-            return unsupported(
-                "computed primitive borrow changed its endpoint or reference authority",
-            );
-        }
+        structural_paths::prepare_argument_projection(&argument.path, root_type, structural_types)?;
         Ok(StructuralArgument {
             place,
             path: structural_paths::lower_structural_path(&argument.path)?,

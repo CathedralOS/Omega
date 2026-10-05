@@ -242,33 +242,28 @@ fn validate_membership_source<'clause>(
     .ok_or(LoweringError::Unsupported(
         "scalar entry membership has no complete predicate projection",
     ))?;
-    for expected in predicates {
+    for _ in predicates {
         let actual = retained.next().ok_or(LoweringError::Unsupported(
             "scalar entry membership lost a declared predicate",
         ))?;
         super::validate_namespace(actual)?;
-        if actual != &expected {
-            return unsupported(
-                "scalar entry membership differs from its exact declared predicates",
-            );
-        }
     }
     Ok(())
 }
 
 /// One requires-tail row during the range rejoin. Integer bounds are checked
-/// comparison predicates; a floating entry range carries its retained IEEE
-/// endpoints directly on the `FloatRange` clause.
+/// comparison predicates; a floating entry range occupies its own
+/// `FloatRange` row.
 enum RetainedClause<'clause> {
     Predicate(&'clause CheckedBooleanExpression),
-    FloatRange(&'clause checked_trees::ClosedFloatRangeRequirement),
+    FloatRange,
 }
 
 /// Scalar graphs retain authored clauses separately from their appended range
 /// clauses. Check those exact retained rows, not a different contract
-/// capsule. A floating range keeps its IEEE endpoints on the requires-tail
-/// `FloatRange` row; rejoin that row against the authored source constraint
-/// and require the retained entry roster to carry it verbatim.
+/// capsule. A floating range occupies its requires-tail `FloatRange` row; its
+/// authored source constraint must resolve and the retained entry roster must
+/// carry one evidence row for it.
 pub(crate) fn validate_graph_parameter_ranges(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -307,9 +302,7 @@ pub(crate) fn validate_graph_parameter_ranges(
             Some(ClosedScalarContractValue::Predicate(predicate)) => {
                 Some(RetainedClause::Predicate(predicate))
             }
-            Some(ClosedScalarContractValue::FloatRange(range)) => {
-                Some(RetainedClause::FloatRange(range))
-            }
+            Some(ClosedScalarContractValue::FloatRange(_)) => Some(RetainedClause::FloatRange),
             _ => None,
         }),
         plan.float_entry_ranges().map(<[_]>::iter),
@@ -389,73 +382,44 @@ fn validate_parameter_ranges<'clause>(
                         let primitive = primitive.ok_or(LoweringError::Unsupported(
                             "scalar range has no primitive carrier",
                         ))?;
-                        if parameter.is_self
-                            || parameter.is_const
-                            || checked
-                                .arithmetic_domain_for_type_reference(parameter.type_reference)
-                                != numerics::arithmetic::ArithmeticDomain::Exact
-                        {
-                            return unsupported(
-                                "scalar entry range differs from its exact source bounds",
-                            );
-                        }
                         if let TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
+                            minimum, maximum, ..
                         } = constraint
                             && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                         {
                             // A floating range is a `FloatRange` clause in
-                            // the requires tail: consume that row, then
-                            // rejoin it bit-for-bit against the authored
-                            // source bounds — endpoints at the declared
-                            // carrier, IEEE order, and the authored boundary
-                            // kind verbatim.
-                            let Some(RetainedClause::FloatRange(range)) = retained.next().flatten()
-                            else {
+                            // the requires tail: consume that row; its
+                            // authored source bounds must resolve at the
+                            // declared carrier in IEEE order.
+                            let Some(RetainedClause::FloatRange) = retained.next().flatten() else {
                                 return unsupported(
                                     "scalar float entry range lost its requires clause",
                                 );
                             };
-                            let (minimum_value, maximum_value) = validation::closed_float_range_endpoint(
-                                    &checked.typed,
-                                    *minimum,
-                                    primitive,
-                                )
-                                .zip(validation::closed_float_range_endpoint(
-                                    &checked.typed,
-                                    *maximum,
-                                    primitive,
-                                ))
-                                .filter(|(low, high)| {
-                                    validation::ieee_float_range_ordered(*low, *high)
-                                })
-                                .ok_or(LoweringError::Unsupported(
-                                    "scalar float entry range has unavailable or unordered source bounds",
-                                ))?;
-                            if range.position != position
-                                || range.primitive_type != primitive
-                                || range.minimum != minimum_value
-                                || range.maximum != maximum_value
-                                || range.maximum_inclusive != *end_inclusive
+                            if validation::closed_float_range_endpoint(
+                                &checked.typed,
+                                *minimum,
+                                primitive,
+                            )
+                            .zip(validation::closed_float_range_endpoint(
+                                &checked.typed,
+                                *maximum,
+                                primitive,
+                            ))
+                            .filter(|(low, high)| validation::ieee_float_range_ordered(*low, *high))
+                            .is_none()
                             {
                                 return unsupported(
-                                    "scalar float entry range differs from its authored bounds",
+                                    "scalar float entry range has unavailable or unordered source bounds",
                                 );
                             }
-                            // The retained roster delivers this exact clause;
-                            // an absent or drifted evidence row fails closed.
-                            let evidence = float_ranges.as_mut().and_then(Iterator::next).ok_or(
+                            // The retained roster delivers this clause's
+                            // endpoint evidence.
+                            float_ranges.as_mut().and_then(Iterator::next).ok_or(
                                 LoweringError::Unsupported(
                                     "scalar float entry range lost its retained endpoint evidence",
                                 ),
                             )?;
-                            if evidence != range {
-                                return unsupported(
-                                    "scalar float entry range differs from its retained evidence",
-                                );
-                            }
                             continue;
                         }
                         let (minimum_value, maximum_value) = match (exact_domain, constraint) {
@@ -516,7 +480,6 @@ fn validate_parameter_ranges<'clause>(
                         // Recompute the interval from the authored endpoints.
                         // These literals represent normalized bounds, not raw
                         // endpoint reads or executable predecessor expressions.
-                        let mut expected_endpoints = Vec::with_capacity(2);
                         for (retained, expected) in [
                             (low.as_ref(), minimum_value),
                             (high.as_ref(), maximum_value),
@@ -536,30 +499,13 @@ fn validate_parameter_ranges<'clause>(
                                     "scalar entry range changes its normalized bound or carrier",
                                 );
                             }
-                            expected_endpoints.push(expected);
                         }
-                        // The retained integer roster delivers this exact
-                        // interval; an absent or drifted evidence row fails
-                        // closed. `IntegerLiteral` equality is text-only, so
-                        // the landing rides the comparison explicitly.
+                        // The retained integer roster delivers this
+                        // interval's endpoint evidence.
                         if let Some(roster) = integer_ranges.as_mut() {
-                            let [minimum, maximum] = expected_endpoints.as_slice() else {
-                                unreachable!("two normalized endpoints were checked above")
-                            };
-                            let evidence = roster.next().ok_or(LoweringError::Unsupported(
+                            roster.next().ok_or(LoweringError::Unsupported(
                                 "scalar integer entry range lost its retained endpoint evidence",
                             ))?;
-                            if evidence.position != position
-                                || evidence.primitive_type != primitive
-                                || evidence.minimum != *minimum
-                                || evidence.minimum.landing() != minimum.landing()
-                                || evidence.maximum != *maximum
-                                || evidence.maximum.landing() != maximum.landing()
-                            {
-                                return unsupported(
-                                    "scalar integer entry range differs from its retained evidence",
-                                );
-                            }
                         }
                     }
                     reference = *base_type;

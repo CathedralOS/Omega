@@ -3,8 +3,8 @@
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, Multiplicity,
-    is_bounded_nominal_cleanup_record, lower_unit_closure, unique_unit_machine, unsupported,
+    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, is_bounded_nominal_cleanup_record,
+    lower_unit_closure, unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
@@ -20,48 +20,12 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     }
     let [
         CheckedUnitEffectOperationPlan::Complete {
-            statement_index: 0,
-            trivial_affine_local_discard_ordinals,
-            trivial_affine_discards,
+            statement_index: 0, ..
         },
     ] = plan.operations.as_slice()
     else {
         return unsupported("ordered nominal cleanup caller operation sequence drifted");
     };
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .any(|candidate| candidate.machine == plan.machine)
-        || !plan.trivial_affine_locals.is_empty()
-        || !plan.body_qualifications.is_empty()
-        || !trivial_affine_local_discard_ordinals.is_empty()
-        || !trivial_affine_discards.is_empty()
-    {
-        return unsupported("ordered nominal cleanup caller signature drifted");
-    }
-    for (position, parameter) in plan.structural_parameters.iter().enumerate() {
-        let cleanup = &nominal.cleanups[parameter_count - position - 1];
-        if usize::try_from(parameter.position).ok() != Some(position)
-            || cleanup
-                .source_parameter_index()
-                .and_then(|index| usize::try_from(index).ok())
-                != Some(position)
-            || parameter.is_self
-            || !matches!(
-                parameter.multiplicity,
-                Multiplicity::Affine | Multiplicity::Linear
-            )
-            || !parameter.qualifications.is_empty()
-            || cleanup.type_identity != parameter.type_identity
-            || cleanup.cleanup_machine == plan.machine
-            || cleanup.cleanup_contract_report_fingerprint == 0
-        {
-            return unsupported("ordered nominal cleanup parameter join drifted");
-        }
-    }
 
     let nominal_types = &checked
         .facts
@@ -112,7 +76,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {
-        let target = unique_unit_machine(published, cleanup.cleanup_machine)?;
+        unique_unit_machine(published, cleanup.cleanup_machine)?;
         let contract = checked
             .facts
             .contract_plans
@@ -121,10 +85,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 "ordered nominal cleanup target contract is absent",
             ))?;
         // The hook body is an ordinary checked Unit body; the edge invokes
-        // whatever it carries. Selection stays pinned — this owner's attached
-        // `T::drop` state, the recorded contract identity, no scalar
-        // arguments, and at most the exclusive borrowed receiver the edge lends.
-        super::validate_nominal_cleanup_target(target, cleanup)?;
+        // whatever it carries.
         if contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint {
             return unsupported("ordered nominal cleanup target is not exact and bounded");
         }

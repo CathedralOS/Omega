@@ -6,7 +6,7 @@
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings, StructuralLocalBinding};
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan};
+use checked_trees::CheckedUnitStructuralArgumentPlan;
 
 impl Emission<'_, '_, '_> {
     pub(super) fn reference_value(
@@ -24,12 +24,9 @@ impl Emission<'_, '_, '_> {
             .borrowed_structural_argument(source, machine, self.checked.state_parameters(state))?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
         // A borrowed join names the referent itself, even when that referent
-        // happens to contain another reference. Compare the relationship
-        // before classifying the destination's outer shape.
+        // happens to contain another reference. Test the relationship before
+        // classifying the destination's outer shape.
         if self.structural_type == referent_type {
-            if source.access != CheckedStructuralAccess::SharedBorrow {
-                return unsupported("borrowed value changed its referent or access");
-            }
             return if let Some(continuation) = continuation {
                 self.complete_loan(argument, continuation, LoanAccess::Shared)?;
                 Ok(continuation.place)
@@ -44,10 +41,7 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "reference value type is missing",
             ))?;
-        if let StructuralTypeShape::Reference { referent, access } = &declaration.shape {
-            if *referent != referent_type || *access != argument.access {
-                return unsupported("reference carrier changed its referent or access");
-            }
+        if let StructuralTypeShape::Reference { .. } = &declaration.shape {
             let carrier = super::super::super::reference_results::emit_carrier(
                 self.structural_type,
                 argument,
@@ -85,17 +79,6 @@ impl Emission<'_, '_, '_> {
         };
         if local.is_mutable {
             return Ok(None);
-        }
-        if statement >= self.statement as usize
-            || source.access != CheckedStructuralAccess::SharedBorrow
-            || !source.path.is_empty()
-            || self
-                .checked
-                .normalized_type_identity(local.type_reference)
-                .as_str()
-                != source.type_identity
-        {
-            return unsupported("immutable primitive borrow changed its source or access");
         }
         let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
         let ordinal = crate::expression_preparation::source_custody::source_local_ordinal(

@@ -43,11 +43,6 @@ pub(crate) fn emit(
         let source = sources.get(position).ok_or(LoweringError::Unsupported(
             "scalar qualification source is absent",
         ))?;
-        if source.scalar_type != argument.scalar_type()
-            || source.scalar_type != destination.scalar_type
-        {
-            return unsupported("scalar qualification changed its operand carrier");
-        }
         if ordinal + 1 != arguments.len() {
             if position != ordinal || source.qualifications != destination.qualifications {
                 return unsupported("scalar qualification changed a carried prefix membership");

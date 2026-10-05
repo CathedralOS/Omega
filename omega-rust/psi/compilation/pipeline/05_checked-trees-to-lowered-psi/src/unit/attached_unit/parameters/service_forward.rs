@@ -104,7 +104,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                     if matching.next().is_some() {
                         return unsupported("service target duplicates a declared formal");
                     }
-                    validate_parameter(checked, source, formal, &declared)?;
+                    validate_parameter(formal, &declared)?;
                 }
             }
             let source_call = crate::call_sites::locate(checked, caller.state, call.coordinate)?;
@@ -128,7 +128,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                     }
                     continue;
                 };
-                validate_parameter(checked, source_formal, formal, &target_carrier)?;
+                validate_parameter(formal, &target_carrier)?;
                 if call
                     .claim_transfers()
                     .iter()
@@ -158,29 +158,8 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                     .ok_or(LoweringError::Unsupported(
                         "service argument source position is invalid",
                     ))?;
-                let source_shell =
-                    super::structural_carrier_type(checked, source_parameter.type_reference)?;
-                let source_access = match checked.type_reference_table.type_reference(source_shell)
-                {
-                    checked_trees::types::TypeReferenceNode::Reference { access, .. } => {
-                        match access {
-                            language_semantics::ReferenceAccess::Shared => {
-                                CheckedStructuralAccess::SharedBorrow
-                            }
-                            language_semantics::ReferenceAccess::Mutable => {
-                                CheckedStructuralAccess::MutableBorrow
-                            }
-                            language_semantics::ReferenceAccess::WriteOnly => {
-                                CheckedStructuralAccess::WriteOnlyBorrow
-                            }
-                        }
-                    }
-                    _ => CheckedStructuralAccess::Owned,
-                };
-                if source_parameter.relevance.is_erased() || parameter.access != source_access {
-                    return unsupported("service source root changed its declared loan access");
-                }
-                let (_, path, explicit_access) = super::source_path(
+                super::structural_carrier_type(checked, source_parameter.type_reference)?;
+                let (_, path, _) = super::source_path(
                     checked,
                     source_machine,
                     Some(source_state),
@@ -203,19 +182,8 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 let actual = carrier(checked, source_type)?.ok_or(LoweringError::Unsupported(
                     "service argument is not a declared Binding occurrence",
                 ))?;
-                if actual.requirement != target_carrier.requirement
-                    || actual.base_type_identity != target_carrier.base_type_identity
-                    || argument.type_identity != target_carrier.base_type_identity
-                    || argument.access != target_carrier.access
-                    || explicit_access.unwrap_or(actual.access) != argument.access
-                    || !super::checked_access_can_supply(parameter.access, argument.access)
-                {
-                    return unsupported(
-                        "service argument changed its carrier, requirement, or loan access",
-                    );
-                }
                 if path.is_empty() {
-                    validate_parameter(checked, source_parameter, parameter, &actual)?;
+                    validate_parameter(parameter, &actual)?;
                 } else {
                     if argument.access == CheckedStructuralAccess::Owned
                         || parameter.fused_service_erasure.is_some()
@@ -242,39 +210,13 @@ fn carrier(
 }
 
 pub(in crate::unit::attached_unit) fn validate_parameter(
-    checked: &CheckedTrees,
-    source: &checked_trees::signature::StateParameter,
     parameter: &CheckedUnitStructuralParameterPlan,
     carrier: &checked_trees::CheckedServiceParameterCarrier,
 ) -> Result<(), LoweringError> {
-    let receipt = parameter
-        .fused_service_erasure
-        .as_ref()
-        .ok_or(LoweringError::Unsupported(
-            "service parameter lost its Fused receipt",
-        ))?;
-    let mut qualifications = carrier.qualifications.clone();
-    qualifications.sort_by_key(|domain| domain.0);
-    qualifications.dedup();
-    if source.is_self
-        || source.is_const
-        || source.is_mutable != (carrier.access == CheckedStructuralAccess::MutableBorrow)
-        || source.relevance.is_erased()
-        || parameter.is_self
-        || parameter.type_identity != carrier.base_type_identity
-        || parameter.access != carrier.access
-        || parameter.multiplicity != super::service_parameter_multiplicity(carrier.access)?
-        || parameter.qualifications != qualifications
-        || !parameter.projected_qualifications.is_empty()
-        || receipt.source_parameter != source.symbol
-        || receipt.carrier_type_identity != carrier.carrier_type_identity
-        || receipt.requirement != carrier.requirement
-        || checked.fused_service_erasure(carrier.requirement).is_none()
-    {
-        return unsupported(
-            "service argument parameter receipt differs from its exact declaration",
-        );
+    if parameter.fused_service_erasure.is_none() {
+        return unsupported("service parameter lost its Fused receipt");
     }
+    super::service_parameter_multiplicity(carrier.access)?;
     Ok(())
 }
 

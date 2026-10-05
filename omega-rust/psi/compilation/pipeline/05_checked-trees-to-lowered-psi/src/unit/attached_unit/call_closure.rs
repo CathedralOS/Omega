@@ -518,12 +518,7 @@ pub(super) fn validate_unit_operation_sequence(
                 call_ordinal: 0,
             },
             CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                if let Some(binding_ordinal) =
-                    crate::emission::structural_byte_sequence_store::completed_call_binding(
-                        store,
-                        machine.state,
-                    )?
-                {
+                if let Some(binding_ordinal) = store.value.completed_call_binding_ordinal() {
                     // A byte consumer completes its own call, regardless of
                     // whether it copies contents or a shared descriptor.
                     let completed = operation_index

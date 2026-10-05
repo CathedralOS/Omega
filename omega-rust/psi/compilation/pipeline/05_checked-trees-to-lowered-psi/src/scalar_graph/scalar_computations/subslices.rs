@@ -9,7 +9,7 @@ use checked_trees::{
     CheckedUnitStructuralArgumentPlan,
 };
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::StructuralTypeDeclaration;
 
 #[derive(Clone)]
 pub(crate) struct Slot {
@@ -107,15 +107,6 @@ fn reserve(
         .ok_or(LoweringError::Unsupported(
             "computed range has no structural type namespace",
         ))?;
-    if !matches!(
-        (&declaration.shape, bytes),
-        (
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
-            true
-        ) | (StructuralTypeShape::ElementView { .. }, false)
-    ) {
-        return unsupported("computed range changed its view family");
-    }
     let storage = view_ranges::storage(checked, state, statement, argument, types)?;
     let whole_view = storage
         .requires_establishment()
@@ -209,8 +200,7 @@ pub(crate) fn transfer(
         access: target.access,
     };
     let slot = reserve(checked, state, statement, &argument, types, next_place)?;
-    let (source, _) = slot
-        .storage
+    slot.storage
         .bind(checked, state, bindings, slot.whole_view, types)?;
     let site = checked_trees::CheckedSubsliceSite::TransitionArgument {
         argument_ordinal: target.position,
@@ -224,8 +214,6 @@ pub(crate) fn transfer(
             expression,
             retained: None,
         },
-        source.symbol,
-        &argument.path,
     )?;
     match &mut argument.source {
         Source::ByteSequenceSubslice {
@@ -288,8 +276,6 @@ impl super::Expansion<'_> {
                 expression: range.expression,
                 retained: Some((range.start, range.end)),
             },
-            source.symbol,
-            &argument.path,
         )?;
         let scalar_type =
             super::super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;

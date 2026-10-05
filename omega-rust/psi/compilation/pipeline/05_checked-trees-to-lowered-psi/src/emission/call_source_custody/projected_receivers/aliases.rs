@@ -753,7 +753,6 @@ fn call_result_source(
     Ok(Some(super::ReceiverSource {
         root: local.symbol,
         path: Vec::new(),
-        stamp: owner,
         owner,
         captured_place: checked_trees::CapturedPlace {
             root_symbol: local.symbol,

@@ -158,7 +158,6 @@ pub(super) fn emit(
         checked,
         site,
         source,
-        collection,
         source.structural_type,
         destination,
         evaluation,

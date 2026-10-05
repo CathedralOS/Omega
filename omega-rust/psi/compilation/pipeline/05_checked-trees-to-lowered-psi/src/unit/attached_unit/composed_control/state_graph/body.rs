@@ -169,19 +169,6 @@ pub(super) fn validate(
     {
         return unsupported("Unit graph dropped or added a body effect");
     }
-    let mut next_structural_binding = 0_u32;
-    // Mutable storage writes occupy source statements, not immutable result
-    // ordinals. Continue the same namespace used by prefix scalar replay.
-    let mut next_scalar_binding = u32::try_from(
-        state
-            .bindings
-            .iter()
-            .filter(|binding| {
-                binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
-            })
-            .count(),
-    )
-    .map_err(|_| LoweringError::Unsupported("Unit graph scalar binding count overflow"))?;
     crate::emission::primitive_store::validate_element_rosters(
         checked,
         state.state,
@@ -199,95 +186,18 @@ pub(super) fn validate(
             // Expiry runs before entry and consumes no authored statement.
             continue;
         }
-        let mut check_structural_binding =
-            |result: &checked_trees::CheckedUnitStructuralResultBindingPlan|
-             -> Result<(), LoweringError> {
-                if result.binding_ordinal != next_structural_binding {
-                    return unsupported("Unit graph structural binding namespace drifted");
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } = operation {
+            for call in calls {
+                if call
+                    .operation()
+                    .call()
+                    .filter(|planned| !planned.is_boundary())
+                    .and_then(CheckedUnitCallPlan::structural_result)
+                    .is_none()
+                {
+                    return unsupported("Unit graph structural call result lost its operation");
                 }
-                next_structural_binding = next_structural_binding.checked_add(1).ok_or(
-                    LoweringError::Unsupported("Unit graph structural binding count overflow"),
-                )?;
-                Ok(())
-            };
-        match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result, calls, ..
-            } => {
-                // A nested call's result binds in authored evaluation order
-                // before the construction that consumes it.
-                for call in calls {
-                    let Some(call_result) = call
-                        .operation()
-                        .call()
-                        .filter(|planned| !planned.is_boundary())
-                        .and_then(CheckedUnitCallPlan::structural_result)
-                    else {
-                        return unsupported(
-                            "Unit graph structural call result lost its operation",
-                        );
-                    };
-                    check_structural_binding(call_result)?;
-                }
-                check_structural_binding(result)?;
             }
-            // A view-subslice local binds its narrowed view in the same
-            // namespace an `as_slice` view local's value does.
-            CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-            // A `let`-bound closed scalar array takes the next structural
-            // ordinal when checking plans it (`local_data`), so a later
-            // structural binding in the same state counts past it.
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-            // The displaced field value is a fresh structural binding in the
-            // same namespace as the call result that replaces it.
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-            // A declared structural local's establishment mints its home in
-            // the same structural binding namespace as a value construction.
-            | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. } => {
-                check_structural_binding(result)?;
-            }
-            CheckedUnitEffectOperationPlan::AtomicAccess(checked_trees::CheckedAtomicAccessPlan {
-                result: Some(result),
-                ..
-            })
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
-                if result.binding_ordinal != next_scalar_binding {
-                    return unsupported("Unit graph scalar binding namespace drifted");
-                }
-                next_scalar_binding =
-                    next_scalar_binding
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph scalar binding count overflow",
-                        ))?;
-            }
-            // A call's result binds in the structural or dense scalar
-            // namespace; a boundary result shares the namespace an ordinary
-            // result binds.
-            CheckedUnitEffectOperationPlan::Call(call) => match call.result() {
-                CheckedUnitCallResult::Unit => {}
-                CheckedUnitCallResult::Structural { binding, .. } => {
-                    check_structural_binding(binding)?;
-                }
-                CheckedUnitCallResult::Scalar(result) => {
-                    if result.binding_ordinal != next_scalar_binding {
-                        return unsupported("Unit graph scalar binding namespace drifted");
-                    }
-                    // A discarded call result occupies its ordinal unclaimed;
-                    // only a retained result advances the namespace.
-                    if !crate::call_sites::discards_result(
-                        checked,
-                        state.state,
-                        call.coordinate,
-                    ) {
-                        next_scalar_binding = next_scalar_binding.checked_add(1).ok_or(
-                            LoweringError::Unsupported("Unit graph scalar binding count overflow"),
-                        )?;
-                    }
-                }
-            },
-            _ => {}
         }
         let ordinal = if continuations[index] {
             // The continued statement is the one the cursor consumed last.
@@ -572,7 +482,7 @@ pub(super) fn validate(
                     statement_index,
                     destination,
                     path,
-                    value,
+                    ..
                 },
                 StatementNode::Assignment(_),
             ) => {
@@ -594,9 +504,7 @@ pub(super) fn validate(
                             checked,
                             state.state,
                             *statement_index,
-                            *symbol,
                             path,
-                            value,
                         )?;
                         continue;
                     }
@@ -607,9 +515,9 @@ pub(super) fn validate(
                         // emission still requires its live owned storage. A
                         // borrowed-view local writes through its loan: its
                         // authored target resolves through the same place, so
-                        // the comparison continues the initializer's root and
-                        // path rather than the local's own symbol.
-                        let (root, mut prefix) = crate::emission::structural_scalar_store_source::local_store_destination(
+                        // the store's path continues the initializer's path
+                        // rather than the local's own symbol.
+                        let mut prefix = crate::emission::structural_scalar_store_source::local_store_destination(
                             checked,
                             machine,
                             source,
@@ -622,9 +530,7 @@ pub(super) fn validate(
                             checked,
                             state.state,
                             *statement_index,
-                            root,
                             &prefix,
-                            value,
                         )?;
                         continue;
                     }
@@ -645,7 +551,6 @@ pub(super) fn validate(
                     *statement_index,
                     destination,
                     path,
-                    value,
                 )?;
             }
             (
@@ -781,7 +686,7 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::EstablishReference { result, source },
                 StatementNode::LocalData(_),
             ) if result.statement_index as usize == ordinal => {
-                super::super::super::reference_results::validate_local_establishment(checked, state.state, result, source)?;
+                super::super::super::reference_results::validate_local_establishment(checked, state.state, result)?;
             }
             // A returned reference occupies its completion statement, regardless
             // of borrow access or expression-versus-transition spelling. This

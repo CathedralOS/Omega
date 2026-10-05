@@ -52,9 +52,6 @@ fn selected_roots(
                     guard.guard_statement_ordinal,
                     CheckedScalarExpressionRole::Guard,
                 ) {
-                    if root.machine != machine {
-                        return unsupported("ordered guard changed its computation owner");
-                    }
                     pending.push(root.root);
                 }
             }
@@ -144,7 +141,6 @@ fn selected_roots(
                         state.state,
                         store.statement_index,
                         &store.value,
-                        store.primitive_type,
                         Some(&store.field_identity),
                     )?
                 {

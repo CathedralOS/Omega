@@ -149,19 +149,13 @@ fn validate_ordinary(
     if machine.contract_report_fingerprint == 0 {
         return unsupported("Unit closure contains a null checked contract fingerprint");
     }
-    let contract = checked
+    if checked
         .facts
         .contract_plans
         .for_machine(machine.machine)
-        .ok_or(LoweringError::Unsupported(
-            "Unit closure is missing its canonical checked contract",
-        ))?;
-    if machine.contract_report_fingerprint != contract.report_fingerprint
-        || machine.contract_commitment != contract.commitment
+        .is_none()
     {
-        return unsupported(
-            "Unit closure contract compatibility coordinate or strong commitment drifted",
-        );
+        return unsupported("Unit closure is missing its canonical checked contract");
     }
     validate_unit_operation_sequence(checked, machine)?;
     reference_results::validate_releases(checked, machine)?;

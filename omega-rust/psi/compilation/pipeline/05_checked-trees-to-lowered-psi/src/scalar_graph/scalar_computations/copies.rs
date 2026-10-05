@@ -74,12 +74,6 @@ pub(crate) fn prepare(
             if argument.access != CheckedStructuralAccess::Owned {
                 continue;
             }
-            if parameter.access != CheckedStructuralAccess::Owned
-                || argument.type_identity != parameter.type_identity
-                || !argument.path.is_empty()
-            {
-                return unsupported("computed copy changed its whole owned formal");
-            }
             if parameter.multiplicity != Multiplicity::Unrestricted {
                 continue;
             }

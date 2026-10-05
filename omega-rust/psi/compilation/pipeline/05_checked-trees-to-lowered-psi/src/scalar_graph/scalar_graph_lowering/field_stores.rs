@@ -1,7 +1,7 @@
 //! Complete a field's RHS before mutating its current local home. Writes use the
 //! same declaration-based field geometry as parameter stores; local identity is
 //! resolved in the ordered namespace so copies and moved homes stay distinct.
-use super::super::{StructuralFieldId, StructuralFieldType};
+use super::super::StructuralFieldId;
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId, QualifiedScalarType,
     StructuralPathSegment, StructuralTypeDeclaration, computations, storage, terminal_scalar_type,
@@ -71,11 +71,6 @@ pub(super) fn prepare(
         types,
     )?;
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    if matches!(field.field_type, StructuralFieldType::Atomic(_))
-        || field.field_type.scalar_type() != Some(scalar_type)
-    {
-        return unsupported("record store field differs from its declared scalar carrier");
-    }
     let expression = match store.value {
         checked_trees::CheckedStoreValue::Pure(_) => Some(bindings.expression_at(
             checked,
@@ -91,12 +86,6 @@ pub(super) fn prepare(
             return unsupported("record store has no call operation supplying its result");
         }
     };
-    if expression
-        .as_ref()
-        .is_some_and(|expression| expression.scalar_type() != scalar_type)
-    {
-        return unsupported("record store changed its RHS carrier");
-    }
     Ok(Prepared {
         statement: store.statement_index,
         destination,

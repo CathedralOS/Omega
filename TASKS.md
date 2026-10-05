@@ -1678,8 +1678,13 @@ check corpus and the native corpus unchanged on the slices it names.
     `if <pure condition> { return unsupported(..) }` forms are gone; 50 remain
     in 29 files as lookup refusals (`ok_or(..)?`), `let … else` patterns or
     conditions with effects, each needing its value traced before removal.
-    The same pattern with "drifted", "changed its" and "differs from its"
-    covers about 380 more.
+    Of the "drifted", "changed its", "differs from its" and "exchanged its"
+    refusals, 39 remain in 21 files: 33 produce a value emission uses
+    (lookups, `let … else` bindings, route-selecting fallbacks, for example
+    the partial-affine cleanup lookups in `unit_cleanup/partial.rs`), 3
+    refuse a shape stage 05 has no route for, 1 has a real effect
+    (`place_observations.rs`), and 2 compare backing homes stage 05 allocates
+    itself (`loan_chains.rs`, `successor_edge.rs`).
 
   A plan that violates an invariant is a stage 04 bug, found by the corpus.
   Refusals for genuinely unsupported constructs stay until the route items

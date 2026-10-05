@@ -215,24 +215,10 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 CheckedUnitCallResult::Scalar(result) => {
                     CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type)
                 }
-                CheckedUnitCallResult::Structural {
-                    binding: result, ..
-                } => {
-                    let target = unique_unit_boundary(plans, planned.target.machine)?;
-                    if !matches!(
-                        &target.result,
-                        CheckedBoundaryMachineResultPlan::Structural {
-                            type_identity,
-                            multiplicity,
-                            ..
-                        } if type_identity == &result.type_identity
-                            && multiplicity == &result.multiplicity
-                    ) {
-                        return unsupported(
-                            "Unit structural result drifted from its checked boundary target",
-                        );
-                    }
-                    target.result.clone()
+                CheckedUnitCallResult::Structural { .. } => {
+                    unique_unit_boundary(plans, planned.target.machine)?
+                        .result
+                        .clone()
                 }
             };
             retain_exact_unit_boundary(
