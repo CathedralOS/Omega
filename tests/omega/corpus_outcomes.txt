@@ -1509,7 +1509,8 @@ pass/arrays/local_record_array_guard_exit checked 1631ms @cfe60a3a242
 pass/atomics/atomic_global_order_operations checked 290ms @2d8ed253669f
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms @2d8ed253669f
-pass/atomics/shared_receiver_atomic_store checked 18519ms @89e29450ebe3+wt
+pass/atomics/shared_receiver_atomic_store rejected 2868ms @30cb22686a0
+	native artifact identity physical pipeline failed: common physical staging failed: FunctionRelativeRealization(Encoding(X86_64(UnsupportedAtomicForm)))
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
