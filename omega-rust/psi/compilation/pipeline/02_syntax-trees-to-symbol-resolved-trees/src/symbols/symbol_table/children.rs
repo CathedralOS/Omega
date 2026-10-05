@@ -4,8 +4,8 @@
 //! insert one root symbol per declaration, then call the matching
 //! `insert_*_symbol_children` function to add that declaration's parameters,
 //! fields, states and other named children beneath it. Machine children are
-//! inserted later, by `insert_selected_machine_children`, once the data
-//! definition each machine attaches to has been selected.
+//! inserted later, by `insert_selected_machine_children`, once all root
+//! identities exist. A qualified machine does not inherit its carrier's fields.
 //!
 //! The child modules hold the insertion for builtin types, data, machines,
 //! mathematical definitions, domains and operators (both in `operators`),

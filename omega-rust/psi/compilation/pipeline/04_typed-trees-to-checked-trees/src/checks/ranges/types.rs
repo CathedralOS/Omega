@@ -1,6 +1,6 @@
 //! Range premises use the declaration reached through the receiver's type.
-//! Attached `self` fields also have inherited machine symbols, so their join
-//! belongs to the shared exact-field reader. A global same-spelling search can
+//! Field identities belong to their data declaration, never a machine alias.
+//! A global same-spelling search can
 //! both reject a valid index and borrow another record's range to admit an
 //! invalid one. Ordinary projections retain this checker's scoped root lookup.
 

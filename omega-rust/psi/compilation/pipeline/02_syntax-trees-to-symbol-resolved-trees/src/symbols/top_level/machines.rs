@@ -1,4 +1,3 @@
-use arena::Arena;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -142,11 +141,6 @@ pub(super) fn assign_machine_symbols(
     } = &mut program.roots;
 
     machines.for_each_mut(|machine| {
-        let inherited_field_count = inherited_field_count(
-            data_definitions.iter(),
-            data_members,
-            machine.attached_data_symbol,
-        );
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
@@ -282,10 +276,6 @@ pub(super) fn assign_machine_symbols(
             };
             data_type_parameters.span_mut_or_empty(machine.type_parameters)[index].kind =
                 resolved_kind;
-        }
-
-        for _ in 0..inherited_field_count {
-            let _ = machine_children.next();
         }
 
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
@@ -614,28 +604,4 @@ pub(super) fn assign_machine_symbols(
         }
     });
     diagnostics
-}
-
-fn inherited_field_count<'data>(
-    data_definitions: impl IntoIterator<Item = &'data symbol_resolved_trees::data::DataDefinition>,
-    data_members: &Arena<symbol_resolved_trees::data::DataMember>,
-    attached_data_symbol: SymbolHandle,
-) -> usize {
-    if !attached_data_symbol.is_valid() {
-        return 0;
-    }
-
-    data_definitions
-        .into_iter()
-        .find(|data_definition| data_definition.symbol == attached_data_symbol)
-        .map(|data_definition| {
-            data_members
-                .span_or_empty(data_definition.members)
-                .iter()
-                .filter(|member| {
-                    matches!(member, symbol_resolved_trees::data::DataMember::Field(_))
-                })
-                .count()
-        })
-        .unwrap_or(0)
 }

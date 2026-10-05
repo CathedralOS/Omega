@@ -11,14 +11,6 @@ pub(crate) struct BoundaryField {
     pub(crate) trait_symbol: symbols::SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BoundaryFieldDeclaration {
-    pub(crate) owner: symbols::SymbolHandle,
-    pub(crate) owner_name: String,
-    pub(crate) field_name: String,
-    pub(crate) field: BoundaryField,
-}
-
 pub(crate) fn exact_conformance_requirement_identity(
     typed: &TypedTrees,
     adapter: &typed_trees::machine::Machine,

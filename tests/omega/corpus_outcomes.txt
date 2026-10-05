@@ -951,6 +951,8 @@ fail/machines/retired_self_receiver rejected 0ms expected @cfe60a3a242
 	tests/omega/fail/machines/retired_self_receiver/main.omg:2:29: `self` receivers are retired; declare an explicit named parameter and type
 fail/machines/retired_self_transition rejected 5ms expected @cfe60a3a242
 	tests/omega/fail/machines/retired_self_transition/main.omg:1:35: implicit `self` is retired; name the explicit parameter or domain subject
+fail/machines/static_namespace_has_no_fields rejected 383ms expected @0bb2f2c02dae+wt
+	machine `Counter::read_without_value` state `read_without_value` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
 fail/memory/bump_allocator_live_allocation_dropped rejected 651ms expected @2d8ed253669f
@@ -2352,6 +2354,7 @@ pass/locals/runtime_local_qualified_view_member_read_exit checked 12373ms check-
 pass/locals/runtime_local_record_array_element_field_reads_exit checked 1924ms check-target:macos_arm64 @9435ec134b74+wt
 pass/locals/runtime_local_view_member_element_read_exit checked 4020ms check-target:macos_arm64 @cfe60a3a242
 pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm64 @cfe60a3a242
+pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_arm64 @0bb2f2c02dae+wt
 pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f

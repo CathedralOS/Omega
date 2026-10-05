@@ -1,0 +1,5 @@
+data Counter { value: i32; }
+
+machine Counter::read_without_value() -> i32 {
+    value
+}

@@ -374,9 +374,8 @@ pub(super) fn build_symbol_table(
     builder.finish()
 }
 
-/// Machine children and the later assignment pass must use the same selected
-/// attachment. Inherited field slots cannot be guessed from a qualified name:
-/// omitting them would shift the state's actual symbol slot during assignment.
+/// Add the selected declaration cohort's own children after root identities
+/// exist. Carrier qualification supplies neither field aliases nor storage.
 pub(super) fn insert_selected_machine_children(
     program: &SymbolResolvedTrees,
     table: SymbolTable,
@@ -384,36 +383,21 @@ pub(super) fn insert_selected_machine_children(
     first_machine: usize,
     has_sources: bool,
 ) -> SymbolTable {
-    let roots = || table.child_handles(table.root()).into_iter().flatten();
-    let selections = roots()
+    let selections = table
+        .child_handles(table.root())
+        .into_iter()
+        .flatten()
         .filter(|handle| table.get(*handle).kind == SymbolKind::Machine)
         .zip(program.machines.iter())
         .skip(first_machine)
-        .map(|(symbol, machine)| {
-            let selected = machine.attached_data.as_ref().and_then(|attached| {
-                table.find_top_level_by_name_and_kinds_from_source(
-                    attached.as_str(),
-                    &[SymbolKind::Data],
-                    attached.source_span(),
-                )
-            });
-            let owner = selected.and_then(|selected| {
-                roots()
-                    .filter(|handle| table.get(*handle).kind == SymbolKind::Data)
-                    .zip(program.data_definitions.iter())
-                    .find_map(|(handle, definition)| (handle == selected).then_some(definition))
-            });
-            (symbol, machine, owner)
-        })
         .collect::<Vec<_>>();
     let mut extension = table.begin_extension(sources.clone(), Vec::new());
-    for (symbol, machine, owner) in selections {
+    for (symbol, machine) in selections {
         insert_machine_symbol_children(
             &mut extension,
             program,
             symbol,
             machine,
-            owner,
             has_sources,
             sources.as_deref(),
         );

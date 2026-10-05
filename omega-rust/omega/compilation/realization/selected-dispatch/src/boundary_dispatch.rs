@@ -16,7 +16,7 @@ use crate::boundary_dispatch::adapter_rows::{
     AdapterRow, GenericBoundaryRequirement, ResolvedAdapterRow, resolve_selected_adapter_row,
 };
 use crate::boundary_dispatch::boundary_fields::{
-    BoundaryField, BoundaryFieldDeclaration, named_type_symbol, resolve_adapter_call,
+    BoundaryField, named_type_symbol, resolve_adapter_call,
 };
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -155,7 +155,7 @@ fn plan_selected_boundary_adapter_dispatch(
 
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
     // may repeat across data owners and never participate in dispatch.
-    let mut boundary_field_declarations = Vec::new();
+    let mut boundary_fields = Vec::new();
     for data in typed.data_definitions() {
         for member in typed.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = member else {
@@ -200,24 +200,19 @@ fn plan_selected_boundary_adapter_dispatch(
                 )));
                 continue;
             }
-            if let Some(existing) = boundary_field_declarations
+            if let Some(existing) = boundary_fields
                 .iter()
-                .find(|existing: &&BoundaryFieldDeclaration| existing.field.symbol == field.symbol)
+                .find(|existing: &&BoundaryField| existing.symbol == field.symbol)
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "boundary field symbol {:?} maps to both trait symbols {:?} and {:?}",
-                    field.symbol, existing.field.trait_symbol, symbol,
+                    field.symbol, existing.trait_symbol, symbol,
                 )));
                 continue;
             }
-            boundary_field_declarations.push(BoundaryFieldDeclaration {
-                owner: data.symbol,
-                owner_name: data.name.as_str().to_owned(),
-                field_name: field.name.as_str().to_owned(),
-                field: BoundaryField {
-                    symbol: field.symbol,
-                    trait_symbol: symbol,
-                },
+            boundary_fields.push(BoundaryField {
+                symbol: field.symbol,
+                trait_symbol: symbol,
             });
         }
     }
@@ -226,7 +221,6 @@ fn plan_selected_boundary_adapter_dispatch(
     // `Owner::name(...)`, whose retained receiver is the exact nominal owner.
     // The owner joins the requirement symbol directly; no field, parameter or
     // routed-service receipt participates; all value arguments remain explicit.
-    let mut boundary_fields = Vec::new();
     for adapter in &adapters {
         let Some(owner) = adapter.top_level_owner else {
             continue;
@@ -237,72 +231,6 @@ fn plan_selected_boundary_adapter_dispatch(
         };
         if !boundary_fields.contains(&field) {
             boundary_fields.push(field);
-        }
-    }
-
-    // A direct `self.<field>` occurrence is stamped with the exact inherited
-    // FIELD child of the attached machine, not the DATA declaration's field
-    // symbol. Retain both coordinates: the declaration symbol serves nested
-    // receiver leaves, while every exact machine-owned inherited symbol serves
-    // direct statement and value receivers. Spelling is used only inside the
-    // already-exact machine owner to resolve its unique child.
-    boundary_fields.extend(
-        boundary_field_declarations
-            .iter()
-            .map(|declaration| declaration.field),
-    );
-    for machine in typed.machines() {
-        let Some(attached_data) = machine.attached_data.as_ref() else {
-            continue;
-        };
-        let owners = typed
-            .data_definitions()
-            .iter()
-            .filter(|data| data.symbol == machine.attached_data_symbol)
-            .collect::<Vec<_>>();
-        let [owner] = owners.as_slice() else {
-            if boundary_field_declarations
-                .iter()
-                .any(|declaration| declaration.owner_name == attached_data.as_str())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "adapter-dispatch machine `{}` resolves attached data `{attached_data}` to {} exact definitions",
-                    machine.name,
-                    owners.len(),
-                )));
-            }
-            continue;
-        };
-        for declaration in boundary_field_declarations
-            .iter()
-            .filter(|declaration| declaration.owner == owner.symbol)
-        {
-            let symbols = machine
-                .symbol
-                .is_valid()
-                .then(|| typed.symbols.child_handles(machine.symbol))
-                .flatten()
-                .into_iter()
-                .flatten()
-                .filter(|symbol| {
-                    typed.symbols.get(*symbol).kind == symbols::SymbolKind::Field
-                        && typed.symbols.name(*symbol) == declaration.field_name
-                })
-                .collect::<Vec<_>>();
-            let [symbol] = symbols.as_slice() else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "adapter-dispatch machine `{}` resolves inherited boundary field `{}::{}` to {} exact FIELD children",
-                    machine.name,
-                    declaration.owner_name,
-                    declaration.field_name,
-                    symbols.len(),
-                )));
-                continue;
-            };
-            boundary_fields.push(BoundaryField {
-                symbol: *symbol,
-                trait_symbol: declaration.field.trait_symbol,
-            });
         }
     }
 

@@ -38,25 +38,6 @@ pub(super) fn clone_specialized_machine(
         .to_vec();
     let specialized_attached_data =
         specialized_attached_data(source.unwrap_or(program), candidate, &source_machine);
-    let inherited_fields = specialized_attached_data
-        .as_ref()
-        .map(|(name, _)| name)
-        .into_iter()
-        .flat_map(|attached_data| {
-            source
-                .unwrap_or(program)
-                .data_definitions()
-                .iter()
-                .filter(move |data| data.name == *attached_data)
-        })
-        .flat_map(|data| source.unwrap_or(program).data_members(data))
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => {
-                Some((field.name.as_str().to_owned(), field.symbol))
-            }
-            typed_trees::data::DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
     // Arena indices are one-based, so the clone region begins one past the
     // last pre-existing node; bounding substitutions at count()+1 keeps an
     // already-materialized endpoint or binder sentinel out of the sweep.
@@ -134,44 +115,11 @@ pub(super) fn clone_specialized_machine(
         &generated_name,
     );
 
-    let source_machine_children = source_machine
-        .symbol
-        .is_valid()
-        .then(|| {
-            source
-                .unwrap_or(program)
-                .symbols
-                .child_handles(source_machine.symbol)
-        })
-        .flatten()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    let inherited_origins = inherited_fields
-        .iter()
-        .map(|(name, declared)| {
-            let mut originals = source_machine_children.iter().copied().filter(|symbol| {
-                source.unwrap_or(program).symbols.get(*symbol).kind == SymbolKind::Field
-                    && source.unwrap_or(program).symbols.name(*symbol) == name
-            });
-            let first = originals.next();
-            let origin = if originals.next().is_none() {
-                first.unwrap_or(*declared)
-            } else {
-                *declared
-            };
-            (origin, SymbolKind::Field, name.as_str())
-        })
-        .collect::<Vec<_>>();
     let machine_children = program.symbols.insert_generated_children_from(
         machine_symbol,
-        inherited_origins
-            .into_iter()
-            .chain(
-                source_owned
-                    .iter()
-                    .map(|item| (item.symbol, SymbolKind::Field, item.name.as_str())),
-            )
+        source_owned
+            .iter()
+            .map(|item| (item.symbol, SymbolKind::Field, item.name.as_str()))
             .chain(
                 source_states
                     .iter()
@@ -182,20 +130,6 @@ pub(super) fn clone_specialized_machine(
         symbols::SymbolTableBuilder::child_handles(machine_children).collect();
     let mut next_child = machine_children.into_iter();
     let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
-    for (field_name, _) in &inherited_fields {
-        let cloned_field = next_child.next().expect("inherited-field clone symbol");
-        let source_fields = source_machine_children
-            .iter()
-            .copied()
-            .filter(|symbol| {
-                source.unwrap_or(program).symbols.get(*symbol).kind == SymbolKind::Field
-                    && source.unwrap_or(program).symbols.name(*symbol) == field_name
-            })
-            .collect::<Vec<_>>();
-        if let [source_field] = source_fields.as_slice() {
-            symbol_map.push((*source_field, cloned_field));
-        }
-    }
     for item in &source_owned {
         symbol_map.push((
             item.symbol,

@@ -2,19 +2,16 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_parameter_signature_children;
-use crate::symbols::symbol_table::names::{SymbolSeed, symbol_seed};
+use crate::symbols::symbol_table::names::symbol_seed;
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     machine_symbol: SymbolHandle,
     machine: &symbol_resolved_trees::machine::Machine,
-    attached_data: Option<&symbol_resolved_trees::data::DataDefinition>,
     has_sources: bool,
     sources: Option<&source::SourceMap>,
 ) {
-    let inherited_fields = inherited_data_field_symbols(program, attached_data, has_sources);
-    let inherited_field_count = inherited_fields.len();
     let machine_children = builder.insert_children(
         machine_symbol,
         program
@@ -34,7 +31,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                     symbol_seed(SymbolKind::ConformanceParameter, binder, has_sources)
                 })
             }))
-            .chain(inherited_fields)
             .chain(
                 program
                     .machine_owned_data(machine.owned_data)
@@ -96,9 +92,6 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                 }),
             );
         }
-    }
-    for _ in 0..inherited_field_count {
-        let _ = machine_children.next();
     }
     for _ in program.machine_owned_data(machine.owned_data) {
         let _ = machine_children.next();
@@ -201,29 +194,4 @@ fn insert_state_symbol_children(
             .iter()
             .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
     );
-}
-
-fn inherited_data_field_symbols<'program>(
-    program: &'program SymbolResolvedTrees,
-    selected: Option<&'program symbol_resolved_trees::data::DataDefinition>,
-    has_sources: bool,
-) -> Vec<SymbolSeed<'program>> {
-    selected
-        .into_iter()
-        .flat_map(|data_definition| program.data_members(data_definition.members).iter())
-        .filter_map(move |member| match member {
-            symbol_resolved_trees::data::DataMember::Field(field) => {
-                // Copied inherited fields retain the authored declaration even
-                // for syntax-only clients without a SourceMap. Specialization
-                // replay must not confuse a fresh storage symbol with a new
-                // authored field selection.
-                Some(symbol_seed(
-                    SymbolKind::Field,
-                    &field.name,
-                    has_sources || field.name.is_source_backed(),
-                ))
-            }
-            symbol_resolved_trees::data::DataMember::Variant(_) => None,
-        })
-        .collect()
 }

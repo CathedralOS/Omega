@@ -391,19 +391,6 @@ fn whole_program_member_type_position(
     symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
     for machine in program.machines() {
-        // Bare attached fields retain an inherited machine symbol. Resolve its
-        // exact declaration type before walking child fields; missing child
-        // identities must not make overlapping receiver loans appear disjoint.
-        if program.symbols.get(symbol).parent == machine.symbol
-            && let Some(field) = validation::exact_attached_field(
-                program,
-                machine,
-                symbol,
-                program.symbols.name(symbol),
-            )
-        {
-            return Some(MemberPosition::Reference(field.type_reference));
-        }
         if machine.symbol == symbol {
             // The retained attached application keeps the owner's generic
             // arguments bound; a nongeneric attachment names its data

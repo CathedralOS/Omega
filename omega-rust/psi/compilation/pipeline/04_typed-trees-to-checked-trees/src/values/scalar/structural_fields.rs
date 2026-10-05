@@ -1224,22 +1224,7 @@ pub(super) fn structural_parameter_place(
                 authored = member.receiver;
                 continue;
             }
-            // Attached machines retain inherited field symbols; canonical
-            // places identify the original data declaration's storage.
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let positions = machine_positions_by_symbol(program, receiver.symbol);
-            let [position] = positions.as_slice() else {
-                return None;
-            };
-            let machine = &program.machines()[*position as usize];
-            let field = validation::exact_self_field(program, machine, authored)?;
-            if field.symbol != selected {
-                return None;
-            }
+            return None;
         }
         authored = member.receiver;
     }

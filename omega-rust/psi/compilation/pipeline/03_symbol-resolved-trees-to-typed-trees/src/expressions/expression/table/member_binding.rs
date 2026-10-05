@@ -269,32 +269,7 @@ fn declared_symbol_type(
                     return Some(reference);
                 }
             }
-            // Attached machines retain inherited field symbols in declaration
-            // order. Rejoin that exact slot, as the checked place resolver does.
-            let machine = program
-                .machines
-                .iter()
-                .find(|machine| machine.symbol == declaration.parent)?;
-            let owner = program.data_definitions.iter().find(|definition| {
-                definition.symbol == machine.attached_data_symbol
-                    && exact_top_level_data_symbol(program, definition)
-            })?;
-            let ordinal = program
-                .symbols
-                .child_handles(machine.symbol)?
-                .filter(|candidate| program.symbols.get(*candidate).kind == SymbolKind::Field)
-                .position(|candidate| candidate == symbol)?;
-            let field = program
-                .data_members(owner.members)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some(field),
-                    _ => None,
-                })
-                .nth(ordinal)?;
-            (exact_field_symbol(program, owner.symbol, field)
-                && program.symbols.name(symbol) == field.name.as_str())
-            .then_some(&field.type_reference)
+            None
         }
         _ => None,
     }

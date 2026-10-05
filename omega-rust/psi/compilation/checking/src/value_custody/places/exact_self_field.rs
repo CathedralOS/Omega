@@ -1,9 +1,9 @@
 //! Declaration-local storage identity for a direct attached-data self field.
 
 use super::exact_data_member_field;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataField, DataMember};
+use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
@@ -44,7 +44,7 @@ pub fn exact_self_field<'program>(
     )
 }
 
-/// Rejoin an attached field's original or inherited declaration identity.
+/// Resolve a field in the exact carrier declaration, without machine aliases.
 /// The caller establishes that the expression denotes this receiver's storage.
 pub fn exact_attached_field<'program>(
     program: &'program TypedTrees,
@@ -63,31 +63,5 @@ pub fn exact_attached_field<'program>(
     if owners.next().is_some() {
         return None;
     }
-    let field = exact_data_member_field(program, owner, SymbolHandle::invalid(), field_name, None)?;
-    if !field_symbol.is_valid() || field_symbol == field.symbol {
-        return Some(field);
-    }
-
-    // Resolution installs attached fields as the first Field children of an
-    // attached machine, in the attached declaration's field order. Those
-    // inherited symbols are distinct from the data's storage declarations.
-    // Rejoin that exact slot rather than treating every same-named machine
-    // member (or another receiver's field) as the storage declaration.
-    let ordinal = program
-        .data_members(owner)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) => Some(field),
-            DataMember::Variant(_) => None,
-        })
-        .position(|candidate| candidate.symbol == field.symbol)?;
-    let inherited = program
-        .symbols
-        .child_handles(machine.symbol)?
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Field)
-        .nth(ordinal)?;
-    (field_symbol == inherited
-        && program.symbols.get(inherited).parent == machine.symbol
-        && program.symbols.name(inherited) == field.name.as_str())
-    .then_some(field)
+    exact_data_member_field(program, owner, field_symbol, field_name, None)
 }

@@ -1,6 +1,7 @@
 // Static setters and getters specialize the container's type parameter while
 // preserving an independent Wrapping counter field. Two setter calls verify
-// persistent state; the getter alone needs a copy bound on the element.
+// state across calls; the getter alone needs a copy bound on the element.
+// Invocation-local cells cross states through explicit shared borrows.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Cell<T> {
@@ -11,7 +12,7 @@ machine Cell::set<T>(cell: &mut Cell<T>, v: T) {
     cell.value = v;
     cell.touched = cell.touched + 1;
 }
-// Returning the field through a shared receiver copies it. The container
+// Returning the field through a shared borrow copies it. The container
 // and setter do not need this getter-only bound.
 machine Cell::get<T [copy]>(cell: &Cell<T>) -> T {
     transition { _ -> (cell.value) }
@@ -21,28 +22,28 @@ machine Cell::touch_count<T>(cell: &Cell<T>) -> i32 in Wrapping {
 }
 data Main {
     console: Binding<Console>;
-    a: Cell<i32>;
-    b: Cell<bool>;
 }
 machine Main::main(main: &mut Main) reaches Console {
-    Cell::set(&mut main.a, 41);
-    Cell::set(&mut main.a, 42);
-    Cell::set(&mut main.b, true);
-    let n: i32 = Cell::get(&main.a);
-    transition n == 42 {
-        true -> check_touches(main)
+    let mut integer_cell: Cell<i32>;
+    let mut boolean_cell: Cell<bool>;
+    Cell::set(&mut integer_cell, 41);
+    Cell::set(&mut integer_cell, 42);
+    Cell::set(&mut boolean_cell, true);
+    let observed: i32 = Cell::get(&integer_cell);
+    transition observed == 42 {
+        true -> check_touches(main, &integer_cell, &boolean_cell)
         false -> no(main)
     }
-    state check_touches(main: &mut Main) {
-        let t: i32 in Wrapping = Cell::touch_count(&main.a);
-        transition t == 2 {
-            true -> check_bool(main)
+    state check_touches(main: &mut Main, integer_cell: &Cell<i32>, boolean_cell: &Cell<bool>) {
+        let touches: i32 in Wrapping = Cell::touch_count(integer_cell);
+        transition touches == 2 {
+            true -> check_bool(main, boolean_cell)
             false -> no(main)
         }
     }
-    state check_bool(main: &mut Main) {
-        let f: bool = Cell::get(&main.b);
-        transition f {
+    state check_bool(main: &mut Main, boolean_cell: &Cell<bool>) {
+        let observed: bool = Cell::get(boolean_cell);
+        transition observed {
             true -> yes(main)
             false -> no(main)
         }
