@@ -39,3 +39,35 @@ Do not add per-feature Rust test files to this directory. The crate sets
 `autotests = false`, so a new file here is not a test target, and each extra
 target would link the whole compiler again. `support/` holds the package-input
 helpers the runner uses.
+
+## Running a fixture through the CLI
+
+The corpus constructs its package inputs explicitly. Its native result does
+not establish the ordinary install/update workflow. An unlocked CLI invocation
+supplies no accepted semantic bindings; a fixture depending on package-owned
+std can therefore stop at entry-schema admission before reaching the compiler
+behavior under test. Do not bypass that boundary or infer acceptance from the
+dependency's name or location.
+
+For example, prepare the reference-pressure witness on macOS ARM64 from the
+repository root:
+
+```text
+omega update --project tests/omega/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
+```
+
+If review requests decisions, inspect the reported file and accept or reject
+the actual findings. Only after resolving them, resume without repeating
+`--target`, then run the original source:
+
+```text
+omega update --resume --project tests/omega/pass/borrows/runtime_reference_array_pressure_exit
+omega run tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg
+```
+
+The authored success is process exit 70, not 0; compilation failure is CLI
+exit 200. `run --both` also compares checked interpretation; supply finite
+stdin as described in the [CLI guide](../../../application/cli/README.md).
+The local lock retains this project's exact source/compiler acceptance, not a
+portable fixture oracle. Source or compiler changes require fresh review, not
+copying bindings or deleting a stale lock to turn it into an unlocked request.

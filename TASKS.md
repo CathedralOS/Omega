@@ -504,12 +504,14 @@ defines the complete product bar.
     `pass/borrows/nested_reference_crossings_exit`,
     `pass/borrows/runtime_reference_array_pressure_exit` (70; call-free
     frames preserve allocated link-register writes as well as call effects;
-    native corpus and checked interpreter agree. The direct command
-    `omega run tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg`
-    still stops in package entry-schema selection: no accepted
-    `MacosApplication` schema. The unchanged two-reference sibling fails
-    there too; the next dependency is package-owned entry-schema admission,
-    not another reference lowering special case),
+    at `870548dcfe2` on macOS ARM64, the direct command
+    `omega run --both tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg`
+    also exits 70 in both engines after ordinary `omega update` review and
+    acceptance. The earlier missing `MacosApplication` was an unlocked
+    package's absent accepted binding, not missing compiler implementation.
+    A changed source still rejects with `omega update` guidance; restoring
+    the original source restores execution. Follow the
+    [CLI fixture workflow](omega-rust/omega/compilation/driver/tests/README.md#running-a-fixture-through-the-cli)),
     `pass/collections/runtime_whole_array_value_copy_exit` (70),
     `pass/collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}` (0),
     and rejections `fail/borrows/{stored_reference_live_source_write,nested_reference_live_source_write}`.
