@@ -334,3 +334,45 @@ work is a diagnostic plus a migration of the accepting fixtures and of
 seven pass fixtures that match them -- `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`
 scope, not a local fix. This is recorded rather than done because the failing
 site invites exactly the local fix the spec forbids.
+
+### Q6 - After receiver retirement, what carves out an unselected requirement call?
+
+Named decision: `unselected-requirement-carve-out`.
+
+**Customer:** `pass/core/interrupt_obligations_surface`, plus
+`pass/memory/address_translation_canary`. Both reject because
+`reject_unselected_direct_requirement_calls` demands a selected provider for a
+public boundary requirement, and `63bca13481d` widened its gate by deleting the
+clause that required the requirement to be **receiver-free**. The field that
+clause read, `StateParameter::is_self`, no longer exists, so the carve-out
+cannot be restored -- only replaced.
+
+**Decision needed:** must a compilation select a provider for a public boundary
+requirement that only an **unreachable** declaration calls?
+
+**Why this is not an engineering call.** The mechanical translation of "has a
+receiver" is "the requirement's first parameter is its owner data type", which
+is the retired `Self`/receiver notion that `trait-requirement-subject-binding`
+forbids reintroducing. That leaves **root reachability**, and the evidence is
+split:
+
+- For it: `wiki/spec/terminal-psi/boundary_calls.md:210` reconstructs
+  "**reachable** fixed boundary rows ... from **executable operations**", :259
+  says "Selected but unreachable imports retain identity without requiring
+  execution inputs", and `wiki/spec/build/provider_selection.md:204` requires
+  reconstructing "every **reachable** closed demand". The canonical
+  reachability-keyed form of this very rule already exists in Omega stage 00,
+  at `provider_admission/terminal_authority_review.rs:44`. So selected-dispatch
+  holds a second copy of a rule the canonical site keys on reachability.
+- Against it: the same file records "Select all Product roots, not a guessed
+  reachable subset or callee names" (`boundary_dispatch.rs:82`).
+- And `50da9413d4e`'s own message accepted this rejection, saying the fixture
+  "needs a `satisfies` provider and a build selection this fixture does not
+  declare", re-pinning its golden "rather than forced green".
+
+**Measured cost of the reachability answer:** the gate is load-bearing.
+Disabling its one call site greens both customers and makes
+`fail/providers/boundary_requirement_direct_call_unselected` stop rejecting for
+its authored reason. That fixture has no `build.omg`, so under reachability
+keying nothing in it is reachable either -- closing this needs the rule **and**
+a real entry selection for that fail fixture.
