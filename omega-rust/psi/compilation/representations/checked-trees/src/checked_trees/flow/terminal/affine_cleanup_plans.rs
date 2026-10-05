@@ -129,14 +129,16 @@ pub struct CheckedUnitClaimTransferPlan {
 /// Ordinary structural result custody is separate from its value binding.
 /// These rows preserve existing claims through successful call completion;
 /// they never establish fresh authority. An empty record is valid only for
-/// an independently checked unqualified, claim-free result.
+/// an independently checked unqualified, claim-free result. Checking decides
+/// the record once (`validation::structural_call_custody`) and lowering reads
+/// it as recorded.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralCallCustodyPlan {
     /// Exact source loan carried by a root reference result. A zero handle
     /// means this call establishes no locally held reference-result resource.
     pub reference_loan: arena::Handle<crate::BorrowLoanFact>,
     /// Exact ingress leaves forwarded by a terminal call with no local holder.
-    /// Shared source checking reconstructs these from the authored call.
+    /// Checking decides these from the authored call.
     pub forwarded_reference_sources: Vec<crate::CheckedReferenceResultSourcePlan>,
     pub result_qualifications: Vec<SemanticDomainId>,
     pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,

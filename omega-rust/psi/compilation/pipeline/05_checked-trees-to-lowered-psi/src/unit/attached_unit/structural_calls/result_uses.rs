@@ -76,7 +76,7 @@ fn validate_linear_result_consumer(
     argument_index: usize,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
-    let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
+    let (state, operations) = (caller.state, caller.operations);
     let Some((consumer, consumer_result, custody)) = operation
         .call()
         .filter(|call| !call.is_boundary())
@@ -137,8 +137,6 @@ fn validate_linear_result_consumer(
     {
         return unsupported("linear result operand has stale or incompatible producer custody");
     }
-    super::validate_custody(checked, machine, state, producer)?;
-    super::validate_custody(checked, machine, state, operation)?;
     let (_, producer_state) =
         crate::declarations::state_declaration(checked, *producer_target_state)?;
     let projected_qualifications = validation::structural_result_projected_qualifications(
@@ -349,7 +347,6 @@ fn validate_argument_construction_consumer(
     {
         return unsupported("argument construction moves into another formal or custody");
     }
-    super::validate_custody(checked, machine, state, operation)?;
     let owned_uses = operations
         .iter()
         .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
@@ -372,9 +369,9 @@ struct Producer<'plan> {
 }
 
 /// A bare reference result's retained leaf loan proves a projected owned
-/// operand's subtree custody independently: `validate_custody` and the release
-/// boundary replay that loan against typed evidence, and the carrier's
-/// residual still dies at its own return drop. The projection must therefore
+/// operand's subtree custody independently: checking recorded that loan in
+/// the call's custody, the release boundary rejoins it to typed evidence, and
+/// the carrier's residual still dies at its own return drop. The projection must therefore
 /// name declared field edges only; referent and index projections keep the
 /// ordinary continuation-cleanup route.
 fn loaned_record_projection(
@@ -1227,10 +1224,9 @@ pub(crate) fn validate_consumer(
     let Some(call) = operation.call() else {
         return unsupported("structural result use requires an ordinary or boundary call");
     };
-    // Retained loans are admitted by the same reconstructed source/outcome
-    // custody as other structural calls, not by recognizing the caller's
-    // storage spelling. The loan's release is checked by validate_usage.
-    super::validate_custody(checked, caller.machine, caller.state, operation)?;
+    // Retained loans are admitted by the call's recorded custody, as other
+    // structural calls are, not by recognizing the caller's storage
+    // spelling. The loan's release is checked by validate_usage.
     let loan_is_accounted = loan_free_call(checked, operation)
         || (!call.is_boundary()
             && call

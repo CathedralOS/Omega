@@ -2,7 +2,8 @@
 //! reference or borrowed view carries a loan whose operands must be the
 //! caller's structural parameters or earlier results; any other result must
 //! be a claim-free owned value. Either way the call becomes one ordinary
-//! call with a structural result that carries the binding.
+//! call with a structural result that carries the binding, and its custody
+//! is decided once here and recorded in the plan (`with_structural_custody`).
 
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -217,52 +218,16 @@ pub(super) fn build(
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
                 )
         });
-    // An ordinary call that consumes linear claim-carrying inputs keeps the
-    // same route and result binding: the consumed set is re-derived as the
-    // custody's input transfer roster, and a claim-free result carries no
-    // returned frontier. The reconstruction fences the result side itself,
-    // so only the empty-transfer rosters keep the inline emit below.
+    // An ordinary call keeps one route and result binding whatever claims it
+    // consumes. Consumed linear claim-carrying inputs become the custody's
+    // input transfer roster, and the custody judgment fences that result side
+    // itself; a call that consumes none must also carry admitted result
+    // contents.
     if args_ok
-        && !transfers.is_empty()
-        && program
-            .machine_states(target_machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == target_state.symbol)
-        && machine_binders(program, target_machine).is_empty()
-    {
-        let mut operation =
-            CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(CheckedUnitCallParts {
-                coordinate,
-                source_site,
-                target: call_target,
-                route: CheckedUnitCallRoute::Module {
-                    contract_commitment: Some(target_contract.commitment),
-                    erased_scalar_arguments,
-                    erased_proof_arguments,
-                },
-                scalar_arguments,
-                structural_arguments,
-                result: CheckedUnitCallResult::Structural {
-                    binding: result.clone(),
-                    discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                        && !reference_loan.is_valid(),
-                },
-                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-            })?);
-        let custody = validation::reconstruct_structural_call_custody(
-            program,
-            facts,
-            machine.symbol,
-            state.symbol,
-            &operation,
-        )
-        .ok()?;
-        *operation.call_mut()?.structural_custody_mut()? = custody;
-        return Some(operation);
-    }
-    if args_ok
-        && transfers.is_empty()
-        && (represented_copy_result || reference_loan.is_valid() || !forwarded_reference_sources.is_empty()
+        && (!transfers.is_empty()
+            || represented_copy_result
+            || reference_loan.is_valid()
+            || !forwarded_reference_sources.is_empty()
             || crate::execution::terminal_unit::reference_results::is_reference_record(
                 program,
                 target_state.return_type,
@@ -326,51 +291,30 @@ pub(super) fn build(
             .is_some_and(|entry| entry.symbol == target_state.symbol)
         && machine_binders(program, target_machine).is_empty()
     {
-        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
-            coordinate,
-            source_site,
-            target: call_target,
-            route: CheckedUnitCallRoute::Module {
-                contract_commitment: Some(target_contract.commitment),
-                erased_scalar_arguments,
-                erased_proof_arguments,
-            },
-            scalar_arguments,
-            structural_arguments,
-            result: CheckedUnitCallResult::Structural {
-                binding: result.clone(),
-                discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                    && !reference_loan.is_valid(),
-            },
-            transfers: CheckedUnitCallTransfers::StructuralCustody(
-                checked_trees::CheckedStructuralCallCustodyPlan {
-                    reference_loan,
-                    forwarded_reference_sources,
-                    result_qualifications: if validation::shared_slice_view_result(
-                        program,
-                        target_state.return_type,
-                    ) {
-                        // A shared view's declared byte-predicate domains
-                        // ride the same carrier identity its result spells.
-                        validation::view_result_carrier_qualifications(
-                            program,
-                            target_state.return_type,
-                        )
-                        .ok()?
-                    } else if represented_copy_result {
-                        validation::structural_result_qualifications(
-                            program,
-                            target_state.return_type,
-                        )
-                        .ok()?
-                    } else {
-                        Vec::new()
-                    },
-                    ..Default::default()
+        return with_structural_custody(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            CheckedUnitCallParts {
+                coordinate,
+                source_site,
+                target: call_target,
+                route: CheckedUnitCallRoute::Module {
+                    contract_commitment: Some(target_contract.commitment),
+                    erased_scalar_arguments,
+                    erased_proof_arguments,
                 },
-            ),
-        })
-        .map(CheckedUnitEffectOperationPlan::Call);
+                scalar_arguments,
+                structural_arguments,
+                result: CheckedUnitCallResult::Structural {
+                    binding: result.clone(),
+                    discard_result_on_return: result.multiplicity == Multiplicity::Affine
+                        && !reference_loan.is_valid(),
+                },
+                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+            },
+        );
     }
     phase("call operation: claim-free affine result");
     let target = facts
@@ -409,24 +353,52 @@ pub(super) fn build(
     {
         return None;
     }
-    CheckedUnitCallPlan::new(CheckedUnitCallParts {
-        coordinate,
-        source_site,
-        target: call_target,
-        route: CheckedUnitCallRoute::Module {
-            contract_commitment: Some(target_contract.commitment),
-            erased_scalar_arguments,
-            erased_proof_arguments,
+    with_structural_custody(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        CheckedUnitCallParts {
+            coordinate,
+            source_site,
+            target: call_target,
+            route: CheckedUnitCallRoute::Module {
+                contract_commitment: Some(target_contract.commitment),
+                erased_scalar_arguments,
+                erased_proof_arguments,
+            },
+            scalar_arguments,
+            structural_arguments,
+            result: CheckedUnitCallResult::Structural {
+                binding: result.clone(),
+                discard_result_on_return: true,
+            },
+            transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
         },
-        scalar_arguments,
-        structural_arguments,
-        result: CheckedUnitCallResult::Structural {
-            binding: result.clone(),
-            discard_result_on_return: true,
-        },
-        transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-    })
-    .map(CheckedUnitEffectOperationPlan::Call)
+    )
+}
+
+/// Admit one ordinary structural call and record its custody: the checker's
+/// single judgment over the exact call and ownership facts. Lowering reads
+/// the recorded custody; a call the judgment refuses is not planned.
+pub(super) fn with_structural_custody(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+    parts: CheckedUnitCallParts,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let mut operation = CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(parts)?);
+    let custody = validation::structural_call_custody(
+        program,
+        facts,
+        caller_machine,
+        caller_state,
+        &operation,
+    )
+    .ok()?;
+    *operation.call_mut()?.structural_custody_mut()? = custody;
+    Some(operation)
 }
 
 /// A parameter names caller storage only while it is mutably borrowed:

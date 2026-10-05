@@ -492,8 +492,12 @@ pub(in crate::execution) fn build_call_operation(
         {
             return None;
         }
-        let mut operation =
-            CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(CheckedUnitCallParts {
+        return super::structural_result_call::with_structural_custody(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            CheckedUnitCallParts {
                 coordinate,
                 source_site,
                 target: call_target,
@@ -509,17 +513,8 @@ pub(in crate::execution) fn build_call_operation(
                     discard_result_on_return: false,
                 },
                 transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
-            })?);
-        let custody = validation::reconstruct_structural_call_custody(
-            program,
-            facts,
-            machine.symbol,
-            state.symbol,
-            &operation,
-        )
-        .ok()?;
-        *operation.call_mut()?.structural_custody_mut()? = custody;
-        return Some(operation);
+            },
+        );
     }
     phase("call operation: claim transfers");
     let transfers = call_claim_transfers(

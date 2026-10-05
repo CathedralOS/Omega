@@ -1,7 +1,7 @@
 //! Ordinary structural-call custody and legacy claim-free affine leaf calls.
 //! Shared graph callees retain their normal result qualifications and returned
-//! claim frontier; an empty producer custody record is accepted only after the
-//! same reconstruction as a claim-bearing call.
+//! claim frontier. Checking decided each call's custody once and recorded it
+//! in the call plan; lowering reads that record and does not decide it again.
 use super::super::{MachineId, StructuralParameterDeclaration, StructuralTypeDeclaration};
 use super::admission::CallerView;
 use super::{
@@ -33,29 +33,6 @@ fn ordinary_structural_call(
 )> {
     let call = operation.call().filter(|call| !call.is_boundary())?;
     Some((call, call.structural_result()?, call.structural_custody()?))
-}
-
-pub(crate) fn validate_custody(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let Some((_, _, custody)) = ordinary_structural_call(operation) else {
-        return Ok(());
-    };
-    let reconstructed = validation::reconstruct_structural_call_custody(
-        &checked.typed,
-        &checked.facts,
-        machine,
-        state,
-        operation,
-    )
-    .map_err(LoweringError::Unsupported)?;
-    if *custody != reconstructed {
-        return unsupported("structural call custody disagrees with checked source and outcomes");
-    }
-    Ok(())
 }
 
 /// Caller result use cannot change the callee's normal result contract. Both

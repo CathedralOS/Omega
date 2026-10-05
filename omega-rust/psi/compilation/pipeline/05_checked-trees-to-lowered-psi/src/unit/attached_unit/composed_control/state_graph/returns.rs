@@ -282,20 +282,16 @@ pub(super) fn validate_structural(
                     "structural return producer absent",
                 ))?;
             if binding.statement_index as usize == ordinal {
+                // A call carries the custody checking recorded for it, and a
+                // structural value carries its own construction.
                 if operation
                     .call()
                     .is_some_and(|call| call.structural_result().is_some())
-                {
-                    crate::unit::attached_unit::structural_calls::validate_custody(
-                        checked,
-                        super::owner(checked, state.state)?,
-                        state.state,
+                    || matches!(
                         operation,
-                    )?;
-                } else if matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                ) {
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                    )
+                {
                 } else if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }

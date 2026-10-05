@@ -1993,27 +1993,21 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 - **CHECKER-RECORDS-ONCE.** (new-scope) Values the checker decides are
   recomputed by later consumers instead of read from checked trees:
-  - `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
-    (`reconstruct_structural_call_custody`, "shared producer-side replay") is
-    called by stage 04 to build the plan and again by stage 05
-    (`unit/attached_unit/structural_calls.rs`) to compare;
   - `omega-rust/psi/compilation/checking/src/machine_calls/machine_specialization_identity.rs` and
     `omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs` hash
     commitments that stage 05, selected-dispatch, provider-planning and
     compile-time each recompute and compare;
-  - Omega stage 00
-    (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs`)
-    calls `validate_exact_const_value_encoding` on Psi's typed trees, across
-    the firewall.
+  - Omega stage 00 still reads Psi's typed trees in
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/comparison_settlement.rs`
+    and in `IntrinsicRequirement::by_symbol` inside
+    `boundary_application_settlement.rs`.
 
-  Store the custody plan once in checked trees and delete the recompute and
-  compare sites; replace the commitments with a plain identity key where one
-  is needed and delete the hashing; move the const-encoding decision into
-  checking and delete the stage 00 call. Acceptance: those three modules hold
-  no replay; no Omega crate references `checked.typed`; corpus unchanged.
+  Replace the commitments with a plain identity key where one is needed and
+  delete the hashing; record what stage 00 reads in checked trees or Terminal
+  Psi. Acceptance: those modules hold no replay; no Omega crate references
+  `checked.typed`; corpus unchanged.
   (**LOWERING-READS-CHECKED-BORROW-CUSTODY** already covers the
   `reference_result_custody` recompute in stage 05.)
-
 - **LOWERING-GATES-OUT-OF-CHECKER.** (new-scope) The checker carries lowering
   capability gates and per-shape query variants:
   - 16 `*_supported` functions (for example

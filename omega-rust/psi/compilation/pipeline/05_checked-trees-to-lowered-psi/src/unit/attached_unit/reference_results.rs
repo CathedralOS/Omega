@@ -190,13 +190,12 @@ pub(super) fn validate_composed_release(
                     result.binding_ordinal == binding_ordinal && custody.reference_loan == loan
                 })
         });
-    let Some((producer_index, producer)) = producers.next() else {
+    let Some((producer_index, _)) = producers.next() else {
         return unsupported("reference release has no retained result loan");
     };
     if producers.next().is_some() {
         return unsupported("reference release pairs with more than one result loan");
     }
-    super::structural_calls::validate_custody(checked, machine, state.state, producer)?;
     let boundary = validation::reference_result_custody::release_statement(
         &checked.facts,
         machine,
@@ -235,12 +234,6 @@ pub(super) fn validate_releases(
         if !custody.reference_loan.is_valid() {
             continue;
         }
-        super::structural_calls::validate_custody(
-            checked,
-            machine.machine,
-            machine.state,
-            operation,
-        )?;
         let boundary = validation::reference_result_custody::release_boundary(
             &checked.typed,
             &checked.facts,
@@ -436,12 +429,6 @@ pub(super) fn validate_consumer(
             if !custody.reference_loan.is_valid() {
                 return unsupported("reference carrier producer lost its source loan");
             }
-            super::structural_calls::validate_custody(
-                checked,
-                caller.machine,
-                caller.state,
-                producer,
-            )?;
             Some(custody.reference_loan)
         }
     };

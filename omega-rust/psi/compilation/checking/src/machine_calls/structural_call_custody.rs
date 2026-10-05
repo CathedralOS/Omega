@@ -1,10 +1,11 @@
-//! Reconstruct ordinary whole-result claim custody from the semantic call and
+//! Decide ordinary whole-result claim custody from the semantic call and
 //! ownership facts. A result binding records a value, not authority. The call's
 //! returned frontier must continue the exact claims transferred into its callee;
 //! a matching type or an empty producer record cannot establish that relation.
 //!
-//! This is shared producer-side replay. Terminal independently verifies the
-//! resulting claim bijection; these source facts are not portable PCC openings.
+//! Stage 04 decides each ordinary structural call's custody here once and
+//! records it in the call plan; lowering reads that record and never decides
+//! it again. These source facts are not portable PCC openings.
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
@@ -824,10 +825,11 @@ pub fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHa
         .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared)
 }
 
-/// Ignores the recorded custody and reconstructs it from the exact call facts.
-/// Existing operand/source validation still checks every value binding and
-/// projection; this replay owns the claim correspondence, not call sequencing.
-pub fn reconstruct_structural_call_custody(
+/// Decide one ordinary structural call's custody from its exact call facts.
+/// The custody the plan already carries is not read. Operand and source
+/// checking own every value binding and projection; this judgment owns the
+/// claim correspondence, not call sequencing.
+pub fn structural_call_custody(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller_machine: SymbolHandle,

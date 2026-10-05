@@ -168,7 +168,6 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     let Some(planned) = operation.call() else {
         return Ok(());
     };
-    structural_calls::validate_custody(checked, caller.machine, caller.state, operation)?;
     match (planned.route(), planned.result()) {
         // A structural call whose target is not a Unit body is a claim-free
         // affine leaf with its own checked return plan.
