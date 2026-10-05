@@ -1840,16 +1840,6 @@ crash and native exit behavior.
     mutation or escape activation-owned storage. Named-state forwarding and Unit
     completion must not regain source-shape gates.
   - **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
-  - Regression to repair: `48de60b9314` ("checkpoint unfinished reference
-    retirement integration") turned `pass/recast/runtime_shared_parameter_view_calls_exit`
-    from built with exit 0 to rejected (bisected on macOS ARM64 between
-    `cd7399e98041` and `d2121d578c4`; its parent `8ed1e671105` builds it). It
-    now stops at "`inspect` has no admitted body (local construction stopped
-    at statement sequence: local data: reference capture, state 0, statement
-    1)", at `let unsigned: &u32 = &value as &u32;`.
-    `recast/runtime_scalar_parameter_shared_views_exit` and
-    `float/runtime_total_order_satisfiers_exit` stop the same way; their
-    attribution to this commit is unconfirmed.
 
   Acceptance: every producer form, reads through scalar/record loan names,
   borrowed calls and state forwarding execute natively and agree with the

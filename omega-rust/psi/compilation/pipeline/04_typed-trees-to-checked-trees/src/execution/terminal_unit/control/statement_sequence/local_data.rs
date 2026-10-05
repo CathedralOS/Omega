@@ -391,10 +391,26 @@ pub(super) fn plan(
         )
     }) {
         local_phase("statement sequence: local data: reference capture");
-        let (storage, _) =
-            validation::reference_result_custody::stored_loan_parts(program, local.type_reference)?;
-        if shapes.add_type(storage, binders, &[])? != source.type_identity {
-            return None;
+        // Structural ingress and local storage already collect their backing
+        // shapes. Scalar ingress has no structural home until it is borrowed,
+        // so collect its declaration here. The checked source names storage,
+        // while the reference below names its view; a recast can differ.
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+            parameter_index,
+        } = source.source
+        {
+            let parameter = program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| {
+                    !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+                .nth(usize::try_from(parameter_index).ok()?)?;
+            shapes.add_type(parameter.type_reference, binders, &[])?;
         }
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
