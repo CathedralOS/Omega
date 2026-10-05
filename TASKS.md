@@ -1840,6 +1840,16 @@ crash and native exit behavior.
     mutation or escape activation-owned storage. Named-state forwarding and Unit
     completion must not regain source-shape gates.
   - **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
+  - Regression to repair: `48de60b9314` ("checkpoint unfinished reference
+    retirement integration") turned `pass/recast/runtime_shared_parameter_view_calls_exit`
+    from built with exit 0 to rejected (bisected on macOS ARM64 between
+    `cd7399e98041` and `d2121d578c4`; its parent `8ed1e671105` builds it). It
+    now stops at "`inspect` has no admitted body (local construction stopped
+    at statement sequence: local data: reference capture, state 0, statement
+    1)", at `let unsigned: &u32 = &value as &u32;`.
+    `recast/runtime_scalar_parameter_shared_views_exit` and
+    `float/runtime_total_order_satisfiers_exit` stop the same way; their
+    attribution to this commit is unconfirmed.
 
   Acceptance: every producer form, reads through scalar/record loan names,
   borrowed calls and state forwarding execute natively and agree with the
@@ -3321,36 +3331,23 @@ of a check the same flow already performed, not the check itself.
   owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
   is unchanged.
 
-- **SOURCE-READ-ONCE.** (new-scope) An ordinary warm compile reads and hashes
-  the root project's tree many times, more when the bound pass runs, and each
-  dependency is re-hashed by its own occurrence and by every consumer's scope.
-  The extra reads are:
-  - `omega-rust/omega/packages/package-manager/src/review/candidate/custody.rs::verify_selected_source_custody`,
-    before and after each occurrence
-    (`review/candidate/compilation/package_pass.rs`);
-  - `selection_evidence().revalidate()`;
-  - `omega-rust/omega/packages/package-manager/src/admission/evidence/validation.rs::revalidate_source_custody`;
-  - `omega-rust/omega/packages/compilation-inputs/src/source_snapshot.rs`
-    `require_stable_recapture`, plus `validate_current` straight after
-    `capture`;
-  - `BuildSourceCustody::seal` → `verify_current_files`
-    (`omega-rust/omega/packages/compilation-inputs/src/source_consumption/checked_sources.rs`);
-  - `CheckedCompilation::verify_current_source_consumption`
-    (`omega-rust/omega/compilation/products/src/checked_compilation.rs`);
-  - the prepare-time `package_compilation_inputs` that
-    `into_target_review_parts` discards;
-  - `omega-rust/omega/packages/source-acquisition/src/local/snapshot.rs`
-    `verify_local_snapshot` and `verify_live_source_unchanged`, and the
-    persistent snapshot copy of the root project made on every edit;
-  - `omega-rust/omega/packages/compilation-inputs/src/toolchain_library.rs::validate`,
-    the compiler hashing its own bundled library.
-
-  Each source file is read and hashed once per invocation, and the compile
-  uses those bytes. The root compiles from its live tree; git snapshots are
-  verified at fetch, not on every compile. Delete the re-checks in one commit.
-  Acceptance: a read counter on the file-read seam, run over a package corpus
-  fixture, shows one read per consumed file per invocation, and the check
-  corpus is unchanged.
+- **SOURCE-READ-ONCE.** (new-scope) `8fbcb6b1a1d` made each consumed source
+  file read once per invocation; `OMEGA_SOURCE_READS=1` prints every read.
+  Two duplicates remain:
+  - The canonical build-source index is captured twice per review: the
+    discovery pass and the final pass each construct
+    `PackageCompilationInputs` through
+    `omega-rust/omega/packages/package-manager/src/resolution/compiler_input.rs`
+    `binding_with_canonical_source_metadata`. Memoize the index per closure
+    in the shared `PackageSourcePreparation`.
+  - The root project is copied into a persistent snapshot on every edit and
+    compiled from `root_snapshot.join(entry_relative)`. Compiling from
+    live-tree paths is an acquisition redesign, not a deletion.
+  `toolchain_library::validate` is not a duplicate: it hashes the bundled
+  library once, only when the caller supplies an expected digest.
+  Acceptance: `OMEGA_SOURCE_READS=1 omega --check` over a package corpus
+  fixture shows one read per consumed file and one index capture per
+  package, and the check corpus is unchanged.
 
 - **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) Delete the in-process
   bookkeeping around build evaluation and keep only the real confinement:
@@ -3499,23 +3496,18 @@ of a check the same flow already performed, not the check itself.
   implementation dependencies, not unanswered language decisions.
 
 - **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
-  checked by `trust_model::verify_entry_behavior_exclusions` on the
-  unoptimized module, again per callback thunk, three more times inside
-  proposal validation, and again in the physical check. Service exclusions
-  re-walk Terminal for boundary reach that Psi's entry reach summary already
-  answers. Within one compile, check each exclusion once, on the module that
-  is realized, and read service reach from Psi. Retained or received artifacts
-  are checked by their receiver (**BUILD-EXCLUSION-REALIZATION**), which must
-  not add in-process re-checks. Acceptance: one exclusion check per realized
-  entry, and the `tests/omega/{pass,fail}/build/*exclusion*` fixtures keep
-  their verdicts.
-
-## Red tests
-
-Rust tests cover only units with no Omega source input; language behavior is
-the corpus gate's job ([testing](tools/testing.md#running-one-test)). Board
-items that cite a deleted Rust test as acceptance mean the corresponding
-corpus fixture, or a new one.
+  now checked once per entry and once per callback thunk, each on that
+  module's unoptimized lowering, by `trust_model::verify_entry_behavior_exclusions`
+  (`omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs`,
+  `.../terminal/native_proposal/mod.rs`). Stage 00 admission adds the
+  target-specific `validate_physical_authority_closure` against the selected
+  providers' mechanisms. That check is distinct and stays. Remaining: service
+  exclusions re-walk Terminal for boundary reach that Psi's entry reach
+  summary already answers, so read service reach from Psi. Retained or
+  received artifacts are checked by their receiver
+  (**BUILD-EXCLUSION-REALIZATION**), which must not add in-process re-checks.
+  Acceptance: no exclusion check walks Terminal for service reach, and the
+  `tests/omega/{pass,fail}/build/*exclusion*` fixtures keep their verdicts.
 
 - **RED-WINDOWS-HOST.** (new-scope) Two `package-source` tests
   (`omega-rust/omega/packages/source-acquisition/`) fail on Windows x86-64:

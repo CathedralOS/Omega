@@ -97,8 +97,14 @@ pub fn required_dangerous_services(
         .zip(checked.execution().selected_provider_provenance.as_slice())
     {
         let schema = provenance.provider.schema.symbol();
+        // Package review nominates a hosted exit binding only for a provider
+        // whose `exit_process` row the host realizes, a compiler intrinsic or
+        // an import (`candidate_hosted_exit_methods`). A provider whose exit is
+        // a package-authored body exercises no host authority, so the program
+        // needs no acceptance for it.
+        let host_exit = host_realized_methods(plan).contains(&"exit_process");
         match plan.schema.trait_name.as_str() {
-            "Console" if owned_by_package(schema) => {
+            "Console" if owned_by_package(schema) && host_exit => {
                 for method in resolved_boundary_call_names(checked, schema) {
                     match method {
                         "exit_process" => console.exit = true,
@@ -114,8 +120,8 @@ pub fn required_dangerous_services(
                     .provider_type
                     .is_some_and(owned_by_package) =>
             {
-                services.process_exit |=
-                    resolved_boundary_call_names(checked, schema).contains(&"exit_process");
+                services.process_exit |= host_exit
+                    && resolved_boundary_call_names(checked, schema).contains(&"exit_process");
             }
             _ => {}
         }
@@ -145,6 +151,23 @@ pub fn required_dangerous_services(
         services.console = Some(console);
     }
     services
+}
+
+/// The method names `plan` realizes through a host row: a compiler intrinsic
+/// or an import.
+fn host_realized_methods(plan: &effects::provider_plan::ProviderPlan) -> Vec<&str> {
+    plan.rows
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                    | effects::provider_plan::ProviderBinding::Import { .. }
+            )
+        })
+        .filter_map(|row| plan.schema.method_for_row(row))
+        .map(|method| method.name.as_str())
+        .collect()
 }
 
 /// The names of the boundary trait `requirement`'s signatures selected by
