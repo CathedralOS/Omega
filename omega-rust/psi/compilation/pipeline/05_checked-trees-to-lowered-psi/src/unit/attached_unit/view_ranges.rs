@@ -791,10 +791,8 @@ pub(crate) fn binding_site(
             checked_trees::statement::StatementNode::Expression(_)
             | checked_trees::statement::StatementNode::Transition(_),
         ) if result.statement_index as usize + 1 == statements.len()
-            && validation::reference_result_custody::tail_return_expression(
-                &checked.typed,
-                authored,
-            ) == Some(*expression) =>
+            && crate::reference_custody::tail_return_expression(checked, authored)
+                == Some(*expression) =>
         {
             (
                 authored.return_type,

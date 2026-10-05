@@ -133,7 +133,7 @@ pub(super) fn validate(
     let expression = match statements.last() {
         Some(StatementNode::Expression(expression)) => Some(*expression),
         Some(StatementNode::Transition(_)) if whole_reference => {
-            validation::reference_result_custody::tail_return_expression(&checked.typed, state)
+            crate::reference_custody::tail_return_expression(checked, state)
         }
         Some(StatementNode::Transition(_)) => None,
         _ => return unsupported("structural result source has no completion value"),
@@ -141,9 +141,7 @@ pub(super) fn validate(
     if crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
         || crate::reference_custody::is_reference_record(checked, state.return_type)
     {
-        if validation::reference_result_custody::returned_reference_sources(&checked.typed, state)
-            .is_none()
-        {
+        if !crate::reference_custody::returns_complete_reference_origins(checked, state) {
             return unsupported("reference completion has no exact returned leaf origins");
         }
     } else if !result.reference_sources.is_empty() {

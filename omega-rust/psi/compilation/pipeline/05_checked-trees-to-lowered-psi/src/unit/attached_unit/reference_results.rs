@@ -56,8 +56,7 @@ pub(super) fn validate_establishment(
     // The authored tail names the whole ingress, a projected leaf, or a
     // borrowed field loan.
     let borrowed_tail = || {
-        let expression =
-            validation::reference_result_custody::tail_return_expression(&checked.typed, state)?;
+        let expression = crate::reference_custody::tail_return_expression(checked, state)?;
         validation::reference_result_custody::borrowed_initializer_source(
             &checked.typed,
             state,
@@ -65,8 +64,8 @@ pub(super) fn validate_establishment(
             state.return_type,
         )
     };
-    if validation::reference_result_custody::source_parameter(&checked.typed, state).is_none()
-        && validation::reference_result_custody::source_leaf(&checked.typed, state).is_none()
+    if !crate::reference_custody::tail_names_source_parameter(checked, state)
+        && !crate::reference_custody::tail_selects_source_leaf(checked, state)
         && borrowed_tail().is_none()
     {
         return unsupported("reference completion has no exact ingress source");

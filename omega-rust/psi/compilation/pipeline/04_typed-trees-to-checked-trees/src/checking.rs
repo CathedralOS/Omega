@@ -370,11 +370,16 @@ fn check_program(
     validation::validate_reserved_cleanup_selections(&program)?;
     validation::validate_declaration_visibility(&program)?;
 
-    // Classify borrow custody last: `program`'s type table stops growing
-    // only here, after monomorphization and authored-selection finalization,
-    // so a row recorded earlier would miss the references those added.
+    // Classify borrow custody last: `program`'s type, machine and state
+    // tables stop growing only here, after monomorphization and
+    // authored-selection finalization, so a row recorded earlier would miss
+    // the references and specialized states those added. Nothing below
+    // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
+    // with the facts — so neither table can grow past this point.
     facts.reference_custody =
         validation::reference_result_custody::classify_program_reference_custody(&program);
+    facts.state_reference_custody =
+        validation::reference_result_custody::classify_program_state_reference_custody(&program);
 
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;

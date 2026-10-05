@@ -108,9 +108,7 @@ pub(super) fn validate_reference_roster(
     checked: &CheckedTrees,
     entry: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
-    if validation::reference_result_custody::returned_reference_sources(&checked.typed, entry)
-        .is_none()
-    {
+    if !crate::reference_custody::returns_complete_reference_origins(checked, entry) {
         return unsupported("reference result has no complete entry-relative origins");
     }
     Ok(())

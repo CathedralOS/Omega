@@ -37,13 +37,14 @@ mod nominal_machine_uses;
 mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
-// facts, index compatibility conditions, placed view inputs, and each type
-// reference's borrow custody.
+// facts, index compatibility conditions, placed view inputs, each type
+// reference's borrow custody, and each state's reference-result custody.
 mod carry;
 mod domains;
 mod index_compatibility;
 mod placement;
 mod reference_custody;
+mod state_reference_custody;
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 
@@ -106,6 +107,7 @@ pub use requirement_call_specializations::{
 pub use service_reaches::{
     CallServiceReachRows, MachineServiceReachRows, ServiceReachFacts, StateServiceReachRows,
 };
+pub use state_reference_custody::{StateReferenceCustodyFacts, StateReferenceCustodyRow};
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};
 pub use termination::{

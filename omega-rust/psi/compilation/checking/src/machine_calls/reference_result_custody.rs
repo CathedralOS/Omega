@@ -4,7 +4,8 @@
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
-    ReferenceCustodyFacts, ReferenceCustodyRow,
+    ReferenceCustodyFacts, ReferenceCustodyRow, StateReferenceCustodyFacts,
+    StateReferenceCustodyRow,
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
@@ -1946,6 +1947,57 @@ pub fn classify_program_reference_custody(program: &TypedTrees) -> ReferenceCust
         rows[handle.arena_index() as usize] = reference_custody(program, handle);
     }
     ReferenceCustodyFacts::with_rows(rows)
+}
+
+/// Classify every declared machine state's reference-result custody over the
+/// frozen typed program.
+///
+/// The tail-expression, returned-origin and ingress-shape questions below
+/// are pure functions of the typed program: they read only the state's own
+/// statements, parameters and return type, no checked fact. Walking the
+/// declared states once records them for the whole program, so the
+/// classifier's admitted completion shapes stay behind this one entry point
+/// instead of being reachable from a later stage.
+///
+/// The walk is `machines()` by `machine_states()` — the declaration
+/// structure every reader resolves a state symbol through, rather than the
+/// states checking's own traversal happened to visit — so which completions
+/// checking validated cannot leave a hole. The row vector is positional by
+/// the state symbol's arena index, and index 0 keeps the invalid symbol's
+/// absence row: a state carrying an invalid symbol names no declaration to
+/// look up, so it must not take the row every unnamed symbol reads.
+pub fn classify_program_state_reference_custody(
+    program: &TypedTrees,
+) -> StateReferenceCustodyFacts {
+    let declared_states = || {
+        program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine).iter())
+            .filter(|state| state.symbol.is_valid())
+    };
+    let highest = declared_states()
+        .map(|state| state.symbol.arena_index())
+        .max()
+        .unwrap_or(0);
+    let mut rows = vec![StateReferenceCustodyRow::default(); highest as usize + 1];
+    for state in declared_states() {
+        rows[state.symbol.arena_index() as usize] = state_reference_custody(program, state);
+    }
+    StateReferenceCustodyFacts::with_rows(rows)
+}
+
+/// One state's reference-result custody row.
+fn state_reference_custody(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> StateReferenceCustodyRow {
+    StateReferenceCustodyRow {
+        tail_return_expression: tail_return_expression(program, state).unwrap_or_default(),
+        returns_complete_reference_origins: returned_reference_sources(program, state).is_some(),
+        tail_names_source_parameter: source_parameter(program, state).is_some(),
+        tail_selects_source_leaf: source_leaf(program, state).is_some(),
+    }
 }
 
 /// One type reference's custody row.

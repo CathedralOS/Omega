@@ -21,6 +21,11 @@ pub struct CheckFacts {
     /// frozen type table. Lowering reads these rows instead of re-entering
     /// checking to reclassify a carrier at each of its call sites.
     pub reference_custody: crate::ReferenceCustodyFacts,
+    /// Every declared state's reference-result custody, classified once over
+    /// the frozen typed program. Lowering reads these rows instead of
+    /// re-entering checking to reclassify a state's completion at each of
+    /// its call sites.
+    pub state_reference_custody: crate::StateReferenceCustodyFacts,
     /// Selected source death edges and their remaining custody, retained for
     /// symbolic templates as well as concrete execution.
     pub contextual_cleanup: crate::ContextualCleanupFacts,
