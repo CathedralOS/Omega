@@ -274,9 +274,6 @@ pub fn effective_data_carry_policy(
     program: &TypedTrees,
     data_definition: &DataDefinition,
 ) -> language_semantics::CarryPolicy {
-    if data_definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
-        return language_semantics::CarryPolicy::STRICT;
-    }
     CarryDerivation::new(program, &[]).derive_named_data(
         data_definition.symbol,
         data_definition.name.as_str(),

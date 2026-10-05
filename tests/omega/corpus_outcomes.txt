@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 18.29, "load1_start": 18.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -526,6 +526,8 @@ fail/comptime/negative_const_array_length rejected 116ms expected @2d8ed253669f
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recursive_accumulator_requires_coupling rejected 677ms expected @2d8ed253669f
 	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/concurrency/suspend_explicit_parameter_field_rejected rejected 578ms expected @c4e692442075+wt
+	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier
 fail/concurrency/suspend_later_operand_rejected rejected 138ms expected @c08960bee2b1+wt
 	suspending call to `park` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
 fail/concurrency/suspend_live_value_rejected rejected 251ms expected @c08960bee2b1+wt
@@ -1924,6 +1926,7 @@ pass/comptime/runtime_const_array_length_transitive_exit checked 1369ms check-ta
 pass/comptime/runtime_const_measured_recursion_exit checked 1661ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/selected_float_array_length_exit checked 6077ms check-target:macos_arm64 @2d8ed253669f
 pass/concurrency/suspend_after_last_use_compile checked 304ms @2d8ed253669f
+pass/concurrency/suspend_explicit_parameter_after_last_use checked 654ms @c4e692442075+wt
 pass/constants/lexical_aggregate_values checked 312ms @2d8ed253669f
 pass/constants/runtime_scoped_const_exit checked 1296ms check-target:macos_arm64 @2d8ed253669f
 pass/constraints/anonymous_integer_return_landing checked 280ms @2d8ed253669f
@@ -2019,8 +2022,8 @@ pass/core/numeric_trapping_conversion_overflow checked 1701ms check-target:macos
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms check-target:macos_arm64 @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms check-target:macos_arm64 @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
-pass/core/task_lifecycle_operations rejected 634ms check-target:macos_arm64 @7a33e4cdc40
-	terminal-artifact production failed: Lowering(Unsupported("receiver-bearing suspension frontier lacks an exact Terminal receiver place join"))
+pass/core/task_lifecycle_operations rejected 2541ms check-target:macos_arm64 @c4e692442075+wt
+	terminal-artifact production failed: Lowering(Unsupported("suspension frontier has live claims without an exact Terminal ClaimId join"))
 pass/core/zii_default_composite_exit checked 1479ms check-target:macos_arm64 @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms check-target:macos_arm64 @2d8ed253669f

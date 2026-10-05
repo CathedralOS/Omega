@@ -21,11 +21,6 @@ pub(crate) fn retain_suspension_call_plans(
         .iter()
         .filter(|crossing| source_machines.contains(&crossing.machine))
     {
-        if crossing.receiver.is_some() {
-            return unsupported(
-                "receiver-bearing suspension frontier lacks an exact Terminal receiver place join",
-            );
-        }
         let mut occurrences = source_calls.iter().filter(|occurrence| {
             occurrence.source_state == crossing.state
                 && occurrence.statement_index == crossing.statement_index
@@ -141,11 +136,6 @@ pub(crate) fn retain_suspension_call_plans(
                         "suspension frontier call argument value is undeclared",
                     ))?
                 }
-                checked_trees::SuspensionCrossingValueOrigin::Persistent { .. } => {
-                    return unsupported(
-                        "persistent suspension frontier lacks an exact Terminal PlaceId join",
-                    );
-                }
             };
             let source_type = checked
                 .primitive_type_reference(live.type_reference)
@@ -159,11 +149,6 @@ pub(crate) fn retain_suspension_call_plans(
                 place: terminal_psi::TerminalSuspensionPlace::Scalar(value.id),
                 value_type: terminal_psi::TerminalSuspensionValueType::Scalar(value.scalar_type),
                 storage: match live.storage {
-                    checked_trees::SuspensionCrossingStorage::Persistent => {
-                        return unsupported(
-                            "unimplemented: suspension field storage requires an explicit parameter-place join",
-                        );
-                    }
                     checked_trees::SuspensionCrossingStorage::Parameter => {
                         terminal_psi::TerminalSuspensionStorage::Parameter
                     }
@@ -241,7 +226,6 @@ fn source_origin_is_exact(
         return false;
     };
     match origin {
-        checked_trees::SuspensionCrossingValueOrigin::Persistent { .. } => false,
         checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => checked
             .state_parameters(state)
             .iter()

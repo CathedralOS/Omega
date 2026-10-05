@@ -211,12 +211,14 @@ helper that passes does not close an item.
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
   as an ordinary call.
-  - Customer: `tests/omega/pass/core/task_lifecycle_operations`. It is
-    recorded rejected at "receiver-bearing suspension frontier lacks an exact
-    Terminal receiver place join", raised in
+  - Customer: `tests/omega/pass/core/task_lifecycle_operations`. Its current
+    rejection is "suspension frontier has live claims without an exact
+    Terminal ClaimId join", raised in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`
-    when a suspension crossing still carries a `receiver`. That carry fact is
-    a receiver remnant; give the crossing ordinary parameter identity.
+    while retaining the explicit call frontier. Join checked claim identities
+    to the operation's exact Terminal claims; do not discard the claim roster
+    or infer claims from carrier types. Receiver and implicit persistent-field
+    origins have been removed from the crossing representation.
   - Next known stop: `Main::settle` statement 1, `call operation: claim-free
     affine result`. Stage 04's
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_result_call.rs`
@@ -374,9 +376,10 @@ helper that passes does not close an item.
     consume those identities without an implicit receiver parameter. The
     checked structural signatures, Terminal parameters, provider signatures,
     retained-borrow roots and Omega artifacts no longer carry receiver flags.
-    Retire the remaining attachment helpers and checked suspension
-    `Persistent` discovery; suspension field origins
-    need an explicit parameter-place join rather than a hidden receiver.
+    Retire remaining attachment helpers, including activation-wide carry's
+    attached-layout discovery in `checks/carry/activation.rs`. Suspension
+    crossings use explicit parameters, locals and call arguments; structural
+    frontiers still need exact place and claim joins rather than hidden receivers.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject

@@ -127,7 +127,11 @@ impl<'program> CarryDerivation<'program> {
         }) else {
             return CarryPolicy::STRICT;
         };
-        if self.visiting.contains(&definition.symbol) {
+        // Missing representation is not an empty record. This applies equally
+        // to a direct carrier, a stored field and a generic argument.
+        if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+            || self.visiting.contains(&definition.symbol)
+        {
             return CarryPolicy::STRICT;
         }
 

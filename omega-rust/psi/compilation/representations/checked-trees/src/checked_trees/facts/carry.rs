@@ -69,10 +69,6 @@ pub struct SuspensionCrossingCarryFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     pub target: SymbolHandle,
-    /// Exact method receiver when the call is not receiver-free. The first
-    /// Terminal carrier fails closed on this cohort until it can bind the
-    /// receiver to a source-free structural place.
-    pub receiver: Option<SymbolHandle>,
     pub effective: CarryPolicy,
     pub live_values: Vec<SuspensionCrossingLiveValueFact>,
 }
@@ -97,19 +93,16 @@ pub struct SuspensionCrossingLiveValueFact {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuspensionCrossingValueOrigin {
-    Persistent {
-        symbol: SymbolHandle,
-    },
     Parameter {
         symbol: SymbolHandle,
-        /// Dense ordinal among non-`self` state parameters.
+        /// Ordinal among the state's explicit parameters.
         position: usize,
     },
     Local {
         symbol: SymbolHandle,
         /// Source statement that establishes the local.
         statement_index: usize,
-        /// Exact position in the checked scalar environment: non-`self`
+        /// Exact position in the checked scalar environment: explicit
         /// parameters followed by preceding local-data bindings.
         environment_position: usize,
     },
@@ -121,8 +114,6 @@ pub enum SuspensionCrossingValueOrigin {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuspensionCrossingStorage {
-    /// Already resident in the machine's persistent attached/owned layout.
-    Persistent,
     /// Entry/state parameter that must survive the parked continuation.
     Parameter,
     /// Lexical local that must survive the parked continuation.
@@ -154,7 +145,6 @@ pub fn canonical_suspension_crossing_id(
                 .as_str(),
         );
         hash.byte(match live.storage {
-            SuspensionCrossingStorage::Persistent => 1,
             SuspensionCrossingStorage::Parameter => 2,
             SuspensionCrossingStorage::Local => 3,
             SuspensionCrossingStorage::CallArgument => 4,

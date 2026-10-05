@@ -352,7 +352,6 @@ fn live_carry_demand(
             LiveCarryTypeId::from_normalized_identity,
         )?,
         storage: match live.storage {
-            checked_trees::SuspensionCrossingStorage::Persistent => LiveCarryStorage::Persistent,
             checked_trees::SuspensionCrossingStorage::Parameter => LiveCarryStorage::Parameter,
             checked_trees::SuspensionCrossingStorage::Local => LiveCarryStorage::Local,
             checked_trees::SuspensionCrossingStorage::CallArgument => {
@@ -384,10 +383,6 @@ fn live_place_identity(
     hash.usize(crossing.statement_index);
     hash.usize(crossing.call_ordinal);
     match live.origin {
-        checked_trees::SuspensionCrossingValueOrigin::Persistent { symbol } => {
-            hash.byte(1);
-            hash.string(&program.typed.symbols.display_path(symbol, "::"));
-        }
         checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
             hash.byte(2);
             hash.string(&program.typed.symbols.display_path(symbol, "::"));

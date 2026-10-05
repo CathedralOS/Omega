@@ -30,54 +30,6 @@ pub(crate) fn place_is_used_after_statement(
         })
 }
 
-/// Symbol-only form used for persistent field paths. Unlike lexical locals,
-/// field identity must never fall back to a spelling: two unrelated records
-/// may both have a field named `value`, while their symbols remain distinct.
-pub(crate) fn place_symbol_is_used_after_statement(
-    program: &typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
-    statements: arena::HandleSpan<StatementNode>,
-    statement_index: usize,
-    symbol: SymbolHandle,
-) -> bool {
-    program
-        .statement_table
-        .statements(statements)
-        .iter()
-        .enumerate()
-        .skip(statement_index.saturating_add(1))
-        .any(|(later_index, statement)| {
-            usage::statement_uses_place_symbol(
-                program,
-                state_symbol,
-                later_index,
-                statement,
-                symbol,
-            )
-        })
-}
-
-pub(crate) fn place_symbol_is_used_in_state(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    symbol: SymbolHandle,
-) -> bool {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .any(|(statement_index, statement)| {
-            usage::statement_uses_place_symbol(
-                program,
-                state.symbol,
-                statement_index,
-                statement,
-                symbol,
-            )
-        })
-}
-
 pub(super) fn update_state_loan_last_uses(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
