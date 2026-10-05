@@ -1,10 +1,14 @@
 use super::{
     BTreeSet, ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralArgument,
     StructuralPathSegment, StructuralTypeId, SuspensionCallPlanError, TerminalMachine,
-    TerminalModule, ValueId, reconstruct_validated_structural_ownership_frontiers,
-    resolve_structural_path,
+    TerminalModule, ValueId, VerifiedTerminalStructuralFrontiers, resolve_structural_path,
 };
-pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<(), ModuleError> {
+/// `frontiers` are the snapshots machine validation produced for this module;
+/// each plan's crossing is checked against the frontier at its call.
+pub(super) fn validate_suspension_call_plans(
+    module: &TerminalModule,
+    frontiers: &VerifiedTerminalStructuralFrontiers,
+) -> Result<(), ModuleError> {
     if usize::try_from(module.suspension_call_plan_count).ok()
         != Some(module.suspension_call_plans.len())
         || module.suspension_call_sites.len() != module.suspension_call_plans.len()
@@ -24,7 +28,6 @@ pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<
             return invalid(Some(plan.operation), SuspensionCallPlanError::SiteMismatch);
         }
     }
-    let frontiers = reconstruct_validated_structural_ownership_frontiers(module)?;
     let mut operations = BTreeSet::new();
     let mut crossings = BTreeSet::new();
     let mut plan_keys = BTreeSet::new();

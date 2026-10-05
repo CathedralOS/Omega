@@ -182,8 +182,23 @@ pub(crate) fn machine_value_context(
 pub fn validate_module(
     module: &TerminalModule,
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Execution)?;
-    Ok(ValidatedTerminalModule { module })
+    validate_module_retaining_frontiers(module).map(|(validated, _)| validated)
+}
+
+/// Validate a module and keep the structural ownership frontiers the
+/// validation walk computed, so verification consumes the snapshots that
+/// admitted the module rather than walking every machine again.
+pub(crate) fn validate_module_retaining_frontiers(
+    module: &TerminalModule,
+) -> Result<
+    (
+        ValidatedTerminalModule<'_>,
+        VerifiedTerminalStructuralFrontiers,
+    ),
+    ModuleError,
+> {
+    let validation = validate_module_with_policy(module, ValidationPolicy::Admission)?;
+    Ok((ValidatedTerminalModule { module }, validation.frontiers))
 }
 
 /// Validate the exact Terminal-Psi subset admitted by the reference
@@ -208,16 +223,12 @@ impl<'module> ValidatedInterpretableTerminalModule<'module> {
     ) -> Result<PropositionContext, ModuleError> {
         self.validated.value_context(machine)
     }
-
-    pub(crate) const fn validated(self) -> ValidatedTerminalModule<'module> {
-        self.validated
-    }
 }
 
 pub fn validate_module_for_interpretation(
     module: &TerminalModule,
 ) -> Result<ValidatedInterpretableTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Interpretation)?;
+    validate_module_with_policy(module, ValidationPolicy::Admission)?;
     Ok(ValidatedInterpretableTerminalModule {
         validated: ValidatedTerminalModule { module },
     })
@@ -239,59 +250,14 @@ impl<'module> ValidatedOptimizableTerminalModule<'module> {
     pub const fn module(self) -> &'module TerminalModule {
         self.validated.module()
     }
-
-    pub(crate) const fn validated(self) -> ValidatedTerminalModule<'module> {
-        self.validated
-    }
 }
 
 pub fn validate_module_for_optimization(
     module: &TerminalModule,
 ) -> Result<ValidatedOptimizableTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Optimization)?;
+    validate_module_with_policy(module, ValidationPolicy::Admission)?;
     Ok(ValidatedOptimizableTerminalModule {
         validated: ValidatedTerminalModule { module },
-    })
-}
-
-/// Validate a Terminal-Psi module and expose the exact deterministic ownership
-/// frontier snapshots computed by the verifier's own custody walk.
-pub fn reconstruct_structural_ownership_frontiers(
-    module: &TerminalModule,
-) -> Result<VerifiedTerminalStructuralFrontiers, ModuleError> {
-    validate_module(module)?;
-    reconstruct_validated_structural_ownership_frontiers(module)
-}
-
-pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
-    module: &TerminalModule,
-) -> Result<VerifiedTerminalStructuralFrontiers, ModuleError> {
-    let machines = module
-        .machines
-        .iter()
-        .map(|machine| (machine.id, machine))
-        .collect::<BTreeMap<_, _>>();
-    let snapshots = module
-        .machines
-        .iter()
-        .map(|machine| {
-            let blocks = machine
-                .blocks
-                .iter()
-                .map(|block| (block.id, block))
-                .collect::<BTreeMap<_, _>>();
-            frontier::validate_structural_frontier(
-                module,
-                machine,
-                &machines,
-                &blocks,
-                &crate::control_graph::dominators(machine),
-                None,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(VerifiedTerminalStructuralFrontiers {
-        machines: snapshots,
     })
 }
 
@@ -877,25 +843,37 @@ pub fn validate_module_representation(module: &TerminalModule) -> Result<(), Mod
 /// whose evidence is retained outside the ordinary reconstructed site list.
 /// The result supports fresh producer allocation and grants no proof authority.
 pub fn maximum_registered_obligation_id(module: &TerminalModule) -> Result<u64, ModuleError> {
-    let registry = validate_module_with_policy(module, ValidationPolicy::Representation)?;
-    Ok(registry
+    let validation = validate_module_with_policy(module, ValidationPolicy::Representation)?;
+    Ok(validation
+        .registry
         .obligations
         .last()
         .map_or(0, |obligation| obligation.get()))
 }
 
+/// Execution, interpretation, fixed-fuel and optimizer admission run the same
+/// checks; their validated carriers stay distinct types so one consumer's
+/// authority cannot stand in for another's. Representation validation, for
+/// canonical codecs, additionally admits non-executable quotient
+/// correspondences.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ValidationPolicy {
-    Execution,
-    Interpretation,
-    Optimization,
+    Admission,
     Representation,
+}
+
+/// What full validation established besides acceptance: the identity
+/// registry and every machine's structural ownership frontiers, computed once
+/// by the machine walk.
+struct ModuleValidation {
+    registry: IdRegistry,
+    frontiers: VerifiedTerminalStructuralFrontiers,
 }
 
 fn validate_module_with_policy(
     module: &TerminalModule,
     policy: ValidationPolicy,
-) -> Result<IdRegistry, ModuleError> {
+) -> Result<ModuleValidation, ModuleError> {
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
@@ -950,20 +928,24 @@ fn validate_module_with_policy(
     dynamic_dispatch::validate_dynamic_dispatches(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     let mut descriptor_requirements = BTreeMap::new();
+    let mut machine_frontiers = Vec::with_capacity(module.machines.len());
     for machine in &module.machines {
-        machine::validate_machine(
+        machine_frontiers.push(machine::validate_machine(
             module,
             machine,
             &machines,
             &mut registry,
             descriptor_requirements.entry(machine.id).or_default(),
-        )?;
+        )?);
     }
+    let frontiers = VerifiedTerminalStructuralFrontiers {
+        machines: machine_frontiers,
+    };
     frontier::validate_compatibility(module, &descriptor_requirements)?;
     crash::validate_operation_crash_contracts(module, &machines)?;
     scalar::qualifications::validate(module)?;
     scalar::block_invariants::validate(module, &machines, &mut registry)?;
-    suspension_call_plan::validate_suspension_call_plans(module)?;
+    suspension_call_plan::validate_suspension_call_plans(module, &frontiers)?;
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
@@ -971,7 +953,10 @@ fn validate_module_with_policy(
     root_service_reach::validate_root_service_reach_exact(module)?;
 
     qualification_establishments::validate(module)?;
-    Ok(registry)
+    Ok(ModuleValidation {
+        registry,
+        frontiers,
+    })
 }
 
 #[derive(Default)]

@@ -7,7 +7,9 @@
 //! entry block, builds the proposition context, validates content claims,
 //! crash frontiers and affine cleanups, the contract clauses
 //! (`contract_clauses`), and finally control flow, structural frontiers
-//! and natural cycles.
+//! and natural cycles. The structural frontier walk's snapshots are the
+//! machine's result: module validation hands them to the suspension-plan
+//! check and to verification instead of walking the machine again.
 
 mod blocks;
 mod contract_clauses;
@@ -22,8 +24,8 @@ use super::affine_cleanup::{
 use super::crash::validate_crash_frontiers;
 use super::{
     BTreeMap, BTreeSet, IdRegistry, MachineId, ModuleError, PropositionContext,
-    StructuralPlaceKind, TerminalMachine, TerminalModule, content, control_flow, frontier,
-    insert_value,
+    StructuralPlaceKind, TerminalMachine, TerminalModule, VerifiedMachineStructuralFrontiers,
+    content, control_flow, frontier, insert_value,
 };
 
 pub(super) fn validate_machine(
@@ -34,7 +36,7 @@ pub(super) fn validate_machine(
     requirements: &mut Vec<
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
-) -> Result<(), ModuleError> {
+) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     if machine.blocks.is_empty() {
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
     }
@@ -133,14 +135,14 @@ pub(super) fn validate_machine(
         &blocks,
         &value_types,
     )?;
-    frontier::validate_structural_frontier(
+    let frontiers = frontier::validate_structural_frontier(
         module,
         machine,
         machines,
         &blocks,
         &dominators,
-        Some(requirements),
+        requirements,
     )?;
     crate::control_cycles::validate_natural_cycles(machine, &dominators)?;
-    Ok(())
+    Ok(frontiers)
 }

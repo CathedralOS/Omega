@@ -1,7 +1,9 @@
 //! Proof verification of one validated terminal module.
 //!
 //! `verify_module` (and its interpretation, optimization and fixed-fuel
-//! variants) runs `verify_validated_module`: it reconstructs every
+//! variants) validates the module once, keeping the structural ownership
+//! frontiers that walk computed, then runs `verify_validated_module`: it
+//! reconstructs every
 //! executable-site obligation and all-path fact (`reconstruction`), composes
 //! call contracts under the three exact call policies (`call_composition`),
 //! preserves copied scalar facts across storage expiry (`field_snapshots`),
@@ -21,8 +23,7 @@ use terminal_psi::TerminalModule;
 
 use crate::{
     ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
-    reconstruct_validated_structural_ownership_frontiers, validate_module,
-    validate_module_for_interpretation, validate_module_for_optimization,
+    validate_module_retaining_frontiers,
 };
 
 mod call_composition;
@@ -109,16 +110,13 @@ struct VerifiedTerminalModuleState<'module> {
 }
 
 impl<'module> VerifiedTerminalModule<'module> {
-    /// Check optimizer eligibility for this exact already-verified module.
-    /// Proof reconstruction and admission are retained, not repeated. This is
-    /// a one-way transfer; optimizer authority cannot recover execution authority.
-    pub fn into_optimization(
-        mut self,
-    ) -> Result<VerifiedOptimizableTerminalModule<'module>, VerificationError> {
-        let validated =
-            validate_module_for_optimization(self.module()).map_err(VerificationError::Module)?;
-        self.state.validated = validated.validated();
-        Ok(VerifiedOptimizableTerminalModule { state: self.state })
+    /// Transfer this already-verified module to optimizer authority.
+    /// Optimizer admission runs the same validation `verify_module` already
+    /// ran, and proof reconstruction and admission are retained, so nothing
+    /// is repeated. This is a one-way transfer; optimizer authority cannot
+    /// recover execution authority.
+    pub fn into_optimization(self) -> VerifiedOptimizableTerminalModule<'module> {
+        VerifiedOptimizableTerminalModule { state: self.state }
     }
 
     pub const fn module(&self) -> &'module TerminalModule {
@@ -196,8 +194,9 @@ pub fn verify_module<'module>(
     proof_bundle: &ProofBundle,
     profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
-    let validated = validate_module(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated, proof_bundle, profile)
+    let (validated, frontiers) =
+        validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, frontiers, proof_bundle, profile)
         .map(|state| VerifiedTerminalModule { state })
 }
 
@@ -210,9 +209,9 @@ pub fn verify_module_for_interpretation<'module>(
     proof_bundle: &ProofBundle,
     profile: &AdmissionProfile,
 ) -> Result<VerifiedInterpretableTerminalModule<'module>, VerificationError> {
-    let validated =
-        validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated.validated(), proof_bundle, profile)
+    let (validated, frontiers) =
+        validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, frontiers, proof_bundle, profile)
         .map(|state| VerifiedInterpretableTerminalModule { state })
 }
 
@@ -223,8 +222,9 @@ pub fn verify_module_for_optimization<'module>(
     proof_bundle: &ProofBundle,
     profile: &AdmissionProfile,
 ) -> Result<VerifiedOptimizableTerminalModule<'module>, VerificationError> {
-    let validated = validate_module_for_optimization(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated.validated(), proof_bundle, profile)
+    let (validated, frontiers) =
+        validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, frontiers, proof_bundle, profile)
         .map(|state| VerifiedOptimizableTerminalModule { state })
 }
 
@@ -238,20 +238,19 @@ pub fn verify_module_for_fixed_fuel<'module>(
     proof_bundle: &ProofBundle,
     profile: &AdmissionProfile,
 ) -> Result<VerifiedFixedFuelTerminalModule<'module>, VerificationError> {
-    let validated =
-        validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated.validated(), proof_bundle, profile)
+    let (validated, frontiers) =
+        validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, frontiers, proof_bundle, profile)
         .map(|state| VerifiedFixedFuelTerminalModule { state })
 }
 
 fn verify_validated_module<'module>(
     validated: ValidatedTerminalModule<'module>,
+    structural_frontiers: VerifiedTerminalStructuralFrontiers,
     proof_bundle: &ProofBundle,
     profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModuleState<'module>, VerificationError> {
     let module = validated.module();
-    let structural_frontiers = reconstruct_validated_structural_ownership_frontiers(module)
-        .map_err(VerificationError::Module)?;
     let reconstructed_obligations =
         reconstruct_validated_terminal_obligations(module).map_err(VerificationError::Module)?;
     let reconstructed_recursive_components =

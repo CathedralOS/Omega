@@ -274,8 +274,8 @@ pub(super) fn validate_structural_frontier(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     dominators: &crate::control_graph::DominatorTree,
-    requirements: Option<
-        &mut Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
+    requirements: &mut Vec<
+        terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
 ) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     let mut snapshots = VerifiedMachineStructuralFrontiers {
@@ -366,9 +366,7 @@ pub(super) fn validate_structural_frontier(
         }
     }
     super::references::validate_return_coverage(machine, &returned_reference_sources)?;
-    if let Some(requirements) = requirements {
-        requirements.extend(descriptor_loans.requirements());
-    }
+    requirements.extend(descriptor_loans.requirements());
     Ok(snapshots)
 }
 

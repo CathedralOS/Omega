@@ -155,9 +155,7 @@ pub(super) fn lower_decoded_native_module(
     // The accepted roster is captured from the native-verified module because
     // the optimizer-eligibility transfer below does not re-expose it.
     let accepted_control_cycles = verified.accepted_control_cycles().to_vec();
-    let optimizable = verified
-        .into_optimization()
-        .map_err(ArtifactLoweringError::Verification)?;
+    let optimizable = verified.into_optimization();
     let context = retain_verified_optimization_context(&optimizable)?;
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput { plan, context },
