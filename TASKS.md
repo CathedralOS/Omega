@@ -3329,15 +3329,9 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 - **CHECKER-RECORDS-ONCE.** (new-scope) Values the checker decides are still
   re-derived by later consumers instead of read from checked trees. Stage 05
   and compile-time no longer replay the specialization commitment, selected
-  dispatch reads the checked operator realization contracts, and stage 00's
-  comparison settlement reads the meaning stage 05 recorded. Remaining:
-  - `machine_specialization_matches_template_identity`
-    (`psi/compilation/checking/src/machine_calls/machine_specialization_identity.rs`)
-    rebuilds the package-qualified template declaration that stage 04 already
-    folded into `normalized_template_identity`; its three Omega callers
-    (selected-dispatch `operator_adapter.rs`, provider-planning
-    `operator_provider_evidence.rs`, review-evidence `boundary_operators.rs`)
-    need a stored template key to join on.
+  dispatch reads the checked operator realization contracts, stage 00's
+  comparison settlement reads the meaning stage 05 recorded, and the
+  template-identity join reads the recorded template identity. Remaining:
   - `trust_model::AcceptedTemplateClassifications::capture` reruns operational
     and service-reach inference to hash each `AdmissionClaim` template that
     stage 04 already committed on its specializations; an unspecialized
