@@ -115,6 +115,7 @@ pub(super) fn derive(
                     policy,
                     machine_function.machine,
                     contains_call,
+                    super::unwind::body_writes_link_register(environment, machine_function)?,
                     &machine_function.outgoing_arguments,
                     &machine_function.local_storage_slots,
                     stable_address_loans,
@@ -144,6 +145,7 @@ fn function_layout(
     policy: TargetFrameLayoutPolicy,
     machine: semantic_vocabulary::MachineId,
     contains_call: bool,
+    writes_link_register: bool,
     outgoing_arguments: &[selected_instructions::SelectedOutgoingArgumentSlot],
     local_storage: &[selected_instructions::SelectedLocalStorageSlot],
     stable_address_loans: Vec<selected_instructions::LocalStorageSlotId>,
@@ -326,6 +328,7 @@ fn function_layout(
                 .id;
             let saved_size = u64::from(saved_size_bytes);
             if contains_call
+                || writes_link_register
                 || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
             {
                 let link_offset = align_up(used_area_bytes, saved_size)?;
@@ -483,6 +486,7 @@ mod spill_tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
+                false,
                 &[],
                 &slots,
                 Vec::new(),
@@ -503,6 +507,7 @@ mod spill_tests {
                     TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                     semantic_vocabulary::MachineId::new(1).unwrap(),
                     true,
+                    false,
                     &[],
                     &[slots[0].clone(), slots[0].clone()],
                     Vec::new(),

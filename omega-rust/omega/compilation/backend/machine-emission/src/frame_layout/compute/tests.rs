@@ -60,6 +60,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             std::slice::from_ref(&outgoing),
             &[],
             Vec::new(),
@@ -86,6 +87,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             &[outgoing],
             &[],
             Vec::new(),
@@ -126,6 +128,7 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             &[],
             std::slice::from_ref(&local),
             Vec::new(),
@@ -150,6 +153,7 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
+                false,
                 &[],
                 &[local.clone(), local.clone()],
                 Vec::new(),
@@ -203,6 +207,7 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             std::slice::from_ref(&slot),
             &[],
             Vec::new(),
@@ -218,6 +223,7 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
                 abi,
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
+                false,
                 false,
                 &[slot],
                 &[],
@@ -280,6 +286,7 @@ fn large_frames_commit_through_an_exact_probe_roster() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
+            false,
             &[],
             std::slice::from_ref(&local),
             Vec::new(),
@@ -299,6 +306,7 @@ fn large_frames_commit_through_an_exact_probe_roster() {
             abi,
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
             false,
             &[],
             std::slice::from_ref(&small),
@@ -342,6 +350,7 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
+            false,
             &[],
             &slots,
             Vec::new(),
@@ -367,6 +376,7 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
         FrameAbiPreservationConvention::SystemVAMD64,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         semantic_vocabulary::MachineId::new(1).unwrap(),
+        false,
         false,
         &[],
         &over,
@@ -432,6 +442,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             contains_call,
+            false,
             &[],
             &locals,
             Vec::new(),
@@ -476,6 +487,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             false,
+            false,
             &[],
             &[spill(0)],
             Vec::new(),
@@ -492,6 +504,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
         FrameAbiPreservationConvention::SystemVAMD64,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         semantic_vocabulary::MachineId::new(1).unwrap(),
+        false,
         false,
         &[],
         &[],
@@ -541,6 +554,7 @@ fn unwind_matrix_fails_closed_on_conventions_the_pair_does_not_declare() {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 false,
+                false,
                 &[],
                 &[],
                 Vec::new(),
@@ -565,6 +579,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             FrameAbiPreservationConvention::MicrosoftX64,
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
             false,
             &[],
             &[],
@@ -602,6 +617,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             &[],
             &[],
             Vec::new(),
@@ -626,6 +642,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
             TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
             semantic_vocabulary::MachineId::new(1).unwrap(),
             true,
+            false,
             &[],
             &[],
             Vec::new(),
@@ -634,4 +651,43 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
         ),
         Err(TargetFrameLayoutError::GeometryOverflow)
     );
+}
+
+#[test]
+fn allocated_link_register_write_gets_a_leaf_frame_slot() {
+    for target in [
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let link = environment.physical().model().view_named("x30").unwrap().id;
+        let abi = register_environment::selected_abi_preservation(&environment)
+            .unwrap()
+            .kind;
+        let layout = function_layout(
+            &environment,
+            abi,
+            TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            semantic_vocabulary::MachineId::new(1).unwrap(),
+            false,
+            true,
+            &[],
+            &[],
+            Vec::new(),
+            0,
+            Vec::new(),
+        )
+        .unwrap();
+        assert!(!layout.contains_call);
+        assert_eq!(layout.frame_size_bytes, 16);
+        assert_eq!(
+            layout.return_address,
+            ReturnAddressFrameCustody::SavedLinkRegister {
+                view: link,
+                frame_offset_bytes: 0,
+                size_bytes: 8,
+            }
+        );
+    }
 }

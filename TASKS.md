@@ -65,6 +65,17 @@ helper that passes does not close an item.
   those historical measurements are a lead, not a current baseline or an
   accepted cost envelope. The former `custody-join-build-cost` escalation is
   engineering under [Psi ownership](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
+  - Current [measurements](wiki/drafts/measurements/reference_custody_join_cost.json):
+    at `a195e6cdf06` on macOS ARM64, three serial native runs take
+    4080–4104 ms for indexed float fields and 1604–1623 ms for the
+    stored-reference sibling, all exit 70. Float capacities 8/32 stay near
+    3.9s. Eight reference carriers run; 32 exposed a call-free link-register
+    preservation bug, now covered by
+    `pass/borrows/runtime_reference_array_pressure_exit` (native/interpreter
+    exit 70). These probes repeat two reference roots, not distinct owners.
+    The historical Linux regression still needs a same-host revision
+    comparison and scaling with distinct roots/observations; no superlinear
+    custody join or compile-time speedup is established by this measurement.
   - Reproduce on one host/configuration and profile the exact reader before
     choosing a repair. Own the evidenced Psi custody/fact propagation path;
     compare against stored-reference sibling programs and increasing record/
@@ -491,6 +502,14 @@ defines the complete product bar.
     `pass/expressions/borrow_carrying_data_field_exit`,
     `pass/borrows/stored_reference_projection_exit`,
     `pass/borrows/nested_reference_crossings_exit`,
+    `pass/borrows/runtime_reference_array_pressure_exit` (70; call-free
+    frames preserve allocated link-register writes as well as call effects;
+    native corpus and checked interpreter agree. The direct command
+    `omega run tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg`
+    still stops in package entry-schema selection: no accepted
+    `MacosApplication` schema. The unchanged two-reference sibling fails
+    there too; the next dependency is package-owned entry-schema admission,
+    not another reference lowering special case),
     `pass/collections/runtime_whole_array_value_copy_exit` (70),
     `pass/collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}` (0),
     and rejections `fail/borrows/{stored_reference_live_source_write,nested_reference_live_source_write}`.

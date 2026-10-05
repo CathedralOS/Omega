@@ -1,0 +1,105 @@
+{
+  "schema": "omega-reference-custody-cost-measurement-v1",
+  "measured_utc": "2026-10-05",
+  "base_revision": "a195e6cdf066c0bbc3700f1736ce43db9766dfbe",
+  "host": {
+    "system": "macOS 26.5.1",
+    "architecture": "arm64",
+    "logical_cpus": 14,
+    "compiler": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "profile": "test: opt-level=1, debug=0; proof-admission opt-level=3"
+  },
+  "method": {
+    "runner": "cargo test --no-run -p compiler --test corpus_runner --message-format=json",
+    "environment": {
+      "OMEGA_CORPUS_JOBS": "1",
+      "OMEGA_CORPUS_NATIVE": "1",
+      "OMEGA_CORPUS_FIXTURE_FILTER": "expressions/runtime_indexed_float_record_fields_exit,borrows/runtime_indexed_reference_array_bounded_read_exit"
+    },
+    "trials": 3,
+    "measure": "Runner per-fixture elapsed milliseconds: package preparation, compile/check routes and native execution; excludes Rust build time.",
+    "scaling": "Temporarily change Cell array capacity and its position bound to 8 or 32. Extend the reference array to 8 or 32 elements, retaining first/second at indices 0/1 and repeating &main.first in the rest. Restore both original fixtures afterward."
+  },
+  "trials": [
+    {
+      "fixture": "pass/expressions/runtime_indexed_float_record_fields_exit",
+      "elements": 2,
+      "millis": [
+        4080,
+        4094,
+        4104
+      ],
+      "status": "built",
+      "exit": 70
+    },
+    {
+      "fixture": "pass/expressions/runtime_indexed_float_record_fields_exit",
+      "elements": 8,
+      "millis": [
+        3883,
+        3883,
+        3908
+      ],
+      "status": "built",
+      "exit": 70
+    },
+    {
+      "fixture": "pass/expressions/runtime_indexed_float_record_fields_exit",
+      "elements": 32,
+      "millis": [
+        3888,
+        3886,
+        3883
+      ],
+      "status": "built",
+      "exit": 70
+    },
+    {
+      "fixture": "pass/borrows/runtime_indexed_reference_array_bounded_read_exit",
+      "elements": 2,
+      "millis": [
+        1623,
+        1604,
+        1612
+      ],
+      "status": "built",
+      "exit": 70
+    },
+    {
+      "fixture": "pass/borrows/runtime_indexed_reference_array_bounded_read_exit",
+      "elements": 8,
+      "millis": [
+        1589,
+        1553,
+        1562
+      ],
+      "status": "built",
+      "exit": 70
+    },
+    {
+      "fixture": "pass/borrows/runtime_indexed_reference_array_bounded_read_exit",
+      "elements": 32,
+      "millis": [
+        1785,
+        1742,
+        1751
+      ],
+      "status": "rejected",
+      "diagnostic": "FunctionRelativeRealization(ExitContract(LinkRegisterWrite(SelectedInstructionId(112))))"
+    }
+  ],
+  "profiling": {
+    "tool": "macOS sample: 6 seconds, 1 ms interval",
+    "observations": [
+      "Sampled compile stacks include structural contract resolution and named-value type lookup; they do not establish a particular superlinear custody join.",
+      "The probe retains two distinct reference roots, so increasing carrier count does not test increasing distinct-owner count.",
+      "The historical 3.3s-to-9s numbers came from Linux corpus waves and were not reproduced as a same-host revision comparison here."
+    ]
+  },
+  "discovered_defect": {
+    "fixture": "pass/borrows/runtime_reference_array_pressure_exit",
+    "cause": "The call-free physical body allocates x30 to MaterializeI64(0), while frame planning retains LiveLinkRegister because it only considers calls and forced-save policy.",
+    "repair": "Derive saved continuation custody from actual physical unit definitions and clobbers as well as calls. Native macOS ARM64 exit70 after repair.",
+    "performance_claim": "None: a rejected compile is not comparable to successful native execution."
+  }
+}

@@ -8,10 +8,11 @@
 //! record, so an x86-64 frame keeps it in caller-stack custody: the unwind
 //! roster restores only preservation slots, and the release returns the
 //! pushed address to the caller's stack. AArch64 `bl` writes the link
-//! register and never moves SP, so a leaf frame keeps the link live while
-//! a frame whose body executes calls — or any frame under the
-//! saved-return-address policy — gives it an exact committed slot at the
-//! highest coordinate that the roster restores first.
+//! register and never moves SP. Allocation can also use that register in a
+//! call-free body. Only a body that leaves the link untouched keeps it live:
+//! calls, allocated writes, or the saved-return-address policy require an
+//! exact committed slot at the highest coordinate that the roster restores
+//! first. This also keeps unwind custody honest for a body that never returns.
 //!
 //! Layout computation and independent replay both resolve the row here.
 //! An undeclared pair answers `None` rather than inheriting another row's
@@ -21,7 +22,38 @@
 
 use target::{Architecture, NativeTarget, ObjectFormat};
 
-use crate::frame_layout::{FrameAbiPreservationConvention, ReturnAddressFrameCustody};
+use crate::frame_layout::{
+    FrameAbiPreservationConvention, ReturnAddressFrameCustody, TargetFrameLayoutError,
+};
+
+/// Test physical units, including aliases and implicit writes retained by
+/// allocation, rather than inferring continuation preservation from call syntax.
+pub(super) fn body_writes_link_register(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    function: &physical_instructions::PostAllocationMachineFunction,
+) -> Result<bool, TargetFrameLayoutError> {
+    let policy = frame_unwind_policy(environment.target())
+        .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
+    let FrameContinuationCustody::LinkRegister { view, .. } = policy.continuation else {
+        return Ok(false);
+    };
+    let link = environment
+        .physical()
+        .model()
+        .view_named(view)
+        .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?;
+    Ok(function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .flat_map(|instruction| {
+            instruction
+                .unit_defs
+                .iter()
+                .chain(&instruction.unit_clobbers)
+        })
+        .any(|unit| link.units.contains(unit)))
+}
 
 /// The mechanism a declared pair's unwind uses to recover the frame's
 /// continuation address.
@@ -34,7 +66,8 @@ pub(crate) enum FrameContinuationCustody {
     /// link-register row.
     CallerActivationStack { return_address_size_bytes: u16 },
     /// `bl` left the continuation in link-register `view`. A leaf frame
-    /// keeps it live there; a frame whose body executes calls — or any
+    /// keeps it live there only while no allocation overwrites it. A body
+    /// that executes calls or writes its physical units — or any
     /// frame under `CanonicalSavedReturnAddressFrameV1` — gives it a
     /// `saved_size_bytes` committed slot, size-aligned, at the highest
     /// frame coordinate, and the unwind roster restores it before every

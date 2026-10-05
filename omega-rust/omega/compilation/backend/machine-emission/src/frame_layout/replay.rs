@@ -333,6 +333,7 @@ pub(super) fn validate_layout(
                     .id;
                 let saved_size = u64::from(saved_size_bytes);
                 if calls
+                    || super::unwind::body_writes_link_register(environment, source)?
                     || candidate.policy
                         == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
                 {
