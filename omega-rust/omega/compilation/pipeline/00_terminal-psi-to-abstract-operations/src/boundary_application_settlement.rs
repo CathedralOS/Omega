@@ -399,16 +399,8 @@ fn project_boundary_application(
             } if *binder_owner == application.requirement_symbol
                 && *binder_ordinal == expected_ordinal =>
             {
-                validation::validate_exact_const_value_encoding(
-                    &settlement.checked.typed,
-                    *declared_carrier,
-                    value.encoding.as_str(),
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "Terminal boundary const application has invalid canonical encoding: {reason}",
-                    ))]
-                })?;
+                // Checking admitted `value` against `declared_carrier` before
+                // it recorded the application; the recorded value is final.
                 arguments.push(
                     boundary_applications::BoundaryApplicationArgument::const_argument(
                         *binder_ordinal,

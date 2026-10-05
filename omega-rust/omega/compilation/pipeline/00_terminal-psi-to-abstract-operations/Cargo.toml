@@ -20,7 +20,6 @@ lowered-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/07_
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
-validation = { path = "../../../../psi/compilation/checking" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }

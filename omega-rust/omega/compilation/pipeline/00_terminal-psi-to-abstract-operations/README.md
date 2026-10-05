@@ -63,8 +63,9 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   join the sealed artifact-bound Psi scope to canonical demand identities, exact
   checked-body or intrinsic realizations, and opaque ABI application custody.
   The coordinator supplies borrowed selection inputs; the stage owns role
-  selection, const/type identity validation and retained-provenance replay.
-  The proposal retains the coverage it settles; native admission consumes it
+  selection, const/type identity projection and retained-provenance replay.
+  Const application values arrive already admitted by Psi checking. The
+  proposal retains the coverage it settles; native admission consumes it
   without replaying it against the sealed scope.
 - [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
   and integer comparisons to their exact authored application, selected plan,

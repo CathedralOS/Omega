@@ -253,6 +253,9 @@ pub enum CheckedBoundaryOperatorApplicationUseSite {
 /// Ordered typed static binding. Binder owner/category/ordinal are semantic;
 /// the private symbol and type handle are structural custody from which later
 /// owner-aware compiler stages must freshly derive exact public identity.
+/// Checking admits a `Const` value against its `declared_carrier`
+/// (`validation::validate_closed_operator_application`) before it records the
+/// application, so consumers read the value without admitting it again.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedBoundaryOperatorApplicationArgument {
     Type {
