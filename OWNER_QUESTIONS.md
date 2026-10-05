@@ -65,41 +65,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - Does completion authority travel with an explicitly passed obligation?
-
-Named decision: `boundary-requirement-call-without-installation`.
-
-**Customer:** a caller outside an installed interrupt or processor-entry root
-must complete an obligation received from that installation: acknowledge an
-interrupt, discharge TLB shootdown debt, or confirm secondary-processor arrival.
-The compiler must preserve the exact issuer/installation relationship without
-granting authority merely from the token's type or domain name.
-
-**Existing rules:** [authority routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
-require provider selection and admission for a public boundary requirement.
-[External roots](wiki/spec/build/external_roots.md#admission-and-removal) bind
-completion and settlement to exact installed occurrences. Neither cited section
-fully specifies whether transferring an obligation to an ordinary caller also
-transfers the selection needed to invoke its completion requirement.
-
-**Decision needed:** can retained issuance/installation evidence select that
-completion operation for the exact token, or must the caller separately receive
-an explicit binding/provider selection as well? This is about invocation
-authority, not receiver syntax or a data-owned trait implementation. Both
-designs must reject forged, unrelated and replayed tokens.
-
-**Implementation customer:** `tests/omega/pass/memory/address_translation_canary`
-calls `Shootdown::discharge(owed)` and
-`tests/omega/pass/memory/secondary_processor_canary/cathedral/processor_startup.omg`
-calls `StartupEnvelope::confirm(envelope)`. The recorded refusal is a missing
-selected provider; the calls already use explicit arguments. Interrupt calls occur inside
-installed `InterruptEntry::enter` satisfiers, but the current recorded
-`interrupt_table_canary` failure also reports a missing selected provider.
-These outcomes do not by themselves decide the rule. Acceptance and
-the eventual compiler/fixture changes remain on
-**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** in `TASKS.md`.
-
-### Q2 - What carries a portable service's per-family raw binding?
+### Q1 - What carries a portable service's per-family raw binding?
 
 Named decision: `portable-service-per-family-binding-carrier`.
 
@@ -175,7 +141,7 @@ twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
 
-### Q3 - May the trusted-surface ledger be re-recorded on a proof of no semantic change?
+### Q2 - May the trusted-surface ledger be re-recorded on a proof of no semantic change?
 
 Named decision: `trusted-surface-digest-reconciliation`.
 
@@ -218,7 +184,7 @@ buys one clean report before the next sweep silently reopens the hole. This is
 recorded rather than done because `sites.rs` is a trust record: an automated
 edit to it was refused as audit tampering, which is the correct outcome.
 
-### Q4 - What does a locally declared boundary schema mean against the target's own?
+### Q3 - What does a locally declared boundary schema mean against the target's own?
 
 Named decision: `entry-slot-schema-resolved-by-bare-name`.
 

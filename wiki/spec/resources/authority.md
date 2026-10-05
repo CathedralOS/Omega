@@ -26,6 +26,30 @@ historical fact may instead qualify a reusable carrier. Non-copyability does not
 itself imply divisibility. [Domains](../language/domains.md) owns qualification,
 weakening, aliases, and semantic-role composition.
 
+## Completion authority and implementation selection
+
+The settled decision `boundary-requirement-call-without-installation` uses
+ordinary domain discipline. For library-defined completion obligations, bare
+possession of a value grants no authority. A protected domain's checked
+establishment and retained provenance provide the authority its contract states.
+Forwarding the qualified value preserves that established evidence under the
+ordinary ownership and domain rules; the recipient need not be its issuer.
+A domain name, equal fields, or an unchecked reconstruction cannot replace it.
+
+Completion checks the operation's declared domain preconditions and any exact
+issuer, installation, or occurrence relationship required by its contract.
+Linear obligations remain subject to consumption and transfer rules. Being
+outside the issuing entry does not itself discard retained domain evidence or
+require a new kind of completion authority.
+
+Implementation selection remains separate. A public boundary requirement still
+needs a selected, admitted implementation under the existing provider rules.
+The qualified argument supplies the operation's required authority; it does not
+automatically select a machine body. A missing-provider diagnostic calls for
+repairing source selection or compiler propagation of an existing selection,
+while preserving domain and provenance checks. It is not evidence that authority
+transfer needs another owner decision.
+
 ## Establishment routes
 
 `boundary machine` describes crossing control, calling, reach, and guarantees;

@@ -141,21 +141,28 @@ helper that passes does not close an item.
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
-  The remaining owner decision is `boundary-requirement-call-without-installation`
-  in `OWNER_QUESTIONS.md`: whether an explicitly transferred completion token
-  carries the operation's installation selection, or its caller also needs an
-  explicit binding/provider selection. The static call spelling is settled.
+  Repair selection for explicit completion calls under
+  [domain authority and separate implementation selection](wiki/spec/resources/authority.md#completion-authority-and-implementation-selection).
+  The authority question is settled: checked domain establishment and retained
+  provenance travel with the qualified argument under ordinary transfer rules.
+  Public boundary requirements still need a selected, admitted implementation.
   - Customers: `pass/memory/address_translation_canary` calls
     `Shootdown::discharge(owed)`; `pass/memory/secondary_processor_canary`
-    calls `StartupEnvelope::confirm(envelope)`. Recorded failures name the
-    missing selected provider. The contrasting interrupt completion calls are
-    within installed `InterruptEntry::enter` satisfiers.
-  - Once the authority rule is answered, implement its exact installation/token
-    correspondence and migrate the canaries accordingly. No implicit receiver,
-    data-subject conformance, or authority inferred from a domain name.
-  Acceptance: `python tools/corpus_gate.py --filter memory/address_translation_canary,memory/secondary_processor_canary`
+    calls `StartupEnvelope::confirm(envelope)`; `pass/memory/interrupt_table_canary`
+    calls `InterruptAcknowledgement::complete`. Recorded failures name the
+    missing selected provider. Reproduce the current frontier for each.
+  - Trace each requirement through source selection and
+    `omega-rust/omega/compilation/realization/selected-dispatch/src/boundary_dispatch.rs`.
+    Supply a missing implementation/selection in the owning package, or repair
+    propagation where an existing selection is lost. Keep named implementations
+    separate from data; do not infer a body from the argument's domain.
+  - Preserve checked domain preconditions, exact installation/token relationships
+    required by the contract, and linear consumption. A recipient may forward
+    established evidence without becoming an issuer. No new authority mechanism,
+    implicit receiver, or data-subject conformance is needed.
+  Acceptance: `python tools/corpus_gate.py --filter memory/address_translation_canary,memory/secondary_processor_canary,memory/interrupt_table_canary`
   checks the intended completion flows and rejects forged, unrelated or replayed
-  completion evidence. Keep this blocked on the named authority decision only.
+  completion evidence. Ensure the provider repair does not bypass those checks.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
@@ -4900,12 +4907,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   on `DescriptorTableValidation::run`'s `terminates by fuel` ranking until
   `0b98b2fc46a`. It now stops at "direct call `complete` names public boundary
   requirement `InterruptAcknowledgement::complete`, which has no selected
-  provider". The remaining owner decision
-  `boundary-requirement-call-without-installation` in `OWNER_QUESTIONS.md`
-  determines whether retained installation evidence selects completion or an
-  explicit provider binding is also required. No `satisfies` row for this
-  requirement currently exists. Resolve that dependency before the backend
-  joins below; explicit call arguments alone do not establish authority.
+  provider". **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns the missing
+  implementation/selection repair under ordinary domain discipline. No
+  `satisfies` row for this requirement was present at the recorded failure.
+  Retain the argument's checked domain evidence and exact installation
+  relationships; provider selection remains a separate implementation duty.
+  Resolve that compiler/source dependency before the backend joins below.
   - Join the stub and member-call relocation from
     `omega-rust/omega/compilation/backend/machine-emission/src/entry_exit_stub.rs`
     to image placement, installation and external-root admission;
