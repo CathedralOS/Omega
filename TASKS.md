@@ -148,6 +148,31 @@ helper that passes does not close an item.
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
 
+- **NAME-KEYED-RANGE-TYPE-SHADOW-UNREACHED.** (new-scope)
+  `checks/ranges/types.rs`'s `type_reference_for_name` is a five-arm
+  name-keyed shadow of the adjacent `type_reference_for_symbol` -- the same
+  five `or_else` arms keyed on spelling instead of handle. Both call sites
+  reach it only as an `or_else` fallback, one gated on
+  `!extent_symbol.is_valid()`. A whole-corpus probe over 2001 fixtures took
+  **0 reaches at both call sites**, and `proof/src/typed_expressions.rs`'s
+  `!path.symbol.is_valid()` branch is likewise 0-reach. So the corpus neither
+  exercises the shadow nor licenses removing it: an unreached path cannot be
+  proved equivalent by measurement. Frontier: decide whether an unresolved
+  single-member name can still arrive at either site after stage 02 assigns
+  contract symbols, then retire both paths on that argument or keep them with
+  the arrival recorded. This needs a non-corpus justification and is the
+  largest standing cleanup of its family. Measured at `b0a48cde065`.
+
+- **STRUCTURAL-FIELD-SPELLING-BRANCH-RESOLVES-NOTHING.** (new-scope)
+  `values/scalar/structural_fields.rs:802` falls back to the member spelling
+  only when no symbol anywhere in the path is valid. A whole-corpus probe took
+  **5,304,966 reaches with 0 disagreements** against the symbol-only answer,
+  and entered that spelling branch **66,884 times, resolving nothing every
+  time** (`name_symbol=false`, `live=None`). Removing it is measurably safe.
+  Frontier: delete the branch and its `name_text` binding rather than the
+  operand -- this is a branch deletion, not the operand swap its four landed
+  siblings were -- and re-gate. Measured at `b0a48cde065`.
+
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   Repair selection for explicit completion calls under
   [domain authority and separate implementation selection](wiki/spec/resources/authority.md#completion-authority-and-implementation-selection).
