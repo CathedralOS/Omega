@@ -349,3 +349,55 @@ prior selection fact, not an implicit argument coercion. And
 (`erased = &main.selected as &dyn Item::Primary`) owned by the dyn
 rebound-selection lane instead of refused by
 `structural_scalar_store::destination::rejoin_loan_local`.
+
+## Q7 — trusted-surface ledger drift: may it be re-recorded on a proof of no semantic change?
+
+`python3 tools/trusted_surface_digests.py` reports **47 stale digests and 19
+`TEST_ONLY_SOURCES` rows naming files that no longer exist** on a clean `main`
+at `f413234e5a4`. The question is whose signature the re-record carries, because
+the rule is that nobody refreshes a digest for a file they did not author.
+
+**The drift has a single cause, and it is fully attributed.** For all 47 files
+the last commit to touch them is `55a502d211b` ("tests: cut Rust tests to units
+without Omega source input"). That commit also deleted
+`terminal-psi/verification/tests/trusted_surface.rs`, which held
+`recorded_digests_match_the_working_tree` — the test that would have failed the
+moment the first digest drifted. The ledger has been unenforced since, with the
+queue guard in `tools/landing.py` (`stale_trusted_sites`) the only live check,
+and it deliberately inspects only a candidate's own changes, so drift already on
+main never blocks anyone.
+
+**The re-record is mechanically justified; I did not perform it.** Measured over
+all 47 files:
+
+- Every one of the 47 diffs at `55a502d211b` is a **pure deletion**: zero
+  non-blank added lines in any of them.
+- The 47 files carry **49 removed regions**, and every region is
+  `#[cfg(test)]`-gated. 48 begin exactly at the `#[cfg(test)]` attribute; the
+  one exception, `validation/propositions.rs`, begins at the doc comment
+  immediately above a `#[cfg(test)] pub(crate) fn proposition_observes_write`.
+- 12 of the 47 removed nothing but `#[cfg(test)]` + `mod <name>;`, their tests
+  having lived in the sibling file the same commit deleted.
+
+So no verification judgment in any of the 47 changed. Revalidating the ledger
+entries that cite them is satisfied by that fact rather than by re-reading 47
+rules: the cited code is byte-identical modulo removed test items.
+
+**What is owed, and why it is yours and not mine.** `sites.rs` is a trust
+record, so I stopped rather than edit it. Three edits close this, and they must
+land together or the restored test is red:
+
+1. Delete the 19 `TEST_ONLY_SOURCES` rows whose files `55a502d211b` deleted
+   (`check_source_coverage` fails them as `TestOnlySourceNotGated`, since the
+   parent no longer declares the gated module).
+2. `python3 tools/trusted_surface_digests.py --write` for the 47.
+3. Restore `recorded_digests_match_the_working_tree` as
+   `terminal-psi/verification/tests/<name>.rs` with a `[[test]]` entry
+   (`autotests = false`). It calls `check_source_coverage(&repository_root())`
+   and hashes files — it reads no Omega source, so the test-cut policy keeps it.
+   It was blanket collateral of a 43-crate sweep, not a policy decision about
+   this gate.
+
+Until (3) lands the ledger has no enforcement outside the landing queue, and the
+queue cannot see drift that is already on main. A re-record without (3) buys one
+clean report and the next sweep silently re-opens the hole.
