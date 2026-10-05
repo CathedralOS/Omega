@@ -34,7 +34,6 @@ pub use checked_interpreter::{
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
-pub use const_evaluation::const_lengths::{FoldedArrayLength, validate_folded_array_lengths};
 pub use const_evaluation::const_lengths::{
     evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };

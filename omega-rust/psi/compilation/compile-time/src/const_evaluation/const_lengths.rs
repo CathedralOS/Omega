@@ -5,9 +5,9 @@
 //! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
 //! Independent calls evaluate before checking. Calls requiring selected provider
 //! execution may remain pending through preliminary package checking, then fold
-//! before final publication under the actual selected plans. Their private
-//! receipts retain receiving ownership and exact invocation for independent
-//! replay; the resulting type carries an ordinary literal length.
+//! before final publication under the actual selected plans; the fold lands
+//! an ordinary literal length in the type, which final checking consumes. The
+//! compile does not replay the fold against its own result.
 //!
 //! LEGALITY GATE: the callee's normalized effective service reach must be empty
 //! and its modular operational summary must neither suspend nor block. The
@@ -33,8 +33,6 @@ use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::BuildTimeAdmissionPlan;
-mod checked_occurrences;
-mod receivers;
 
 /// Detached type-arena nodes retain their identity but do not own evaluation
 /// work. Snapshot only lengths reached from the current declaration roster.
@@ -121,18 +119,6 @@ pub(crate) fn evaluate_const_array_lengths_in(
     }
 }
 
-/// Result custody for one provider-dependent array-length substitution.
-/// The source invocation survives folding, so the receiver can execute it
-/// again under the same selected semantics instead of trusting the literal.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FoldedArrayLength {
-    type_reference: TypeReferenceHandle,
-    machine: symbols::SymbolHandle,
-    source: source::SourceSpan,
-    value: usize,
-    receivers: Vec<receivers::Receiver>,
-}
-
 /// Evaluate independent calls before deferring only the remaining work.
 /// A pending provider-dependent field must not suppress an ordinary length
 /// needed by the already-admitted Build invocation.
@@ -184,7 +170,7 @@ pub(crate) fn evaluate_selected_array_lengths(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     selected: crate::SelectedBuildTimeOperators<'_>,
     domain: &EvaluationDomain,
-) -> Result<Vec<FoldedArrayLength>, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let crate::SelectedBuildTimeOperators {
         operators,
         provider_bodies,
@@ -207,7 +193,6 @@ pub(crate) fn evaluate_selected_array_lengths(
     let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let roots = receivers::roots_in(typed, domain.work());
     let mut folded = Vec::new();
     for (type_reference, selected, _, source) in pending {
         let machines: Vec<_> = execution
@@ -222,88 +207,12 @@ pub(crate) fn evaluate_selected_array_lengths(
         };
         let value = evaluate_exact_invocation(execution, &admission, machine, source)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let receivers = receivers::capture(typed, &roots, type_reference);
-        receivers::require_unique(&receivers).map_err(|reason| vec![Diagnostic::error(reason)])?;
-        folded.push(FoldedArrayLength {
-            type_reference,
-            machine: machine.symbol,
-            source,
-            value,
-            receivers,
-        });
+        folded.push((type_reference, value));
     }
-    for fold in &folded {
+    for (type_reference, value) in folded {
         typed
             .type_reference_table
-            .set_fixed_array_length(fold.type_reference, fold.value);
-    }
-    Ok(folded)
-}
-
-/// Replay the retained invocation using current selected semantics and compare
-/// both the current receiving type and recorded result to the actual value.
-/// Selected provider bodies replay through the same private rebinding the
-/// original fold used, so the checked value is never trusted: it is recomputed
-/// under the currently selected plans before comparison.
-/// Final checked occurrences must retain the exact requirement and arithmetic
-/// policy; source reexecution cannot reconstruct missing checking evidence.
-/// Omega remains responsible for validating the selected provider plans.
-pub fn validate_folded_array_lengths(
-    checked: &checked_trees::CheckedTrees,
-    folds: &[FoldedArrayLength],
-    operators: &[crate::SelectedBuildTimeBinaryOperator],
-    provider_bodies: &[crate::SelectedBuildTimeProviderBody],
-    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<(), Vec<Diagnostic>> {
-    checked_occurrences::validate(checked, operators, provider_bodies)?;
-    let typed = &checked.typed;
-    let selected_program =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            provider_bodies,
-            operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let execution = selected_program.as_ref().unwrap_or(typed);
-    let admission = BuildTimeAdmissionPlan::infer(execution, authority)
-        .with_selected_operators(execution, operators)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let roots = receivers::roots(typed);
-    for (index, fold) in folds.iter().enumerate() {
-        if folds[..index]
-            .iter()
-            .any(|prior| prior.type_reference == fold.type_reference)
-        {
-            return Err(vec![Diagnostic::error(
-                "duplicate folded array-length custody",
-            )]);
-        }
-        receivers::validate(typed, &roots, fold.type_reference, &fold.receivers)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let machines: Vec<_> = execution
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == fold.machine)
-            .collect();
-        let [machine] = machines.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "folded array invocation disappeared",
-            )]);
-        };
-        let actual = evaluate_exact_invocation(execution, &admission, machine, fold.source)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if actual != fold.value
-            || !typed
-                .type_reference_table
-                .fixed_array_lengths()
-                .any(|(handle, length)| {
-                    handle == fold.type_reference && *length == FixedArrayLength::Literal(actual)
-                })
-        {
-            return Err(vec![Diagnostic::error(
-                "folded array length differs from selected source evaluation",
-            )]);
-        }
+            .set_fixed_array_length(type_reference, value);
     }
     Ok(())
 }

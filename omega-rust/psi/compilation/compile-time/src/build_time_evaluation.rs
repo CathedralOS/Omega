@@ -89,7 +89,7 @@ impl EvaluationDomain {
 }
 
 use crate::{
-    BuildTimeSelectionAuthority, FoldedArrayLength, PlacedViewRecord, PlanLaidRecord,
+    BuildTimeSelectionAuthority, PlacedViewRecord, PlanLaidRecord,
     SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody,
     const_evaluation::const_applications, const_evaluation::const_domain_facts,
     const_evaluation::const_generic_calls, const_evaluation::const_generic_expressions,
@@ -451,8 +451,8 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
-    ) -> Result<Vec<FoldedArrayLength>, Vec<diagnostics::Diagnostic>> {
-        let folds = const_lengths::evaluate_selected_array_lengths(
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
             selected,
@@ -460,8 +460,7 @@ impl PreCheckEvaluation {
         )?;
         self.selected_operators = selected.operators.to_vec();
         self.provider_bodies = selected.provider_bodies.to_vec();
-        self.evaluate(typed)?;
-        Ok(folds)
+        self.evaluate(typed)
     }
 
     /// Consume the exact continuation produced before name resolution.
