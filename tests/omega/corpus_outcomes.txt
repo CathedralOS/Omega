@@ -2292,6 +2292,7 @@ pass/float/scalar_helper_boundary_sequence_exit checked 4671ms check-target:maco
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms check-target:macos_arm64 @163770eba39c
 pass/float/x86_fma_plan_association rejected 7718ms check-target:linux_x86_64 @95e4e5c52dc
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
+pass/generics/closed_generic_local_field_observation_exit checked 3179ms check-target:macos_arm64 @9719c66eb4a
 pass/generics/closed_indexed_quantity checked 6308ms check-target:macos_arm64 @82ec69a91ce
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f
 pass/generics/const_data_param checked 288ms @2d8ed253669f
@@ -2548,6 +2549,7 @@ pass/providers/foreign_multiregister_result_exit checked 5866ms check-target:mac
 pass/providers/foreign_out_parameter_write_observed_exit checked 11330ms check-target:macos_arm64 @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit checked 5220ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/foreign_record_result_exit checked 4756ms check-target:macos_arm64 @cfe60a3a242
+pass/providers/generic_provider_structural_result_composition_exit checked 3447ms check-target:macos_arm64 @9719c66eb4a
 pass/providers/kernel_import_result_chain_exit checked 654ms check-target:linux_x86_64 @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/local_record_foreign_borrow_exit checked 2194ms check-target:macos_arm64 @59d57ace39f0+wt

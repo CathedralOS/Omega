@@ -558,6 +558,7 @@ pass/float/runtime_total_order_satisfiers_exit built 46092ms exit:70 @e8239f945e
 pass/float/scalar_helper_boundary_sequence_exit built 2975ms exit:70 @2d8ed253669f+wt
 pass/float/x86_fma_plan_association rejected 2566ms @2d8ed253669f+wt
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
+pass/generics/closed_generic_local_field_observation_exit built 6887ms exit:0 @9719c66eb4a
 pass/generics/closed_indexed_quantity rejected 2567ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(Unsupported("embedded scalar qualifications require the enclosing catalog namespace"))
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f+wt
@@ -778,6 +779,7 @@ pass/providers/component_owner_provider_override_compile built 649ms @2d8ed25366
 pass/providers/direct_boundary_array_snapshot_exit built 4670ms exit:70 @362d09f71f3
 pass/providers/external_boundary_requirement_via_exit built 942ms exit:21 @9baafc0ace88
 pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
+pass/providers/generic_provider_structural_result_composition_exit built 7206ms exit:0 @9719c66eb4a
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
