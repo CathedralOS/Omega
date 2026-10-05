@@ -40,18 +40,7 @@ pub fn analyze_post_allocation_machine_plan<
         physical,
         constraints,
     )?;
-    validate_post_allocation_machine_plan(
-        selected,
-        effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
-        register_environment,
-        physical,
-        constraints,
-        plan,
-    )
+    validate::seal_post_allocation_machine_plan(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

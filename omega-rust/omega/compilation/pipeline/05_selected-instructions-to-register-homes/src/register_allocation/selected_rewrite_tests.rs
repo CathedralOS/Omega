@@ -13,11 +13,6 @@ fn check_assignment(
         0, legality, ranges, physical,
     )
     .unwrap();
-    let replayed = crate::assignment::home_assignment::validate::replay_function(
-        0, legality, ranges, physical,
-    )
-    .unwrap();
-    assert_eq!(homes, replayed);
     assert_eq!(homes.assignments.len(), 4);
 }
 

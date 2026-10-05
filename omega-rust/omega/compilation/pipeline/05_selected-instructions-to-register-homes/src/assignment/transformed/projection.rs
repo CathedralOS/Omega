@@ -1,28 +1,10 @@
-use optimization_core::PrePhysicalOptimizationManifestIdentity;
 use register_homes::PostAllocationSelectedTransformation;
 
 use selected_instructions_to_selected_instructions::{
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationRun, ValidatedAllocationLegality, ValidatedLiveRanges,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
-
-pub(super) fn literal_fold_transformations(
-    source: &StagedOptimizedLiteralFoldCustodyReceipt,
-) -> Vec<PostAllocationSelectedTransformation> {
-    source
-        .transformations()
-        .iter()
-        .copied()
-        .map(PostAllocationSelectedTransformation::LiteralFold)
-        .collect()
-}
-
-pub(super) fn literal_fold_pre_physical(
-    source: &StagedOptimizedLiteralFoldCustodyReceipt,
-) -> PrePhysicalOptimizationManifestIdentity {
-    source.source().manifest()
-}
 
 pub(super) fn selected_lowering_final_analysis(
     run: &StagedSelectedLoweringOptimizationRun,

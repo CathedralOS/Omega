@@ -53,6 +53,14 @@ pub fn validate_post_allocation_machine_plan<S: ValidatedSelectedAnalysis>(
     if post_allocation_machine_identity(&plan) != plan.identity {
         return Err(PostAllocationMachineError::IdentityMismatch);
     }
+    seal_post_allocation_machine_plan(plan)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_post_allocation_machine_plan(
+    plan: PostAllocationMachinePlan,
+) -> Result<ValidatedPostAllocationMachinePlan, PostAllocationMachineError> {
     let receipt = post_allocation_receipt(&plan)?;
     Ok(ValidatedPostAllocationMachinePlan::new(plan, receipt))
 }

@@ -20,6 +20,7 @@ mod validation;
 
 pub use error::TargetFrameLayoutError;
 pub use machine_code::target_frame_layout_identity;
+pub use register_environment::FrameAbiPreservationConvention;
 pub use save_storage::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageError,
@@ -28,7 +29,6 @@ pub use save_storage::{
     ValidatedNonAuthoritativeCalleeSaveStorage, non_authoritative_callee_save_storage_identity,
     stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
 };
-pub use register_environment::FrameAbiPreservationConvention;
 pub use validation::validate_target_frame_layout;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};

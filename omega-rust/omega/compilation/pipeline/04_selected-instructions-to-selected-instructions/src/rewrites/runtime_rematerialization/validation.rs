@@ -549,6 +549,15 @@ pub fn validate_runtime_rematerialization(
     if restored != *source.selected_plan() {
         return Err(RuntimeRematerializationError::ReplayMismatch);
     }
+    seal_runtime_rematerialization(source, proposed)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_runtime_rematerialization(
+    source: &impl ValidatedSelectedAnalysis,
+    proposed: SelectedInstructionPlan,
+) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
     Ok(ValidatedRuntimeRematerialization {
         receipt: RuntimeRematerializationReceipt {
             source_selected: source.selected_identity(),

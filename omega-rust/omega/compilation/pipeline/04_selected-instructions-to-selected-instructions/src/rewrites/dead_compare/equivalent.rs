@@ -84,7 +84,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_equivalent_compare;
-pub(crate) use validation::{measured_steps, validate_equivalent_compare};
+pub(crate) use validation::measured_steps;
 
 /// An accepted equivalent-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -23,12 +23,5 @@ pub fn fold_selected_address(
     let function = &mut transformed.functions[function_index];
     function.blocks[admitted.block_index].instructions[admitted.consumer_index] =
         admission::rewritten(&admitted);
-    super::validate_address_fold(
-        source,
-        function_index,
-        access,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_address_fold(source, function_index, access, transformed)
 }

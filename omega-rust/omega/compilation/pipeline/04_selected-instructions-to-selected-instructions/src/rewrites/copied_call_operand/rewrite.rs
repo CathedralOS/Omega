@@ -38,14 +38,11 @@ pub fn fold_selected_copied_call_operand(
     let mut transformed = source.selected_plan().clone();
     transformed.functions[function_index].blocks[admitted.block_index].instructions
         [admitted.position] = admission::rewritten(&admitted);
-    super::validate_copied_call_operand_fold(
+    super::validation::seal_copied_call_operand_fold(
         source,
         function_index,
         producer,
         call,
-        environment,
-        effect_catalog,
-        budget,
         transformed,
     )
 }

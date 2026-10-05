@@ -43,43 +43,32 @@ pub use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
-    validate_optimized_register_home_after_fixed_view_copy_custody,
-    validate_optimized_register_home_custody,
 };
 pub use assignment::home_assignment::{
     FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeError, RegisterHomeIdentity,
     RegisterHomePlan, RegisterHomeValidationReceipt, ValidatedRegisterHomes, VirtualRegisterHome,
-    assign_register_homes, register_home_identity, validate_register_homes,
+    assign_register_homes, register_home_identity,
 };
 pub use assignment::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
     PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest,
-    validate_post_allocation_optimization_manifest,
 };
 pub use assignment::recovery::{
-    stage_active_resident_register_allocation, stage_leaf_local_fixed_view_register_allocation,
+    stage_active_resident_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
     stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
     stage_shared_entry_fixed_view_register_allocation,
 };
 pub use assignment::runtime_spill::RuntimeSpillAllocationError;
 pub use assignment::transformed::{
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostPreAllocationHomeCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
-    stage_optimized_register_homes_after_literal_folds,
-    stage_optimized_register_homes_after_pre_allocation,
-    stage_optimized_register_homes_after_selected_lowering,
-    validate_optimized_register_home_after_literal_fold_custody,
-    validate_optimized_register_home_after_pre_allocation_custody,
-    validate_optimized_register_home_after_selected_lowering_custody,
 };
 
 // Rematerialization staged by the active-resident recovery rule.
@@ -88,10 +77,7 @@ pub use rewrites::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-    stage_optimized_active_resident_rematerialization,
     stage_optimized_active_resident_rematerialization_pressure,
-    validate_optimized_active_resident_rematerialization,
-    validate_optimized_active_resident_rematerialization_pressure,
 };
 
 // Current allocation facts.

@@ -18,7 +18,7 @@ use register_model::{
     ValidatedRegisterReservationProfile,
 };
 use roots::validate_roots;
-use seal::seal_validation;
+pub(crate) use seal::seal_validation;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use transformation::replay_transformation;
 use usage::replay_usage;

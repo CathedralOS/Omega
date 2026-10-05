@@ -25,7 +25,7 @@ pub fn analyze_fixed_precolored_intervals(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
     let plan = compute::compute(ranges, legality, policy, budget)?;
-    validate_fixed_precolored_intervals(ranges, legality, plan)
+    validate::seal_fixed_precolored_intervals(ranges, plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -5,10 +5,7 @@ use target::NativeTarget;
 use target_operations::TargetOperationPlan;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
-use crate::{
-    AbstractToTargetTranslationValidationReceipt, AdmittedBoundarySettlement, LoweringError,
-    validate_abstract_to_target_translation,
-};
+use crate::{AdmittedBoundarySettlement, LoweringError};
 
 /// Target lowering with independently retained abstract and translation evidence.
 /// The current program is shared immutable representation data. Borrowing or
@@ -17,7 +14,6 @@ use crate::{
 pub struct ValidatedOptimizedTargetOperations {
     pub(super) optimized: ValidatedOptimizedAbstractPlan,
     current_program: Arc<TargetOperationPlan>,
-    pub(super) translation_validation: AbstractToTargetTranslationValidationReceipt,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
 }
 
@@ -38,10 +34,6 @@ impl ValidatedOptimizedTargetOperations {
     /// This owner exposes raw data only; it cannot reconstruct this admission.
     pub fn shared_program(&self) -> Arc<TargetOperationPlan> {
         Arc::clone(&self.current_program)
-    }
-
-    pub const fn translation_validation(&self) -> &AbstractToTargetTranslationValidationReceipt {
-        &self.translation_validation
     }
 
     /// Borrow the exact provider installation retained beside any target
@@ -82,12 +74,10 @@ fn lower_validated_abstract_to_target_operations(
     // cannot establish which candidate the caller selected. Join against the
     // independently supplied admitted installation before sealing this owner.
     crate::validation::installed_calls::validate(&program, installed)?;
-    let translation_validation =
-        validate_abstract_to_target_translation(optimized.plan(), target, &program)?;
+    crate::validation::whole_plan::reject_raw_ieee_float_fma(optimized.plan())?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         current_program: Arc::new(program),
-        translation_validation,
         provider_installation: installation.map(Box::new),
     })
 }

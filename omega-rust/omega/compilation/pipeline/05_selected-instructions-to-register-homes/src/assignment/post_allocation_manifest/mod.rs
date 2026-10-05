@@ -7,7 +7,6 @@
 
 mod projection;
 mod reconstruction;
-mod validation;
 
 use optimization_core::{
     PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
@@ -100,68 +99,6 @@ pub(crate) fn project_post_allocation_optimization_manifest_with_suite_completio
         pre_physical,
         selected_lowering_completion,
         pre_allocation_completion,
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-pub fn validate_post_allocation_optimization_manifest(
-    candidate: &PostAllocationOptimizationManifest,
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    validation::validate(
-        candidate,
-        pre_physical,
-        None,
-        None,
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-pub(crate) fn validate_post_allocation_optimization_manifest_after_selected_lowering(
-    candidate: &PostAllocationOptimizationManifest,
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    completion: SelectedLoweringOptimizationCompletionIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    validation::validate(
-        candidate,
-        pre_physical,
-        Some(completion),
-        None,
-        selected_transformations,
-        ranges,
-        legality,
-        homes,
-    )
-}
-
-pub(crate) fn validate_post_allocation_optimization_manifest_after_pre_allocation(
-    candidate: &PostAllocationOptimizationManifest,
-    pre_physical: PrePhysicalOptimizationManifestIdentity,
-    completion: PreAllocationOptimizationCompletionIdentity,
-    selected_transformations: &[PostAllocationSelectedTransformation],
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    validation::validate(
-        candidate,
-        pre_physical,
-        None,
-        Some(completion),
         selected_transformations,
         ranges,
         legality,

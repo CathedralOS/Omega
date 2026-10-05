@@ -55,18 +55,7 @@ pub fn assign_fixed_precolored_segment_homes(
         policy,
         budget,
     )?;
-    validate_fixed_precolored_segment_homes(
-        ranges,
-        legality,
-        fixed,
-        requirements,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    validation::seal_fixed_precolored_segment_homes(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

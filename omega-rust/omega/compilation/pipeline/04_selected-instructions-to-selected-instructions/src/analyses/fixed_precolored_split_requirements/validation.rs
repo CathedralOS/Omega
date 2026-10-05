@@ -38,6 +38,15 @@ pub fn validate_fixed_precolored_split_requirements(
     if candidate.functions != expected.functions {
         return Err(FixedPrecoloredSplitRequirementError::NonCanonicalFunctions);
     }
+    seal_fixed_precolored_split_requirements(legality, candidate)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_fixed_precolored_split_requirements(
+    legality: &ValidatedAllocationLegality,
+    candidate: FixedPrecoloredSplitRequirementPlan,
+) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let registers = candidate
         .functions
         .iter()

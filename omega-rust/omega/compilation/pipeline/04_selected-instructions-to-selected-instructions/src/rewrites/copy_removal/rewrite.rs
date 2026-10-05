@@ -21,12 +21,5 @@ pub fn remove_selected_copy(
     let admitted = admission::admit(source, function_index, copy, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
     admission::apply(&admitted, &mut transformed.functions[function_index])?;
-    super::validate_copy_removal(
-        source,
-        function_index,
-        copy,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_copy_removal(source, function_index, copy, transformed)
 }

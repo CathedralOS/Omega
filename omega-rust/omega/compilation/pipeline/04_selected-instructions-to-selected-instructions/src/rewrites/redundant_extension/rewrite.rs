@@ -22,12 +22,10 @@ pub fn remove_selected_redundant_extension(
     let function = &mut transformed.functions[function_index];
     function.blocks[admitted.block_index].instructions[admitted.extension_index] =
         admission::rewritten(&admitted);
-    super::validate_redundant_extension_removal(
+    super::validation::seal_redundant_extension_removal(
         source,
         function_index,
         extension,
-        environment,
-        budget,
         transformed,
     )
 }

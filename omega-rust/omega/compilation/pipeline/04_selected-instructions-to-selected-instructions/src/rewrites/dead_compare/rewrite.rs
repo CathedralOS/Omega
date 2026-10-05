@@ -20,12 +20,5 @@ pub fn remove_dead_compare(
     let admitted = admission::admit(source, function_index, compare, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
     admission::apply(&admitted, &mut transformed.functions[function_index])?;
-    super::validate_dead_compare(
-        source,
-        function_index,
-        compare,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_dead_compare(source, function_index, compare, transformed)
 }

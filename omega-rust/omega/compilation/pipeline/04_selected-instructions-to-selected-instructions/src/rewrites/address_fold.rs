@@ -67,7 +67,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_address;
-pub(crate) use validation::{measured_steps, validate_address_fold};
+pub(crate) use validation::measured_steps;
 
 /// An accepted address fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

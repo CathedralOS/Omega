@@ -5,7 +5,7 @@ use selected_instructions::{
     LivenessPlan, liveness_function_digest, liveness_identity_from_digests,
 };
 
-pub(super) fn admit_validated_liveness(
+pub(crate) fn admit_validated_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
     carried: &[bool],

@@ -21,12 +21,5 @@ pub fn remove_redundant_compare(
     let admitted = admission::admit(source, function_index, compare, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
     admission::apply(&admitted, &mut transformed.functions[function_index])?;
-    super::validate_redundant_compare(
-        source,
-        function_index,
-        compare,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_redundant_compare(source, function_index, compare, transformed)
 }

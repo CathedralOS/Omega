@@ -31,18 +31,6 @@ fn fixed_view_reanalysis(
     stage_optimized_selected_reanalysis(copies).map_err(RegisterAllocationError::Reanalysis)
 }
 
-/// The homes-only sequence: post-copy assignment is the terminal step, so
-/// residual `NoCompatibleHome` pressure keeps the direct post-copy error
-/// surface for callers that consume the staged homes result.
-fn fixed_view_homes(
-    legality: StagedOptimizedAllocationLegality,
-    policy: FixedViewCopyPolicy,
-) -> Result<crate::StagedOptimizedRegisterHomesAfterFixedViewCopies, RegisterAllocationError> {
-    let reanalysis = fixed_view_reanalysis(legality, policy)?;
-    crate::assignment::baseline::stage_optimized_register_homes_after_fixed_view_copies(reanalysis)
-        .map_err(RegisterAllocationError::FixedViewHomes)
-}
-
 /// The composing sequence: residual `NoCompatibleHome` pressure after the
 /// copies does not fail the route — the reanalysis becomes runtime-spill
 /// recovery's source, so a pressured program that also needed fixed-view
@@ -113,27 +101,6 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
     fixed_view_allocation(
         legality,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-    )
-}
-
-/// Default-path recovery for unresolved fixed-view transitions. The
-/// shared-source-exit policy admits the boundaries authenticated by
-/// recorded fixed-site transitions and makes the placement decision the
-/// site legs could not: boundaries leaving one source segment end through
-/// connectors out of a single block's terminator share one copy there — a
-/// dominating point cheaper than one copy per use — while every other
-/// boundary keeps a copy at its own site. The leg needs no declared
-/// recovery selection and stays rejected for every other shape.
-///
-/// This staged-homes form keeps post-copy assignment terminal; the production
-/// route composes residual pressure through
-/// `stage_leaf_local_fixed_view_register_allocation_composing` instead.
-pub fn stage_leaf_local_fixed_view_register_allocation(
-    legality: StagedOptimizedAllocationLegality,
-) -> Result<crate::StagedOptimizedRegisterHomesAfterFixedViewCopies, RegisterAllocationError> {
-    fixed_view_homes(
-        legality,
-        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
     )
 }
 

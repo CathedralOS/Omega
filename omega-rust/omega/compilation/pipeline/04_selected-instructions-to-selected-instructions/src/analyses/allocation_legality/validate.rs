@@ -132,6 +132,16 @@ pub(crate) fn validate_allocation_legality_carrying(
             validate_canonical(function_index, actual)?;
         }
     }
+    Ok(admit(plan, carried, previous_digests))
+}
+
+/// Seal an allocation-legality plan with its receipt. A function marked in
+/// `carried` keeps its predecessor's identity digest from `previous_digests`.
+pub(crate) fn admit(
+    plan: AllocationLegalityPlan,
+    carried: &[bool],
+    previous_digests: &[[u8; 32]],
+) -> ValidatedAllocationLegality {
     let function_digests = crate::analyses::carried_digests(
         &plan.functions,
         carried,
@@ -183,11 +193,11 @@ pub(crate) fn validate_allocation_legality_carrying(
             .map(|register| register.entry_transitions.len())
             .sum(),
     };
-    Ok(ValidatedAllocationLegality {
+    ValidatedAllocationLegality {
         plan: plan.into(),
         receipt,
         function_digests,
-    })
+    }
 }
 
 fn replay_register(

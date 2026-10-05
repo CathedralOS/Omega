@@ -11,7 +11,6 @@ pub(crate) mod validate;
 use register_homes::AllocatorAvailabilityPolicy;
 use register_homes::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
 use register_model::{PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId};
-pub(crate) use validate::validate_allocator_availability;
 
 /// Materialize and independently replay one exact named policy controlling
 /// unconstrained physical-view availability. This is allocator input only; it
@@ -34,15 +33,7 @@ pub fn materialize_allocator_availability(
         selected_keys,
         policy,
     )?;
-    validate_allocator_availability(
-        register_environment,
-        target,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    validate::seal_allocator_availability(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

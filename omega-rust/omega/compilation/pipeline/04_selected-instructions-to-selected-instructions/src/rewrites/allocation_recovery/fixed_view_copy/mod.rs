@@ -61,20 +61,7 @@ pub(crate) fn materialize_fixed_view_copies(
         policy,
         budget,
     )?;
-    validate_fixed_view_copies(
-        selected,
-        ranges,
-        legality,
-        fixed,
-        requirements,
-        homes,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    Ok(validate::seal_validation(selected, plan))
 }
 
 // Transform-side evidence for the fixed-view-copy rewrite; the durable plan,

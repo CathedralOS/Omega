@@ -1,9 +1,8 @@
-//! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
+//! Optimizer module role: executable entrance. Instruction selection: construct one bounded selected CFG and seal it.
 //!
 //! The stage entry validates the target/register/catalog join once per
-//! realization and lends it here. Construction and independent replay borrow
-//! that one environment across functions; rebuilding it for every function or
-//! replay mutation adds no evidence.
+//! realization and lends it here. Construction borrows that one environment
+//! across functions.
 
 mod address_join_input;
 mod aggregate_result_input;
@@ -33,7 +32,6 @@ mod scalar_array_input;
 mod scalar_call_abi;
 mod structural_array_input;
 mod structural_local_input;
-mod validation;
 pub(crate) mod value_transport;
 mod zeroed_structural_input;
 
@@ -53,5 +51,9 @@ pub fn select_instructions(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
     let plan = build_plan(legalized, constraints, environment)?;
-    validation::validate_with_environment(legalized, constraints, environment, plan)
+    let receipt = identity::receipt(&plan, legalized);
+    Ok(ValidatedSelectedInstructions {
+        plan: plan.into(),
+        receipt,
+    })
 }

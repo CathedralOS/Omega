@@ -1,7 +1,7 @@
-//! Optimizer module role: stage group. Mandatory target legalization: construct the canonical plan, then replay it independently.
+//! Optimizer module role: stage group. Mandatory target legalization: construct the canonical plan.
 //!
-//! `source` projects ordinary instruction graphs; `replay` independently checks
-//! them, including structural signatures and instruction-keyed ownership.
+//! `source` projects ordinary instruction graphs; `replay` is the retained-plan
+//! verifier behind `validate_legalized_operations`.
 
 mod model;
 mod replay;
@@ -28,8 +28,7 @@ pub fn legalize_target_operations<'source>(
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     let source = source.into();
     let unit = source.unit;
-    let rosters =
-        derive_source_function_rosters(target, abstract_plan, unit, source.verified_input)?;
+    let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
@@ -38,7 +37,7 @@ pub fn legalize_target_operations<'source>(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
     };
-    validate_legalized_operations(target, abstract_plan, source, plan)
+    Ok(seal(target, unit, plan))
 }
 
 /// Independently replay the admitted projection from the raw target,
@@ -53,6 +52,14 @@ pub fn validate_legalized_operations<'source>(
     let source = source.into();
     let unit = source.unit;
     replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
+    Ok(seal(target, unit, plan))
+}
+
+fn seal(
+    target: &TargetOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    plan: LegalizedOperationPlan,
+) -> ValidatedLegalizedOperations {
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
@@ -61,6 +68,6 @@ pub fn validate_legalized_operations<'source>(
         target: target.target,
         function_count: plan.scalar_functions.len(),
     };
-    Ok(ValidatedLegalizedOperations { plan, receipt })
+    ValidatedLegalizedOperations { plan, receipt }
 }
 pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;

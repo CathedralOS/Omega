@@ -32,24 +32,13 @@ use selected_form_encoding_to_resolved_layout::{
 use target::NativeTarget;
 use validation::{compare_replayed_evidence, validate_roots};
 
-pub fn stage_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn stage_optimized_x86_branch_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
     source: &StagedOptimizedResolvedSelectedFormLayout,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected, machine, physical, pre_layout, source,
-    )
-    .map_err(OptimizedX86BranchRelaxationError::Source)?;
     validate_roots(source, physical)?;
-    let artifact = compute_relaxation(source, physical, budget)?;
-    validate_optimized_x86_branch_relaxation(
-        selected, machine, physical, pre_layout, source, &artifact,
-    )?;
-    Ok(artifact)
+    compute_relaxation(source, physical, budget)
 }
 
 /// Independent replay does not call the production fixed-point driver. It

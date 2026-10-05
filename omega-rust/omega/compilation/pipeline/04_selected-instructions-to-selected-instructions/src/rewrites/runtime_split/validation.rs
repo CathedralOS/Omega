@@ -397,6 +397,15 @@ pub fn validate_runtime_split(
     if proposed != expected {
         return Err(RuntimeSplitError::ReplayMismatch);
     }
+    seal_runtime_split(source, proposed)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_runtime_split(
+    source: &impl ValidatedSelectedAnalysis,
+    proposed: SelectedInstructionPlan,
+) -> Result<ValidatedRuntimeSplit, RuntimeSplitError> {
     Ok(ValidatedRuntimeSplit {
         receipt: RuntimeSplitReceipt {
             source_selected: source.selected_identity(),

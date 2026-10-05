@@ -30,7 +30,7 @@ pub fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    validate_fixed_precolored_split_requirements(ranges, legality, fixed, plan)
+    validation::seal_fixed_precolored_split_requirements(legality, plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

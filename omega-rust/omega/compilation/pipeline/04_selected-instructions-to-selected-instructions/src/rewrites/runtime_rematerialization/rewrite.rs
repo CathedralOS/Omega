@@ -3,10 +3,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedBoundarySettlementPayload, VirtualRegisterId};
 
-use super::{
-    RuntimeRematerializationError, ValidatedRuntimeRematerialization, admission,
-    validate_runtime_rematerialization,
-};
+use super::{RuntimeRematerializationError, ValidatedRuntimeRematerialization, admission};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
 
@@ -106,12 +103,5 @@ pub fn rematerialize_selected_runtime_value(
         function.blocks[block_index].instructions = instructions;
         function.blocks[block_index].terminator = terminator;
     }
-    validate_runtime_rematerialization(
-        source,
-        function_index,
-        register,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_runtime_rematerialization(source, transformed)
 }

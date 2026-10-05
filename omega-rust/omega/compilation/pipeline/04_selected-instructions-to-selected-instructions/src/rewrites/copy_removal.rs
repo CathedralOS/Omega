@@ -63,7 +63,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_selected_copy;
-pub(crate) use validation::{measured_steps, validate_copy_removal};
+pub(crate) use validation::measured_steps;
 
 /// An accepted copy removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

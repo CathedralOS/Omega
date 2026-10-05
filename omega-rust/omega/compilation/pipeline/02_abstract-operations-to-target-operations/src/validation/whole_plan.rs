@@ -11,16 +11,12 @@ use super::{
     AbstractToTargetTranslationValidationReceipt,
 };
 
-pub fn validate_abstract_to_target_translation(
+/// Raw IEEE fused multiply-add has no target realization; reject it even when
+/// the target rows omit it.
+pub(crate) fn reject_raw_ieee_float_fma(
     source: &AbstractOperationPlan,
-    expected_target: NativeTarget,
-    target: &TargetOperationPlan,
-) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
-{
-    validate_plan_identity(source, expected_target, target)?;
-    validate_native_callback_roster(target)?;
-    // Independent replay must reject raw FMA even when target rows omit it.
-    if let Some(operation) = source
+) -> Result<(), AbstractToTargetTranslationValidationError> {
+    match source
         .functions
         .iter()
         .flat_map(|function| &function.operations)
@@ -32,12 +28,24 @@ pub fn validate_abstract_to_target_translation(
         })
         .min()
     {
-        return Err(
+        Some(operation) => Err(
             AbstractToTargetTranslationValidationError::UnsupportedIeeeFloatFmaRealization(
                 operation,
             ),
-        );
+        ),
+        None => Ok(()),
     }
+}
+
+pub fn validate_abstract_to_target_translation(
+    source: &AbstractOperationPlan,
+    expected_target: NativeTarget,
+    target: &TargetOperationPlan,
+) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
+{
+    validate_plan_identity(source, expected_target, target)?;
+    validate_native_callback_roster(target)?;
+    reject_raw_ieee_float_fma(source)?;
 
     let canonical_structural_types = if source
         .structural_types

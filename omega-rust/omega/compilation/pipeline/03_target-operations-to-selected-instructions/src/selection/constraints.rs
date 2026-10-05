@@ -89,34 +89,6 @@ pub(super) fn row(
         .ok_or(SelectedInstructionError::MissingConstraint(key))
 }
 
-pub(super) fn resolved_row<'environment>(
-    function: &selected_instructions::SelectedFunction,
-    instruction: &SelectedInstruction,
-    environment: &'environment register_environment::ValidatedTargetRegisterEnvironment,
-) -> Result<std::borrow::Cow<'environment, RegisterInstructionConstraint>, SelectedInstructionError>
-{
-    if matches!(
-        instruction.kind,
-        SelectedInstructionKind::NormalizedForeignCall { .. }
-    ) {
-        let record =
-            selected_instructions::calls::constraints::foreign_call_record(function, instruction)
-                .ok_or_else(SelectedInstructionError::custody)?;
-        let constraint =
-            super::scalar_call_abi::normalized_foreign::call_constraint(&record.call, environment)
-                .ok_or_else(SelectedInstructionError::custody)?;
-        if constraint.key != instruction.constraint {
-            return Err(SelectedInstructionError::custody());
-        }
-        Ok(std::borrow::Cow::Owned(constraint))
-    } else {
-        Ok(std::borrow::Cow::Borrowed(row(
-            environment.constraints(),
-            instruction.constraint,
-        )?))
-    }
-}
-
 pub(super) fn fixed_input_constraint(
     machine: semantic_vocabulary::MachineId,
     source_value: semantic_vocabulary::ValueId,

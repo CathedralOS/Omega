@@ -1,4 +1,3 @@
-use crate::assign_register_homes;
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use optimization_core::OptimizationWorkBudget;
 use register_homes::{
@@ -180,36 +179,4 @@ pub(super) fn complete_active_resident_rematerialization(
         manifest,
         custody,
     })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn compute_active_resident_rematerialization(
-    source: StagedOptimizedAllocationLegality,
-    choice_policy: SpillChoicePolicy,
-    classification_policy: RecoveryClassificationPolicy,
-    rematerialization_policy: PressureRematerializationPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<
-    StagedOptimizedActiveResidentRematerialization,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let pressure = compute_active_resident_rematerialization_pressure(
-        source,
-        choice_policy,
-        classification_policy,
-        rematerialization_policy,
-        budget,
-    )?;
-    let environment = pressure.source.register_environment();
-    let homes = assign_register_homes(
-        &pressure.legality,
-        &pressure.ranges,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(OptimizedActiveResidentRematerializationError::Homes)?;
-    complete_active_resident_rematerialization(pressure, homes)
 }

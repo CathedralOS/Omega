@@ -1241,6 +1241,17 @@ pub fn validate_stored_load_forwarding(
     if restore(&reconstructed, &proposed)? != *source.selected_plan() {
         return Err(StoredLoadForwardingError::ReplayMismatch);
     }
+    seal_stored_load_forwarding(source, function_index, load, proposed)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_stored_load_forwarding(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    load: SelectedInstructionId,
+    proposed: SelectedInstructionPlan,
+) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
     let transformed_selected = selected_instruction_plan_identity(&proposed);
     let mut canonical = b"omega.stored-load-forwarding.v1".to_vec();
     canonical.extend_from_slice(&source.selected_identity().bytes());
@@ -1256,7 +1267,6 @@ pub fn validate_stored_load_forwarding(
             ),
             function_index,
             load,
-            validation_steps,
             source_selected: source.selected_identity(),
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),

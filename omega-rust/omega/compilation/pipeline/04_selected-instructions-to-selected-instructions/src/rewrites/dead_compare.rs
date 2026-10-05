@@ -94,7 +94,7 @@ pub(crate) use redundant::{
     measured_steps as redundant_compare_measured_steps, remove_redundant_compare,
 };
 pub(crate) use rewrite::remove_dead_compare;
-pub(crate) use validation::{measured_steps, validate_dead_compare};
+pub(crate) use validation::measured_steps;
 
 /// An accepted dead-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

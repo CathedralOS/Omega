@@ -50,10 +50,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
     let layout_optimization = execute_resolved_layout_optimization(
-        selected,
-        &machine,
         physical,
-        &encoding,
         &baseline_layout,
         &current
             .selections()

@@ -49,12 +49,12 @@ pub fn stage_optimized_fixed_precolored_segment_homes(
     OptimizedFixedPrecoloredSegmentHomeCustodyError,
 > {
     let (fixed, requirements, homes) = compute::derive(&source, budget)?;
-    let custody = validate_optimized_fixed_precolored_segment_home_custody(
-        &source,
-        &fixed,
-        &requirements,
-        &homes,
-    )?;
+    let custody = custody::seal(
+        source.custody(),
+        fixed.receipt(),
+        requirements.receipt(),
+        homes.receipt(),
+    );
     Ok(StagedOptimizedFixedPrecoloredSegmentHomes {
         source,
         fixed,

@@ -18,9 +18,8 @@ pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    validate_source_custody(target, abstract_plan, unit, verified_input)?;
+    validate_source_custody(target, abstract_plan, unit)?;
     // A retained callback argument must join to one exact normalized foreign
     // row before any roster derives from this plan.
     super::scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;

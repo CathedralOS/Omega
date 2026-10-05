@@ -2432,6 +2432,15 @@ pub fn validate_runtime_spill_with_span_policy(
     if restored != *source.selected_plan() {
         return Err(RuntimeSpillError::ReplayMismatch);
     }
+    seal_runtime_spill_with_span_policy(source, proposed)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_runtime_spill_with_span_policy(
+    source: &impl ValidatedSelectedAnalysis,
+    proposed: SelectedInstructionPlan,
+) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
     Ok(ValidatedRuntimeSpill {
         receipt: RuntimeSpillReceipt {
             source_selected: source.selected_identity(),

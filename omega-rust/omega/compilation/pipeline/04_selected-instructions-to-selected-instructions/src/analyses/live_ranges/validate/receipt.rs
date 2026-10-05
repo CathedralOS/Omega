@@ -2,10 +2,31 @@
 
 use std::collections::BTreeSet;
 
-use crate::LiveRangeValidationReceipt;
+use crate::{LiveRangeValidationReceipt, ValidatedLiveRanges};
 use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity_from_digests};
 
-pub(super) fn build_receipt(
+/// Seal a live-range plan with its receipt. A function marked in `carried`
+/// keeps its predecessor's identity digest from `previous_digests`.
+pub(crate) fn admit(
+    plan: LiveRangePlan,
+    carried: &[bool],
+    previous_digests: &[[u8; 32]],
+) -> ValidatedLiveRanges {
+    let function_digests = crate::analyses::carried_digests(
+        &plan.functions,
+        carried,
+        previous_digests,
+        selected_instructions::live_range_function_digest,
+    );
+    let receipt = build_receipt(&plan, &function_digests);
+    ValidatedLiveRanges {
+        plan: plan.into(),
+        receipt,
+        function_digests,
+    }
+}
+
+fn build_receipt(
     plan: &LiveRangePlan,
     function_digests: &[[u8; 32]],
 ) -> LiveRangeValidationReceipt {

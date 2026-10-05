@@ -29,6 +29,15 @@ pub fn validate_fixed_precolored_intervals(
     if candidate.functions != expected.functions {
         return Err(FixedPrecoloredIntervalError::NonCanonicalFunctions);
     }
+    seal_fixed_precolored_intervals(ranges, candidate)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_fixed_precolored_intervals(
+    ranges: &ValidatedLiveRanges,
+    candidate: FixedPrecoloredIntervalPlan,
+) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
     let all = candidate
         .functions
         .iter()

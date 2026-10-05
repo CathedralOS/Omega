@@ -42,16 +42,7 @@ pub fn choose_spill_victims(
         policy,
         budget,
     )?;
-    validate_spill_choices(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    validate::seal_spill_choices(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

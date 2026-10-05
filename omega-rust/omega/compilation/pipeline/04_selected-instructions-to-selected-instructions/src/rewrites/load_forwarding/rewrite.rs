@@ -23,12 +23,5 @@ pub fn forward_selected_stored_load(
     function.blocks[admitted.block_index].instructions[admitted.load_index] =
         admission::forwarded(&admitted);
     function.memory_accesses.remove(admitted.load_access);
-    super::validate_stored_load_forwarding(
-        source,
-        function_index,
-        load,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_stored_load_forwarding(source, function_index, load, transformed)
 }

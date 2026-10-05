@@ -1,17 +1,10 @@
-//! Optimizer module role: executable entrance. Replayed register-home assignment.
+//! Optimizer module role: executable entrance. Register-home assignment.
 //!
-//! Baseline legality and post-copy reanalysis are distinct source families.
-//! This entrance grants custody only after each constructed home/manifest pair
-//! independently replays through its matching source-family validator.
+//! Baseline legality and post-copy reanalysis are distinct source families;
+//! each constructs its home/manifest pair once.
 
 mod construction;
 mod custody;
-mod validation;
-
-pub use validation::{
-    validate_optimized_register_home_after_fixed_view_copy_custody,
-    validate_optimized_register_home_custody,
-};
 
 use crate::{
     RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
@@ -35,34 +28,11 @@ use selected_instructions_to_selected_instructions::{
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
-pub fn stage_optimized_register_homes(
-    legality: StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let staged = construction::construct_optimized_register_homes(legality)?;
-    let custody = validate_optimized_register_home_custody(
-        staged.legality_stage(),
-        staged.homes(),
-        staged.post_allocation_manifest(),
-    )?;
-    if custody != staged.custody() {
-        return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
-    }
-    Ok(staged)
-}
-
 pub(crate) fn stage_register_homes_with_assignment(
     legality: StagedOptimizedAllocationLegality,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
     let staged = construction::construct_with_assignment(legality, homes)?;
-    let custody = validate_optimized_register_home_custody(
-        staged.legality_stage(),
-        staged.homes(),
-        staged.post_allocation_manifest(),
-    )?;
-    if custody != staged.custody() {
-        return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
-    }
     Ok(staged)
 }
 
@@ -86,33 +56,6 @@ pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
         construction::construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
             reanalysis, homes,
         )?;
-    let custody = validate_optimized_register_home_after_fixed_view_copy_custody(
-        staged.reanalysis_stage(),
-        staged.homes(),
-        staged.post_allocation_manifest(),
-    )?;
-    if custody != staged.custody() {
-        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
-    }
-    Ok(staged)
-}
-
-pub fn stage_optimized_register_homes_after_fixed_view_copies(
-    reanalysis: StagedOptimizedSelectedReanalysis,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    OptimizedPostCopyRegisterHomeCustodyError,
-> {
-    let staged =
-        construction::construct_optimized_register_homes_after_fixed_view_copies(reanalysis)?;
-    let custody = validate_optimized_register_home_after_fixed_view_copy_custody(
-        staged.reanalysis_stage(),
-        staged.homes(),
-        staged.post_allocation_manifest(),
-    )?;
-    if custody != staged.custody() {
-        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
-    }
     Ok(staged)
 }
 

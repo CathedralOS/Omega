@@ -7,10 +7,7 @@ use selected_instructions::{
     SelectedValueTransport, VirtualRegisterId,
 };
 
-use super::{
-    RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, admission,
-    validate_runtime_spill_with_span_policy,
-};
+use super::{RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, admission};
 use crate::ValidatedSelectedAnalysis;
 
 /// Emit one private address/load pair for a use, or — when `share` admits a
@@ -422,13 +419,5 @@ pub fn spill_selected_runtime_value_with_span_policy(
         function.blocks[block_index].instructions = instructions;
         function.blocks[block_index].terminator = terminator;
     }
-    validate_runtime_spill_with_span_policy(
-        source,
-        function_index,
-        register,
-        environment,
-        budget,
-        transformed,
-        span_policy,
-    )
+    super::validation::seal_runtime_spill_with_span_policy(source, transformed)
 }

@@ -32,9 +32,8 @@ pub fn stage_optimized_fixed_view_copies(
     policy: FixedViewCopyPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {
-    validation::validate_source(&source)?;
     let copies = compute::compute_fixed_view_copies(&source, policy, budget)?;
-    let custody = validate_optimized_fixed_view_copy_custody(&source, &copies)?;
+    let custody = custody::fixed_view_copy_custody_receipt(source.custody(), copies.receipt());
     Ok(StagedOptimizedFixedViewCopies {
         source,
         copies,

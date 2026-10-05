@@ -68,6 +68,14 @@ pub fn validate_recovery_classifications<S: ValidatedSelectedAnalysis>(
     if plan.usage != expected_usage {
         return Err(RecoveryClassificationError::UsageMismatch);
     }
+    seal_recovery_classifications(plan)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_recovery_classifications(
+    plan: RecoveryClassificationPlan,
+) -> Result<ValidatedRecoveryClassifications, RecoveryClassificationError> {
     if !plan.usage.within(plan.budget) {
         return Err(RecoveryClassificationError::BudgetExceeded {
             required: plan.usage,

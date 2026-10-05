@@ -21,13 +21,6 @@ impl AllocationDomain<'_> {
     pub(super) fn leader(&self) -> VirtualRegisterId {
         self.members[0].virtual_register
     }
-
-    #[cfg(test)]
-    pub(super) fn contains(&self, register: VirtualRegisterId) -> bool {
-        self.members
-            .binary_search_by_key(&register, |member| member.virtual_register)
-            .is_ok()
-    }
 }
 
 pub(super) fn build_domains<'a>(

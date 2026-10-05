@@ -32,13 +32,5 @@ pub fn fold_selected_constant_branch(
     let mut transformed = source.selected_plan().clone();
     transformed.functions[function_index].blocks[admitted.block_index].terminator =
         admission::rewritten(&admitted);
-    super::validate_constant_branch_fold(
-        source,
-        function_index,
-        branch,
-        environment,
-        effect_catalog,
-        budget,
-        transformed,
-    )
+    super::validation::seal_constant_branch_fold(source, function_index, branch, transformed)
 }

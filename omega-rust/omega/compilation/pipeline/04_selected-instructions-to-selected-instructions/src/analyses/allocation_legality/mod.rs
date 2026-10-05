@@ -37,23 +37,11 @@ pub fn analyze_allocation_legality(
         selected_keys,
         None,
     )?;
-    validate_allocation_legality(
-        ranges,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    Ok(validate::admit(plan, &[], &[]))
 }
 
 /// Reuse proposals for functions whose complete live ranges and allocation
-/// roots are unchanged, and replay the functions computed afresh. A carried
-/// function's rows were replayed when its predecessor plan was validated,
-/// against the same live ranges and roots; the new identity covers the whole
-/// plan.
+/// roots are unchanged; the new identity covers the whole plan.
 pub fn analyze_allocation_legality_reusing(
     previous_ranges: &ValidatedLiveRanges,
     previous_legality: &ValidatedAllocationLegality,
@@ -75,18 +63,11 @@ pub fn analyze_allocation_legality_reusing(
         selected_keys,
         Some((previous_ranges, previous_legality)),
     )?;
-    validate::validate_allocation_legality_carrying(
-        ranges,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
+    Ok(validate::admit(
         plan,
         &carried,
         &previous_legality.function_digests,
-    )
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

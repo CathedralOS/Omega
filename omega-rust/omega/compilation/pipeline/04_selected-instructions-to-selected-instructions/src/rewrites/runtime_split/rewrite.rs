@@ -2,9 +2,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedValueTransport, VirtualRegisterId};
 
-use super::{
-    RuntimeSplitError, ValidatedRuntimeSplit, admission, shifted_position, validate_runtime_split,
-};
+use super::{RuntimeSplitError, ValidatedRuntimeSplit, admission, shifted_position};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{control_mut, control_successors_mut};
 
@@ -66,12 +64,5 @@ pub fn split_selected_runtime_value(
                     .ok_or(RuntimeSplitError::IdentityOverflow)?;
         }
     }
-    validate_runtime_split(
-        source,
-        function_index,
-        register,
-        environment,
-        budget,
-        transformed,
-    )
+    super::validation::seal_runtime_split(source, transformed)
 }

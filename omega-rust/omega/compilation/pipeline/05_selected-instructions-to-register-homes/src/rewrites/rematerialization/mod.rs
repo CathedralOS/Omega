@@ -6,12 +6,6 @@
 
 mod compute;
 mod custody;
-mod validation;
-
-pub use validation::{
-    validate_optimized_active_resident_rematerialization,
-    validate_optimized_active_resident_rematerialization_pressure,
-};
 
 use optimization_core::OptimizationWorkBudget;
 
@@ -57,7 +51,6 @@ pub fn stage_optimized_active_resident_rematerialization_pressure(
         rematerialization_policy,
         budget,
     )?;
-    validate_optimized_active_resident_rematerialization_pressure(&staged)?;
     Ok(staged)
 }
 
@@ -73,29 +66,6 @@ pub(crate) fn complete_optimized_active_resident_rematerialization(
     OptimizedActiveResidentRematerializationError,
 > {
     let staged = compute::complete_active_resident_rematerialization(pressure, homes)?;
-    validate_optimized_active_resident_rematerialization(&staged)?;
-    Ok(staged)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn stage_optimized_active_resident_rematerialization(
-    source: StagedOptimizedAllocationLegality,
-    choice_policy: SpillChoicePolicy,
-    classification_policy: RecoveryClassificationPolicy,
-    rematerialization_policy: PressureRematerializationPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<
-    StagedOptimizedActiveResidentRematerialization,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let staged = compute::compute_active_resident_rematerialization(
-        source,
-        choice_policy,
-        classification_policy,
-        rematerialization_policy,
-        budget,
-    )?;
-    validate_optimized_active_resident_rematerialization(&staged)?;
     Ok(staged)
 }
 
@@ -297,12 +267,6 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
     pub const fn source(&self) -> &StagedOptimizedAllocationLegality {
         &self.source
     }
-    pub const fn choices(&self) -> &ValidatedSpillChoices {
-        &self.choices
-    }
-    pub const fn classifications(&self) -> &ValidatedRecoveryClassifications {
-        &self.classifications
-    }
     pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
         &self.rematerialization
     }
@@ -352,61 +316,8 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
     }
-    pub const fn choices(self) -> SpillChoiceIdentity {
-        self.choices
-    }
-    pub const fn choice_policy(self) -> SpillChoicePolicy {
-        self.choice_policy
-    }
-    pub const fn choice_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.choice_usage
-    }
-    pub const fn classifications(self) -> RecoveryClassificationIdentity {
-        self.classifications
-    }
-    pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
-        self.classification_policy
-    }
-    pub const fn classification_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.classification_usage
-    }
     pub const fn rematerialization(self) -> PressureRematerializationIdentity {
         self.rematerialization
-    }
-    pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
-        self.rematerialization_policy
-    }
-    pub const fn rematerialization_usage(self) -> optimization_core::OptimizationWorkUsage {
-        self.rematerialization_usage
-    }
-    pub const fn budget(self) -> OptimizationWorkBudget {
-        self.budget
-    }
-    pub const fn transformed_selected(
-        self,
-    ) -> selected_instructions::SelectedInstructionPlanIdentity {
-        self.transformed_selected
-    }
-    pub const fn liveness(self) -> LivenessIdentity {
-        self.liveness
-    }
-    pub const fn ranges(self) -> LiveRangeIdentity {
-        self.ranges
-    }
-    pub const fn legality(self) -> AllocationLegalityIdentity {
-        self.legality
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-    pub const fn applied_count(self) -> usize {
-        self.applied_count
-    }
-    pub const fn rewritten_use_count(self) -> usize {
-        self.rewritten_use_count
     }
 }
 

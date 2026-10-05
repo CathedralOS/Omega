@@ -1,10 +1,9 @@
+use crate::assign_register_homes;
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::{assign_register_homes, validate_register_homes};
 use register_homes::PostAllocationSelectedTransformation;
 
 use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    validate_optimized_selected_reanalysis_custody,
 };
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
@@ -13,43 +12,11 @@ use super::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 
-pub(super) fn construct_optimized_register_homes(
-    legality: StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let environment = legality.register_environment();
-    let homes = assign_register_homes(
-        legality.legality(),
-        legality.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(OptimizedRegisterHomeCustodyError::Assignment)?;
-    construct_with_assignment(legality, homes)
-}
-
 pub(super) fn construct_with_assignment(
     legality: StagedOptimizedAllocationLegality,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
     let upstream = legality.custody();
-    let environment = legality.register_environment();
-    let replayed = validate_register_homes(
-        legality.legality(),
-        legality.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-        homes.plan().clone(),
-    )
-    .map_err(OptimizedRegisterHomeCustodyError::Revalidation)?;
-    if replayed.receipt() != homes.receipt() {
-        return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
-    }
     let manifest = project_post_allocation_optimization_manifest(
         upstream.manifest(),
         &[],
@@ -85,17 +52,6 @@ pub(super) fn assign_optimized_register_homes_after_fixed_view_copies(
     )
 }
 
-pub(super) fn construct_optimized_register_homes_after_fixed_view_copies(
-    reanalysis: StagedOptimizedSelectedReanalysis,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    OptimizedPostCopyRegisterHomeCustodyError,
-> {
-    let homes = assign_optimized_register_homes_after_fixed_view_copies(&reanalysis)
-        .map_err(OptimizedPostCopyRegisterHomeCustodyError::Assignment)?;
-    construct_optimized_register_homes_after_fixed_view_copies_with_assignment(reanalysis, homes)
-}
-
 pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
     reanalysis: StagedOptimizedSelectedReanalysis,
     homes: crate::ValidatedRegisterHomes,
@@ -103,28 +59,8 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_as
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
     OptimizedPostCopyRegisterHomeCustodyError,
 > {
-    let source = validate_optimized_selected_reanalysis_custody(
-        reanalysis.transformation_stage(),
-        reanalysis.liveness(),
-        reanalysis.ranges(),
-        reanalysis.legality(),
-    )
-    .map_err(OptimizedPostCopyRegisterHomeCustodyError::UpstreamReanalysis)?;
-    let environment = reanalysis.register_environment();
-    let replayed = validate_register_homes(
-        reanalysis.legality(),
-        reanalysis.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-        homes.plan().clone(),
-    )
-    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Revalidation)?;
-    if replayed.receipt() != homes.receipt() {
-        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
-    }
+    let source = reanalysis.custody();
+    let _environment = reanalysis.register_environment();
     let manifest = project_post_allocation_optimization_manifest(
         source.source().manifest(),
         &[PostAllocationSelectedTransformation::FixedViewCopy(

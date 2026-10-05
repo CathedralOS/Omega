@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Selected-CFG liveness compute -> independent validation entrance.
+//! Optimizer module role: executable entrance. Selected-CFG liveness compute; `validate` is the retained-plan verifier.
 
 use crate::ValidatedSelectedAnalysis;
 pub(crate) mod compute;
@@ -10,20 +10,17 @@ use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionP
 use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_liveness;
 
-/// Compute and independently replay bounded selected-CFG liveness facts.
-/// The result grants no interval, allocation, emission, or publication
-/// authority.
+/// Compute bounded selected-CFG liveness facts. The result grants no
+/// interval, allocation, emission, or publication authority.
 pub fn analyze_liveness<S: ValidatedSelectedAnalysis>(
     selected: &S,
 ) -> Result<ValidatedLiveness, LivenessError> {
     let plan = compute::compute_terminal_liveness(selected)?;
-    validate_liveness(selected, plan)
+    Ok(validate::admit_validated_liveness(selected, plan, &[], &[]))
 }
 
-/// Reuse unchanged function computations and replay the functions computed
-/// afresh. A carried function's rows were replayed when its predecessor plan
-/// was validated, against the same selected function; the new receipt still
-/// covers the whole plan.
+/// Reuse unchanged function computations from `previous_liveness`; the new
+/// receipt still covers the whole plan.
 pub fn analyze_liveness_reusing(
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,
@@ -31,12 +28,12 @@ pub fn analyze_liveness_reusing(
 ) -> Result<ValidatedLiveness, LivenessError> {
     let (plan, carried) =
         compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
-    validate::validate_liveness_carrying(
+    Ok(validate::admit_validated_liveness(
         selected,
         plan,
         &carried,
         &previous_liveness.function_digests,
-    )
+    ))
 }
 
 mod staging;

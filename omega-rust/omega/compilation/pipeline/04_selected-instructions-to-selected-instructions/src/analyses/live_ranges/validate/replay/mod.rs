@@ -53,16 +53,5 @@ pub(super) fn replay_live_ranges(
         comparison::require_function(function_index, actual, &expected)?;
     }
 
-    let function_digests = crate::analyses::carried_digests(
-        &plan.functions,
-        carried,
-        previous_digests,
-        selected_instructions::live_range_function_digest,
-    );
-    let receipt = super::receipt::build_receipt(&plan, &function_digests);
-    Ok(ValidatedLiveRanges {
-        plan: plan.into(),
-        receipt,
-        function_digests,
-    })
+    Ok(super::receipt::admit(plan, carried, previous_digests))
 }

@@ -112,7 +112,6 @@ pub struct StoredLoadForwardingReceipt {
     identity: StoredLoadForwardingIdentity,
     function_index: usize,
     load: SelectedInstructionId,
-    validation_steps: u64,
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -128,9 +127,6 @@ impl StoredLoadForwardingReceipt {
     }
     pub const fn load(&self) -> SelectedInstructionId {
         self.load
-    }
-    pub const fn validation_steps(&self) -> u64 {
-        self.validation_steps
     }
 
     pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {

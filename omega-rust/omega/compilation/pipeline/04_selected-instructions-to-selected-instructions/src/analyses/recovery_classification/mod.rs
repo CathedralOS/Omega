@@ -36,7 +36,7 @@ pub fn classify_pressure_recovery<S: ValidatedSelectedAnalysis>(
         policy,
         budget,
     )?;
-    validate_recovery_classifications(selected, ranges, legality, spill_choices, plan)
+    validate::seal_recovery_classifications(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

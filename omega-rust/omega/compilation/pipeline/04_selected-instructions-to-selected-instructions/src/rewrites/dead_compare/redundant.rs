@@ -77,7 +77,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::remove_redundant_compare;
-pub(crate) use validation::{measured_steps, validate_redundant_compare};
+pub(crate) use validation::measured_steps;
 
 /// An accepted redundant-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

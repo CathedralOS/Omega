@@ -7,7 +7,7 @@ use crate::{
     fixed_view_copy_identity,
 };
 
-pub(super) fn seal_validation(
+pub(crate) fn seal_validation(
     selected: &ValidatedSelectedInstructions,
     plan: FixedViewCopyPlan,
 ) -> ValidatedFixedViewCopies {

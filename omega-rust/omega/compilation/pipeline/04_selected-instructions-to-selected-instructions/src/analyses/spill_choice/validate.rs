@@ -126,6 +126,14 @@ pub fn validate_spill_choices(
             budget: plan.budget,
         });
     }
+    seal_spill_choices(plan)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_spill_choices(
+    plan: SpillChoicePlan,
+) -> Result<ValidatedSpillChoices, SpillChoiceError> {
     let choice_count = plan
         .functions
         .iter()

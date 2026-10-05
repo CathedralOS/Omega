@@ -1,19 +1,11 @@
 //! Optimizer module role: executable entrance. Register-home staging after selected-lowering transformations.
 //!
 //! One-step literal-fold chains and complete selected-lowering runs retain
-//! distinct source custody. This entrance grants either result custody only
-//! after independent home and manifest replay.
+//! distinct source custody; each constructs its homes and manifest once.
 
 mod construction;
 mod custody;
 mod projection;
-mod validation;
-
-pub use validation::{
-    validate_optimized_register_home_after_literal_fold_custody,
-    validate_optimized_register_home_after_pre_allocation_custody,
-    validate_optimized_register_home_after_selected_lowering_custody,
-};
 
 use crate::{
     RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
@@ -28,37 +20,6 @@ use selected_instructions_to_selected_instructions::{
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
-
-pub fn stage_optimized_register_homes_after_literal_folds(
-    folds: StagedOptimizedLiteralFolds,
-) -> Result<StagedOptimizedRegisterHomesAfterLiteralFolds, OptimizedPostLiteralFoldHomeCustodyError>
-{
-    let staged = construction::construct_register_homes_after_literal_folds(folds)?;
-    validate_optimized_register_home_after_literal_fold_custody(&staged)?;
-    Ok(staged)
-}
-
-pub fn stage_optimized_register_homes_after_selected_lowering(
-    run: StagedSelectedLoweringOptimizationRun,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-    OptimizedPostSelectedLoweringHomeCustodyError,
-> {
-    let staged = construction::construct_register_homes_after_selected_lowering(run)?;
-    validate_optimized_register_home_after_selected_lowering_custody(&staged)?;
-    Ok(staged)
-}
-
-pub fn stage_optimized_register_homes_after_pre_allocation(
-    run: StagedPreAllocationOptimizationRun,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterPreAllocation,
-    OptimizedPostPreAllocationHomeCustodyError,
-> {
-    let staged = construction::construct_register_homes_after_pre_allocation(run)?;
-    validate_optimized_register_home_after_pre_allocation_custody(&staged)?;
-    Ok(staged)
-}
 
 /// Assignment probe over a completed selected-lowering run's final facts.
 /// Computing the assignment without consuming the run lets the route answer
@@ -81,7 +42,6 @@ pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assign
 > {
     let staged =
         construction::construct_register_homes_after_selected_lowering_with_assignment(run, homes)?;
-    validate_optimized_register_home_after_selected_lowering_custody(&staged)?;
     Ok(staged)
 }
 
@@ -106,7 +66,6 @@ pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignmen
 > {
     let staged =
         construction::construct_register_homes_after_pre_allocation_with_assignment(run, homes)?;
-    validate_optimized_register_home_after_pre_allocation_custody(&staged)?;
     Ok(staged)
 }
 
@@ -208,25 +167,6 @@ impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
         self.assignment_count
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedPostLiteralFoldHomeCustodyError {
-    UpstreamFolds(OptimizedLiteralFoldCustodyError),
-    Assignment(RegisterHomeError),
-    Manifest(PostAllocationOptimizationManifestError),
-    ReceiptMismatch,
-}
-
-impl std::fmt::Display for OptimizedPostLiteralFoldHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-literal-fold home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostLiteralFoldHomeCustodyError {}
 
 /// Strict homes after a complete named selected-lowering suite. The suite's
 /// completion identity is retained even when its transformation ledger is

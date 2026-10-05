@@ -100,9 +100,7 @@ pub(in crate::legalization) fn read_root_type(
     super::structural_case::source_result(function, place)
         .ok()
         .map(|(_, result)| result.structural_type)
-        .or_else(|| {
-            read_parameter(function, place).map(|parameter| parameter.structural_type)
-        })
+        .or_else(|| read_parameter(function, place).map(|parameter| parameter.structural_type))
 }
 
 pub(super) fn validate(
@@ -159,8 +157,8 @@ pub(super) fn validate(
                     }
                     local.structural_type
                 } else {
-                    let parameter = read_parameter(function, *source)
-                        .ok_or(LegalizationError::custody())?;
+                    let parameter =
+                        read_parameter(function, *source).ok_or(LegalizationError::custody())?;
                     if !(matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow

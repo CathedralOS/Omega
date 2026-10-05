@@ -1,7 +1,7 @@
 # Instruction selection
 
-[lib.rs](src/lib.rs) enters mandatory target legalization and independently
-validated instruction selection. Input is the complete admitted target-operation
+[lib.rs](src/lib.rs) enters mandatory target legalization and instruction
+selection. Input is the complete admitted target-operation
 custody and exact validated target register environment; output is the admitted
 current selected program with semantic, target, projection, fuel and constraint
 identities. Raw selected data or a detached content hash is not selection authority.

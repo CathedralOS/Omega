@@ -6,9 +6,6 @@ mod placement;
 mod prepared_affinities;
 mod prepared_conflicts;
 
-#[cfg(test)]
-pub(super) mod scan_reference;
-
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
@@ -37,8 +34,6 @@ pub(crate) use placement::compute_function;
 pub(crate) struct FunctionHomeReuse {
     register_environment: Option<TargetRegisterEnvironmentIdentity>,
     functions: Vec<Option<ReusableFunctionHomes>>,
-    #[cfg(test)]
-    reused: usize,
 }
 
 struct ReusableFunctionHomes {
@@ -48,11 +43,6 @@ struct ReusableFunctionHomes {
 }
 
 impl FunctionHomeReuse {
-    #[cfg(test)]
-    pub(crate) const fn reused(&self) -> usize {
-        self.reused
-    }
-
     pub(crate) fn compute(
         &mut self,
         register_environment: TargetRegisterEnvironmentIdentity,
@@ -70,10 +60,6 @@ impl FunctionHomeReuse {
             && prior.ranges == *ranges
         {
             let homes = prior.homes.clone();
-            #[cfg(test)]
-            {
-                self.reused += 1;
-            }
             return Ok(homes);
         }
         let homes = compute_function(index, legality, ranges, physical)?;

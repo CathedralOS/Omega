@@ -6,11 +6,8 @@ use selected_instructions::{
 };
 mod addresses;
 mod construction;
-mod descriptor_validation;
 mod descriptors;
-mod validation;
 pub(super) use construction::prepare;
-pub(super) use validation::project;
 
 fn successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut SelectedSuccessor> {
     match terminator {

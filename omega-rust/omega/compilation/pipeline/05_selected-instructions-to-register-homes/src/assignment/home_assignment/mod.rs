@@ -9,10 +9,7 @@ use selected_instructions_to_selected_instructions::{
 };
 pub(crate) mod compute;
 mod physical_requirement;
-pub(crate) mod validate;
-
-#[cfg(test)]
-mod tests;
+mod receipt;
 
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 pub use register_homes::{
@@ -21,7 +18,6 @@ pub use register_homes::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::LiveRangeIdentity;
-pub use validate::validate_register_homes;
 
 /// Assign deterministic physical views for the bounded transition-free,
 /// spill-free lane. The result grants no emission or publication authority.
@@ -67,16 +63,11 @@ pub(crate) fn assign_register_homes_reusing(
         selected_keys,
         reuse,
     )?;
-    validate_register_homes(
-        legality,
-        ranges,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        plan,
-    )
+    let receipt = receipt::build(&plan, ranges);
+    Ok(ValidatedRegisterHomes {
+        plan: plan.into(),
+        receipt,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

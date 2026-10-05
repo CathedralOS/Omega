@@ -20,27 +20,18 @@ use std::sync::Arc;
 pub use validation::validate_resolved_layout_optimization;
 
 #[allow(clippy::too_many_arguments)]
-pub fn execute_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn execute_resolved_layout_optimization(
     physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     selections: &OptimizationPhaseSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<ResolvedLayoutOptimization, ResolvedLayoutOptimizationError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected, machine, physical, encoding, baseline,
-    )
-    .map_err(ResolvedLayoutOptimizationError::Baseline)?;
     let enabled = x86_rel8_selected(selections, baseline.target().architecture)
         .map_err(ResolvedLayoutOptimizationError::Catalog)?;
     let relaxation = if enabled {
         Some(
-            stage_optimized_x86_branch_relaxation(
-                selected, machine, physical, encoding, baseline, budget,
-            )
-            .map_err(ResolvedLayoutOptimizationError::Relaxation)?,
+            stage_optimized_x86_branch_relaxation(physical, baseline, budget)
+                .map_err(ResolvedLayoutOptimizationError::Relaxation)?,
         )
     } else {
         None
@@ -55,9 +46,6 @@ pub fn execute_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
         budget,
         relaxation,
     };
-    validate_resolved_layout_optimization(
-        selected, machine, physical, encoding, baseline, selections, &artifact,
-    )?;
     Ok(artifact)
 }
 

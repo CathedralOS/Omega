@@ -38,7 +38,8 @@ pub fn stage_allocated_callee_saved_requirements(
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
     let plan = compute::derive(current, policy, budget)?;
-    validate_allocated_callee_saved_requirements(current, plan)
+    let receipt = custody::seal(&plan);
+    Ok(ValidatedAllocatedCalleeSavedRequirements { plan, receipt })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

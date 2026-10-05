@@ -1,8 +1,7 @@
 //! Optimizer module role: executable entrance. Block-local live ranges and interference compute -> validation entrance.
 //!
-//! The liveness prerequisite was replayed by its own analysis; check that it
-//! belongs to the selected program before the producer inspects it, then
-//! verify the range plan independently.
+//! Check that the liveness prerequisite belongs to the selected program
+//! before the producer inspects it. `validate` is the retained-plan verifier.
 use crate::ValidatedLiveness;
 use crate::ValidatedSelectedAnalysis;
 
@@ -25,12 +24,10 @@ pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     validate::require_liveness_of(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
-    validate_live_ranges(selected, liveness, plan)
+    Ok(validate::admit(plan, &[], &[]))
 }
 
-/// Reuse function computations only for identical selected bodies and liveness,
-/// and replay the functions computed afresh. A carried function's rows were
-/// replayed when its predecessor plan was validated, against the same inputs.
+/// Reuse function computations only for identical selected bodies and liveness.
 pub fn analyze_live_ranges_reusing(
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,
@@ -46,13 +43,11 @@ pub fn analyze_live_ranges_reusing(
         selected,
         liveness,
     )?;
-    validate::validate_live_ranges_carrying(
-        selected,
-        liveness,
+    Ok(validate::admit(
         plan,
         &carried,
         &previous_ranges.function_digests,
-    )
+    ))
 }
 
 mod staging;

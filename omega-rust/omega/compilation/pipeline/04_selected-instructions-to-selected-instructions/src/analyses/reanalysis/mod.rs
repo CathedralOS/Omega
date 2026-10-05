@@ -23,14 +23,14 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 pub fn stage_optimized_selected_reanalysis(
     transformation: StagedOptimizedFixedViewCopies,
 ) -> Result<StagedOptimizedSelectedReanalysis, OptimizedSelectedReanalysisError> {
-    validation::validate_source(&transformation)?;
     let (liveness, ranges, legality) = compute::compute_selected_reanalysis(&transformation)?;
-    let custody = validate_optimized_selected_reanalysis_custody(
-        &transformation,
+    invariants::require_no_transitions(&legality)?;
+    let custody = custody::selected_reanalysis_custody_receipt(
+        transformation.custody(),
         &liveness,
         &ranges,
         &legality,
-    )?;
+    );
     Ok(StagedOptimizedSelectedReanalysis {
         transformation,
         liveness,

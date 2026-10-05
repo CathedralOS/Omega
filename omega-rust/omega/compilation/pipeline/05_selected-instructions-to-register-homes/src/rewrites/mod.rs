@@ -8,8 +8,5 @@ pub use rematerialization::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-    stage_optimized_active_resident_rematerialization,
     stage_optimized_active_resident_rematerialization_pressure,
-    validate_optimized_active_resident_rematerialization,
-    validate_optimized_active_resident_rematerialization_pressure,
 };

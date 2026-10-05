@@ -34,13 +34,10 @@ pub fn fold_selected_constant_boolean(
     let function = &mut transformed.functions[function_index];
     function.blocks[admitted.block_index].instructions[admitted.materialization_index] =
         admission::rewritten(&admitted);
-    super::validate_constant_boolean_fold(
+    super::validation::seal_constant_boolean_fold(
         source,
         function_index,
         materialization,
-        environment,
-        effect_catalog,
-        budget,
         transformed,
     )
 }

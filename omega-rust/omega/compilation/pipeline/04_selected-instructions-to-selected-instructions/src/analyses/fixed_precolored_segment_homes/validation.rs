@@ -55,6 +55,14 @@ pub fn validate_fixed_precolored_segment_homes(
     if candidate.functions != expected.functions {
         return Err(FixedPrecoloredSegmentHomeError::NonCanonicalFunctions);
     }
+    seal_fixed_precolored_segment_homes(candidate)
+}
+
+/// Admit a freshly produced plan with its receipt; the producer calls this
+/// instead of replaying its own output.
+pub(crate) fn seal_fixed_precolored_segment_homes(
+    candidate: FixedPrecoloredSegmentHomePlan,
+) -> Result<ValidatedFixedPrecoloredSegmentHomes, FixedPrecoloredSegmentHomeError> {
     let domain_count = candidate
         .functions
         .iter()

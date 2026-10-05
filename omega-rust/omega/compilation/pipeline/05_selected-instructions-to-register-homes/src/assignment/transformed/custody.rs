@@ -1,29 +1,13 @@
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 
 use selected_instructions_to_selected_instructions::{
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
 };
 
 use super::{
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
 };
-
-pub(super) fn literal_fold_home_custody_receipt(
-    source: StagedOptimizedLiteralFoldCustodyReceipt,
-    homes: &ValidatedRegisterHomes,
-    manifest: &ValidatedPostAllocationOptimizationManifest,
-) -> StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
-        source,
-        homes: homes.receipt().identity(),
-        post_allocation_manifest: manifest.record().identity,
-        function_count: homes.receipt().function_count(),
-        assignment_count: homes.receipt().assignment_count(),
-    }
-}
 
 pub(super) fn pre_allocation_home_custody_receipt(
     source: StagedPreAllocationOptimizationCustodyReceipt,

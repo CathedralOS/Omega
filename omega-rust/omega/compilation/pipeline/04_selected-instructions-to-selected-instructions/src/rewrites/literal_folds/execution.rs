@@ -65,7 +65,6 @@ pub fn stage_next_optimized_literal_fold(
     fold_policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedLiteralFolds, OptimizedLiteralFoldCustodyError> {
-    validate_optimized_literal_fold_custody(&sequence)?;
     let previous = sequence.final_step();
     let step = build_step(
         previous.fold(),
