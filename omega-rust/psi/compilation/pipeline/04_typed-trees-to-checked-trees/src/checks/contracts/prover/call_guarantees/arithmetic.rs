@@ -134,15 +134,6 @@ fn proves_bound(
             FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => continue,
         };
-        // Denying a conjunction does not deny either conjunct. The solver may
-        // retain only readable conjuncts of an asserted premise, which is not
-        // a sound weakening beneath negation.
-        if !holds
-            && matches!(program.expression_table.expression(expression),
-                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And)
-        {
-            continue;
-        }
         if let Some(proposition) = proposition(
             program,
             facts,

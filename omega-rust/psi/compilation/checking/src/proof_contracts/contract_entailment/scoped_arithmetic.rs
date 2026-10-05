@@ -79,9 +79,10 @@ pub struct ScopedArithmeticExpression {
     pub bindings: Vec<ScopedArithmeticBinding>,
 }
 
-/// A hypothesis proposition, asserted or denied. A denied hypothesis must be
-/// one comparison; the denial of a conjunction is a disjunction the engine
-/// does not read.
+/// A hypothesis proposition, asserted or denied. The denial of a conjunction
+/// is a disjunction the engine does not read, so a denied hypothesis whose
+/// authored root is not one negatable comparison carries no fact: the
+/// installer drops it and judges the goal from the premises that remain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopedArithmeticHypothesis {
     pub proposition: ScopedArithmeticExpression,
@@ -164,9 +165,11 @@ pub fn scoped_arithmetic_implication(
 }
 
 /// Read every conjunct of one scoped proposition. A conjunct outside the
-/// language is dropped: a weaker asserted hypothesis is sound. The caller
-/// admits denied hypotheses only when their authored root is one comparison,
-/// and requires exactly one successfully read comparison before negating it.
+/// language is dropped: a weaker asserted hypothesis is sound. A denied
+/// hypothesis is negated only after its authored root is known to be one
+/// comparison and that comparison read; a roster that fails to install
+/// leaves the engine partly bound, which is the one condition that still
+/// declines the whole judgment rather than weakening it.
 fn read_comparisons(
     engine: &mut Engine<'_>,
     proposition: &ScopedArithmeticExpression,
@@ -188,24 +191,36 @@ fn install_hypotheses(
     for hypothesis in hypotheses {
         // Weakening an asserted conjunction is sound; negating that weakened
         // conjunction is not. Inspect the authored shape before flattening so
-        // an unread conjunct cannot turn !(A && B) into !A.
+        // an unread conjunct cannot turn !(A && B) into !A. A denial this
+        // engine cannot read is not a fact, and dropping one premise leaves a
+        // strictly weaker set that proves a subset of what the full set
+        // proves. Voiding the whole judgment instead would discard every
+        // unrelated premise that arrived with it, so an alternative guarded by
+        // a negated conjunction would lose even its own asserted `requires`
+        // clauses. The shape is read before this hypothesis installs its
+        // roster, so a dropped denial leaves no bindings in the engine.
         if !hypothesis.holds
             && !matches!(
                 program.expression_table.expression(hypothesis.proposition.expression),
                 ExpressionNode::Binary(binary) if negated_comparison(binary.operator).is_some()
             )
         {
-            return false;
+            continue;
         }
         let Some(mut read) = read_comparisons(engine, &hypothesis.proposition) else {
             return false;
         };
         if !hypothesis.holds {
+            // A root comparison whose operands left the engine's language
+            // reads as no comparison, and a denial of several of them is a
+            // disjunction. Either way this premise is dropped, exactly as the
+            // unreadable root above: its roster is already installed, which
+            // is the state every read hypothesis leaves behind.
             let [(operator, left, right)] = read.as_slice() else {
-                return false;
+                continue;
             };
             let Some(negated) = negated_comparison(*operator) else {
-                return false;
+                continue;
             };
             read = vec![(negated, left.clone(), right.clone())];
         }
