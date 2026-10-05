@@ -1562,6 +1562,7 @@ fn observe(
                     .map(LoweredElementPathSegment::Static)
                     .collect(),
                 scalar_type,
+                bound_decided: false,
             }
         });
     }

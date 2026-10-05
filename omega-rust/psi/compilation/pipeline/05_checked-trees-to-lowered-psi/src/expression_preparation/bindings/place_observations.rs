@@ -297,6 +297,7 @@ pub(crate) fn byte_overlay_read(
         inner_indexes: Vec::new(),
         element_path: Vec::new(),
         scalar_type: byte_type,
+        bound_decided: false,
     };
     let stored = if stored_type == byte_type {
         first_byte

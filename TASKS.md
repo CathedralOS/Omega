@@ -3741,24 +3741,24 @@ deletions, which its commit lists.
     A bounds verdict alone cannot authorize a predicate-breaking byte write.
     Still uncovered: element-view writes and reads that are not a row's root
     (they need a provenance handle on the checked read).
-    `samples/cli/collections/heat_grid` stops on neither: its unproved
-    obligation is a `ScalarBlockInvariant` arrival of the authored
-    `requires 0 <= y && y <= grid.max_y` at a loop edge. Source checking
-    discharges those requirements at each transition
-    (`checks/contracts/calls.rs` `check_call_requires`, success unrecorded),
-    but the verifier admits `SourceChecked` only for operation owners. The
-    design that fits: record each decided transition target
-    `(machine, state, statement_index)` beside `proven_scalar_indexes`; set a
-    flag on `CheckedStructuralControlSuccessorPlan` (built after the checks);
-    have `successor_edge.rs` keep decided arrival edges so
-    `state_graph/emission.rs` publishes those arrivals' obligations; add an
-    authored/inferred origin to `terminal_psi::ScalarBlockInvariant` (codec,
-    validation, reconstruction owner) so the verifier admits the route only for
-    authored rows; and stop the stage 05 invariant pass from conjoining
-    inferred members into an authored row (`scalar_block_invariants.rs`
-    merge), which would otherwise ride the authored evidence. Invocation-entry
-    and scalar-graph arrivals, local refinement rows and inferred rows stay
-    certificate-proved. Exact add, subtract and multiply representability and
+    Authored state arrivals now follow too: `CheckFacts.decided_call_requires`
+    records each call whose `requires` checking discharged, the composed state
+    graph publishes the matching arrivals of an authored row as
+    `SourceChecked`, and `strip_extended_source_checked_arrivals` withdraws
+    them wherever the invariant pass conjoined inferred members into that
+    row. Invocation-entry and scalar-graph arrivals, local refinement rows and
+    inferred rows stay certificate-proved. `IndexedPrimitiveRead` row roots
+    (fixed arrays) take the read mark as well.
+    `samples/cli/collections/heat_grid` (reproducible as a corpus fixture copy
+    with the same `build.omg` shape) now stops on obligation 19, `index < 12`
+    at `let cur: u8 = grid.cells[y * 4 + x]`. That read of a `&mut Grid`
+    field lowers through primitive storage
+    (`expression_preparation/bindings/primitive_reads.rs`), not through a
+    marked row boundary, so it needs a provenance handle (the source `[]`
+    occurrence) on the checked read before stage 05 can join the range
+    check's verdict. The store to the same cell is the byte-write decision
+    another lane added as `CheckFacts.proven_byte_writes`.
+    Exact add, subtract and multiply representability and
     Exact casts now also travel as `SourceChecked` (only the cast stage 04
     builds from a checker fact; synthesized index widenings and scalar-graph
     cast replays keep search). With `OMEGA_DUMP_OBLIGATIONS` over the `pass/`

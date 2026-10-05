@@ -152,6 +152,10 @@ pub(crate) enum LoweredDirectExpression {
         inner_indexes: Vec<LoweredDirectExpression>,
         element_path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
+        /// Checking proved the outer `[]` index within the declared extent;
+        /// emission records that selector's obligation as source-checked.
+        /// Inner selectors keep their own searched obligations.
+        bound_decided: bool,
     },
     ElementViewLength {
         source: PlaceId,
@@ -679,6 +683,7 @@ pub(crate) fn emit_direct_expression(
             inner_indexes,
             element_path,
             scalar_type,
+            bound_decided,
         } => {
             // Selectors evaluate in authored order, outermost array first.
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
@@ -697,6 +702,9 @@ pub(crate) fn emit_direct_expression(
                     .checked_add(1)
                     .expect("read obligation follows its operation identity"),
             );
+            if *bound_decided {
+                operations.source_checked_obligations.push(obligation);
+            }
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             let inner_count = inner_indexes.len();

@@ -117,6 +117,7 @@ pub(crate) fn captured_observation(
                 crate::emission::operation_emission::expressions::LoweredElementPathSegment::Static,
             ).collect(),
             scalar_type: observation.scalar_type,
+            bound_decided: false,
         }
     } else if let Some(field) = observation.field {
         match observation.scalar_type {
@@ -162,6 +163,7 @@ pub(crate) fn captured_observation(
             inner_indexes: Vec::new(),
             element_path: Vec::new(),
             scalar_type: observation.scalar_type,
+            bound_decided: false,
         }
     } else {
         Direct::PrimitiveRead {

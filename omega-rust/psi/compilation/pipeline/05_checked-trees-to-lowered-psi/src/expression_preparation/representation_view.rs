@@ -109,6 +109,7 @@ fn byte_region(
         inner_indexes,
         element_path,
         scalar_type,
+        ..
     } = operand
     else {
         return unsupported("a byte-region re-view must start at one runtime-selected byte");
@@ -149,6 +150,7 @@ fn byte_region(
                 inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 scalar_type,
+                bound_decided: false,
             }),
         };
         let placed = if byte == 0 {

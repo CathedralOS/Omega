@@ -70,6 +70,11 @@ pub(crate) fn mark_checked_index_read(
             | LoweredDirectExpression::ElementViewRead { bound_decided, .. } => {
                 *bound_decided = true;
             }
+            LoweredDirectExpression::IndexedPrimitiveRead {
+                inner_indexes,
+                bound_decided,
+                ..
+            } if inner_indexes.is_empty() => *bound_decided = true,
             _ => {}
         }
     }
@@ -226,6 +231,7 @@ fn lower_indexed_field_observation(
                 .map(LoweredElementPathSegment::Static)
                 .collect(),
             scalar_type,
+            bound_decided: false,
         },
         IndexedElementLeaf::RuntimeTail { .. } => {
             return unsupported("static element path minted a runtime tail");
@@ -707,6 +713,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     inner_indexes,
                     element_path: Vec::new(),
                     scalar_type,
+                    bound_decided: false,
                 });
             }
             if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root {
@@ -802,6 +809,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     inner_indexes: Vec::new(),
                     element_path,
                     scalar_type: terminal_scalar_type(*primitive_type)?,
+                    bound_decided: false,
                 });
             }
             let (source, carrier) = match *root {
@@ -928,6 +936,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 inner_indexes: Vec::new(),
                                 element_path: lowered_path,
                                 scalar_type,
+                                bound_decided: false,
                             });
                         }
                         if !element_path.is_empty() {
@@ -956,6 +965,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 inner_indexes: Vec::new(),
                                 element_path: Vec::new(),
                                 scalar_type: element_scalar,
+                                bound_decided: false,
                             });
                         }
                         return unsupported("indexed field read has no scalar collection carrier");
