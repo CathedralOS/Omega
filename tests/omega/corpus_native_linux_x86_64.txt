@@ -583,6 +583,8 @@ pass/layouts/placed_view_source_access_compile checked 881ms @2d8ed253669f+wt
 pass/layouts/private_callback_slot_demand_compile rejected 35ms @2d8ed253669f+wt
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 355ms @2d8ed253669f+wt
+pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 6968ms @a730a3a70c2
+	terminal-artifact production failed: Lowering(Unsupported("Unit structural argument is neither a parameter nor a supported literal"))
 pass/layouts/runtime_plan_laid_compact_bits_exit built 853ms exit:70 @2d8ed253669f+wt
 pass/layouts/runtime_plan_laid_erased_field_exit built 1610ms exit:70 @9baafc0ace88
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1461ms exit:72 @9baafc0ace88
