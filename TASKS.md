@@ -1570,17 +1570,22 @@ then independent claimed restoration slices -> final closure.
   cannot yet check; do not establish a permanent typed-tree execution exception.
   Current frontier: the shared stage 05-07 production operation is now owned by
   `omega-rust/psi/compilation/terminal-production/`; the Omega product adapter
-  delegates to it and retains product timing/report vocabulary. Early demand
-  closure checking, prerequisite ordering and common-core execution remain
-  unfinished. Wire them to this producer rather than copy its lowering body.
+  delegates to it and retains product timing/report vocabulary. Fixed-array
+  jobs now demand within the original executable roster, settle shared type
+  prerequisites in one private arena and reject actual cycles with their chain.
+  Each job retains its checked facts and exact prepared entry; selected-provider
+  meaning survives ordinary call normalization. Common Terminal job production
+  and execution still depend on **INTERPRETER-CORE-ENTRY**. The current evaluator
+  remains the existing tree engine; this does not close the Terminal acceptance.
 
 - **TERMINAL-BUILD-SEED.** (new-scope) Establish the minimum package-aware
   Build activation that lets agents keep building/checking/running the compiler
   after tree execution is removed. Depends on **EARLY-TERMINAL-JOBS**. Inventory
   the actual transitive Build/core/stdlib requirements of the seed before
   selecting its scope; a minimal source file does not imply a trivial Build.
-  Run guest computation in the core and bind exact compiler-service operations
-  for its required application, dependency, provider and entry declarations.
+  Preserve the statically projected application and dependency declarations;
+  run remaining guest computation in the core and bind exact provider and
+  entry observation services.
   Product description queries do not execute product bodies. Preserve
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
@@ -1592,12 +1597,15 @@ then independent claimed restoration slices -> final closure.
   package-aware `omega run tests/omega/pass/float/named_provider_directed_divide_exit/main.omg`
   after normal local package preparation produces 70. Freeze its actual closure,
   not the whole passing corpus. Unrelated unsupported features may become gaps.
-  The seed's actual Build closure needs `Build::application`,
-  `Build::depend(Source::Path)` and all four authored target `Build::bind` rows;
-  the std dependency executes `Build::package`. Exact original Build storage,
-  declaration coordinates and owned structured results must survive the common
-  instance. These compiler catalog bindings and result transport remain missing;
-  native execution through the existing tree route does not establish this seed.
+  Current frontier: `Build::application`, `Build::depend(Source::Path)` and std's
+  `Build::package` are statically projected, not runtime imports. The seed's
+  runtime work is its four authored `Build::bind` rows. Generalized `RootBinding`
+  checked plans, Terminal lowering and an exact Build observation binding remain
+  missing. The common instance must preserve original mutable Build identity,
+  retained declaration coordinates and ordered observations; product selection
+  does not execute product bodies. The stage 04 statement sequence currently
+  refuses `RootBinding`; core entry alone cannot establish this seed. Native
+  execution through the existing tree route does not close this acceptance.
 
 - **CHECKED-INTERPRETER-DELETED.** (new-scope) Delete the tree execution
   engine immediately after **INTERPRETER-MIGRATION-GAPS** and

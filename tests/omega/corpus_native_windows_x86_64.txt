@@ -207,6 +207,7 @@ pass/collections/std_option_runtime_match_exit built 1322ms exit:70 @0484de10450
 pass/collections/std_option_surface checked 466ms @0484de104502
 pass/collections/zero_length_byte_array_admission checked 434ms @0484de104502
 pass/comptime/provider_boundary_range_endpoint_exit built 1275ms exit:70 @0484de104502
+pass/comptime/runtime_const_array_length_dependency_order_exit built 5555ms exit:70 @2edfa197ce51+wt
 pass/comptime/runtime_const_array_length_transitive_exit built 1251ms exit:70 @0484de104502
 pass/comptime/runtime_const_measured_recursion_exit built 1524ms @7fc7a3a06d34
 pass/comptime/selected_float_array_length_exit built 3505ms exit:70 @0484de104502

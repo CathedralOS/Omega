@@ -714,13 +714,13 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
-        let discharge_authored_requires = discharge_authored_requires
-            || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
-        if discharge_authored_requires {
-            self.require_common_floor_for_concrete_premise_invocation(program, machine, custody)?;
-        } else {
-            self.require_common_floor_for_invocation(program, machine, custody)?;
-        }
+        self.require_const_evaluable_invocation(
+            program,
+            machine,
+            &arguments,
+            custody,
+            discharge_authored_requires,
+        )?;
         let measured = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
@@ -732,6 +732,27 @@ impl BuildTimeAdmissionPlan {
         .map(BuildTimeOperationEvaluation::into_measured)?;
         require_const_evaluable_result(program, machine, measured.value())?;
         Ok(measured)
+    }
+
+    /// Admission is independent of the evaluator's result carrier. A prepared
+    /// checked job keeps the same source invocation and selected semantics
+    /// across ordinary call normalization without dropping its CheckFacts.
+    pub(crate) fn require_const_evaluable_invocation(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        arguments: &[BuildTimeValue],
+        custody: BuildTimeInvocationCustody,
+        discharge_authored_requires: bool,
+    ) -> Result<(), String> {
+        let discharge_authored_requires = discharge_authored_requires
+            || self.zero_argument_invocation_discharge(program, machine, arguments, Some(custody));
+        if discharge_authored_requires {
+            self.require_common_floor_for_concrete_premise_invocation(program, machine, custody)?;
+        } else {
+            self.require_common_floor_for_invocation(program, machine, custody)?;
+        }
+        Ok(())
     }
 
     fn machine_suspension(&self, machine_symbol: SymbolHandle) -> Option<bool> {

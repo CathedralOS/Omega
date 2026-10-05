@@ -158,6 +158,7 @@ pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram, InterpretOptions,
     ProductEntryCompatibility, ProductEntryDeclaration, ProductEntrySignature,
     evaluate_build_machine_arguments, evaluate_build_time_machine, evaluate_const_machine,
-    evaluate_const_machine_measured, evaluate_granted_build_machine_arguments, interpret_entry,
+    evaluate_const_machine_measured, evaluate_granted_build_machine_arguments,
+    evaluate_prepared_build_time_machine, interpret_entry,
     materialize_zero_initialized_build_time_value,
 };

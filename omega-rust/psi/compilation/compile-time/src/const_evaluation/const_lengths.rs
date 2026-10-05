@@ -3,11 +3,12 @@
 //! `[T; table_size()]` puts a build-time-admissible, zero-argument machine call
 //! in a constant position: the position makes it comptime, the contract system
 //! makes it legal (no keyword, no macro -- chapter 13's frozen direction).
-//! Independent calls evaluate before checking. Calls requiring selected provider
-//! execution may remain pending through preliminary package checking, then fold
-//! before final publication under the actual selected plans; the fold lands
-//! an ordinary literal length in the type, which final checking consumes. The
-//! compile does not replay the fold against its own result.
+//! Length jobs evaluate before whole-application checking. Each demanded closure
+//! first settles its own type prerequisites and undergoes ordinary checking;
+//! unrelated pending product inputs supply no execution demand. Provider-dependent
+//! jobs retain the preliminary continuation until exact selected meanings arrive.
+//! The fold publishes a literal length, which final product checking consumes.
+//! The compile does not replay the fold against its own result.
 //!
 //! LEGALITY GATE: the callee's normalized effective service reach must be empty
 //! and its modular operational summary must neither suspend nor block. The
@@ -78,45 +79,13 @@ pub(crate) fn evaluate_const_array_lengths_in(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    let pending = pending_array_lengths(typed, domain);
-
-    if pending.is_empty() {
-        return Ok(());
-    }
-
-    // Admission and execution must see the same closed static applications.
-    // Preparing one private graph preserves the caller's generic templates and
-    // source-owned type handles; only evaluated lengths are published below.
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
-    let execution = prepared.typed();
-    let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
-
-    let mut diagnostics = Vec::new();
-    let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
-
-    for (handle, machine, machine_name, source_span) in &pending {
-        match evaluate_one(execution, &admission, *machine, *source_span) {
-            Ok(value) => substitutions.push((*handle, value)),
-            Err(reason) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "fixed-array length `{}`: const evaluation of `{machine_name}` failed: {reason}",
-                    typed.type_reference_table.display_name(*handle)
-                )));
-            }
-        }
-    }
-
-    for (handle, value) in substitutions {
-        typed
-            .type_reference_table
-            .set_fixed_array_length(handle, value);
-    }
-
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    LengthJobs::new(
+        selection_authority,
+        domain,
+        LengthProviderSelection::Independent,
+    )
+    .evaluate(typed)
+    .map(|_| ())
 }
 
 /// Evaluate independent calls before deferring only the remaining work.
@@ -127,42 +96,7 @@ pub(crate) fn evaluate_independent_lengths(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &EvaluationDomain,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let pending = pending_array_lengths(typed, domain);
-    if pending.is_empty() {
-        return Ok(false);
-    }
-    let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
-    let execution = prepared.typed();
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
-    let admission = BuildTimeAdmissionPlan::infer(execution, authority);
-    let mut deferred = false;
-    let mut evaluated = Vec::new();
-    let mut diagnostics = Vec::new();
-    for (handle, machine, name, source) in pending {
-        if let Some(root) = execution.machine_by_symbol(machine)
-            && admission.closure_needs_operator_selection(execution, root.symbol, &facts)
-        {
-            deferred = true;
-        } else {
-            match evaluate_one(execution, &admission, machine, source) {
-                Ok(value) => evaluated.push((handle, value)),
-                Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                    "fixed-array length `{}`: const evaluation of `{name}` failed: {reason}",
-                    typed.type_reference_table.display_name(handle)
-                ))),
-            }
-        }
-    }
-    for (handle, value) in evaluated {
-        typed
-            .type_reference_table
-            .set_fixed_array_length(handle, value);
-    }
-    if diagnostics.is_empty() {
-        Ok(deferred)
-    } else {
-        Err(diagnostics)
-    }
+    LengthJobs::new(authority, domain, LengthProviderSelection::Pending).evaluate(typed)
 }
 
 pub(crate) fn evaluate_selected_array_lengths(
@@ -175,7 +109,6 @@ pub(crate) fn evaluate_selected_array_lengths(
         operators,
         provider_bodies,
     } = selected;
-    let pending = pending_array_lengths(typed, domain);
     // Admission and execution must see the same selected realization. When a
     // selected use means an ordinary checked provider body, rebind its
     // occurrence to the exact provider entry state on one private copy: the
@@ -188,41 +121,277 @@ pub(crate) fn evaluate_selected_array_lengths(
             operators,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let execution_program = domain.execution_program(selected_program.as_ref().unwrap_or(typed));
-    let execution = &execution_program;
-    let admission = BuildTimeAdmissionPlan::infer(execution, authority)
-        .with_selected_operators(execution, operators)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let mut folded = Vec::new();
-    for (type_reference, selected, _, source) in pending {
-        let machines: Vec<_> = execution
-            .machines()
-            .iter()
-            .filter(|machine| selected.is_valid() && machine.symbol == selected)
-            .collect();
-        let [machine] = machines.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "folded length has no unique source invocation",
-            )]);
-        };
-        let value = evaluate_exact_invocation(execution, &admission, machine, source)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        folded.push((type_reference, value));
-    }
-    for (type_reference, value) in folded {
-        typed
+    let mut execution = selected_program.unwrap_or_else(|| typed.clone());
+    LengthJobs::new(
+        authority,
+        domain,
+        LengthProviderSelection::Selected(operators),
+    )
+    .evaluate(&mut execution)?;
+    for (type_reference, _, _, _) in pending_array_lengths(typed, domain) {
+        if let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(value),
+            ..
+        } = execution
             .type_reference_table
-            .set_fixed_array_length(type_reference, value);
+            .type_reference(type_reference)
+        {
+            typed
+                .type_reference_table
+                .set_fixed_array_length(type_reference, *value);
+        }
     }
     Ok(())
 }
 
-fn evaluate_exact_invocation(
-    typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    machine: &Machine,
-    source: source::SourceSpan,
-) -> Result<usize, String> {
+/// Provider settlement is an existing lifecycle boundary, not an alternate
+/// evaluator. Each phase uses the same demanded preparation and checking.
+enum LengthProviderSelection<'selection> {
+    Pending,
+    Independent,
+    Selected(&'selection [crate::SelectedBuildTimeBinaryOperator]),
+}
+
+struct LengthJobs<'selection> {
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    domain: &'selection EvaluationDomain,
+    providers: LengthProviderSelection<'selection>,
+    active: Vec<(TypeReferenceHandle, String)>,
+}
+
+impl<'selection> LengthJobs<'selection> {
+    fn new(
+        authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+        domain: &'selection EvaluationDomain,
+        providers: LengthProviderSelection<'selection>,
+    ) -> Self {
+        Self {
+            authority,
+            domain,
+            providers,
+            active: Vec::new(),
+        }
+    }
+
+    /// Only successful source-owned lengths leave the private job graph. A
+    /// job's type dependencies must finish before its body is checked or run;
+    /// declaration order and unrelated pending product fields cannot supply
+    /// zero lengths or grant execution. Final product checking still owns all
+    /// declarations after the ordinary continuation finishes.
+    fn evaluate(&mut self, typed: &mut TypedTrees) -> Result<bool, Vec<Diagnostic>> {
+        let pending = pending_array_lengths(typed, self.domain);
+        if pending.is_empty() {
+            return Ok(false);
+        }
+        // The original execution roster is the authority boundary. Prepare
+        // its static applications once, then keep all prerequisite results in
+        // this one private arena. Shared leaves become literal slots rather
+        // than being interpreted again for each path through a diamond.
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, self.domain)?;
+        let mut execution = prepared.typed().clone();
+        let mut deferred = false;
+        let mut diagnostics = Vec::new();
+        for (handle, _, _, _) in pending {
+            match self.evaluate_length(&mut execution, handle) {
+                Ok(Some(value)) => typed
+                    .type_reference_table
+                    .set_fixed_array_length(handle, value),
+                Ok(None) => deferred = true,
+                Err(errors) => diagnostics.extend(errors),
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(deferred)
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    fn evaluate_length(
+        &mut self,
+        typed: &mut TypedTrees,
+        handle: TypeReferenceHandle,
+    ) -> Result<Option<usize>, Vec<Diagnostic>> {
+        let (machine, name, source) = match typed.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Literal(value),
+                ..
+            } => {
+                return Ok(Some(*value));
+            }
+            TypeReferenceNode::FixedArray {
+                length:
+                    FixedArrayLength::ConstCall {
+                        machine,
+                        name,
+                        source_span,
+                    },
+                ..
+            } => (*machine, name.as_str().to_owned(), *source_span),
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "length job lost its exact array type",
+                )]);
+            }
+        };
+        if let Some(position) = self.active.iter().position(|(active, _)| *active == handle) {
+            let chain = self.active[position..]
+                .iter()
+                .map(|(reference, name)| format!("{name} at {reference:?}"))
+                .chain(std::iter::once(format!("{name} at {handle:?}")))
+                .collect::<Vec<_>>()
+                .join(" -> ");
+            return Err(vec![
+                Diagnostic::error(format!("fixed-array length dependency cycle: {chain}"))
+                    .with_source_span(source),
+            ]);
+        }
+        self.active.push((handle, name.clone()));
+        let result = self.prepare_and_invoke(typed, machine, source);
+        self.active.pop();
+        let value = result.map_err(|mut errors| {
+            for error in &mut errors {
+                error.message = format!(
+                    "fixed-array length `{}`: const evaluation of `{name}` failed: {}",
+                    typed.type_reference_table.display_name(handle),
+                    error.message,
+                );
+                if error.source_span.is_none() {
+                    error.source_span = Some(source);
+                }
+            }
+            errors
+        })?;
+        if let Some(value) = value {
+            typed
+                .type_reference_table
+                .set_fixed_array_length(handle, value);
+        }
+        Ok(value)
+    }
+
+    fn prepare_and_invoke(
+        &mut self,
+        typed: &mut TypedTrees,
+        machine: symbols::SymbolHandle,
+        source: source::SourceSpan,
+    ) -> Result<Option<usize>, Vec<Diagnostic>> {
+        let domain = EvaluationDomain::all().demanded_roots(typed, &[machine]);
+        let mut execution = domain.execution_program(typed);
+        let admission = BuildTimeAdmissionPlan::infer(&execution, self.authority.clone());
+        if matches!(self.providers, LengthProviderSelection::Pending) {
+            let facts =
+                typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&execution);
+            if admission.closure_needs_operator_selection(&execution, machine, &facts) {
+                return Ok(None);
+            }
+        }
+        // Type closure includes the declarations of length-producing helpers.
+        // Visit fresh prerequisite jobs before an active type encountered
+        // through that transitive closure so a cycle reports its whole chain.
+        let mut deferred = false;
+        let mut dependencies = pending_array_lengths(&execution, &EvaluationDomain::all());
+        dependencies.sort_by_key(|(handle, _, _, _)| {
+            self.active.iter().any(|(active, _)| active == handle)
+        });
+        for (dependency, _, _, _) in dependencies {
+            if self.evaluate_length(typed, dependency)?.is_none() {
+                deferred = true;
+            }
+        }
+        if deferred {
+            return Ok(None);
+        }
+
+        // A newly literal type can close a static application's remaining
+        // tuple. Resume the same specialization owner in the same arena; it
+        // appends real instances and cannot replay an evaluated leaf.
+        typed_trees_to_checked_trees::specialize_static_machine_calls(typed)?;
+        let domain = EvaluationDomain::all().demanded_roots(typed, &[machine]);
+        execution = domain.execution_program(typed);
+
+        let references = typed_trees::references::collect_program_references(&execution);
+        let operators = match &self.providers {
+            LengthProviderSelection::Selected(operators) => operators
+                .iter()
+                .filter(|row| references.expressions.contains(&row.expression))
+                .cloned()
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        if matches!(self.providers, LengthProviderSelection::Pending)
+            && crate::const_evaluation::range_endpoints::pending_endpoint_calls_need_operator_selection(
+                &execution, self.authority.clone(), &EvaluationDomain::all(),
+            )?
+        {
+            return Ok(None);
+        }
+        crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
+            &mut execution,
+            self.authority.clone(),
+            crate::SelectedBuildTimeOperators {
+                operators: &operators,
+                provider_bodies: &[],
+            },
+            &EvaluationDomain::all(),
+        )?;
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            execution,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )?;
+        // Admission sees the selected operation's executable meaning, not a
+        // bodyless requirement introduced by ordinary call normalization.
+        // Derive that semantic view from the fully checked graph: checking
+        // also resolves member meaning such as a newly-known array length.
+        // The executed checked graph and all its facts remain immutable.
+        let admitted = crate::machine_execution::selected_operators::prepare_selected_execution(
+            &checked.typed,
+            &[],
+            &operators,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let execution = admitted.as_ref().unwrap_or(&checked.typed);
+        let root = execution.machine_by_symbol(machine).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "array length lost its exact selected machine",
+            )]
+        })?;
+        require_zero_argument_entry(execution, root)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let admission = BuildTimeAdmissionPlan::infer(execution, self.authority.clone())
+            .with_selected_operators(execution, &operators)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // The immutable checked entry consumes the same sealed occurrence row,
+        // never a new provider selection or an unadmitted requirement body.
+        admission
+            .require_const_evaluable_invocation(
+                execution,
+                root,
+                &[],
+                crate::BuildTimeInvocationCustody::Source(source),
+                false,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
+        let entry = prepared
+            .entry(machine)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let value = prepared
+            .evaluate_checked_constant(&entry, &operators)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let execution = prepared.typed();
+        let root = execution.machine_by_symbol(machine).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "checked length job lost its exact machine",
+            )]
+        })?;
+        decode_length_result(execution, root, value)
+            .map(Some)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+}
+
+fn require_zero_argument_entry(typed: &TypedTrees, machine: &Machine) -> Result<(), String> {
     let parameter_count = entry_state_parameter_count(typed, machine);
     if parameter_count > 0 {
         let machine_name = machine.name.as_str();
@@ -231,12 +400,14 @@ fn evaluate_exact_invocation(
              array length must call a zero-argument machine (const arguments are not supported yet)"
         ));
     }
-    let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
-        typed,
-        machine.symbol,
-        Vec::new(),
-        crate::BuildTimeInvocationCustody::Source(source),
-    )?;
+    Ok(())
+}
+
+fn decode_length_result(
+    typed: &TypedTrees,
+    machine: &Machine,
+    value: crate::BuildTimeValue,
+) -> Result<usize, String> {
     let value = decode_integer_result(typed, machine, value)?;
     if value.is_negative() {
         return Err(format!(
@@ -247,18 +418,6 @@ fn evaluate_exact_invocation(
         .to_u64()
         .and_then(|value| usize::try_from(value).ok())
         .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
-}
-
-fn evaluate_one(
-    typed: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    machine: symbols::SymbolHandle,
-    source_span: source::SourceSpan,
-) -> Result<usize, String> {
-    let machine = typed
-        .machine_by_symbol(machine)
-        .ok_or("array length lost its exact selected machine")?;
-    evaluate_exact_invocation(typed, admission, machine, source_span)
 }
 
 pub fn evaluate_zero_argument_machine(

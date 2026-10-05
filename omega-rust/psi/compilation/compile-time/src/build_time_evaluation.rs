@@ -63,6 +63,25 @@ impl EvaluationDomain {
         &self.work
     }
 
+    /// One early job demands its complete checking and executable closure,
+    /// rather than unrelated pending application inputs. Product descriptions
+    /// remain available with the original custody and grant no body demand.
+    pub(crate) fn demanded_roots(
+        &self,
+        program: &typed_trees::TypedTrees,
+        roots: &[symbols::SymbolHandle],
+    ) -> Self {
+        let execution = self.execution_program(program);
+        let mut domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+            &execution,
+            roots,
+            &[],
+        );
+        domain.execution = domain.execution.intersect(&self.execution);
+        domain.product_frontier = self.product_frontier.clone();
+        domain
+    }
+
     pub(crate) fn execution_program(
         &self,
         original: &typed_trees::TypedTrees,

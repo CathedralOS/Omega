@@ -162,9 +162,9 @@ pub struct BuildMachineEvaluationRequest<'a> {
     pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
 }
 
-/// The immutable source and facts available to a Build invocation. Early
-/// constant preparation has typed source only; an admitted activation retains
-/// the checker's exact arena and operator execution facts. Neither variant
+/// The immutable source and facts available to a compiler invocation. Early
+/// elaboration can retain typed source; a checked constant job or Build activation
+/// retains the checker's exact arena and operator execution facts. Neither variant
 /// imports a runtime provider's boundary dispatch or host-service authority.
 #[derive(Clone, Copy)]
 pub enum BuildMachineProgram<'program> {
@@ -295,6 +295,17 @@ pub fn evaluate_build_time_machine(
     program: &TypedTrees,
     request: BuildMachineEvaluationRequest<'_>,
 ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+    evaluate_prepared_build_time_machine(BuildMachineProgram::Typed(program), request)
+}
+
+/// Ordinary early-job preparation retains its checked facts when returning a
+/// value, just as Build activation does when observing argument storage. Both
+/// entrances use this existing evaluator; Terminal-only execution will replace
+/// the evaluator after its checker and admission prerequisites are complete.
+pub fn evaluate_prepared_build_time_machine(
+    program: BuildMachineProgram<'_>,
+    request: BuildMachineEvaluationRequest<'_>,
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
     evaluate_structured_return(program, request.entry, request.arguments, request.operators)
 }
 
@@ -354,14 +365,19 @@ fn evaluate_const_on_current_thread(
 }
 
 fn evaluate_structured_return(
-    program: &TypedTrees,
+    program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
+    let typed = match program {
+        BuildMachineProgram::Typed(typed) => typed,
+        BuildMachineProgram::Checked(checked) => &checked.typed,
+        BuildMachineProgram::CheckedClosure { execution, .. } => &execution.typed,
+    };
     if operators
         .iter()
-        .any(|operator| operator.has_crash_contract(program))
+        .any(|operator| operator.has_crash_contract(typed))
     {
         return Err(
             "selected operator crash invocations have no build-time execution support".into(),
@@ -371,7 +387,7 @@ fn evaluate_structured_return(
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
-                let mut evaluator = Evaluator::new(program, &[]);
+                let mut evaluator = Evaluator::new_build(program);
                 evaluator.selected_build_time_operators = operators;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = match entry {

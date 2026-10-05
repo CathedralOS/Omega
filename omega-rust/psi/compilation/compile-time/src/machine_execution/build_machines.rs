@@ -176,6 +176,32 @@ impl PreparedBuildMachineProgram {
         }
     }
 
+    /// Return one admitted zero-argument constant through this checked
+    /// preparation's exact entry identity. The caller still owns ConstEvaluable
+    /// and package selection admission; this entrance retains every CheckFact
+    /// and selected operation while the existing evaluator remains in use.
+    pub(crate) fn evaluate_checked_constant(
+        &self,
+        entry: &PreparedBuildMachineEntry,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
+    ) -> Result<BuildTimeValue, String> {
+        if !matches!(self.program, PreparedBuildMachineBody::Checked(_)) {
+            return Err("constant invocation requires a checked preparation".into());
+        }
+        let symbol = self
+            .validate_entry(entry)
+            .map_err(|error| error.to_string())?;
+        super::selected_operators::validate_selected_operators(self.typed(), operators)?;
+        checked_interpreter::evaluate_prepared_build_time_machine(
+            self.interpreter_program(),
+            checked_interpreter::BuildMachineEvaluationRequest {
+                operators,
+                ..checked_interpreter::BuildMachineEvaluationRequest::symbol(symbol, Vec::new())
+            },
+        )
+        .map(checked_interpreter::BuildTimeOperationEvaluation::into_value)
+    }
+
     fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {
         match &self.program {
             PreparedBuildMachineBody::Typed(typed) => {

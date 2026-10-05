@@ -23,6 +23,111 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(value);
         }
+        // Checking normalizes a token use into its exact requirement call.
+        // Both representations consume the already-selected sealed meaning;
+        // no requirement body or provider name is searched at execution time.
+        if let Some(selected) = self
+            .selected_build_time_operators
+            .iter()
+            .find(|selected| {
+                selected.expression == handle
+                    && selected.origin.machine_symbol() == Some(frame.machine_symbol)
+            })
+            .copied()
+        {
+            let operands = match &node {
+                ExpressionNode::Binary(binary) if binary.operator == selected.operation => {
+                    [binary.left, binary.right]
+                }
+                ExpressionNode::Call(call) => {
+                    let exact_target = call.target_symbol == selected.requirement
+                        || self
+                            .program
+                            .machine_by_symbol(selected.requirement)
+                            .is_some_and(|machine| {
+                                let states = self.program.machine_states(machine);
+                                states.len() == 1 && states[0].symbol == call.target_symbol
+                            });
+                    let [left, right] = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                    else {
+                        return trap("selected binary requirement lost its exact arity");
+                    };
+                    if !exact_target
+                        || call.receiver.is_valid()
+                        || call.static_machine_parameter.is_valid()
+                        || !call.machine_arguments.is_empty()
+                        || !call.carries_only_positional_arguments()
+                    {
+                        return trap(
+                            "selected binary requirement lost its exact target or arguments",
+                        );
+                    }
+                    [*left, *right]
+                }
+                _ => return trap("selected binary execution lost its current operation"),
+            };
+            let unique = self
+                .selected_build_time_operators
+                .iter()
+                .filter(|row| {
+                    row.expression == handle
+                        && row.origin.machine_symbol() == Some(frame.machine_symbol)
+                })
+                .count()
+                == 1;
+            let checked_selection = self.operator_facts.is_none_or(|facts| {
+                let mut selections = facts.resolved_expression_selections().filter(
+                    |(expression, origin, requirement, policy)| {
+                        *expression == handle
+                            && *origin == selected.origin
+                            && *requirement == selected.requirement
+                            && *policy == selected.policy
+                    },
+                );
+                selections.next().is_some() && selections.next().is_none()
+            });
+            if operands != selected.operands
+                || !unique
+                || selected.provider.is_empty()
+                || !checked_selection
+            {
+                return trap(
+                    "selected build-time execution lost its exact occurrence or checked selection",
+                );
+            }
+            let primitive = match selected.format {
+                numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+            };
+            let left =
+                self.eval_expression_with_destination(operands[0], Some(primitive), frame)?;
+            let right =
+                self.eval_expression_with_destination(operands[1], Some(primitive), frame)?;
+            if !left.is_float() || !right.is_float() {
+                return trap(format!(
+                    "selected float execution at {handle:?} received nonfloat operands: {left:?}, {right:?}"
+                ));
+            }
+            let domain = match selected.policy {
+                checked_trees::CheckedArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
+                checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                    ..
+                } => ArithmeticDomain::Saturating,
+                checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                    ..
+                } => ArithmeticDomain::Trapping,
+            };
+            return self.eval_float_binary(
+                selected.operation,
+                &left,
+                &right,
+                Some((primitive, domain)),
+                None,
+            );
+        }
         match node {
             ExpressionNode::Match(dispatch) => {
                 let selected = self.select_match_arm(handle, &dispatch, frame)?;
@@ -78,60 +183,6 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Binary(binary) => {
                 if binary.operator == BinaryOperator::CaseMembership {
                     return self.eval_case_membership(handle, &binary, frame);
-                }
-                if let Some(selected) = self
-                    .selected_build_time_operators
-                    .iter()
-                    .find(|selected| {
-                        selected.expression == handle
-                            && selected.origin.machine_symbol() == Some(frame.machine_symbol)
-                    })
-                    .copied()
-                {
-                    if [binary.left, binary.right] != selected.operands
-                        || binary.operator != selected.operation
-                        || self
-                            .selected_build_time_operators
-                            .iter()
-                            .filter(|row| {
-                                row.expression == handle
-                                    && row.origin.machine_symbol() == Some(frame.machine_symbol)
-                            })
-                            .count()
-                            != 1
-                    {
-                        return trap(
-                            "selected build-time binary execution lost its exact occurrence or operands",
-                        );
-                    }
-                    let primitive = match selected.format {
-                        numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
-                        numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
-                    };
-                    let left =
-                        self.eval_expression_with_destination(binary.left, Some(primitive), frame)?;
-                    let right = self.eval_expression_with_destination(
-                        binary.right,
-                        Some(primitive),
-                        frame,
-                    )?;
-                    if !left.is_float() || !right.is_float() {
-                        return trap(format!(
-                            "selected float execution at {handle:?} received nonfloat operands: {left:?}, {right:?}"
-                        ));
-                    }
-                    let domain = match selected.policy {
-                        checked_trees::CheckedArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
-                        checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. } => ArithmeticDomain::Saturating,
-                        checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. } => ArithmeticDomain::Trapping,
-                    };
-                    return self.eval_float_binary(
-                        selected.operation,
-                        &left,
-                        &right,
-                        Some((primitive, domain)),
-                        None,
-                    );
                 }
 
                 if let Some(value) = self.eval_selected_trait_operator(handle, &binary, frame)? {

@@ -50,9 +50,19 @@ impl PreparedEvaluationInputs {
         roots: &[SymbolHandle],
         expressions: &[SourceSpan],
     ) -> EvaluationDomain {
+        Self::domain_for_program(&self.typed, roots, expressions)
+    }
+
+    /// Typed evaluation customers share the resolver probe's exact dependency
+    /// closure. Backing tables retain their handles; only declaration demand changes.
+    pub(crate) fn domain_for_program(
+        program: &TypedTrees,
+        roots: &[SymbolHandle],
+        expressions: &[SourceSpan],
+    ) -> EvaluationDomain {
         let mut execution = roots.to_vec();
-        selected_body_dependencies(&self.typed, &mut execution);
-        let (work, selection) = declaration_dependencies(&self.typed, &execution, expressions, &[]);
+        selected_body_dependencies(program, &mut execution);
+        let (work, selection) = declaration_dependencies(program, &execution, expressions, &[]);
         EvaluationDomain::selected(work, selection)
     }
 }
