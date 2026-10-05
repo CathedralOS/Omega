@@ -184,30 +184,25 @@ buys one clean report before the next sweep silently reopens the hole. This is
 recorded rather than done because `sites.rs` is a trust record: an automated
 edit to it was refused as audit tampering, which is the correct outcome.
 
-**New as of 2026-10-05: the drift now blocks finished work, and the sanctioned
-tool cannot express the right action.** A lane completed
-`psi: carry a record's linear member claims on its result`
-(`de2b052d523`, verify receipt `exit_code: 0`, 1973 fixtures measured across
-six shards, 0 fail fixtures ceasing to reject) and cannot publish:
-`landing.py` refuses it for changing five pinned files without re-recording,
-and the only re-record the tool offers is a blanket `--write` that would also
-bless the 40 entries the lane did not author. The correct action is a
-five-entry selective re-record, and `trusted_surface_digests.py` has no such
-mode. So the decision is no longer only about who owns historical drift: until
-it is answered, any lane that legitimately edits a pinned verifier file is
-unable to land at all, and the measurement was 47 stale when this question was
-filed and is 40 at `112dd51edc8`.
+**Measured 2026-10-05: a selective re-record is landable, so the drift blocks
+nobody, and the historical 40 remain the whole question.** An earlier revision
+of this entry claimed the rule and the landing gate contradict each other for
+any lane editing a pinned file. That is **refuted by demonstration**:
+`b474414158572c522ad113f56bd5328a1eed333e` changed six pinned verifier files
+and carried `sites.rs` with exactly six digest updates, one per file it
+authored. Verified independently at `b0a48cde065`: the ledger still reports
+**40** stale entries, unchanged, and none of that lane's six files appear in
+the stale list. A lane refreshing only its own authored entries is a different
+act from the blanket `--write`, is what the trust rule already permits, and
+needs no new capability.
 
-A fourth edit therefore belongs with the three above: give
-`trusted_surface_digests.py` a path-scoped re-record so a lane can refresh
-exactly the files its own candidate changed. That is the capability the trust
-rule already implies -- nobody may refresh a digest for a file they did not
-author -- and without it the rule and the landing gate contradict each other.
+A path-scoped mode on `trusted_surface_digests.py` therefore remains worth
+having as a convenience -- it would make the narrow act the easy one rather
+than the careful one -- but it is not a precondition for anyone's landing and
+is not a fourth required edit. The three edits above still stand on their own.
 
-The delay has a measured cost beyond the one lane: that commit edits
-`validation/frontier/operations.rs`, which live claim
-`0415dbdd39e44a8998073ed003c45a51` also holds, so the longer it waits the more
-likely it lands as a conflict rather than a fast-forward.
+The one measurement that did change: staleness was 47 when this question was
+filed and is 40 at `b0a48cde065`.
 
 ### Q3 - What does a locally declared boundary schema mean against the target's own?
 
