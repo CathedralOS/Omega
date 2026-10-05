@@ -2067,6 +2067,7 @@ pass/effects/nominal_callback_const_reach checked 300ms @2d8ed253669f
 pass/effects/nominal_callback_dependency checked 302ms @2d8ed253669f
 pass/effects/structural_callback_reach checked 324ms @2d8ed253669f
 pass/entry/service_borrowed_slice_call checked 725ms @2d8ed253669f
+pass/errors/returned_case_payload_from_parameter_exit checked 2545ms @5798b57ae772+wt
 pass/errors/runtime_result_match_exit checked 2045ms @2d8ed253669f
 pass/errors/trap_unrecoverable_statement checked 294ms @2d8ed253669f
 pass/expressions/anonymous_numeric_match_subject checked 286ms @2d8ed253669f
@@ -2112,8 +2113,8 @@ pass/expressions/runtime_temporary_record_field_call_exit checked 501ms @f70a22c
 pass/expressions/runtime_widened_comparison_exit checked 1648ms @2d8ed253669f
 pass/expressions/scalar_match_boundary_composition_exit checked 5240ms @2d8ed253669f
 pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
-pass/filesystem/dir_walk_wrappers_exit rejected 23303ms @3243c9001d4
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::read_dir_is_empty`), which was itself omitted at local construction at `statement sequence: structural result: returned value` (state 3)
+pass/filesystem/dir_walk_wrappers_exit rejected 47403ms @4b97a8b0720e
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at an unavailable callee (`Filesystem::mkall_walk`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: qualified non-linear parameter` (state 0)
 pass/filesystem/native_canonicalize rejected 1211ms @c47f8652484
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close checked 1246ms @9b253f5667e5

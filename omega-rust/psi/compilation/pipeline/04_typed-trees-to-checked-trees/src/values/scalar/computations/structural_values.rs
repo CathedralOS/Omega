@@ -750,6 +750,57 @@ fn projection_root_expression(
 }
 
 impl Builder<'_, '_> {
+    /// The dense structural position `symbol` occupies in this state's
+    /// signature, with the parameter's declared type, or `None` when the name
+    /// is not a carried structural formal. Dense positions count only the
+    /// parameters that own a structural ingress slot: a `const` or `[erased]`
+    /// binding owns none, and a primitive parameter travels the scalar roster
+    /// instead. Consumers resolve `Parameter { parameter_index }` against the
+    /// retained structural parameter roster, which counts the same way, so the
+    /// index is a shared coordinate rather than a local convention. One known
+    /// boundary: stage 05's `parameter_declaration` omits the `[erased]`
+    /// predicate, so a state that mixes an erased structural binding with a
+    /// later structural formal is the one shape where the two sides disagree.
+    fn structural_parameter(&self, symbol: SymbolHandle) -> Option<(u32, TypeReferenceHandle)> {
+        let (index, parameter) = self
+            .authored_parameters
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && !parameter.relevance.is_erased()
+                    && self
+                        .program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == symbol)?;
+        Some((u32::try_from(index).ok()?, parameter.type_reference))
+    }
+
+    /// The source plan naming where `symbol`'s storage lives: its dense
+    /// signature position when the name resolves to a carried structural
+    /// formal, and the operation sequence's local slot otherwise. Every whole
+    /// owned structural source this builder plans classifies through here,
+    /// because a parameter root described as a local has no consumption owner:
+    /// the returned-value walk looks for a result binding that a formal never
+    /// mints, and the affine residual routes key on the dense position.
+    fn structural_source(
+        &self,
+        symbol: SymbolHandle,
+    ) -> checked_trees::CheckedUnitStructuralArgumentSourcePlan {
+        match self.structural_parameter(symbol) {
+            Some((parameter_index, _)) => {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                }
+            }
+            None => {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            }
+        }
+    }
+
     pub(super) fn structural_value(
         &mut self,
         expression: ExpressionHandle,
@@ -907,9 +958,7 @@ impl Builder<'_, '_> {
             validation::scalar_case_value_source(self.program, expression, expected)
         {
             CheckedStructuralValueKind::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                },
+                source: self.structural_source(symbol),
                 path: Vec::new(),
                 type_identity: self
                     .program
@@ -1346,30 +1395,7 @@ impl Builder<'_, '_> {
         let facts::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
-        // The root's dense structural position is its signature ordinal when
-        // the name resolves to a carried parameter, exactly as
-        // `owned_record_place` classifies owned arms; anything else is an
-        // operation-sequence local keyed by symbol.
-        let source = if let Some((index, _)) = self
-            .authored_parameters
-            .iter()
-            .filter(|parameter| {
-                !parameter.is_const
-                    && !parameter.relevance.is_erased()
-                    && self
-                        .program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == symbol)
-        {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(index).ok()?,
-            }
-        } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-        };
+        let source = self.structural_source(symbol);
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
             self.state,
@@ -1432,26 +1458,14 @@ impl Builder<'_, '_> {
             .machine_states(owner)
             .iter()
             .find(|state| state.symbol == self.state)?;
-        let (source, reference) = if let Some((index, parameter)) = self
-            .authored_parameters
-            .iter()
-            .filter(|parameter| {
-                // An `[erased]` binding owns no structural position either.
-                !parameter.is_const
-                    && !parameter.relevance.is_erased()
-                    && self
-                        .program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == name.symbol)
+        let (source, reference) = if let Some((parameter_index, type_reference)) =
+            self.structural_parameter(name.symbol)
         {
             (
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(index).ok()?,
+                    parameter_index,
                 },
-                parameter.type_reference,
+                type_reference,
             )
         } else {
             let (_, local) = self
