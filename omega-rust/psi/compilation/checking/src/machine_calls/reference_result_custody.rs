@@ -334,17 +334,15 @@ pub fn borrowed_initializer_source(
     // declaration, the local must not be erased, and a reference-typed
     // local is a silent marker with no storage to name — borrowing through
     // one is the reborrow lane, which this plan does not reconstruct.
-    enum CarrierRoot {
-        Parameter(u32),
-        Local(SymbolHandle),
-    }
-    let (root, mut owner_type) = match found {
+    let (source, mut owner_type) = match found {
         Some((position, parameter)) => {
             if parameter.name != *name || projections.is_empty() {
                 return None;
             }
             (
-                CarrierRoot::Parameter(u32::try_from(position).ok()?),
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(position).ok()?,
+                },
                 parameter.type_reference,
             )
         }
@@ -361,7 +359,27 @@ pub fn borrowed_initializer_source(
             {
                 return None;
             }
-            (CarrierRoot::Local(local.symbol), local.type_reference)
+            // Mutable primitive declarations already establish a primitive
+            // home in the operation sequence. Lending that home must retain
+            // its storage namespace: calling it a structural local would ask
+            // lowering for a second establishment that never occurred.
+            // Immutable scalar values and structural carriers keep their
+            // existing structural-home projection; reference access remains
+            // the independent authored loan checked above.
+            let source = if local.is_mutable
+                && program
+                    .primitive_type_reference(local.type_reference)
+                    .is_some()
+            {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                    symbol: local.symbol,
+                }
+            } else {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: local.symbol,
+                }
+            };
+            (source, local.type_reference)
         }
     };
     // Each member hop resolves against the nominal owner its receiver
@@ -421,14 +439,6 @@ pub fn borrowed_initializer_source(
     if program.normalized_type_identity(leaf) != program.normalized_type_identity(referent) {
         return None;
     }
-    let source = match root {
-        CarrierRoot::Parameter(parameter_index) => {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
-        }
-        CarrierRoot::Local(symbol) => {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-        }
-    };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source,
         path: segments,
