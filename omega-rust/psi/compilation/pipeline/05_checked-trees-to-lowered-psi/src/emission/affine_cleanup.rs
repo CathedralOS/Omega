@@ -503,19 +503,15 @@ fn replace_managed_discards(
 /// Runtime establishment identity, independent of whether the operation
 /// returns the carrier or establishes a predeclared no-code local in place.
 fn established_place(operation: &terminal_psi::Operation) -> Option<semantic_vocabulary::PlaceId> {
-    operation
-        .result
-        .structural()
-        .map(|result| result.place)
-        .or_else(|| {
-            if let terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } =
-                &operation.kind
-            {
-                Some(*destination)
-            } else {
-                None
-            }
-        })
+    if let Some(result) = operation.result.structural() {
+        return Some(result.place);
+    }
+    match &operation.kind {
+        terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } => {
+            Some(*destination)
+        }
+        _ => None,
+    }
 }
 
 fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {
