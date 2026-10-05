@@ -207,12 +207,16 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             {
                 return false;
             }
-            let [name] = program.expression_table.name_path_members(path.members) else {
-                return false;
-            };
+            // The clause names one authored parameter, and resolution has
+            // already said which: stage 02 assigns every trait-requirement
+            // contract name against this signature's own parameter roster
+            // (`symbols::contracts::assign_contract_reference_symbols`), and a
+            // single-member path's leaf symbol is that parameter's symbol.
+            // Both stages carry it verbatim, so the handle is the identity and
+            // the member spelling is only the diagnostic payload beside it.
             let Some(position) = parameters
                 .iter()
-                .position(|parameter| parameter.symbol == path.symbol || parameter.name == *name)
+                .position(|parameter| parameter_is_root(parameter, path.symbol))
             else {
                 return false;
             };
