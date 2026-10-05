@@ -1,0 +1,4 @@
+owner: z1
+provenance: re-probe at dfb032403d: twins flip-flop resolved — BOTH now rejected at identical 8-diag FloatNativeProvider::satisfies intrinsic wall on both legs (x86_baseline compile 377335ms, windows_x64 native 347240ms)
+ticket: 654f5837e4dc499b996584e2732e38bf
+published_utc: 2026-10-05T23:51:19.004332+00:00
