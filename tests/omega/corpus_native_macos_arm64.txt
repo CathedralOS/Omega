@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 33.69, "load1_start": 32.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 24.34, "load1_start": 26.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -291,14 +291,11 @@ pass/capabilities/boundary_trait_multiple_effects checked 164ms
 pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
 pass/capabilities/external_leaf_binding_forms built 308ms
-pass/capabilities/sysv_small_aggregate_import_compile rejected 397ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `completion`
+pass/capabilities/sysv_small_aggregate_import_compile built 5929ms @4ffed225fc45+wt
 pass/capabilities/transitive_effect_inference checked 185ms
 pass/capabilities/uses_caller_folder checked 198ms
-pass/capabilities/win64_large_aggregate_result_import_compile rejected 379ms @48008365d839
-	native artifact target lowering failed: BoundaryRealizationMismatch(BoundaryMachineId(1))
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 378ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `completion`
+pass/capabilities/win64_large_aggregate_result_import_compile built 5916ms @4ffed225fc45+wt
+pass/capabilities/win64_pointer_length_vs_descriptor_compile built 6017ms @4ffed225fc45+wt
 pass/capabilities/windows_provides_import_exit built 689ms @48008365d839
 pass/collections/array_local_control checked 213ms
 pass/collections/case_array_computed_index_match_exit built 1008ms exit:20 @48008365d839
@@ -396,8 +393,7 @@ pass/control_flow/element_view_enum_equality_exit built 1951ms exit:70 @27950676
 pass/control_flow/explicit_state_value_frontier checked 196ms
 pass/control_flow/field_subject_named_arm_chain built 1498ms exit:70 @bed5f45e9185+wt
 pass/control_flow/field_view_transfer_exit built 582ms exit:0
-pass/control_flow/guarded_jump_field_view_forward rejected 147ms @882f6744a121+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: result-local transfer, state 0, statement 4)") })
+pass/control_flow/guarded_jump_field_view_forward built 5605ms @4ffed225fc45+wt
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms
 pass/control_flow/guarded_mid_arm_return built 1546ms exit:70 @bed5f45e9185+wt
 pass/control_flow/guarded_transition_dispatch_exit built 1188ms exit:0 stdout:match @765e6c51624f+wt
@@ -413,8 +409,7 @@ pass/control_flow/owned_array_local_state_transfer_exit built 1266ms exit:70 @cf
 pass/control_flow/owned_array_state_transfer_exit built 1366ms exit:70 @cf6e9ae2565b+wt
 pass/control_flow/projected_loan_state_argument_exit built 2223ms exit:11 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 601ms exit:70
-pass/control_flow/runtime_branching_helper_string rejected 309ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
+pass/control_flow/runtime_branching_helper_string built 4587ms @4ffed225fc45+wt
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1592ms exit:70 @15f38e49aac2
@@ -496,8 +491,7 @@ pass/dependent/local_alias_forwards_entry_origin checked 170ms
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 187ms
 pass/dependent/runtime_dependent_subtract_exit built 579ms exit:2
 pass/dependent/runtime_requires_guarded_call_exit built 1461ms exit:6 @63377f7122bb+wt
-pass/dependent/runtime_sibling_len_index_exit rejected 1034ms @48008365d839
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/dependent/runtime_sibling_len_index_exit built 4522ms exit:7 @4ffed225fc45+wt
 pass/dependent/state_arrival_contract_guarded_compile checked 191ms
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 184ms
 pass/dependent/valuation_order_cycle checked 205ms
@@ -534,8 +528,7 @@ pass/domains/user_authored_predicate_machine checked 185ms
 pass/domains/utf8_equals_literal_exit built 1931ms exit:70 @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit built 792ms exit:71 @54a65e21a512+wt
 pass/domains/utf8_field_read_carries_domain_exit built 926ms exit:70 @1c0bb7bc95d0
-pass/domains/utf8_field_write_from_param rejected 359ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/domains/utf8_field_write_from_param built 3827ms @4ffed225fc45+wt
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/drops/cleanup_machine_drop_shape checked 254ms @0aa983f6af47+wt
@@ -663,13 +656,7 @@ pass/float/named_ieee_operations_exit built 43912ms exit:70 @48008365d839
 pass/float/named_ieee_truncations_exit built 22254ms exit:70 @48008365d839
 pass/float/named_infinity_classification_exit built 1189ms exit:70 @0d9777b52aee+wt
 pass/float/named_nan_semantic_only_exit built 4501ms exit:70 @d78b523c16f5
-pass/float/named_provider_directed_divide_exit rejected 3184ms @48008365d839
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::divide_toward_negative(named(name(f32)),named(name(f32)))->named(name(f32))` for Terminal boundary `operator::F32::divide_toward_negative(named(name(f32)),named(name(f32)))->named(name(f32))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::divide_toward_positive(named(name(f32)),named(name(f32)))->named(name(f32))` for Terminal boundary `operator::F32::divide_toward_positive(named(name(f32)),named(name(f32)))->named(name(f32))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::divide_toward_zero(named(name(f32)),named(name(f32)))->named(name(f32))` for Terminal boundary `operator::F32::divide_toward_zero(named(name(f32)),named(name(f32)))->named(name(f32))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
+pass/float/named_provider_directed_divide_exit built 16984ms exit:70 @4ffed225fc45+wt
 pass/float/named_provider_fused_multiply_add_exit built 1503ms exit:70 @0c82e1f8b2e+wt
 pass/float/named_provider_min_max_sqrt_exit built 13966ms exit:70 @fb2178def922
 pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5668+wt
@@ -688,8 +675,7 @@ pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9f
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
-pass/generics/closed_indexed_quantity rejected 3330ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("embedded scalar qualifications require the enclosing catalog namespace"))
+pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
 pass/generics/declared_range_endpoint_inference built 4327ms exit:70 @bed5f45e9185+wt
@@ -701,8 +687,7 @@ pass/generics/machine_bound_satisfied_at_call checked 224ms
 pass/generics/machine_type_equations checked 190ms
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 156ms
 pass/generics/omitted_data_binder_range_equation checked 224ms
-pass/generics/open_computed_quantity_result rejected 762ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
+pass/generics/open_computed_quantity_result built 2899ms @4ffed225fc45+wt
 pass/generics/ranged_const_parameter_attached_shape built 1152ms exit:70 @e8ed051cf626+wt
 pass/generics/runtime_const_container_methods_exit built 1455ms exit:70 @48008365d839
 pass/generics/runtime_const_data_array_length_exit built 583ms exit:70
@@ -750,8 +735,7 @@ pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1010ms exit:72 @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 1642ms exit:70 @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 3323ms exit:70 @6bd4d1a87ff4+wt
-pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1022ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 2)
+pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 8278ms exit:70 @4ffed225fc45+wt
 pass/layouts/runtime_plan_laid_value_field_exit built 1062ms exit:70
 pass/layouts/runtime_reborrow_preserves_store_origin_exit built 1686ms exit:70 @aab0810e5e06
 pass/layouts/runtime_size_of_align_of_exit built 1151ms exit:70
@@ -843,8 +827,7 @@ pass/parameters/byte_store_root_after_scalar_formal_exit built 2002ms exit:70 @8
 pass/parameters/shared_and_mut_borrow_params_compile checked 205ms
 pass/parser/deep_nesting_within_limit checked 188ms
 pass/parser/invariant_is_an_identifier checked 211ms
-pass/progress/provider_receiver_progress_installation rejected 228ms
-	final composition cannot discharge build-bound progress demand `named-callable(path(Scheduler::notify),parameters(parameter\\(self\\(yes\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\($Self\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` requiring profile `SchedulerHandle::WeakFair` at checked call 0:0; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering
+pass/progress/provider_receiver_progress_installation built 5451ms @4ffed225fc45+wt
 pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/case_call_premises checked 190ms
@@ -967,8 +950,7 @@ pass/relevance/erased_parameter_proof_only built 1470ms exit:70 @bed5f45e9185+wt
 pass/relevance/erased_receiver_proof_machine_call checked 177ms
 pass/relevance/erased_record_parameter_exit built 631ms exit:70
 pass/slices/bounded_byte_parameter_range_exit built 659ms exit:0 @f7f8668f6b87+wt
-pass/slices/byte_sequence_literal_tail_return_compile rejected 281ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
+pass/slices/byte_sequence_literal_tail_return_compile built 4665ms @4ffed225fc45+wt
 pass/slices/callee_non_byte_view_len_index_subslice built 1975ms exit:9 @ed38350cbc69+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 218ms
 pass/slices/domained_runtime_end_subslice_exit built 1944ms exit:70 @a5ac65bf511d+wt
@@ -1184,13 +1166,11 @@ pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8a
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
 pass/text/runtime_number_to_decimal_exit built 1061ms exit:70
-pass/text/runtime_owned_string_byte_view_exit rejected 922ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("structural construction substituted its owner or result type"))
+pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit built 864ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit built 2657ms exit:70 @1df89900d7cc+wt
-pass/text/runtime_stdin_command_branch_exit rejected 1219ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
+pass/text/runtime_stdin_command_branch_exit built 6815ms exit:0 stdout:match @4ffed225fc45+wt
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
 pass/text/runtime_string_stored_suffix_exit rejected 752ms @5676dbe78a95+wt
@@ -1248,8 +1228,7 @@ pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4081ms exit:70 @a
 pass/wire/runtime_wire_exact_array_without_count_exit built 6346ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit built 32087ms exit:70 @65d86d5aa7a8+wt
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 127821ms exit:70 @011fd400e8c1+wt
-pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 808ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 9)
+pass/wire/runtime_wire_utf8_edge_verdicts_exit built 32983ms exit:70 @4ffed225fc45+wt
 pass/wire/wire_compatibility_migration_across_shapes built 448ms
 pass/wire/wire_data_reserved_field built 242ms
 pass/wire/wire_preserving_decode_relay_exit built 1578ms exit:70 @bf6726603463+wt
