@@ -50,7 +50,8 @@ pub(crate) fn shared_borrow_record_referent(
         return None;
     }
     if checked.primitive_type_reference(*referee).is_some() {
-        return validation::has_linear_owned_contents(&checked.typed, *referee).then_some(*referee);
+        return crate::content_classes::linear_owned_contents(checked, *referee)
+            .then_some(*referee);
     }
     // `&[T]` names the slice view itself as the borrowed record: element custody
     // belongs to the view, so there are no plain owned contents to require.

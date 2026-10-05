@@ -640,8 +640,8 @@ fn prepare_owners(
         if ordinal >= statement as usize
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || !validation::has_plain_owned_contents_with_numeric_constraints(
-                &checked.typed,
+            || !crate::content_classes::plain_owned_with_numeric_constraints(
+                checked,
                 local.type_reference,
             )
         {
@@ -713,8 +713,8 @@ fn prepare_owners(
                 || !declaration.qualifications.is_empty()
                 || !declaration.projected_qualifications.is_empty()
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
-                    &checked.typed,
+                || !crate::content_classes::plain_owned_with_numeric_constraints(
+                    checked,
                     parameter.type_reference,
                 )
             {

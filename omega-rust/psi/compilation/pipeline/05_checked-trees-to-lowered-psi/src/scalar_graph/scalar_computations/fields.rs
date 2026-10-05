@@ -79,8 +79,8 @@ impl super::Expansion<'_> {
             // Disposal is a property of the produced type, not of the field
             // selected from it. Never erase a nominal hook or a reference debt
             // by describing an arbitrary affine record as a trivial discard.
-            if !validation::has_plain_owned_contents_with_numeric_constraints(
-                &self.checked.typed,
+            if !crate::content_classes::plain_owned_with_numeric_constraints(
+                self.checked,
                 root.type_reference,
             ) {
                 return unsupported(

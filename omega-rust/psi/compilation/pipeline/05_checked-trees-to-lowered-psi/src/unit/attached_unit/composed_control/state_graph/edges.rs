@@ -266,8 +266,8 @@ pub(super) fn validate_bindings(
                 };
                 if borrow.access != language_semantics::ReferenceAccess::Mutable
                     || (!local.is_mutable && local.initial_value.is_valid())
-                    || !validation::has_plain_owned_contents_with_numeric_constraints(
-                        &checked.typed,
+                    || !crate::content_classes::plain_owned_with_numeric_constraints(
+                        checked,
                         local.type_reference,
                     )
                     || validation::type_graph_requires_nominal_drop(

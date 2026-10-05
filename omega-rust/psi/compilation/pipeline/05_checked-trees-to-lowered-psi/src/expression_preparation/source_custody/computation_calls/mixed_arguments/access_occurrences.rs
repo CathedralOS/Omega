@@ -123,11 +123,9 @@ pub(crate) fn replay(
                 },
             )
             .is_some_and(|element| {
-                validation::has_plain_owned_contents_with_numeric_constraints(
-                    &checked.typed,
-                    element,
-                ) && checked.type_multiplicity(element)
-                    == language_semantics::Multiplicity::Unrestricted
+                crate::content_classes::plain_owned_with_numeric_constraints(checked, element)
+                    && checked.type_multiplicity(element)
+                        == language_semantics::Multiplicity::Unrestricted
             });
         }
         validation::expression_result_type_reference(
@@ -137,7 +135,7 @@ pub(crate) fn replay(
             expression,
         )
         .is_some_and(|reference| {
-            validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
+            crate::content_classes::plain_owned_with_numeric_constraints(checked, reference)
                 && checked.type_multiplicity(reference)
                     == language_semantics::Multiplicity::Unrestricted
         })

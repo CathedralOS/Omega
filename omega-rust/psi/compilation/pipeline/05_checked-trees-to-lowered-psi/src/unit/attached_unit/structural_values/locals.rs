@@ -76,8 +76,8 @@ pub(crate) fn bind_local(
     // omit the live source binding needed by later stores and transfers.
     let owned_contents =
         validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
-            || validation::has_plain_owned_contents_with_represented_constraints(
-                &checked.typed,
+            || crate::content_classes::plain_owned_with_represented_constraints(
+                checked,
                 local.type_reference,
             );
     if expression.is_some_and(|expression| expression != local.initial_value)

@@ -331,13 +331,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             &checked.typed,
                             source.type_reference,
                         )
-                        && !validation::has_plain_owned_contents_with_represented_constraints(
-                            &checked.typed,
+                        && !crate::content_classes::plain_owned_with_represented_constraints(checked,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
                                 source.type_reference,
-                            )?,
-                        )
+                            )?)
                         // A carrier of plain fields and shared views arrives
                         // whole — a move under the edge's own transfer for an
                         // affine descriptor, a copy for an unrestricted one —

@@ -20,8 +20,8 @@ pub(crate) fn construction(
     }
     // This is the existing no-code ownership classifier, not an inference
     // from the currently selected payload being scalar.
-    if !validation::has_plain_owned_contents_with_numeric_constraints(
-        &checked.typed,
+    if !crate::content_classes::plain_owned_with_numeric_constraints(
+        checked,
         subject.type_reference,
     ) || !matches!(
         checked.type_multiplicity(subject.type_reference),

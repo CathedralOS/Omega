@@ -97,10 +97,7 @@ fn primitive_reference(
         LoweringError::Unsupported("computed structural argument requires a primitive reference"),
     )?;
     if checked.primitive_type_reference(shell.referee).is_none()
-        || !validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            shell.referee,
-        )
+        || !crate::content_classes::plain_owned_with_represented_constraints(checked, shell.referee)
     {
         return unsupported(
             "computed structural argument requires a represented primitive referent",

@@ -62,6 +62,7 @@ mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
 mod call_sites;
+mod content_classes;
 mod declarations;
 mod direct_calls;
 mod lowered_machine_provenance;

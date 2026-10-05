@@ -53,7 +53,7 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
                     Multiplicity::Affine | Multiplicity::Unrestricted
                 ) && validation::has_cleanup_owned_contents(&checked.typed, returned))
                     || (binding.multiplicity == Multiplicity::Unrestricted
-                        && validation::is_closed_primitive_array_type(&checked.typed, returned)))
+                        && crate::content_classes::closed_primitive_array(checked, returned)))
         },
     )
 }
@@ -1275,10 +1275,7 @@ pub(crate) fn validate_consumer(
                 .parameters
                 .get(source_position as usize)
                 .is_some_and(|source| {
-                    validation::is_closed_primitive_array_type(
-                        &checked.typed,
-                        source.type_reference,
-                    )
+                    crate::content_classes::closed_primitive_array(checked, source.type_reference)
                 });
         let expression = authored
             .structural_arguments
@@ -1324,7 +1321,7 @@ pub(crate) fn validate_consumer(
             // above omits only its service receiver; it does not change which
             // caller parameter supplies this value. Rejoin that exact source
             // and custody here, then use shared structural argument emission.
-            if validation::is_closed_primitive_array_type(&checked.typed, source_parameter.type_reference)
+            if crate::content_classes::closed_primitive_array(checked, source_parameter.type_reference)
                 && (!argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || source.access != argument.access
@@ -1624,7 +1621,7 @@ fn whole_local_array_loan(
     else {
         return Ok(false);
     };
-    if !validation::is_closed_primitive_array_type(&checked.typed, local.type_reference) {
+    if !crate::content_classes::closed_primitive_array(checked, local.type_reference) {
         return Ok(false);
     }
     let TypeReferenceNode::Reference {
@@ -1706,7 +1703,7 @@ fn whole_local_bounded_owner_loan(
         return Ok(false);
     };
     let Some(capacity) =
-        validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference)
+        crate::content_classes::bounded_byte_capacity(checked, local.type_reference)
     else {
         return Ok(false);
     };
@@ -1857,7 +1854,7 @@ fn validate_operand_producers(
                 && (argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || result.multiplicity != Multiplicity::Unrestricted
-                    || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
+                    || !crate::content_classes::closed_primitive_array(checked, source_type)
                     || checked
                         .typed
                         .normalized_type_identity(source_type)
@@ -1924,7 +1921,7 @@ fn validate_operand_producers(
             // obligation. The consuming edge proves transfer; a nominal hook
             // belongs to whichever owner eventually disposes the value.
             let copied_array = result.multiplicity == Multiplicity::Unrestricted
-                && validation::is_closed_primitive_array_type(&checked.typed, construction_type);
+                && crate::content_classes::closed_primitive_array(checked, construction_type);
             let whole_owned_contents = copied_array
                 || result.multiplicity != Multiplicity::Linear
                     && validation::has_structural_construction_contents(
@@ -1937,9 +1934,7 @@ fn validate_operand_producers(
                 || (matches!(node.kind,
                         checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
                     && result.multiplicity == Multiplicity::Unrestricted
-                    && validation::has_plain_owned_contents_with_represented_constraints(
-                        &checked.typed, construction_type,
-                    ));
+                    && crate::content_classes::plain_owned_with_represented_constraints(checked, construction_type));
             // Source custody validates the complete qualified copied type.
             // The result identity instead names its storage carrier, as it
             // does for structural parameters; predicates remain separate.
@@ -2057,9 +2052,7 @@ fn validate_operand_producers(
             && argument.path.is_empty()
             && matches!(statements.get(result.statement_index as usize),
                 Some(StatementNode::LocalData(local))
-                    if validation::bounded_byte_buffer_capacity(
-                        &checked.typed, local.type_reference,
-                    ).is_some());
+                    if crate::content_classes::bounded_byte_capacity(checked, local.type_reference).is_some());
         let names_result = if producer_coordinate.call_ordinal == 0 {
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
@@ -2105,16 +2098,12 @@ fn validate_operand_producers(
             // to the established home, and its exact carrier is checked below.
             if !local.symbol.is_valid()
                 || (result.multiplicity == Multiplicity::Unrestricted
-                    && !(validation::has_plain_owned_contents_with_represented_constraints(
-                        &checked.typed,
-                        local.type_reference,
-                    ) || view_carrier.is_some()
+                    && !(crate::content_classes::plain_owned_with_represented_constraints(checked,
+                        local.type_reference) || view_carrier.is_some()
                         // A bounded byte owner (`[u8; N] in Utf8`) keeps its
                         // declared domains; its carrier is the fixed array.
-                        || validation::bounded_byte_buffer_capacity(
-                            &checked.typed,
-                            local.type_reference,
-                        )
+                        || crate::content_classes::bounded_byte_capacity(checked,
+                            local.type_reference)
                         .is_some()))
                 || checked
                     .typed
@@ -2181,17 +2170,17 @@ fn validate_operand_producers(
                     source.source_target,
                 )?;
                 if result.multiplicity == Multiplicity::Unrestricted
-                    && !validation::has_plain_owned_contents_with_numeric_constraints(
-                        &checked.typed,
+                    && !crate::content_classes::plain_owned_with_numeric_constraints(
+                        checked,
                         signature.return_type,
                     )
-                    && !(validation::bounded_byte_buffer_capacity(
-                        &checked.typed,
+                    && !(crate::content_classes::bounded_byte_capacity(
+                        checked,
                         signature.return_type,
                     )
                     .is_some()
-                        && validation::has_plain_owned_contents_with_represented_constraints(
-                            &checked.typed,
+                        && crate::content_classes::plain_owned_with_represented_constraints(
+                            checked,
                             signature.return_type,
                         ))
                 {

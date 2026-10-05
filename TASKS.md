@@ -2836,8 +2836,7 @@ about 253k lines) plus the `validation` crate it calls
 in [Trust ceremony](#trust-ceremony), [PCC removal](#pcc-removal) and
 [Lowering simplification](#lowering-simplification) apply here. Related items
 already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
-**LOWERING-READS-CHECKED-BORROW-CUSTODY**,
-**LOWERING-READS-CHECKED-CONTENT-CLASSES**, **TYPED-FROZEN-BEFORE-CHECKING**
+**LOWERING-READS-CHECKED-BORROW-CUSTODY**, **TYPED-FROZEN-BEFORE-CHECKING**
 and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
 
 Each item lands in one commit, deletes what it replaces, and keeps every
@@ -3170,10 +3169,10 @@ of a check the same flow already performed, not the check itself.
   keeping: none of these functions recomputes a checking *analysis* — checking
   and lowering call the same pure functions over the frozen `TypedTrees`. The
   query could not simply move to its data's owner because the family pulls in
-  `value_custody/storage_contents.rs` and `program_scope`'s frozen-program
-  memos (property of **LOWERING-READS-CHECKED-CONTENT-CLASSES**), and because
-  the return types live in `checked-trees`, which `typed-trees` cannot depend
-  on. So a recorded row is right here even though the query is pure.
+  `value_custody/storage_contents.rs`, whose own content classification is now
+  recorded beside it, and because the return types live in `checked-trees`,
+  which `typed-trees` cannot depend on. So a recorded row is right here even
+  though the query is pure.
 
   `CheckFacts::state_reference_custody` records one `StateReferenceCustodyRow`
   per declared state, dense by the state symbol's arena index, and stage 05
@@ -3229,18 +3228,6 @@ of a check the same flow already performed, not the check itself.
   since they carry zero Rust tests after `55a502d211b`. Acceptance: stage 05
   non-test sources do not name `reference_result_custody` (same source-scanning
   guard); corpus `--filter borrows,references/` check and native unchanged.
-
-- **LOWERING-READS-CHECKED-CONTENT-CLASSES.** (new-scope) Stage 05
-  reclassifies types with checking's ownership and content predicates:
-  `has_plain_owned_contents_with_numeric_constraints`,
-  `has_plain_owned_contents_with_represented_constraints`,
-  `has_linear_owned_contents`, `has_owned_or_shared_view_fields`,
-  `is_closed_primitive_array_type`, `bounded_byte_buffer_capacity`. Each
-  answer is a pure function of the checked program. Compute one classification
-  row per type reference during checking, store it in `CheckFacts`, and
-  replace every stage 05 call with a read of that row in one commit.
-  Acceptance: stage 05 non-test sources call none of the listed predicates
-  (source-scanning guard); check and native corpus unchanged.
 
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct image emission, the
   fragment and container stages and `NativeArtifact::from_emitted_parts`

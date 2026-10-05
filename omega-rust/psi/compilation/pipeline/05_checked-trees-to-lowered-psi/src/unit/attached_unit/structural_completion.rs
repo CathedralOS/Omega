@@ -96,12 +96,12 @@ pub(super) fn validate(
         || result.multiplicity != expected_multiplicity
         || !(crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
             || crate::reference_custody::is_reference_record(checked, state.return_type)
-            || validation::is_closed_primitive_array_type(&checked.typed, state.return_type)
-            || validation::has_plain_owned_contents_with_numeric_constraints(
-                &checked.typed,
+            || crate::content_classes::closed_primitive_array(checked, state.return_type)
+            || crate::content_classes::plain_owned_with_numeric_constraints(
+                checked,
                 state.return_type,
             )
-            || validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type)
+            || crate::content_classes::owned_or_shared_view_fields(checked, state.return_type)
             || shared_borrowed_slice_view(checked, state.return_type))
         || !(checked
             .typed
@@ -262,8 +262,8 @@ pub(super) fn validate(
             // A returned ingress descriptor needs no shape check; Terminal
             // reconstructs its backing lifetime from the completed body.
             if !shared_descriptor
-                && validation::is_closed_primitive_array_type(
-                    &checked.typed,
+                && crate::content_classes::closed_primitive_array(
+                    checked,
                     source_parameter.type_reference,
                 )
             {

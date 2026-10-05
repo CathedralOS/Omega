@@ -354,9 +354,8 @@ pub(super) fn validate_consumer(
                 .data_members(data)
                 .iter()
                 .all(|member| matches!(member, checked_trees::data::DataMember::Field(_)))
-                && validation::has_plain_owned_contents_with_represented_constraints(
-                    &checked.typed,
-                    referent,
+                && crate::content_classes::plain_owned_with_represented_constraints(
+                    checked, referent,
                 )
         });
     if !primitive && !plain_record {

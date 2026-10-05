@@ -161,7 +161,7 @@ pub(super) fn signature_matches(
                 && (result.multiplicity == Multiplicity::Linear
                     || crate::reference_custody::is_reference_record(checked, source.return_type)
                     || (result.multiplicity == Multiplicity::Unrestricted
-                        && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
+                        && crate::content_classes::plain_owned_with_represented_constraints(checked, source.return_type))
                     || validation::has_cleanup_owned_contents(
                     &checked.typed,
                     carrier,

@@ -166,10 +166,8 @@ fn result_source<'a>(
         checked.type_multiplicity(reference),
         Multiplicity::Affine | Multiplicity::Unrestricted
     ) || checked.normalized_type_identity(reference).as_str() != subject.type_identity
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(
-            &checked.typed,
-            reference,
-        ) || validation::has_owned_or_shared_view_contents(&checked.typed, reference))
+        || !(crate::content_classes::plain_owned_with_numeric_constraints(checked,
+            reference) || validation::has_owned_or_shared_view_contents(&checked.typed, reference))
         // A structural payload may stay unread in its case: the whole type
         // graph's plain owned contents leave it no cleanup beyond the
         // subject's own disposal. Only scalar payloads are bound, and

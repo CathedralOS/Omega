@@ -41,10 +41,13 @@ pub(crate) fn validate(
                 validation::slice_view_shell(&checked.typed, authored.return_type, &[])
                     .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
             if !shared_view
-                && (validation::bounded_byte_buffer_capacity(&checked.typed, authored.return_type)
-                    .is_none()
-                    || !validation::has_plain_owned_contents_with_represented_constraints(
-                        &checked.typed,
+                && (crate::content_classes::bounded_byte_capacity(
+                    checked,
+                    authored.return_type,
+                )
+                .is_none()
+                    || !crate::content_classes::plain_owned_with_represented_constraints(
+                        checked,
                         authored.return_type,
                     ))
             {
@@ -78,7 +81,7 @@ pub(crate) fn validate(
         }
     }
     let reference = super::parameters::structural_carrier_type(checked, declared_reference)?;
-    if validation::bounded_byte_buffer_capacity(&checked.typed, declared_reference).is_some() {
+    if crate::content_classes::bounded_byte_capacity(checked, declared_reference).is_some() {
         return Ok(());
     }
     if value.literal_bytes().is_none() {

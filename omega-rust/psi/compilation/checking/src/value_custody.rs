@@ -6,6 +6,7 @@ pub(crate) mod atomic_operations;
 pub(crate) mod claim_frontier;
 pub(crate) mod cleanup;
 pub(crate) mod constants;
+pub(crate) mod content_classes;
 pub(crate) mod content_conservation;
 pub(crate) mod content_projections;
 pub(crate) mod data;

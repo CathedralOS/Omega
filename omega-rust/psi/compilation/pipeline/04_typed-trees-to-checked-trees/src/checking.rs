@@ -380,6 +380,12 @@ fn check_program(
         validation::reference_result_custody::classify_program_reference_custody(&program);
     facts.state_reference_custody =
         validation::reference_result_custody::classify_program_state_reference_custody(&program);
+    // Content classification rides the same placement, and for the same
+    // reason. Both memos it leans on -- the data-definition index and the
+    // attached-`::drop` index -- are owned by `program` and keyed by table
+    // revision, not by the frozen scope dropped above, so they still answer
+    // from cache here.
+    facts.content_classes = validation::classify_program_content_classes(&program);
 
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;

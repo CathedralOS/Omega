@@ -141,10 +141,7 @@ pub(super) fn source(
     };
     let peeled = validation::peel_declared_constraints(&checked.typed, reference);
     if peeled != reference
-        && !validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            reference,
-        )
+        && !crate::content_classes::plain_owned_with_represented_constraints(checked, reference)
     {
         return unsupported("borrowed operand has unrepresented source constraints");
     }

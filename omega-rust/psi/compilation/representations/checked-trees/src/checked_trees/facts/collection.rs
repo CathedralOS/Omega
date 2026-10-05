@@ -26,6 +26,11 @@ pub struct CheckFacts {
     /// re-entering checking to reclassify a state's completion at each of
     /// its call sites.
     pub state_reference_custody: crate::StateReferenceCustodyFacts,
+    /// Every type reference's ownership and content classification,
+    /// classified once over the frozen type table. Lowering reads these rows
+    /// instead of re-running checking's recursive contents walk at each of
+    /// its call sites.
+    pub content_classes: crate::ContentClassFacts,
     /// Selected source death edges and their remaining custody, retained for
     /// symbolic templates as well as concrete execution.
     pub contextual_cleanup: crate::ContextualCleanupFacts,

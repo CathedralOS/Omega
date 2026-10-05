@@ -38,8 +38,10 @@ mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
 // facts, index compatibility conditions, placed view inputs, each type
-// reference's borrow custody, and each state's reference-result custody.
+// reference's borrow custody and content classification, and each state's
+// reference-result custody.
 mod carry;
+mod content_classes;
 mod domains;
 mod index_compatibility;
 mod placement;
@@ -65,6 +67,7 @@ pub use content::{
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, ContentProjectionFacts, RetainedBorrowCustodyFact,
 };
+pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
     ContextualCleanupEntryRequirements, ContextualCleanupFacts,
