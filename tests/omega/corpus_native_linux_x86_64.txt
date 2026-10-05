@@ -61,11 +61,20 @@ pass/borrows/borrow_guarded_window_write_and_call checked 268ms @2d8ed253669f+wt
 pass/borrows/borrow_returned_window_write_and_call rejected 6580ms @aeb3a47a1e0
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
 pass/borrows/borrow_stated_index_disequality_mut checked 269ms @2d8ed253669f+wt
+pass/borrows/branch_selected_record_composed_receiver_exit rejected 1143ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
+pass/borrows/branch_selected_record_receiver_exit built 2553ms exit:70 @8735cafb4cf
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
 pass/borrows/mut_loan_local_write_through_exit built 3170ms exit:9 @944fb1232f17
+pass/borrows/owned_byte_value_call_exit rejected 1122ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
+pass/borrows/projected_reference_record_argument_exit rejected 1242ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
+pass/borrows/projected_reference_record_residual_exit rejected 1134ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
 pass/borrows/runtime_carrier_reference_reselection_exit built 4805ms exit:70 @362d09f71f3
 pass/borrows/runtime_carrier_reference_store_exit built 4917ms exit:70 @362d09f71f3
@@ -181,7 +190,9 @@ pass/calls/runtime_measured_tail_recursion_exit built 958ms exit:70 @2d8ed253669
 pass/calls/runtime_mut_ref_forward_exit built 1754ms exit:70 @bd26d3a01ac1
 pass/calls/runtime_mutable_call_before_transition_args_exit built 2424ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_mutable_local_parameter_write_exit built 2060ms exit:171 @bd26d3a01ac1
-pass/calls/runtime_nested_case_argument_exit built 2288ms exit:70 @233d30cb1ceb
+pass/calls/runtime_nested_case_argument_exit rejected 2319ms regressed-from:built+exit:70 @8735cafb4cf
+	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/calls/runtime_nested_case_subject_operand_order_exit built 3600ms exit:0 @8735cafb4cf
 pass/calls/runtime_nested_value_call_guard_exit built 4782ms exit:70 @233d30cb1ceb
 pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
@@ -222,13 +233,13 @@ pass/capabilities/boundary_trait_multiple_effects checked 357ms @2d8ed253669f+wt
 pass/capabilities/callback_direct_install_compile built 927ms @9baafc0ace88
 pass/capabilities/derives_through_helper built 455ms @2d8ed253669f+wt
 pass/capabilities/external_leaf_binding_forms built 639ms @2d8ed253669f+wt
-pass/capabilities/sysv_small_aggregate_import_compile rejected 856ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `completion`
+pass/capabilities/sysv_small_aggregate_import_compile rejected 1525ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
 pass/capabilities/transitive_effect_inference checked 323ms @2d8ed253669f+wt
 pass/capabilities/uses_caller_folder checked 338ms @2d8ed253669f+wt
 pass/capabilities/win64_large_aggregate_result_import_compile built 1068ms @3284f31163c
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 923ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary claim transfers`
+pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 1637ms @8735cafb4cf
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
 pass/capabilities/windows_provides_import_exit built 1337ms @9baafc0ace88
 pass/collections/array_local_control checked 413ms @2d8ed253669f+wt
 pass/collections/case_array_computed_index_match_exit built 1438ms exit:20 @2d8ed253669f+wt
@@ -671,6 +682,7 @@ pass/operators/integer_literal_suffix_exit built 819ms exit:70 @2d8ed253669f+wt
 pass/operators/operand_requires_after_effects checked 279ms @2d8ed253669f+wt
 pass/operators/parenthesized_precedence_value checked 280ms @2d8ed253669f+wt
 pass/operators/runtime_bitwise_operators_exit built 835ms exit:70 @2d8ed253669f+wt
+pass/operators/runtime_constructed_operand_result_exit built 21438ms exit:0 @8735cafb4cf
 pass/operators/runtime_xorshift_prng_exit built 816ms exit:70 @2d8ed253669f+wt
 pass/operators/slice_index_bounds_from_operator_contract checked 292ms @2d8ed253669f+wt
 pass/operators/slice_range_bounds_from_operator_contract checked 290ms @2d8ed253669f+wt
@@ -775,14 +787,16 @@ pass/providers/checked_boundary_requirement_dispatch_exit built 1549ms exit:70 @
 pass/providers/checked_fixed_operator_dispatch_exit built 770ms exit:70 @2d8ed253669f+wt
 pass/providers/checked_fixed_operator_physical_custody built 759ms @2d8ed253669f+wt
 pass/providers/component_owner_provider_override_compile built 649ms @2d8ed253669f+wt
-pass/providers/direct_boundary_array_snapshot_exit built 4670ms exit:70 @362d09f71f3
+pass/providers/direct_boundary_array_snapshot_exit rejected 2300ms regressed-from:built+exit:70 @8735cafb4cf
+	terminal-artifact production failed: Lowering(Unsupported("copied record lost its established local"))
 pass/providers/external_boundary_requirement_via_exit built 942ms exit:21 @9baafc0ace88
 pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
 pass/providers/generic_provider_structural_result_composition_exit built 7206ms exit:0 @9719c66eb4a
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
-pass/providers/runtime_boundary_array_construction_exit built 4610ms exit:70 @362d09f71f3
+pass/providers/runtime_boundary_array_construction_exit rejected 2280ms regressed-from:built+exit:70 @8735cafb4cf
+	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
 pass/providers/runtime_boundary_array_forwarding_exit built 4879ms exit:70 @95e4e5c52dc
 pass/providers/runtime_boundary_array_result_exit built 4344ms exit:70 @362d09f71f3
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
