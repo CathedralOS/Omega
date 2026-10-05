@@ -389,6 +389,7 @@ pub(super) fn local_write_origins_before_statement(
             }
             CallerPrefixEvidence {
                 state: Some(state),
+                isolated_locals: prefix.isolated_locals,
                 aliases: prefix.aliases,
                 divergent: prefix.divergent,
                 stored: prefix.stored,
@@ -396,6 +397,7 @@ pub(super) fn local_write_origins_before_statement(
         }
         CallerPrefixSite::Untracked => CallerPrefixEvidence {
             state: None,
+            isolated_locals: Vec::new(),
             aliases: Vec::new(),
             divergent: Vec::new(),
             stored: Vec::new(),
@@ -595,7 +597,16 @@ pub(super) fn with_caller_origin_context<T>(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
 ) -> Option<T> {
-    let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
+    let mut evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
+    let owner = caller_statement_owner(program, machine, site);
+    if evidence.state.is_none()
+        && let Some((state, _, index)) = owner
+    {
+        // An untracked prefix declares no local that can carry caller
+        // origins, so the walk was skipped; the caller-isolated locals it
+        // would have recorded are exactly the earlier owned declarations.
+        evidence.isolated_locals = preceding_isolated_locals(program, state, index);
+    }
     let mut inference = FrameInference::default();
     for local in &evidence.stored {
         inference.record_local(local);
@@ -605,15 +616,35 @@ pub(super) fn with_caller_origin_context<T>(
         // state's formal storage. Typed actuals still denote those parameters.
         parameters: evidence
             .state
-            .or_else(|| caller_statement_owner(program, machine, site).map(|(state, _, _)| state))
+            .or_else(|| owner.map(|(state, _, _)| state))
             .map(|state| program.state_parameters(state))
             .unwrap_or(&[]),
-        isolated_locals: &[],
+        isolated_locals: &evidence.isolated_locals,
         aliases: &evidence.aliases,
         divergent: &evidence.divergent,
         stored: &evidence.stored,
     };
     resolve(&mut inference, &prefix)
+}
+
+/// The owned locals declared before statement `index` whose storage no
+/// caller can see, by the same rule the state walk records them.
+fn preceding_isolated_locals(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    index: usize,
+) -> Vec<String> {
+    program.statement_table.statements(state.statement_nodes)[..index]
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if type_is_caller_isolated_local(program, local.type_reference) =>
+            {
+                Some(local.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn close_over_origins(
@@ -709,6 +740,7 @@ fn close_over_origins(
 /// produced before the boundary statement.
 struct CallerPrefixEvidence<'program> {
     state: Option<&'program typed_trees::state::State>,
+    isolated_locals: Vec<String>,
     aliases: Vec<(String, FramePlaceOrigin)>,
     divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     stored: Vec<StoredLocalOrigins>,
@@ -886,6 +918,7 @@ fn caller_aliases_at_prefix<'program>(
     else {
         return Some(CallerPrefixEvidence {
             state: None,
+            isolated_locals: Vec::new(),
             aliases: Vec::new(),
             divergent: Vec::new(),
             stored: Vec::new(),
@@ -906,6 +939,7 @@ fn caller_aliases_at_prefix<'program>(
     }
     Some(CallerPrefixEvidence {
         state: Some(state),
+        isolated_locals: prefix.isolated_locals,
         aliases: prefix.aliases,
         divergent: prefix.divergent,
         stored: prefix.stored,

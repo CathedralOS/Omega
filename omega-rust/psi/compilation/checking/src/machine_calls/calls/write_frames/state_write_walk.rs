@@ -179,6 +179,9 @@ pub(crate) enum StateWriteQuery {
 /// O(index) prefix walk per demand site.
 #[derive(Debug, Clone)]
 pub(crate) struct CollectedStatementPrefix {
+    /// Owned locals declared earlier in the state whose storage no caller
+    /// can see; a borrow of one names that local, not unknown storage.
+    pub(crate) isolated_locals: Vec<String>,
     pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
     pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
     pub(crate) stored: Vec<StoredLocalOrigins>,
@@ -401,6 +404,7 @@ fn walk_state_write_prefix_inner(
                 .prefixes
                 .push(
                     (collection.requested)(statement_index).then(|| CollectedStatementPrefix {
+                        isolated_locals: isolated_local_roots.clone(),
                         aliases: local_alias_origins.clone(),
                         divergent: divergent_alias_origins.clone(),
                         stored: stored.clone(),
@@ -555,6 +559,7 @@ fn walk_state_write_prefix_inner(
                 machine,
                 call,
                 &CollectedStatementPrefix {
+                    isolated_locals: isolated_local_roots.clone(),
                     aliases: local_alias_origins.clone(),
                     divergent: divergent_alias_origins.clone(),
                     stored: stored.clone(),

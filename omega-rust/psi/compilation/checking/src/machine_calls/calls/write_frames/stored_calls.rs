@@ -99,7 +99,7 @@ pub(super) fn call_effects(
         }
         let origins = super::caller_aliases::CallOriginContext {
             parameters: program.state_parameters(caller_state),
-            isolated_locals: &[],
+            isolated_locals: &context.isolated_locals,
             aliases: &context.aliases,
             divergent: &context.divergent,
             stored: &context.stored,
