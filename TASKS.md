@@ -494,11 +494,13 @@ defines the complete product bar.
     still refuses "scalar and Unit dynamic joins compete for one caller";
     `.../src/unit/structural_unit_control.rs` still refuses checked
     expressions in its scalar-successor route. Remove those through ordinary
-    argument evaluation, not another whole-body plan. Calls inside a record
-    literal's tail fields (`Handle { name: Item::name(item), .. }`) decline at
-    `outer calls: ordered statement call`
-    (`.../04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_occurrences.rs`);
-    add a corpus fixture. Selected expression-owned calls need edge-specific
+    argument evaluation, not another whole-body plan. Preserve record-field
+    calls and computed comparisons exercised by
+    `pass/float/computed_comparison_literal_landing_exit`: after public package
+    update, `omega run --both tests/omega/pass/float/computed_comparison_literal_landing_exit/main.omg`
+    exits 0 in both engines on macOS ARM64. Its runtime short circuit keeps
+    effects selective, and anonymous operands take the computed result's format.
+    Selected expression-owned calls need edge-specific
     cleanup when transferring earlier caller owners. Structural values with nominal
     cleanup hooks or reference debt need the ordinary disposal schedule;
     nontrivial cleanup must not become a trivial affine discard.
@@ -1939,6 +1941,14 @@ crash and native exit behavior.
     declared float ranges nor dominating guards). Unverified:
     `float/float_to_int_exact_proofs_exit` executes at 78 on macOS ARM64 but
     its Linux/Windows rows record rejection; rerun there.
+    `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now get
+    past their unconsumed-call failure with the comparison-literal repair
+    (`6ef30fb818e6`). Their remaining native production is not verified:
+    both exceeded a focused 20-second limit on macOS ARM64. A live compile sample reaches
+    stage 05 `proofs/scalar_result_guarantees::retain_provable`, Terminal
+    obligation reconstruction and repeated successor-rewrite certificate checks.
+    Follow **PCC-CERTIFICATES-DELETED**, then rerun the unchanged twins and
+    require their matching-host exit 70; do not add a float-specific verifier path.
   - **GUI sample stores.** `samples/gui/{window_demo,windowed_calculator}`
     stopped at a borrowed byte-array element argument and
     `samples/gui/window_app` at a structural field store destination

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 5.16, "load1_start": 5.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.36, "load1_start": 7.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -642,11 +642,10 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 10991ms @48008365d839
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 10915ms @48008365d839
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 3769ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 4216ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "x86_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`x86_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
+pass/float/build_runtime_semantics_twins_windows_x64 timeout 20010ms @6ef30fb818e6+wt
+pass/float/build_runtime_semantics_twins_x86_baseline timeout 20005ms @6ef30fb818e6+wt
 pass/float/builtin_extrema_field_store_exit built 2139ms exit:70 @9213c1dcbe3f+wt
+pass/float/computed_comparison_literal_landing_exit built 6031ms exit:0 @6ef30fb818e6+wt
 pass/float/data_where_float_field_restored_exit built 1621ms exit:70 @8cb8c462809d+wt
 pass/float/exact_fractional_integer_boundary_exit built 3465ms exit:70 @48008365d839
 pass/float/f32_arg_const_arith_landed_exit built 6672ms exit:70 @fb2178def922
