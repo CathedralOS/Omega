@@ -134,6 +134,7 @@ fn compile_occurrences(
         let purposes = roster
             .purposes(&key)
             .ok_or_else(|| failure(&key, "resolved package has no occurrence roster"))?;
+        let mut root_binding = None;
         for &purpose in purposes {
             let started = std::time::Instant::now();
             let target = if purpose.is_product() {
@@ -159,7 +160,7 @@ fn compile_occurrences(
                 .map(|compilation| compilation.semantic_bindings().to_vec())
                 .unwrap_or_default();
             let mut inputs = PackageCompilationScope::new(closure, &key)
-                .compilation_inputs()
+                .compilation_inputs_reusing(&mut root_binding)
                 .and_then(|inputs| inputs.with_compilation_purpose(purpose))
                 .and_then(|inputs| inputs.with_accepted_semantic_bindings(bindings))
                 .map_err(|errors| Error::CompilationInputs {

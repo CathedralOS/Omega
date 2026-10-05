@@ -435,7 +435,7 @@ impl ClosurePass<'_> {
     /// and select its entry and build snapshot. The complete inputs return
     /// beside the rest: a fresh compile consumes them, a carry only compares.
     fn assemble_occurrence_inputs(
-        &self,
+        &mut self,
         occurrence: &PackageOccurrence<'_>,
     ) -> Result<(PackageCompilationInputs, AssembledOccurrence), CompileResolvedPackageReviewsError>
     {
@@ -449,7 +449,7 @@ impl ClosurePass<'_> {
         } = *occurrence;
         let closure = self.closure;
         let inputs = scope
-            .compilation_inputs()
+            .compilation_inputs_reusing(&mut self.preparation.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
             .map_err(
                 |errors| CompileResolvedPackageReviewsError::CompilationInputs {

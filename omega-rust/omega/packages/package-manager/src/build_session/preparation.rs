@@ -30,6 +30,10 @@ pub struct PackageSourcePreparation {
     /// caller asks for it, and the rows stay on the checked record until a
     /// report-facing leg prints them.
     pub(crate) collect_timings: bool,
+    /// Each package position's root binding with its canonical build-source
+    /// index, captured by the first pass that compiles that package as a
+    /// root and read by every later pass and purpose.
+    pub(crate) root_bindings: Vec<Option<package_compilation::PackageSourceBinding>>,
 }
 
 /// One package's retained parse frontier and the entry root it belongs to.
@@ -52,6 +56,7 @@ impl PackageSourcePreparation {
             slots: empty_slots(closure.graph().packages().len()),
             pure_build_compilation: Default::default(),
             collect_timings: false,
+            root_bindings: vec![None; closure.graph().packages().len()],
         }
     }
 
@@ -68,6 +73,7 @@ impl PackageSourcePreparation {
         if self.slots.len() != package_count {
             self.slots = empty_slots(package_count);
             self.pure_build_compilation = Default::default();
+            self.root_bindings = vec![None; package_count];
         }
     }
 }

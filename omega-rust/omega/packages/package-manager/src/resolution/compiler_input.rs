@@ -68,6 +68,17 @@ impl<'closure> PackageCompilationScope<'closure> {
     pub(crate) fn compilation_inputs(
         &self,
     ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+        self.compilation_inputs_reusing(&mut None)
+    }
+
+    /// Build the inputs, capturing the root's canonical build-source index
+    /// only when `root_binding` holds none yet. The snapshot root is immutable
+    /// for the invocation, so every pass and purpose of the same package root
+    /// reads one capture.
+    pub(crate) fn compilation_inputs_reusing(
+        &self,
+        root_binding: &mut Option<PackageSourceBinding>,
+    ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
         let closure = self.closure;
         let root = self.root;
         let reachable = &self.reachable;
@@ -82,7 +93,17 @@ impl<'closure> PackageCompilationScope<'closure> {
                     custody.snapshot_root().to_path_buf(),
                 );
                 if custody.key() == root {
-                    binding_with_canonical_source_metadata(custody, binding)
+                    // A same-sized but differently resolved closure keeps
+                    // its stale slot out by identity and snapshot root.
+                    if let Some(captured) = root_binding.as_ref().filter(|captured| {
+                        captured.identity() == binding.identity()
+                            && captured.source_root() == binding.source_root()
+                    }) {
+                        return Ok(captured.clone());
+                    }
+                    let captured = binding_with_canonical_source_metadata(custody, binding)?;
+                    *root_binding = Some(captured.clone());
+                    Ok(captured)
                 } else {
                     Ok(binding)
                 }

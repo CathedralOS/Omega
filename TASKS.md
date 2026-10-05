@@ -3535,22 +3535,15 @@ of a check the same flow already performed, not the check itself.
   is unchanged.
 
 - **SOURCE-READ-ONCE.** (new-scope) `8fbcb6b1a1d` made each consumed source
-  file read once per invocation; `OMEGA_SOURCE_READS=1` prints every read.
-  Two duplicates remain:
-  - The canonical build-source index is captured twice per review: the
-    discovery pass and the final pass each construct
-    `PackageCompilationInputs` through
-    `omega-rust/omega/packages/package-manager/src/resolution/compiler_input.rs`
-    `binding_with_canonical_source_metadata`. Memoize the index per closure
-    in the shared `PackageSourcePreparation`.
-  - The root project is copied into a persistent snapshot on every edit and
-    compiled from `root_snapshot.join(entry_relative)`. Compiling from
-    live-tree paths is an acquisition redesign, not a deletion.
-  `toolchain_library::validate` is not a duplicate: it hashes the bundled
-  library once, only when the caller supplies an expected digest.
-  Acceptance: `OMEGA_SOURCE_READS=1 omega --check` over a package corpus
-  fixture shows one read per consumed file and one index capture per
-  package, and the check corpus is unchanged.
+  file read once per invocation, and each package root's canonical
+  build-source index is now captured once per invocation
+  (`PackageSourcePreparation::root_bindings`); `OMEGA_SOURCE_READS=1` prints
+  every read. One duplicate remains: the root project is copied into a
+  persistent snapshot on every edit and compiled from
+  `root_snapshot.join(entry_relative)`. Compiling from live-tree paths is an
+  acquisition redesign, not a deletion. Acceptance:
+  `OMEGA_SOURCE_READS=1 omega --check` over an edited root shows one read per
+  consumed file with no snapshot copy, and the check corpus is unchanged.
 
 - **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) The production-subject and
   batch-manifest chain, the report custody replays, retained Pure Build
