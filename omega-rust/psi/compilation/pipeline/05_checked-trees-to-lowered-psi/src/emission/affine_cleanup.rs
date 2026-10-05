@@ -17,9 +17,11 @@ use terminal_psi::{
 mod custody_flow;
 mod projected_transfers;
 
-/// The caller must first establish source no-code signature eligibility through
-/// parameter_storage -> owned::validate, including permissions and exclusion of
-/// nominal cleanup. Terminal multiplicity alone does not establish eligibility.
+/// No-code eligibility belongs to the plan the caller lowers: stage 04 admits
+/// owned graph formals only with plain contents (no `::drop` hook) and checks
+/// their transfers and state-exit drops against the ownership facts before it
+/// publishes the graph (`finalize_checked_scalar_graph_plans`). Terminal
+/// multiplicity alone does not establish eligibility.
 /// Pass an empty delegated roster when another emitter owns entry cleanup.
 /// `entry_parameters` always retains the complete machine roster for exact
 /// root types and declaration-ordered residual cleanup.

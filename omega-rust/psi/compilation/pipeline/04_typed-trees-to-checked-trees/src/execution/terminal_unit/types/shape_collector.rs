@@ -434,6 +434,19 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
+    /// The primitive a registered identity names when its catalog row is a
+    /// primitive scalar. A borrowed formal registers its peeled referent, so
+    /// this is the primitive a `&u8` or `&mut i64` formal lends.
+    pub(in crate::execution::terminal_unit) fn primitive_scalar(
+        &self,
+        identity: &str,
+    ) -> Option<PrimitiveType> {
+        match self.types.get(identity).map(|plan| &plan.shape) {
+            Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)) => Some(*primitive),
+            _ => None,
+        }
+    }
+
     /// Collect the value held in a field or element, rather than the storage
     /// borrowed by an argument. Sequence shells retain their descriptor route;
     /// every other stored loan must retain a Reference shape. Keeping this

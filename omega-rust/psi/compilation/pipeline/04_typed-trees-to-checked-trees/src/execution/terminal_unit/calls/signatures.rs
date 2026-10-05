@@ -10,9 +10,9 @@ use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
-    SymbolHandle, TypeReferenceNode, TypedTrees, strips_erased_parameter,
+    CheckedUnitStructuralTypePlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, StateParameter, SymbolHandle, TypeReferenceNode,
+    TypedTrees, strips_erased_parameter,
 };
 
 /// Which attachment storage a qualified machine's signature retains.
@@ -201,12 +201,11 @@ fn structural_signature_with_partial_affine(
                 | CheckedStructuralAccess::WriteOnlyBorrow
                 | CheckedStructuralAccess::SharedBorrow
         );
-        if matches!(
-            shapes.types.get(&type_identity).map(|shape| &shape.shape),
-            Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
-        ) && (multiplicity != Multiplicity::Unrestricted
-            || !qualifications.is_empty()
-            || !primitive_access_is_supported)
+        let primitive_referent = shapes.primitive_scalar(&type_identity);
+        if primitive_referent.is_some()
+            && (multiplicity != Multiplicity::Unrestricted
+                || !qualifications.is_empty()
+                || !primitive_access_is_supported)
         {
             return None;
         }
@@ -216,6 +215,7 @@ fn structural_signature_with_partial_affine(
             type_identity,
             multiplicity,
             access,
+            primitive_referent,
             qualifications,
             projected_qualifications: projected_parameter_qualifications(
                 program,
@@ -521,6 +521,7 @@ fn scalar_and_structural_parameters(
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             is_self: false,
+            primitive_referent: shapes.primitive_scalar(&type_identity),
             type_identity,
             multiplicity,
             access,

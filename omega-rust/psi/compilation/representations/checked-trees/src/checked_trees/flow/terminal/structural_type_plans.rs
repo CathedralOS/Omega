@@ -302,6 +302,12 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub type_identity: String,
     pub multiplicity: Multiplicity,
     pub access: CheckedStructuralAccess,
+    /// The primitive a borrowed formal lends when its referent is one
+    /// (`&u8`, `&mut i64`): the catalog row at `type_identity` is then a
+    /// `PrimitiveScalar`, so a caller binds the loan to primitive storage
+    /// instead of a structural place. `None` for every owned carrier and for
+    /// a borrow of a structural referent.
+    pub primitive_referent: Option<PrimitiveType>,
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,

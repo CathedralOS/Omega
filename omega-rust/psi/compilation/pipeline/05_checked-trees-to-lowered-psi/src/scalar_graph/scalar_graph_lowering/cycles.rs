@@ -7,7 +7,7 @@ use super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError, ScalarType,
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, source_custody, terminal_scalar_type, unsupported,
+    StructuralTypeDeclaration, terminal_scalar_type, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedSccPlan};
@@ -317,14 +317,14 @@ fn validate_rank<'a>(
     }
     let mut members = Vec::new();
     for (member_machine, member_source) in member_sources {
-        let member_row = graph
+        if !graph
             .states
             .iter()
-            .find(|row| row.state == member_source.symbol)
-            .ok_or(LoweringError::Unsupported(
-                "scalar loop lost a fused member row",
-            ))?;
-        let coordinate = resolve_member(checked, member_machine, member_source, member_row)?;
+            .any(|row| row.state == member_source.symbol)
+        {
+            return unsupported("scalar loop lost a fused member row");
+        }
+        let coordinate = resolve_member(checked, member_machine, member_source)?;
         members.push(coordinate);
     }
     let member_lookup =
@@ -367,7 +367,6 @@ fn validate_runtime_rank(
             LoweringError::Unsupported("scalar loop lost a runtime component row"),
         )?;
         let (owner, source) = crate::declarations::state_declaration(checked, state)?;
-        source_custody::parameter_storage(checked, owner.symbol, row)?;
         if checked
             .machine_states(owner)
             .first()
@@ -376,7 +375,7 @@ fn validate_runtime_rank(
             // The runtime judgment reads typed subject/range roots. Retain
             // the normalized witness metadata's independent join to those
             // roots too; subordinate states use the filtered telescope.
-            resolve_member(checked, owner, source, row)?;
+            resolve_member(checked, owner, source)?;
         }
         let position = row
             .scalar_parameters
@@ -469,9 +468,7 @@ fn resolve_member<'a>(
     checked: &'a CheckedTrees,
     machine: &'a checked_trees::machine::Machine,
     source: &'a checked_trees::state::State,
-    state: &checked_trees::CheckedScalarStateGraph,
 ) -> Result<MemberRank<'a>, LoweringError> {
-    source_custody::parameter_storage(checked, machine.symbol, state)?;
     let mut custodies = checked
         .ranking_expression_custody
         .iter()

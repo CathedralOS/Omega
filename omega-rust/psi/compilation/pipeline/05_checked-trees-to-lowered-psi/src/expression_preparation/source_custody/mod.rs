@@ -7,9 +7,8 @@
 //!
 //! What remains:
 //!
-//! - `parameter_storage`, `borrowed_parameter_custody`, `primitive_references`,
-//!   `structural_places` and `view_ranges` answer storage, borrow and place
-//!   questions from the authored source.
+//! - `primitive_references`, `structural_places` and `view_ranges` answer
+//!   borrow and place questions from the authored source.
 //! - Some children still refuse shapes stage 05 cannot lower. Those refusals
 //!   stay until the route items admit the shapes; the validators that only
 //!   re-confirmed a plan row against its source are gone.
@@ -18,11 +17,10 @@ use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 
-// Reads, storage and borrows: the authored binding, parameter, place or
-// record field a scalar read names, the current state's mutable entry
-// storage, and primitive local borrows at their checked call occurrence.
+// Reads and borrows: the authored binding, parameter, place or record field
+// a scalar read names, and primitive local borrows at their checked call
+// occurrence.
 pub(crate) mod borrow_occurrences;
-mod parameters;
 pub(crate) mod primitive_references;
 pub(crate) mod structural_places;
 
@@ -41,8 +39,6 @@ pub(crate) mod enum_equality;
 pub(crate) mod structural;
 pub(crate) mod value_correspondence;
 pub(crate) mod view_ranges;
-
-pub(crate) use parameters::{borrowed_parameter_custody, parameter_storage};
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
     matches!(

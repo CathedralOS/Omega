@@ -9,9 +9,7 @@ use super::{
     CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
     scalars, topology,
 };
-use crate::expression_preparation::source_custody::borrowed_parameter_custody;
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
-use checked_trees::types::TypeReferenceNode;
 
 /// Custody, not topology, selects this emitter. Once selected, failed source
 /// rejoining must not retry an older matcher that ignores additional statements.
@@ -369,156 +367,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
                 continue;
             }
-            let (referee, access, qualifications) =
-                borrowed_parameter_custody(checked, source.type_reference)?;
-            if qualifications != parameter.qualifications
-                || (!qualifications.is_empty()
-                    && !(state_index == 0 && qualified_invocation)
-                    && !forwards_qualified_parameter(
-                        checked,
-                        plan,
-                        &live,
-                        state_index,
-                        parameter_index,
-                    ))
-            {
-                return unsupported(
-                    "Unit graph borrowed parameter qualifications differ from invocation custody",
-                );
-            }
-            if parameter.is_self {
-                return unsupported("static state acquired an unauthored receiver");
-            }
-            let expected_shape = if let Some(primitive) = checked.primitive_type_reference(referee)
-            {
-                if !matches!(
-                    checked.type_reference_table.type_reference(referee),
-                    TypeReferenceNode::Named { .. }
-                ) {
-                    return unsupported("Unit graph primitive borrow has qualified storage");
-                }
-                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
-            } else {
-                match checked.type_reference_table.type_reference(referee) {
-                    TypeReferenceNode::Slice { element_type } => {
-                        if checked.primitive_type_reference(*element_type)
-                            == Some(PrimitiveType::U8)
-                        {
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                // Matched against the registered view type,
-                                // which binds no access; the borrow's own
-                                // `access` is checked separately.
-                                checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                                    access: None,
-                                },
-                            )
-                        } else {
-                            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
-                                element_type_identity: checked
-                                    .normalized_type_identity(*element_type)
-                                    .into_string(),
-                            }
-                        }
-                    }
-                    TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: checked_trees::types::FixedArrayLength::Literal(length),
-                    } => {
-                        if checked.primitive_type_reference(*element_type)
-                            == Some(PrimitiveType::U8)
-                            && !qualifications.is_empty()
-                        {
-                            // A domain-qualified fixed byte array is a
-                            // bounded owner with its own live length; the
-                            // reference loans that owner.
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
-                                    capacity: *length as u64,
-                                },
-                            )
-                        } else if checked.primitive_type_reference(*element_type)
-                            == Some(PrimitiveType::U8)
-                        {
-                            // A borrowed fixed byte array registers the
-                            // bounded view carrier: its extent comes from the
-                            // declared length, not the referent's storage.
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                checked_trees::CheckedByteSequenceCarrier::BoundedView {
-                                    access: None,
-                                    capacity: *length as u64,
-                                },
-                            )
-                        } else {
-                            checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
-                                element_type_identity: checked
-                                    .normalized_type_identity(*element_type)
-                                    .into_string(),
-                                length: *length as u64,
-                            }
-                        }
-                    }
-                    _ => {
-                        let referent_identity =
-                            checked.normalized_type_identity(referee).into_string();
-                        match checked
-                            .facts
-                            .flow
-                            .terminal_unit_effects
-                            .structural_types
-                            .iter()
-                            .find(|plan| plan.identity == referent_identity)
-                        {
-                            Some(plan) => plan.shape.clone(),
-                            None => {
-                                return unsupported(
-                                    "Unit graph borrowed referent has no published shape",
-                                );
-                            }
-                        }
-                    }
-                }
-            };
-            if source.is_const
-                || source.is_mutable != access.is_exclusive()
-                || parameter.is_self
-                || parameter.multiplicity != Multiplicity::Unrestricted
-                || parameter.access
-                    != match access {
-                        language_core::ReferenceAccess::Mutable => {
-                            checked_trees::CheckedStructuralAccess::MutableBorrow
-                        }
-                        language_core::ReferenceAccess::WriteOnly => {
-                            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                        }
-                        language_core::ReferenceAccess::Shared => {
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                        }
-                    }
-                || parameter.fused_service_erasure.is_some()
-                || (checked.normalized_type_identity(referee).as_str()
-                    != parameter.type_identity
-                    // A bounded byte carrier registers under its authored
-                    // reference identity; every other borrowed view peels the
-                    // reference shell, so both spellings are source-exact.
-                    && checked
-                        .normalized_type_identity(source.type_reference)
-                        .as_str()
-                        != parameter.type_identity)
-            {
-                return unsupported("Unit graph view type or authority disagrees with source");
-            }
-            let mut shapes = checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .iter()
-                .filter(|shape| shape.identity == parameter.type_identity);
-            if shapes.next().map(|shape| &shape.shape) != Some(&expected_shape)
-                || shapes.next().is_some()
-            {
-                return unsupported("Unit graph borrow has no exact referent shape");
-            }
+            borrowed_parameter(
+                checked,
+                plan,
+                &live,
+                state_index,
+                parameter_index,
+                qualified_invocation,
+                source,
+                parameter,
+            )?;
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
@@ -1432,6 +1290,51 @@ fn validate_guard(
                 return unsupported("Unit graph guard computation is not Boolean");
             }
         }
+    }
+    Ok(())
+}
+
+/// A borrowed formal's admission reads its plan row: qualifications must be
+/// supplied by the invocation or forwarded unchanged, and the loan must be an
+/// unrestricted, non-provider view. Its binding mutability must match the
+/// loan's access: the graph has no route for rebinding a `mut` formal that
+/// holds a shared loan.
+#[allow(clippy::too_many_arguments)]
+fn borrowed_parameter(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    live: &[bool],
+    state_index: usize,
+    parameter_index: usize,
+    qualified_invocation: bool,
+    source: &checked_trees::signature::StateParameter,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+) -> Result<(), LoweringError> {
+    if !parameter.qualifications.is_empty()
+        && !(state_index == 0 && qualified_invocation)
+        && !forwards_qualified_parameter(checked, plan, live, state_index, parameter_index)
+    {
+        return unsupported(
+            "Unit graph borrowed parameter qualifications differ from invocation custody",
+        );
+    }
+    if parameter.is_self {
+        return unsupported("static state acquired an unauthored receiver");
+    }
+    let exclusive = matches!(
+        parameter.access,
+        checked_trees::CheckedStructuralAccess::MutableBorrow
+            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    if source.is_mutable != exclusive {
+        return unsupported(
+            "Unit graph borrowed parameter binding mutability is not its loan access",
+        );
+    }
+    if parameter.multiplicity != Multiplicity::Unrestricted
+        || parameter.fused_service_erasure.is_some()
+    {
+        return unsupported("Unit graph borrowed parameter carries owned or provider custody");
     }
     Ok(())
 }

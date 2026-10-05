@@ -428,6 +428,7 @@ fn boundary_parameters<'program>(
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             is_self: false,
+            primitive_referent: shapes.primitive_scalar(&type_identity),
             type_identity,
             multiplicity: crate::checks::type_multiplicity(program, parameter_type),
             access: structural_access_for_type_reference(program, parameter_type)?,

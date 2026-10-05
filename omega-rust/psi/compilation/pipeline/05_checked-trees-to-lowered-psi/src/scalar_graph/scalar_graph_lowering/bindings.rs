@@ -218,7 +218,18 @@ pub(super) fn prepare(
     if destructures {
         scalar_bindings = scalar_bindings.with_deferred_case_payloads();
     }
-    for parameter in source_custody::parameter_storage(checked, machine, state)? {
+    // Stage 04 records one row per mutable scalar formal, only for carriers
+    // with entry storage, and refuses the graph otherwise.
+    let parameter_storage = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .parameter_storage
+        .span(state.parameter_storage)
+        .ok_or(LoweringError::Unsupported(
+            "scalar parameter storage has an invalid retained span",
+        ))?;
+    for parameter in parameter_storage {
         scalar_bindings.initialize_parameter(
             parameter.symbol,
             terminal_scalar_type(parameter.primitive_type)?,

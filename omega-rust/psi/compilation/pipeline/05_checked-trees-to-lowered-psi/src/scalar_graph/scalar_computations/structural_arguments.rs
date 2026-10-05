@@ -118,23 +118,14 @@ pub(super) fn lower(
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }
-            let source_parameter = checked
-                .state_parameters(state)
-                .get(parameter.position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "computed borrow callee position is absent",
-                ))?;
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 return bindings
                     .owned_argument(argument)
                     .and_then(PreparedStructuralArgument::from_static);
             }
-            let (referee, _, _) =
-                crate::expression_preparation::source_custody::borrowed_parameter_custody(
-                    checked,
-                    source_parameter.type_reference,
-                )?;
-            if checked.primitive_type_reference(referee).is_none() {
+            // The callee's plan row names the primitive a borrowed formal
+            // lends; any other referent binds a structural place.
+            let Some(primitive) = parameter.primitive_referent else {
                 if let Some(range) = subslices::range(argument) {
                     let access = match argument.access {
                         checked_trees::CheckedStructuralAccess::SharedBorrow => {
@@ -206,19 +197,7 @@ pub(super) fn lower(
                         }
                     },
                 });
-            }
-            if !matches!(
-                checked.type_reference_table.type_reference(referee),
-                checked_trees::types::TypeReferenceNode::Named { .. }
-            ) {
-                return unsupported("computed primitive borrow requires an unqualified referent");
-            }
-            let primitive =
-                checked
-                    .primitive_type_reference(referee)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed borrow referent is not primitive",
-                    ))?;
+            };
             bindings
                 .primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
                 .and_then(PreparedStructuralArgument::from_static)

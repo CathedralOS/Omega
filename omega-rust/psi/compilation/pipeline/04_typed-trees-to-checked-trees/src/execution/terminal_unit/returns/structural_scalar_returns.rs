@@ -142,6 +142,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
             Some(CheckedUnitStructuralParameterPlan {
                 position: u32::try_from(position).ok()?,
                 is_self: false,
+                primitive_referent: shapes.primitive_scalar(&type_identity),
                 type_identity,
                 multiplicity,
                 access: CheckedStructuralAccess::Owned,

@@ -401,8 +401,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 .collect();
         }
     }
-    // parameter_storage -> owned::validate must establish source no-code
-    // eligibility before assembly; this pass only completes runtime custody.
+    // Stage 04 publishes only graphs whose owned formals are no-code
+    // eligible; this pass only completes runtime custody.
     let graph_entry = scalar_source_block(identity_base, 0);
     if let Some(parameters) = &loop_header_parameters {
         blocks
