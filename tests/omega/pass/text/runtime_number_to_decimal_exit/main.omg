@@ -52,8 +52,11 @@ machine Main::main(main: &mut Main) reaches Console {
         main.p = 0;
         transition { _ -> itoa_loop(main) }
     }
+    // `place` runs 10000, 1000, 100, 10, 1 while `p < 5`, but that relation
+    // between two fields is not a fact checking derives; the guard states the
+    // nonzero divisor that `digit_div`'s Wrapping division requires.
     state itoa_loop(main: &mut Main) {
-        transition main.p < 5 { true -> digit_div(main) _ -> check(main) }
+        transition main.p < 5 && main.place != 0 { true -> digit_div(main) _ -> check(main) }
     }
     state digit_div(main: &mut Main) {
         main.d = main.n / main.place;

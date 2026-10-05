@@ -42,8 +42,10 @@ machine Main::main(main: &mut Main) reaches Console {
         main.p = 0;
         transition { _ -> itoa_loop(main) }
     }
+    // `place` reaches 0 only after the third digit; the guard states that
+    // nonzero divisor for `digit_div`'s Wrapping division.
     state itoa_loop(main: &mut Main) {
-        transition main.p < 3 { true -> digit_div(main) _ -> print_row(main) }
+        transition main.p < 3 && main.place != 0 { true -> digit_div(main) _ -> print_row(main) }
     }
     state digit_div(main: &mut Main) {
         main.d = main.sq / main.place;

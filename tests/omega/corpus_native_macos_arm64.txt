@@ -1190,8 +1190,7 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 762ms @5676dbe7
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
-pass/text/runtime_number_to_decimal_exit rejected 1776ms regressed-from:built+exit:70 @835baa6033eb+wt
-	partial wrapping division in machine `Main::main` state `digit_div` assignment: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+pass/text/runtime_number_to_decimal_exit built 2188ms exit:70 @9e503d2a760d+wt
 pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit built 864ms exit:70 @7f80f93fd214+wt
