@@ -214,7 +214,8 @@ pass/calls/value_call_param_effect_arm built 1024ms exit:1 @2d8ed253669f+wt
 pass/calls/value_call_subexpression built 1064ms @2d8ed253669f+wt
 pass/calls/value_call_transition_argument built 1038ms @2d8ed253669f+wt
 pass/capabilities/aarch64_hfa_import_compile checked 1536ms @2d8ed253669f+wt
-pass/capabilities/acquires_through_helper_return built 787ms @2d8ed253669f+wt
+pass/capabilities/acquires_through_helper_return rejected 3157ms regressed-from:built @d2121d578c4
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs", line: 41, column: 32 } }))
 pass/capabilities/boundary_trait_multiple_effects checked 357ms @2d8ed253669f+wt
 pass/capabilities/callback_direct_install_compile built 927ms @9baafc0ace88
 pass/capabilities/derives_through_helper built 455ms @2d8ed253669f+wt
