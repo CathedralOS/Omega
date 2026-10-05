@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.12, "load1_start": 8.74, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 2.52, "load1_start": 1.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -259,10 +259,18 @@ fail/borrows/static_subject_delayed_loan rejected 372ms expected @cbe9ad8ebf41+w
 	state `bump` receives `main` as mutable more than once
 fail/borrows/static_whole_record_field_overlap rejected 372ms expected @cbe9ad8ebf41+wt
 	state `write_other` receives `store` while local borrow `field` is still active
+fail/borrows/stored_reference_child_constructor_live_source_write rejected 444ms expected @9660dd146223
+	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 449ms expected @9660dd146223
+	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/borrows/stored_reference_leaf_child_live_source_write rejected 447ms expected @9660dd146223
+	statement 5 mutates `main.cell.value` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrows/stored_reference_live_source_write rejected 143ms expected @efc0f5f0f7a9+wt
 	statement 1 mutates `cell.value` while local borrow `envelope` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/stored_reference_payload_live_source_write rejected 531ms expected @681c48c0cebc+wt
 	statement 4 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/borrows/stored_reference_shared_cohort_live_source_write rejected 399ms expected @9660dd146223
+	statement 5 mutates `main.cell.value` while local borrow `message` is still active (borrowed at statement 2; its last use is at statement 6)
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 380ms expected @cbe9ad8ebf41+wt
 	state `read_through_helper` receives `main` as mutable more than once
 	state `read_after` receives `main` as mutable more than once
@@ -1579,6 +1587,7 @@ pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms @15
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 1757ms @681c48c0cebc+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms @cfe60a3a242
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms @a195e6cdf066+wt
+pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1686ms @9660dd146223
 pass/borrows/runtime_reference_record_array_field_read_exit checked 1602ms @681c48c0cebc+wt
 pass/borrows/runtime_reference_record_call_completion_exit checked 1503ms @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1477ms @b5d8c6882a8b+wt
@@ -1588,12 +1597,24 @@ pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3295ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms @b5d8c6882a8b+wt
+pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1684ms @9660dd146223
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 1604ms @681c48c0cebc+wt
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_state_boolean_reference_exit checked 3855ms @3fa817733300+wt
 pass/borrows/runtime_state_fixed_element_reference_exit checked 4291ms @3fa817733300+wt
+pass/borrows/runtime_stored_reference_array_constructor_transfer_exit checked 1807ms @9660dd146223
+pass/borrows/runtime_stored_reference_array_leaf_retirement_exit checked 1155ms @9660dd146223
+pass/borrows/runtime_stored_reference_case_residual_retirement_exit checked 1144ms @9660dd146223
+pass/borrows/runtime_stored_reference_child_constructor_retirement_exit checked 1177ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_call_retirement_exit checked 1000ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_child_retirement_exit checked 1073ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit checked 1124ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_field_retirement_exit checked 1087ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 1335ms @9660dd146223
+pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 1426ms @9660dd146223
+pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 1138ms @9660dd146223
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
@@ -2278,6 +2299,7 @@ pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 2294ms @bb72b3c36cfc
 	terminal-artifact production failed: Lowering(Unsupported("Unit structural argument is neither a parameter nor a supported literal"))
+pass/layouts/runtime_callee_owned_local_origins_exit checked 1411ms @9660dd146223
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
