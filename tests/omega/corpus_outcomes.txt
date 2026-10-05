@@ -586,10 +586,8 @@ fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 8ms expe
 	tests/omega/fail/control_flow/tuple_destructure_duplicate_binding_rejected/main.omg:7:9: tuple destructure binding `value` is introduced by more than one subject; rename one binding with `as`
 fail/core/content_conservation_unqualified_place rejected 326ms expected @2d8ed253669f
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
-fail/core/content_projection_arbitrary_call rejected 346ms expected @2d8ed253669f
+fail/core/content_projection_arbitrary_call rejected 425ms expected @5718c89849d
 	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
-	call to proof machine `hidden_quantity` has no runtime result; use it only in a proof or erased context, or as a statement citation
-	machine `Owned::content` state `content` returns proof-only `CountedQuantity`, which has no runtime layout
 fail/core/content_projection_foreign_owner rejected 371ms expected @2d8ed253669f
 	content projection machine `Foreign::content` is not attached to the exact qualification it projects; use `<Qualification>::content` with a subject matching that domain's carrier
 fail/core/content_retained_custody_from_borrow rejected 1001ms expected @2d8ed253669f
