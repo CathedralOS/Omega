@@ -1,5 +1,0 @@
-// Accepted boundary claim: trust-bearing package evidence, never a proof.
-pub proposition is_zero(value: u64);
-
-boundary machine trusted_zero() -> u64
-ensures is_zero(result);

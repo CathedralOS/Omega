@@ -1,3 +1,0 @@
-// Product sources hold no dependency imports: `topology` is authorized only
-// in the build scope.
-machine main() {}

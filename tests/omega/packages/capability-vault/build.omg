@@ -1,5 +1,0 @@
-// package-manager fixture: capability-flow source, no build-host reach.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "capability_vault");
-}

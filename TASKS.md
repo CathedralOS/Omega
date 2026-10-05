@@ -2537,7 +2537,8 @@ lands alone with its corpus slice unchanged and no fallback path.
   admissions-file deletion and lock-row settlement above remain unfinished.
 
   The end-to-end reproducer is
-  `tests/omega/packages/accepted-claim-run` (macOS ARM64, `9952e21837a`). Its
+  `tests/omega/pending/proofs/accepted_dependency_claim_exit` (macOS ARM64,
+  `9952e21837a`); move it into `pass/` with an accepting `omega.lock`. Its
   foreign axiom establishes the entry's postcondition. The current root grant
   is rejected by `selected-dispatch/src/provider_checking.rs` before package
   review can settle it. Diagnostic removal of the grant reaches the separate
@@ -2560,9 +2561,9 @@ lands alone with its corpus slice unchanged and no fallback path.
   and the forged-classification check. Keep the mechanism classification that
   receiver admission and `validate_physical_authority_closure`
   (`omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`)
-  consume. Acceptance: authored physical-exclusion fixtures
-  (`tests/omega/packages/behavior-exclusions/`) still reject, and the native
-  corpus is unchanged.
+  consume. Acceptance: the exclusion fixtures
+  (`tests/omega/{pass,fail}/build/*exclusion*`) keep their verdicts, and the
+  native corpus is unchanged.
 
 - **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
   checked by `trust_model::verify_entry_behavior_exclusions` on the
@@ -2573,7 +2574,7 @@ lands alone with its corpus slice unchanged and no fallback path.
   is realized, and read service reach from Psi. Retained or received artifacts
   are checked by their receiver (**BUILD-EXCLUSION-REALIZATION**), which must
   not add in-process re-checks. Acceptance: one exclusion check per realized
-  entry, and the `tests/omega/packages/behavior-exclusions/` fixtures keep
+  entry, and the `tests/omega/{pass,fail}/build/*exclusion*` fixtures keep
   their verdicts.
 
 ## Red tests
@@ -2582,38 +2583,6 @@ Rust tests cover only units with no Omega source input; language behavior is
 the corpus gate's job ([testing](tools/testing.md#running-one-test)). Board
 items that cite a deleted Rust test as acceptance mean the corresponding
 corpus fixture, or a new one.
-
-- **PACKAGE-FIXTURES-RETIRED.** (new-scope) Owner ruling 2026-10-04: no
-  package-manager fixture harness. Packages exercise cross-package behavior
-  through ordinary corpus fixtures that depend on them by `Source::Path`.
-  `tests/omega/packages/` (18 packages), `tests/omega/package-remotes/` and
-  `tests/omega/package-workspaces/` fed the package-manager Rust tests that
-  were cut; nothing runs them now. In one commit:
-  - Turn the real customers into corpus fixtures under `tests/omega/pass/`
-    or `tests/omega/fail/`, with outcomes recorded in the golden:
-    - `behavior-exclusions/{no-op-app,quiet-logger-app,checking-app,sink-app}`
-      (their current verdicts; `checking-app` and `sink-app` reject where an
-      exclusion is violated);
-    - `console-exit-app` (cited by **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**);
-    - the `build-scope-topology` composer (cited by
-      **TOPOLOGY-PLAN-VERIFICATION**).
-  - Keep only library packages a corpus fixture depends on:
-    `paradigm-internals` (used by the three `targets/single_target_internal_package_*`
-    fixtures) and the `assert-kit`/`logger-kit` libraries. Keep them where
-    the corpus runner does not treat them as fixtures.
-  - Delete the rest, including `REMOTE_PINS.md`, `package-remotes/` and
-    `package-workspaces/`. The remote mirrors under the `CathedralOS` GitHub
-    organization are outside this repository; list them in the commit for
-    the owner to archive.
-  - Update every reference: `tests/omega/README.md`,
-    `wiki/language_guide/packages.md`, `wiki/spec/packages/topology.md`,
-    `tools/test_affected.py` (and its test), the comment in
-    `omega-rust/omega/compilation/realization/provider-planning/src/target_machines.rs`,
-    and the board items that cite these paths.
-
-  Acceptance: `tools/corpus_gate.py` records the converted fixtures with
-  their verdicts; no file references a deleted package; the three
-  `targets/` fixtures keep their outcomes.
 
 - **RED-WINDOWS-HOST.** (new-scope) Two `package-source` tests
   (`omega-rust/omega/packages/source-acquisition/`) fail on Windows x86-64:
@@ -3777,12 +3746,10 @@ Checking/no-op assertions and optional logging stay ordinary calls with
 unchanged public ceilings; exclusions add product admission requirements,
 never permission to violate callable contracts. Reuse the shared checker in
 `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`.
-The packages in `tests/omega/packages/behavior-exclusions/` (`no-op-app`,
-`quiet-logger-app`, `checking-app`, `sink-app`, `assert-kit`, `logger-kit`)
-are the customers. **PACKAGE-FIXTURES-RETIRED** turns the four apps into
-ordinary corpus fixtures with path dependencies on the two kits, so both
-items are accepted through `tools/corpus_gate.py`; there is no separate
-package harness.
+The customers are the corpus fixtures `build/crash_exclusion_*` and
+`build/*service_exclusion*` under `tests/omega/{pass,fail}/`, which depend on
+the `assert-kit` and `logger-kit` packages in `tests/omega/packages/` by
+path; both items are accepted through `tools/corpus_gate.py`.
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** Cover the full admitted entry/call closure.
   Executed selections
@@ -4512,15 +4479,14 @@ wait for Cathedral's instruction coverage. The interpreter is
   public requirements still admit valid downstream conformers.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Produce reviewed native artifacts for
-  `tests/omega/packages/console-exit-app`, Cathedral native smoke,
+  `tests/omega/pass/host/console_exit_process_exit`, Cathedral native smoke,
   `samples/cli/basics/cli_mvp` and Squalr without receiver input, under the
   [production/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission),
   and keep receiver admission of authority as a separate optional check.
   Coordinate **SAMPLE-CORPUS** / **SQUALR-HEADLESS**. Package acceptance must not
   manufacture receiver approval; no receiving policy means no admission claim.
-  Unverified: console-exit-app's current result (it was publishing or failing
-  with `Selection(Legalization(SourceCustodyMismatch))`); reproduce, repair the
-  failing owner, and require its console line and exit 70.
+  The corpus native leg records `console_exit_process_exit`'s result; it must
+  print its console line and exit 70.
 
   - Linux x86-64 filesystem: `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
     mints positional syscall rows, and Linux calling plans exist, but no direct
@@ -5141,8 +5107,9 @@ orchestration stay in ordinary Omega packages; no compiler graph stage,
 topology IR or trusted graph axiom.
 
 - **TOPOLOGY-PLAN-VERIFICATION.** Connect the Omega build-only composer in
-  `tests/omega/packages/build-scope-topology` and the consumer
-  `source/library/topology/verify.omg`. Reuse `omega-rust/library/topology/`'s
+  `tests/omega/pending/build/build_scope_topology_plan` (it does not check
+  against the current Build facets; its header has the diagnostics) and the
+  consumer `source/library/topology/verify.omg`. Reuse `omega-rust/library/topology/`'s
   normalization, policy, certificate and codec logic and
   `VerifiedComponent::export_contracts()`; derived contracts, not surface-name
   hashes, join demands to supplies. The Rust composition test is deleted and
@@ -5152,8 +5119,7 @@ topology IR or trusted graph axiom.
   Refresh the stale test names in `wiki/spec/packages/topology.md`'s acceptance
   status when this lands.
 
-  Acceptance: a corpus fixture (the composer from
-  **PACKAGE-FIXTURES-RETIRED**) admits three component descriptions, publishes
+  Acceptance: the composer fixture admits three component descriptions, publishes
   `payments.plan`, and `verify.omg` verifies it without source against a
   separately supplied `TopologyRequest`; exhaustion is unsuccessful
   verification. Keep the spec's

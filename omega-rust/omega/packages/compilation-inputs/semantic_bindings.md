@@ -43,6 +43,6 @@ byte-exact fallbacks — each target's bundled contract source remains accepted
 beside its package-owned binding. Relabeling directory authority would not
 complete this migration.
 
-The non-std host-services fixture guards against accidentally using repository,
-alias, or bundled-library identity as authority. Tests also require stale,
-foreign, ambiguous, and unmatched bindings to fail before they affect review.
+Repository, alias, or bundled-library identity is never binding authority,
+and stale, foreign, ambiguous, and unmatched bindings fail before they affect
+review.

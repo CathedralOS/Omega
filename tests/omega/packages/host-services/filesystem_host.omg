@@ -1,3 +1,0 @@
-pub boundary trait FilesystemHost {
-    machine write(descriptor: i32, bytes: &[u8]) -> i64 reaches FilesystemHost;
-}

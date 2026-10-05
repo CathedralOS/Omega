@@ -1,5 +1,0 @@
-// package-manager fixture: no build-host reach; public declaration intentionally over-reaches.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "network_overreach");
-}

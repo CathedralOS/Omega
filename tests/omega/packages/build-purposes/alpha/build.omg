@@ -1,6 +1,0 @@
-// package-manager fixture: a host tool library selected only through a
-// build edge (wiki/spec/build/scoped_execution.md, dependency purposes).
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "alpha");
-}

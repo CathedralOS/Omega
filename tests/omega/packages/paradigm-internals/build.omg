@@ -1,4 +1,4 @@
-// package-manager fixture: target-scoped paradigm internals for the
+// Library package for corpus fixtures: target-scoped paradigm internals for the
 // inert-sibling corpus canaries; no build-host reach.
 
 machine build(builder: &mut Build) {

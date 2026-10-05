@@ -1,5 +1,0 @@
-// package-manager fixture: claim-free opaque representation.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "opaque_carrier");
-}

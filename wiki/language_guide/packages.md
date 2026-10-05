@@ -150,9 +150,9 @@ Missing required content fails without publishing a candidate.
 
 The [command reference](../../omega-rust/omega/packages/package-manager/src/package_manager/README.md)
 lists current options and limits; [inspection](../../omega-rust/omega/packages/package-manager/src/operations/inspect_packages/README.md)
-describes reporting. [Package fixtures](../../tests/omega/packages/README.md)
-and [remote pins](../../tests/omega/packages/REMOTE_PINS.md) document integration
-test setup; local cases do not establish remote transport coverage.
+describes reporting. Corpus fixtures exercise cross-package behavior through
+path dependencies on the [library packages](../../tests/omega/packages/README.md);
+no local case establishes remote transport coverage.
 
 ## Live component replacement
 

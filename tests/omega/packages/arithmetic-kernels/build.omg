@@ -1,5 +1,0 @@
-// package-manager fixture: pure package, no dependency aliases, no build-host reach.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "arithmetic_kernels");
-}

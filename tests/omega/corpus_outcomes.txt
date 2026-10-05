@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 17.28, "load1_start": 17.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -284,6 +284,10 @@ fail/build/build_effects_undeclared rejected 1118ms unexpected @c5d32a00863
 	cleanup effect dependency in `write_build_log` has no exact structural residual disposition
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
+fail/build/crash_exclusion_trapping_provider rejected 2041ms expected @5c302dd6d305
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 12884901891
+	the selected composition retains crash cause Trap through Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) declared here
 fail/build/duplicate_program_entry_binding rejected 831ms expected @2d8ed253669f
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
 fail/build/elf_interpreter_relative_path rejected 1706ms expected @5ce9755c44a5+wt
@@ -1588,6 +1592,7 @@ pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b0
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
 pass/build/const_index_dependency_order_exit checked 1897ms @ae8939e231af+wt
+pass/build/crash_exclusion_untrapping_provider_exit checked 2154ms @5c302dd6d305
 pass/build/declaration_domain_context checked 1273ms @e65c3365894e+wt
 pass/build/dependency_declaration_queries checked 1270ms @e65c3365894e+wt
 pass/build/dependency_implementation_closure checked 1898ms @ae8939e231af+wt
@@ -2215,6 +2220,7 @@ pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms @2d8e
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed253669f
 pass/generics/runtime_value_generic_subject_exit checked 1300ms @2d8ed253669f
+pass/host/console_exit_process_exit checked 2187ms @5c302dd6d305
 pass/host/process_exit_i32_status_mapped checked 1100ms @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms @2d8ed253669f
 pass/host/runtime_console_bounded_line_exit checked 6558ms @dac9585f443

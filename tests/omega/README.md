@@ -12,9 +12,10 @@ Compiler cases are organized by outcome first, then by feature area.
   "checks but does not build" status in `pass/`. Move the directory into
   `pass/` with its golden row once the refusal is gone; record the exact
   diagnostic and the variants that bound it in the case's own header
-- `packages/`, `package-remotes/`, `package-workspaces/`: multi-package
-  projects read by the package manager's and `omega install`/`update` tests;
-  the corpus gate does not compile them
+- `packages/`: library packages that fixtures depend on through
+  `Source::Path`; the corpus gate compiles them only as a fixture's
+  dependency. A fixture's private dependency lives in a subdirectory of the
+  fixture instead
 
 Inside each bucket, prefer feature folders when a group becomes noisy:
 

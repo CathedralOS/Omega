@@ -647,11 +647,11 @@ Re-verified on linux x86-64 at `bb192d7ea9ebd` (earlier readings:
 identity-encoding drift, not semantic regressions — the
 `payment.request`/`payment.plan` golden bytes
 (`golden_fixtures_decode_and_verify`, `encode_is_byte_exact_and_canonical`)
-and the committed `build-scope-topology` inputs
+and the committed `build_scope_topology_plan` inputs
 (`the_package_composes_and_a_source_free_consumer_verifies`) embed component
 identities whose upstream derivation keeps moving: fixtures were re-recorded
 at `92d628b2e8763`/`96bcff6facdbd` and again at `ba9712417c` (the golden
-pins went green, but `build-scope-topology/root/inputs/request.bin` was left
+pins went green, but `build_scope_topology_plan/inputs/request.bin` was left
 stale), and the derivation has since moved once more, so all three are red
 together again. Until both sets are re-recorded —
 `TOPOLOGY_REGENERATE_INPUTS=1` for the committed inputs
@@ -719,7 +719,9 @@ Not yet closed:
   export's requirement identity — a `COMPONENT-SUBSTRATE` description gap, not
   a topology census.
 - Scoped-build refusal of helper authority (home files, network): input
-  confinement is exercised by `tests/omega/packages/build-scope-topology`;
+  confinement is to be exercised by
+  `tests/omega/pending/build/build_scope_topology_plan`, which does not yet
+  check against the current Build facets;
   the captured-input and artifact-only publication gaps sit under
   `BUILD-SNAPSHOT-OUTPUTS`.
 - Application-level authorization cases (charge-amount mismatch, request

@@ -36,8 +36,8 @@ SOURCE_READERS = {
     },
 }
 
-# Audited Markdown locations, not a blanket extension exclusion: Markdown in
-# tests/omega/packages is executable test input.
+# Audited Markdown locations, not a blanket extension exclusion: Markdown
+# beside corpus fixtures and library packages under tests/omega is test input.
 DOCUMENTATION_FILES = {
     "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",

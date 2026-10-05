@@ -1,0 +1,14 @@
+// One console line, then termination through `Console::exit_process` with
+// status 70. `write_line` is checked std code over the `write_byte`
+// intrinsic; `exit_process` ends the process, so nothing after it runs.
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    main.console.write_line("console-exit-process");
+    main.console.exit_process(70);
+}
