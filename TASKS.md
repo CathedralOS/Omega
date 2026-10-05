@@ -2285,6 +2285,26 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
+- **SELECTION-CUSTODY-DIAGNOSTIC-QUOTES-RUST-SOURCE.** (new-scope)
+  `SelectedInstructionError::custody()` is `#[track_caller]`, so a stage-03
+  refusal reaches the author as `SourceCustodyMismatch { site: Location { file:
+  "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs",
+  line: 41 } }`. That is a compiler implementation path presented as a compile
+  error about an Omega program, and
+  `pass/capabilities/acquires_through_helper_return` printed it for 82 commits.
+  There are about 40 `custody()` sites in `selection/` and as many again in
+  `legalization/`, so any of them can surface a Rust path.
+
+  The `Location` is the right debugging aid and the wrong user-facing message.
+  The refusal already holds the authored coordinates it needs nearby -- machine,
+  operation, place -- so put those in the message and keep the Rust site behind
+  the developer channel, the way `UnsupportedSourceShape` already carries
+  `machine`/`operation`. Follow that convention rather than inventing a second
+  one, and route the sites through one `#[track_caller]` constructor rather than
+  annotating them individually.
+  Acceptance: no corpus diagnostic in any golden under `tests/omega/` contains
+  the string `omega-rust/`.
+
 - **RECAST-OFFSET-EQUALITY-TRANSPORT.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/dependent/boundary_equality_recast_witness_compile` lost `checked`. It
   is the authored customer for transporting an offset bound across a proved
@@ -2331,7 +2351,7 @@ crash and native exit behavior.
   fixture whose offset has no bound at all.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries 18 rows with a
+  `tests/omega/corpus_native_macos_arm64.txt` carries 17 rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
   They were invisible until the golden could say so -- sixteen claimed `built`
   and twelve of those claimed an authored exit. Revalidate each recorded loss
@@ -2350,13 +2370,25 @@ crash and native exit behavior.
   `pass/memory/address_translation_canary`,
   `pass/memory/interrupt_table_canary`),
   `pass/dependent/boundary_equality_recast_witness_compile` on a recast offset
-  of 4294967295, and
-  `pass/proofs/named_witness_static_trait_plural_compile`, whose state
-  `produce` is called with 0 of its 1 argument. Every diagnostic matches the
+  of 4294967295 (see RECAST-OFFSET-EQUALITY-TRANSPORT).
+  Every diagnostic matches the
   one the check golden already recorded, so none of these is native-only: the
   native row had simply outlived the check-leg regression. Group them by
   diagnostic before claiming any -- several belong to items that already own
   that refusal, and the provider-absence rows may be reporting the host.
+
+  **Four rows have closed, and both diagnosed mechanisms had the same shape: a
+  predicate one step narrower than the rule its own comment stated.**
+  `pass/proofs/named_witness_static_trait_plural_compile` reached `checked`
+  when the specializer stopped promoting a static-requirement-dispatch call's
+  first argument into a receiver slot and stripping it from the operand roster
+  -- the authored site was always correct, only the specialized clone was
+  wrong. `pass/capabilities/acquires_through_helper_return` builds and exits 0
+  since `7643074136c` removed `aggregate_result_input::home`'s refusal of a
+  native home to any domain-qualified result that was not a bounded owned byte
+  sequence, where the comment directly above it already said the query must
+  not reclassify a roster by which operation produced it. Read the remaining
+  `SourceCustodyMismatch` rows that way before bisecting.
   Eight more were recorded at `5eaadf22c0a` after `dce3e972eff` moved their
   check rows, and they cluster tighter than the first thirteen: three are the
   unit-plan omission family and belong to whoever owns that refusal
