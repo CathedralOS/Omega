@@ -72,6 +72,8 @@ pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/borrows/static_carrier_bounded_reference_read_exit built 2854ms exit:70 @15c77983aab0
 pass/borrows/static_carrier_reference_read_exit built 3056ms exit:70 @b5d8c6882a8
 pass/borrows/transition_shared_borrow_result built 2879ms exit:181 @15c77983aab0
+pass/boundary/static_foreign_scalar_result_locals_exit rejected 30612ms @3eebfe9c3de
+	terminal-artifact production failed: Lowering(Unsupported("boundary scalar return has no authored attachment"))
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
 pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb

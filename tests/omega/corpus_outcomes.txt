@@ -390,9 +390,9 @@ fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b0
 fail/build/static_machine_parameter_contract_mismatch rejected 71ms expected @2d8ed253669f
 	machine argument `wrong_width` for `apply` does not refine `F`: parameter 0 expects `u16`, got `u32`
 	machine argument `wrong_width` for `apply` does not refine `F`: expected return `u16`, got `u32`
-fail/build/static_service_exclusion_invoked rejected 3841ms expected @6fa34b94762b+wt
+fail/build/static_service_exclusion_invoked rejected 8482ms expected @3eebfe9c3de
 	1 authored behavior exclusion(s) could not be satisfied
-	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 2)
+	behavior exclusion violated: service `Sink` is reachable in machine `Main::main` (Terminal machine 1) at call to boundary `named-callable(path(main::Sink::emit),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` (block 1, operation 2)
 	the selected composition retains service `Sink` through machine `Main::main` (Terminal machine 1) declared here
 fail/build/static_service_exclusion_missing_activation rejected 393ms expected @6fa34b94762b+wt
 	machine `build` state `entry`: value call `Build.exclude_service(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
@@ -417,8 +417,8 @@ fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
 fail/calls/discarded_call_result rejected 339ms expected @2d8ed253669f
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
-fail/calls/duplicate_named_machine_overload_rejected rejected 368ms expected @2d8ed253669f
-	duplicate named machine overload `add` with parameter signature `parameter(self(no),mutable(no),const(no),named(name(u32))),parameter(self(no),mutable(no),const(no),named(name(u32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+fail/calls/duplicate_named_machine_overload_rejected rejected 745ms expected @3eebfe9c3de
+	duplicate named machine overload `add` with parameter signature `parameter(mutable(no),const(no),named(name(u32))),parameter(mutable(no),const(no),named(name(u32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 fail/calls/element_view_argument_type_rejected rejected 205ms expected @2d8ed253669f
 	argument `s` for state `Walker::walk::walk` expects element type `u8`, but the argument supplies `i32[in Wrapping]`
 fail/calls/empty_body_return_machine_rejected rejected 359ms expected @2d8ed253669f
@@ -742,8 +742,8 @@ fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e02
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/refinement_chain_routed_provenance_forge rejected 720ms expected @2d8ed253669f
 	cannot prove default-domain field requirement for return from Token::forge at statement 0: Token requires Token::Issued::Fresh
-fail/domains/result_domain_overload_duplicate_predicate rejected 266ms expected @2d8ed253669f
-	duplicate named machine overload `convert` with parameter signature `parameter(self(no),mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+fail/domains/result_domain_overload_duplicate_predicate rejected 849ms expected @3eebfe9c3de
+	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` state `entry` return value returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/domains/routed_domain_as_rejected rejected 256ms expected @2d8ed253669f
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
@@ -973,8 +973,8 @@ fail/multiplicity/computed_subject_separate_affine_call rejected 1036ms expected
 	affine value `choice` was already transferred or consumed; it cannot be moved here
 fail/operators/domain_operator_return_only_overload rejected 244ms expected @2d8ed253669f
 	domain `Quantity::Additive` has duplicate operator `combine`
-fail/operators/named_operator_result_overload_duplicate_dispatch rejected 224ms expected @2d8ed253669f
-	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(self=false;mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
+fail/operators/named_operator_result_overload_duplicate_dispatch rejected 833ms expected @3eebfe9c3de
+	duplicate named requirement overload `Convert::value` with parameter signature `operands(named(name(i32)));flags(mutable=false;const=false)` and result dispatch set `arithmetic:Trapping`; predicate-only result refinements do not distinguish overloads
 fail/operators/operand_requires_invalidated rejected 601ms expected @2d8ed253669f
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 244ms expected @2d8ed253669f
@@ -1597,7 +1597,8 @@ pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
-pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
+pass/boundary/static_foreign_scalar_result_locals_exit rejected 25858ms @3eebfe9c3de
+	terminal-artifact production failed: Lowering(Unsupported("boundary scalar return has no authored attachment"))
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
 pass/build/const_index_dependency_order_exit checked 1897ms @ae8939e231af+wt
 pass/build/crash_exclusion_untrapping_provider_exit checked 2154ms @5c302dd6d305
