@@ -235,11 +235,22 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 .get(call.statement_index)
                 .is_some_and(erased_statement)
     };
-    // A pure scalar builtin (min/max/sqrt, float rounding and
-    // classification) is an operand of its enclosing scalar expression: the
-    // computation graph folds it rather than recording a Call node, so it is
-    // never an outer or nested call to sequence. Machine-control, port, and
-    // custody builtins keep their rows.
+    // A call whose target IS a compiler builtin slot with an empty write
+    // frame -- the `min`/`max`/`sqrt` shorthand, which resolves straight to
+    // the builtin, and the unnameable float rounding and classification
+    // intrinsics selected execution settles a call into -- is an operand of
+    // its enclosing scalar expression: the computation graph folds it rather
+    // than recording a Call node, so it is never an outer or nested call to
+    // sequence. Machine-control, port, and custody builtins keep their rows.
+    //
+    // An authored `F32::`/`F64::` boundary-operator spelling is deliberately
+    // NOT folded here, even for the same operation. Psi records such a use
+    // with no provider selection (CheckedNamedOperatorUseFact), because each
+    // target joins its own ProviderPlan by requirement identity; whether the
+    // selected target realizes the requirement as a folded instruction or as
+    // a call into a provider machine is Omega's decision. Folding the
+    // authored spelling in Psi would take that decision across the firewall,
+    // so the two spellings diverge on purpose rather than by omission.
     let scalar_intrinsic = |call: &checked_trees::FlowCallFact| {
         program
             .symbols
