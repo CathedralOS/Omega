@@ -239,12 +239,14 @@ impl Builder<'_, '_> {
                     left.domain,
                     right.value,
                     right.domain,
+                    self.operators.division_is_defined(expression),
                 )?;
                 let CheckedScalarExpression::IntegerBinary {
                     kind,
                     primitive_type,
                     left: landed_left,
                     right: landed_right,
+                    formation_decided,
                 } = value
                 else {
                     return None;
@@ -263,6 +265,7 @@ impl Builder<'_, '_> {
                         primitive_type,
                         left: Box::new(parameter(0, primitive_type)),
                         right: Box::new(parameter(1, right_type)),
+                        formation_decided,
                     },
                     domain,
                     [left, right],

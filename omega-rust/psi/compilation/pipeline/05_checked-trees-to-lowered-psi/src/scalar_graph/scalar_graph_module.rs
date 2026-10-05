@@ -790,7 +790,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
-            evidence,
+            evidence: evidence
+                .into_iter()
+                .chain(crate::proofs::operation_proofs::source_checked_evidence(
+                    all_operations.source_checked_obligations,
+                ))
+                .collect(),
         },
         debug_map: None,
         source_call_occurrences: all_operations.source_calls,

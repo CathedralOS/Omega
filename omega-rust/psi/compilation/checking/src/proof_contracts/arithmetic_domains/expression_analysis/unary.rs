@@ -9,10 +9,10 @@ pub(super) fn analyze(
     walk: &ExpressionWalk,
     unary: &TableUnaryExpression,
     diagnostics: &mut Vec<Diagnostic>,
-    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
     // Negation must not hide formation errors in its operand subtree.
-    let operand = walk.analyze(unary.operand, diagnostics, exact_integer_casts);
+    let operand = walk.analyze(unary.operand, diagnostics, decisions);
     match unary.operator {
         UnaryOperator::BitwiseNot => {
             let primitive = operand.primitive.or_else(|| {

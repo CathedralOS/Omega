@@ -286,6 +286,7 @@ pub(crate) fn byte_overlay_read(
                 value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(offset)),
                 scalar_type: index_type,
             }),
+            formation_decided: false,
         }
     };
     let byte_type = terminal_scalar_type(PrimitiveType::U8)?;
@@ -357,6 +358,7 @@ fn integer_coordinate_binary(
         scalar_type: left.scalar_type(),
         left: Box::new(left),
         right: Box::new(right),
+        formation_decided: false,
     }
 }
 

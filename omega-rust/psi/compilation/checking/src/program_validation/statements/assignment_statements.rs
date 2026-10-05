@@ -33,7 +33,7 @@ pub(super) fn validate<'a, 'p>(
         ..
     } = *scope;
     let value_environment = &mut *outputs.value_environment;
-    let exact_integer_casts = &mut *outputs.exact_integer_casts;
+    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
     let state = current_state;
     // A placed atomic field is authorized by its plan's permission rows in
@@ -210,7 +210,7 @@ pub(super) fn validate<'a, 'p>(
                 assignment_target_domain,
                 &owner,
                 diagnostics,
-                exact_integer_casts,
+                arithmetic_decisions,
             )
         });
     // The declared policy is read through the RAW destination (its `in

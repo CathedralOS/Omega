@@ -48,4 +48,11 @@ pub enum EvidenceRoute {
     KernelDerived(PrimitiveJudgment),
     CertificateDerived(CertificateEnvelope),
     Admitted(AdmissionEvidence),
+    /// The producing compile's source checker decided this operation's
+    /// formation condition from its flow facts, and lowering carried that
+    /// decision to the exact operation. No proof travels with it: the route
+    /// trusts the checker that admitted the program, the same trust a
+    /// certificate's producer search already relied on to exist at all.
+    /// Verification accepts it only for an obligation an operation owns.
+    SourceChecked,
 }

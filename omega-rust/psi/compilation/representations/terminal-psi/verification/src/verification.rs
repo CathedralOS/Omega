@@ -15,8 +15,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::{
-    AcceptedFact, AdmissionProfile, EvidenceError, RecursiveComponentAcceptance,
-    RecursiveComponentError, verify_obligation_with_machine_parameters, verify_recursive_component,
+    AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, RecursiveComponentAcceptance,
+    RecursiveComponentError, accept_source_checked_operation,
+    verify_obligation_with_machine_parameters, verify_recursive_component,
 };
 use semantic_vocabulary::{EvidenceIdentity, EvidenceTermId, ObligationId, Proposition};
 use terminal_psi::TerminalModule;
@@ -244,6 +245,45 @@ pub fn verify_module_for_fixed_fuel<'module>(
         .map(|state| VerifiedFixedFuelTerminalModule { state })
 }
 
+/// Verify one reconstructed obligation's evidence. The checker judges source
+/// operations, so a source-checked route is admitted only for an obligation an
+/// operation owns; a contract, call or cleanup obligation, like every other
+/// route, goes through the proof kernel. Producers re-verifying their own
+/// retained evidence call this too, so both sides admit the same routes.
+pub fn verify_reconstructed_obligation(
+    context: &semantic_vocabulary::PropositionContext,
+    site: &ReconstructedTerminalObligation,
+    machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
+    route: EvidenceRoute,
+    profile: &AdmissionProfile,
+) -> Result<AcceptedFact, VerificationError> {
+    if route == EvidenceRoute::SourceChecked {
+        if !matches!(
+            site.owner,
+            ReconstructedTerminalObligationOwner::Operation { .. }
+        ) {
+            return Err(VerificationError::SourceCheckedNonOperation(
+                site.obligation.id,
+            ));
+        }
+        accept_source_checked_operation(context, &site.obligation)
+    } else {
+        verify_obligation_with_machine_parameters(
+            context,
+            &site.obligation,
+            &site.requirements,
+            &site.semantic_axioms,
+            machine_parameter_values,
+            route,
+            profile,
+        )
+    }
+    .map_err(|error| VerificationError::RejectedEvidence {
+        obligation: site.obligation.id,
+        error,
+    })
+}
+
 fn verify_validated_module<'module>(
     validated: ValidatedTerminalModule<'module>,
     structural_frontiers: VerifiedTerminalStructuralFrontiers,
@@ -292,20 +332,13 @@ fn verify_validated_module<'module>(
         let route = evidence
             .remove(&site.obligation.id)
             .ok_or(VerificationError::MissingEvidence(site.obligation.id))?;
-        let accepted = verify_obligation_with_machine_parameters(
+        accepted_facts.push(verify_reconstructed_obligation(
             context,
-            &site.obligation,
-            &site.requirements,
-            &site.semantic_axioms,
+            site,
             &machine_parameter_values,
             route,
             profile,
-        )
-        .map_err(|error| VerificationError::RejectedEvidence {
-            obligation: site.obligation.id,
-            error,
-        })?;
-        accepted_facts.push(accepted);
+        )?);
     }
 
     if let Some(obligation) = evidence.keys().next().copied() {
@@ -581,6 +614,7 @@ pub enum VerificationError {
     DuplicateEvidence(ObligationId),
     MissingEvidence(ObligationId),
     UnknownEvidence(ObligationId),
+    SourceCheckedNonOperation(ObligationId),
     NonCanonicalRecursiveComponentEvidence,
     DuplicateRecursiveComponentEvidence(semantic_vocabulary::RecursiveComponentId),
     MissingRecursiveComponentEvidence(semantic_vocabulary::RecursiveComponentId),

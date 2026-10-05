@@ -150,6 +150,7 @@ pub(super) struct EmittedMachine {
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(super) selected_integer_comparisons: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    pub(super) source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
 }
 
 /// Emit one ordinary machine. Counters advance only when emission succeeds;
@@ -817,6 +818,7 @@ pub(super) fn emit(
         source_calls,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
+        source_checked_obligations,
         ..
     } = operations;
     let mut structural_places = parameters
@@ -958,6 +960,7 @@ pub(super) fn emit(
         source_calls,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
+        source_checked_obligations,
     })
 }
 

@@ -3566,8 +3566,24 @@ deletions, which its commit lists.
     re-analyzing expressions to collect them. The guarded cast/call witness
     `arithmetic/runtime_short_circuit_cast_decisions_exit` runs natively and
     interpreted with exit 70; wrong-path, escaped and mutated-subject facts
-    reject. Extend that output to the remaining primitive conditions, rather
-    than rebuilding decisions with a separate syntax traversal. Concrete contract
+    reject. Division and remainder now go end to end: that walk's
+    `ArithmeticDecisions` records `defined_divisions`
+    (`CheckFacts.operators`), stage 04 sets `formation_decided` on the checked
+    `IntegerBinary`, stage 05 emission publishes the operation's obligation as
+    `EvidenceRoute::SourceChecked` evidence (attached-unit and scalar-graph
+    routes; other routes drop it and keep certificate search), and the
+    verifier admits that route only for an operation-owned derivable
+    obligation (ledger entry `route:source-checked`). Extend the same path to
+    the remaining primitive conditions, rather than rebuilding decisions with
+    a separate syntax traversal. Next by customer count is the index bound
+    `LessThan(index, length)`: `pass/text/local_bounded_text_case_result_loan_exit`
+    (obligation 20, `text[0]` behind `0 < text.len` in the predecessor
+    state), `pass/text/local_bounded_text_scalar_loan_exit` (obligation 27, at
+    the 65536 search provision) and `samples/cli/algorithms/longest_run` all
+    stop there; stage 04's `check_indexed_access` computes each verdict and
+    discards it. Exact casts have decisions that stage 05 drops at
+    `prepare_expression.rs`; Exact add, subtract, multiply and shift
+    representability have none yet. Concrete contract
     arithmetic uses that same formation walk; abstract declaration contracts
     still have a separate carrier-resolution path to unify;
   - cover nested expressions, compiler-generated semantic-to-storage casts,
@@ -3599,18 +3615,13 @@ deletions, which its commit lists.
     carrier type and permissions. A raw carrier-width pointer or delayed
     copy-out cannot establish this contract; foreign raw-pointer boundaries
     need a compatible checked adapter.
-  - `tests/omega/pass/arithmetic/runtime_nested_record_observation_exit`: the
-    interpreter exits 70, but the second division still hits
-    `OperationProofUnavailable` despite a retained nonzero requirement and
-    divisor alias. Do not extend certificate search for this arrangement.
 
   Acceptance: every corpus fail fixture that rejects with
   `OperationProofUnavailable` rejects from `omega --check` with a checking
   diagnostic, and the check corpus is otherwise unchanged;
   `python tools/corpus_gate.py --both --filter
-  arithmetic/runtime_nested_record_observation_exit` and `--filter
-  layouts/runtime_callee_integer_at_fitting_write_exit` exit 70 and 0
-  respectively in native and interpreter.
+  layouts/runtime_callee_integer_at_fitting_write_exit` exits 0 in native and
+  interpreter.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate production
@@ -3642,13 +3653,13 @@ deletions, which its commit lists.
   **OMEGA-READS-TERMINAL-UNVERIFIED**. `verify_validated_module`
   (`terminal-psi/verification/src/verification.rs`) demands one evidence
   route per reconstructed obligation and raises `MissingEvidence` otherwise.
-  Every operation obligation is reconstructed `Derivable`, so no
-  non-certificate route admits it. Without a `ProofBundle`, every compile
+  Every operation obligation is reconstructed `Derivable`, so only a
+  certificate or the checker's `SourceChecked` route admits it. Without a `ProofBundle`, every compile
   would therefore fail. This item must also stop requiring evidence for
   operation-owned obligations there, or land together with
-  **OMEGA-READS-TERMINAL-UNVERIFIED**. The same applies to
-  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** if it skips certificate search
-  for checker-decided obligations before this item lands.
+  **OMEGA-READS-TERMINAL-UNVERIFIED**. Checker-decided obligations already
+  avoid this: they carry `EvidenceRoute::SourceChecked`, which the verifier
+  admits for operation owners.
 
 - **OMEGA-READS-TERMINAL-UNVERIFIED.** (new-scope) Depends on
   **PCC-CERTIFICATES-DELETED**. Stop every consumer from verifying Terminal:

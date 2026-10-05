@@ -12,7 +12,7 @@ mod transition_statements;
 use crate::declarations::symbols::MachineSymbols;
 use crate::value_custody::locals::WritableRoots;
 use crate::{
-    ExactIntegerCastFact, TopLevelSymbols, ValidatedBoundaryOperatorApplication,
+    TopLevelSymbols, ValidatedBoundaryOperatorApplication,
     declarations::transitions, proof_contracts::arithmetic_domains, value_custody::placed_views,
 };
 use diagnostics::Diagnostic;
@@ -40,7 +40,7 @@ pub(super) struct StatementScope<'a> {
 pub(super) struct StatementOutputs<'a> {
     pub(super) stored_integer_writes: &'a mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     pub(super) value_environment: &'a mut arithmetic_domains::ValueEnvironment,
-    pub(super) exact_integer_casts: &'a mut Vec<ExactIntegerCastFact>,
+    pub(super) arithmetic_decisions: &'a mut arithmetic_domains::ArithmeticDecisions,
     pub(super) boundary_operator_applications: &'a mut Vec<ValidatedBoundaryOperatorApplication>,
     pub(super) diagnostics: &'a mut Vec<Diagnostic>,
 }
@@ -59,7 +59,7 @@ pub(super) fn validate_state_statement_node<'p>(
     transition_values: &transitions::TransitionValueEnvironments,
     direct_written: Option<Vec<String>>,
     local_write_origins: Option<&[crate::LocalWriteOrigin]>,
-    exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
+    arithmetic_decisions: &mut arithmetic_domains::ArithmeticDecisions,
     stored_integer_writes: &mut Vec<checked_trees::CheckedStoredIntegerWrite>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     bound_lookup: &mut (
@@ -85,7 +85,7 @@ pub(super) fn validate_state_statement_node<'p>(
     let mut outputs = StatementOutputs {
         stored_integer_writes,
         value_environment,
-        exact_integer_casts,
+        arithmetic_decisions,
         boundary_operator_applications,
         diagnostics,
     };

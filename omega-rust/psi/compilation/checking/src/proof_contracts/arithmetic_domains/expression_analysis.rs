@@ -40,11 +40,29 @@ pub(super) struct Analysis {
 }
 
 /// The value judgment and the occurrence decisions made while establishing it.
-/// Cast decisions travel out of the same branch-sensitive walk; reconstructing
-/// them later from syntax loses the environment that justified an arm's cast.
 pub(super) struct CheckedAnalysis {
     pub(super) value: Analysis,
-    pub(super) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
+    pub(super) decisions: ArithmeticDecisions,
+}
+
+/// Occurrence decisions lowering consumes instead of proving again. Each one
+/// travels out of the same branch-sensitive walk that justified it;
+/// reconstructing it later from syntax loses the environment that justified
+/// an arm's cast or a guarded divisor.
+#[derive(Debug, Default)]
+pub(crate) struct ArithmeticDecisions {
+    pub(crate) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
+    /// Division and remainder occurrences whose every formation condition
+    /// under their selected policy was proven: a nonzero divisor and, for an
+    /// Exact signed operation, the excluded `MIN / -1` pair.
+    pub(crate) defined_divisions: Vec<ExpressionHandle>,
+}
+
+impl ArithmeticDecisions {
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.exact_integer_casts.extend(other.exact_integer_casts);
+        self.defined_divisions.extend(other.defined_divisions);
+    }
 }
 
 const NEUTRAL: Analysis = Analysis {
@@ -72,7 +90,7 @@ pub(super) fn analyze(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
-    let mut exact_integer_casts = Vec::new();
+    let mut decisions = ArithmeticDecisions::default();
     let value = ExpressionWalk {
         program,
         machine,
@@ -82,11 +100,8 @@ pub(super) fn analyze(
         target_domain,
         owner,
     }
-    .analyze(expression, diagnostics, &mut exact_integer_casts);
-    CheckedAnalysis {
-        value,
-        exact_integer_casts,
-    }
+    .analyze(expression, diagnostics, &mut decisions);
+    CheckedAnalysis { value, decisions }
 }
 
 /// The facts every node of one expression walk shares: where it is, what flow
@@ -121,7 +136,7 @@ impl ExpressionWalk<'_> {
         &self,
         expression: ExpressionHandle,
         diagnostics: &mut Vec<Diagnostic>,
-        exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+        decisions: &mut ArithmeticDecisions,
     ) -> Analysis {
         let node = self.program.expression_table.expression(expression);
         if !matches!(
@@ -140,7 +155,7 @@ impl ExpressionWalk<'_> {
             let child_walk = self.with_destination(None, ArithmeticDomain::Exact);
             let mut analyze_child = |child: ExpressionHandle| {
                 if child.is_valid() {
-                    child_walk.analyze(child, diagnostics, exact_integer_casts);
+                    child_walk.analyze(child, diagnostics, decisions);
                 }
             };
             if matches!(node, ExpressionNode::Atomic(_)) {
@@ -168,17 +183,17 @@ impl ExpressionWalk<'_> {
         }
         match node {
             ExpressionNode::Binary(binary) => {
-                binary::analyze(self, expression, binary, diagnostics, exact_integer_casts)
+                binary::analyze(self, expression, binary, diagnostics, decisions)
             }
             ExpressionNode::Unary(unary) => {
-                unary::analyze(self, unary, diagnostics, exact_integer_casts)
+                unary::analyze(self, unary, diagnostics, decisions)
             }
             ExpressionNode::Cast(cast) => {
-                cast::analyze(self, expression, cast, diagnostics, exact_integer_casts)
+                cast::analyze(self, expression, cast, diagnostics, decisions)
             }
             ExpressionNode::Call(call) => call::analyze(self, expression, call),
             ExpressionNode::Match(dispatch) => {
-                dispatch::analyze(self, expression, dispatch, diagnostics, exact_integer_casts)
+                dispatch::analyze(self, expression, dispatch, diagnostics, decisions)
             }
             ExpressionNode::Integer(value) => Analysis {
                 domain: None,

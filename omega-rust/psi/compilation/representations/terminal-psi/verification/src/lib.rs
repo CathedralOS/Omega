@@ -87,4 +87,5 @@ pub use verification::{
     reconstruct_optimizable_crash_obligations, reconstruct_optimizable_terminal_obligations,
     reconstruct_terminal_obligations, verify_module, verify_module_for_fixed_fuel,
     verify_module_for_interpretation, verify_module_for_optimization,
+    verify_reconstructed_obligation,
 };

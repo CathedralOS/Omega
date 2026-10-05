@@ -225,6 +225,7 @@ fn project_scalar_expression(
             primitive_type,
             left,
             right,
+            ..
         } => PackageReviewScalarExpression::IntegerBinary {
             kind: project_integer_binary_kind(*kind),
             primitive_type: project_primitive_type(*primitive_type),

@@ -37,9 +37,9 @@ pub(super) fn analyze(
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
     diagnostics: &mut Vec<Diagnostic>,
-    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
-    let left = walk.analyze(binary.left, diagnostics, exact_integer_casts);
+    let left = walk.analyze(binary.left, diagnostics, decisions);
     let right_environment = guard_narrowing::short_circuit_operand_environment(
         walk.program,
         walk.machine,
@@ -56,7 +56,7 @@ pub(super) fn analyze(
         expression,
         binary: *binary,
         left,
-        right: right_walk.analyze(binary.right, diagnostics, exact_integer_casts),
+        right: right_walk.analyze(binary.right, diagnostics, decisions),
     };
     if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
         walk.program,
@@ -135,8 +135,8 @@ pub(super) fn analyze(
         primitive
     };
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
-    if let Some(primitive) = primitive {
-        crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
+    if let Some(primitive) = primitive
+        && crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
             walk.program,
             walk.machine,
             walk.state,
@@ -148,7 +148,9 @@ pub(super) fn analyze(
             operation.right.interval,
             walk.owner,
             diagnostics,
-        );
+        )
+    {
+        decisions.defined_divisions.push(expression);
     }
     let mut exact_result_proven = false;
     if effective_domain == ArithmeticDomain::Exact {

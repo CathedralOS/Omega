@@ -264,6 +264,7 @@ pub(super) fn binary(
         scalar_type: ScalarType::Integer(carrier),
         left: Box::new(left),
         right: Box::new(right),
+        formation_decided: false,
     }
 }
 

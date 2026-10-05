@@ -511,6 +511,9 @@ pub(crate) fn lower_unit_closure(
                 composed.selected_ieee_float_comparisons,
                 composed.selected_integer_comparisons,
             );
+            occurrences
+                .source_checked_obligations
+                .extend(composed.source_checked_obligations);
             scalar_block_invariants.append(&mut invariants);
             continue;
         }
@@ -539,6 +542,9 @@ pub(crate) fn lower_unit_closure(
             emitted.selected_ieee_float_comparisons,
             emitted.selected_integer_comparisons,
         );
+        occurrences
+            .source_checked_obligations
+            .extend(emitted.source_checked_obligations);
     }
     super::unit_cleanup::finalize_nominal_cleanup_actions(
         checked,
@@ -656,7 +662,12 @@ pub(crate) fn lower_unit_closure(
             recursive_components: Vec::new(),
             control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
-            evidence: call_evidence,
+            evidence: call_evidence
+                .into_iter()
+                .chain(crate::proofs::operation_proofs::source_checked_evidence(
+                    occurrences.source_checked_obligations,
+                ))
+                .collect(),
         },
         debug_map: None,
         source_call_occurrences: occurrences.source_calls,
@@ -690,6 +701,7 @@ struct ClosureOccurrences {
     source_calls: Vec<lowered_psi::LoweredSourceCallOccurrence>,
     ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
 }
 
 impl ClosureOccurrences {

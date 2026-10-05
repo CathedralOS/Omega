@@ -246,6 +246,7 @@ fn shared_integer_runtime_inputs(
             left,
             right,
             primitive_type,
+            ..
         } => {
             let is_shift = matches!(
                 kind,

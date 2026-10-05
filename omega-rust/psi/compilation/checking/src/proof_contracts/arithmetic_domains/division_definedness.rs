@@ -99,6 +99,9 @@ impl ProvenDefinedness {
     }
 }
 
+/// Report each missing formation condition. Returns whether the operation
+/// owed at least one condition and every one was proven: a decision lowering
+/// may consume. A provably zero divisor rejected elsewhere decides nothing.
 fn report_partial(
     operator: BinaryOperator,
     domain: ArithmeticDomain,
@@ -106,7 +109,7 @@ fn report_partial(
     owner: &str,
     provably_zero_is_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let conditions = definedness_conditions(operator, domain);
     let missing_nonzero = conditions.nonzero_divisor
         && !(proven.nonzero_divisor
@@ -114,7 +117,8 @@ fn report_partial(
     let signed_overflow_pair =
         conditions.signed_result_representable && !proven.signed_pair_excluded;
     if !missing_nonzero && !signed_overflow_pair {
-        return;
+        return (conditions.nonzero_divisor || conditions.signed_result_representable)
+            && (!conditions.nonzero_divisor || proven.nonzero_divisor);
     }
 
     let operation = if operator == BinaryOperator::Divide {
@@ -134,12 +138,14 @@ fn report_partial(
         domain.name().to_ascii_lowercase(),
         missing.join(" and "),
     )));
+    false
 }
 
 /// Operands have already been checked under their selected primitive meaning.
 /// Intervals and live unequal/order relations discharge the same conditions in
 /// executable bodies and specification facts. A remembered source guard is not
 /// evidence after its operand has been written or lost at a control-flow join.
+/// Returns whether this occurrence's formation conditions are decided.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_operands(
     program: &TypedTrees,
@@ -153,14 +159,14 @@ pub(super) fn validate_operands(
     right: Interval,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     if !fixed_integer(primitive)
         || !matches!(
             binary.operator,
             BinaryOperator::Divide | BinaryOperator::Modulo
         )
     {
-        return;
+        return false;
     }
     let excludes = |expression, value| {
         ordered_values::excludes_integer_value(
@@ -196,7 +202,7 @@ pub(super) fn validate_operands(
                     &[(binary.left, minimum), (binary.right, -1)],
                 )
         });
-    report_partial(binary.operator, domain, proven, owner, true, diagnostics);
+    report_partial(binary.operator, domain, proven, owner, true, diagnostics)
 }
 
 fn direct_abstract_operand(
@@ -285,7 +291,7 @@ pub(super) fn validate_abstract(
                 else {
                     return;
                 };
-                report_partial(
+                _ = report_partial(
                     binary.operator,
                     ArithmeticDomain::Exact,
                     ProvenDefinedness::from_intervals(

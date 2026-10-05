@@ -1519,8 +1519,7 @@ pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 1292ms check-
 pass/arithmetic/runtime_integer_casts_exit checked 1369ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 6268ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_monte_carlo_pi_exit checked 1623ms check-target:macos_arm64 @2d8ed253669f
-pass/arithmetic/runtime_nested_record_observation_exit rejected 6603ms check-target:macos_arm64 @cfe60a3a242
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(4294967309)))
+pass/arithmetic/runtime_nested_record_observation_exit checked 1271ms check-target:macos_arm64 @ff0427db0110
 pass/arithmetic/runtime_nested_unsigned_witness_exit checked 1419ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_observed_call_bound_exit checked 1432ms check-target:macos_arm64 @ca8c127c90c5
 pass/arithmetic/runtime_payload_range_narrowing_exit checked 1217ms check-target:macos_arm64 @2d8ed253669f

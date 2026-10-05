@@ -48,6 +48,10 @@ fn render_verified_proof_synopsis_body(
                 writeln!(&mut output, "  kernel {judgment:?}")
                     .expect("writing a synopsis to a String cannot fail");
             }
+            AcceptedFactRoute::SourceChecked => {
+                writeln!(&mut output, "  source-checked")
+                    .expect("writing a synopsis to a String cannot fail");
+            }
             AcceptedFactRoute::CertificateDerived {
                 identity,
                 proof_system_marker,

@@ -539,11 +539,13 @@ pub(crate) fn substitute_direct(
             scalar_type,
             left,
             right,
+            formation_decided,
         } => Direct::IntegerBinary {
             kind,
             scalar_type,
             left: Box::new(substitute_direct(*left, bound)),
             right: Box::new(substitute_direct(*right, bound)),
+            formation_decided,
         },
         Direct::IntegerBitwiseNot {
             scalar_type,

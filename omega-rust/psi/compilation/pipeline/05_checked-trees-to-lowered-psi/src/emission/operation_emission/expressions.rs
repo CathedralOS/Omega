@@ -185,6 +185,10 @@ pub(crate) enum LoweredDirectExpression {
         scalar_type: ScalarType,
         left: Box<LoweredDirectExpression>,
         right: Box<LoweredDirectExpression>,
+        /// Checking decided this source occurrence's formation conditions;
+        /// emission records the operation's obligation as source-checked.
+        /// Every expression lowering synthesizes itself leaves this false.
+        formation_decided: bool,
     },
     /// Composite arithmetic whose operands must be evaluated once before
     /// the count is reused by the two positive scale factors.
@@ -777,6 +781,7 @@ pub(crate) fn emit_direct_expression(
                 scalar_type: *scalar_type,
                 left: Box::new(left.clone()),
                 right: Box::new(right.clone()),
+                formation_decided: false,
             };
             emit_direct_expression(&count_witness, &bindings, next_value_identity, operations);
             let expanded = crate::expression_preparation::saturating_shift::expansion(
@@ -791,6 +796,7 @@ pub(crate) fn emit_direct_expression(
             scalar_type,
             left,
             right,
+            formation_decided,
         } => {
             let left = emit_direct_expression(left, parameters, next_value_identity, operations);
             let right = emit_direct_expression(right, parameters, next_value_identity, operations);
@@ -799,6 +805,12 @@ pub(crate) fn emit_direct_expression(
                 .checked_add(1)
                 .expect("generated value identity advances after a binary operation");
             let operation = operations.allocate();
+            if *formation_decided
+                && kind.is_division()
+                && let Some(obligation) = kind.formation_obligation(operation)
+            {
+                operations.source_checked_obligations.push(obligation);
+            }
             operations.push(Operation {
                 static_reach_binding: None,
                 suspension_crossing: None,

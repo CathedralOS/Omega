@@ -123,6 +123,7 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             primitive_type,
             left,
             right,
+            ..
         } if matches!(
             kind,
             checked_trees::CheckedIntegerBinaryKind::WrappingAdd

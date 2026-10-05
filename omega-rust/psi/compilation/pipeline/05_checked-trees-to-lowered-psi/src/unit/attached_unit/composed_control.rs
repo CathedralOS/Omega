@@ -36,6 +36,8 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(in crate::unit::attached_unit) selected_integer_comparisons:
         Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    pub(in crate::unit::attached_unit) source_checked_obligations:
+        Vec<semantic_vocabulary::ObligationId>,
 }
 
 impl ComposedOccurrences {
@@ -46,6 +48,8 @@ impl ComposedOccurrences {
             .extend(operations.selected_ieee_float_comparisons);
         self.selected_integer_comparisons
             .extend(operations.selected_integer_comparisons);
+        self.source_checked_obligations
+            .extend(operations.source_checked_obligations);
     }
 }
 

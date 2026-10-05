@@ -3,7 +3,7 @@
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
 use lowered_psi::LoweredSourceCallOccurrence;
-use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, ValueId};
+use semantic_vocabulary::{ObligationId, OperationId, PlaceId, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, ValueDeclaration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +126,11 @@ pub(crate) struct OperationBuffer {
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparisons:
         Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
+    /// Formation obligations of operations whose source occurrence checking
+    /// decided. The module's proof bundle carries each as source-checked
+    /// evidence; a route that drops them leaves certificate search to prove
+    /// those obligations instead.
+    pub(crate) source_checked_obligations: Vec<ObligationId>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
@@ -159,6 +164,7 @@ impl OperationBuffer {
             source_calls: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
             selected_integer_comparisons: Vec::new(),
+            source_checked_obligations: Vec::new(),
         }
     }
 

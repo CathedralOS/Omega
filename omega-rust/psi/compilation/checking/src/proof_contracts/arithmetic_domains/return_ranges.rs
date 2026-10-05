@@ -245,7 +245,7 @@ pub(crate) fn validate_return_value_range(
     environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-    decisions: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);

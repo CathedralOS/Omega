@@ -133,6 +133,7 @@ fn integer(
             primitive_type,
             left,
             right,
+            ..
         } => {
             let left_eval = integer(left, source);
             let right_eval = integer(right, source);

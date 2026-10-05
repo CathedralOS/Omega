@@ -119,6 +119,7 @@ fn integer(
             primitive_type,
             left,
             right,
+            ..
         } => {
             let scalar_type = integer_type(*primitive_type)?;
             let (left_type, left) = integer(left, resolve_binding)?;

@@ -124,6 +124,12 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
+        /// Checking decided every formation condition this occurrence owes
+        /// (a division's nonzero divisor and, for an Exact signed one, the
+        /// excluded `MIN / -1` pair). Lowering marks the emitted operation
+        /// so its obligation consumes the decision; false keeps the
+        /// certificate search.
+        formation_decided: bool,
     },
     IntegerBitwiseNot {
         primitive_type: typed_trees::types::PrimitiveType,

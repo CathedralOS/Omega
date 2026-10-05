@@ -276,6 +276,7 @@ pub(crate) fn evaluate_direct_expression(
             scalar_type,
             left,
             right,
+            ..
         } => {
             let count_type = right.scalar_type();
             let KnownDirectScalar::Integer(left) = evaluate_direct_expression(left, parameters)?

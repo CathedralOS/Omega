@@ -146,6 +146,20 @@ impl LoweredIntegerBinaryKind {
         }
     }
 
+    /// Division and remainder, the kinds whose formation checking records
+    /// as a decision.
+    pub(crate) const fn is_division(self) -> bool {
+        matches!(
+            self,
+            Self::ExactDivide
+                | Self::ExactRemainder
+                | Self::WrappingDivide
+                | Self::WrappingRemainder
+                | Self::SaturatingDivide
+                | Self::SaturatingRemainder
+        )
+    }
+
     pub(crate) fn formation_obligation(self, operation: OperationId) -> Option<ObligationId> {
         let catalog_requires_formation =
             self.integer_policy_binding()

@@ -1,6 +1,6 @@
 //! Optional proof-fact inference must preserve already supplied source evidence.
 
-use proof_admission::{AdmissionProfile, verify_obligation_with_machine_parameters};
+use proof_admission::AdmissionProfile;
 use terminal_psi::ProofBundle;
 use terminal_verifier::{ReconstructedTerminalObligationSet, ValidatedTerminalModule};
 
@@ -40,11 +40,9 @@ pub(super) fn replays(
             .iter()
             .map(|parameter| parameter.id)
             .collect();
-        if verify_obligation_with_machine_parameters(
+        if terminal_verifier::verify_reconstructed_obligation(
             &context,
-            &after.obligation,
-            &after.requirements,
-            &after.semantic_axioms,
+            after,
             &parameters,
             proof.route.clone(),
             &AdmissionProfile::default(),

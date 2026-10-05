@@ -30,7 +30,7 @@ pub(super) fn validate(
         ..
     } = *scope;
     let value_environment = &mut *outputs.value_environment;
-    let exact_integer_casts = &mut *outputs.exact_integer_casts;
+    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
     if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
         // Every Exact operation in a guard owes its representability proof,
@@ -51,7 +51,7 @@ pub(super) fn validate(
             numerics::arithmetic::ArithmeticDomain::Exact,
             &owner,
             diagnostics,
-            exact_integer_casts,
+            arithmetic_decisions,
         );
     }
     validate_transition_target_node(
@@ -206,7 +206,7 @@ pub(super) fn validate(
                         machine.name
                     ),
                     diagnostics,
-                    exact_integer_casts,
+                    arithmetic_decisions,
                 );
             }
         }
@@ -242,7 +242,7 @@ pub(super) fn validate(
                         machine.name
                     ),
                     diagnostics,
-                    exact_integer_casts,
+                    arithmetic_decisions,
                 );
             }
         }

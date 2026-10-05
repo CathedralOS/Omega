@@ -48,6 +48,8 @@ const PREDICATE_DENOTATION: &str =
     "omega-rust/psi/compilation/proof/admission/src/predicate_denotation.rs";
 const VALUE_EQUALITIES: &str =
     "omega-rust/psi/compilation/proof/admission/src/predicate_denotation/value_equalities.rs";
+const VERIFICATION: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification.rs";
 const NODES: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/proof_bundle/nodes.rs";
 const ADMISSION: &str = "omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/proof_bundle/admission.rs";
@@ -545,6 +547,16 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         ],
         soundness: TRUSTED,
     },
+    TrustedSurfaceEntry {
+        id: "route:source-checked",
+        family: LedgerFamily::EvidenceRoute,
+        binding: dispatch(CoveredSurface::EvidenceRoutes),
+        premises: "a derivable obligation the reconstruction assigns to one operation, whose formation condition the producing compile's source checker decided from flow facts and lowering attached to that exact operation",
+        conclusion: "the fact is accepted on the producing checker's decision; no proof travels, so the checker is trusted for this goal, and any other owner, an admission row, a ranking edge or a normalization law rejects the route",
+        dependencies: &["formation:proposition-context"],
+        implementation: &[EVIDENCE, ADMISSION, VERIFICATION],
+        soundness: TRUSTED,
+    },
 ];
 
 /// `PrimitiveJudgment` -> ledger entry, total by construction.
@@ -597,5 +609,6 @@ pub fn evidence_route_entry(route: &EvidenceRoute) -> &'static TrustedSurfaceEnt
         EvidenceRoute::KernelDerived(_) => &ENTRIES[31],
         EvidenceRoute::CertificateDerived(_) => &ENTRIES[32],
         EvidenceRoute::Admitted(_) => &ENTRIES[33],
+        EvidenceRoute::SourceChecked => &ENTRIES[36],
     }
 }

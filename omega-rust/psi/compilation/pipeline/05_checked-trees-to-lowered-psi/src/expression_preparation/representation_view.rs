@@ -137,6 +137,7 @@ fn byte_region(
                     value: IntegerValue::Unsigned(byte),
                     scalar_type: index_type,
                 }),
+                formation_decided: false,
             })
         };
         let widened = LoweredDirectExpression::IntegerWiden {
@@ -161,6 +162,7 @@ fn byte_region(
                     value: IntegerValue::Unsigned(byte * 8),
                     scalar_type: region,
                 }),
+                formation_decided: false,
             }
         };
         assembled = Some(match assembled {
@@ -170,6 +172,7 @@ fn byte_region(
                 scalar_type: region,
                 left: Box::new(lower),
                 right: Box::new(placed),
+                formation_decided: false,
             },
         });
     }

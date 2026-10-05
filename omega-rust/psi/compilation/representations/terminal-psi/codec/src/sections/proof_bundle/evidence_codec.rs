@@ -133,6 +133,7 @@ fn encode_evidence_route(
             writer.id(evidence.evidence_identity);
             writer.id(evidence.profile_decision);
         }
+        EvidenceRoute::SourceChecked => writer.u8(4),
     }
     Ok(())
 }
@@ -193,6 +194,7 @@ fn decode_evidence_route(
             evidence_identity: reader.id("EvidenceIdentity")?,
             profile_decision: reader.id("ProfileDecisionId")?,
         }),
+        4 => EvidenceRoute::SourceChecked,
         tag => return Err(ProofCodecError::InvalidTag("EvidenceRoute", tag)),
     })
 }

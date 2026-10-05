@@ -38,8 +38,8 @@ pub use admission::denotation::check_denotation_certificate;
 pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
-    Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
-    verify_obligation_with_machine_parameters,
+    Obligation, ObligationClass, ProofSystemMarker, accept_source_checked_operation,
+    verify_obligation, verify_obligation_with_machine_parameters,
 };
 pub use admission::normalization::{
     NormalizationAcceptance, NormalizationCertificate, NormalizationError,

@@ -172,6 +172,7 @@ fn inline_scalar_locals(
             primitive_type,
             left,
             right,
+            ..
         } => Some(CheckedScalarExpression::IntegerBinary {
             kind: *kind,
             primitive_type: *primitive_type,
@@ -189,6 +190,8 @@ fn inline_scalar_locals(
                 state,
                 depth,
             )?),
+            // Inlining changes the evaluation context the checker decided.
+            formation_decided: false,
         }),
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,

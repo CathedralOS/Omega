@@ -15,6 +15,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use terminal_verifier::ObligationEvidence;
 
 pub(crate) const PARALLEL_PROOF_THRESHOLD: usize = 16;
+
+/// Evidence for operations whose formation checking decided at their source
+/// occurrence. Those obligations arrive dispatched, so the search below never
+/// visits them; the verifier admits the route only for operation owners.
+pub(crate) fn source_checked_evidence(
+    obligations: Vec<semantic_vocabulary::ObligationId>,
+) -> impl Iterator<Item = ObligationEvidence> {
+    obligations
+        .into_iter()
+        .map(|obligation| ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::SourceChecked,
+        })
+}
 pub(crate) const MAX_PROOF_WORKERS: usize = 8;
 
 pub(crate) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {

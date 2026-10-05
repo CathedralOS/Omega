@@ -238,6 +238,7 @@ impl ByteStoreDestination {
                 value: IntegerValue::Unsigned(u128::from(stride)),
                 scalar_type,
             }),
+            formation_decided: false,
         };
         let index_value = ValueDeclaration {
             id: index,
@@ -275,6 +276,7 @@ impl ByteStoreDestination {
                 position: 1,
                 scalar_type,
             }),
+            formation_decided: false,
         };
         self.index = ByteStoreIndex::Runtime(emit_direct_expression(
             &sum,
@@ -393,6 +395,7 @@ impl ByteStoreDestination {
                         value: IntegerValue::Unsigned(u128::from(byte_offset * 8)),
                         scalar_type: stored_type,
                     }),
+                    formation_decided: false,
                 }
             };
             let byte_expression = wrapping_cast(shifted, stored_integer, byte_scalar)?;

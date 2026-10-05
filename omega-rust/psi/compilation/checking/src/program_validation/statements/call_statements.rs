@@ -27,7 +27,7 @@ pub(super) fn validate(
         ..
     } = *scope;
     let value_environment = &mut *outputs.value_environment;
-    let exact_integer_casts = &mut *outputs.exact_integer_casts;
+    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let boundary_operator_applications = &mut *outputs.boundary_operator_applications;
     let diagnostics = &mut *outputs.diagnostics;
     if let Some(state) = current_state {
@@ -76,7 +76,7 @@ pub(super) fn validate(
                 machine.name
             ),
             diagnostics,
-            exact_integer_casts,
+            arithmetic_decisions,
         );
     }
     // R5 frame seed: a resolved acyclic INTERNAL call preserves facts

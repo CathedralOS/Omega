@@ -749,7 +749,14 @@ pub(crate) fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            construct_integer_binary(binary.operator, left, left_domain, right, right_domain)
+            construct_integer_binary(
+                binary.operator,
+                left,
+                left_domain,
+                right,
+                right_domain,
+                operators.division_is_defined(expression),
+            )
         }
         _ => None,
     }
@@ -776,6 +783,7 @@ pub(crate) fn construct_integer_binary(
     left_domain: ArithmeticDomain,
     mut right: CheckedScalarExpression,
     right_domain: ArithmeticDomain,
+    formation_decided: bool,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let shift = matches!(
         operator,
@@ -836,6 +844,7 @@ pub(crate) fn construct_integer_binary(
             primitive_type,
             left: Box::new(left),
             right: Box::new(right),
+            formation_decided,
         },
         domain,
     ))

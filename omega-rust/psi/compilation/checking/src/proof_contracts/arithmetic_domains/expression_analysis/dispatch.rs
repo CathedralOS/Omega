@@ -17,11 +17,11 @@ pub(super) fn analyze(
     expression: ExpressionHandle,
     dispatch: &TableMatchExpression,
     diagnostics: &mut Vec<Diagnostic>,
-    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
     let program = walk.program;
     let operand_walk = walk.with_destination(None, ArithmeticDomain::Exact);
-    operand_walk.analyze(dispatch.subject, diagnostics, exact_integer_casts);
+    operand_walk.analyze(dispatch.subject, diagnostics, decisions);
     let result_type = walk.state.and_then(|state| {
         expression_result_type_reference(program, walk.machine, state, expression)
     });
@@ -49,13 +49,13 @@ pub(super) fn analyze(
         .zip(&environments)
     {
         if let MatchPattern::Value(pattern) = arm.pattern {
-            operand_walk.analyze(pattern, diagnostics, exact_integer_casts);
+            operand_walk.analyze(pattern, diagnostics, decisions);
         }
         let arm_walk = ExpressionWalk {
             environment: selected,
             ..result_walk
         };
-        let arm_value = arm_walk.analyze(arm.value, diagnostics, exact_integer_casts);
+        let arm_value = arm_walk.analyze(arm.value, diagnostics, decisions);
         interval = Some(interval.map_or(arm_value.interval, |previous| {
             previous.union(arm_value.interval)
         }));

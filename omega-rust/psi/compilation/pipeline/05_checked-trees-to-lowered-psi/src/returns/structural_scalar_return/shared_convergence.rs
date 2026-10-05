@@ -116,6 +116,7 @@ fn shared_integer_runtime_parameters(
             left,
             right,
             scalar_type,
+            ..
         } => {
             let is_shift = matches!(
                 kind,

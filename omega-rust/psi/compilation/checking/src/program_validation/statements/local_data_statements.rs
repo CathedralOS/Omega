@@ -28,7 +28,7 @@ pub(super) fn validate(
         ..
     } = *scope;
     let value_environment = &mut *outputs.value_environment;
-    let exact_integer_casts = &mut *outputs.exact_integer_casts;
+    let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
     let mut type_parameters = program.machine_type_parameters(machine).to_vec();
     let mut lifetime_parameters = machine.lifetime_parameters.clone();
@@ -198,7 +198,7 @@ pub(super) fn validate(
                 local_target_domain,
                 &owner,
                 diagnostics,
-                exact_integer_casts,
+                arithmetic_decisions,
             )
         });
     // Keep the declared carrier check independent of arithmetic failures.

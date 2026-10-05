@@ -412,6 +412,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
             left,
             right,
+            formation_decided,
         } => {
             let scalar_type = terminal_scalar_type(*primitive_type)?;
             let left = lower_checked_scalar_expression_with_parameters(
@@ -524,6 +525,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type,
                 left: Box::new(left),
                 right: Box::new(right),
+                formation_decided: *formation_decided,
             })
         }
         CheckedScalarExpression::IntegerBitwiseNot {

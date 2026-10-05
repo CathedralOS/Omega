@@ -18,7 +18,7 @@ pub(super) fn analyze(
     expression: typed_trees::expression::ExpressionHandle,
     cast: &TableCastExpression,
     diagnostics: &mut Vec<Diagnostic>,
-    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
     let first_diagnostic = diagnostics.len();
     let program = walk.program;
@@ -32,7 +32,7 @@ pub(super) fn analyze(
     // operations see the stated referee type.
     if cast.form.is_recast() {
         walk.with_destination(None, ArithmeticDomain::Exact)
-            .analyze(cast.value, diagnostics, exact_integer_casts);
+            .analyze(cast.value, diagnostics, decisions);
         return Analysis {
             domain: Some(ArithmeticDomain::Exact),
             interval: primitive
@@ -41,7 +41,7 @@ pub(super) fn analyze(
             primitive,
         };
     }
-    let source = source_value(walk, cast, primitive, diagnostics, exact_integer_casts);
+    let source = source_value(walk, cast, primitive, diagnostics, decisions);
     // Source facts precede target qualification. In particular a Wrapping cast
     // must not use its asserted target range to prove that same range, or
     // repair an out-of-range initial value.
@@ -83,7 +83,7 @@ pub(super) fn analyze(
         && integer_interval_fits_primitive(source.interval, source_type, target_type)
         && let (Some(minimum), Some(maximum)) = (source_interval.low, source_interval.high)
     {
-        exact_integer_casts.push(crate::ExactIntegerCastFact {
+        decisions.exact_integer_casts.push(crate::ExactIntegerCastFact {
             expression,
             source_type,
             target_type,
@@ -106,7 +106,7 @@ fn source_value(
     cast: &TableCastExpression,
     primitive: Option<PrimitiveType>,
     diagnostics: &mut Vec<Diagnostic>,
-    exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> Analysis {
     let program = walk.program;
     if cast.semantic_domain.is_empty()
@@ -134,7 +134,7 @@ fn source_value(
     let (Some(evaluated), Some(primitive)) = (anonymous, integer_target) else {
         return walk
             .with_destination(None, ArithmeticDomain::Exact)
-            .analyze(cast.value, diagnostics, exact_integer_casts);
+            .analyze(cast.value, diagnostics, decisions);
     };
     match evaluated
         .value

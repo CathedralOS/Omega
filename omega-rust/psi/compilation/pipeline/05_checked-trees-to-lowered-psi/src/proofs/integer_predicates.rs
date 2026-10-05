@@ -34,6 +34,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            ..
         } if matches!(
             kind,
             CheckedIntegerBinaryKind::BitwiseAnd
@@ -65,6 +66,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            ..
         } if matches!(
             kind,
             CheckedIntegerBinaryKind::WrappingShiftLeft
@@ -122,6 +124,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            ..
         } if matches!(
             kind,
             CheckedIntegerBinaryKind::ExactAdd

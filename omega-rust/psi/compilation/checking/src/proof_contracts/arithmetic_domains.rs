@@ -76,6 +76,7 @@ pub(crate) use integer_ranges::{
     integer_bit_width, literal_i64, primitive_range, validate_anonymous_integer_range,
     validate_value_range, validate_value_range_retaining_decisions,
 };
+pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,

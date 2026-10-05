@@ -740,6 +740,7 @@ pub(crate) fn exclusive_end(
             value: semantic_vocabulary::IntegerValue::Unsigned(1),
             scalar_type,
         }),
+        formation_decided: false,
     }))
 }
 

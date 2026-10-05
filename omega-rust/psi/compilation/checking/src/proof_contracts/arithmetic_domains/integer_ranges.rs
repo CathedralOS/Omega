@@ -1,6 +1,7 @@
 //! Integer literal, cast and primitive range fitting.
 //!
-//! Statement checking retains cast decisions with its value-range result.
+//! Statement checking retains cast and divisor decisions with its value-range
+//! result.
 //! Queries may discard those decisions, but lowering never reconstructs them
 //! by re-running an expression under a different destination or branch scope.
 
@@ -165,7 +166,7 @@ pub(crate) fn validate_value_range(
         target_domain,
         owner,
         diagnostics,
-        &mut Vec::new(),
+        &mut super::ArithmeticDecisions::default(),
     )
 }
 
@@ -183,7 +184,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
     target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-    decisions: &mut Vec<crate::ExactIntegerCastFact>,
+    decisions: &mut super::ArithmeticDecisions,
 ) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
     if !expression.is_valid() {
         return (Interval::UNBOUNDED, None, None);
@@ -204,7 +205,7 @@ pub(crate) fn validate_value_range_retaining_decisions(
         .iter()
         .any(Diagnostic::is_error)
     {
-        decisions.extend(analysis.exact_integer_casts);
+        decisions.extend(analysis.decisions);
     }
     (
         analysis.value.interval,

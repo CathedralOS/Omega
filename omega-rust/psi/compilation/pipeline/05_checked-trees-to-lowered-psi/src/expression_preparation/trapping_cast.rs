@@ -44,6 +44,7 @@ pub(crate) fn trapping_cast(
                 scalar_type: ScalarType::Integer(source_type),
                 value: IntegerValue::Unsigned(0),
             }),
+            formation_decided: false,
         }
     } else {
         operand

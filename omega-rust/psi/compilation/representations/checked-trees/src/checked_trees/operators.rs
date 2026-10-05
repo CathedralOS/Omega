@@ -582,6 +582,11 @@ pub struct CheckedOperatorFacts {
     /// Every exact integer conversion validation proved, so a later lowering
     /// of the same authored expression spells it as the retained one did.
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
+    /// Division and remainder occurrences whose formation conditions checking
+    /// decided, ordered by handle position. Lowering marks the operation it
+    /// emits for each one, so the proof pass consumes the decision instead of
+    /// searching for a certificate.
+    pub defined_divisions: Vec<ExpressionHandle>,
     /// Target-neutral executions settled by Omega from exact selected plans.
     /// Source classification alone never populates this roster.
     pub selected_float_comparisons: Arena<CheckedSelectedFloatComparisonExecution>,
@@ -658,6 +663,7 @@ impl std::fmt::Debug for CheckedOperatorFacts {
             .debug_struct("CheckedOperatorFacts")
             .field("uses", &self.uses)
             .field("exact_integer_casts", &self.exact_integer_casts)
+            .field("defined_divisions", &self.defined_divisions)
             .field(
                 "selected_float_comparisons",
                 &self.selected_float_comparisons,
@@ -748,6 +754,16 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    /// Whether checking decided every formation condition of this division
+    /// or remainder occurrence.
+    pub fn division_is_defined(&self, expression: ExpressionHandle) -> bool {
+        self.defined_divisions
+            .binary_search_by_key(&handle_position(expression), |defined| {
+                handle_position(*defined)
+            })
+            .is_ok()
+    }
+
     /// The actually selected occurrences that require operator crash replay,
     /// identified by their exact arena rows. Candidate contracts survive
     /// provider adapter rewrites of expression nodes. Named calls select
@@ -803,6 +819,7 @@ impl CheckedOperatorFacts {
         Self {
             uses,
             exact_integer_casts: Vec::new(),
+            defined_divisions: Vec::new(),
             selected_float_comparisons: Arena::new(),
             named_uses,
             named_requirement_uses: Arena::new(),
@@ -1102,4 +1119,9 @@ impl CheckedOperatorFacts {
         }
         summary
     }
+}
+
+/// The order `defined_divisions` keeps: arena position, then generation.
+pub fn handle_position(expression: ExpressionHandle) -> (u32, u32) {
+    (expression.arena_index(), expression.generation())
 }

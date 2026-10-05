@@ -780,6 +780,7 @@ fn substitute_checked_scalar_expression(
             primitive_type,
             left,
             right,
+            ..
         } => CheckedScalarExpression::IntegerBinary {
             kind: *kind,
             primitive_type: *primitive_type,
@@ -789,6 +790,8 @@ fn substitute_checked_scalar_expression(
             right: Box::new(substitute_checked_scalar_expression(
                 right, arguments, fields,
             )?),
+            // A substituted callee term is a different occurrence.
+            formation_decided: false,
         },
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,

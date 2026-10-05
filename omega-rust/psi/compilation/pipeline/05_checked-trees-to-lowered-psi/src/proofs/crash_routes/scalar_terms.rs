@@ -227,6 +227,7 @@ pub(crate) fn lowered_direct_scalar_term(
             scalar_type,
             left,
             right,
+            ..
         } => {
             let ScalarType::Integer(integer_type) = scalar_type else {
                 return unsupported("crash predicate arithmetic has a non-integer type");
