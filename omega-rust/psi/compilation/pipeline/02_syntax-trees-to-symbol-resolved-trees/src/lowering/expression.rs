@@ -365,7 +365,6 @@ fn lower_nonbinary_expression_node_into_table(
                 expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
                     members,
                     member_symbols,
-                    is_self_value: false,
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
                 })),
@@ -389,24 +388,6 @@ fn lower_nonbinary_expression_node_into_table(
                     start,
                     end,
                     end_inclusive: range.end_inclusive,
-                })),
-            )
-        }
-        syntax::expression::ExpressionNode::SelfValue => {
-            let mut members = HandleSpan::empty();
-            expression_table(lowerer).push_name_path_member(
-                &mut members,
-                symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
-            );
-            let member_symbols =
-                expression_table(lowerer).reserve_name_path_member_symbols(members.count());
-            Ok(
-                expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
-                    members,
-                    member_symbols,
-                    is_self_value: true,
-                    head_symbol: SymbolHandle::invalid(),
-                    symbol: SymbolHandle::invalid(),
                 })),
             )
         }

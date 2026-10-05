@@ -7,8 +7,8 @@ use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
 use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
-    expression_is_contextual_domain_primitive, expression_is_contextual_statement_primitive,
-    expression_is_intrinsic_primitive_without_origin, reachable_expressions,
+    expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
+    reachable_expressions,
 };
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
@@ -259,7 +259,6 @@ fn checked_operator_target(
                     owner_index.map(super::contexts::OwnerEnvironmentIndex::program_only),
                 )
                 || checked_operator_expression_is_intrinsic_primitive(facts, operand)
-                || expression_is_contextual_domain_primitive(program, expression, operand)
                 || expression_is_contextual_statement_primitive(
                     program,
                     facts,
@@ -852,6 +851,10 @@ pub(crate) fn type_reference_for_symbol(
     }
     let parent = declaration.parent;
     let owner = program.symbols.get(parent);
+    if declaration.kind == SymbolKind::Parameter && owner.kind == SymbolKind::Domain {
+        let domain = typed_trees::domain::domain_by_symbol(program, parent)?;
+        return (domain.subject_symbol == symbol).then_some(domain.target_type);
+    }
     if declaration.kind == SymbolKind::Const {
         return program.const_declarations().iter().find_map(|declaration| {
             (declaration.symbol == symbol).then_some(declaration.declared_type)

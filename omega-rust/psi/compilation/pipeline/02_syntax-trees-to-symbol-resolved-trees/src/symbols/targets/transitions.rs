@@ -81,7 +81,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     // field has the same spelling. Ordinary scoped lookup includes fields and
     // would otherwise bind `-> next()` to `self.next` before the state-only
     // fallback below had a chance to run.
-    if (path.len() == 1 || named.path_starts_at_self)
+    if path.len() == 1
         && let Some(target_name) = target_name.as_ref()
     {
         let target_symbol = child_symbol_by_kinds(
@@ -100,7 +100,6 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     // A receiverless static binder call retains the same exact requirement
     // identity as an ordinary call. State targets keep precedence above.
     if path.len() == 1
-        && !named.path_starts_at_self
         && let Some(target_name) = target_name.as_ref()
     {
         let target_symbol = super::calls::resolve_call_target_symbol(
@@ -119,13 +118,8 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
         }
     }
 
-    let (head_symbol, symbol) = resolve_state_scoped_members(
-        symbols,
-        machine.symbol,
-        state_symbol,
-        path,
-        named.path_starts_at_self,
-    );
+    let (head_symbol, symbol) =
+        resolve_state_scoped_members(symbols, machine.symbol, state_symbol, path);
     if symbol.is_valid() {
         named.head_symbol = head_symbol;
         named.symbol = symbol;
@@ -179,21 +173,6 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             named.head_symbol = target_symbol;
             named.symbol = target_symbol;
             return;
-        }
-
-        if named.path_starts_at_self
-            && let Some(attached_data) = machine.attached_data
-        {
-            let target_symbol = call_target_for_attached_data(
-                symbols,
-                attached_data.as_str(),
-                target_name.as_str(),
-                target_name.source_span(),
-            );
-            if target_symbol.is_valid() {
-                named.head_symbol = machine.symbol;
-                named.symbol = target_symbol;
-            }
         }
     }
 }
@@ -256,7 +235,6 @@ fn reclassify_state_call_value_target(
         symbol: target_symbol,
         storage: symbol_resolved_trees::statement::NamedTransitionTargetStorage {
             path,
-            path_starts_at_self: false,
             arguments: call.arguments,
             evidence_arguments: call.evidence_arguments.clone(),
             source_span: call.target.source_span(),

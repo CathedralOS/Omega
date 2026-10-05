@@ -381,27 +381,36 @@ impl StorePredicate {
     }
 }
 
-/// Retain predicates over the subject already bound by domain parsing. Collect
-/// its exact spans once; synthetic parent-membership subjects have no source.
+/// Retain each domain's authored subject occurrences for source generation.
+/// Predicate spans restrict substitution to the declaration's lexical scope;
+/// synthetic parent-membership subjects have no source to copy.
 fn collect_domains(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     product_sources: &HashSet<usize>,
 ) -> HashMap<String, Vec<DomainPredicate>> {
-    let mut subjects = syntax_trees
+    let mut names = syntax_trees
         .tables
         .expressions
         .iter_expressions()
         .filter_map(|(handle, expression)| {
+            let ExpressionNode::Name(path) = expression else {
+                return None;
+            };
+            let [name] = syntax_trees
+                .tables
+                .expressions
+                .identifier_path_members(*path)
+            else {
+                return None;
+            };
             let span = syntax_trees.tables.expressions.source_span(handle);
-            (matches!(expression, ExpressionNode::SelfValue)
-                && product_sources.contains(&span.source_id.0)
-                && span.span.start < span.span.end)
-                .then_some(span)
+            (product_sources.contains(&span.source_id.0) && span.span.start < span.span.end)
+                .then_some((name.as_str(), span))
         })
         .collect::<Vec<_>>();
-    subjects.sort_unstable_by_key(|span| (span.source_id.0, span.span.start, span.span.end));
-    subjects.dedup();
+    names.sort_unstable_by_key(|(_, span)| (span.source_id.0, span.span.start, span.span.end));
+    names.dedup();
     let mut domains: HashMap<String, Vec<DomainPredicate>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
         let Item::Domain(domain) = syntax_trees.tables.items.item(*handle) else {
@@ -413,6 +422,16 @@ fn collect_domains(
         let Some(carrier) = type_text(syntax_trees, domain.target_type) else {
             continue;
         };
+        let subjects = names
+            .iter()
+            .filter_map(|(name, span)| {
+                domain
+                    .subject
+                    .as_ref()
+                    .is_some_and(|subject| subject.as_str() == *name)
+                    .then_some(*span)
+            })
+            .collect::<Vec<_>>();
         for index in 0..domain.facts.count() {
             let fact = Handle::from_parts(
                 domain.facts.start().arena_index() + index,

@@ -240,7 +240,6 @@ fn classify_call_target_handle(
     let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
     Ok(TransitionTargetNode::Named {
         path,
-        path_starts_at_self: false,
         arguments,
         evidence_arguments: call.evidence_arguments,
         source_span: call.target.source_span(),

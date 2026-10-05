@@ -98,7 +98,7 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    exact_case_reference_owner, exact_domain_self_type, has_builtin_binary_expression_meaning,
+    exact_case_reference_owner, exact_domain_subject_type, has_builtin_binary_expression_meaning,
     has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
     has_builtin_domain_decomposed_guard_meaning, has_builtin_or_sealed_float_comparison_meaning,
     has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,

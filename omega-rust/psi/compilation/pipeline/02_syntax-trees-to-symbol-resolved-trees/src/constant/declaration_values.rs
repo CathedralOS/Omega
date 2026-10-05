@@ -361,16 +361,14 @@ pub(crate) fn selected_expression_constant(
     let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };
-    if path.is_self_value
-        || matches!(
-            program.symbols.get(path.head_symbol).kind,
-            SymbolKind::Local
-                | SymbolKind::Parameter
-                | SymbolKind::MachineParameter
-                | SymbolKind::TypeParameter
-                | SymbolKind::ConformanceParameter
-        )
-    {
+    if matches!(
+        program.symbols.get(path.head_symbol).kind,
+        SymbolKind::Local
+            | SymbolKind::Parameter
+            | SymbolKind::MachineParameter
+            | SymbolKind::TypeParameter
+            | SymbolKind::ConformanceParameter
+    ) {
         return None;
     }
     let members = table.name_path_members(path.members);

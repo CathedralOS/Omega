@@ -764,7 +764,11 @@ fn exact_owner_environments(
             .any(|fact| proof_fact_value_contains_expression(program, fact, expression))
         {
             environments.push(TypeEnvironment {
-                self_type: Some(InferredType::TypeReference(domain.target_type)),
+                bindings: vec![Binding {
+                    name: domain.subject_name.to_string(),
+                    symbol: domain.subject_symbol,
+                    type_reference: domain.target_type,
+                }],
                 ..Default::default()
             });
         }
@@ -1179,7 +1183,7 @@ fn infer_expression_type(
             let [name] = program.expression_table.name_path_members(path.members) else {
                 return None;
             };
-            if name.is_self_receiver() {
+            if !path.symbol.is_valid() && !path.head_symbol.is_valid() && name.is_self_receiver() {
                 return environment.self_type;
             }
             if program.expression_table.names_reserved_result(expression) {
@@ -1414,7 +1418,11 @@ fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> Ow
             reached.extend(proof_fact_reachable_expressions(program, fact));
         }
         index.add_all(reached, || TypeEnvironment {
-            self_type: Some(InferredType::TypeReference(domain.target_type)),
+            bindings: vec![Binding {
+                name: domain.subject_name.to_string(),
+                symbol: domain.subject_symbol,
+                type_reference: domain.target_type,
+            }],
             ..Default::default()
         });
     }

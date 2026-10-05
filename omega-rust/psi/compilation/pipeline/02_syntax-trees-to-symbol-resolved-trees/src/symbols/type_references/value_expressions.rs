@@ -183,7 +183,6 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                             machine.symbol,
                             SymbolHandle::invalid(),
                             std::slice::from_ref(head_name),
-                            false,
                         );
                     if suffix.is_empty() {
                         *symbol = selected;

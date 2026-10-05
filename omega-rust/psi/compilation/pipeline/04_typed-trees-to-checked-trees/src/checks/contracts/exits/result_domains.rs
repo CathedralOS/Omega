@@ -490,16 +490,15 @@ fn establishes_scalar_predicates(
                 hypotheses.push(validation::ScopedArithmeticHypothesis {
                     proposition: validation::ScopedArithmeticExpression {
                         expression: *expression,
-                        bindings: subjects
-                            .into_iter()
-                            .map(|expression| validation::ScopedArithmeticBinding {
-                                binder: validation::ScopedArithmeticBinder::DomainSelf(expression),
-                                value: validation::ScopedArithmeticValue::Atom {
-                                    identity: format!("return-place:{subject:?}"),
-                                    unsigned: !primitive.is_signed_integer(),
-                                },
-                            })
-                            .collect(),
+                        bindings: vec![validation::ScopedArithmeticBinding {
+                            binder: validation::ScopedArithmeticBinder::Symbol(
+                                candidate.subject_symbol,
+                            ),
+                            value: validation::ScopedArithmeticValue::Atom {
+                                identity: format!("return-place:{subject:?}"),
+                                unsigned: !primitive.is_signed_integer(),
+                            },
+                        }],
                     },
                     holds: true,
                 });
@@ -552,12 +551,10 @@ fn establishes_scalar_predicates(
                     value: validation::ScopedArithmeticValue::Integer(value.clone()),
                 });
             }
-            bindings.extend(subjects.into_iter().map(|subject| {
-                validation::ScopedArithmeticBinding {
-                    binder: validation::ScopedArithmeticBinder::DomainSelf(subject),
-                    value: validation::ScopedArithmeticValue::Term(returned.clone()),
-                }
-            }));
+            bindings.push(validation::ScopedArithmeticBinding {
+                binder: validation::ScopedArithmeticBinder::Symbol(domain.subject_symbol),
+                value: validation::ScopedArithmeticValue::Term(returned),
+            });
             let goal = validation::ScopedArithmeticExpression {
                 expression: *expression,
                 bindings,
@@ -914,7 +911,7 @@ fn domain_predicate_meaning(
             .type_reference_table
             .find_named_type_reference(symbol)
     };
-    if let Some(reference) = validation::exact_domain_self_type(program, domain, expression) {
+    if let Some(reference) = validation::exact_domain_subject_type(program, domain, expression) {
         if !subjects.contains(&expression) {
             subjects.push(expression);
         }

@@ -10,6 +10,8 @@ use symbols::SymbolHandle;
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub subject_name: Identifier,
+    pub subject_symbol: SymbolHandle,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub target_type: TypeReferenceHandle,
     pub index_arguments: Vec<TypeReferenceHandle>,
@@ -41,6 +43,8 @@ impl Default for DomainDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            subject_name: Identifier::default(),
+            subject_symbol: SymbolHandle::invalid(),
             type_parameters: HandleSpan::empty(),
             target_type: TypeReferenceHandle::invalid(),
             index_arguments: Vec::new(),
@@ -327,10 +331,10 @@ pub fn supports_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHan
 /// `source_arguments` and `target_arguments` are the established and required
 /// index arguments in `index_parameters` order, matching the convention
 /// `ProofMembershipFact::domain_arguments` already uses. An authored
-/// `self in Parent<A>` step evaluates `A` under the enclosing domain's
+/// `subject in Parent<A>` step evaluates `A` under the enclosing domain's
 /// established bindings (`TypeIdentityRequest::substitutions` follows a binder
 /// to its bound argument transitively), so `Indexed<N>` declaring
-/// `self in Parent<N>` contributes the `Parent` instance holding the
+/// `subject in Parent<N>` contributes the `Parent` instance holding the
 /// established argument. Indexed applications of one family have no implicit
 /// variance: a chain reaches the required instance only when every argument
 /// position normalizes to an identical identity, and an authored argument
@@ -449,11 +453,40 @@ pub fn declared_domain_instance_implies(
     )
 }
 
-/// The `self in Parent` propositions in a domain's predicate list: the implied
+/// Matches the declaration-owned subject, independently of its authored name.
+pub fn domain_subject_reference(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    expression: crate::expression::ExpressionHandle,
+) -> bool {
+    if !domain.subject_symbol.is_valid()
+        || !program.expression_table.expression_is_valid(expression)
+    {
+        return false;
+    }
+    let subject = program.symbols.get(domain.subject_symbol);
+    if subject.kind != symbols::SymbolKind::Parameter || subject.parent != domain.symbol {
+        return false;
+    }
+    let crate::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    path.symbol == domain.subject_symbol
+        && path.head_symbol == domain.subject_symbol
+        && path.members.count() == 1
+        && program
+            .expression_table
+            .name_path_member_symbols(path.member_symbols)
+            == [domain.subject_symbol]
+}
+
+/// The subject-membership propositions in a domain's predicate list: the implied
 /// parent a refinement-chain declaration (`domain A::B::C`) desugars to, and
-/// any authored self-memberships. A membership in the domain entails each of
+/// any authored subject memberships. A membership in the domain entails each of
 /// these, so every reader of the domain's theory walks them the same way.
-pub fn self_membership_facts<'a>(
+pub fn subject_membership_facts<'a>(
     program: &'a TypedTrees,
     domain: &'a DomainDefinition,
 ) -> impl Iterator<Item = &'a ProofMembershipFact> + 'a {
@@ -462,15 +495,7 @@ pub fn self_membership_facts<'a>(
         .iter()
         .filter_map(|fact| match fact {
             ProofFact::Membership(membership) => {
-                let self_member = matches!(
-                    program.expression_table.expression(membership.value),
-                    crate::expression::ExpressionNode::Name(path)
-                        if matches!(
-                            program.expression_table.name_path_members(path.members),
-                            [member] if member.is_self_receiver()
-                        )
-                );
-                self_member.then_some(membership)
+                domain_subject_reference(program, domain, membership.value).then_some(membership)
             }
             _ => None,
         })

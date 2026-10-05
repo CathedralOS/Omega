@@ -1,7 +1,7 @@
 //! Membership and sum-pattern relabeling.
 use super::super::{
-    DataMember, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item, StatementNode,
-    SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
+    ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item, StatementNode, SyntaxTrees,
+    TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, closed_constructor_carrier, collect_statement_expression_handles,
@@ -38,12 +38,12 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                 .items
                 .state_handles(machine.states)
                 .iter()
-                .map(|state| (*state, machine.attached_data.clone()))
+                .copied()
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
-    for (state_handle, attached_data) in concrete_states {
+    for state_handle in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
         let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
@@ -57,29 +57,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                 local_types.insert(local.name.as_str().to_owned(), local.type_reference);
             }
         }
-        let self_field_types = attached_data
-            .as_ref()
-            .and_then(|attached| {
-                syntax.root_items().find_map(|item| match item {
-                    Item::Data(definition) if definition.name == *attached => Some(
-                        syntax
-                            .tables
-                            .items
-                            .data_members(definition.members)
-                            .iter()
-                            .filter_map(|member| match member {
-                                DataMember::Field(field) => {
-                                    Some((field.name.as_str().to_owned(), field.type_reference))
-                                }
-                                _ => None,
-                            })
-                            .collect::<HashMap<_, _>>(),
-                    ),
-                    _ => None,
-                })
-            })
-            .unwrap_or_default();
-
         let mut reachable = HashSet::new();
         for statement in statements {
             collect_statement_expression_handles(syntax, statement, &mut reachable);
@@ -103,14 +80,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                             return None;
                         };
                         local_types.get(subject.as_str())?
-                    }
-                    ExpressionNode::Member(member)
-                        if matches!(
-                            syntax.expressions.expression(member.receiver),
-                            ExpressionNode::SelfValue
-                        ) =>
-                    {
-                        self_field_types.get(member.member.as_str())?
                     }
                     _ => return None,
                 };

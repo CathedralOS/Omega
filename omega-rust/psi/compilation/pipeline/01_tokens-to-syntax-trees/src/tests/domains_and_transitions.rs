@@ -6,7 +6,7 @@ use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
-fn explicit_domain_subject_binds_only_its_predicate_operands() {
+fn explicit_domain_subject_preserves_ordinary_name_operands() {
     let source = r#"
         data Player { health: u64; }
         domain Player::Alive(player) requires player.health > 0 { }
@@ -31,9 +31,12 @@ fn explicit_domain_subject_binds_only_its_predicate_operands() {
         parsed
             .expressions
             .iter_expressions()
-            .filter(|(_, node)| matches!(node, ExpressionNode::SelfValue))
+            .filter(|(_, node)| {
+                let ExpressionNode::Name(path) = node else { return false; };
+                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "player")
+            })
             .count(),
-        1
+        2
     );
     assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
         let ExpressionNode::Name(path) = node else { return false; };
@@ -62,7 +65,10 @@ fn explicit_domain_subject_follows_indices_and_preserves_generic_references() {
         parsed
             .expressions
             .iter_expressions()
-            .filter(|(_, node)| matches!(node, ExpressionNode::SelfValue))
+            .filter(|(_, node)| {
+                let ExpressionNode::Name(path) = node else { return false; };
+                matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "value")
+            })
             .count(),
         1
     );

@@ -397,9 +397,7 @@ pub(in crate::symbols) fn assign_name_symbol(
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
     let mut lookup_state = state_symbol;
-    if !path.is_self_value
-        && let [member, suffix @ ..] = expression_table.name_path_members(path.members)
-    {
+    if let [member, suffix @ ..] = expression_table.name_path_members(path.members) {
         let symbol = lexical_value_head(machine, parameters, member.as_str(), !suffix.is_empty());
         if symbol.is_valid() {
             let member_symbols = resolve_path_members_from_head(symbols, symbol, suffix);
@@ -435,12 +433,11 @@ pub(in crate::symbols) fn assign_name_symbol(
     // Fields, named states, and conformance binders are scoped machine children,
     // not entries in the local/type-parameter frontier above. Select their heads
     // before constructor normalization so a module cannot capture their names.
-    if !path.is_self_value
-        && (!head_symbol.is_valid()
-            || matches!(
-                symbols.get(head_symbol).kind,
-                SymbolKind::Data | SymbolKind::Module
-            ))
+    if (!head_symbol.is_valid()
+        || matches!(
+            symbols.get(head_symbol).kind,
+            SymbolKind::Data | SymbolKind::Module
+        ))
         && normalize_qualified_case_value(symbols, expression_table, path, expression)
     {
         return;
@@ -457,7 +454,7 @@ pub(in crate::symbols) fn assign_name_symbol(
     // A qualified selection must retain the same exact declaration as a
     // call, otherwise equation/non-value checks see an unresolved leaf. Keep
     // the lexical head chosen above; never reopen lookup by the leaf spelling.
-    if !path.is_self_value && !symbol.is_valid() && head_symbol.is_valid() {
+    if !symbol.is_valid() && head_symbol.is_valid() {
         let members = expression_table.name_path_members(path.members);
         if let [_, suffix @ .., target] = members {
             let mut owner_path = resolve_path_members_from_head(symbols, head_symbol, suffix);

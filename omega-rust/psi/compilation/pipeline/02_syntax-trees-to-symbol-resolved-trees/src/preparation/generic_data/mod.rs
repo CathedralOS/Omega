@@ -263,7 +263,7 @@ fn unique_domain_index_parameters<'syntax>(
     // Declaration names include their carrier; an authored qualifier may be
     // module-relative. Borrow the telescope only after ordinary source-owned
     // family selection, never by comparing those different spellings.
-    let (_, definition) = selection.domain_family(syntax, name, reference)?;
+    let (_, definition) = selection.domain_family(syntax, name, reference, None)?;
     domain_index_parameters(syntax, definition)
 }
 

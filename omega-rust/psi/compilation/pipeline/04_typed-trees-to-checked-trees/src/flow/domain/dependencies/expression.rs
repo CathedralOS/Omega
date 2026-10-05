@@ -1,7 +1,6 @@
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_segments_equal;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use symbols::SymbolHandle;
 mod relative;
 
 pub(crate) use relative::relative_place_segments_from_expression;
@@ -9,7 +8,7 @@ pub(crate) use relative::relative_place_segments_from_expression;
 pub(super) fn collect_dependency_paths_from_expression(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    self_type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
     dependencies: &mut Vec<Vec<facts::PlaceSegment>>,
 ) {
     if !expression.is_valid() {
@@ -21,7 +20,7 @@ pub(super) fn collect_dependency_paths_from_expression(
             collect_dependency_paths_from_expression(
                 program,
                 dispatch.subject,
-                self_type_symbol,
+                domain,
                 dependencies,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -29,64 +28,36 @@ pub(super) fn collect_dependency_paths_from_expression(
                     collect_dependency_paths_from_expression(
                         program,
                         pattern,
-                        self_type_symbol,
+                        domain,
                         dependencies,
                     );
                 }
-                collect_dependency_paths_from_expression(
-                    program,
-                    arm.value,
-                    self_type_symbol,
-                    dependencies,
-                );
+                collect_dependency_paths_from_expression(program, arm.value, domain, dependencies);
             }
         }
-        ExpressionNode::Atomic(atomic) => collect_dependency_paths_from_expression(
-            program,
-            atomic.value,
-            self_type_symbol,
-            dependencies,
-        ),
+        ExpressionNode::Atomic(atomic) => {
+            collect_dependency_paths_from_expression(program, atomic.value, domain, dependencies)
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_dependency_paths_from_expression(
-                    program,
-                    *value,
-                    self_type_symbol,
-                    dependencies,
-                );
+                collect_dependency_paths_from_expression(program, *value, domain, dependencies);
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_dependency_paths_from_expression(
-                program,
-                binary.left,
-                self_type_symbol,
-                dependencies,
-            );
-            collect_dependency_paths_from_expression(
-                program,
-                binary.right,
-                self_type_symbol,
-                dependencies,
-            );
+            collect_dependency_paths_from_expression(program, binary.left, domain, dependencies);
+            collect_dependency_paths_from_expression(program, binary.right, domain, dependencies);
         }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
                 collect_dependency_paths_from_expression(
                     program,
                     range.start,
-                    self_type_symbol,
+                    domain,
                     dependencies,
                 );
             }
             if range.end.is_valid() {
-                collect_dependency_paths_from_expression(
-                    program,
-                    range.end,
-                    self_type_symbol,
-                    dependencies,
-                );
+                collect_dependency_paths_from_expression(program, range.end, domain, dependencies);
             }
         }
         ExpressionNode::Call(call) => {
@@ -94,86 +65,61 @@ pub(super) fn collect_dependency_paths_from_expression(
                 collect_dependency_paths_from_expression(
                     program,
                     call.receiver,
-                    self_type_symbol,
+                    domain,
                     dependencies,
                 );
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_dependency_paths_from_expression(
-                    program,
-                    *argument,
-                    self_type_symbol,
-                    dependencies,
-                );
+                collect_dependency_paths_from_expression(program, *argument, domain, dependencies);
             }
         }
         ExpressionNode::Cast(cast) => {
-            collect_dependency_paths_from_expression(
-                program,
-                cast.value,
-                self_type_symbol,
-                dependencies,
-            );
+            collect_dependency_paths_from_expression(program, cast.value, domain, dependencies);
         }
         ExpressionNode::Indexed(indexed) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
                 dependencies.push(place.segments);
             } else if let Some(segments) =
-                relative_place_segments_from_expression(program, expression, self_type_symbol)
+                relative_place_segments_from_expression(program, expression, domain)
             {
                 dependencies.push(segments);
             } else {
                 collect_dependency_paths_from_expression(
                     program,
                     indexed.collection,
-                    self_type_symbol,
+                    domain,
                     dependencies,
                 );
             }
-            collect_dependency_paths_from_expression(
-                program,
-                indexed.index,
-                self_type_symbol,
-                dependencies,
-            );
+            collect_dependency_paths_from_expression(program, indexed.index, domain, dependencies);
         }
         ExpressionNode::Member(member) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
                 dependencies.push(place.segments);
             } else if let Some(segments) =
-                relative_place_segments_from_expression(program, expression, self_type_symbol)
+                relative_place_segments_from_expression(program, expression, domain)
             {
                 dependencies.push(segments);
             } else {
                 collect_dependency_paths_from_expression(
                     program,
                     member.receiver,
-                    self_type_symbol,
+                    domain,
                     dependencies,
                 );
             }
         }
         ExpressionNode::Borrow(inner) => {
-            collect_dependency_paths_from_expression(
-                program,
-                inner.target,
-                self_type_symbol,
-                dependencies,
-            );
+            collect_dependency_paths_from_expression(program, inner.target, domain, dependencies);
         }
         ExpressionNode::Unary(unary) => {
-            collect_dependency_paths_from_expression(
-                program,
-                unary.operand,
-                self_type_symbol,
-                dependencies,
-            );
+            collect_dependency_paths_from_expression(program, unary.operand, domain, dependencies);
         }
         ExpressionNode::Name(_) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
                 dependencies.push(place.segments);
             } else if let Some(segments) =
-                relative_place_segments_from_expression(program, expression, self_type_symbol)
+                relative_place_segments_from_expression(program, expression, domain)
             {
                 dependencies.push(segments);
             }
@@ -186,7 +132,7 @@ pub(super) fn collect_dependency_paths_from_expression(
                 collect_dependency_paths_from_expression(
                     program,
                     field.value,
-                    self_type_symbol,
+                    domain,
                     dependencies,
                 );
             }

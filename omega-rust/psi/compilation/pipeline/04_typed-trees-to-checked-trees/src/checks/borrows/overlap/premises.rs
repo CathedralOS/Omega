@@ -262,7 +262,8 @@ impl PremiseScope<'_> {
                 definition,
                 subject,
             } => {
-                if validation::exact_domain_self_type(program, definition, expression).is_some() {
+                if validation::exact_domain_subject_type(program, definition, expression).is_some()
+                {
                     Some(subject.clone())
                 } else if let ExpressionNode::Integer(literal) =
                     program.expression_table.expression(expression)

@@ -753,7 +753,6 @@ pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
     /// One exact declaration identity per authored path segment.
     pub member_symbols: HandleSpan<SymbolHandle>,
-    pub is_self_value: bool,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }

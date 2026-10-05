@@ -287,8 +287,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
 /// which must not double-evaluate a call.
 fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
     match syntax_trees.expressions.expression(expression) {
-        syntax_trees::expression::ExpressionNode::Name(_)
-        | syntax_trees::expression::ExpressionNode::SelfValue => true,
+        syntax_trees::expression::ExpressionNode::Name(_) => true,
         syntax_trees::expression::ExpressionNode::Member(member) => {
             expression_is_place(syntax_trees, member.receiver)
         }

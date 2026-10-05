@@ -537,7 +537,7 @@ fn append_declared_atom(
         // parent an atom the member carries, the way an alias's constituents
         // are.
         stack.push(symbol);
-        for membership in typed_trees::domain::self_membership_facts(program, domain) {
+        for membership in typed_trees::domain::subject_membership_facts(program, domain) {
             append_declared_atom(
                 program,
                 membership.domain_symbol,

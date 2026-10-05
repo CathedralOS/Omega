@@ -193,6 +193,8 @@ pub struct DataPayloadFieldSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DomainDefinitionSnapshot {
     pub name: String,
+    pub subject_name: String,
+    pub subject_symbol: u32,
     pub target_type: TypeReferenceSnapshot,
     pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -561,6 +563,8 @@ pub(crate) fn domain_definition_snapshot(
 ) -> DomainDefinitionSnapshot {
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
+        subject_name: domain.subject_name.to_string(),
+        subject_symbol: domain.subject_symbol.arena_index(),
         target_type: type_reference_snapshot(program, &domain.target_type),
         is_public: domain.is_public,
         alias: domain

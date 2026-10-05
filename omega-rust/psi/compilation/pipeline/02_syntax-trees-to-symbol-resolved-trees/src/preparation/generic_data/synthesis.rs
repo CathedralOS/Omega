@@ -615,7 +615,6 @@ fn synthesize_instance(
                 *expression,
                 const_values,
                 &const_parameter_scalars,
-                None,
                 warnings,
             )
             .map(|value| match value {

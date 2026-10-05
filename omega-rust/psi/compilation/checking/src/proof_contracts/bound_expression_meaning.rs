@@ -18,7 +18,7 @@ use typed_trees::{
 mod definition_membership;
 mod domain_bounds;
 pub use definition_membership::{
-    exact_domain_self_type, has_exact_data_case_membership_meaning,
+    exact_domain_subject_type, has_exact_data_case_membership_meaning,
     has_exact_domain_case_membership_meaning,
 };
 pub use domain_bounds::{

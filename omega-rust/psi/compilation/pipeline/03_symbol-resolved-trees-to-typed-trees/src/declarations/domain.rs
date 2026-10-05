@@ -46,6 +46,8 @@ pub(crate) fn lower_domain_definition(
     let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
+        subject_name: lower_name(&domain.subject_name),
+        subject_symbol: domain.subject_symbol,
         type_parameters: HandleSpan::empty(),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
         index_arguments: lowerer

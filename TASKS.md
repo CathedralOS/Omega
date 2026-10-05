@@ -387,14 +387,6 @@ helper that passes does not close an item.
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject
     binding.
-  - Domain subjects: `domain Player::Alive(player) requires player.health > 0;`
-    parses
-    ([domains](wiki/spec/language/domains.md#declaration-and-membership)), but
-    `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations/domain.rs`
-    rewrites the binder's uses to `ExpressionNode::SelfValue`. Give the binder
-    its own identity, separate from generic indices and runtime parameters.
-    Add corpus fixtures for generic families, lexical scope and
-    binder-renaming identity.
   - Entry context: provision the exact ordinary mutable context parameter of
     the [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, storage

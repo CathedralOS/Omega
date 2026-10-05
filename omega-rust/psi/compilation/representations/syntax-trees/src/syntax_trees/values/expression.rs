@@ -185,7 +185,6 @@ pub enum ExpressionNode {
     Borrow(TableBorrowExpression),
     Name(HandleSpan<Identifier>),
     Range(TableRangeExpression),
-    SelfValue,
     StructLiteral(TableStructLiteral),
     /// Exact decoded literal octets. A string literal is not required to be
     /// UTF-8 after `\xNN` escape decoding.

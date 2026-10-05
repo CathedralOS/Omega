@@ -1,4 +1,4 @@
-use super::lower_expression_handle_from_table_with_self_substitution;
+use super::lower_expression_handle_from_table_with_symbol_substitution;
 use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -216,12 +216,12 @@ fn lower_atomic_domain_membership_expression(
                             && membership.case_symbol.is_valid() =>
                     {
                         let nested_value =
-                            lower_expression_handle_from_table_with_self_substitution(
+                            lower_expression_handle_from_table_with_symbol_substitution(
                                 Some(program),
                                 source,
                                 target,
                                 membership.value,
-                                Some(value),
+                                Some((domain_definition.subject_symbol, value)),
                             )?;
                         let generated = replayed_case_membership_test(
                             program,
@@ -249,22 +249,22 @@ fn lower_atomic_domain_membership_expression(
                             );
                         generated
                     }
-                    _ => lower_expression_handle_from_table_with_self_substitution(
+                    _ => lower_expression_handle_from_table_with_symbol_substitution(
                         Some(program),
                         source,
                         target,
                         *expression,
-                        Some(value),
+                        Some((domain_definition.subject_symbol, value)),
                     )?,
                 }
             }
             resolved::domain::ProofFact::Membership(membership) => {
-                let nested_value = lower_expression_handle_from_table_with_self_substitution(
+                let nested_value = lower_expression_handle_from_table_with_symbol_substitution(
                     Some(program),
                     source,
                     target,
                     membership.value,
-                    Some(value),
+                    Some((domain_definition.subject_symbol, value)),
                 )?;
                 let (case_type_symbol, case_symbol) =
                     case_symbols_for_domain_fact(program, membership.domain);

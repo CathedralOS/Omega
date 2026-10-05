@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.42, "load1_start": 8.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -750,11 +750,13 @@ fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejec
 	cannot prove index `index` is within length 2 in Main::main::main
 fail/domains/module_domain_broad_import_hides_leaf rejected 236ms expected @2d8ed253669f
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
+fail/domains/named_const_subject_binding rejected 16ms expected @9ed8b7d0772d
+	constrained const `INVALID` is invalid: domain constraint `Below::Inherited` for the const leaf value is false; failed domain `u64::Below::Inherited`
 fail/domains/nested_field_domain_write_unestablished rejected 297ms expected @c08960bee2b1+wt
 	cannot prove the value assigned to `main.inner.tag` in Main::main is in domain `[u8]::Ascii`; a place declared `in [u8]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/domains/nonboolean_member_predicate rejected 274ms expected @2d8ed253669f
-	domain `Player::Odd` proof fact `self.health` must have type `bool`
-	domain `Holder::Invalid` proof fact `self.slot.value` must have type `bool`
+fail/domains/nonboolean_member_predicate rejected 355ms expected @9ed8b7d0772d
+	domain `Player::Odd` proof fact `player.health` must have type `bool`
+	domain `Holder::Invalid` proof fact `holder.slot.value` must have type `bool`
 fail/domains/qualified_mutable_invalid_field rejected 148ms expected @b027f59996c3+wt
 	cannot prove default-domain field requirement for call consume from main::entry: parameter packet.label.text requires [u8; N]::NonEmpty
 fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e029f28c+wt
@@ -2097,6 +2099,8 @@ pass/domains/explicit_domain_erasure checked 288ms @2d8ed253669f
 pass/domains/local_alias_domain_transfer checked 275ms @4e4bfed13aee+wt
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
+pass/domains/named_const_subject_binding checked 2639ms check-target:macos_arm64 @9ed8b7d0772d
+pass/domains/named_subject_capacity_identity_exit checked 2958ms check-target:macos_arm64 @9ed8b7d0772d
 pass/domains/qualified_mutable_field_exit checked 931ms check-target:macos_arm64 @b027f59996c3+wt
 pass/domains/record_interval_domain_member_exit checked 835ms check-target:macos_arm64 @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit checked 1024ms check-target:macos_arm64 @bd26d3a01ac1+wt

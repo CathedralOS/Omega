@@ -1,4 +1,4 @@
-use crate::expressions::expression::lower_expression_handle_from_table_with_self_substitution;
+use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -64,14 +64,14 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                 end_inclusive,
             } => typed::types::TypeConstraintNode::Range {
                 end_inclusive: *end_inclusive,
-                minimum: lower_expression_handle_from_table_with_self_substitution(
+                minimum: lower_expression_handle_from_table_with_symbol_substitution(
                     Some(source_trees),
                     &source_trees.tables.bodies.expressions,
                     typed_trees,
                     *minimum,
                     None,
                 )?,
-                maximum: lower_expression_handle_from_table_with_self_substitution(
+                maximum: lower_expression_handle_from_table_with_symbol_substitution(
                     Some(source_trees),
                     &source_trees.tables.bodies.expressions,
                     typed_trees,
@@ -208,14 +208,14 @@ fn lower_type_constraint_node_with_context(
             end_inclusive,
         } => Ok(typed::types::TypeConstraintNode::Range {
             end_inclusive: *end_inclusive,
-            minimum: lower_expression_handle_from_table_with_self_substitution(
+            minimum: lower_expression_handle_from_table_with_symbol_substitution(
                 Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *minimum,
                 None,
             )?,
-            maximum: lower_expression_handle_from_table_with_self_substitution(
+            maximum: lower_expression_handle_from_table_with_symbol_substitution(
                 Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,

@@ -3,7 +3,7 @@ use facts::{FactPayload, FactPlace, FactPlan};
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 mod expression;
-use crate::lookup::{machine_by_symbol, machine_symbol_from_type_reference_handle};
+use crate::lookup::machine_by_symbol;
 pub(crate) use expression::relative_place_segments_from_expression;
 use expression::{collect_dependency_paths_from_expression, dedupe_dependency_segments};
 
@@ -106,19 +106,21 @@ fn compute_domain_dependency_segments(
     }
 
     let mut dependencies = Vec::new();
-    let self_type_symbol = program
+    let Some(domain) = program
         .domain_definitions()
         .iter()
         .find(|domain| domain.symbol == domain_symbol)
-        .map(|domain| machine_symbol_from_type_reference_handle(program, domain.target_type))
-        .filter(|symbol| symbol.is_valid());
+    else {
+        visiting.remove(&domain_key);
+        return vec![Vec::new()];
+    };
     for fact in semantic.facts_for_symbol(domain_symbol) {
         match fact.payload {
             FactPayload::BooleanExpression(expression) => {
                 collect_dependency_paths_from_expression(
                     program,
                     expression,
-                    self_type_symbol,
+                    domain,
                     &mut dependencies,
                 );
             }

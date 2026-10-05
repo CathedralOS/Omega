@@ -397,8 +397,7 @@ fn expression_mentions_const(
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::SelfValue => false,
+        | ExpressionNode::String(_) => false,
         _ => true,
     }
 }
@@ -919,8 +918,7 @@ fn expression_mentions_parameter(
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::SelfValue => false,
+        | ExpressionNode::String(_) => false,
         _ => true,
     }
 }

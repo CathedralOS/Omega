@@ -13,7 +13,7 @@
 //! pre-resolution wrapper also makes that exact expansion callable as
 //! `Type::equals`; direct calls to the compiler-owned surface expand in the
 //! caller's storage scope, and the wrapper is excluded from the hand-written-
-//! override lookup so its own `self == other` body cannot recursively target
+//! override lookup so its own operand comparison cannot recursively target
 //! itself. A hand-written `Type::equals` still wins.
 //!
 //! The conformance PREREQUISITES are validated up front (before machine
@@ -479,8 +479,6 @@ pub(crate) fn table_type_base_name(
 /// `==` operands; equality on places it cannot type lowers unchanged.
 #[derive(Debug, Clone)]
 pub(crate) struct EqualityScope {
-    /// The enclosing machine's attached data type (`self`'s type).
-    pub(crate) attached_data: Option<String>,
     /// Parameter, owned-data, and local names mapped to base type names.
     pub(crate) value_types: Vec<(String, String)>,
 }
@@ -492,11 +490,6 @@ impl EqualityScope {
         machine: &resolved::machine::Machine,
         state: &resolved::state::State,
     ) -> Self {
-        let attached_data = machine
-            .attached_data
-            .as_ref()
-            .map(|name| name.as_str().to_owned());
-
         let mut value_types = Vec::new();
         for owned in program.machine_owned_data(machine.owned_data) {
             if let Some(base) = value_type_base_name(program, &owned.type_reference) {
@@ -508,10 +501,7 @@ impl EqualityScope {
                 value_types.push((parameter.name.as_str().to_owned(), base));
             }
         }
-        Self {
-            attached_data,
-            value_types,
-        }
+        Self { value_types }
     }
 
     pub(crate) fn for_state(

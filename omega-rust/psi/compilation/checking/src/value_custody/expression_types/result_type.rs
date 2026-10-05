@@ -372,11 +372,10 @@ fn result_type(
             }
             ExpressionOwner::Domain(domain) => {
                 match program.expression_table.expression(expression) {
-                    ExpressionNode::Name(path)
-                        if !path.symbol.is_valid()
-                            && !path.head_symbol.is_valid()
-                            && matches!(program.expression_table.name_path_members(path.members),
-                            [name] if name.is_self_receiver()) =>
+                    ExpressionNode::Name(_)
+                        if typed_trees::domain::domain_subject_reference(
+                            program, domain, expression,
+                        ) =>
                     {
                         Some(domain.target_type)
                     }
@@ -385,7 +384,7 @@ fn result_type(
                     // `self[i] in Utf8` the declared element type. The shared
                     // embedding resolver cannot see the domain telescope, so
                     // the receiver recurses through `result_type` (which owns
-                    // bare `self`) and the projection lands on its result.
+                    // the subject binding) and the projection lands on its result.
                     ExpressionNode::Member(member) => {
                         result_type(program, owner, member.receiver, active).and_then(|receiver| {
                             if let Some(data) =

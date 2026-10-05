@@ -11,7 +11,7 @@ pub(super) enum ConstProofValue {
 
 #[derive(Clone, Copy)]
 enum FactBindings<'a> {
-    DomainSelf(i64),
+    DomainSubject(&'a typed_trees::domain::DomainDefinition, i64),
     StaticData(&'a DataDefinition),
     ZeroStorage(&'a DataDefinition),
 }
@@ -45,9 +45,14 @@ pub(super) fn data_fact_holds_at_zero(
 pub(super) fn evaluate_domain_fact_expression(
     typed: &TypedTrees,
     expression: ExpressionHandle,
-    self_value: i64,
+    domain: &typed_trees::domain::DomainDefinition,
+    subject_value: i64,
 ) -> Result<Option<ConstProofValue>, String> {
-    evaluate_fact_expression(typed, expression, FactBindings::DomainSelf(self_value))
+    evaluate_fact_expression(
+        typed,
+        expression,
+        FactBindings::DomainSubject(domain, subject_value),
+    )
 }
 
 fn evaluate_fact_expression(
@@ -66,7 +71,7 @@ fn evaluate_fact_expression(
                 )
             }),
         ExpressionNode::Boolean(value) => Ok(Some(ConstProofValue::Boolean(*value))),
-        ExpressionNode::Name(path) => {
+        ExpressionNode::Name(_) => {
             if matches!(bindings, FactBindings::StaticData(_)) {
                 return Ok(None);
             }
@@ -81,14 +86,11 @@ fn evaluate_fact_expression(
                     }
                 }));
             }
-            let FactBindings::DomainSelf(self_value) = bindings else {
+            let FactBindings::DomainSubject(domain, subject_value) = bindings else {
                 return Ok(None);
             };
-            let [name] = typed.expression_table.name_path_members(path.members) else {
-                return Ok(None);
-            };
-            Ok((name.is_self_receiver())
-                .then_some(ConstProofValue::Integer(self_value)))
+            Ok(typed_trees::domain::domain_subject_reference(typed, domain, expression)
+                .then_some(ConstProofValue::Integer(subject_value)))
         }
         ExpressionNode::Binary(binary) => {
             if let FactBindings::ZeroStorage(data) | FactBindings::StaticData(data) = bindings

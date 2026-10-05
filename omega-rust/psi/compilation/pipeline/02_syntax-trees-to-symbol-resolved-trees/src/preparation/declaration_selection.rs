@@ -412,6 +412,7 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         authored: &str,
         reference: source::SourceSpan,
+        carrier: Option<&str>,
     ) -> Vec<(
         symbols::SymbolHandle,
         &'syntax syntax_trees::item::DomainDefinition,
@@ -425,13 +426,32 @@ impl<'base> ConstantSelection<'base> {
             )
             .unwrap_or_else(symbols::SymbolHandle::invalid);
         let mut pool = Vec::new();
+        // A type's domain suffix can contain refinement segments. Resolve the
+        // complete carrier-relative path through the same source visibility
+        // authority as an authored qualified path, and pool both spellings so
+        // another reachable declaration cannot be silently bypassed.
+        let relative = carrier.map(|carrier| format!("{carrier}::{authored}"));
+        let relative_selected = relative
+            .as_ref()
+            .and_then(|relative| {
+                self.symbols.find_top_level_by_name_and_kinds_from_source(
+                    relative,
+                    &[SymbolKind::Domain],
+                    reference,
+                )
+            })
+            .unwrap_or_else(symbols::SymbolHandle::invalid);
         for symbol in self
             .symbols
             .child_handles(self.symbols.root())
             .into_iter()
             .flatten()
         {
-            if !self.domain_symbol_is_reachable(symbol, selected, authored, reference) {
+            if !self.domain_symbol_is_reachable(symbol, selected, authored, reference)
+                && !relative.as_ref().is_some_and(|relative| {
+                    self.domain_symbol_is_reachable(symbol, relative_selected, relative, reference)
+                })
+            {
                 continue;
             }
             let Some(span) = self.symbols.symbol_source_span(symbol) else {
@@ -487,8 +507,9 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         authored: &str,
         reference: source::SourceSpan,
+        carrier: Option<&str>,
     ) -> Option<&'syntax syntax_trees::item::DomainDefinition> {
-        let pool = self.pooled_domains(syntax, authored, reference);
+        let pool = self.pooled_domains(syntax, authored, reference, carrier);
         // A preferred generic family owns or contests this selection, but its
         // closed membership still belongs to the downstream family
         // normalization; decline rather than evaluate against it or cede the
@@ -527,11 +548,12 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         authored: &str,
         reference: source::SourceSpan,
+        carrier: Option<&str>,
     ) -> Option<(
         symbols::SymbolHandle,
         &'syntax syntax_trees::item::DomainDefinition,
     )> {
-        let pool = self.pooled_domains(syntax, authored, reference);
+        let pool = self.pooled_domains(syntax, authored, reference, carrier);
         let (first_symbol, first) = pool.first()?;
         let first_path = self.symbols.display_path(*first_symbol, "::");
         if pool.iter().any(|(symbol, _)| {

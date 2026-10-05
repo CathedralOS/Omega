@@ -61,7 +61,6 @@ pub(crate) fn copy_compound_assignment_target(
                 .copy_identifier_path_prefix(path, path.len());
             ExpressionNode::Name(path)
         }
-        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
         ExpressionNode::Member(member) => {
             let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
             ExpressionNode::Member(TableMemberExpression {
@@ -94,7 +93,6 @@ fn copy_stable_compound_assignment_index(
                 .copy_identifier_path_prefix(path, path.len());
             ExpressionNode::Name(path)
         }
-        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
         ExpressionNode::Member(member) => {
             let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
             ExpressionNode::Member(TableMemberExpression {

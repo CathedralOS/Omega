@@ -1034,9 +1034,6 @@ fn initializer_satisfies_predicate_domain(
     if !domain.predicate_body.is_present() {
         return false;
     }
-    let type_symbol =
-        crate::lookup::machine_symbol_from_type_reference_handle(program, domain.target_type);
-    let type_symbol = type_symbol.is_valid().then_some(type_symbol);
     let entry_constraints = facts
         .flow
         .state_statement(state, statement_index)
@@ -1057,7 +1054,7 @@ fn initializer_satisfies_predicate_domain(
                 &contexts,
                 value,
                 *expression,
-                type_symbol,
+                domain,
             )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
@@ -1071,7 +1068,7 @@ fn initializer_satisfies_predicate_domain(
                     value,
                     membership.value,
                     membership.domain_symbol,
-                    type_symbol,
+                    domain,
                     active,
                 )
         }
@@ -1093,7 +1090,7 @@ fn predicate_expression_holds_on_value(
     contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     expression: ExpressionHandle,
-    type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary)
@@ -1107,7 +1104,7 @@ fn predicate_expression_holds_on_value(
                 contexts,
                 value,
                 binary.left,
-                type_symbol,
+                domain,
             ) && predicate_expression_holds_on_value(
                 program,
                 facts,
@@ -1116,7 +1113,7 @@ fn predicate_expression_holds_on_value(
                 contexts,
                 value,
                 binary.right,
-                type_symbol,
+                domain,
             )
         }
         ExpressionNode::Binary(binary)
@@ -1130,7 +1127,7 @@ fn predicate_expression_holds_on_value(
                 contexts,
                 value,
                 binary.left,
-                type_symbol,
+                domain,
             ) || predicate_expression_holds_on_value(
                 program,
                 facts,
@@ -1139,7 +1136,7 @@ fn predicate_expression_holds_on_value(
                 contexts,
                 value,
                 binary.right,
-                type_symbol,
+                domain,
             )
         }
         ExpressionNode::Binary(binary) => {
@@ -1152,7 +1149,7 @@ fn predicate_expression_holds_on_value(
                 value,
                 binary.left,
                 binary.right,
-                type_symbol,
+                domain,
             ) {
                 return match binary.operator {
                     typed_trees::expression::BinaryOperator::Equal => selected,
@@ -1170,7 +1167,7 @@ fn predicate_expression_holds_on_value(
                 binary.operator,
                 binary.left,
                 binary.right,
-                type_symbol,
+                domain,
             )
         }
         ExpressionNode::Member(_) | ExpressionNode::Name(_) => {
@@ -1182,7 +1179,7 @@ fn predicate_expression_holds_on_value(
                 contexts,
                 value,
                 expression,
-                type_symbol,
+                domain,
             ) == Some(facts::ScalarValue::Boolean(true))
         }
         // `pred(self)` — a byte-predicate fact over the domain subject: hold
@@ -1197,7 +1194,7 @@ fn predicate_expression_holds_on_value(
                 return false;
             };
             let Some(segments) =
-                crate::flow::relative_place_segments_from_expression(program, subject, type_symbol)
+                crate::flow::relative_place_segments_from_expression(program, subject, domain)
             else {
                 return false;
             };
@@ -1239,7 +1236,7 @@ fn case_membership_decision(
     value: ExpressionHandle,
     left: ExpressionHandle,
     right: ExpressionHandle,
-    type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<bool> {
     for (subject, case_expression) in [(left, right), (right, left)] {
         let ExpressionNode::Name(path) = program.expression_table.expression(case_expression)
@@ -1253,7 +1250,7 @@ fn case_membership_decision(
             continue;
         }
         let segments =
-            crate::flow::relative_place_segments_from_expression(program, subject, type_symbol)?;
+            crate::flow::relative_place_segments_from_expression(program, subject, domain)?;
         return selected_case_is(
             program,
             facts,
@@ -1388,10 +1385,10 @@ fn member_scalar_at_subject(
     contexts: &[facts::FactContextHandle],
     value: ExpressionHandle,
     member_path: ExpressionHandle,
-    type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<facts::ScalarValue> {
     let segments =
-        crate::flow::relative_place_segments_from_expression(program, member_path, type_symbol)?;
+        crate::flow::relative_place_segments_from_expression(program, member_path, domain)?;
     if let Some(scalar) = literal_member_value(program, value, &segments)
         .and_then(|member| expression_constant_scalar(program, member))
     {
@@ -1446,7 +1443,7 @@ fn member_comparison_holds_on_value(
     operator: typed_trees::expression::BinaryOperator,
     left: ExpressionHandle,
     right: ExpressionHandle,
-    type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     use typed_trees::expression::BinaryOperator;
     for (member, constant, operator) in [
@@ -1463,8 +1460,7 @@ fn member_comparison_holds_on_value(
             },
         ),
     ] {
-        if crate::flow::relative_place_segments_from_expression(program, member, type_symbol)
-            .is_none()
+        if crate::flow::relative_place_segments_from_expression(program, member, domain).is_none()
             || expression_constant_scalar(program, constant).is_none()
         {
             continue;
@@ -1477,7 +1473,7 @@ fn member_comparison_holds_on_value(
             contexts,
             value,
             member,
-            type_symbol,
+            domain,
         ) else {
             continue;
         };
@@ -1520,11 +1516,11 @@ fn member_subject_satisfies_domain(
     value: ExpressionHandle,
     member: ExpressionHandle,
     domain_symbol: SymbolHandle,
-    type_symbol: Option<SymbolHandle>,
+    domain: &typed_trees::domain::DomainDefinition,
     active: &mut Vec<SymbolHandle>,
 ) -> bool {
     let Some(segments) =
-        crate::flow::relative_place_segments_from_expression(program, member, type_symbol)
+        crate::flow::relative_place_segments_from_expression(program, member, domain)
     else {
         return false;
     };
@@ -2237,7 +2233,7 @@ fn domain_admits_zero_value_inner(
             Some(super::prover::ScalarValue::Boolean(true))
         ),
         typed_trees::domain::ProofFact::Membership(membership) => {
-            expression_is_self_relative(program, membership.value)
+            expression_is_subject_relative(program, domain, membership.value)
                 && domain_admits_zero_value_inner(program, membership.domain_symbol, active)
         }
         typed_trees::domain::ProofFact::Proposition(_) => false,
@@ -2260,15 +2256,8 @@ fn zero_value_scalar_leaf(
 ) -> Option<super::prover::ScalarValue> {
     let leaf_type =
         crate::flow::expression_place_type_reference(program, leaf, &[]).or_else(|| {
-            let self_type = crate::lookup::machine_symbol_from_type_reference_handle(
-                program,
-                domain.target_type,
-            );
-            let segments = crate::flow::relative_place_segments_from_expression(
-                program,
-                leaf,
-                self_type.is_valid().then_some(self_type),
-            )?;
+            let segments =
+                crate::flow::relative_place_segments_from_expression(program, leaf, domain)?;
             crate::flow::project_type_reference_from_segments(
                 program,
                 domain.target_type,
@@ -2290,21 +2279,24 @@ fn zero_value_scalar_leaf(
 /// `self`, `self.f`, or a deeper projection -- where `self` binds the domain's
 /// target value. A membership fact over any other subject (a constant, an
 /// unrelated place) is not evidence about the domain's own zero value.
-fn expression_is_self_relative(
+fn expression_is_subject_relative(
     program: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => expression_is_self_relative(program, inner.target),
-        ExpressionNode::Member(member) => expression_is_self_relative(program, member.receiver),
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_self_relative(program, indexed.collection)
+        ExpressionNode::Borrow(inner) => {
+            expression_is_subject_relative(program, domain, inner.target)
         }
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .first()
-            .is_some_and(|member| member.is_self_receiver()),
+        ExpressionNode::Member(member) => {
+            expression_is_subject_relative(program, domain, member.receiver)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_is_subject_relative(program, domain, indexed.collection)
+        }
+        ExpressionNode::Name(_) => {
+            typed_trees::domain::domain_subject_reference(program, domain, expression)
+        }
         _ => false,
     }
 }

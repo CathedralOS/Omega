@@ -15,15 +15,6 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
-fn contextual_domain_member_target(
-    program: &TypedTrees,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<CheckedResolutionTarget> {
-    let target_type = contextual_domain_target_type(program, containing_expression)?;
-    contextual_self_member_symbol(program, member, target_type).and_then(declaration_target)
-}
-
 pub(crate) fn checked_member_target(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -66,7 +57,6 @@ pub(crate) fn checked_member_target(
     })
     .or_else(|| checked_value_member_target(program, facts, member))
     .or_else(|| authored_member_target(program, member))
-    .or_else(|| contextual_domain_member_target(program, expression, member))
     .or_else(|| contextual_statement_member_target(program, expression, member))
     .map(|target| match target {
         CheckedResolutionTarget::Declaration(symbol) => {
@@ -264,19 +254,6 @@ fn collection_measure_target(
     Some(CheckedResolutionTarget::Intrinsic(measure.intrinsic()))
 }
 
-pub(crate) fn expression_is_contextual_domain_primitive(
-    program: &TypedTrees,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    let Some(target_type) = contextual_domain_target_type(program, containing_expression) else {
-        return false;
-    };
-    contextual_expression_type_reference(program, expression, target_type)
-        .and_then(|type_reference| program.primitive_type_reference(type_reference))
-        .is_some()
-}
-
 /// With a walk's `owners` index the statements containing the expression come
 /// from its recorded sites instead of a whole-program rescan; the verdict
 /// (every containing statement types the operand as a primitive, and one
@@ -344,71 +321,6 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         }
     }
     found
-}
-
-fn contextual_expression_type_reference(
-    program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    domain_target_type: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) if contextual_self_path(program, path) => {
-            Some(domain_target_type)
-        }
-        ExpressionNode::Member(member) => {
-            contextual_self_member_symbol(program, member, domain_target_type)
-                .and_then(|symbol| type_reference_for_symbol(program, symbol))
-        }
-        ExpressionNode::Borrow(inner) => {
-            contextual_expression_type_reference(program, inner.target, domain_target_type)
-        }
-        _ => None,
-    }
-}
-
-fn contextual_self_member_symbol(
-    program: &TypedTrees,
-    member: &typed_trees::expression::TableMemberExpression,
-    domain_target_type: typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
-        return None;
-    };
-    if !contextual_self_path(program, path) {
-        return None;
-    }
-    crate::flow::resolve_member_symbol_from_type_symbol(
-        program,
-        program.type_reference_table.type_symbol(domain_target_type),
-        member.member.as_str(),
-    )
-}
-
-fn contextual_self_path(
-    program: &TypedTrees,
-    path: &typed_trees::expression::TableNamePath,
-) -> bool {
-    let members = program.expression_table.name_path_members(path.members);
-    !path.symbol.is_valid() && members.len() == 1 && members[0].is_self_receiver()
-}
-
-fn contextual_domain_target_type(
-    program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    for domain in program.domain_definitions() {
-        for fact in program.proof_facts(domain) {
-            let root = match fact {
-                typed_trees::domain::ProofFact::Expression(root) => *root,
-                typed_trees::domain::ProofFact::Membership(membership) => membership.value,
-                typed_trees::domain::ProofFact::Proposition(_) => continue,
-            };
-            if expression_contains(program, root, expression) {
-                return Some(domain.target_type);
-            }
-        }
-    }
-    None
 }
 
 /// Whether the containment walk from `root` reaches `target`.

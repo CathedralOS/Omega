@@ -5,7 +5,7 @@
 
 use super::builtin_type_reference;
 use super::definition_membership::{
-    exact_domain_self_type, facts_contain_expression, has_exact_domain_definition,
+    exact_domain_subject_type, facts_contain_expression, has_exact_domain_definition,
 };
 use language_core::OperatorSpelling;
 use typed_trees::TypedTrees;
@@ -135,7 +135,7 @@ fn operand_type(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => exact_domain_self_type(program, domain, expression),
+        ExpressionNode::Name(_) => exact_domain_subject_type(program, domain, expression),
         ExpressionNode::Integer(_) => {
             crate::landed_integer_literal_type_reference(program, expression)
         }

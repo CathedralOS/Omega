@@ -68,7 +68,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         .last()
         .expect("a domain chain always holds its first segment")
         .1;
-    let (subject, input) = if input.at_punctuation(PunctuationKind::LeftParen) {
+    let (mut subject, input) = if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let (subject, input) = input.take_identifier()?;
         if syntax_trees
@@ -86,11 +86,20 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     };
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
     // A chained declaration is authored at the last segment and carries the
-    // leading `self in <parent>` proposition its refinement semantics imply;
+    // leading subject membership proposition its refinement semantics imply;
     // the parent path spells the chain's own prefix so a bracketed target
     // (`[u8]::A::B`) spells only the domain segments that identifiers can name.
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
+        let subject_name = subject
+            .get_or_insert_with(|| Identifier::generated("$subject"))
+            .clone();
+        let subject_path = HandleSpan::from_parts(
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(subject_name),
+            1,
+        );
         let parent_path = syntax_trees.items.insert_identifier_path_members(
             target_identifier.iter().cloned().chain(
                 name_segments[..name_segments.len() - 1]
@@ -100,7 +109,9 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         );
         Some((
             ProofMembershipFact {
-                value: syntax_trees.expressions.insert(ExpressionNode::SelfValue),
+                value: syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Name(subject_path)),
                 domain: parent_path,
                 domain_arguments: name_segments[name_segments.len() - 2].1,
             },
@@ -172,15 +183,6 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         });
         let ((predicate_body, authored_facts, requires_token_count), input) =
             parse_domain_requires(syntax_trees, input)?;
-        if let Some(subject) = &subject {
-            bind_domain_subject(syntax_trees, authored_facts, subject).map_err(|source_span| {
-                let mut error = input.error_here(
-                    "domain predicates must use their declared subject, not implicit `self`",
-                );
-                error.source_span = source_span;
-                error
-            })?;
-        }
         let (predicate_body, facts) = match parent_fact {
             Some(handle) => (
                 language_core::DomainPredicateBody::Present,
@@ -220,95 +222,6 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         },
         input,
     ))
-}
-
-/// Resolve the declaration-local subject to the classified-value syntax node.
-/// This is lexical binding, not a machine receiver or a source-wide rename.
-/// Only authored predicate roots are visited; member labels, generic indices,
-/// sibling declarations and the synthesized parent membership are untouched.
-/// Binding before publishing syntax also gives constant-domain evaluation the
-/// same subject representation as ordinary membership checking.
-fn bind_domain_subject(
-    syntax: &mut SyntaxTrees,
-    facts: HandleSpan<ProofFact>,
-    subject: &Identifier,
-) -> Result<(), source::SourceSpan> {
-    use syntax_trees::expression::MatchPattern;
-
-    let mut pending = syntax
-        .items
-        .proof_facts(facts)
-        .iter()
-        .map(|fact| match fact {
-            ProofFact::Expression(expression) => *expression,
-            ProofFact::Membership(membership) => membership.value,
-        })
-        .collect::<Vec<_>>();
-    let mut bound_uses = Vec::new();
-    while let Some(handle) = pending.pop() {
-        if !handle.is_valid() {
-            continue;
-        }
-        match syntax.expressions.expression(handle) {
-            ExpressionNode::Name(path) => {
-                if let [name] = syntax.expressions.identifier_path_members(*path)
-                    && name.as_str() == subject.as_str()
-                {
-                    bound_uses.push(handle);
-                }
-            }
-            ExpressionNode::Match(dispatch) => {
-                pending.push(dispatch.subject);
-                for arm in syntax.expressions.match_arms(dispatch.arms) {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend_from_slice(syntax.expressions.expression_handles(*values));
-            }
-            ExpressionNode::Atomic(atomic) => {
-                pending.extend([atomic.value, atomic.result]);
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Call(call) => {
-                pending.push(call.receiver);
-                pending.extend_from_slice(syntax.expressions.expression_handles(call.arguments));
-            }
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Membership(membership) => pending.push(membership.value),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::StructLiteral(literal) => {
-                pending.extend(
-                    syntax
-                        .expressions
-                        .struct_fields(literal.fields)
-                        .iter()
-                        .map(|field| field.value),
-                );
-            }
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::TypeExpression(_)
-            | ExpressionNode::ZeroValue(_) => {}
-            ExpressionNode::SelfValue => return Err(syntax.expressions.source_span(handle)),
-        }
-    }
-    for handle in bound_uses {
-        syntax
-            .expressions
-            .replace_expression(handle, ExpressionNode::SelfValue);
-    }
-    Ok(())
 }
 
 fn parse_domain_classification<'tokens, 'source>(

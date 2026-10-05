@@ -168,17 +168,20 @@ pub(crate) fn complete(
                     selection,
                 )
                 .map_err(|error| vec![error])?;
-                completed_type_roots.extend(authored.machine_arguments.iter()
-                    .map(|argument| argument.type_reference).filter(|reference| reference.is_valid()));
+                completed_type_roots.extend(
+                    authored
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| argument.type_reference)
+                        .filter(|reference| reference.is_valid()),
+                );
                 syntax.expressions.replace_expression(
                     *original,
                     syntax_trees::expression::ExpressionNode::Call(authored),
                 );
             }
             symbol_resolved_trees::expression::ExpressionNode::Name(path)
-                // `self` names the receiver storage through its owning state;
-                // it is not a first-class selection of that state's machine.
-                if !path.is_self_value && selected_machine(trees, path.symbol)
+                if selected_machine(trees, path.symbol)
                     .is_some_and(|index| trees.machines[index].has_structural_type_equations) =>
             {
                 return Err(vec![Diagnostic::error(

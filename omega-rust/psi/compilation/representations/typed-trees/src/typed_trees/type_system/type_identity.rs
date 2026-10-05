@@ -46,6 +46,26 @@ use arena::HandleSpan;
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
+/// Normalize a symbolic expression with declaration-local binder identities.
+/// This shares the index-expression normalizer: renaming a bound subject does
+/// not change a predicate, while references outside the binder list retain
+/// their selected declarations. The result describes structure, not a proof
+/// that two different expressions are mathematically equivalent.
+pub fn normalized_expression_identity(
+    program: &TypedTrees,
+    expression: crate::expression::ExpressionHandle,
+    binders: &[(SymbolHandle, String)],
+) -> String {
+    identity_context::normalize_index_expression(
+        program,
+        expression,
+        &TypeIdentityContext {
+            binders,
+            ..TypeIdentityContext::default()
+        },
+    )
+}
+
 /// One request for a normalized type identity: the type reference, the
 /// generic binders it may mention, the exact type-parameter substitutions
 /// to follow first, and whether nominals carry their package owner.

@@ -111,6 +111,10 @@ pub(crate) fn lower_domain_definition(
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
+        subject_name: domain.subject.as_ref().map(lower_name).unwrap_or_else(|| {
+            symbol_resolved_trees::name::DiagnosticName::generated_static("$subject")
+        }),
+        subject_symbol: SymbolHandle::invalid(),
         type_parameters,
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
         index_arguments,

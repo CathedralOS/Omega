@@ -193,7 +193,6 @@ pub(crate) fn lower_statement_node(
                 storage: CallStorage {
                     receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
-                    receiver_starts_at_self: call.receiver_starts_at_self,
                     machine_arguments: call
                         .machine_arguments
                         .iter()
@@ -524,7 +523,6 @@ fn retain_build_declaration_call_expression(lowerer: &mut Lowerer, call: Call) -
     } else {
         expression_table.insert(ExpressionNode::Name(TableNamePath {
             members,
-            is_self_value: call.receiver_starts_at_self,
             ..Default::default()
         }))
     };
@@ -673,7 +671,6 @@ fn lower_transition_target_node(
     match syntax_trees.statements.transition_target(target) {
         syntax::statement::TransitionTargetNode::Named {
             path,
-            path_starts_at_self,
             arguments,
             evidence_arguments,
             source_span,
@@ -715,7 +712,6 @@ fn lower_transition_target_node(
                 symbol: SymbolHandle::invalid(),
                 storage: NamedTransitionTargetStorage {
                     path: lower_statement_path_members(lowerer, syntax_trees, *path),
-                    path_starts_at_self: *path_starts_at_self,
                     arguments,
                     evidence_arguments: evidence_arguments
                         .iter()

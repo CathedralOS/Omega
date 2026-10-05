@@ -1198,7 +1198,6 @@ impl<'a, 's> Solver<'a, 's> {
             expression,
             self.const_values,
             &parameter_values,
-            None,
             warnings,
         )
         .and_then(|value| match value {

@@ -424,13 +424,29 @@ fn normalized_domain_facts(
     fact_plan: &FactPlan,
     domain_symbol: SymbolHandle,
 ) -> Vec<String> {
+    let binders = domain_definition_by_symbol(program, domain_symbol)
+        .map(|domain| {
+            program
+                .domain_type_parameters(domain)
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| (parameter.symbol, format!("$index{position}")))
+                .chain(std::iter::once((
+                    domain.subject_symbol,
+                    "$subject".to_owned(),
+                )))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let expression_identity = |expression| {
+        typed_trees::type_identity::normalized_expression_identity(program, expression, &binders)
+    };
     let mut facts = fact_plan
         .facts_for_symbol(domain_symbol)
         .filter_map(|fact| match fact.payload {
-            facts::FactPayload::BooleanExpression(expression) => Some(format!(
-                "bool:{}",
-                program.expression_table.display_name(expression)
-            )),
+            facts::FactPayload::BooleanExpression(expression) => {
+                Some(format!("bool:{}", expression_identity(expression)))
+            }
             facts::FactPayload::DomainMembership {
                 value,
                 domain_symbol,
@@ -446,7 +462,7 @@ fn normalized_domain_facts(
                 };
                 Some(format!(
                     "membership:{}:{semantic_id:?}",
-                    program.expression_table.display_name(value)
+                    expression_identity(value)
                 ))
             }
             _ => None,
@@ -471,7 +487,7 @@ fn validate_domain_membership_targets(
         };
 
         // A predicate may classify an index or projected value independently
-        // of its own carrier. Only the reserved self node denotes that carrier;
+        // of its own carrier. Only the declaration's subject denotes that carrier;
         // every other subject must retain its actual declared result type.
         let subject_type =
             crate::value_custody::expression_types::domain_expression_result_type_reference(

@@ -186,7 +186,6 @@ pub struct TableAssignment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
-    pub receiver_starts_at_self: bool,
     pub target: Identifier,
     /// Preserves static `::` selection through expression-to-statement conversion.
     pub target_is_static: bool,
@@ -203,7 +202,6 @@ impl Default for TableCall {
     fn default() -> Self {
         Self {
             receiver: HandleSpan::empty(),
-            receiver_starts_at_self: false,
             target: Identifier::default(),
             target_is_static: false,
             machine_arguments: Box::default(),
@@ -280,7 +278,6 @@ pub enum TransitionGuardNode {
 pub enum TransitionTargetNode {
     Named {
         path: HandleSpan<Identifier>,
-        path_starts_at_self: bool,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
         /// Exact authored target-name span retained even when the parser
@@ -318,7 +315,6 @@ mod tests {
         let arguments = HandleSpan::from_parts(argument_one, 2);
         let target = statements.insert_transition_target(TransitionTargetNode::Named {
             path,
-            path_starts_at_self: false,
             arguments,
             evidence_arguments: Box::default(),
             source_span: Default::default(),

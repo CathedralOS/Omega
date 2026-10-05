@@ -173,8 +173,9 @@ fn self_predicate_bounds(
         let right = self_predicate_bounds(program, definition, binary.right, indices, bound);
         return left && right;
     }
-    let left_is_self = crate::exact_domain_self_type(program, definition, binary.left).is_some();
-    let right_is_self = crate::exact_domain_self_type(program, definition, binary.right).is_some();
+    let left_is_self = crate::exact_domain_subject_type(program, definition, binary.left).is_some();
+    let right_is_self =
+        crate::exact_domain_subject_type(program, definition, binary.right).is_some();
     // Exactly one side is the subject; `self <= self` states nothing this
     // reader can turn into a literal interval.
     let (literal, subject_on_left) = match (left_is_self, right_is_self) {

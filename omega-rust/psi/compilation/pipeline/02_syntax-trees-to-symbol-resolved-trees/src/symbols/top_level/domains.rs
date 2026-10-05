@@ -25,6 +25,8 @@ pub(super) fn assign_domain_symbols(
             parameter.symbol =
                 next_child_of_kind(&mut domain_children, symbols, SymbolKind::TypeParameter);
         }
+        domain.subject_symbol =
+            next_child_of_kind(&mut domain_children, symbols, SymbolKind::Parameter);
         for operator in operator_definitions.span_mut_or_empty(domain.operators) {
             assign_operator_symbols(
                 symbols,

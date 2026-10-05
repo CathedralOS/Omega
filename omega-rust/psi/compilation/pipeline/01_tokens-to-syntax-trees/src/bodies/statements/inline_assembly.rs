@@ -360,7 +360,6 @@ fn zero_operand_asm_intrinsic_call(
         .insert(StatementNode::Call(TableCall {
             target_is_static: false,
             receiver: HandleSpan::empty(),
-            receiver_starts_at_self: false,
             target: Identifier::new(intrinsic_name, mnemonic.source_span()),
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
@@ -489,7 +488,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     .insert(StatementNode::Call(TableCall {
                         target_is_static: false,
                         receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
                         target: Identifier::new("asm#hlt", mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
@@ -518,7 +516,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .insert(StatementNode::Call(TableCall {
                             target_is_static: false,
                             receiver: HandleSpan::empty(),
-                            receiver_starts_at_self: false,
                             target: Identifier::new("asm#port_out", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
@@ -570,7 +567,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     .insert(StatementNode::Call(TableCall {
                         target_is_static: false,
                         receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
@@ -589,7 +585,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     .insert(StatementNode::Call(TableCall {
                         target_is_static: false,
                         receiver: HandleSpan::empty(),
-                        receiver_starts_at_self: false,
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
@@ -673,7 +668,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .insert(StatementNode::Call(TableCall {
                             target_is_static: false,
                             receiver: HandleSpan::empty(),
-                            receiver_starts_at_self: false,
                             target: Identifier::new("asm#popfq", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
@@ -732,7 +726,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .insert(StatementNode::Call(TableCall {
                             target_is_static: false,
                             receiver: HandleSpan::empty(),
-                            receiver_starts_at_self: false,
                             target: Identifier::new("asm#wrmsr", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
@@ -787,7 +780,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .insert(StatementNode::Call(TableCall {
                             target_is_static: false,
                             receiver: HandleSpan::empty(),
-                            receiver_starts_at_self: false,
                             target: Identifier::new(
                                 register
                                     .write_intrinsic_name()
@@ -847,7 +839,6 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         .insert(StatementNode::Call(TableCall {
                             target_is_static: false,
                             receiver: HandleSpan::empty(),
-                            receiver_starts_at_self: false,
                             target: Identifier::new(
                                 register
                                     .write_intrinsic_name()

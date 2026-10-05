@@ -114,7 +114,7 @@ pub(super) fn judge_qualification_cast(
 
 /// The cast instance's closed index bindings: `domain<const Bound: u64>
 /// u64::AtMost<Bound>` minted as `... in AtMost<256>` pairs `Bound`'s
-/// parameter symbol with 256, so facts declared as `self <= Bound` judge
+/// parameter symbol with 256, so facts declared as `subject <= Bound` judge
 /// against the instance's argument rather than the parameter name.
 fn cast_domain_index_bindings(
     program: &TypedTrees,
@@ -194,7 +194,7 @@ fn domain_is_vacuous(
 
 /// Flow-integration v1: when the cast VALUE is a Name whose declared type
 /// carries a range constraint, every domain fact must hold over the WHOLE
-/// interval (`self >= K` iff low >= K; `self <= K` iff high <= K; strict/
+/// interval (`subject >= K` iff low >= K; `subject <= K` iff high <= K; strict/
 /// equality forms accordingly). `None` when the value has no usable range
 /// (the caller falls back to the staged refusal).
 fn range_mint_discharges(
@@ -372,8 +372,8 @@ enum MintJudgment {
     NotLiteral,
 }
 
-/// Fold every domain fact at the cast's literal value (`self := literal`).
-/// Only integer literals and `self <op> literal` / `literal <op> self`
+/// Fold every domain fact at the cast's literal value (`subject := literal`).
+/// Only integer literals and `subject <op> literal` / `literal <op> subject`
 /// comparison facts fold; anything else is conservatively NotLiteral.
 /// `introduction`-clause pseudo-facts (non-Binary) are skipped -- they are
 /// policy, not predicate.
@@ -399,11 +399,8 @@ fn literal_mint_discharges(
         };
         let side_value = |handle: ExpressionHandle| -> Option<i128> {
             match program.expression_table.expression(handle) {
-                ExpressionNode::Name(path)
-                    if matches!(
-                        program.expression_table.name_path_members(path.members),
-                        [only] if only.is_self_receiver()
-                    ) =>
+                ExpressionNode::Name(_)
+                    if typed_trees::domain::domain_subject_reference(program, domain, handle) =>
                 {
                     Some(minted)
                 }
@@ -450,8 +447,8 @@ fn bounds_mint_discharges(
     interval_mint_judgment(program, domain, interval.low, interval.high, indices)
 }
 
-/// Every `self OP literal` domain fact must hold over the whole interval
-/// (`self >= K` iff low >= K; `self <= K` iff high <= K; strict and equality
+/// Every `subject OP literal` domain fact must hold over the whole interval
+/// (`subject >= K` iff low >= K; `subject <= K` iff high <= K; strict and equality
 /// forms accordingly). An absent endpoint entails nothing on its side.
 fn interval_mint_judgment(
     program: &TypedTrees,
@@ -470,16 +467,6 @@ fn interval_mint_judgment(
         else {
             continue;
         };
-        let is_self = |handle: ExpressionHandle| {
-            matches!(
-                program.expression_table.expression(handle),
-                ExpressionNode::Name(fact_path)
-                    if matches!(
-                        program.expression_table.name_path_members(fact_path.members),
-                        [only] if only.is_self_receiver()
-                    )
-            )
-        };
         let literal_of = |handle: ExpressionHandle| -> Option<i64> {
             match program.expression_table.expression(handle) {
                 ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
@@ -488,20 +475,21 @@ fn interval_mint_judgment(
                 _ => None,
             }
         };
-        let (operator, bound) = if is_self(binary.left) {
-            (binary.operator, literal_of(binary.right)?)
-        } else if is_self(binary.right) {
-            let flipped = match binary.operator {
-                BinaryOperator::Less => BinaryOperator::Greater,
-                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-                BinaryOperator::Greater => BinaryOperator::Less,
-                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-                other => other,
+        let (operator, bound) =
+            if typed_trees::domain::domain_subject_reference(program, domain, binary.left) {
+                (binary.operator, literal_of(binary.right)?)
+            } else if typed_trees::domain::domain_subject_reference(program, domain, binary.right) {
+                let flipped = match binary.operator {
+                    BinaryOperator::Less => BinaryOperator::Greater,
+                    BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                    BinaryOperator::Greater => BinaryOperator::Less,
+                    BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                    other => other,
+                };
+                (flipped, literal_of(binary.left)?)
+            } else {
+                return None;
             };
-            (flipped, literal_of(binary.left)?)
-        } else {
-            return None;
-        };
         let holds = match operator {
             BinaryOperator::GreaterOrEqual => low.is_some_and(|l| l >= bound),
             BinaryOperator::Greater => low.is_some_and(|l| l > bound),

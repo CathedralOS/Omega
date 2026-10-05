@@ -20,7 +20,6 @@ pub(crate) fn copy_expression_as_place(
 ) -> Option<ExpressionHandle> {
     let node = syntax_trees.expressions.expression(expression).clone();
     let copied = match node {
-        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
         ExpressionNode::Member(m) => {
             let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
             ExpressionNode::Member(TableMemberExpression {
@@ -148,7 +147,6 @@ pub(crate) fn expression_handle_to_statement_call(
     Some(TableCall {
         target_is_static: call.target_is_static,
         receiver,
-        receiver_starts_at_self: false,
         target,
         machine_arguments: call.machine_arguments,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),

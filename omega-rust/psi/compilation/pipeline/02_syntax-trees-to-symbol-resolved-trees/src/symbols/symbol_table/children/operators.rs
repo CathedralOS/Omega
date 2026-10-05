@@ -23,6 +23,11 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
             .data_type_parameters(domain.type_parameters)
             .iter()
             .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .chain(std::iter::once(symbol_seed(
+                SymbolKind::Parameter,
+                &domain.subject_name,
+                has_sources,
+            )))
             .chain(
                 operator_names
                     .iter()
@@ -34,7 +39,7 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
     );
 
     for (operator_symbol, operator) in SymbolTableBuilder::child_handles(domain_children)
-        .skip(domain.type_parameters.len())
+        .skip(domain.type_parameters.len() + 1)
         .zip(program.operator_definitions(domain.operators).iter())
     {
         insert_operator_symbol_children(builder, program, operator_symbol, operator, has_sources);

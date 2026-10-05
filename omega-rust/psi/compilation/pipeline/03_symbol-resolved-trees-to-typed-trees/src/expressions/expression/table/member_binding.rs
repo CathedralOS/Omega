@@ -143,19 +143,6 @@ fn declared_type<'program>(
                 .then(|| program.child_type_reference(element))
         }
         ExpressionNode::Member(member) => {
-            // Explicit self may retain its machine identity rather than a
-            // nominal value type. Its inherited field slot still has an exact
-            // declared type; require that slot to belong to this receiver.
-            if let ExpressionNode::Name(path) = expressions.expression(member.receiver)
-                && path.is_self_value
-                && path.symbol.is_valid()
-                && member.member_symbol.is_valid()
-                && program.symbols.get(path.symbol).kind == SymbolKind::Machine
-                && program.symbols.get(member.member_symbol).parent == path.symbol
-                && program.symbols.name(member.member_symbol) == member.member.as_str()
-            {
-                return declared_symbol_type(program, member.member_symbol);
-            }
             Some(&declared_receiver_field(program, expressions, member, depth + 1)?.type_reference)
         }
         _ => None,
@@ -219,6 +206,14 @@ fn declared_symbol_type(
     }
     let declaration = program.symbols.get(symbol);
     match declaration.kind {
+        SymbolKind::Parameter
+            if program.symbols.get(declaration.parent).kind == SymbolKind::Domain =>
+        {
+            program.domain_definitions.iter().find_map(|domain| {
+                (domain.symbol == declaration.parent && domain.subject_symbol == symbol)
+                    .then_some(&domain.target_type)
+            })
+        }
         SymbolKind::Parameter
             if program.symbols.get(declaration.parent).kind == SymbolKind::Measure =>
         {

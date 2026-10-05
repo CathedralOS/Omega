@@ -167,7 +167,6 @@ pub struct CallStorage {
     /// Exact storage/namespace root, distinct from the final receiver member.
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
-    pub receiver_starts_at_self: bool,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     pub evidence_arguments: Box<[DiagnosticName]>,
@@ -234,7 +233,6 @@ pub struct NamedTransitionTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
     pub path: HandleSpan<DiagnosticName>,
-    pub path_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     pub evidence_arguments: Box<[DiagnosticName]>,
     pub source_span: SourceSpan,
@@ -532,7 +530,6 @@ impl StatementTable {
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
                     receiver,
-                    receiver_starts_at_self: call.receiver_starts_at_self,
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments,
@@ -703,7 +700,6 @@ impl StatementTable {
                     members: self.insert_name_path_members(
                         source_statement_path_members.span_or_empty(named.path),
                     ),
-                    starts_at_self: named.path_starts_at_self,
                     head_symbol: named.head_symbol,
                     symbol: named.symbol,
                 },
@@ -787,7 +783,6 @@ pub struct TableCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
-    pub receiver_starts_at_self: bool,
     pub target: DiagnosticName,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
@@ -806,7 +801,6 @@ impl Default for TableCall {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
-            receiver_starts_at_self: false,
             target: DiagnosticName::default(),
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
@@ -900,7 +894,6 @@ pub enum TransitionTargetNode {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
-    pub starts_at_self: bool,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -1030,7 +1023,6 @@ mod tests {
                 symbol: target_symbol,
                 storage: NamedTransitionTargetStorage {
                     path,
-                    path_starts_at_self: false,
                     arguments,
                     evidence_arguments: Box::default(),
                     source_span: Default::default(),

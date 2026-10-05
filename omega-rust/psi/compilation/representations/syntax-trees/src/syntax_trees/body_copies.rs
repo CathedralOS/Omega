@@ -234,7 +234,6 @@ impl SyntaxTrees {
             StatementNode::Call(call) => StatementNode::Call(TableCall {
                 target_is_static: call.target_is_static,
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
-                receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
                 machine_arguments: call
                     .machine_arguments
@@ -298,13 +297,11 @@ impl SyntaxTrees {
         let target = match other.statements.transition_target(handle) {
             TransitionTargetNode::Named {
                 path,
-                path_starts_at_self,
                 arguments,
                 evidence_arguments,
                 source_span,
             } => TransitionTargetNode::Named {
                 path: self.copy_statement_identifier_span(other, *path),
-                path_starts_at_self: *path_starts_at_self,
                 arguments: self.copy_statement_expression_span(other, *arguments),
                 evidence_arguments: evidence_arguments.clone(),
                 source_span: *source_span,
@@ -603,7 +600,6 @@ impl SyntaxTrees {
                     end_inclusive: range.end_inclusive,
                 })
             }
-            ExpressionNode::SelfValue => ExpressionNode::SelfValue,
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
                     constructor_name: struct_literal.constructor_name.clone(),

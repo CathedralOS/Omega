@@ -81,7 +81,6 @@ impl ExpressionNode {
                     (false, false) => separator.to_owned(),
                 }
             }
-            Self::SelfValue => "self".to_owned(),
             Self::StructLiteral(struct_literal) => struct_literal.constructor_name.to_string(),
             Self::String(value) => source::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),

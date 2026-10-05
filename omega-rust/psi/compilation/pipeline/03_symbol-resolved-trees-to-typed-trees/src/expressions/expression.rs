@@ -9,9 +9,9 @@
 //!   can find an operand's data type. Declaration and statement lowering use
 //!   it.
 //! - `lower_expression_handle_from_table` and
-//!   `lower_expression_handle_from_table_with_self_substitution` take any
+//!   `lower_expression_handle_from_table_with_symbol_substitution` take any
 //!   expression table, with or without the resolved program; the second can
-//!   replace a bare `self` with a given typed expression. Type references and
+//!   substitute one resolved binder with a typed expression. Type references and
 //!   constraints use them.
 //! - `lower_expression_handle_from_table_in_fact_position` lowers a proof
 //!   fact: equality over recursive, proof-only data stays a raw binary
@@ -61,24 +61,24 @@ pub(crate) fn lower_expression_handle_from_table(
     target: &mut typed::TypedTrees,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_handle_from_table_with_self_substitution(
+    lower_expression_handle_from_table_with_symbol_substitution(
         None, source, target, expression, None,
     )
 }
 
-pub(crate) fn lower_expression_handle_from_table_with_self_substitution(
+pub(crate) fn lower_expression_handle_from_table_with_symbol_substitution(
     program: Option<&resolved::SymbolResolvedTrees>,
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::TypedTrees,
     expression: resolved::expression::ExpressionHandle,
-    self_substitution: Option<typed::expression::ExpressionHandle>,
+    symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    table::lower_expression_handle_from_table_with_self_substitution(
+    table::lower_expression_handle_from_table_with_symbol_substitution(
         program,
         source,
         target,
         expression,
-        self_substitution,
+        symbol_substitution,
     )
 }
 

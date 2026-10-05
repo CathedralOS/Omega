@@ -1167,7 +1167,7 @@ fn expression_candidates(
                 });
             }
         }
-        ExpressionNode::Name(path) if !path.is_self_value => {
+        ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             if !path.head_symbol.is_valid() && members.len() > 1 {
                 let name = members

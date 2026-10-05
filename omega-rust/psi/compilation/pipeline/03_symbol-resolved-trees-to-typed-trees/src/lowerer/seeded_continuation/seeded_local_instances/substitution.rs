@@ -399,11 +399,10 @@ fn fact_expression_matches(
             let ExpressionNode::Name(instance_path) = instance_node else {
                 return false;
             };
-            template_path.is_self_value == instance_path.is_self_value
-                && diagnostic_names_match(
-                    expressions.name_path_members(template_path.members),
-                    expressions.name_path_members(instance_path.members),
-                )
+            diagnostic_names_match(
+                expressions.name_path_members(template_path.members),
+                expressions.name_path_members(instance_path.members),
+            )
         }
         (ExpressionNode::Binary(template), ExpressionNode::Binary(instance)) => {
             template.operator == instance.operator

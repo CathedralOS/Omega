@@ -1728,10 +1728,7 @@ fn predicate_only_domain_predicates(
     program: &typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
-    let domain = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)?;
+    let domain = typed_trees::domain::domain_by_symbol(program, domain_symbol)?;
     // The same list `domain_byte_predicate` enforces, so one definition governs
     // both grants: an alias expands to constituent requirements, index binders
     // carry an identity this substitution cannot supply, and `established by`
@@ -1781,12 +1778,17 @@ fn predicate_only_domain_labels(
         return None;
     };
     let subject_label = facts.semantic.place_label(program, place_handle);
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
     Some(
         predicate_only_domain_predicates(program, domain_symbol)?
             .iter()
             .map(|expression| {
                 super::labels::instantiate_domain_expression_label(
                     program,
+                    domain,
                     *expression,
                     &subject_label,
                 )

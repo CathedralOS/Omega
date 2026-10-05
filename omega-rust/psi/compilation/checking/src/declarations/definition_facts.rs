@@ -658,16 +658,6 @@ fn append_domain_expression_place(
         ExpressionNode::Borrow(inner) => {
             append_domain_expression_place(program, facts, domain_target, inner.target)
         }
-        ExpressionNode::Name(path) => {
-            let [name] = program.expression_table.name_path_members(path.members) else {
-                return facts.append_place_from_expression(program, expression);
-            };
-            if !path.head_symbol.is_valid() && !path.symbol.is_valid() && name.is_self_receiver() {
-                facts.append_expression_place(expression)
-            } else {
-                facts.append_place_from_expression(program, expression)
-            }
-        }
         ExpressionNode::Member(member) => {
             let place =
                 append_domain_expression_place(program, facts, domain_target, member.receiver);

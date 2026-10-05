@@ -301,7 +301,6 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::SelfValue
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_)
         | ExpressionNode::TypeExpression(_) => {}

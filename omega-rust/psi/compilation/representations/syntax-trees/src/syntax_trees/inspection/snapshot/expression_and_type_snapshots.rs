@@ -202,7 +202,6 @@ pub enum ExpressionSnapshot {
         end: Option<Box<ExpressionSnapshot>>,
         end_inclusive: bool,
     },
-    SelfValue,
     StructLiteral {
         constructor_name: IdentifierSnapshot,
         fields: Vec<StructLiteralFieldSnapshot>,
@@ -475,7 +474,6 @@ pub(crate) fn snapshot_expression_handle(
                 .then(|| Box::new(snapshot_expression_handle(syntax_trees, range.end))),
             end_inclusive: range.end_inclusive,
         },
-        ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
             constructor_name: snapshot_identifier(&value.constructor_name),
             fields: syntax_trees

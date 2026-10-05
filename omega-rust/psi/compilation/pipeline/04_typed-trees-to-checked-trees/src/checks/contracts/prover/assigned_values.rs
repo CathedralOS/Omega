@@ -321,10 +321,9 @@ impl AssignedValues<'_> {
         &self,
         subject: &CanonicalPlace,
         expression: ExpressionHandle,
-        type_symbol: Option<SymbolHandle>,
+        domain: &typed_trees::domain::DomainDefinition,
     ) -> Option<CanonicalPlace> {
-        let segments =
-            relative_place_segments_from_expression(self.program, expression, type_symbol)?;
+        let segments = relative_place_segments_from_expression(self.program, expression, domain)?;
         let mut selected = subject.clone();
         selected.extend_segments(&segments);
         Some(selected)
@@ -366,18 +365,13 @@ impl AssignedValues<'_> {
         if facts.is_empty() {
             return false;
         }
-        let type_symbol = crate::lookup::machine_symbol_from_type_reference_handle(
-            self.program,
-            domain.target_type,
-        );
-        let type_symbol = type_symbol.is_valid().then_some(type_symbol);
         active.push(symbol);
         let proved = facts.iter().all(|fact| match fact {
             ProofFact::Expression(expression) => {
-                self.boolean(subject, type_symbol, *expression) == Some(true)
+                self.boolean(subject, domain, *expression) == Some(true)
             }
             ProofFact::Membership(membership) => self
-                .relative_subject(subject, membership.value, type_symbol)
+                .relative_subject(subject, membership.value, domain)
                 .is_some_and(|nested| {
                     carried_domain_membership_at_place(
                         self.program,
@@ -421,7 +415,7 @@ impl AssignedValues<'_> {
     fn boolean(
         &self,
         subject: &CanonicalPlace,
-        type_symbol: Option<SymbolHandle>,
+        domain: &typed_trees::domain::DomainDefinition,
         expression: ExpressionHandle,
     ) -> Option<bool> {
         // `self in T::C` (and the `self == T::C` equality it lowers to) names
@@ -429,7 +423,7 @@ impl AssignedValues<'_> {
         // subject's place decides it.
         if let Some((member, case)) =
             crate::proof::exact_outcome_case_test(self.program, expression)
-            && let Some(selected) = self.relative_subject(subject, member, type_symbol)
+            && let Some(selected) = self.relative_subject(subject, member, domain)
         {
             return self
                 .installed_case(&selected)
@@ -446,7 +440,7 @@ impl AssignedValues<'_> {
                     .constant_integer_value(expression)
                     .map(|value| ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value)))
                     .or_else(|| {
-                        let selected = self.relative_subject(subject, expression, type_symbol)?;
+                        let selected = self.relative_subject(subject, expression, domain)?;
                         scalar_value_at_place(
                             self.program,
                             self.semantic,

@@ -762,7 +762,7 @@ fn classify_membership_leaf(
 
 /// A declared domain contributes a tag set only when it is a PURE CASE-UNION
 /// (syntactic recognition, chapter-1 footnote ruling): its sole fact is exactly
-/// `self in Type::A | Type::B | ...` over cases of its own target type.
+/// subject membership in `Type::A | Type::B | ...` over its own target type.
 /// Anything else over a case-bearing target is a predicate domain.
 fn classify_declared_domain(
     program: &SymbolResolvedTrees,
@@ -814,7 +814,7 @@ fn classify_declared_domain(
         let ExpressionNode::Membership(leaf_membership) = expressions.expression(leaf) else {
             return LeafContribution::Predicate { data_index };
         };
-        if !is_bare_self(program, leaf_membership.value) {
+        if !is_domain_subject(program, domain, leaf_membership.value) {
             return LeafContribution::Predicate { data_index };
         }
         // Leaves must be implicit case domains of the SAME target type --
@@ -834,10 +834,20 @@ fn classify_declared_domain(
     }
 }
 
-fn is_bare_self(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> bool {
+fn is_domain_subject(
+    program: &SymbolResolvedTrees,
+    domain: &resolved::domain::DomainDefinition,
+    expression: ExpressionHandle,
+) -> bool {
     matches!(
         program.tables.bodies.expressions.expression(expression),
-        ExpressionNode::Name(path) if path.is_self_value && path.members.count() == 1
+        ExpressionNode::Name(path)
+            if domain.subject_symbol.is_valid()
+                && path.symbol == domain.subject_symbol
+                && path.head_symbol == domain.subject_symbol
+                && path.members.count() == 1
+                && program.tables.bodies.expressions.name_path_member_symbols(path.member_symbols)
+                    == [domain.subject_symbol]
     )
 }
 
@@ -982,7 +992,7 @@ fn expressions_structurally_equal(
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.is_self_value == right.is_self_value
+            left.symbol == right.symbol
                 && name_paths_equal(
                     expressions.name_path_members(left.members),
                     expressions.name_path_members(right.members),

@@ -61,7 +61,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         }
     });
     // Each scope carries its declaration's generic telescope so an indexed
-    // application's arguments (`self.slot in Resident<P, T>`) resolve against
+    // application's arguments (`value.slot in Resident<P, T>`) resolve against
     // the owning binders. Signature contracts resolve theirs in the machine
     // or trait scope during contract-reference assignment, which runs first;
     // `None` leaves that assignment untouched here.
@@ -69,17 +69,20 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         .domain_definitions
         .iter()
         .map(|domain| {
-            // Predicate operands use the same declaration-local telescope as
-            // membership arguments. Reserved `self` denotes the classified
-            // value, not an index binder or a surrounding declaration.
+            // The carrier subject is a value binder, not a generic index.
+            // Both use this declaration's lexical scope; indexed membership
+            // arguments retain only the generic telescope below.
             let local_symbols = program
                 .tables
                 .declarations
                 .data_type_parameters
                 .span_or_empty(domain.type_parameters)
                 .iter()
-                .filter(|parameter| !parameter.name.is_self_receiver())
                 .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
+                .chain(std::iter::once((
+                    domain.subject_name.as_str().to_owned(),
+                    domain.subject_symbol,
+                )))
                 .collect();
             (domain.facts, local_symbols, Some(domain.type_parameters))
         })

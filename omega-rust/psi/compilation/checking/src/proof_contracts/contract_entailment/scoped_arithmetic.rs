@@ -6,7 +6,7 @@
 //! parameter symbol, so a proposition relating the two cannot be a single
 //! expression read under one symbol table. This adapter lets each hypothesis
 //! and the goal carry its own roster: a parameter symbol, an exact field
-//! projection or reserved domain `self` occurrence, or the synthetic guarantee
+//! projection, or the synthetic guarantee
 //! `result`, denotes a
 //! private atom or a term that is itself read under a nested roster. Atoms are
 //! shared by identity across the rosters of one implication, so the same
@@ -30,11 +30,6 @@ pub enum ScopedArithmeticBinder {
     Symbol(symbols::SymbolHandle),
     /// One exact member-expression occurrence, not an arbitrary term rewrite.
     Projection(ExpressionHandle),
-    /// One exact unresolved reserved `self` occurrence in a domain predicate.
-    /// The caller must rejoin this occurrence to its owning declaration and
-    /// establish the original operator and carrier meaning. This binding only
-    /// supplies mathematical substitution; it does not confer that ownership.
-    DomainSelf(ExpressionHandle),
     Result,
 }
 

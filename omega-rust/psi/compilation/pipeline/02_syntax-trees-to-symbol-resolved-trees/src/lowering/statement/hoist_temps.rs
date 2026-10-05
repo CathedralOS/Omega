@@ -75,7 +75,6 @@ pub(crate) fn mint_hoist_temp(
     expressions.insert(ExpressionNode::Name(TableNamePath {
         members,
         member_symbols,
-        is_self_value: false,
         head_symbol: SymbolHandle::invalid(),
         symbol: SymbolHandle::invalid(),
     }))

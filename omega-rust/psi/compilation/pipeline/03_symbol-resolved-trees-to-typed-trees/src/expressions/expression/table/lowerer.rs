@@ -26,7 +26,7 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) program: Option<&'program resolved::SymbolResolvedTrees>,
     pub(super) source: &'program resolved::expression::ExpressionTable,
     pub(super) target_trees: &'target mut typed::TypedTrees,
-    self_substitution: Option<typed::expression::ExpressionHandle>,
+    symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
     pub(super) equality_scope: Option<&'scope EqualityScope>,
     /// PROOF-FACT position (contract/domain facts): equality over RECURSIVE
     /// (proof-only) data stays a raw Binary for the structural entailment
@@ -39,14 +39,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         program: Option<&'program resolved::SymbolResolvedTrees>,
         source: &'program resolved::expression::ExpressionTable,
         target_trees: &'target mut typed::TypedTrees,
-        self_substitution: Option<typed::expression::ExpressionHandle>,
+        symbol_substitution: Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
         equality_scope: Option<&'scope EqualityScope>,
     ) -> Self {
         Self {
             program,
             source,
             target_trees,
-            self_substitution,
+            symbol_substitution,
             equality_scope,
             fact_position: false,
         }
@@ -536,9 +536,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 {
                     self.retain_data_type_reference(program.symbols.get(path.symbol).parent);
                 }
-                if path.is_self_value
+                if let Some((symbol, substitution)) = self.symbol_substitution
+                    && symbol.is_valid()
+                    && path.symbol == symbol
+                    && path.head_symbol == symbol
                     && path.members.count() == 1
-                    && let Some(substitution) = self.self_substitution
+                    && self.source.name_path_member_symbols(path.member_symbols) == [symbol]
                 {
                     return Ok(substitution);
                 }

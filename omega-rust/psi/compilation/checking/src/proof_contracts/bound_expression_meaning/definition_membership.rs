@@ -1,5 +1,5 @@
-//! Definition-owned subjects have no executable machine or parameter binding.
-//! Rejoin their exact authored occurrence before interpreting self or fields.
+//! Definition-owned subjects retain their declaration's parameter binding.
+//! Rejoin that exact binding before interpreting a subject or its fields.
 
 use super::{exact_case_membership_meaning, membership_subject_matches_owner};
 use crate::value_custody::places::{exact_data_member_field, unwrapped_type_reference};
@@ -100,34 +100,15 @@ pub(super) fn facts_contain_expression(
     })
 }
 
-fn domain_self_has_exact_owner(
-    program: &TypedTrees,
-    domain: &DomainDefinition,
-    expression: ExpressionHandle,
-) -> bool {
-    // Unresolved self spelling is only the reserved-form discriminator. A
-    // sibling declaration's occurrence cannot acquire this carrier when its
-    // expression handle is grafted into an otherwise correctly owned predicate.
-    facts_contain_expression(program, domain.facts, expression)
-        && !program.domain_definitions().iter().any(|other| {
-            other.symbol != domain.symbol
-                && facts_contain_expression(program, other.facts, expression)
-        })
-        && !program
-            .data_definitions()
-            .iter()
-            .any(|data| facts_contain_expression(program, data.where_facts, expression))
-}
-
 #[derive(Clone, Copy)]
 enum DefinitionSubject<'program> {
     Domain(&'program DomainDefinition),
     Data(&'program DataDefinition),
 }
 
-/// The reserved domain subject has meaning only in its unique retained owner.
+/// The domain subject has meaning only under its declaration-owned binding.
 /// This is a carrier lookup, not evidence that any runtime value is a member.
-pub fn exact_domain_self_type(
+pub fn exact_domain_subject_type(
     program: &TypedTrees,
     domain: &DomainDefinition,
     expression: ExpressionHandle,
@@ -170,16 +151,7 @@ fn subject_type(
             };
             match owner {
                 DefinitionSubject::Domain(domain) => {
-                    if !name.is_self_receiver()
-                        || path.symbol.is_valid()
-                        || path.head_symbol.is_valid()
-                        || program
-                            .expression_table
-                            .name_path_member_symbols(path.member_symbols)
-                            .iter()
-                            .any(|symbol| symbol.is_valid())
-                        || !domain_self_has_exact_owner(program, domain, expression)
-                    {
+                    if !typed_trees::domain::domain_subject_reference(program, domain, expression) {
                         return None;
                     }
                     domain.target_type

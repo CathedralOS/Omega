@@ -86,7 +86,6 @@ pub enum StatementSnapshot {
     },
     Call {
         receiver: Vec<IdentifierSnapshot>,
-        receiver_starts_at_self: bool,
         target: IdentifierSnapshot,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
@@ -139,7 +138,6 @@ pub enum TransitionGuardSnapshot {
 pub enum TransitionTargetSnapshot {
     Named {
         path: Vec<IdentifierSnapshot>,
-        path_starts_at_self: bool,
         arguments: Vec<ExpressionSnapshot>,
         evidence_arguments: Vec<IdentifierSnapshot>,
     },
@@ -352,7 +350,6 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .statements
                     .identifier_path_members(call.receiver),
             ),
-            receiver_starts_at_self: call.receiver_starts_at_self,
             target: snapshot_identifier(&call.target),
             machine_arguments: call
                 .machine_arguments
@@ -436,13 +433,11 @@ fn snapshot_transition_target(
     match target {
         TransitionTargetNode::Named {
             path,
-            path_starts_at_self,
             arguments,
             evidence_arguments,
             ..
         } => TransitionTargetSnapshot::Named {
             path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
-            path_starts_at_self: *path_starts_at_self,
             arguments: syntax_trees
                 .statements
                 .expression_handles(*arguments)

@@ -199,7 +199,6 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
                     member_symbols,
-                    is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
                 }))
@@ -445,7 +444,6 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
                     member_symbols,
-                    is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: SymbolHandle::invalid(),
                 }))
@@ -517,7 +515,6 @@ impl ExpressionTable {
         Some(self.insert(ExpressionNode::Name(TableNamePath {
             members,
             member_symbols,
-            is_self_value: false,
             head_symbol: self.storage_path_head_symbol(indexed.collection),
             symbol: SymbolHandle::invalid(),
         })))

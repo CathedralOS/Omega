@@ -66,7 +66,6 @@ pub(crate) fn rewrite_terminal_tail_calls(
                 .statements
                 .insert_transition_target(TransitionTargetNode::Named {
                     path,
-                    path_starts_at_self: false,
                     arguments: argument_span,
                     evidence_arguments: Box::default(),
                     source_span,

@@ -3,7 +3,7 @@
 //! constant validation still relies on this gate before publishing identity.
 //! Exact declaration selection, complete index binding and establishment
 //! obligations therefore precede fact replay. A generic carrier does not supply
-//! a selected algebra for `self`; only carrier-independent facts can close here.
+//! a selected algebra for the subject; only carrier-independent facts can close here.
 use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
     HashSet, Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind,
@@ -25,8 +25,7 @@ use numerics::literals::LandedIntegerType;
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
-/// and must remain on the synthesized record. `self_value` is the concrete
-/// scalar a selected domain binds to `self` while its facts replay.
+/// and must remain on the synthesized record.
 /// Integer synthesis callers and mixed domain binders share the same fact
 /// operations without copying their environments or encoding Booleans as 0/1.
 pub(crate) fn evaluate_const_fact_expression(
@@ -34,7 +33,6 @@ pub(crate) fn evaluate_const_fact_expression(
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
-    self_value: Option<ConstScalarValue>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     evaluate_const_fact_expression_at(
@@ -42,27 +40,19 @@ pub(crate) fn evaluate_const_fact_expression(
         expression,
         const_values,
         parameter_values,
-        self_value,
-        None,
         None,
         warnings,
     )
 }
 
-/// The fact evaluator's complete binding surface: `self_fields` is the
-/// scalar-decodable field ledger a record carrier binds for `self.<name>`
-/// reads, and `self_elements` the scalar-decodable element ledger an array
-/// carrier binds for `self[<index>]` reads while a selected domain replays
-/// its facts. Callers without an aggregate `self` delegate through
-/// `evaluate_const_fact_expression`.
+/// Replay facts with the selected domain's lexical subject, if any. Aggregate
+/// subjects expose scalar-decodable fields or elements, not whole-value scalars.
 fn evaluate_const_fact_expression_at(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
-    self_value: Option<ConstScalarValue>,
-    self_fields: Option<&[(String, ConstScalarValue)]>,
-    self_elements: Option<&[Option<ConstScalarValue>]>,
+    subject: Option<ConstFactSubject<'_>>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
@@ -95,6 +85,9 @@ fn evaluate_const_fact_expression_at(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
+            if let Some(subject) = subject.filter(|subject| subject.matches(syntax, expression)) {
+                return Ok(subject.scalar().map(ConstScalarValue::into_fact_value));
+            }
             if let Some(value) = parameter_values.get(&name) {
                 return Ok(Some((*value).into().into_fact_value()));
             }
@@ -135,20 +128,16 @@ fn evaluate_const_fact_expression_at(
                 integer_type,
             }))
         }
-        ExpressionNode::SelfValue => Ok(self_value.map(ConstScalarValue::into_fact_value)),
-        // A record carrier's `self` answers only `self.<name>` reads against
+        // A record carrier's subject answers only `subject.<name>` reads against
         // its scalar-decodable field ledger. Nested receivers, case-payload
         // reads and fields without a scalar leaf stay undecided so facts
         // reading them keep the declaration fenced.
         ExpressionNode::Member(member) => {
-            let Some(fields) = self_fields else {
+            let Some(fields) = subject.and_then(ConstFactSubject::fields) else {
                 return Ok(None);
             };
             if member.case_variant.is_some()
-                || !matches!(
-                    syntax.expressions.expression(member.receiver),
-                    ExpressionNode::SelfValue
-                )
+                || !subject.is_some_and(|subject| subject.matches(syntax, member.receiver))
             {
                 return Ok(None);
             }
@@ -157,17 +146,16 @@ fn evaluate_const_fact_expression_at(
                 .find(|(name, _)| name.as_str() == member.member.as_str())
                 .map(|(_, value)| value.into_fact_value()))
         }
-        // An array carrier's `self` answers only `self[<index>]` reads against
+        // An array carrier's subject answers only `subject[<index>]` reads against
         // its scalar-decodable element ledger: the index must close to an
         // in-bounds integer and the element must hold a scalar leaf.
         ExpressionNode::Indexed(indexed) => {
-            let Some(elements) = self_elements else {
+            let Some(ConstSubjectBinding::Elements(elements)) =
+                subject.and_then(|subject| subject.binding)
+            else {
                 return Ok(None);
             };
-            if !matches!(
-                syntax.expressions.expression(indexed.collection),
-                ExpressionNode::SelfValue
-            ) {
+            if !subject.is_some_and(|subject| subject.matches(syntax, indexed.collection)) {
                 return Ok(None);
             }
             let Some(index_value) = evaluate_const_fact_expression_at(
@@ -175,9 +163,7 @@ fn evaluate_const_fact_expression_at(
                 indexed.index,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 warnings,
             )?
             else {
@@ -201,9 +187,7 @@ fn evaluate_const_fact_expression_at(
                 unary.operand,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 warnings,
             )?
             .and_then(|value| match value {
@@ -216,12 +200,12 @@ fn evaluate_const_fact_expression_at(
             // `has_builtin_const_operator` answers before operand carriers
             // are known: an authored spelling on an incompatible carrier
             // (the core `Nat` `<=` and `-` machines) makes it decline facts
-            // the authored machine could never bind. A `self`-bound replay
+            // the authored machine could never bind. A subject-bound replay
             // keeps that opaque answer — its scalar binding is carrier-lossy
             // — while closed operands let `authored_operator_can_bind`
             // decide by carrier.
             let builtin = has_builtin_const_operator(syntax, binary);
-            if !builtin && self_value.is_some() {
+            if !builtin && subject.and_then(ConstFactSubject::scalar).is_some() {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -230,9 +214,7 @@ fn evaluate_const_fact_expression_at(
                 binary.left,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 warnings,
             )?
             else {
@@ -243,9 +225,7 @@ fn evaluate_const_fact_expression_at(
                 binary.right,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 warnings,
             )?
             else {
@@ -266,7 +246,7 @@ fn evaluate_const_fact_expression_at(
 }
 
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
-/// domain is defined by evaluable boolean facts over `self`. Machine-call facts
+/// domain is defined by evaluable boolean facts over the subject. Machine-call facts
 /// stay on the concrete record for typed build-time evaluation.
 pub(crate) fn evaluate_const_membership_fact(
     syntax: &SyntaxTrees,
@@ -305,7 +285,7 @@ pub(crate) fn evaluate_const_membership_fact(
         syntax,
         &domain_path,
         parameter_type,
-        ConstSelfBinding::Scalar(ConstScalarValue::Integer(value)),
+        ConstSubjectBinding::Scalar(ConstScalarValue::Integer(value)),
         const_values,
         &mut Vec::new(),
         members
@@ -318,15 +298,15 @@ pub(crate) fn evaluate_const_membership_fact(
     .map(|proof| proof.map(|proof| proof.holds()))
 }
 
-/// The `self` operand one selected domain replay binds for its carrier: a
+/// The subject operand one selected domain replay binds for its carrier: a
 /// scalar payload for whole-value operands, a record or variant carrier's
-/// scalar-decodable field ledger for `self.<name>` projection, or an array
-/// carrier's scalar-decodable element ledger for `self[<index>]` projection.
-/// Aggregate carriers never bind a whole-`self` scalar — whole-aggregate
+/// scalar-decodable field ledger for `subject.<name>` projection, or an array
+/// carrier's scalar-decodable element ledger for `subject[<index>]` projection.
+/// Aggregate carriers never bind a whole-subject scalar — whole-aggregate
 /// comparisons, deeper member chains, and slots without a scalar leaf stay
 /// undecided and their facts keep the declaration fenced.
 #[derive(Clone, Copy)]
-enum ConstSelfBinding<'a> {
+enum ConstSubjectBinding<'a> {
     Scalar(ConstScalarValue),
     Record(&'a [(String, ConstScalarValue)]),
     Elements(&'a [Option<ConstScalarValue>]),
@@ -335,11 +315,44 @@ enum ConstSelfBinding<'a> {
     Variant(&'a [(String, ConstScalarValue)]),
 }
 
-/// Decode one canonical leaf to the scalar a `self.<name>` or `self[<index>]`
+/// One lexical binding in a selected domain. An unavailable generic value still
+/// shadows outer constants and index bindings with the same spelling.
+#[derive(Clone, Copy)]
+struct ConstFactSubject<'a> {
+    name: &'a str,
+    binding: Option<ConstSubjectBinding<'a>>,
+}
+
+impl<'a> ConstFactSubject<'a> {
+    fn matches(self, syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+        let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
+            return false;
+        };
+        matches!(syntax.expressions.identifier_path_members(*path), [name] if name.as_str() == self.name)
+    }
+
+    fn scalar(self) -> Option<ConstScalarValue> {
+        match self.binding {
+            Some(ConstSubjectBinding::Scalar(value)) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn fields(self) -> Option<&'a [(String, ConstScalarValue)]> {
+        match self.binding {
+            Some(ConstSubjectBinding::Record(fields) | ConstSubjectBinding::Variant(fields)) => {
+                Some(fields)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Decode one canonical leaf to the scalar a `subject.<name>` or `subject[<index>]`
 /// read binds. Leaves without a scalar payload — nested aggregates, arrays,
 /// variants and floats — stay unbound rather than folding into a guessed
 /// identity.
-fn scalar_self_leaf(
+fn scalar_subject_leaf(
     value: &language_semantics::const_value::DecodedCanonicalConstValue,
 ) -> Option<ConstScalarValue> {
     match value {
@@ -384,7 +397,7 @@ fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     authored: &str,
     carrier: &str,
-    self_binding: ConstSelfBinding<'_>,
+    subject_binding: ConstSubjectBinding<'_>,
     const_values: &HashMap<String, i128>,
     visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
@@ -392,23 +405,23 @@ fn evaluate_named_const_domain(
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
-        Some(selection) => selection.domain(syntax, authored, reference).or_else(|| {
-            selection
-                .domain_family(syntax, authored, reference)
-                .map(|(_, definition)| definition)
-        }),
+        Some(selection) => selection
+            .domain(syntax, authored, reference, Some(carrier))
+            .or_else(|| {
+                selection
+                    .domain_family(syntax, authored, reference, Some(carrier))
+                    .map(|(_, definition)| definition)
+            }),
         None => {
-            let expanded = if authored.contains("::") {
-                authored.to_owned()
-            } else {
-                format!("{carrier}::{authored}")
-            };
-            syntax.root_items().find_map(|item| {
+            let expanded = format!("{carrier}::{authored}");
+            let mut matches = syntax.root_items().filter_map(|item| {
                 let Item::Domain(domain) = item else {
                     return None;
                 };
-                (domain.name.as_str() == expanded).then_some(domain)
-            })
+                (domain.name.as_str() == authored || domain.name.as_str() == expanded)
+                    .then_some(domain)
+            });
+            matches.next().filter(|_| matches.next().is_none())
         }
     };
     let Some(domain) = domain else {
@@ -443,7 +456,7 @@ fn evaluate_named_const_domain(
         domain,
         domain_key,
         carrier,
-        self_binding,
+        subject_binding,
         const_values,
         &HashMap::new(),
         visiting,
@@ -523,7 +536,7 @@ fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataPro
 }
 
 /// Replay one already-selected domain declaration's facts against `value`
-/// with `self` bound and the application's closed index binders mapped in
+/// with the subject bound and the application's closed index binders mapped in
 /// `parameter_values` (empty for a monomorphic domain). Unindexed and closed
 /// indexed membership share this body so both apply the same carrier check,
 /// recursion guard, and fact order. Nested indexed memberships reuse the
@@ -534,7 +547,7 @@ fn evaluate_selected_domain_facts(
     domain: &syntax_trees::item::DomainDefinition,
     domain_key: String,
     carrier: &str,
-    self_binding: ConstSelfBinding<'_>,
+    subject_binding: ConstSubjectBinding<'_>,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, ConstScalarValue>,
     visiting: &mut Vec<(source::SourceSpan, String)>,
@@ -563,11 +576,11 @@ fn evaluate_selected_domain_facts(
             matches!(parameter.kind, TypeParameterKind::Type)
                 && domain_target_name == Some(parameter.name.as_str())
         });
-    let (self_value, self_fields, self_elements) = if let Some(parameter) = carrier_parameter {
+    let binding = if let Some(parameter) = carrier_parameter {
         // An authored bound on the abstract carrier is application evidence:
         // check the concrete carrier's declared properties instead of
         // declining outright. An unsatisfied or unprovable bound keeps the
-        // fence, and `self` still binds nothing, so facts that read the
+        // fence, and the subject still binds nothing, so facts that read the
         // abstract carrier keep needing typed application checking while
         // closed carrier-independent predicates reuse ordinary replay.
         if parameter.bounds != syntax_trees::item::DataProperties::default()
@@ -575,7 +588,7 @@ fn evaluate_selected_domain_facts(
         {
             return Ok(None);
         }
-        (None, None, None)
+        None
     } else {
         let domain_carrier = match syntax.type_references.type_reference(domain.target_type) {
             TypeReferenceNode::Named(name) => name.as_str().to_owned(),
@@ -597,14 +610,12 @@ fn evaluate_selected_domain_facts(
                 "domain `{domain_key}` has carrier `{domain_carrier}`, but the const value has carrier `{carrier}`",
             ));
         }
-        match self_binding {
-            ConstSelfBinding::Scalar(value) => (Some(value), None, None),
-            ConstSelfBinding::Record(fields) | ConstSelfBinding::Variant(fields) => {
-                (None, Some(fields), None)
-            }
-            ConstSelfBinding::Elements(elements) => (None, None, Some(elements)),
-        }
+        Some(subject_binding)
     };
+    let subject = domain.subject.as_ref().map(|name| ConstFactSubject {
+        name: name.as_str(),
+        binding,
+    });
     let warning_start = warnings.len();
     visiting.push((domain.name.source_span(), domain_key));
     let result = (|| {
@@ -630,7 +641,7 @@ fn evaluate_selected_domain_facts(
                     syntax,
                     &path,
                     carrier,
-                    self_binding,
+                    subject_binding,
                     const_values,
                     visiting,
                     first.source_span(),
@@ -650,9 +661,7 @@ fn evaluate_selected_domain_facts(
                     *expression,
                     const_values,
                     parameter_values,
-                    self_value,
-                    self_fields,
-                    self_elements,
+                    subject,
                     carrier,
                     visiting,
                     selection,
@@ -664,9 +673,7 @@ fn evaluate_selected_domain_facts(
                         membership.value,
                         const_values,
                         parameter_values,
-                        self_value,
-                        self_fields,
-                        self_elements,
+                        subject,
                         warnings,
                     )?
                     else {
@@ -692,7 +699,7 @@ fn evaluate_selected_domain_facts(
                             syntax,
                             &path,
                             nested_carrier,
-                            ConstSelfBinding::Scalar(nested_value),
+                            ConstSubjectBinding::Scalar(nested_value),
                             const_values,
                             visiting,
                             reference,
@@ -705,7 +712,7 @@ fn evaluate_selected_domain_facts(
                             &path,
                             membership.domain_arguments,
                             nested_carrier,
-                            ConstSelfBinding::Scalar(nested_value),
+                            ConstSubjectBinding::Scalar(nested_value),
                             const_values,
                             parameter_values,
                             syntax.items.type_parameters(domain.type_parameters),
@@ -736,10 +743,10 @@ fn evaluate_selected_domain_facts(
     result
 }
 
-/// Bind one evaluated nested-membership operand as the `self` payload the next
+/// Bind one evaluated nested-membership operand as the subject payload the next
 /// selected domain replays. A Boolean operand always selects the `bool`
 /// carrier; an integer operand keeps the enclosing carrier, which
-/// `self`-derived expressions inherit. `Ok(None)` leaves the membership on the
+/// the subject-derived expressions inherit. `Ok(None)` leaves the membership on the
 /// checked-record path rather than binding a guessed payload.
 fn nested_membership_operand<'a>(
     syntax: &SyntaxTrees,
@@ -774,7 +781,7 @@ fn nested_membership_operand<'a>(
 /// parameter must be an integer or Boolean const binder and every argument
 /// must close to that exact carrier against the enclosing scope's bindings; the
 /// family's facts then replay through the same evaluator monomorphic domains
-/// use, with `self` bound to `value` and each binder mapped to its argument.
+/// use, with the subject bound to `value` and each binder mapped to its argument.
 /// A non-scalar or non-const index parameter,
 /// an argument that stays open (enclosing binders, module-constant spellings,
 /// names still owned by resolved selection), and an unprovable fact all
@@ -785,7 +792,7 @@ fn evaluate_indexed_const_domain(
     authored: &str,
     argument_span: HandleSpan<TypeReferenceHandle>,
     carrier: &str,
-    self_binding: ConstSelfBinding<'_>,
+    subject_binding: ConstSubjectBinding<'_>,
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, ConstScalarValue>,
     argument_parameters: &[syntax_trees::item::TypeParameter],
@@ -796,19 +803,19 @@ fn evaluate_indexed_const_domain(
 ) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
         Some(selection) => selection
-            .domain_family(syntax, authored, reference)
+            .domain_family(syntax, authored, reference, Some(carrier))
             .map(|(_, definition)| definition),
         None => {
             // Source-free canonicalization has no module custody, so the
             // fallback may only select an unmoduled family declared exactly
             // once — the same restriction unindexed discharge applies.
-            let expanded = if authored.contains("::") {
-                authored.to_owned()
-            } else {
-                format!("{carrier}::{authored}")
-            };
+            let expanded = format!("{carrier}::{authored}");
             let mut matches = syntax.root_items().filter_map(|item| match item {
-                Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
+                Item::Domain(domain)
+                    if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
+                {
+                    Some(domain)
+                }
                 _ => None,
             });
             match matches.next() {
@@ -915,7 +922,7 @@ fn evaluate_indexed_const_domain(
         domain,
         domain_key,
         carrier,
-        self_binding,
+        subject_binding,
         const_values,
         &parameter_values,
         visiting,
@@ -1118,13 +1125,13 @@ const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require de
 /// before it may publish compatibility identity. Every constraint must be a
 /// `Domain` application whose authored spelling selects one exact owner under
 /// module name law (the same selection the resolver later applies to the
-/// declaration's retained type); its facts then replay with `self` bound to
+/// declaration's retained type); its facts then replay with the subject bound to
 /// the value through the same evaluator `where`-membership discharge uses. A
 /// closed index application additionally binds the family's index binders to
 /// its evaluated arguments before that replay. Integer and Boolean canonical
-/// values bind `self` directly; a record binds `self` through its
+/// values bind the subject directly; a record binds the subject through its
 /// scalar-decodable fields and a variant through its selected case's
-/// scalar-decodable payload fields, each for `self.<name>` reads. Non-domain constraints,
+/// scalar-decodable payload fields, each for `subject.<name>` reads. Non-domain constraints,
 /// other aggregate values, contested or unreachable owners, open arguments,
 /// and unprovable facts keep the declaration fenced rather than publishing
 /// identity against a guessed or absent owner.
@@ -1144,7 +1151,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
     let record_fields: Vec<(String, ConstScalarValue)>;
     let array_elements: Vec<Option<ConstScalarValue>>;
     let variant_fields: Vec<(String, ConstScalarValue)>;
-    let (carrier, self_binding) = match value.decode_encoding() {
+    let (carrier, subject_binding) = match value.decode_encoding() {
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             type_name,
             value,
@@ -1154,21 +1161,21 @@ pub(crate) fn prove_declared_const_domain_constraints(
             };
             (
                 type_name,
-                ConstSelfBinding::Scalar(ConstScalarValue::DeclaredInteger {
+                ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
                     value,
                     integer_type,
                 }),
             )
         }
         // The `bool` carrier is the only other scalar canonical encoding; its
-        // domain target check and `self` binding are exactly the integer
+        // domain target check and the subject binding are exactly the integer
         // route's.
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) => (
             "bool".to_owned(),
-            ConstSelfBinding::Scalar(ConstScalarValue::Boolean(value)),
+            ConstSubjectBinding::Scalar(ConstScalarValue::Boolean(value)),
         ),
-        // A record carrier binds `self` through its scalar-decodable fields:
-        // `self.<name>` reads project canonical leaves while whole-aggregate
+        // A record carrier binds the subject through its scalar-decodable fields:
+        // `subject.<name>` reads project canonical leaves while whole-aggregate
         // operands and fields without a scalar leaf stay unbound.
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Record {
             type_name,
@@ -1177,24 +1184,24 @@ pub(crate) fn prove_declared_const_domain_constraints(
             record_fields = fields
                 .iter()
                 .filter_map(|(name, field)| {
-                    scalar_self_leaf(field).map(|value| (name.clone(), value))
+                    scalar_subject_leaf(field).map(|value| (name.clone(), value))
                 })
                 .collect();
-            (type_name, ConstSelfBinding::Record(&record_fields))
+            (type_name, ConstSubjectBinding::Record(&record_fields))
         }
-        // An array carrier binds `self` through its scalar-decodable elements:
-        // `self[<index>]` reads project canonical leaves positionally while
+        // An array carrier binds the subject through its scalar-decodable elements:
+        // `subject[<index>]` reads project canonical leaves positionally while
         // whole-aggregate operands, non-integer or out-of-bounds indices, and
         // elements without a scalar leaf stay unbound.
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Array {
             type_name,
             values,
         }) => {
-            array_elements = values.iter().map(scalar_self_leaf).collect();
-            (type_name, ConstSelfBinding::Elements(&array_elements))
+            array_elements = values.iter().map(scalar_subject_leaf).collect();
+            (type_name, ConstSubjectBinding::Elements(&array_elements))
         }
-        // A variant carrier binds `self` through the selected case's
-        // scalar-decodable payload fields: `self.<name>` reads project
+        // A variant carrier binds the subject through the selected case's
+        // scalar-decodable payload fields: `subject.<name>` reads project
         // canonical leaves while whole-aggregate operands, a different case's
         // fields, and payload fields without a scalar leaf stay unbound.
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Variant {
@@ -1205,10 +1212,10 @@ pub(crate) fn prove_declared_const_domain_constraints(
             variant_fields = fields
                 .iter()
                 .filter_map(|(name, field)| {
-                    scalar_self_leaf(field).map(|value| (name.clone(), value))
+                    scalar_subject_leaf(field).map(|value| (name.clone(), value))
                 })
                 .collect();
-            (type_name, ConstSelfBinding::Variant(&variant_fields))
+            (type_name, ConstSubjectBinding::Variant(&variant_fields))
         }
         _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
     };
@@ -1221,13 +1228,14 @@ pub(crate) fn prove_declared_const_domain_constraints(
         };
         let holds = if domain.arguments.is_empty() {
             if selection.is_none() {
-                let expanded = if domain.name.as_str().contains("::") {
-                    domain.name.as_str().to_owned()
-                } else {
-                    format!("{carrier}::{}", domain.name.as_str())
-                };
+                let authored = domain.name.as_str();
+                let expanded = format!("{carrier}::{authored}");
                 let mut matches = syntax.root_items().filter_map(|item| match item {
-                    Item::Domain(domain) if domain.name.as_str() == expanded => Some(domain),
+                    Item::Domain(domain)
+                        if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
+                    {
+                        Some(domain)
+                    }
                     _ => None,
                 });
                 let unmoduled_unique = matches.next().is_some_and(|domain| {
@@ -1246,7 +1254,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
                 syntax,
                 domain.name.as_str(),
                 &carrier,
-                self_binding,
+                subject_binding,
                 &const_values,
                 &mut Vec::new(),
                 domain.name.source_span(),
@@ -1259,7 +1267,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
                 domain.name.as_str(),
                 domain.arguments,
                 &carrier,
-                self_binding,
+                subject_binding,
                 &const_values,
                 &HashMap::new(),
                 &[],
@@ -1290,7 +1298,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
 /// the same declaration-site proof `prove_declared_const_domain_constraints`
 /// owes a whole declaration, applied to each leaf a constrained field or
 /// element type names as an initializer canonicalizes through
-/// `canonicalize_const_expression`. Aggregate leaves bind `self` through their
+/// `canonicalize_const_expression`. Aggregate leaves bind the subject through their
 /// scalar-decodable members exactly as the declaration path does; a leaf
 /// without a bindable payload, an unselected owner, or an undecided fact stays
 /// fenced rather than publishing a guessed identity. Constraints of other
@@ -1308,7 +1316,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     {
         return Ok(());
     }
-    fn node_self_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
+    fn node_subject_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
         match value {
             CanonicalConstNode::Integer { type_name, value } => {
                 LandedIntegerType::from_name(type_name).map(|integer_type| {
@@ -1325,14 +1333,14 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     let record_fields: Vec<(String, ConstScalarValue)>;
     let array_elements: Vec<Option<ConstScalarValue>>;
     let variant_fields: Vec<(String, ConstScalarValue)>;
-    let (carrier, self_binding) = match value {
+    let (carrier, subject_binding) = match value {
         CanonicalConstNode::Integer { type_name, value } => {
             let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
                 return Err(CONSTRAINED_CONST_FENCE.to_owned());
             };
             (
                 type_name.clone(),
-                ConstSelfBinding::Scalar(ConstScalarValue::DeclaredInteger {
+                ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
                     value: *value,
                     integer_type,
                 }),
@@ -1340,22 +1348,25 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
         }
         CanonicalConstNode::Boolean(value) => (
             "bool".to_owned(),
-            ConstSelfBinding::Scalar(ConstScalarValue::Boolean(*value)),
+            ConstSubjectBinding::Scalar(ConstScalarValue::Boolean(*value)),
         ),
         CanonicalConstNode::Record { type_name, fields } => {
             record_fields = fields
                 .iter()
                 .filter_map(|(name, field)| {
-                    node_self_leaf(field).map(|value| (name.clone(), value))
+                    node_subject_leaf(field).map(|value| (name.clone(), value))
                 })
                 .collect();
-            (type_name.clone(), ConstSelfBinding::Record(&record_fields))
-        }
-        CanonicalConstNode::Array { type_name, values } => {
-            array_elements = values.iter().map(node_self_leaf).collect();
             (
                 type_name.clone(),
-                ConstSelfBinding::Elements(&array_elements),
+                ConstSubjectBinding::Record(&record_fields),
+            )
+        }
+        CanonicalConstNode::Array { type_name, values } => {
+            array_elements = values.iter().map(node_subject_leaf).collect();
+            (
+                type_name.clone(),
+                ConstSubjectBinding::Elements(&array_elements),
             )
         }
         CanonicalConstNode::Variant {
@@ -1364,12 +1375,12 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
             variant_fields = fields
                 .iter()
                 .filter_map(|(name, field)| {
-                    node_self_leaf(field).map(|value| (name.clone(), value))
+                    node_subject_leaf(field).map(|value| (name.clone(), value))
                 })
                 .collect();
             (
                 type_name.clone(),
-                ConstSelfBinding::Variant(&variant_fields),
+                ConstSubjectBinding::Variant(&variant_fields),
             )
         }
         _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
@@ -1386,7 +1397,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
                 syntax,
                 domain.name.as_str(),
                 &carrier,
-                self_binding,
+                subject_binding,
                 &const_values,
                 &mut Vec::new(),
                 domain.name.source_span(),
@@ -1399,7 +1410,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
                 domain.name.as_str(),
                 domain.arguments,
                 &carrier,
-                self_binding,
+                subject_binding,
                 &const_values,
                 &HashMap::new(),
                 &[],
@@ -1532,21 +1543,17 @@ pub(crate) fn prove_const_literal_leaf_domain_constraints(
 }
 
 /// Evaluate one fact expression inside a selected domain declaration with
-/// `self` bound to the checked value only for a fixed carrier. A generic
+/// the subject bound to the checked value only for a fixed carrier. A generic
 /// carrier leaves it unavailable rather than assuming an instance's algebra.
 /// `parameter_values` carries the
-/// application's closed index bindings so a family fact like `self < N`
+/// application's closed index bindings so a family fact like `subject < N`
 /// resolves its binder exactly; a monomorphic domain passes an empty map.
-/// `self_elements` is the scalar-decodable element ledger an array carrier
-/// binds for `self[<index>]` projection inside its facts.
-pub(crate) fn evaluate_const_domain_expression(
+fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, ConstScalarValue>,
-    self_value: Option<ConstScalarValue>,
-    self_fields: Option<&[(String, ConstScalarValue)]>,
-    self_elements: Option<&[Option<ConstScalarValue>]>,
+    subject: Option<ConstFactSubject<'_>>,
     carrier: &str,
     visiting: &mut Vec<(source::SourceSpan, String)>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
@@ -1563,9 +1570,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 membership.value,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 warnings,
             )?
             else {
@@ -1588,7 +1593,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 syntax,
                 &path,
                 nested_carrier,
-                ConstSelfBinding::Scalar(value),
+                ConstSubjectBinding::Scalar(value),
                 const_values,
                 visiting,
                 members
@@ -1610,9 +1615,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 binary.left,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 carrier,
                 visiting,
                 selection,
@@ -1626,9 +1629,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 binary.right,
                 const_values,
                 parameter_values,
-                self_value,
-                self_fields,
-                self_elements,
+                subject,
                 carrier,
                 visiting,
                 selection,
@@ -1645,9 +1646,7 @@ pub(crate) fn evaluate_const_domain_expression(
             expression,
             const_values,
             parameter_values,
-            self_value,
-            self_fields,
-            self_elements,
+            subject,
             warnings,
         ),
     })();

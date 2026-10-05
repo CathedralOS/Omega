@@ -460,7 +460,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
         match self.source.expression(operand) {
             resolved::expression::ExpressionNode::Name(path) => {
-                !path.is_self_value && self.source.name_path_members(path.members).len() >= 2
+                self.source.name_path_members(path.members).len() >= 2
             }
             resolved::expression::ExpressionNode::Borrow(inner) => {
                 self.classifier_reference_operand(inner.target)
@@ -470,7 +470,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     }
 
     /// The declared TYPE name of a classifier reference (`Direction::North` ->
-    /// `Direction`): the FIRST segment of a multi-member, non-self name path. `None`
+    /// `Direction`): the FIRST segment of a multi-member name path. `None`
     /// for a value place, a bare local, or any non-classifier operand.
     fn classifier_reference_type(
         &self,
@@ -480,7 +480,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return None;
         }
         match self.source.expression(operand) {
-            resolved::expression::ExpressionNode::Name(path) if !path.is_self_value => {
+            resolved::expression::ExpressionNode::Name(path) => {
                 let members = self.source.name_path_members(path.members);
                 (members.len() >= 2).then(|| members[0].as_str().to_owned())
             }
@@ -512,9 +512,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Name(path) => {
                 let members = self.source.name_path_members(path.members);
                 let scope = self.equality_scope?;
-                if path.is_self_value && members.len() == 1 {
-                    return scope.attached_data.clone();
-                }
                 let [name] = members else {
                     return None;
                 };

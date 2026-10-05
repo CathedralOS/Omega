@@ -850,8 +850,7 @@ fn case_fact_expression_mentions(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::SelfValue => false,
+        | ExpressionNode::String(_) => false,
         // Proposition applications, matches, struct literals, and atomics have
         // no generic-instance case-fact carriage yet: refuse rather than copy
         // a shape the seeded replay does not compare.

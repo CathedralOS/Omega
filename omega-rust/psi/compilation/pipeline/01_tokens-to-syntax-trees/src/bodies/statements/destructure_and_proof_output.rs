@@ -96,7 +96,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
         expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
         match syntax_trees.expressions.expression(expression) {
-            ExpressionNode::Name(_) | ExpressionNode::SelfValue => true,
+            ExpressionNode::Name(_) => true,
             ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
             _ => false,
         }

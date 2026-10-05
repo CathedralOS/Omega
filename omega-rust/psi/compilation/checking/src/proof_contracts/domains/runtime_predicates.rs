@@ -84,7 +84,7 @@ fn project(
         match fact {
             ProofFact::Expression(expression) => predicates.push(spelling.boolean(*expression, 0)?),
             ProofFact::Membership(nested) => {
-                if crate::exact_domain_self_type(program, domain, nested.value).is_none() {
+                if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
                     return None;
                 }
                 predicates.extend(project(program, nested, subject, active, builtin_closed)?);
@@ -118,7 +118,7 @@ impl Predicate<'_> {
             ExpressionNode::Boolean(value) => Some(Boolean::Constant(*value)),
             ExpressionNode::Name(_)
                 if self.primitive == PrimitiveType::Bool
-                    && crate::exact_domain_self_type(self.program, self.domain, expression)
+                    && crate::exact_domain_subject_type(self.program, self.domain, expression)
                         .is_some() =>
             {
                 match self.subject {
@@ -214,7 +214,7 @@ impl Predicate<'_> {
         if !self.primitive.accepts_integer_literal() || self.primitive == PrimitiveType::Addr {
             return None;
         }
-        if crate::exact_domain_self_type(self.program, self.domain, expression).is_some() {
+        if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
             return Some(self.subject.clone());
         }
         crate::land_anonymous_integer_expression(self.program, expression, self.primitive, |node| {

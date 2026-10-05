@@ -427,7 +427,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
 pub(super) struct AbstractSpecificationBindings<'program> {
     parameters: &'program [typed_trees::signature::StateParameter],
     result_type: Option<TypeReferenceHandle>,
-    self_type: Option<TypeReferenceHandle>,
+    domain: Option<&'program typed_trees::domain::DomainDefinition>,
     data: Option<&'program typed_trees::data::DataDefinition>,
 }
 
@@ -507,14 +507,42 @@ pub(super) fn abstract_specification_place_type(
         candidates.next().is_none().then_some(first)
     }
 
+    if let Some(domain) = bindings.domain {
+        fn domain_place_type(
+            program: &TypedTrees,
+            domain: &typed_trees::domain::DomainDefinition,
+            expression: ExpressionHandle,
+        ) -> Option<TypeReferenceHandle> {
+            if let Some(reference) = crate::exact_domain_subject_type(program, domain, expression) {
+                return Some(reference);
+            }
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Borrow(borrow) => domain_place_type(program, domain, borrow.target),
+                ExpressionNode::Member(member) => {
+                    let reference = domain_place_type(program, domain, member.receiver)?;
+                    let data = named_data(program, reference)?;
+                    crate::value_custody::places::exact_data_member_field(
+                        program,
+                        data,
+                        member.member_symbol,
+                        member.member.as_str(),
+                        None,
+                    )
+                    .map(|field| field.type_reference)
+                }
+                _ => None,
+            }
+        }
+        if let Some(reference) = domain_place_type(program, domain, expression) {
+            return Some(reference);
+        }
+    }
     let mut path = Vec::new();
     segments(program, expression, &mut path)?;
     let (mut type_reference, consumed) = match path.as_slice() {
         [name, ..] if language_core::is_reserved_result(name) => (bindings.result_type?, 1),
         [name, ..] if is_self_receiver(name) => {
-            if let Some(type_reference) = bindings.self_type {
-                (type_reference, 1)
-            } else if bindings.data.is_some() {
+            if bindings.data.is_some() {
                 let field = path.get(1)?;
                 (data_field_type(program, bindings.data?, field)?, 2)
             } else {
@@ -954,7 +982,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             program.proof_facts(domain),
             &format!("domain `{}` predicate", domain.name),
             AbstractSpecificationBindings {
-                self_type: Some(domain.target_type),
+                domain: Some(domain),
                 ..Default::default()
             },
             true,

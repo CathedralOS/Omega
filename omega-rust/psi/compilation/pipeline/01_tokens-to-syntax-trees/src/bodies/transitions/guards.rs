@@ -1024,7 +1024,6 @@ pub(super) fn rewrite_destructure_guard_expression(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::SelfValue
         | ExpressionNode::String(_)
         | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => syntax_trees.expressions.expression(expression).clone(),

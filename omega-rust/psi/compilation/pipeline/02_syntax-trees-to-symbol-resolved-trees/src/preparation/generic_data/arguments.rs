@@ -510,7 +510,7 @@ pub(crate) fn closed_argument_identity(
                             // declaration. Competing owners or an unreachable
                             // same-spelled declaration decline rather than
                             // equating rendered text.
-                            match selection.domain(syntax, name.as_str(), name.source_span()) {
+                            match selection.domain(syntax, name.as_str(), name.source_span(), None) {
                                 Some(domain) => {
                                     if closed_argument_identity(
                                         syntax,

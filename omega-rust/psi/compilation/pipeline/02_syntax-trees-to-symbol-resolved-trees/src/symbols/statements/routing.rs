@@ -144,16 +144,10 @@ pub(super) fn assign_statement_symbols(
                     machine.symbol,
                     state_symbol,
                     members.get(..1).unwrap_or_default(),
-                    call.receiver_starts_at_self,
                 );
                 call.receiver_root_symbol = root;
-                let (_, symbol) = resolve_state_scoped_members(
-                    symbols,
-                    machine.symbol,
-                    state_symbol,
-                    members,
-                    call.receiver_starts_at_self,
-                );
+                let (_, symbol) =
+                    resolve_state_scoped_members(symbols, machine.symbol, state_symbol, members);
                 if symbol.is_valid() {
                     call.receiver_symbol = symbol;
                 }

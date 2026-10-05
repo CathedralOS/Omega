@@ -903,7 +903,6 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let call = file.statements.insert(StatementNode::Call(TableCall {
         target_is_static: false,
         receiver,
-        receiver_starts_at_self: true,
         target: Identifier::generated("take_non_negative"),
         machine_arguments: Box::default(),
         arguments: HandleSpan::from_parts(argument, 1),
@@ -1009,13 +1008,12 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             case_variant: None,
         }));
 
-    let self_value = file.expressions.insert(ExpressionNode::SelfValue);
     let nested_arguments = file.expressions.insert_expression_handles([player_level]);
     let nested_call = file
         .expressions
         .insert(ExpressionNode::Call(TableCallExpression {
             target_is_static: false,
-            receiver: self_value,
+            receiver: player,
             target: Identifier::generated("xp_required"),
             machine_arguments: Box::default(),
             arguments: nested_arguments,
@@ -1116,6 +1114,6 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
 
     assert_eq!(
         assembled.expressions.display_name(assignment.value),
-        "max(0, self.xp_required(player.level))"
+        "max(0, player.xp_required(player.level))"
     );
 }

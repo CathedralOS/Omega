@@ -7,6 +7,10 @@ use symbols::SymbolHandle;
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Diagnostic spelling of the carrier subject, separate from generic indices.
+    pub subject_name: DiagnosticName,
+    /// Declaration-owned identity substituted by domain membership.
+    pub subject_symbol: SymbolHandle,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub target_type: TypeReference,
     pub index_arguments: HandleSpan<TypeReference>,

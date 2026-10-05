@@ -1,6 +1,6 @@
 //! Expected types from constant/local declarations and assignments.
 use super::super::{
-    DataMember, ExpressionNode, HashMap, Item, StatementNode, SyntaxTrees, TypeReferenceHandle,
+    ExpressionNode, HashMap, Item, StatementNode, SyntaxTrees, TypeReferenceHandle,
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, relabel_data_literal_for_expected_type,
@@ -66,7 +66,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_constant
 
 /// An assignment target is another explicit destination type. Relabel a bare
 /// generic literal only when that type is available directly from a local or
-/// an attached data field; computed targets remain fail-closed.
+/// parameter; computed targets remain fail-closed.
 pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_assignments(
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
@@ -86,12 +86,12 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
                 .items
                 .state_handles(machine.states)
                 .iter()
-                .map(|state| (*state, machine.attached_data.clone()))
+                .copied()
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
-    for (state_handle, attached_data) in concrete_states {
+    for state_handle in concrete_states {
         let state = syntax.tables.items.state(state_handle).clone();
         let mut local_types = HashMap::<String, TypeReferenceHandle>::new();
         for parameter in syntax.tables.items.state_parameters(state.parameters) {
@@ -105,29 +105,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
                 local_types.insert(local.name.as_str().to_owned(), local.type_reference);
             }
         }
-        let self_field_types = attached_data
-            .as_ref()
-            .and_then(|attached| {
-                syntax.root_items().find_map(|item| match item {
-                    Item::Data(definition) if definition.name == *attached => Some(
-                        syntax
-                            .tables
-                            .items
-                            .data_members(definition.members)
-                            .iter()
-                            .filter_map(|member| match member {
-                                DataMember::Field(field) => {
-                                    Some((field.name.as_str().to_owned(), field.type_reference))
-                                }
-                                _ => None,
-                            })
-                            .collect::<HashMap<_, _>>(),
-                    ),
-                    _ => None,
-                })
-            })
-            .unwrap_or_default();
-
         for (index, statement) in statements.iter().enumerate() {
             let frontier = ConstructorFrontier {
                 parameters: state.parameters,
@@ -154,14 +131,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_as
                         continue;
                     };
                     local_types.get(name.as_str()).copied()
-                }
-                ExpressionNode::Member(member)
-                    if matches!(
-                        syntax.expressions.expression(member.receiver),
-                        ExpressionNode::SelfValue
-                    ) =>
-                {
-                    self_field_types.get(member.member.as_str()).copied()
                 }
                 _ => None,
             };

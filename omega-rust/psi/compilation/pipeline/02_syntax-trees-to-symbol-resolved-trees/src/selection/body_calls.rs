@@ -15,7 +15,7 @@ pub(crate) struct CallSite<'a> {
     /// The spelled call target.
     pub(crate) target: &'a DiagnosticName,
     /// The call names a member of the machine's own subject: it has no
-    /// receiver, a `self` receiver, or a target already among the subject's
+    /// receiver or a target already among the subject's
     /// states.
     pub(crate) local_receiver: bool,
 }
@@ -127,7 +127,6 @@ fn retarget_statement_span(
                     target_symbol: call.target_symbol,
                     target: &call.target,
                     local_receiver: call.receiver.is_empty()
-                        || call.receiver_starts_at_self
                         || subject_states.contains(&call.target_symbol),
                 };
                 if let Some(target) = decide(&site)
@@ -248,7 +247,6 @@ fn retarget_expression(
                 target_symbol: call.target_symbol,
                 target: &call.target,
                 local_receiver: !call.receiver.is_valid()
-                    || expression_is_self(&program.tables.bodies.expressions, call.receiver)
                     || subject_states.contains(&call.target_symbol),
             };
             if let Some(target) = decide(&site)
@@ -297,18 +295,5 @@ fn retarget_expression(
     }
     for child in children {
         retarget_expression(program, child, subject_states, decide, visited);
-    }
-}
-
-fn expression_is_self(
-    expressions: &symbol_resolved_trees::expression::ExpressionTable,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
-) -> bool {
-    match expressions.expression(expression) {
-        symbol_resolved_trees::expression::ExpressionNode::Name(path) => path.is_self_value,
-        symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
-            expression_is_self(expressions, inner.target)
-        }
-        _ => false,
     }
 }

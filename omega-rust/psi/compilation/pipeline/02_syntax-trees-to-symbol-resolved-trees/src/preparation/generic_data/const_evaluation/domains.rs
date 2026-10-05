@@ -298,16 +298,14 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         // non-generic owners keep the authored arguments for ordinary
         // resolution rather than borrowing another declaration's telescope.
         let family = match selection {
-            Some(selection) => {
-                selection
-                    .domain_family(syntax, &name, reference)
-                    .and_then(|(_, definition)| {
-                        families.iter().find(|family| {
-                            family.declaration.source_span() == definition.name.source_span()
-                                && family.declaration.as_str() == definition.name.as_str()
-                        })
+            Some(selection) => selection
+                .domain_family(syntax, &name, reference, None)
+                .and_then(|(_, definition)| {
+                    families.iter().find(|family| {
+                        family.declaration.source_span() == definition.name.source_span()
+                            && family.declaration.as_str() == definition.name.as_str()
                     })
-            }
+                }),
             None => families.iter().find(|family| family.path == name),
         };
         let Some(family) = family else {
