@@ -10,6 +10,9 @@ use target_operations::TargetOperationPlan;
 mod instruction;
 mod structural_case;
 mod terminator;
+/// Project one function. `current_operation` records the node this projection
+/// has reached, so the caller's attribution can name it on a refusal raised
+/// anywhere beneath; it is cleared outside any one node.
 pub(super) fn derive(
     target: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
@@ -17,6 +20,7 @@ pub(super) fn derive(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    current_operation: &mut Option<semantic_vocabulary::OperationId>,
 ) -> Result<LegalizedScalarFunction, LegalizationError> {
     let scalar_graph_input::MatchedScalarGraph {
         call_plan,
@@ -43,6 +47,7 @@ pub(super) fn derive(
         .blocks
         .iter()
         .map(|block| {
+            *current_operation = None;
             let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
             let mut custody = custody_entries
                 .get(&block.id)
@@ -55,6 +60,8 @@ pub(super) fn derive(
                 if scalar_graph_input::indirect_calls::is_descriptor_declaration(node) {
                     continue;
                 }
+                *current_operation =
+                    scalar_graph_input::instruction(node).map(|(operation, _)| operation);
                 instructions.push(instruction::project(
                     node, optimized, native, plan, unit, &custody,
                 )?);
@@ -66,6 +73,7 @@ pub(super) fn derive(
                     unit,
                 )?;
             }
+            *current_operation = None;
             Ok(LegalizedScalarBlock {
                 id: block.id,
                 parameters: block.parameters.clone(),

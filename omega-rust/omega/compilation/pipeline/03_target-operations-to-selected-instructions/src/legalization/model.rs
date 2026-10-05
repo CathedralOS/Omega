@@ -67,11 +67,18 @@ impl LegalizationValidationReceipt {
 pub enum LegalizationError {
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
-    /// or consumer defect, never a missing lowering. `site` is the check that
-    /// refused (`LegalizationError::custody`), since some two hundred checks
-    /// share this spelling and the variant alone cannot say which one fired.
+    /// or consumer defect, never a missing lowering. `machine` and `operation`
+    /// name the function being projected and the node reached when the refusal
+    /// was raised, the same authored coordinates `UnsupportedScalarOperation`
+    /// carries; whole-plan checks that precede any function leave both `None`.
+    /// `site` is the check that refused (`LegalizationError::custody`), since
+    /// some two hundred checks share this spelling and the variant alone cannot
+    /// say which one fired; it is withheld from an author's diagnostic because
+    /// only a developer can act on it.
     SourceCustodyMismatch {
-        site: &'static std::panic::Location<'static>,
+        machine: Option<semantic_vocabulary::MachineId>,
+        operation: Option<semantic_vocabulary::OperationId>,
+        site: optimization_core::CompilerCheckSite,
     },
     /// The node is well formed, but this stage has no legal scalar instruction
     /// for its operation family at its scalar type (for example a port write
@@ -114,11 +121,38 @@ impl std::fmt::Display for LegalizationError {
 impl std::error::Error for LegalizationError {}
 
 impl LegalizationError {
-    /// A custody disagreement raised at the caller's source location.
+    /// A custody disagreement, carrying the caller's check site for a
+    /// developer and no authored coordinate yet: the per-function projection
+    /// attaches the machine and the node it reached on the way out.
     #[track_caller]
     pub fn custody() -> Self {
         Self::SourceCustodyMismatch {
-            site: std::panic::Location::caller(),
+            machine: None,
+            operation: None,
+            site: optimization_core::CompilerCheckSite::caller(),
+        }
+    }
+
+    /// Attach the function being projected and the node reached to a refusal
+    /// raised beneath the per-function projection, which is the only place
+    /// holding both coordinates. Other refusals already carry their own and
+    /// pass through unchanged.
+    pub(crate) fn attributed(
+        self,
+        machine: semantic_vocabulary::MachineId,
+        operation: Option<semantic_vocabulary::OperationId>,
+    ) -> Self {
+        match self {
+            Self::SourceCustodyMismatch {
+                machine: None,
+                operation: None,
+                site,
+            } => Self::SourceCustodyMismatch {
+                machine: Some(machine),
+                operation,
+                site,
+            },
+            other => other,
         }
     }
 }

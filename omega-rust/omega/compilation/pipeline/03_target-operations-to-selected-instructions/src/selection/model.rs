@@ -78,10 +78,16 @@ impl SelectedInstructionValidationReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionError {
     /// Selection's own replay disagrees with the legalized input or the
-    /// selected output. `site` is the check that refused
-    /// (`SelectedInstructionError::custody`).
+    /// selected output. `machine` and `operation` name the legalized function
+    /// and the instruction being selected when the refusal was raised, the
+    /// same authored coordinates `UnsupportedSourceShape` carries. `site` is
+    /// the check that refused (`SelectedInstructionError::custody`), withheld
+    /// from an author's diagnostic because some two hundred checks share this
+    /// spelling and only a developer can act on which one fired.
     SourceCustodyMismatch {
-        site: &'static std::panic::Location<'static>,
+        machine: Option<semantic_vocabulary::MachineId>,
+        operation: Option<semantic_vocabulary::OperationId>,
+        site: optimization_core::CompilerCheckSite,
     },
     TargetRegisterArchitectureMismatch,
     /// No selection admits this source shape. `machine` and `operation`
@@ -173,9 +179,10 @@ impl SelectedInstructionError {
         }
     }
 
-    /// Attach the machine and the instruction being selected to a shape
-    /// refusal that does not name them yet. Other refusals already carry
-    /// their own coordinates and pass through unchanged.
+    /// Attach the machine and the instruction being selected to a refusal
+    /// raised beneath the function entrance, which is the only place holding
+    /// both coordinates. Other refusals already carry their own and pass
+    /// through unchanged.
     pub(crate) fn attributed(
         self,
         machine: semantic_vocabulary::MachineId,
@@ -191,6 +198,15 @@ impl SelectedInstructionError {
                 machine: Some(machine),
                 operation,
             },
+            Self::SourceCustodyMismatch {
+                machine: None,
+                operation: None,
+                site,
+            } => Self::SourceCustodyMismatch {
+                machine: Some(machine),
+                operation,
+                site,
+            },
             other => other,
         }
     }
@@ -205,11 +221,15 @@ impl std::fmt::Display for SelectedInstructionError {
 impl std::error::Error for SelectedInstructionError {}
 
 impl SelectedInstructionError {
-    /// A custody disagreement raised at the caller's source location.
+    /// A custody disagreement, carrying the caller's check site for a
+    /// developer and no authored coordinate yet: the function entrance
+    /// attaches the machine and operation on the way out.
     #[track_caller]
     pub fn custody() -> Self {
         Self::SourceCustodyMismatch {
-            site: std::panic::Location::caller(),
+            machine: None,
+            operation: None,
+            site: optimization_core::CompilerCheckSite::caller(),
         }
     }
 }

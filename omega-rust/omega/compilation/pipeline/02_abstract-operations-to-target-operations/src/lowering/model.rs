@@ -107,12 +107,14 @@ pub enum LoweringError {
     },
     InvalidHostedExitProcessShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
-    /// No lowering admits this control shape. `site` is the check that
-    /// refused (`LoweringError::unsupported_control_flow`), since dozens of
-    /// checks share this spelling.
+    /// No lowering admits this control shape. `machine` is the authored
+    /// coordinate the refusal is about. `site` is the check that refused
+    /// (`LoweringError::unsupported_control_flow`), since dozens of checks
+    /// share this spelling; it is withheld from an author's diagnostic
+    /// because only a developer can act on which one fired.
     UnsupportedControlFlow {
         machine: MachineId,
-        site: &'static std::panic::Location<'static>,
+        site: optimization_core::CompilerCheckSite,
     },
     UnsupportedOperationInUnitFunction(MachineId),
     DuplicateNativeCallbackArgument(OperationId),
@@ -279,12 +281,13 @@ impl std::fmt::Display for LoweringError {
 impl std::error::Error for LoweringError {}
 
 impl LoweringError {
-    /// An unsupported control shape refused at the caller's source location.
+    /// An unsupported control shape in `machine`, carrying the caller's check
+    /// site for a developer.
     #[track_caller]
     pub fn unsupported_control_flow(machine: MachineId) -> Self {
         Self::UnsupportedControlFlow {
             machine,
-            site: std::panic::Location::caller(),
+            site: optimization_core::CompilerCheckSite::caller(),
         }
     }
 }
