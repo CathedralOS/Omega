@@ -374,8 +374,8 @@ helper that passes does not close an item.
     consume those identities without an implicit receiver parameter. The
     checked structural signatures, Terminal parameters, provider signatures,
     retained-borrow roots and Omega artifacts no longer carry receiver flags.
-    Retire the remaining attachment helpers, inert receiver-retention arguments,
-    and checked suspension `Persistent` discovery; suspension field origins
+    Retire the remaining attachment helpers and checked suspension
+    `Persistent` discovery; suspension field origins
     need an explicit parameter-place join rather than a hidden receiver.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
@@ -4356,7 +4356,7 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
 - **STRUCTURAL-BORROW-IDENTITY.** Original caller storage is not yet preserved
   through every projection, call preparation and native placement under
   [structural access](wiki/spec/terminal-psi/structural_access.md). Owners:
-  stage 04 `execution/terminal_scalar/`, `execution/terminal_unit/receiver_calls/`
+  stage 04 `execution/terminal_scalar/`
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 

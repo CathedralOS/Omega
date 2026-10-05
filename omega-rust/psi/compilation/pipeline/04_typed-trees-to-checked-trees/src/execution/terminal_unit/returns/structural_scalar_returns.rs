@@ -244,7 +244,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
             (None, structural, scalar)
         } else {
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+            structural_scalar_signature(program, shapes, machine, state, &binders)?
         };
     let effects = if primitive_reference_body {
         primitive_effects::build(

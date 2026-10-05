@@ -104,7 +104,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
     });
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if carries_scalar_parameter {
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+            structural_scalar_signature(program, shapes, machine, state, &binders)?
         } else {
             let (attachment, structural) = structural_signature(program, shapes, state, &binders)?;
             (attachment, structural, Vec::new())

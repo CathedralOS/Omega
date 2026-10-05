@@ -338,7 +338,7 @@ pub(super) fn available_target(
             structural_signature(program, &mut shapes, state, &binders)
                 .map(|(attachment, structural)| (attachment, structural, Vec::new()))
         } else {
-            structural_scalar_signature(program, &mut shapes, machine, state, &binders, false)
+            structural_scalar_signature(program, &mut shapes, machine, state, &binders)
         };
         let (attachment, structural, scalar) = signature?;
         // Dependency pruning must recognize the scheduled final expression as

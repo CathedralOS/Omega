@@ -15,10 +15,8 @@
 //! authored statements in order and emits each one's operations — stores,
 //! borrowed-window moves and repairs, selected operator and FMA applications,
 //! structural and scalar bindings, calls and completion — after the prefix of
-//! trivial affine locals that calls/affine_locals.rs establishes. Borrowed `self`
-//! is retained exactly when the body uses the receiver as storage
-//! (receiver_calls/observations.rs); ambient attachment serves receiver calls.
-//! We then reconcile implicit receivers, build composed candidates through
+//! trivial affine locals that calls/affine_locals.rs establishes. Machine input
+//! storage arrives through explicit parameters. We build composed candidates through
 //! composed_control/assembly.rs, and reconcile composed calls against the completed
 //! signatures. The composed builders include specialized control shapes and the
 //! general state_graph.rs route; their current coverage differs, so a failed
@@ -38,31 +36,14 @@
 //!
 //! When a downstream error says a checked transitive machine plan is missing,
 //! read the record's `omissions` roster first: every checked-body machine without
-//! a plan carries the stage that dropped it (local construction, receiver
-//! reconciliation, builder overlap, or closure pruning with the direct dependency
+//! a plan carries the stage that dropped it (local construction,
+//! builder overlap, or closure pruning with the direct dependency
 //! that was unavailable). Following the closure rows reaches the machine whose own
 //! body failed local construction; the Option-based builders still do not retain
 //! which local requirement failed there, so that machine's body is where to look
 //! before changing lowering.
 //!
-//! # Receiver specialization
-//!
-//! Receiver specialization is the non-obvious ordering constraint. An attached
-//! body can use an ambient attachment without retaining borrowed self, but a callee
-//! that retains self needs the caller's actual loan. control::build_checked_machine
-//! retries with self retained when the ambient plan fails; receiver_calls.rs also
-//! propagates that demand through forwarding callers after signatures exist. We
-//! rebuild those callers with the ordinary planner rather than manually shifting
-//! all their parameter, store, claim, and provider coordinates. Inserting the call's
-//! receiver operand then adjusts existing claim-transfer positions; the loan itself
-//! is not an ownership transfer.
-//!
-//! This is transitional source planning, not native receiver provisioning. Keeping
-//! self unconditionally depends on the ProgramEntry bridge supplying its loan
-//! (ENTRY-CONTENT-ROOTS in TASKS.md). A field on that provisioned receiver does not
-//! require generic source-local array construction merely because it is an array.
-//! Likewise, publishing one of these plans establishes no native execution claim.
-//! Partial and nominal cleanup retain separate plan owners below because their
+//! Partial and nominal cleanup retain separate plan owners because their
 //! residual fields and destructor obligations cannot become trivial root discards.
 //!
 //! # Executable companions
@@ -186,7 +167,6 @@ pub(crate) mod control;
 mod dynamic_scalar_calls;
 mod providers;
 mod receiver_aliases;
-mod receiver_calls;
 use validation::reference_result_custody as reference_results;
 pub(crate) mod returns;
 mod scalar_locals;
@@ -202,7 +182,7 @@ use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_
 pub(crate) use calls::structural_computation_argument;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
-pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};
+pub(crate) use types::{is_reference, strips_erased_parameter};
 
 /// Scalar callees available to this planning pass, independent of published facts.
 #[derive(Clone, Copy)]

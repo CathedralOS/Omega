@@ -38,7 +38,7 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
     };
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, entry_structural, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, entry, &binders, false)?;
+        structural_scalar_signature(program, shapes, machine, entry, &binders)?;
     if !scalar_parameters
         .iter()
         .enumerate()
@@ -109,9 +109,9 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
         return None;
     };
     let (true_attachment, true_structural, true_scalar) =
-        structural_scalar_signature(program, shapes, machine, when_true_state, &binders, false)?;
+        structural_scalar_signature(program, shapes, machine, when_true_state, &binders)?;
     let (false_attachment, false_structural, false_scalar) =
-        structural_scalar_signature(program, shapes, machine, when_false_state, &binders, false)?;
+        structural_scalar_signature(program, shapes, machine, when_false_state, &binders)?;
     if [entry, when_true_state, when_false_state]
         .iter()
         .any(|state| {

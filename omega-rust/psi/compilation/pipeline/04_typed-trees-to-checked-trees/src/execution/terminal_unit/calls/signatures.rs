@@ -244,7 +244,6 @@ pub(crate) fn structural_scalar_signature(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    retain_reference_self: bool,
 ) -> Option<(
     Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -256,13 +255,11 @@ pub(crate) fn structural_scalar_signature(
         machine,
         state,
         binders,
-        retain_reference_self,
         &LocalConstructionTrace::default(),
     )
 }
 
-/// `structural_scalar_signature` retaining the data owner even without a
-/// receiver: a boundary machine keeps its owner identity as ABI metadata.
+/// A boundary machine retains its data owner identity as ABI metadata.
 pub(crate) fn boundary_owner_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -280,7 +277,6 @@ pub(crate) fn boundary_owner_scalar_signature(
         machine,
         state,
         binders,
-        false,
         AttachmentStorage::DataOwner,
         &LocalConstructionTrace::default(),
     )?;
@@ -288,7 +284,7 @@ pub(crate) fn boundary_owner_scalar_signature(
 }
 
 /// `structural_scalar_signature`, marking the signature guard (attached data
-/// shape, then each parameter's erasure, receiver attachment, scalar
+/// shape, then each parameter's erasure, scalar
 /// signature, const-ness, type shape, qualifications, access, and projected
 /// qualifications) that declined the state. Only the general state-graph
 /// route traces this, so the marks carry that route's phase prefix.
@@ -298,7 +294,6 @@ pub(crate) fn structural_scalar_signature_traced(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    retain_reference_self: bool,
     trace: &LocalConstructionTrace,
 ) -> Option<(
     Option<String>,
@@ -311,7 +306,6 @@ pub(crate) fn structural_scalar_signature_traced(
         machine,
         state,
         binders,
-        retain_reference_self,
         AttachmentStorage::StaticQualification,
         trace,
     )
@@ -324,13 +318,6 @@ fn structural_scalar_signature_with_storage(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    // No parameter producer reads this any more: a qualified machine
-    // contributes no implicit receiver to retain. It still travels because
-    // `state_graph::build_traced_with` carries a per-state `retained_self`
-    // roster into this signature, and its two-attempt retry exists to vary
-    // exactly this argument. Retiring the flag has to retire that retry and
-    // `retained_receivers` with it, which is a measured change, not a rename.
-    _retain_reference_self: bool,
     storage: AttachmentStorage,
     trace: &LocalConstructionTrace,
 ) -> Option<(
@@ -361,10 +348,7 @@ fn structural_scalar_signature_with_storage(
     ))
 }
 
-/// The attached signature a scalar graph admits: a borrowed `self`, when the
-/// state has one, is retained as the receiver. Only a machine of one authored
-/// state retains it (`terminal_scalar::checked_state_graph`); a multi-state
-/// machine that reads its receiver belongs to the Unit state graph.
+/// A scalar graph's explicit parameters and the structural shapes they require.
 pub(crate) fn ambient_self_scalar_graph_signature(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -381,7 +365,6 @@ pub(crate) fn ambient_self_scalar_graph_signature(
         machine,
         state,
         &[],
-        true,
         &LocalConstructionTrace::default(),
     )?;
     Some((structural, scalar, shapes.types.into_values().collect()))

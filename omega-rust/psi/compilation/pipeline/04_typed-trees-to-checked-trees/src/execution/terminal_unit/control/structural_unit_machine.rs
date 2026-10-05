@@ -73,7 +73,7 @@ pub(crate) fn build_structural_unit_control_machine(
             return None;
         }
         let (attachment, structural_parameters, scalar_parameters) =
-            structural_scalar_signature(program, shapes, machine, state, &binders, true)?;
+            structural_scalar_signature(program, shapes, machine, state, &binders)?;
         let parameters = structural_parameters;
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {

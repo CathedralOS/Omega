@@ -59,7 +59,7 @@ pub(crate) fn build(
             return None;
         }
         let (state_attachment, structural, scalar) =
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            structural_scalar_signature(program, shapes, machine, state, &binders)?;
         if !scalar.is_empty()
             || !super::topology::only_implicit_data_binding_is_omitted(
                 program,

@@ -42,7 +42,7 @@ pub(crate) fn build_claim_free_affine_structural_return_machine(
     }
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if machine.attached_data.is_some() {
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+            structural_scalar_signature(program, shapes, machine, state, &binders)?
         } else {
             let (structural, scalar) =
                 free_structural_scalar_signature(program, shapes, state, &binders)?;

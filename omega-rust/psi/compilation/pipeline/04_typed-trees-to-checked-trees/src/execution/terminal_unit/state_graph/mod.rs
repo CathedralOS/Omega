@@ -213,21 +213,7 @@ pub(in crate::execution::terminal_unit) fn terminator_statement_index(
         .unwrap_or(statements.len())
 }
 
-/// `build` with a trace of the phase, state, and statement where the general
-/// state-graph route stopped when it declines a body.
-///
-/// A borrowed `self` is a structural operand only while the graph names its
-/// place: receiver reads, stores, projections, or lent fields
-/// (`receiver_calls::uses_receiver_storage`), receiver-rooted borrows,
-/// whole-`self` operands, or receiver-rooted results
-/// (`receiver_rooted_operand`), a receiver-rooted call whose callee may keep
-/// its `self` (`receiver_calls::calls_self_receiver`), or an edge feeding a
-/// `self`-keeping successor. A state that never names it runs on the
-/// ambient attachment the ordinary plans already erase, so no caller owes a
-/// whole-receiver loan beside a field loan it also passes. The retention
-/// set is fixed before signatures exist; if a build then declines because a
-/// use the predicate missed still needed the place, the retry restores the
-/// signature shape earlier passes produced unconditionally.
+/// Plans explicit state signatures and transitions, tracing the first declined operation.
 pub(super) fn build_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -237,75 +223,8 @@ pub(super) fn build_traced(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
-    let fused = fused_states(program, machine);
-    // State-local `self` retention exists for fused rosters: a foreign
-    // owner's receiver is a different `self` identity than the dispatch
-    // machine's, so a fused state that never names its receiver runs on the
-    // ambient attachment. A single-owner graph keeps the signature shape
-    // the custody gate and its callers were proved against — every authored
-    // `&mut self` state retains its receiver there.
-    let retained_self = if fused
-        .iter()
-        .any(|(owner, _)| owner.symbol != machine.symbol)
-    {
-        retained_receivers(program, facts, &fused)
-    } else {
-        vec![true; fused.len()]
-    };
-    if retained_self.iter().all(|retained| *retained) {
-        return build_traced_with(
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            machine,
-            &fused,
-            call_frames,
-            trace,
-            None,
-        );
-    }
-    build_traced_with(
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        &fused,
-        call_frames,
-        trace,
-        Some(&retained_self),
-    )
-    .or_else(|| {
-        build_traced_with(
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            machine,
-            &fused,
-            call_frames,
-            trace,
-            None,
-        )
-    })
-}
-
-/// `build_traced` under an explicit per-state `self` retention set. `None`
-/// keeps every borrowed receiver, the signature shape this route produced
-/// before retention became state-local.
-#[allow(clippy::too_many_arguments)]
-fn build_traced_with(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    scalar_callees: ScalarCalleePlans<'_>,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    fused: &FusedStates<'_>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    trace: &control::LocalConstructionTrace,
-    retained_self: Option<&[bool]>,
-) -> Option<CheckedComposedUnitControlMachinePlan> {
+    let fused_states = fused_states(program, machine);
+    let fused = &fused_states;
     trace.phase("state graph: shape");
     trace.state(None);
     let states = program.machine_states(machine);
@@ -503,18 +422,10 @@ fn build_traced_with(
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if owner.attached_data.is_some() {
-            let (identity, structural, scalar) = structural_scalar_signature_traced(
-                program,
-                shapes,
-                owner,
-                state,
-                &[],
-                retained_self.is_none_or(|retained| retained[state_index]),
-                trace,
-            )?;
-            // Fused states reached through `self.` transitions share the
-            // receiver's attachment; any other owner would publish a second
-            // attachment identity this plan cannot name.
+            let (identity, structural, scalar) =
+                structural_scalar_signature_traced(program, shapes, owner, state, &[], trace)?;
+            // One graph can publish only one attachment identity. Static
+            // qualification contributes no attachment storage.
             if attachment.is_some() && attachment != identity {
                 trace.phase("state graph: state signature: fused attachment differs");
                 return None;
@@ -1159,29 +1070,29 @@ fn forwards_qualified_parameter(
         return false;
     };
     if !(parameter.access == CheckedStructuralAccess::SharedBorrow
-            || (matches!(
-                parameter.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
-            ) && parameter.projected_qualifications.is_empty()
-                && shapes
-                    .types
-                    .get(&parameter.type_identity)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                CheckedByteSequenceCarrier::BoundedOwned { .. }
-                            )
+        || (matches!(
+            parameter.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
+        ) && parameter.projected_qualifications.is_empty()
+            && shapes
+                .types
+                .get(&parameter.type_identity)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                            CheckedByteSequenceCarrier::BoundedOwned { .. }
                         )
-                    })
-                && parameter.qualifications.iter().all(|qualification| {
-                    shapes.domains.iter().any(|domain| {
-                        domain.domain == *qualification
-                            && domain.carrier_type_identity == parameter.type_identity
-                            && domain.byte_predicate.is_some()
-                            && domain.establishment_routes.is_empty()
-                    })
-                })))
+                    )
+                })
+            && parameter.qualifications.iter().all(|qualification| {
+                shapes.domains.iter().any(|domain| {
+                    domain.domain == *qualification
+                        && domain.carrier_type_identity == parameter.type_identity
+                        && domain.byte_predicate.is_some()
+                        && domain.establishment_routes.is_empty()
+                })
+            })))
         || parameter.multiplicity != Multiplicity::Unrestricted
     {
         return false;
@@ -1543,189 +1454,6 @@ fn call_custody_refusal(
         return "state graph: operation custody: unit call arguments";
     }
     "state graph: operation custody: unit call arguments"
-}
-
-/// The per-state `self` retention set `build_traced` closes over.
-///
-/// Ordinary and composed signatures share one obligation: `self` stays a
-/// structural parameter while the graph can name its place. A state
-/// reading, storing, projecting, or lending receiver storage needs it
-/// directly (`receiver_calls::uses_receiver_storage`); a receiver-rooted
-/// borrow, a whole-`self` operand, or a receiver-rooted result needs it too
-/// (`receiver_rooted_operand`), none of which an argument access or scalar
-/// row can see. A call whose receiver roots at `self` keeps the operand
-/// slot: callee signatures are still open while this graph builds, and
-/// `receiver_calls::reconcile` can only insert the operand when this
-/// signature kept a `self` place for it. The last clause flows retention
-/// back along named edges — a `self`-keeping successor is fed from the
-/// source's own place.
-fn retained_receivers(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    fused: &FusedStates<'_>,
-) -> Vec<bool> {
-    let mut retained = fused
-        .iter()
-        .map(|&(owner, state)| {
-            crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
-                program, facts, owner, state,
-            ) || receiver_rooted_operand(program, facts, owner, state)
-        })
-        .collect::<Vec<_>>();
-    loop {
-        let mut changed = false;
-        for (source_index, &(_, source)) in fused.iter().enumerate() {
-            if retained[source_index] {
-                continue;
-            }
-            let feeds_retained = program
-                .statement_table
-                .statements(source.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    let StatementNode::Transition(transition) = statement else {
-                        return false;
-                    };
-                    [transition.target, transition.continuation]
-                        .into_iter()
-                        .filter(|target| {
-                            program.statement_table.transition_target_is_valid(*target)
-                        })
-                        .any(|target| {
-                            let TransitionTargetNode::Named { path, .. } =
-                                program.statement_table.transition_target(target)
-                            else {
-                                return false;
-                            };
-                            fused_target_index(program, fused, path.symbol)
-                                .is_some_and(|index| retained[index])
-                        })
-                });
-            if feeds_retained {
-                retained[source_index] = true;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    retained
-}
-
-/// Whether a statement or successor operand in `state` names a place rooted
-/// at `self`: a receiver-rooted borrow (`let view = &mut self.field`), a
-/// whole-`self` operand (`f(self)`), a receiver loan, a root binding, or a
-/// successor operand or result spelled through `self`. Each needs the
-/// structural `self` place, yet none leaves the receiver-field argument
-/// access or scalar read `uses_receiver_storage` watches for.
-fn receiver_rooted_operand(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> bool {
-    let receiver_roots = [machine.symbol];
-    // `uses_receiver_storage` already counts a lent receiver field by its
-    // attached-data parent. The complementary shapes are a whole-`self`
-    // operand and any receiver-rooted loan, either of which roots directly
-    // at `self` or at an attached-data member.
-    let attached = machine.attached_data_symbol;
-    let receiver_rooted_symbol = |symbol: facts::PlaceRoot| {
-        let facts::PlaceRoot::Symbol(symbol) = symbol else {
-            return false;
-        };
-        receiver_roots.contains(&symbol)
-            || (symbol.is_valid() && program.symbols.get(symbol).parent == attached)
-    };
-    let borrow_state = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|borrow| {
-            borrow.machine_symbol == machine.symbol && borrow.state_symbol == state.symbol
-        });
-    if let Some(borrow_state) = borrow_state {
-        if facts
-            .borrow
-            .calls
-            .span_or_empty(borrow_state.calls)
-            .iter()
-            .flat_map(|call| facts.borrow.argument_accesses.span_or_empty(call.accesses))
-            .any(|access| {
-                access.root_symbol.is_valid() && receiver_roots.contains(&access.root_symbol)
-            })
-        {
-            return true;
-        }
-        if facts
-            .borrow
-            .loans
-            .span_or_empty(borrow_state.loans)
-            .iter()
-            .any(|loan| {
-                receiver_roots.contains(&loan.root_symbol)
-                    || receiver_roots.contains(&loan.owner_symbol)
-                    || receiver_roots.contains(&loan.source_owner_symbol)
-                    || (loan.root_symbol.is_valid()
-                        && program.symbols.get(loan.root_symbol).parent == attached)
-            })
-        {
-            return true;
-        }
-    }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .any(|(index, statement)| {
-            let rooted = |expression: typed_trees::expression::ExpressionHandle| {
-                expression.is_valid()
-                    && crate::flow::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        index,
-                        expression,
-                    )
-                    .is_some_and(|place| receiver_rooted_symbol(place.root))
-            };
-            match statement {
-                StatementNode::RootBinding(binding) => {
-                    rooted(binding.receiver) || rooted(binding.implementation_operand)
-                }
-                StatementNode::AssemblyFact(fact) => rooted(fact.expression),
-                StatementNode::Call(call) => program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| rooted(*argument)),
-                StatementNode::Assignment(assignment) => {
-                    rooted(assignment.target) || rooted(assignment.value)
-                }
-                StatementNode::LocalData(local) => rooted(local.initial_value),
-                StatementNode::Expression(expression) => rooted(*expression),
-                StatementNode::Transition(transition) => {
-                    [transition.target, transition.continuation]
-                        .into_iter()
-                        .filter(|target| {
-                            program.statement_table.transition_target_is_valid(*target)
-                        })
-                        .any(
-                            |target| match program.statement_table.transition_target(target) {
-                                TransitionTargetNode::Named { arguments, .. } => program
-                                    .statement_table
-                                    .expression_handles(*arguments)
-                                    .iter()
-                                    .any(|argument| rooted(*argument)),
-                                TransitionTargetNode::Value(expression) => rooted(*expression),
-                                _ => false,
-                            },
-                        )
-                }
-            }
-        })
 }
 
 type Signature = (
