@@ -67,6 +67,8 @@ pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
+pass/borrows/runtime_carrier_reference_reselection_exit built 4805ms exit:70 @362d09f71f3
+pass/borrows/runtime_carrier_reference_store_exit built 4917ms exit:70 @362d09f71f3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 3537ms exit:70 @15c77983aab0
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 2870ms exit:70 @15c77983aab0
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 3535ms exit:70 @b5d8c6882a8
@@ -773,12 +775,15 @@ pass/providers/checked_boundary_requirement_dispatch_exit built 1549ms exit:70 @
 pass/providers/checked_fixed_operator_dispatch_exit built 770ms exit:70 @2d8ed253669f+wt
 pass/providers/checked_fixed_operator_physical_custody built 759ms @2d8ed253669f+wt
 pass/providers/component_owner_provider_override_compile built 649ms @2d8ed253669f+wt
+pass/providers/direct_boundary_array_snapshot_exit built 4670ms exit:70 @362d09f71f3
 pass/providers/external_boundary_requirement_via_exit built 942ms exit:21 @9baafc0ace88
 pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
+pass/providers/runtime_boundary_array_construction_exit built 4610ms exit:70 @362d09f71f3
 pass/providers/runtime_boundary_array_forwarding_exit built 4879ms exit:70 @95e4e5c52dc
+pass/providers/runtime_boundary_array_result_exit built 4344ms exit:70 @362d09f71f3
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 831ms exit:70 @2d8ed253669f+wt
 pass/providers/service_fused_root_establishment built 671ms @2d8ed253669f+wt
