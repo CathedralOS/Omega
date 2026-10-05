@@ -14,7 +14,6 @@ mod compute;
 mod error;
 mod replay;
 mod save_storage;
-mod spill_requirements;
 mod stack_commit;
 mod unwind;
 mod validation;
@@ -29,15 +28,7 @@ pub use save_storage::{
     ValidatedNonAuthoritativeCalleeSaveStorage, non_authoritative_callee_save_storage_identity,
     stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
 };
-pub use spill_requirements::{
-    FrameAbiPreservationConvention, FunctionSpillFrameRequirements,
-    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
-    NonAuthoritativeSpillFrameRequirementPolicy, NonAuthoritativeSpillFrameRequirementReceipt,
-    SpillFrameRequirementError, ValidatedNonAuthoritativeSpillFrameRequirements,
-    non_authoritative_spill_frame_requirement_identity,
-    stage_non_authoritative_spill_frame_requirements,
-    validate_non_authoritative_spill_frame_requirements,
-};
+pub use register_environment::FrameAbiPreservationConvention;
 pub use validation::validate_target_frame_layout;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};

@@ -147,28 +147,8 @@ These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.
 
 The [assignment group](src/assignment/mod.rs) holds the stages that route
-sequences plus two validated boundaries no executable route calls: the
-[logical spill-operation boundary](src/assignment/logical_spill_operations/mod.rs)
-and [stack-slot coloring](src/assignment/stack_slot_coloring/mod.rs).
-Runtime-spill recovery selects and rewrites physical victims directly rather
-than planning over their logical actions, so no sequenced caller exercises them;
-they sit beside the remaining compiler-private recursive-recovery, pseudo, and
-access-constraint boundaries under
-[unsequenced spill stages](src/unsequenced_spill_stages/mod.rs). The
-architecture ladders validate them all. These
-are not additional user-selectable optimizations. Each
-boundary binds its input roots, closed policy, exact work and budget, and
-independently reconstructed output. Typed original-value and reload-action
-lineage must survive recursive store/reload/rewrite schedules. A reload identity
-is not automatically a selected virtual register.
-
-Slot coloring uses explicit logical lifetimes and spill-area-relative geometry;
-touching closed endpoints conflict. Logical store/reload schedules, chosen
-reload views, and abstract read/write effects do not establish executable
-addresses, instruction semantics, or final frame layout. Within-block order and
-overlapping abstract spill slices imply neither cross-block execution order nor
-program-memory alias facts. These bounded APIs do not establish complete
-executable spilling through native publication.
+sequences. Runtime-spill recovery selects and rewrites physical victims
+directly; there is no separate logical spill plan or stack-slot coloring.
 
 ## Preservation and frame handoff
 

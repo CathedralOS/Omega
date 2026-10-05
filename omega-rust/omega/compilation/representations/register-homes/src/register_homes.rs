@@ -11,11 +11,9 @@
 pub mod codec;
 pub mod constraints;
 pub mod identity;
-pub mod logical_spill_operations;
 pub mod post_allocation_manifest;
 pub mod preservation;
 pub mod recovery;
-pub mod stack_slot_coloring;
 pub mod storage;
 pub mod view;
 
@@ -32,21 +30,13 @@ pub use constraints::{
     FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
     FunctionFixedPrecoloredSplitRequirements, RegisterClassAvailability,
     VirtualEarlyClobberPointLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
-    allocation_legality, allocation_legality_function_digest, allocation_legality_identity,
-    allocation_legality_identity_from_digests, allocator_availability,
+    allocation_legality, allocation_legality_function_digest, allocation_legality_identity_from_digests, allocator_availability,
     allocator_availability_identity, fixed_precolored_interval_plan_identity,
     fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
     fixed_precolored_split_requirements,
 };
 pub use identity::{
     AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
-};
-pub use logical_spill_operations::{
-    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
-    LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
-    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
-    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
-    logical_spill_operation_identity,
 };
 pub use post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
@@ -70,11 +60,6 @@ pub use recovery::{
     SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
     classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
     spill_choice, spill_choice_identity,
-};
-pub use stack_slot_coloring::{
-    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
-    StackSlotColoringIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
-    stack_slot_coloring_identity,
 };
 pub use storage::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,

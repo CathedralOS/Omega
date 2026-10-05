@@ -2,8 +2,7 @@
 
 mod identity;
 pub use identity::{
-    allocation_legality_function_digest, allocation_legality_identity,
-    allocation_legality_identity_from_digests,
+    allocation_legality_function_digest, allocation_legality_identity_from_digests,
 };
 
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};

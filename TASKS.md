@@ -3284,6 +3284,22 @@ of a check the same flow already performed, not the check itself.
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
+- **BACKEND-SELF-REPLAY-DELETED.** (new-scope) About 11,500 lines in 170
+  `replay` modules re-derive output the same compile just produced, then
+  compare it before wrapping it in a `Validated*` type, which AGENTS.md's
+  verification-placement rule forbids. Owners: stage 05
+  `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/`
+  (42 files), stage 04 `.../04_selected-instructions-to-selected-instructions/`
+  (26), stage 01 `.../01_abstract-operations-to-abstract-operations/` (13),
+  stage 03 `.../03_target-operations-to-selected-instructions/` (12),
+  `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/`
+  (11), `omega-rust/omega/compilation/backend/machine-emission/` (7), and
+  `omega-rust/omega/compilation/backend/images/image-emission/` (57; ELF
+  is covered by **IMAGE-SELF-REPLAY-DELETED**). A producer constructs its
+  validated result directly. A validator survives only where it reads a
+  retained or foreign artifact. Acceptance: no stage calls a replay of
+  its own fresh output, and the check and native corpus are unchanged.
+
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission now each build their final image once. Only retained artifacts
   read back through `DynamicElfNativeArtifact::from_replayed_parts` and bytes

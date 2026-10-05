@@ -10,7 +10,7 @@ pub use allocation_legality::{
     AllocationLegalityIdentity, AllocationLegalityPlan, EntryFixedViewTransition,
     FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualPointLegality,
     VirtualRegisterAllocationLegality, allocation_legality_function_digest,
-    allocation_legality_identity, allocation_legality_identity_from_digests,
+    allocation_legality_identity_from_digests,
 };
 pub mod fixed_precolored_intervals;
 pub use fixed_precolored_intervals::{

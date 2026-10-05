@@ -48,10 +48,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - Remaining: external (non-hosted) entry roots do not yet join spill frames
     to stack demand; values of a foreign register class without a pure
     bit-transport pair still reject (vector/non-IEEE needs a scalar
-    representation and target capability first); retire
-    `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
-    and `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/` (no sequenced runtime caller)
-    instead of extending a parallel slot assignment.
+    representation and target capability first).
   Acceptance: a corpus pressure fixture with an external entry root executes
   natively with its spill frame counted in stack demand; slot reuse is counted
   once; insufficient stack supply rejects before execution (a byte ceiling is

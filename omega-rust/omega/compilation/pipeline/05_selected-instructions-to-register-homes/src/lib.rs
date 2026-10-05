@@ -18,9 +18,6 @@
 //! - `rewrites` stages active-resident rematerialization for a recovery rule.
 //! - `output` owns the current allocation facts every route publishes.
 //! - `preservation` derives allocation-visible callee-saved requirements.
-//! - `unsequenced_spill_stages` holds validated spill boundaries that
-//!   `stage_register_allocation` does not yet call; they are reachable only
-//!   through that module path, so the root's names are the route's names.
 //!
 //! Every name the route owns is re-exported below from the module that owns
 //! it, so the root reads as a map. Upstream vocabulary (`register_model`,
@@ -37,7 +34,6 @@ mod output;
 mod preservation;
 mod register_allocation;
 mod rewrites;
-pub mod unsequenced_spill_stages;
 
 // The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
@@ -115,21 +111,6 @@ pub use preservation::{
 };
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.
-pub use assignment::logical_spill_operations::{
-    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
-    LogicalSpillOperationDecodeError, LogicalSpillOperationError, LogicalSpillOperationIdentity,
-    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillOperationValidationReceipt,
-    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
-    LogicalSpillStore, LogicalSpillUseRewrite, ValidatedLogicalSpillOperations,
-    logical_spill_operation_identity, plan_logical_spill_operations,
-    validate_logical_spill_operations,
-};
-pub use assignment::stack_slot_coloring::{
-    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
-    StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
-    StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
-    color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
-};
 
 // Upstream selected-program analyses. `AllocationOutput` carries the ranges
 // and legality; the post-allocation stages name these through this crate.
