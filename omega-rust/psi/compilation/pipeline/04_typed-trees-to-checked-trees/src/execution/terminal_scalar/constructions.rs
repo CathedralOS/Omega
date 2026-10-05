@@ -189,9 +189,7 @@ pub(super) fn retain_shapes(
         visited.push(handle);
         match &plans.nodes.get(handle).kind {
             CheckedScalarComputationKind::CaseMembership {
-                subject:
-                    checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                    | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
                 ..
             } => {}
             CheckedScalarComputationKind::CaseMembership {
@@ -274,6 +272,38 @@ pub(super) fn retain_shapes(
             } => {
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
+                    if let checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                        argument,
+                    ) = argument
+                        && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            expression,
+                        } = argument.source
+                    {
+                        let mut roots = structural_values.roots.iter().filter_map(|(_, root)| {
+                            (root.state == state && root.expression == expression).then_some(root)
+                        });
+                        let root = roots.next()?;
+                        if roots.next().is_some()
+                            || !structural_values.nodes.is_valid(root.root)
+                            || structural_values.nodes.get(root.root).expression != expression
+                            || program.normalized_type_identity(root.type_reference).as_str()
+                                != argument.type_identity
+                            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                            || !argument.path.is_empty()
+                        {
+                            return None;
+                        }
+                        // The produced value owns its complete declaration;
+                        // its scalar children have their own retained roots in
+                        // this same state's computation inventory.
+                        retain_declarations(
+                            shapes,
+                            super::super::terminal_unit::scalar_operand_shapes(
+                                program,
+                                root.type_reference,
+                            )?,
+                        )?;
+                    }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
                         subject,
                     ) = argument
@@ -292,13 +322,6 @@ pub(super) fn retain_shapes(
                                 .iter()
                                 .map(|field| field.value),
                         );
-                    }
-                    if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                        elements,
-                        ..
-                    } = argument
-                    {
-                        pending.extend(plans.operands.span(*elements)?);
                     }
                 }
             }

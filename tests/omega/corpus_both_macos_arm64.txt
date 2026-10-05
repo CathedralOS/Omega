@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 11.3, "load1_start": 3.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.72, "load1_start": 4.36, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -81,7 +81,9 @@ pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-e
 pass/borrows/transition_shared_borrow_result built 7025ms exit:181 interpreter-exit:181 interpreter:agrees @3fa817733300+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 6887ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 6706ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
+pass/calls/cyclic_copy_arguments_exit built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt
+pass/calls/inline_record_scalar_call_arguments_exit built 3169ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @dfece6e7f6a1+wt
 pass/calls/local_record_leaf_loan_scalar_calls_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @51b4aa0b5a70+wt
 pass/calls/mixed_projection_sources_in_one_call built 2038ms exit:0 interpreter-exit:0 interpreter:agrees @6de152ee297f
 pass/calls/mixed_value_forwarding_exit built 1368ms exit:70 interpreter-exit:70 interpreter:agrees @4d9c84188259+wt
@@ -153,6 +155,7 @@ pass/drops/core_drop_owner_hook built 622ms exit:0 interpreter-exit:0 interprete
 pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
 pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
+pass/expressions/declared_operator_match_result built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/expressions/runtime_nested_record_field_call_exit built 1043ms exit:0 interpreter-exit:0 interpreter:agrees @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
@@ -167,6 +170,7 @@ pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 inte
 pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
+pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
@@ -215,6 +219,7 @@ pass/structs/runtime_qualified_record_call_composition_exit built 2356ms exit:70
 pass/structs/runtime_state_record_array_element_read_exit built 1901ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/structs/runtime_view_array_elements_exit built 4009ms exit:70 interpreter-exit:70 interpreter:agrees @f1b70212c334
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
+pass/structural/runtime_structural_operand_snapshot_exit built 2553ms exit:42 interpreter-exit:42 interpreter:agrees @dfece6e7f6a1+wt
 pass/structural/runtime_structural_result_crash_branch_exit built 973ms exit:0 interpreter-exit:0 interpreter:agrees @77ccbf115d351847b97e16ff03b4e93c8e7a786f
 pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
 pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt

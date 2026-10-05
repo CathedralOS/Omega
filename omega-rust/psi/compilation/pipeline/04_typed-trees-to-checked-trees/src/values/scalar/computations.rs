@@ -15,7 +15,6 @@ use crate::values::scalar::semantic_casts;
 use crate::values::scalar_expression_type;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
-use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
@@ -310,31 +309,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     })
                     .unwrap_or_default()
                 {
-                    let Some(array) = validation::scalar_array_elements(
-                        program,
-                        machine.symbol,
+                    builder.retain_structural_argument(
                         construction.expression,
                         construction.type_reference,
-                    ) else {
-                        continue;
-                    };
-                    for (element_index, (element, primitive_type)) in
-                        array.elements.into_iter().enumerate()
-                    {
-                        let Ok(element_ordinal) = u32::try_from(element_index) else {
-                            break;
-                        };
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            CheckedScalarExpressionRole::ArrayElement {
-                                source: construction.source,
-                                element_ordinal,
-                            },
-                            element,
-                            primitive_type,
-                        );
-                    }
+                    );
                 }
                 for (call_ordinal, site) in captured
                     .map(|captured| {
@@ -1365,66 +1343,6 @@ impl Builder<'_, '_> {
                         self.plans.nodes.get_mut(root).authored_root = *argument;
                         computed_arguments.push(root);
                     } else {
-                        if validation::scalar_case_constructor(self.program, *argument).is_some() {
-                            let case = self.case_construction(*argument)?;
-                            if parameter.is_mutable
-                                || target_machine.supply_mode
-                                    != language_semantics::MachineSupplyMode::CheckedBody
-                                || self.program.normalized_type_identity(case.type_reference)
-                                    != self
-                                        .program
-                                        .normalized_type_identity(parameter.type_reference)
-                                || !validation::has_plain_owned_contents_with_numeric_constraints(
-                                    self.program,
-                                    case.type_reference,
-                                )
-                            {
-                                return None;
-                            }
-                            structural_arguments.push(
-                                checked_trees::CheckedScalarComputationStructuralArgument::Case(
-                                    case,
-                                ),
-                            );
-                            continue;
-                        }
-                        if let Some(array) = validation::scalar_array_elements(
-                            self.program,
-                            self.machine,
-                            *argument,
-                            parameter.type_reference,
-                        ) {
-                            if parameter.is_mutable
-                                || target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                                || array.projections.iter().any(|projection| {
-                                    self.operators.expression_use(*projection).is_some_and(|selected| {
-                                        selected.spelling != language_core::OperatorSpelling::Index
-                                            || selected.selected_operator_symbol.is_valid()
-                                            || selected.candidate_count != 0
-                                            || !matches!(selected.status,
-                                                CheckedOperatorResolutionStatus::Missing
-                                                    | CheckedOperatorResolutionStatus::BuiltinFallback)
-                                    })
-                                })
-                            {
-                                return None;
-                            }
-                            let mut elements = Vec::with_capacity(array.elements.len());
-                            for (expression, primitive_type) in array.elements {
-                                let element = self.expression(expression, primitive_type)?;
-                                self.plans.nodes.get_mut(element).authored_root = expression;
-                                elements.push(element);
-                            }
-                            let elements = self.plans.operands.insert_many(elements);
-                            structural_arguments.push(
-                                checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                                    expression: *argument,
-                                    type_reference: parameter.type_reference,
-                                    elements,
-                                },
-                            );
-                            continue;
-                        }
                         let state = crate::semantic::calls::find_state_in_machine(
                             self.program,
                             self.machine,
@@ -1458,6 +1376,25 @@ impl Builder<'_, '_> {
                                 parameter.type_reference,
                                 *argument,
                             )
+                        })
+                        .or_else(|| {
+                            if parameter.is_mutable
+                                || target_machine.supply_mode
+                                    != language_semantics::MachineSupplyMode::CheckedBody
+                            {
+                                return None;
+                            }
+                            self.retain_structural_argument(*argument, parameter.type_reference)?;
+                            Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                    expression: *argument,
+                                },
+                                path: Vec::new(),
+                                type_identity: self.program
+                                    .normalized_type_identity(parameter.type_reference)
+                                    .into_string(),
+                                access: checked_trees::CheckedStructuralAccess::Owned,
+                            })
                         });
                         structural_arguments.push(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(

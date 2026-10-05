@@ -340,12 +340,13 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
-    evaluation.arrays = crate::scalar_graph::scalar_computations::arrays::prepare(
-        checked,
-        &[plan.machine],
-        structural_types,
-        &mut next_place,
-    )?;
+    evaluation.produced_values =
+        crate::scalar_graph::scalar_computations::produced_values::prepare(
+            checked,
+            &[plan.machine],
+            structural_types,
+            &mut next_place,
+        )?;
     evaluation.subslices = crate::scalar_graph::scalar_computations::subslices::prepare(
         checked,
         &[plan.machine],

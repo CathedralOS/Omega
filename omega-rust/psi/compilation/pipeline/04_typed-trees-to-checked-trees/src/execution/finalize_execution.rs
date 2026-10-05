@@ -17,6 +17,7 @@ pub(crate) fn finalize_execution(
         program,
         &facts.flow.ownership,
         &facts.values.scalar_computations,
+        &facts.values.structural_values,
         &mut facts.flow.terminal_scalar_graphs,
     );
 

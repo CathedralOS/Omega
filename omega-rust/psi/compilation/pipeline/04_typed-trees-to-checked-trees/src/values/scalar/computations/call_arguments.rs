@@ -31,63 +31,15 @@ impl Builder<'_, '_> {
                 .program
                 .primitive_type_reference(parameter.type_reference)
             else {
-                // A construction or copied place at a non-primitive
-                // position is a structural value: retain it rooted at
-                // the authored argument expression so the Unit statement
-                // sequence can establish it as a state-local operand before
-                // the call, exactly as a `let` initializer is established.
-                // A record field that moves a place carries that custody in
-                // its value node; the sequence consumes it before the call.
-                // Cases with structural payloads use that same construction
-                // owner. Scalar-case admission alone misses nested enums and
-                // record payloads even though local initializers retain them.
-                if (!parameter.is_const)
-                    && (validation::scalar_case_constructor(self.program, *argument).is_some_and(
-                        |constructor| {
-                            self.program
-                                .normalized_type_identity(constructor.type_reference)
-                                == self
-                                    .program
-                                    .normalized_type_identity(parameter.type_reference)
-                        },
-                    ) || super::structural_values::is_record_value(
-                        self.program,
-                        *argument,
-                        parameter.type_reference,
-                    ) || super::structural_values::is_structural_case_value(
-                        self.program,
-                        *argument,
-                        parameter.type_reference,
-                    ) || (!crate::execution::terminal_unit::types::is_reference(
-                        self.program,
-                        parameter.type_reference,
-                    ) && super::structural_values::needs_copied_place_root(
-                        self.program,
-                        self.state,
-                        self.statement_index,
-                        *argument,
-                        parameter.type_reference,
-                    )))
-                    && self
-                        .structural_values
-                        .root_for_expression(self.state, statement, *argument)
-                        .is_none()
-                    && let Some(root) = self.structural_value(*argument, parameter.type_reference)
-                {
-                    self.structural_values.roots.append(
-                        checked_trees::CheckedStructuralValueRoot {
-                            machine: self.machine,
-                            state: self.state,
-                            statement_ordinal: statement,
-                            expression: *argument,
-                            type_reference: parameter.type_reference,
-                            root,
-                        },
-                    );
+                // The shared value owner retains construction and copying at
+                // their exact argument occurrence. Lending admission remains
+                // separate; no source-shape roster decides what a value is.
+                if !parameter.is_const {
+                    self.retain_structural_argument(*argument, parameter.type_reference);
                 }
                 continue;
             };
-            if (parameter.is_const)
+            if parameter.is_const
                 || (parameter.is_mutable
                     && crate::values::mutable_scalar_parameter_type(self.program, parameter)
                         .is_none())

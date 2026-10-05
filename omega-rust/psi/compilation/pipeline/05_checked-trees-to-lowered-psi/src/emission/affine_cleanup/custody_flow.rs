@@ -14,6 +14,65 @@ use terminal_psi::{Block, OperationKind, StructuralAccess, Terminator};
 pub(super) struct Frontiers {
     pub(super) entries: Vec<Vec<PlaceId>>,
     pub(super) exits: Vec<Vec<PlaceId>>,
+    /// Each edge after its owned operands, before its scheduled disposal.
+    pub(super) outgoing: Vec<Vec<Vec<PlaceId>>>,
+}
+
+struct EdgeEffects {
+    consumed: Vec<usize>,
+    disposed: Vec<usize>,
+}
+
+fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, LoweringError> {
+    let edges: Vec<(&[terminal_psi::StructuralArgument], &[PlaceId])> = match &block.terminator {
+        Terminator::Jump {
+            structural_arguments,
+            trivial_affine_discards,
+            ..
+        } => vec![(structural_arguments, trivial_affine_discards)],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|edge| {
+                (
+                    edge.structural_arguments.as_slice(),
+                    edge.trivial_affine_discards.as_slice(),
+                )
+            })
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|edge| (&[][..], edge.trivial_affine_discards.as_slice()))
+            .collect(),
+        _ => Vec::new(),
+    };
+    edges
+        .into_iter()
+        .map(|(arguments, discards)| {
+            let mut consumed = Vec::new();
+            for argument in arguments {
+                if argument.access != StructuralAccess::Owned {
+                    continue;
+                }
+                let Some(position) = managed.iter().position(|place| *place == argument.place)
+                else {
+                    continue;
+                };
+                if !argument.path.is_empty() {
+                    return unsupported("managed affine edge transfer requires its whole place");
+                }
+                consumed.push(position);
+            }
+            let disposed = discards
+                .iter()
+                .filter_map(|place| managed.iter().position(|candidate| candidate == place))
+                .collect();
+            Ok(EdgeEffects { consumed, disposed })
+        })
+        .collect()
 }
 
 enum Transfer {
@@ -28,11 +87,19 @@ enum Transfer {
 
 fn transfers(
     block: &Block,
+    affine: &[PlaceId],
     managed: &[PlaceId],
     births: &[(PlaceId, OperationId)],
 ) -> Result<Vec<Transfer>, LoweringError> {
     let mut transfers = Vec::new();
     let position = |place| managed.iter().position(|candidate| *candidate == place);
+    for parameter in &block.structural_parameters {
+        if !affine.contains(&parameter.place)
+            && let Some(position) = position(parameter.place)
+        {
+            transfers.push(Transfer::Birth { position });
+        }
+    }
     for operation in &block.operations {
         for argument in projected_transfers::operands(&operation.kind) {
             if argument.access != StructuralAccess::Owned {
@@ -69,8 +136,9 @@ fn transfers(
             transfers.push(Transfer::Birth { position });
         }
     }
-    if let Terminator::StructuralCase { source, .. } | Terminator::ReturnStructural { source, .. } =
-        &block.terminator
+    // Case dispatch observes the subject; only its selected edge's explicit
+    // disposal ends that owner. Structural return transfers the owner itself.
+    if let Terminator::ReturnStructural { source, .. } = &block.terminator
         && let Some(position) = position(*source)
     {
         transfers.push(Transfer::Consume {
@@ -104,8 +172,19 @@ pub(super) fn solve(
     }
     let transfers = blocks
         .iter()
-        .map(|block| transfers(block, managed, births))
+        .map(|block| transfers(block, affine, managed, births))
         .collect::<Result<Vec<_>, _>>()?;
+    let edges = blocks
+        .iter()
+        .map(|block| edge_effects(block, managed))
+        .collect::<Result<Vec<_>, _>>()?;
+    if edges
+        .iter()
+        .zip(successors)
+        .any(|(edges, successors)| edges.len() != successors.len())
+    {
+        return unsupported("affine edge custody disagrees with the control graph");
+    }
     let mut entries = vec![vec![true; managed.len()]; blocks.len()];
     entries[entry] = managed.iter().map(|place| affine.contains(place)).collect();
     let mut exits = vec![vec![true; managed.len()]; blocks.len()];
@@ -114,15 +193,22 @@ pub(super) fn solve(
     while let Some(position) = ready.pop_front() {
         queued[position] = false;
         if position != entry {
-            let Some((first, remaining)) = incoming[position].split_first() else {
+            if incoming[position].is_empty() {
                 return unsupported(
                     "owned scalar graph has a reachable state without incoming custody",
                 );
-            };
-            let mut joined = exits[*first].clone();
-            for predecessor in remaining {
-                for (held, incoming) in joined.iter_mut().zip(&exits[*predecessor]) {
-                    *held &= *incoming;
+            }
+            let mut joined = vec![true; managed.len()];
+            for predecessor in &incoming[position] {
+                for (edge, target) in edges[*predecessor].iter().zip(&successors[*predecessor]) {
+                    if *target != position {
+                        continue;
+                    }
+                    for (owner, held) in joined.iter_mut().enumerate() {
+                        *held &= exits[*predecessor][owner]
+                            && !edge.consumed.contains(&owner)
+                            && !edge.disposed.contains(&owner);
+                    }
                 }
             }
             entries[position] = joined;
@@ -163,6 +249,27 @@ pub(super) fn solve(
             }
         }
     }
+    let mut outgoing = Vec::with_capacity(blocks.len());
+    for (exit, edges) in exits.iter().zip(&edges) {
+        let mut outgoing_edges = Vec::with_capacity(edges.len());
+        for edge in edges {
+            let mut live = exit.clone();
+            for position in &edge.consumed {
+                if !live[*position] {
+                    return unsupported("affine edge transfers an unavailable owner");
+                }
+                live[*position] = false;
+            }
+            outgoing_edges.push(
+                managed
+                    .iter()
+                    .zip(live)
+                    .filter_map(|(place, live)| live.then_some(*place))
+                    .collect(),
+            );
+        }
+        outgoing.push(outgoing_edges);
+    }
     // Roster order retains reversed entry declarations. Result cleanup is
     // merged by the existing reverse producer order, never worklist order.
     let places = |frontiers: Vec<Vec<bool>>| {
@@ -180,5 +287,6 @@ pub(super) fn solve(
     Ok(Frontiers {
         entries: places(entries),
         exits: places(exits),
+        outgoing,
     })
 }

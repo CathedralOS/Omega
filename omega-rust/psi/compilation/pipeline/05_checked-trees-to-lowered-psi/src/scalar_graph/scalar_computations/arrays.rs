@@ -4,90 +4,17 @@
 //! in the selected evaluation path does so; Terminal independently checks that
 //! this producer dominates each use. No array payload crosses a block parameter.
 use super::super::{
-    Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
-    allocate_dense, emit_direct_expression, place_id,
+    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, emit_direct_expression,
 };
-use super::{
-    CheckedScalarComputationKind, CheckedTrees, LoweringError, unsupported,
-    validate_direct_parameter_types,
-};
+use super::{LoweringError, unsupported, validate_direct_parameter_types};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;
-use checked_trees::CheckedScalarComputationStructuralArgument;
-use checked_trees::expression::ExpressionHandle;
-
-#[derive(Clone)]
-pub(crate) struct Slot {
-    pub(super) expression: ExpressionHandle,
-    pub(super) place: PlaceId,
-    pub(super) structural_type: StructuralTypeId,
-}
-
-pub(crate) fn prepare(
-    checked: &CheckedTrees,
-    machines: &[symbols::SymbolHandle],
-    types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
-) -> Result<Vec<Slot>, LoweringError> {
-    let plans = &checked.facts.values.scalar_computations;
-    let mut slots: Vec<Slot> = Vec::new();
-    let roots = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (machines.contains(&root.machine)).then_some(root.root))
-        .collect::<Vec<_>>();
-    for handle in super::reachable_nodes(checked, &roots)? {
-        let CheckedScalarComputationKind::Call {
-            structural_arguments,
-            ..
-        } = plans.nodes.get(handle).kind
-        else {
-            continue;
-        };
-        for argument in plans
-            .structural_arguments
-            .span(structural_arguments)
-            .ok_or(LoweringError::Unsupported(
-                "computed array call has stale structural arguments",
-            ))?
-        {
-            let CheckedScalarComputationStructuralArgument::Array {
-                expression,
-                type_reference,
-                ..
-            } = argument
-            else {
-                continue;
-            };
-            let identity = checked.normalized_type_identity(*type_reference);
-            let declaration = types
-                .iter()
-                .find(|declaration| declaration.identity == identity.as_str())
-                .ok_or(LoweringError::Unsupported(
-                    "computed array has no structural type namespace",
-                ))?;
-            validate_layout(declaration.id, types)?;
-            if let Some(existing) = slots.iter().find(|slot| slot.expression == *expression) {
-                if existing.structural_type != declaration.id {
-                    return unsupported("computed array occurrence has conflicting types");
-                }
-                continue;
-            }
-            slots.push(Slot {
-                expression: *expression,
-                place: place_id(allocate_dense(next_place)?),
-                structural_type: declaration.id,
-            });
-        }
-    }
-    Ok(slots)
-}
 
 /// A computed array is a fixed primitive array whose leaf count fits in u64.
-fn validate_layout(
+pub(crate) fn validate_layout(
     mut current: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {

@@ -2,7 +2,7 @@
 
 use super::super::{Multiplicity, StructuralAccess, terminal_scalar_type};
 use super::{
-    CheckedTrees, LoweringError, arrays, cases, literals, storage, subslices, unsupported,
+    CheckedTrees, LoweringError, literals, produced_values, storage, subslices, unsupported,
 };
 use crate::emission::operation_emission::calls::PreparedStructuralArgument;
 
@@ -14,8 +14,7 @@ pub(super) fn lower(
     caller_state: symbols::SymbolHandle,
     arguments: &[checked_trees::CheckedScalarComputationStructuralArgument],
     bindings: &storage::ScalarBindings,
-    arrays: &[arrays::Slot],
-    cases: &[cases::Slot],
+    produced_values: &[produced_values::Slot],
     subslices: &[subslices::Slot],
     literals: &[literals::Slot],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -28,7 +27,6 @@ pub(super) fn lower(
             checked,
             target_machine,
         )?;
-    let (_, state) = crate::declarations::state_declaration(checked, target_state)?;
     let (caller_machine, caller_authored) =
         crate::declarations::state_declaration(checked, caller_state)?;
     let caller_parameters = checked.state_parameters(caller_authored);
@@ -43,66 +41,8 @@ pub(super) fn lower(
         .zip(target.structural_parameters())
         .enumerate()
         .map(|(argument_ordinal, (argument, parameter))| {
-            let argument = match argument {
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
-                    let slot = cases
-                        .iter()
-                        .find(|slot| slot.expression == subject.expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed case has no reserved structural result",
-                        ))?;
-                    if checked
-                        .state_parameters(state)
-                        .get(parameter.position as usize)
-                        .is_none()
-                    {
-                        return unsupported("computed case formal position is absent");
-                    }
-                    return Ok(PreparedStructuralArgument {
-                        selector_positions: Vec::new(),
-                        place: slot.place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    });
-                }
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) => {
-                    argument
-                }
-                checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                    expression,
-                    elements,
-                    ..
-                } => {
-                    let slot = arrays
-                        .iter()
-                        .find(|slot| slot.expression == *expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed array has no reserved structural result",
-                        ))?;
-                    if checked
-                        .state_parameters(state)
-                        .get(parameter.position as usize)
-                        .is_none()
-                    {
-                        return unsupported("computed array formal position is absent");
-                    }
-                    if checked
-                        .facts
-                        .values
-                        .scalar_computations
-                        .operands
-                        .span(*elements)
-                        .is_none()
-                    {
-                        return unsupported("computed array elements have a stale span");
-                    }
-                    return Ok(PreparedStructuralArgument {
-                        selector_positions: Vec::new(),
-                        place: slot.place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    });
-                }
+            let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
+                return unsupported("computed constructor did not retain its structural value");
             };
             if argument.type_identity != parameter.type_identity
                 || argument.access != parameter.access
@@ -119,6 +59,22 @@ pub(super) fn lower(
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
+                if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
+                    let slot = produced_values.iter().find(|slot| {
+                        slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
+                    }).ok_or(LoweringError::Unsupported(
+                        "computed value has no reserved argument home",
+                    ))?;
+                    if !argument.path.is_empty() {
+                        return unsupported("computed value argument must retain its complete owner");
+                    }
+                    return Ok(PreparedStructuralArgument {
+                        selector_positions: Vec::new(),
+                        place: slot.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    });
+                }
                 return bindings
                     .owned_argument(argument)
                     .and_then(PreparedStructuralArgument::from_static);

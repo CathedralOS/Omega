@@ -63,7 +63,8 @@ pub(crate) struct Evaluation {
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
     pub(crate) subslices: Vec<crate::scalar_graph::scalar_computations::subslices::Slot>,
-    pub(crate) arrays: Vec<crate::scalar_graph::scalar_computations::arrays::Slot>,
+    pub(crate) produced_values:
+        Vec<crate::scalar_graph::scalar_computations::produced_values::Slot>,
     pub(crate) literals: Vec<crate::scalar_graph::scalar_computations::literals::Slot>,
     pub(crate) copies: Vec<crate::scalar_graph::scalar_computations::copies::Slot>,
     pub(crate) cases: Vec<crate::scalar_graph::scalar_computations::cases::Slot>,
@@ -134,7 +135,7 @@ impl Evaluation {
             structural_locals: self.structural_locals.clone(),
             view_locals: self.view_locals.clone(),
             element_views: self.element_views.clone(),
-            arrays: self.arrays.clone(),
+            produced_values: self.produced_values.clone(),
             literals: self.literals.clone(),
             copies: self.copies.clone(),
             subslices: self.subslices.clone(),
@@ -707,7 +708,7 @@ impl Evaluation {
             structural_locals: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
-            arrays: Vec::new(),
+            produced_values: Vec::new(),
             literals: Vec::new(),
             copies: Vec::new(),
             subslices: Vec::new(),
@@ -933,7 +934,7 @@ impl Evaluation {
             1,
         )
         .with_structural_types(&self.structural_types)
-        .with_arrays(&self.arrays)
+        .with_produced_values(&self.produced_values)
         .with_literals(&self.literals)
         .with_copies(&self.copies)
         .with_subslices(&self.subslices)
@@ -1083,7 +1084,7 @@ impl Evaluation {
             1,
         )
         .with_structural_types(&self.structural_types)
-        .with_arrays(&self.arrays)
+        .with_produced_values(&self.produced_values)
         .with_literals(&self.literals)
         .with_copies(&self.copies)
         .with_subslices(&self.subslices)

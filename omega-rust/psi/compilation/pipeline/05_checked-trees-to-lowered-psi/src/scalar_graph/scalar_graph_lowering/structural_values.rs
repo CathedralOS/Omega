@@ -1,6 +1,7 @@
 //! Structural construction participates in the scalar graph's evaluation order.
-//! Scalar fields use ordinary computation continuations in authored order;
-//! completed fields commit through the same record emitter as Unit bodies.
+//! Scalar fields use ordinary computation continuations in authored order.
+//! Completed aggregates reuse record, case and array emitters. Their shapes
+//! determine establishment, never a separate caller-specific evaluation path.
 //! Construction is independent of its destination: a local publishes the
 //! completed root, while an expression consumer observes and retires it.
 //! Nested owned records
@@ -21,8 +22,10 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+    LoweredScalarArrayConstruction, LoweredScalarBranchState, LoweredScalarBranchTerminator,
+    LoweredScalarEffect,
 };
 use checked_trees::{
     CheckedStructuralRecordFieldValue, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
@@ -61,7 +64,7 @@ impl Storage {
         Ok(storage)
     }
 
-    fn place(
+    pub(crate) fn place(
         &self,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
@@ -110,6 +113,10 @@ enum Step {
     },
     Record {
         construction: Construction,
+        prefix: Vec<QualifiedScalarType>,
+    },
+    Establish {
+        effect: LoweredScalarEffect,
         prefix: Vec<QualifiedScalarType>,
     },
     Zeroed {
@@ -243,7 +250,7 @@ pub(crate) fn prepare_value(
     if declarations.next().is_some() {
         return unsupported("record carrier is ambiguous");
     }
-    let mut place = preparation.record(value, reference)?;
+    let mut place = preparation.value(value, reference)?;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
     }
@@ -288,7 +295,7 @@ struct Preparation<'a> {
 }
 
 impl Preparation<'_> {
-    fn record(
+    fn value(
         &mut self,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
@@ -301,14 +308,8 @@ impl Preparation<'_> {
             .iter()
             .find(|declaration| declaration.identity == identity.as_str())
             .ok_or(LoweringError::Unsupported(
-                "scalar record has no structural type namespace",
+                "structural value has no structural type namespace",
             ))?;
-        let StructuralTypeShape::Record {
-            fields: declared_fields,
-        } = &declaration.shape
-        else {
-            return unsupported("scalar record has a nonrecord structural declaration");
-        };
         if let CheckedStructuralValueKind::Call { .. } = &node.kind {
             let mut producers = self.calls.iter().filter(|call| call.value == value);
             let producer = producers.next().ok_or(LoweringError::Unsupported(
@@ -368,7 +369,17 @@ impl Preparation<'_> {
                 StructuralMultiplicity::Unrestricted,
             );
         }
-        if let CheckedStructuralValueKind::ZeroedStructural {} = &node.kind {
+        if matches!(
+            &node.kind,
+            CheckedStructuralValueKind::ZeroedStructural {}
+                | CheckedStructuralValueKind::ZeroedScalarArray { .. }
+        ) {
+            if matches!(
+                &node.kind,
+                CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            ) {
+                computations::arrays::validate_layout(declaration.id, self.types)?;
+            }
             // A declared-only local establishes a zeroed whole shape: mint the
             // fresh home with no field operands, mirroring the Unit path's
             // EstablishZeroedStructural emission.
@@ -390,6 +401,122 @@ impl Preparation<'_> {
             });
             return Ok(place);
         }
+        if let CheckedStructuralValueKind::Case(subject) = &node.kind {
+            crate::expression_preparation::source_custody::case_sources::construction(
+                self.checked,
+                subject,
+            )?;
+            let source = validation::scalar_case_constructor(&self.checked.typed, node.expression)
+                .ok_or(LoweringError::Unsupported(
+                    "computed case lost its exact authored constructor",
+                ))?;
+            let place = self.reserved.place(value)?;
+            let slot = computations::cases::reserve(
+                self.checked,
+                node.expression,
+                &source,
+                self.types,
+                place,
+            )?;
+            if slot.structural_type != declaration.id {
+                return unsupported("computed case changed its expected carrier");
+            }
+            let fields =
+                crate::expression_preparation::computation_graph::fields(self.checked, subject)?;
+            if fields.len() != slot.fields.len()
+                || fields
+                    .iter()
+                    .zip(&slot.fields)
+                    .any(|(field, reserved)| field.symbol != reserved.symbol)
+            {
+                return unsupported("computed case field roster changed after reservation");
+            }
+            let mut completed = Vec::new();
+            for (ordinal, (field, reserved)) in fields.iter().zip(&slot.fields).enumerate() {
+                let result_type = computations::computation_value_type(
+                    self.checked,
+                    self.qualifications,
+                    field.value,
+                    self.bindings,
+                    &self.prefix,
+                )?;
+                if result_type.scalar_type != reserved.scalar_type {
+                    return unsupported("computed case field changed its scalar carrier");
+                }
+                completed.push(reserved.completed(LoweredDirectExpression::Parameter {
+                    position: self.prefix.len(),
+                    scalar_type: result_type.scalar_type,
+                }));
+                self.steps.push(Step::Scalar {
+                    role: CheckedScalarExpressionRole::StructuralValueField {
+                        expression: node.expression,
+                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("computed case field ordinal overflow")
+                        })?,
+                    },
+                    result_type,
+                    prefix: self.prefix.clone(),
+                });
+                self.prefix.push(result_type);
+            }
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishScalarCase(
+                    computations::cases::Construction {
+                        place,
+                        structural_type: slot.structural_type,
+                        multiplicity: slot.multiplicity,
+                        case: slot.case,
+                        fields: completed,
+                    },
+                ),
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        if let CheckedStructuralValueKind::ScalarArray { elements } = &node.kind {
+            computations::arrays::validate_layout(declaration.id, self.types)?;
+            let place = self.reserved.place(value)?;
+            let mut completed = Vec::with_capacity(elements.len());
+            for (ordinal, element) in elements.iter().enumerate() {
+                let result_type = computations::computation_value_type(
+                    self.checked,
+                    self.qualifications,
+                    *element,
+                    self.bindings,
+                    &self.prefix,
+                )?;
+                completed.push(LoweredDirectExpression::Parameter {
+                    position: self.prefix.len(),
+                    scalar_type: result_type.scalar_type,
+                });
+                self.steps.push(Step::Scalar {
+                    role: CheckedScalarExpressionRole::StructuralArrayElement {
+                        expression: node.expression,
+                        element_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("scalar array leaf ordinal overflow")
+                        })?,
+                    },
+                    result_type,
+                    prefix: self.prefix.clone(),
+                });
+                self.prefix.push(result_type);
+            }
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishScalarArray(LoweredScalarArrayConstruction {
+                    place,
+                    structural_type: declaration.id,
+                    elements: completed,
+                }),
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
+        let StructuralTypeShape::Record {
+            fields: declared_fields,
+        } = &declaration.shape
+        else {
+            return unsupported("scalar record has a nonrecord structural declaration");
+        };
         let CheckedStructuralValueKind::Record {
             data_symbol,
             fields,
@@ -489,7 +616,7 @@ impl Preparation<'_> {
                     }) {
                         return unsupported("nested record substituted its structural carrier");
                     }
-                    Field::Structural(self.record(child, field.type_reference)?)
+                    Field::Structural(self.value(child, field.type_reference)?)
                 }
             };
             initialized.push((position, (target.id, field_value)));
@@ -583,6 +710,7 @@ impl PreparedValue {
                 | Step::Value { prefix, .. }
                 | Step::Scalar { prefix, .. }
                 | Step::Record { prefix, .. }
+                | Step::Establish { prefix, .. }
                 | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
             })
@@ -678,6 +806,22 @@ impl PreparedValue {
                     result_type,
                     target,
                 )?,
+                Step::Establish { effect, prefix } => computations.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    parameter_types: prefix.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    structural_effects: vec![effect],
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        target,
+                        arguments: computations::parameters(&prefix),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }),
                 Step::Record {
                     construction,
                     prefix,

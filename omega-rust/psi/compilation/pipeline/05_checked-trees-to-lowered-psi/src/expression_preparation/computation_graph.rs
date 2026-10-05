@@ -211,6 +211,7 @@ fn collect_reachable_nodes(
                 pending.extend([*condition, *when_true, *when_false]);
             }
             CheckedScalarComputationKind::Call {
+                source_call,
                 arguments,
                 structural_arguments,
                 ..
@@ -221,10 +222,16 @@ fn collect_reachable_nodes(
                     .ok_or(LoweringError::Unsupported(
                     "scalar computation closure has invalid structural arguments",
                 ))?;
-                extend_elements(plans, structural_arguments, &mut pending)?;
                 for argument in structural_arguments {
                     if let Some(place) = argument.as_place() {
                         extend_range(place, &mut pending);
+                        if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
+                            let root = produced_value_root(checked, *source_call, place)?.root;
+                            if !structural_roots.contains(&root) {
+                                structural_roots.push(root);
+                            }
+                            pending.extend(structural_dependencies(checked, root)?.scalars);
+                        }
                     }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Case(
                         subject,
@@ -336,24 +343,64 @@ pub(crate) fn structural_dependencies(
     }
     Ok(StructuralDependencies { values, scalars })
 }
-pub(crate) fn extend_elements(
-    plans: &checked_trees::CheckedScalarComputationPlans,
-    arguments: &[CheckedScalarComputationStructuralArgument],
-    pending: &mut Vec<Computation>,
-) -> Result<(), LoweringError> {
-    for argument in arguments {
-        if let CheckedScalarComputationStructuralArgument::Array { elements, .. } = argument {
-            pending.extend(
-                plans
-                    .operands
-                    .span(*elements)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed array elements have a stale span",
-                    ))?,
-            );
-        }
+
+/// Join a fresh operand to the structural producer retained at this exact call
+/// site. Equal expressions or types in another state do not share storage.
+pub(crate) fn produced_value_root<'checked>(
+    checked: &'checked CheckedTrees,
+    source_call: arena::Handle<checked_trees::FlowCallFact>,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<&'checked checked_trees::CheckedStructuralValueRoot, LoweringError> {
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+        argument.source
+    else {
+        return unsupported("computed structural operand has no produced expression");
+    };
+    if argument.access != checked_trees::CheckedStructuralAccess::Owned || !argument.path.is_empty()
+    {
+        return unsupported("computed structural operand must consume its whole owned value");
     }
-    Ok(())
+    let control = &checked.facts.flow.control;
+    if !control.calls.is_valid(source_call) {
+        return unsupported("computed structural operand lost its checked invocation");
+    }
+    let call = control.calls.get(source_call);
+    let mut owners = control
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .filter(|state| {
+            control
+                .calls
+                .span_or_empty(state.calls)
+                .iter()
+                .any(|candidate| std::ptr::eq(candidate, call))
+        });
+    let state = owners.next().ok_or(LoweringError::Unsupported(
+        "computed structural operand has no invocation state",
+    ))?;
+    if owners.next().is_some() {
+        return unsupported("computed structural operand has ambiguous invocation ownership");
+    }
+    let statement = u32::try_from(call.statement_index).map_err(|_| {
+        LoweringError::Unsupported("computed structural operand statement exceeds u32")
+    })?;
+    let values = &checked.facts.values.structural_values;
+    let root = values
+        .root_for_expression(state.state_symbol, statement, expression)
+        .ok_or(LoweringError::Unsupported(
+            "computed structural operand lost its complete value root",
+        ))?;
+    if root.machine != state.machine_symbol
+        || !values.nodes.is_valid(root.root)
+        || checked
+            .normalized_type_identity(root.type_reference)
+            .as_str()
+            != argument.type_identity
+    {
+        return unsupported("computed structural operand disagrees with its retained value");
+    }
+    Ok(root)
 }
 
 pub(crate) fn fields<'a>(
@@ -378,9 +425,6 @@ pub(crate) fn operand_fields<'a>(
     match subject {
         CheckedScalarComputationStructuralArgument::Case(subject) => fields(checked, subject),
         CheckedScalarComputationStructuralArgument::Place(_) => Ok(&[]),
-        CheckedScalarComputationStructuralArgument::Array { .. } => {
-            unsupported("case membership cannot observe an array")
-        }
     }
 }
 

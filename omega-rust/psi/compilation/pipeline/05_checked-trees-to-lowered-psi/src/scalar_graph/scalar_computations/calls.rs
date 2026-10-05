@@ -6,15 +6,13 @@ use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
     Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
-    arrays, cases, literals, lower_scalar_call, parameter, storage, structural_arguments,
+    literals, lower_scalar_call, parameter, produced_values, storage, structural_arguments,
     subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarArrayConstruction, LoweredScalarBranchState, LoweredScalarBranchTerminator,
-    LoweredScalarEffect,
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use arena::HandleSpan;
 use checked_trees::CheckedScalarComputationStructuralArgument;
@@ -34,14 +32,9 @@ enum Operand {
         structural_ordinal: usize,
         value: Argument,
     },
-    Array {
-        slot: arrays::Slot,
-        leaves: Vec<Argument>,
-    },
-    Case {
-        slot: cases::Slot,
-        fields: Vec<Argument>,
-    },
+    /// Evaluation, not reservation, establishes this complete owned value.
+    /// Its producer is shared with local bindings and expression observations.
+    Produced(produced_values::Slot),
 }
 
 /// A `Call` computation operand rejoins its retained actual through the role
@@ -329,8 +322,7 @@ impl Expansion<'_> {
             site.state,
             structural,
             site.bindings,
-            &self.arrays,
-            &self.cases,
+            &self.produced_values,
             &self.subslices,
             &self.literals,
             self.structural_types,
@@ -371,58 +363,15 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed call is missing its structural actual",
                         ))?;
-                if let CheckedScalarComputationStructuralArgument::Array {
-                    expression,
-                    elements,
-                    ..
-                } = argument
+                if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
+                    && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
                 {
-                    let slot = self
-                        .arrays
-                        .iter()
-                        .find(|slot| slot.expression == *expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed array has no reserved structural result",
-                        ))?
-                        .clone();
-                    let leaves = plans
-                        .operands
-                        .span(*elements)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed array elements have a stale span",
-                        ))?
-                        .iter()
-                        .copied()
-                        .map(Argument::Computation)
-                        .collect();
-                    operands.push(Operand::Array { slot, leaves });
-                }
-                if let CheckedScalarComputationStructuralArgument::Case(subject) = argument {
-                    let slot = self
-                        .cases
-                        .iter()
-                        .find(|slot| slot.expression == subject.expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed case has no reserved structural result",
-                        ))?
-                        .clone();
-                    let retained = crate::expression_preparation::computation_graph::fields(
-                        self.checked,
-                        subject,
-                    )?;
-                    if retained.len() != slot.fields.len()
-                        || retained
-                            .iter()
-                            .zip(&slot.fields)
-                            .any(|(field, reserved)| field.symbol != reserved.symbol)
-                    {
-                        return unsupported("computed case field roster changed after reservation");
-                    }
-                    let fields = retained
-                        .iter()
-                        .map(|field| Argument::Computation(field.value))
-                        .collect();
-                    operands.push(Operand::Case { slot, fields });
+                    let slot = self.produced_values.iter().find(|slot| {
+                        slot.source_call == source_call && slot.argument_ordinal == structural_ordinal
+                    }).ok_or(LoweringError::Unsupported(
+                        "computed value has no reserved argument home",
+                    ))?;
+                    operands.push(Operand::Produced(slot.clone()));
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
                     && let Some(range) = subslices::range(argument)
@@ -467,7 +416,8 @@ impl Expansion<'_> {
                 }
                 if matches!(
                     argument,
-                    CheckedScalarComputationStructuralArgument::Place(_)
+                    CheckedScalarComputationStructuralArgument::Place(argument)
+                        if !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
                 ) && parameter.access == checked_trees::CheckedStructuralAccess::Owned
                     && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted
                 {
@@ -638,79 +588,32 @@ impl Expansion<'_> {
                         structural_arguments: Vec::new(),
                     },
                 }),
-                Operand::Array { slot, leaves } => {
-                    let mut leaf_types = prefix.clone();
-                    for leaf in leaves {
-                        leaf_types.push(self.argument_type(leaf, site, input_types)?);
+                Operand::Produced(slot) => {
+                    let values = &self.checked.facts.values.structural_values;
+                    let prepared = crate::scalar_graph::scalar_graph_lowering::structural_values::prepare_value(
+                        self.checked,
+                        self.qualifications,
+                        site.state,
+                        site.statement,
+                        slot.root,
+                        values.calls_for_root(slot.root).unwrap_or(&[]),
+                        slot.type_reference,
+                        site.bindings,
+                        prefix,
+                        self.structural_types,
+                        &slot.storage,
+                    )?;
+                    if prepared.place != slot.place
+                        || prepared.structural_type != slot.structural_type
+                    {
+                        return unsupported(
+                            "computed value did not establish its reserved argument",
+                        );
                     }
-                    let constructor = self.push(LoweredScalarBranchState {
-                        structural_parameters: Vec::new(),
-                        parameter_types: leaf_types.clone(),
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(
-                            LoweredScalarArrayConstruction {
-                                place: slot.place,
-                                structural_type: slot.structural_type,
-                                elements: parameters_for_actuals(&leaf_types, prefix.len()),
-                            },
-                        )],
-                        terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
-                            target: continuation,
-                            arguments: super::parameters(prefix),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        },
-                    });
-                    self.sequence(leaves, prefix, constructor, site, active)?
-                }
-                Operand::Case { slot, fields } => {
-                    let mut field_types = prefix.clone();
-                    let mut completed_fields = Vec::new();
-                    for (field, reserved) in fields.iter().zip(&slot.fields) {
-                        let qualified_type = self.argument_type(field, site, input_types)?;
-                        completed_fields
-                            .push(reserved.completed(parameter(field_types.len(), qualified_type)));
-                        field_types.push(qualified_type);
-                    }
-                    let constructor = self.push(LoweredScalarBranchState {
-                        parameter_types: field_types,
-                        erased_formal_types: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        structural_parameters: Vec::new(),
-                        bindings: Vec::new(),
-                        structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
-                            cases::Construction {
-                                place: slot.place,
-                                structural_type: slot.structural_type,
-                                multiplicity: slot.multiplicity,
-                                case: slot.case,
-                                fields: completed_fields,
-                            },
-                        )],
-                        terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
-                            target: continuation,
-                            arguments: super::parameters(prefix),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        },
-                    });
-                    self.sequence(fields, prefix, constructor, site, active)?
+                    prepared.finish(site.state, site.bindings, prefix, continuation, self)?
                 }
             };
         }
         Ok(continuation)
     }
-}
-
-fn parameters_for_actuals(
-    types: &[QualifiedScalarType],
-    prefix: usize,
-) -> Vec<LoweredDirectExpression> {
-    super::parameters(types).into_iter().skip(prefix).collect()
 }

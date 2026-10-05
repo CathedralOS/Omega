@@ -708,9 +708,6 @@ fn computation_contains_trapping_operation(
                     .iter()
                     .map(|field| field.value),
             ),
-            Argument::Array { elements, .. } => {
-                pending.extend(plans.operands.span_or_empty(*elements).iter().copied())
-            }
         }
         false
     }

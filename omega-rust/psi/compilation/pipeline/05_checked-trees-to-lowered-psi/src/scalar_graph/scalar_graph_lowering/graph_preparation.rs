@@ -193,7 +193,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .then_some(states.len());
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
-    let arrays = computations::arrays::prepare(checked, &[machine], structural_types, next_place)?;
+    let produced_values =
+        computations::produced_values::prepare(checked, &[machine], structural_types, next_place)?;
     let subslices =
         computations::subslices::prepare(checked, &[machine], structural_types, next_place)?;
     let cases = computations::cases::prepare(checked, &[machine], structural_types, next_place)?;
@@ -203,7 +204,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let mut computations =
         computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
             .with_structural_types(structural_types)
-            .with_arrays(&arrays)
+            .with_produced_values(&produced_values)
             .with_subslices(&subslices)
             .with_cases(&cases)
             .with_literals(&literals)

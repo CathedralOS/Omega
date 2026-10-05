@@ -44,9 +44,7 @@ pub(in crate::execution) fn collect(
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
                 CheckedScalarComputationKind::CaseMembership {
-                    subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                        | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                    subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
                     ..
                 } => {}
                 CheckedScalarComputationKind::CaseMembership {
@@ -111,13 +109,6 @@ pub(in crate::execution) fn collect(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument,
                             ) => argument,
-                            checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                                elements,
-                                ..
-                            } => {
-                                pending.extend_from_slice(computations.operands.span(*elements)?);
-                                continue;
-                            }
                         };
                         let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
                             argument.source

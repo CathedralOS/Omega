@@ -1,9 +1,9 @@
 //! Expand checked expression evaluation into private typed blocks.
 //!
 //! Source values remain the input prefix. Completed scalar operands extend that
-//! prefix; array constructors establish separate places at their authored formal
+//! prefix; structural producers establish separate places at their authored formal
 //! positions. Selection converges with one scalar result, without hoisting the
-//! selected path's structural effects. The calls and arrays modules own that
+//! selected path's structural effects. The calls and structural value modules own that
 //! mixed schedule and its real structural results. A boundary application
 //! nested under another operand (`a * b + c`) runs through `boundary_calls`:
 //! its operands complete first, then its one exact `BoundaryCall` binds the
@@ -40,6 +40,7 @@ mod erased_scope;
 pub(crate) mod fields;
 pub(crate) mod literals;
 pub(crate) mod operand_types;
+pub(crate) mod produced_values;
 mod selection;
 mod source_custody;
 mod structural_arguments;
@@ -74,7 +75,7 @@ pub(crate) struct Expansion<'a> {
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
     calls: Vec<SourceCallCoordinate>,
-    arrays: Vec<arrays::Slot>,
+    produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
     literals: Vec<literals::Slot>,
     copies: Vec<copies::Slot>,
@@ -100,7 +101,7 @@ impl<'a> Expansion<'a> {
             erased_proof_formals: Vec::new(),
             states: Vec::new(),
             calls: Vec::new(),
-            arrays: Vec::new(),
+            produced_values: Vec::new(),
             subslices: Vec::new(),
             literals: Vec::new(),
             copies: Vec::new(),
@@ -166,8 +167,11 @@ impl<'a> Expansion<'a> {
         self
     }
 
-    pub(crate) fn with_arrays(mut self, arrays: &[arrays::Slot]) -> Self {
-        self.arrays = arrays.to_vec();
+    pub(crate) fn with_produced_values(
+        mut self,
+        produced_values: &[produced_values::Slot],
+    ) -> Self {
+        self.produced_values = produced_values.to_vec();
         self
     }
 

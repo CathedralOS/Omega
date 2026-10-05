@@ -15,6 +15,7 @@ pub(super) fn validate(
     program: &TypedTrees,
     ownership: &FlowOwnershipFacts,
     computations: &CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
     machine: SymbolHandle,
     state: &State,
     parameters: &[CheckedUnitStructuralParameterPlan],
@@ -47,9 +48,7 @@ pub(super) fn validate(
             visited.push(handle);
             match &computations.nodes.get(handle).kind {
                 CheckedScalarComputationKind::CaseMembership {
-                    subject:
-                        checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                        | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
+                    subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
                     ..
                 } => {}
                 CheckedScalarComputationKind::CaseMembership {
@@ -129,15 +128,33 @@ pub(super) fn validate(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
                                 argument,
                             ) => argument,
-                            checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                                elements,
-                                ..
-                            } => {
-                                pending.extend_from_slice(computations.operands.span(*elements)?);
-                                continue;
-                            }
                         };
                         if argument.access != CheckedStructuralAccess::Owned {
+                            continue;
+                        }
+                        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            expression,
+                        } = argument.source
+                        {
+                            let value = structural_values.root_for_expression(
+                                state.symbol,
+                                root.statement_ordinal,
+                                expression,
+                            )?;
+                            if value.machine != machine
+                                || !structural_values.nodes.is_valid(value.root)
+                                || structural_values.nodes.get(value.root).expression != expression
+                                || program.normalized_type_identity(value.type_reference).as_str()
+                                    != argument.type_identity
+                                || !argument.path.is_empty()
+                            {
+                                return None;
+                            }
+                            // A produced value is not an ingress parameter.
+                            // Its scalar children own separate computation
+                            // roots. Any embedded affine parameter transfer
+                            // must still match the event ledger below; this
+                            // classification grants no missing move receipt.
                             continue;
                         }
                         let parameter =

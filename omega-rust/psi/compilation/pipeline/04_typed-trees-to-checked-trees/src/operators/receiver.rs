@@ -227,6 +227,12 @@ fn expression_type_reference_in_state(
                 )
             }),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
+        // Construction denotes its resolved nominal type, independently of
+        // its fields and the destination of an enclosing operation. Retain
+        // that identity exactly as a named value of the same type would.
+        ExpressionNode::StructLiteral(literal) => program
+            .type_reference_table
+            .find_named_type_reference(literal.type_symbol),
         ExpressionNode::ArrayLiteral(_) => {
             validation::declared_constant_array_type(program, expression)
         }
@@ -234,7 +240,6 @@ fn expression_type_reference_in_state(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Unary(_) => None,
     }
 }

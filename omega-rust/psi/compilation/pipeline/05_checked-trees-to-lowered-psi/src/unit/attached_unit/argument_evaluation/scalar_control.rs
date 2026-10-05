@@ -511,7 +511,7 @@ impl Evaluation {
             1,
         )
         .with_structural_types(&self.structural_types)
-        .with_arrays(&self.arrays)
+        .with_produced_values(&self.produced_values)
         .with_literals(&self.literals)
         .with_copies(&self.copies)
         .with_subslices(&self.subslices)

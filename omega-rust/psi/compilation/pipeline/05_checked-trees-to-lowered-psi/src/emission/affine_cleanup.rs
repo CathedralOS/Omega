@@ -1,8 +1,9 @@
 //! Complete no-code affine carrier custody after a body's operation graph exists.
 //!
 //! Callers supply only entry owners whose cleanup they delegate here. Existing
-//! statement cleanup remains authoritative; otherwise unhandled view and
-//! reference carriers enter at their result birth and are disposed before their owners.
+//! statement cleanup supplies no-code disposal authority. Whole transfers join
+//! that disposal with the actual path frontier; otherwise unhandled view and
+//! reference carriers enter at their result birth and die before their owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
@@ -53,20 +54,67 @@ fn complete_carriers(
                 .then_some(parameter.place)
         })
         .collect::<Vec<_>>();
-    // Existing statement emitters own every cleanup they already scheduled.
-    // Discover unhandled carrier results by declared storage semantics, never by
-    // the operation spelling which happened to create the descriptor.
+    // An existing no-code disposal authorizes cleanup, but does not prove that
+    // its source remains live after a selected expression transfers it. Join
+    // those exact whole-owner transfers with the existing carrier flow. Partial
+    // transfers retain their separate residual-disposal owner below.
     let scheduled = blocks
         .iter()
         .flat_map(|block| scheduled_discards(&block.terminator))
         .collect::<Vec<_>>();
+    let mut whole_transfers = Vec::new();
+    let mut partial_transfers = Vec::new();
+    for block in blocks.iter() {
+        let operands = block
+            .operations
+            .iter()
+            .flat_map(|operation| projected_transfers::operands(&operation.kind))
+            .chain(match &block.terminator {
+                Terminator::Jump {
+                    structural_arguments,
+                    ..
+                } => structural_arguments.iter().collect::<Vec<_>>(),
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => when_true
+                    .structural_arguments
+                    .iter()
+                    .chain(&when_false.structural_arguments)
+                    .collect(),
+                _ => Vec::new(),
+            });
+        for argument in operands {
+            if argument.access != StructuralAccess::Owned {
+                continue;
+            }
+            if argument.path.is_empty() {
+                whole_transfers.push(argument.place);
+            } else {
+                partial_transfers.push(argument.place);
+            }
+        }
+        for operation in &block.operations {
+            if let terminal_psi::OperationKind::ReleaseReference { source, path } = &operation.kind
+            {
+                if path.is_empty() {
+                    whole_transfers.push(*source);
+                } else {
+                    partial_transfers.push(*source);
+                }
+            }
+        }
+        if let Terminator::ReturnStructural { source, .. } = &block.terminator {
+            whole_transfers.push(*source);
+        }
+    }
     let births = blocks
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
             let result = operation.result.structural()?;
             if result.multiplicity != StructuralMultiplicity::Affine
-                || scheduled.contains(&result.place)
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -78,13 +126,16 @@ fn complete_carriers(
                 .iter()
                 .filter(|declaration| declaration.id == result.structural_type);
             let declaration = declarations.next()?;
-            if declarations.next().is_some()
-                || !(matches!(
+            let scheduled_transfer = scheduled.contains(&result.place)
+                && whole_transfers.contains(&result.place)
+                && !partial_transfers.contains(&result.place);
+            let unscheduled_carrier = !scheduled.contains(&result.place)
+                && (matches!(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::ElementView { .. }
                         | terminal_psi::StructuralTypeShape::Reference { .. }
-                ) || declaration.shape.is_borrowed_byte_view())
-            {
+                ) || declaration.shape.is_borrowed_byte_view());
+            if declarations.next().is_some() || !(scheduled_transfer || unscheduled_carrier) {
                 return None;
             }
             Some((result.place, operation.id))
@@ -92,6 +143,25 @@ fn complete_carriers(
         .collect::<Vec<_>>();
     let mut managed = affine.clone();
     managed.extend(births.iter().map(|(place, _)| *place));
+    // A prior owned move can give a source local a block-parameter home.
+    // Its exact incoming edge is its birth, just as an operation owns a
+    // constructed result's birth; neither home changes disposal semantics.
+    managed.extend(
+        blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+            .filter(|parameter| {
+                parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+                    && !affine.contains(&parameter.place)
+                    && scheduled.contains(&parameter.place)
+                    && whole_transfers.contains(&parameter.place)
+                    && !partial_transfers.contains(&parameter.place)
+            })
+            .map(|parameter| parameter.place),
+    );
     if managed.is_empty() {
         return Ok(());
     }
@@ -114,7 +184,7 @@ fn complete_carriers(
             && block
                 .structural_parameters
                 .iter()
-                .any(|parameter| managed.contains(&parameter.place))
+                .any(|parameter| affine.contains(&parameter.place))
         {
             return unsupported(
                 "scalar graph owned block parameters require exact forwarding custody",
@@ -129,9 +199,11 @@ fn complete_carriers(
                 ..
             } => {
                 if (structural_arguments.iter().any(|argument| {
-                    managed.contains(&argument.place) && argument.access == StructuralAccess::Owned
+                    affine.contains(&argument.place) && argument.access == StructuralAccess::Owned
                 }) && !(reentered && *target == entry))
-                    || !residual_affine_discards.is_empty()
+                    || residual_affine_discards
+                        .iter()
+                        .any(|discard| managed.contains(&discard.place))
                     || trivial_affine_discards
                         .iter()
                         .any(|place| affine.contains(place))
@@ -154,7 +226,7 @@ fn complete_carriers(
             } => {
                 if [when_true, when_false].iter().any(|edge| {
                     edge.structural_arguments.iter().any(|argument| {
-                        managed.contains(&argument.place)
+                        affine.contains(&argument.place)
                             && argument.access == StructuralAccess::Owned
                     }) || edge
                         .trivial_affine_discards
@@ -186,10 +258,9 @@ fn complete_carriers(
             }
             | Terminator::ReturnStructural {
                 cleanup_actions, ..
-            } if cleanup_actions.iter().all(|action| {
-                matches!(action,
-                    TerminalAffineCleanupAction::DiscardRoot(place) if !affine.contains(place)
-                )
+            } if cleanup_actions.iter().all(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => !affine.contains(place),
+                _ => !managed.contains(&action.place()),
             }) =>
             {
                 Vec::new()
@@ -236,7 +307,11 @@ fn complete_carriers(
             "cyclic owned scalar graphs require exact structural forwarding custody",
         );
     }
-    let custody_flow::Frontiers { entries, exits } = custody_flow::solve(
+    let custody_flow::Frontiers {
+        entries,
+        exits,
+        outgoing,
+    } = custody_flow::solve(
         blocks,
         entry_position,
         &affine,
@@ -259,9 +334,27 @@ fn complete_carriers(
                 .map(|result| (result.place, operation.id))
         })
         .collect::<Vec<_>>();
+    let dominators =
+        crate::emission::control_flow::block_dominators(Some(entry_position), &successors);
+    let mut parameter_blocks = blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| !block.structural_parameters.is_empty())
+        .collect::<Vec<_>>();
+    parameter_blocks.sort_by_key(|(position, _)| dominators[*position].len());
+    let parameter_order = parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .chain(
+            parameter_blocks
+                .iter()
+                .flat_map(|(_, block)| &block.structural_parameters)
+                .map(|parameter| parameter.place),
+        )
+        .collect::<Vec<_>>();
     for (position, block) in blocks.iter_mut().enumerate() {
-        let discards = |target_position: usize| {
-            exits[position]
+        let discards = |edge_position: usize, target_position: usize| {
+            outgoing[position][edge_position]
                 .iter()
                 .copied()
                 .filter(|place| !entries[target_position].contains(place))
@@ -297,12 +390,20 @@ fn complete_carriers(
                             remaining.remove(position);
                         }
                     }
-                    merge_discards(trivial_affine_discards, remaining, &producers);
-                } else {
-                    merge_discards(
+                    replace_managed_discards(
                         trivial_affine_discards,
-                        discards(successors[position][0]),
+                        remaining,
+                        &managed,
                         &producers,
+                        &parameter_order,
+                    );
+                } else {
+                    replace_managed_discards(
+                        trivial_affine_discards,
+                        discards(0, successors[position][0]),
+                        &managed,
+                        &producers,
+                        &parameter_order,
                     );
                 }
             }
@@ -311,23 +412,31 @@ fn complete_carriers(
                 when_false,
                 ..
             } => {
-                merge_discards(
+                replace_managed_discards(
                     &mut when_true.trivial_affine_discards,
-                    discards(successors[position][0]),
+                    discards(0, successors[position][0]),
+                    &managed,
                     &producers,
+                    &parameter_order,
                 );
-                merge_discards(
+                replace_managed_discards(
                     &mut when_false.trivial_affine_discards,
-                    discards(successors[position][1]),
+                    discards(1, successors[position][1]),
+                    &managed,
                     &producers,
+                    &parameter_order,
                 );
             }
             Terminator::StructuralCase { cases, .. } => {
-                for (edge, successor) in cases.iter_mut().zip(&successors[position]) {
-                    merge_discards(
+                for (edge_position, (edge, successor)) in
+                    cases.iter_mut().zip(&successors[position]).enumerate()
+                {
+                    replace_managed_discards(
                         &mut edge.trivial_affine_discards,
-                        discards(*successor),
+                        discards(edge_position, *successor),
+                        &managed,
                         &producers,
+                        &parameter_order,
                     );
                 }
             }
@@ -339,7 +448,13 @@ fn complete_carriers(
                 trivial_affine_discards,
                 ..
             } => {
-                merge_discards(trivial_affine_discards, exits[position].clone(), &producers);
+                replace_managed_discards(
+                    trivial_affine_discards,
+                    exits[position].clone(),
+                    &managed,
+                    &producers,
+                    &parameter_order,
+                );
             }
             Terminator::Return {
                 cleanup_actions, ..
@@ -347,23 +462,40 @@ fn complete_carriers(
             | Terminator::ReturnStructural {
                 cleanup_actions, ..
             } => {
-                let mut places = cleanup_actions
-                    .iter()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => *place,
-                        _ => unreachable!("cleanup shape checked above"),
-                    })
-                    .collect();
-                merge_discards(&mut places, exits[position].clone(), &producers);
-                *cleanup_actions = places
-                    .into_iter()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .collect();
+                cleanup_actions.retain(|action| !managed.contains(&action.place()));
+                for place in &exits[position] {
+                    let insertion = disposal_position(
+                        cleanup_actions
+                            .iter()
+                            .map(TerminalAffineCleanupAction::place),
+                        *place,
+                        &producers,
+                        &parameter_order,
+                    );
+                    cleanup_actions
+                        .insert(insertion, TerminalAffineCleanupAction::DiscardRoot(*place));
+                }
             }
             _ => {}
         }
     }
     Ok(())
+}
+
+/// Recompute only the disposal this invocation owns. Unrelated statement,
+/// residual, claim-bearing and nominal obligations keep their existing owner.
+fn replace_managed_discards(
+    existing: &mut Vec<semantic_vocabulary::PlaceId>,
+    additions: Vec<semantic_vocabulary::PlaceId>,
+    managed: &[semantic_vocabulary::PlaceId],
+    producers: &[(
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::OperationId,
+    )],
+    parameter_order: &[semantic_vocabulary::PlaceId],
+) {
+    existing.retain(|place| !managed.contains(place));
+    merge_discards(existing, additions, producers, parameter_order);
 }
 
 fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {
@@ -389,25 +521,50 @@ fn merge_discards(
         semantic_vocabulary::PlaceId,
         semantic_vocabulary::OperationId,
     )],
+    parameter_order: &[semantic_vocabulary::PlaceId],
 ) {
+    for place in additions {
+        let insertion =
+            disposal_position(existing.iter().copied(), place, producers, parameter_order);
+        existing.insert(insertion, place);
+    }
+}
+
+fn disposal_position(
+    existing: impl Iterator<Item = semantic_vocabulary::PlaceId>,
+    place: semantic_vocabulary::PlaceId,
+    producers: &[(
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::OperationId,
+    )],
+    parameter_order: &[semantic_vocabulary::PlaceId],
+) -> usize {
     let producer = |place| {
         producers
             .iter()
             .find_map(|(candidate, operation)| (*candidate == place).then_some(*operation))
     };
-    for place in additions {
-        if let Some(birth) = producer(place) {
-            let position = existing
-                .iter()
-                .position(|current| {
-                    producer(*current).is_none_or(|current_birth| current_birth < birth)
-                })
-                .unwrap_or(existing.len());
-            existing.insert(position, place);
-        } else {
-            existing.push(place);
+    let birth = producer(place);
+    let parameter_position = parameter_order
+        .iter()
+        .rposition(|candidate| *candidate == place);
+    let mut length = 0;
+    for (position, current) in existing.enumerate() {
+        if birth.is_some_and(|birth| {
+            producer(current).is_none_or(|current_birth| current_birth < birth)
+        }) || (birth.is_none()
+            && parameter_position.is_some_and(|parameter_position| {
+                parameter_order
+                    .iter()
+                    .rposition(|candidate| *candidate == current)
+                    .is_some_and(|current_position| current_position < parameter_position)
+            }))
+        {
+            return position;
         }
+        length = position + 1;
     }
+    length
 }
 
 fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::PlaceId> {

@@ -707,55 +707,6 @@ pub(super) fn argument(
                 }
             }
         }
-        facts::PlaceRoot::Expression(source)
-            if unrestricted
-                && validation::is_closed_primitive_array_type(
-                    program,
-                    parameter.type_reference,
-                )
-                && source == value_expression
-                // A copied array is an ordinary retained structural value,
-                // not an element-by-element literal construction. Its exact
-                // copied-place root is rejoined by the following arm.
-                && facts.values.structural_values.root_for_expression(
-                    state,
-                    u32::try_from(call.statement_index).ok()?,
-                    source,
-                ).is_none()
-                && !matches!(
-                    program.expression_table.expression(source),
-                    ExpressionNode::Call(_)
-                ) =>
-        {
-            if usize::try_from(result.statement_index).ok()? != call.statement_index {
-                return None;
-            }
-            let source_machine = crate::lookup::machine_by_symbol(program, machine)?;
-            let source_state = crate::semantic::calls::find_state(program, state)?;
-            let parameter_position =
-                crate::semantic::calls::call_target_parameters(program, call.target_symbol)?
-                    .iter()
-                    .position(|candidate| candidate.symbol == parameter.symbol)?;
-            let expected = checked_trees::CheckedArrayConstructionSource::CallArgument {
-                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                parameter_position: u32::try_from(parameter_position).ok()?,
-            };
-            if !crate::values::call_array_constructions(
-                program,
-                &facts.flow,
-                source_machine,
-                source_state,
-                call.statement_index,
-            )
-            .iter()
-            .any(|array| {
-                array.source == expected
-                    && array.expression == source
-                    && array.type_reference == parameter.type_reference
-            }) {
-                return None;
-            }
-        }
         // A construction or copied place is established as a
         // state-local value at the consuming statement itself; the binding
         // replays like an anonymous result but carries no producer call.
@@ -775,6 +726,21 @@ pub(super) fn argument(
                 u32::try_from(call.statement_index).ok()?,
                 source,
             )?;
+            if root.machine != machine
+                || !facts.values.structural_values.nodes.is_valid(root.root)
+                || facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(root.root)
+                    .expression
+                    != source
+                || program.type_multiplicity(root.type_reference) != result.multiplicity
+                || program.normalized_type_identity(root.type_reference)
+                    != program.normalized_type_identity(formal_type)
+            {
+                return None;
+            }
             // Copy custody preserves the exact qualified source/formal type.
             // Its result names storage, whose byte-carrier identity omits the
             // qualification shell; comparing that shell to storage rejects
@@ -793,16 +759,7 @@ pub(super) fn argument(
                     .as_str()
                     == result.type_identity
             };
-            if root.machine != machine
-                || !matches!(
-                    facts.values.structural_values.nodes.get(root.root).kind,
-                    checked_trees::CheckedStructuralValueKind::Case(_)
-                        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                        | checked_trees::CheckedStructuralValueKind::Record { .. }
-                        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-                )
-                || !identity_matches
-            {
+            if !identity_matches {
                 return None;
             }
         }

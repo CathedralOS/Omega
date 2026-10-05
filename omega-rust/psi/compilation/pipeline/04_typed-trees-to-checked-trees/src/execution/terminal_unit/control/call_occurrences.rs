@@ -391,6 +391,16 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
             }
         }
+        collect_constructor_calls(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            statement,
+            calls,
+            &mut consumed,
+        )?;
         if control_prefix.is_some_and(|prefix| statement_index >= prefix) {
             for (_, root) in facts
                 .values
@@ -493,16 +503,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 &mut consumed,
             )?;
         }
-        collect_constructor_calls(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            statement,
-            calls,
-            &mut consumed,
-        )?;
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
@@ -835,7 +835,6 @@ fn collect_constructor_calls(
     calls: &[checked_trees::FlowCallFact],
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
-    let owner = crate::lookup::machine_by_symbol(program, machine)?;
     let construction_destination = match statement {
         StatementNode::LocalData(local) if !local.is_mutable => {
             Some((local.initial_value, local.type_reference))
@@ -887,18 +886,7 @@ fn collect_constructor_calls(
                 expression,
                 expected,
             )
-        })
-        .chain(
-            crate::values::call_array_constructions(
-                program,
-                &facts.flow,
-                owner,
-                state,
-                statement_index,
-            )
-            .into_iter()
-            .map(|array| (array.source, array.expression, array.type_reference)),
-        );
+        });
     for (source, expression, expected) in constructions {
         let Some(elements) =
             validation::scalar_array_elements(program, machine, expression, expected)
@@ -1371,6 +1359,27 @@ fn collect_structural_argument_calls(
     active: &mut Vec<CheckedScalarComputationHandle>,
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+        expression,
+    } = argument.source
+    {
+        let values = &facts.values.structural_values;
+        let root = values.root_for_expression(state, u32::try_from(statement).ok()?, expression)?;
+        if !values.nodes.is_valid(root.root)
+            || values.nodes.get(root.root).expression != expression
+            || program
+                .normalized_type_identity(root.type_reference)
+                .as_str()
+                != argument.type_identity
+            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+            || !argument.path.is_empty()
+        {
+            return None;
+        }
+        // Constructor fields already own their scalar computation roots in
+        // collect_constructor_calls. Following them again here would count
+        // one authored invocation twice; this edge only rejoins its value.
+    }
     for operand in argument.scalar_operands() {
         if let checked_trees::CheckedCallScalarArgument::Computation(handle) = operand {
             collect(
@@ -1423,10 +1432,6 @@ fn collect(
                 consumed,
             )?;
         }
-        CheckedScalarComputationKind::CaseMembership {
-            subject: checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
-            ..
-        } => {}
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
             ..
@@ -1637,25 +1642,6 @@ fn collect(
                             state,
                             statement,
                             field.value,
-                            calls,
-                            minimum_call_ordinal,
-                            active,
-                            consumed,
-                        )?;
-                    }
-                }
-                if let checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                    elements,
-                    ..
-                } = argument
-                {
-                    for element in plans.operands.span(*elements)? {
-                        collect(
-                            program,
-                            facts,
-                            state,
-                            statement,
-                            *element,
                             calls,
                             minimum_call_ordinal,
                             active,

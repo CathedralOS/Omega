@@ -53,7 +53,8 @@ pub(crate) fn prepare(
             ))?;
         if !arguments.iter().any(|argument| {
             matches!(argument, CheckedScalarComputationStructuralArgument::Place(argument)
-                if argument.access == CheckedStructuralAccess::Owned)
+                if argument.access == CheckedStructuralAccess::Owned
+                    && !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }))
         }) {
             continue;
         }
@@ -71,7 +72,12 @@ pub(crate) fn prepare(
             let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 continue;
             };
-            if argument.access != CheckedStructuralAccess::Owned {
+            if argument.access != CheckedStructuralAccess::Owned
+                || matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+                )
+            {
                 continue;
             }
             if parameter.multiplicity != Multiplicity::Unrestricted {

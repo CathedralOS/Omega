@@ -24,7 +24,6 @@ use crate::execution::terminal_unit::control::call_results::checked_structural_r
 
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),
-    Array(crate::values::CallArrayConstruction),
     /// A construction or copied place retained by the checker as a
     /// structural value rooted at the authored argument expression. The statement
     /// sequence establishes it as a state-local operand before the
@@ -48,9 +47,12 @@ fn evaluated_value_root<'a>(
     argument: typed_trees::expression::ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
-    if program
-        .primitive_type_reference(parameter.type_reference)
-        .is_some()
+    if parameter.is_const
+        || parameter.relevance.is_erased()
+        || crate::execution::terminal_unit::types::is_reference(program, parameter.type_reference)
+        || program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
     {
         return None;
     }
@@ -62,14 +64,24 @@ fn evaluated_value_root<'a>(
     if root.machine != machine
         || program.normalized_type_identity(root.type_reference)
             != program.normalized_type_identity(parameter.type_reference)
-        || !matches!(
-            facts.values.structural_values.nodes.get(root.root).kind,
-            checked_trees::CheckedStructuralValueKind::Case(_)
-                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                | checked_trees::CheckedStructuralValueKind::Record { .. }
-                | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-        )
+        || !facts.values.structural_values.nodes.is_valid(root.root)
+        || facts
+            .values
+            .structural_values
+            .nodes
+            .get(root.root)
+            .expression
+            != argument
     {
+        return None;
+    }
+    // A call already owns a producer operation and result binding. Retaining
+    // its value for computed consumers does not turn that operation into an
+    // aggregate establishment; collect it through the ordinary call route.
+    if matches!(
+        facts.values.structural_values.nodes.get(root.root).kind,
+        checked_trees::CheckedStructuralValueKind::Call { .. }
+    ) {
         return None;
     }
     Some(root)
@@ -316,7 +328,7 @@ pub(in crate::execution::terminal_unit) fn for_call<'a>(
             .into_iter()
             .filter_map(|operand| match operand {
                 Operand::Call(call) => Some(call),
-                Operand::Array(_) | Operand::Value { .. } => None,
+                Operand::Value { .. } => None,
             })
             .collect(),
     )
@@ -331,13 +343,6 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
 ) -> Option<Vec<Operand<'a>>> {
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
-    let arrays = crate::values::call_array_constructions(
-        program,
-        &facts.flow,
-        machine,
-        state,
-        call.statement_index,
-    );
     let has_value_operands = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
@@ -371,8 +376,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
                 })
     })
     .unwrap_or(false);
-    if arrays.is_empty()
-        && !has_value_operands
+    if !has_value_operands
         && !calls.iter().any(|nested| {
             nested.statement_index == call.statement_index
                 && nested.call_ordinal != 0
@@ -396,7 +400,6 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         machine,
         state,
         calls,
-        &arrays,
         call,
         &mut Vec::new(),
         &mut output,
@@ -410,7 +413,6 @@ fn collect<'a>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     calls: &'a [checked_trees::FlowCallFact],
-    arrays: &[crate::values::CallArrayConstruction],
     call: &checked_trees::FlowCallFact,
     active: &mut Vec<typed_trees::expression::ExpressionHandle>,
     output: &mut Vec<Operand<'a>>,
@@ -439,18 +441,6 @@ fn collect<'a>(
             call_ordinal: u32::try_from(call.call_ordinal).ok()?,
             parameter_position: u32::try_from(*position).ok()?,
         };
-        if let Some(array) = arrays.iter().find(|array| array.source == source) {
-            if array.expression != *argument
-                || array.type_reference != parameter.type_reference
-                || output.iter().any(
-                    |operand| matches!(operand, Operand::Array(prior) if prior.source == source),
-                )
-            {
-                return None;
-            }
-            output.push(Operand::Array(*array));
-            continue;
-        }
         if let Some(root) = evaluated_value_root(
             program,
             facts,
@@ -521,7 +511,7 @@ fn collect<'a>(
         }
         active.push(expression);
         collect(
-            program, facts, machine, state, calls, arrays, nested, active, output,
+            program, facts, machine, state, calls, nested, active, output,
         )?;
         active.pop();
         output.push(Operand::Call(nested));
@@ -694,41 +684,6 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
     let binders = machine_binders(program, machine);
     for operand in operations_for_call(program, facts, machine, state, call)? {
         let nested = match operand {
-            Operand::Array(array) => {
-                if structural_results
-                    .iter()
-                    .any(|(_, root)| *root == facts::PlaceRoot::Expression(array.expression))
-                {
-                    continue;
-                }
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: u32::try_from(*structural_count).ok()?,
-                    type_identity: shapes.add_type(array.type_reference, &[], &[])?,
-                    multiplicity: Multiplicity::Unrestricted,
-                };
-                let elements = super::scalar_arrays::elements(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    array.source,
-                    array.expression,
-                    array.type_reference,
-                )?;
-                *structural_count = structural_count.checked_add(1)?;
-                structural_results.push((
-                    result.clone(),
-                    facts::PlaceRoot::Expression(array.expression),
-                ));
-                operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                    source: array.source,
-                    result,
-                    elements,
-                });
-                continue;
-            }
             Operand::Value { root, source } => {
                 if structural_results
                     .iter()

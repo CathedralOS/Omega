@@ -15,19 +15,6 @@ pub(crate) struct CallArrayConstruction {
     pub type_reference: TypeReferenceHandle,
 }
 
-pub(crate) fn call_array_constructions(
-    program: &TypedTrees,
-    flow: &FlowFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-) -> Vec<CallArrayConstruction> {
-    let Some(captured) = unique_state_flow(flow, machine, state) else {
-        return Vec::new();
-    };
-    call_array_constructions_in(program, flow, captured, machine, state, statement_index)
-}
-
 /// The one flow fact captured for `state`; `None` when there is none or more
 /// than one. A per-statement walk resolves it once per state rather than
 /// rescanning every state fact at each statement.
@@ -44,8 +31,8 @@ pub(crate) fn unique_state_flow<'flow>(
     states.next().is_none().then_some(captured)
 }
 
-/// [`call_array_constructions`] for a state whose unique flow fact the
-/// caller already resolved.
+/// Array arguments discovered within the unique flow fact already resolved
+/// by the caller.
 pub(crate) fn call_array_constructions_in(
     program: &TypedTrees,
     flow: &FlowFacts,

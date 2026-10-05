@@ -95,7 +95,7 @@ pub(crate) fn emit_call_leaf(
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,
-        arrays: crate::scalar_graph::scalar_computations::arrays::prepare(
+        produced_values: crate::scalar_graph::scalar_computations::produced_values::prepare(
             checked,
             &[machine],
             &catalogs.structural_types,

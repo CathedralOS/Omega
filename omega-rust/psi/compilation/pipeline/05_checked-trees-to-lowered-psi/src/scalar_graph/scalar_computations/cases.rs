@@ -30,27 +30,27 @@ use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
 pub(crate) struct Slot {
     pub(super) expression: checked_trees::expression::ExpressionHandle,
     pub(super) place: PlaceId,
-    pub(super) structural_type: StructuralTypeId,
-    pub(super) multiplicity: StructuralMultiplicity,
-    pub(super) case: StructuralCaseId,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: StructuralMultiplicity,
+    pub(crate) case: StructuralCaseId,
     cases: Vec<(symbols::SymbolHandle, StructuralCaseId)>,
-    pub(super) fields: Vec<ReservedField>,
+    pub(crate) fields: Vec<ReservedField>,
 }
 
 /// One payload field resolved against its structural declaration before any
 /// operand is evaluated.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReservedField {
-    pub(super) symbol: symbols::SymbolHandle,
+    pub(crate) symbol: symbols::SymbolHandle,
     pub(super) field: StructuralFieldId,
-    pub(super) scalar_type: ScalarType,
+    pub(crate) scalar_type: ScalarType,
     /// The declaration restricts the carrier to a range, so establishment must
     /// request a proof that the completed operand lies inside it.
     bounded: bool,
 }
 
 impl ReservedField {
-    pub(super) fn completed(self, value: LoweredDirectExpression) -> ConstructedField {
+    pub(crate) fn completed(self, value: LoweredDirectExpression) -> ConstructedField {
         ConstructedField {
             field: self.field,
             value,
@@ -68,11 +68,11 @@ pub(crate) struct ConstructedField {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Construction {
-    pub(super) place: PlaceId,
-    pub(super) structural_type: StructuralTypeId,
-    pub(super) multiplicity: StructuralMultiplicity,
-    pub(super) case: StructuralCaseId,
-    pub(super) fields: Vec<ConstructedField>,
+    pub(crate) place: PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: StructuralMultiplicity,
+    pub(crate) case: StructuralCaseId,
+    pub(crate) fields: Vec<ConstructedField>,
 }
 
 pub(crate) fn prepare(
@@ -388,9 +388,6 @@ impl Expansion<'_> {
                         ),
                     }),
                 ));
-            }
-            CheckedScalarComputationStructuralArgument::Array { .. } => {
-                return unsupported("case membership cannot observe an array");
             }
         };
         let slot = self

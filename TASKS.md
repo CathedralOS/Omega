@@ -500,8 +500,16 @@ defines the complete product bar.
     update, `omega run --both tests/omega/pass/float/computed_comparison_literal_landing_exit/main.omg`
     exits 0 in both engines on macOS ARM64. Its runtime short circuit keeps
     effects selective, and anonymous operands take the computed result's format.
-    Selected expression-owned calls need edge-specific
-    cleanup when transferring earlier caller owners. Structural values with nominal
+    Constructed record, scalar-case and primitive-array operands now share
+    the ordinary value schedule inside scalar computations. After package
+    update, `omega run --both tests/omega/pass/operators/runtime_constructed_operand_result_exit/main.omg`
+    exits 0 in both engines on macOS ARM64: mixed arguments and authored
+    field order execute once, short-circuit effects remain selective, and
+    whole affine moves receive path-specific no-code cleanup. Existing named
+    owners retain canonical transfer identity; nested calls retain their own
+    producer schedule. Structural-payload cases, structural arrays and value
+    dispatch still need their full construction schedule on this route.
+    Structural values with nominal
     cleanup hooks or reference debt need the ordinary disposal schedule;
     nontrivial cleanup must not become a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a

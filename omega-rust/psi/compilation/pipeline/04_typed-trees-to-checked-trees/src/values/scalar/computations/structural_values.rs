@@ -763,7 +763,74 @@ fn projection_root_expression(
     }
 }
 
+/// Existing storage transfers through the call's canonical source identity.
+/// Copies and evaluated descriptors establish values; a whole-place transfer
+/// must not acquire another result identity or another ownership event.
+fn argument_needs_establishment(kind: &CheckedStructuralValueKind) -> bool {
+    let CheckedStructuralValueKind::Place(argument) = kind else {
+        return true;
+    };
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+    match &argument.source {
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => false,
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => true,
+    }
+}
+
 impl Builder<'_, '_> {
+    /// Retain an owned argument that establishes a value, independent of its
+    /// constructor spelling. Existing places keep their canonical call source;
+    /// references keep their existing lending admission and storage.
+    pub(super) fn retain_structural_argument(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueHandle> {
+        if crate::execution::terminal_unit::types::is_reference(self.program, expected)
+            || self.program.primitive_type_reference(expected).is_some()
+        {
+            return None;
+        }
+        let statement = u32::try_from(self.statement_index).ok()?;
+        if let Some(root) = self
+            .structural_values
+            .root_for_expression(self.state, statement, expression)
+        {
+            return (root.machine == self.machine
+                && self.program.normalized_type_identity(root.type_reference)
+                    == self.program.normalized_type_identity(expected)
+                && self.structural_values.nodes.is_valid(root.root)
+                && self.structural_values.nodes.get(root.root).expression == expression
+                && argument_needs_establishment(
+                    &self.structural_values.nodes.get(root.root).kind,
+                ))
+            .then_some(root.root);
+        }
+        let root = self.structural_value(expression, expected)?;
+        if !argument_needs_establishment(&self.structural_values.nodes.get(root).kind) {
+            return None;
+        }
+        self.structural_values
+            .roots
+            .append(checked_trees::CheckedStructuralValueRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal: statement,
+                expression,
+                type_reference: expected,
+                root,
+            });
+        Some(root)
+    }
+
     /// The dense structural position `symbol` occupies in this state's
     /// signature, with the parameter's declared type, or `None` when the name
     /// is not a carried structural formal. Dense positions count only the
@@ -976,14 +1043,12 @@ impl Builder<'_, '_> {
             && literal.case_symbol.is_none()
         {
             self.record_value(expression, expected)?
+        } else if validation::is_closed_primitive_array_type(self.program, expected) {
+            self.scalar_array_value(expression, expected)?
         } else if let ExpressionNode::ArrayLiteral(literal) =
             self.program.expression_table.expression(expression)
         {
-            if validation::is_closed_primitive_array_type(self.program, expected) {
-                self.scalar_array_value(expression, expected)?
-            } else {
-                self.fixed_array_value(expected, *literal)?
-            }
+            self.fixed_array_value(expected, *literal)?
         } else if let Some(symbol) =
             validation::scalar_case_value_source(self.program, expression, expected)
         {
@@ -1590,21 +1655,28 @@ impl Builder<'_, '_> {
     /// keyed by this array expression the way record fields key by their
     /// literal. Lowering establishes the whole roster as one scalar array, so
     /// the array contributes no element custody of its own. Constant-array
-    /// projections stay with their indexing-selection owner.
+    /// projections retain their exact builtin indexing selection.
     fn scalar_array_value(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        if !matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::ArrayLiteral(_)
-        ) {
-            return None;
-        }
         let array =
             validation::scalar_array_elements(self.program, self.machine, expression, expected)?;
-        if !array.projections.is_empty() {
+        if array.projections.iter().any(|projection| {
+            self.operators
+                .expression_use(*projection)
+                .is_some_and(|selected| {
+                    selected.spelling != language_core::OperatorSpelling::Index
+                        || selected.selected_operator_symbol.is_valid()
+                        || selected.candidate_count != 0
+                        || !matches!(
+                            selected.status,
+                            checked_trees::CheckedOperatorResolutionStatus::Missing
+                                | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                        )
+                })
+        }) {
             return None;
         }
         let statement_ordinal = u32::try_from(self.statement_index).ok()?;

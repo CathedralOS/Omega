@@ -25,20 +25,13 @@ pub struct CheckedScalarCaseComputationField {
     pub value: CheckedScalarComputationHandle,
 }
 
-/// A structural operand names existing storage or constructs a value at its
-/// authored evaluation point, including inside selective control. Call formal
-/// positions and membership observations reuse these operands without inventing
-/// source locals or assigning a structural value a scalar binding slot.
+/// Call operands name existing storage or retained structural expression roots.
+/// A membership observation may also carry a direct case construction. Neither
+/// representation invents source locals or gives structural values scalar slots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationStructuralArgument {
     Place(CheckedUnitStructuralArgumentPlan),
     Case(CheckedScalarCaseConstruction),
-    Array {
-        expression: typed_trees::expression::ExpressionHandle,
-        /// Retains every dimension and the primitive carrier even with no leaves.
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        elements: HandleSpan<CheckedScalarComputationHandle>,
-    },
 }
 
 impl Default for CheckedScalarComputationStructuralArgument {
@@ -51,14 +44,14 @@ impl CheckedScalarComputationStructuralArgument {
     pub fn as_place(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
         match self {
             Self::Place(place) => Some(place),
-            Self::Array { .. } | Self::Case(_) => None,
+            Self::Case(_) => None,
         }
     }
 
     pub fn as_place_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
         match self {
             Self::Place(place) => Some(place),
-            Self::Array { .. } | Self::Case(_) => None,
+            Self::Case(_) => None,
         }
     }
 }
