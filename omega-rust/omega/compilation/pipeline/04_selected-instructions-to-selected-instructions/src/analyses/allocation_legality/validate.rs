@@ -16,7 +16,8 @@ use crate::{
 };
 use register_homes::{
     AllocationLegalityPlan, EntryFixedViewTransition, VirtualEarlyClobberPointLegality,
-    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_identity,
+    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_function_digest,
+    allocation_legality_identity_from_digests,
 };
 use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange};
 
@@ -41,13 +42,15 @@ pub fn validate_allocation_legality(
         selected_keys,
         plan,
         &[],
+        &[],
     )
 }
 
 /// `validate_allocation_legality`, except that a function marked in `carried`
 /// is not replayed: its rows were copied unchanged from a validated
 /// predecessor plan for an identical live-range function under the same
-/// roots, and replay reads only those.
+/// roots, and replay reads only those. Its identity digest is taken from
+/// `previous_digests`, that predecessor's digests, for the same reason.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_allocation_legality_carrying(
     ranges: &ValidatedLiveRanges,
@@ -59,6 +62,7 @@ pub(crate) fn validate_allocation_legality_carrying(
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: AllocationLegalityPlan,
     carried: &[bool],
+    previous_digests: &[[u8; 32]],
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
     let target = ranges.plan().target;
     if target.architecture != physical.model().architecture
@@ -128,7 +132,16 @@ pub(crate) fn validate_allocation_legality_carrying(
             validate_canonical(function_index, actual)?;
         }
     }
-    let identity = allocation_legality_identity(&plan);
+    let function_digests = plan
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| match previous_digests.get(index) {
+            Some(digest) if carried.get(index) == Some(&true) => *digest,
+            _ => allocation_legality_function_digest(function),
+        })
+        .collect::<std::sync::Arc<[_]>>();
+    let identity = allocation_legality_identity_from_digests(&plan, &function_digests);
     let receipt = AllocationLegalityValidationReceipt {
         identity,
         ranges: plan.ranges,
@@ -176,6 +189,7 @@ pub(crate) fn validate_allocation_legality_carrying(
     Ok(ValidatedAllocationLegality {
         plan: plan.into(),
         receipt,
+        function_digests,
     })
 }
 

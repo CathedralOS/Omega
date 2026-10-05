@@ -1,53 +1,86 @@
 use sha2::{Digest, Sha256};
 
-use crate::{AllocationLegalityIdentity, AllocationLegalityPlan};
+use crate::{AllocationLegalityIdentity, AllocationLegalityPlan, FunctionAllocationLegality};
 use selected_instructions::VirtualFixedConstraintSite;
 
+/// The identity of a complete allocation-legality plan: its roots and the
+/// ordered digests of its functions.
+///
+/// Hashing per function lets a producer that carries a function's rows over
+/// unchanged carry its digest too (`allocation_legality_identity_from_digests`):
+/// runtime-spill recovery re-derives legality after every rewrite, and
+/// re-hashing the whole plan each time cost more than deriving the one
+/// changed function.
 pub fn allocation_legality_identity(plan: &AllocationLegalityPlan) -> AllocationLegalityIdentity {
+    let digests = plan
+        .functions
+        .iter()
+        .map(allocation_legality_function_digest)
+        .collect::<Vec<_>>();
+    allocation_legality_identity_from_digests(plan, &digests)
+}
+
+/// `allocation_legality_identity` from the digests of `plan.functions`, in
+/// order, as `allocation_legality_function_digest` computes them.
+pub fn allocation_legality_identity_from_digests(
+    plan: &AllocationLegalityPlan,
+    digests: &[[u8; 32]],
+) -> AllocationLegalityIdentity {
+    assert_eq!(
+        digests.len(),
+        plan.functions.len(),
+        "one digest per allocation-legality function"
+    );
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v6\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v7\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    for functions in [&plan.functions] {
-        length(&mut bytes, functions.len());
-        for function in functions {
-            bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-            length(&mut bytes, function.virtual_registers.len());
-            for register in &function.virtual_registers {
-                bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&register.class.0.to_le_bytes());
-                length(&mut bytes, register.points.len());
-                for point in &register.points {
-                    bytes.extend_from_slice(&point.block.0.to_le_bytes());
-                    bytes.extend_from_slice(&point.point.0.to_le_bytes());
-                    length(&mut bytes, point.candidates.len());
-                    for candidate in &point.candidates {
-                        bytes.extend_from_slice(&candidate.0.to_le_bytes());
-                    }
-                }
-                length(&mut bytes, register.early_clobber_points.len());
-                for point in &register.early_clobber_points {
-                    bytes.extend_from_slice(&point.block.0.to_le_bytes());
-                    bytes.extend_from_slice(&point.position.0.to_le_bytes());
-                    bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
-                    bytes.extend_from_slice(&point.operand.to_le_bytes());
-                    bytes.extend_from_slice(&point.point.0.to_le_bytes());
-                    length(&mut bytes, point.candidates.len());
-                    for candidate in &point.candidates {
-                        bytes.extend_from_slice(&candidate.0.to_le_bytes());
-                    }
-                }
-                length(&mut bytes, register.entry_transitions.len());
-                for transition in &register.entry_transitions {
-                    bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
-                    encode_fixed_site(&mut bytes, transition.to_site);
-                    bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
-                }
-            }
-        }
+    length(&mut bytes, digests.len());
+    for digest in digests {
+        bytes.extend_from_slice(digest);
     }
     AllocationLegalityIdentity::from_bytes(Sha256::digest(bytes).into())
+}
+
+/// One function's share of `allocation_legality_identity`.
+pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality) -> [u8; 32] {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality-function.v1\0");
+    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    length(&mut bytes, function.virtual_registers.len());
+    for register in &function.virtual_registers {
+        bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&register.class.0.to_le_bytes());
+        length(&mut bytes, register.points.len());
+        for point in &register.points {
+            bytes.extend_from_slice(&point.block.0.to_le_bytes());
+            bytes.extend_from_slice(&point.point.0.to_le_bytes());
+            length(&mut bytes, point.candidates.len());
+            for candidate in &point.candidates {
+                bytes.extend_from_slice(&candidate.0.to_le_bytes());
+            }
+        }
+        length(&mut bytes, register.early_clobber_points.len());
+        for point in &register.early_clobber_points {
+            bytes.extend_from_slice(&point.block.0.to_le_bytes());
+            bytes.extend_from_slice(&point.position.0.to_le_bytes());
+            bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&point.operand.to_le_bytes());
+            bytes.extend_from_slice(&point.point.0.to_le_bytes());
+            length(&mut bytes, point.candidates.len());
+            for candidate in &point.candidates {
+                bytes.extend_from_slice(&candidate.0.to_le_bytes());
+            }
+        }
+        length(&mut bytes, register.entry_transitions.len());
+        for transition in &register.entry_transitions {
+            bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
+            encode_fixed_site(&mut bytes, transition.to_site);
+            bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
+        }
+    }
+    Sha256::digest(bytes).into()
 }
 
 fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstraintSite) {

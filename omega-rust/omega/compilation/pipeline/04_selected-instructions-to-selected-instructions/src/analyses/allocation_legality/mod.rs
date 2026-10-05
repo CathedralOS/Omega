@@ -85,6 +85,7 @@ pub fn analyze_allocation_legality_reusing(
         selected_keys,
         plan,
         &carried,
+        &previous_legality.function_digests,
     )
 }
 
@@ -143,6 +144,9 @@ impl AllocationLegalityValidationReceipt {
 pub struct ValidatedAllocationLegality {
     pub(crate) plan: std::sync::Arc<AllocationLegalityPlan>,
     pub(crate) receipt: AllocationLegalityValidationReceipt,
+    /// Each function's share of the receipt identity, kept so a successor
+    /// plan that carries a function over unchanged need not hash it again.
+    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
 }
 
 impl ValidatedAllocationLegality {
