@@ -229,83 +229,84 @@ fn proof_only_mention_in(
 }
 
 impl ProofOnlyClassification {
-    /// Machine-stratum contagion (math roster N2d gateway): a free machine
-    /// whose signature mentions proof-only data, or a by-value operation
-    /// attached to proof-only data itself, is a PROOF MACHINE. The latter is a
-    /// proof-side subject operation, not storage-backed runtime dispatch.
-    /// Borrowed or mutable subjects remain runtime consumption attempts, as
-    /// do operations attached to runtime data even when another signature
-    /// position mentions proof-only data.
+    /// Explicit non-erased mathematical values select the proof-computation
+    /// stratum. Namespace qualification contributes neither a subject nor
+    /// storage. Erased occurrences alone leave a runtime machine executable.
+    ///
+    /// Borrowing proof-only data requires storage that cannot exist; it must
+    /// remain a runtime-consumption error, not make the containing machine
+    /// proof-side and exempt it from consumption checking.
     pub fn is_proof_machine(
         &self,
         program: &TypedTrees,
         machine: &crate::machine::Machine,
     ) -> bool {
-        if machine.attached_data.is_some() {
-            let attached_is_proof_only = program
-                .attached_data_definition(machine)
-                .is_some_and(|definition| self.is_proof_only(definition.symbol));
-            if !attached_is_proof_only {
-                return false;
+        let mut has_proof_value = false;
+        for state in program.machine_states(machine) {
+            let parameters = program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| !parameter.relevance.is_erased())
+                .map(|parameter| (parameter.type_reference, parameter.is_mutable));
+            let result = std::iter::once((state.return_type, false));
+            let locals = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .filter_map(|statement| match statement {
+                    crate::statement::StatementNode::LocalData(local)
+                        if !local.relevance.is_erased() =>
+                    {
+                        Some((local.type_reference, false))
+                    }
+                    _ => None,
+                });
+            for (type_reference, is_mutable_parameter) in parameters.chain(result).chain(locals) {
+                if self.proof_only_mention(program, type_reference).is_none() {
+                    continue;
+                }
+                if is_mutable_parameter || self.borrows_proof_only_data(program, type_reference) {
+                    return false;
+                }
+                has_proof_value = true;
             }
-            // The SUBJECT carries the attached data under either spelling, so
-            // ask which parameter it is rather than looking for a receiver: a
-            // static subject is an ordinary parameter, and the signature rule
-            // below would otherwise read `main: &mut Main` as a proof-only
-            // mention and call the machine proof-side, skipping the
-            // attached-storage fence that the receiver spelling reached.
-            let mut subjects = program.machine_states(machine).iter().filter_map(|state| {
-                let parameters = program.state_parameters(state);
-                let index =
-                    program.data_binding_position(machine.attached_data_symbol, parameters)?;
-                let subject = &parameters[index];
-                Some(
-                    !subject.is_mutable
-                        && subject.type_reference.is_valid()
-                        && !matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(subject.type_reference),
-                            TypeReferenceNode::Reference { .. }
-                        ),
-                )
-            });
-            if let Some(first) = subjects.next() {
-                return first && subjects.all(|by_value| by_value);
-            }
-            // No single parameter denotes the data -- `Nat::subtract(left,
-            // right)` names it twice and neither is the subject -- so there is
-            // nothing to fence, and the ordinary signature rule below decides
-            // exactly as it does for a free machine over the same data.
         }
-        // Erased parameters and locals are proof-side occurrences: a
-        // proof-only type there does not turn the machine into a computed
-        // proof machine, exactly as an erased field does not make its record
-        // proof-only.
-        program.machine_states(machine).iter().any(|state| {
-            program.state_parameters(state).iter().any(|parameter| {
-                !parameter.relevance.is_erased()
-                    && self
-                        .proof_only_mention(program, parameter.type_reference)
-                        .is_some()
-            }) || (state.return_type.is_valid()
-                && self
-                    .proof_only_mention(program, state.return_type)
-                    .is_some())
-                || program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .any(|statement| match statement {
-                        crate::statement::StatementNode::LocalData(local_data) => {
-                            !local_data.relevance.is_erased()
-                                && self
-                                    .proof_only_mention(program, local_data.type_reference)
-                                    .is_some()
-                        }
-                        _ => false,
-                    })
-        })
+        has_proof_value
+    }
+
+    /// Follow type constructors, not the spelling or position of an argument.
+    /// An array or generic argument cannot hide a borrow of storage-free data.
+    fn borrows_proof_only_data(
+        &self,
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                self.proof_only_mention(program, *referee).is_some()
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                self.proof_only_mention(program, *element_type).is_some()
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.borrows_proof_only_data(program, *base_type)
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                self.borrows_proof_only_data(program, *element_type)
+            }
+            TypeReferenceNode::Generic { arguments, .. } => program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(|argument| self.borrows_proof_only_data(program, *argument)),
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Unit => false,
+        }
     }
 }
 

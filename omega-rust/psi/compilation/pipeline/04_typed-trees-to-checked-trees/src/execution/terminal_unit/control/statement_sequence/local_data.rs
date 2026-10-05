@@ -70,6 +70,11 @@ pub(super) fn plan(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<LocalPlan> {
+    // Relevance checking already checked the initializer as proof evidence.
+    // An erased binding establishes neither storage nor an executable call.
+    if local.relevance.is_erased() {
+        return Some(LocalPlan::Planned);
+    }
     let Planner {
         program,
         facts,

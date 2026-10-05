@@ -376,8 +376,8 @@ helper that passes does not close an item.
     consume those identities without an implicit receiver parameter. The
     checked structural signatures, Terminal parameters, provider signatures,
     retained-borrow roots and Omega artifacts no longer carry receiver flags.
-    Retire remaining attachment helpers, including namespace-dependent proof
-    machine classification in `typed-trees/src/typed_trees/evidence/proof_only.rs`.
+    Retire remaining attachment helpers; proof-machine classification must
+    continue to depend on explicit values, never namespace qualification.
     Layout and task stack sizing no longer manufacture namespace storage;
     activation storage comes from explicit parameters, locals and call arguments.
     Carry no longer derives storage or reachability from namespace fields;

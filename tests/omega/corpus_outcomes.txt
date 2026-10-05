@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1273,6 +1273,12 @@ fail/relevance/erased_nonscalar_parameter rejected 218ms expected @2d8ed253669f
 	machine `Main::record::record` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 250ms expected @2d8ed253669f
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/static_proof_borrow_requires_storage rejected 351ms expected @0c9d1b8dd763+wt
+	machine `inspect` state `entry` parameter `value` mentions proof-only `Natural`, which has no runtime layout
+	machine `Namespace::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
+	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
+fail/relevance/static_proof_result_cannot_materialize rejected 338ms expected @0c9d1b8dd763+wt
+	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
 fail/slices/call_endpoint_view_backing_write rejected 303ms expected @637668355701+wt
 	statement 2 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/call_requires_different_view_extent rejected 265ms expected @0991904fed3b+wt
@@ -2574,6 +2580,7 @@ pass/relevance/erased_parameter_named_transition_forward checked 298ms @2d8ed253
 pass/relevance/erased_parameter_proof_only checked 1239ms check-target:macos_arm64 @2d8ed253669f
 pass/relevance/erased_receiver_proof_machine_call checked 280ms @2d8ed253669f
 pass/relevance/erased_record_parameter_exit checked 1321ms check-target:macos_arm64 @2d8ed253669f
+pass/relevance/runtime_static_proof_namespace_exit checked 3021ms check-target:macos_arm64 @0c9d1b8dd763+wt
 pass/slices/bounded_byte_parameter_range_exit checked 531ms check-target:macos_arm64 @f7f8668f6b87+wt
 pass/slices/byte_sequence_literal_tail_return_compile checked 604ms check-target:macos_arm64 @58e4f6f8667
 pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms check-target:macos_arm64 @ed38350cbc69+wt

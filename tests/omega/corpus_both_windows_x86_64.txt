@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3510ms exit:70 interpreter-exit:70 interpreter:agrees @6dd207b5fbb6+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8195ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/borrows/runtime_affine_local_case_return_exit built 4164ms exit:42 interpreter-exit:42 interpreter:agrees @5b40b0f7256d
@@ -23,6 +23,7 @@ pass/generics/runtime_container_setter_matrix_exit built 5872ms exit:1 interpret
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 5436ms exit:41 interpreter-exit:41 interpreter:agrees @506354b3cca3+wt
 pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt
+pass/relevance/runtime_static_proof_namespace_exit built 7745ms exit:0 interpreter-exit:0 interpreter:agrees @0c9d1b8dd763+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 5769ms exit:70 interpreter-exit:70 interpreter:agrees @506354b3cca3+wt
 pass/wire/wire_compatibility_migration_across_shapes built 2534ms exit:0 interpreter-exit:0 interpreter:agrees @8899cb25e748+wt

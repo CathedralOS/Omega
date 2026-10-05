@@ -226,8 +226,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     // Selected execution retires the row of a call it replaced in the body;
     // the row keeps its handle for the certificates holding it and no longer
     // names an outer or nested call to sequence.
-    let retired =
-        |call: &checked_trees::FlowCallFact| facts.flow.control.is_retired(state.symbol, call);
+    let erased_statement = |statement: &StatementNode| matches!(statement, StatementNode::LocalData(local) if local.relevance.is_erased());
+    // Proof initializers keep their flow evidence for checking, but neither
+    // their outer call nor any nested operand call enters runtime sequencing.
+    let omitted = |call: &checked_trees::FlowCallFact| {
+        facts.flow.control.is_retired(state.symbol, call)
+            || statements
+                .get(call.statement_index)
+                .is_some_and(erased_statement)
+    };
     // A pure scalar builtin (min/max/sqrt, float rounding and
     // classification) is an operand of its enclosing scalar expression: the
     // computation graph folds it rather than recording a Call node, so it is
@@ -241,7 +248,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     };
     if statement_end > statements.len()
         || calls.iter().any(|call| {
-            !scalar_intrinsic(call) && !retired(call) && call.statement_index >= statement_end
+            !scalar_intrinsic(call) && !omitted(call) && call.statement_index >= statement_end
         })
     {
         return None;
@@ -260,6 +267,9 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         .enumerate()
         .take(statement_end)
     {
+        if erased_statement(statement) {
+            continue;
+        }
         // A stored range is evaluated by its LocalBinding consumer. The
         // expression coordinate may also retain the same endpoint occurrence;
         // it is not another scheduled construction at this statement.
@@ -548,7 +558,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     }
     for call in calls
         .iter()
-        .filter(|call| call.call_ordinal == 0 && !scalar_intrinsic(call) && !retired(call))
+        .filter(|call| call.call_ordinal == 0 && !scalar_intrinsic(call) && !omitted(call))
     {
         if consumed
             .iter()
@@ -734,7 +744,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let mut structural_index = 0;
     while let Some(call) = structural.get(structural_index).copied() {
         structural_index += 1;
-        if scalar_intrinsic(call) || retired(call) {
+        if scalar_intrinsic(call) || omitted(call) {
             continue;
         }
         let owner = crate::lookup::machine_by_symbol(program, machine)?;
@@ -770,7 +780,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     trace.statement(None);
     if let Some(unconsumed) = calls
         .iter()
-        .filter(|call| call.call_ordinal != 0 && !scalar_intrinsic(call) && !retired(call))
+        .filter(|call| call.call_ordinal != 0 && !scalar_intrinsic(call) && !omitted(call))
         .find(|call| {
             !consumed
                 .iter()
