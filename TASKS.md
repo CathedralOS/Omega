@@ -163,15 +163,30 @@ helper that passes does not close an item.
   the arrival recorded. This needs a non-corpus justification and is the
   largest standing cleanup of its family. Measured at `b0a48cde065`.
 
-- **STRUCTURAL-FIELD-SPELLING-BRANCH-RESOLVES-NOTHING.** (new-scope)
-  `values/scalar/structural_fields.rs:802` falls back to the member spelling
-  only when no symbol anywhere in the path is valid. A whole-corpus probe took
-  **5,304,966 reaches with 0 disagreements** against the symbol-only answer,
-  and entered that spelling branch **66,884 times, resolving nothing every
-  time** (`name_symbol=false`, `live=None`). Removing it is measurably safe.
-  Frontier: delete the branch and its `name_text` binding rather than the
-  operand -- this is a branch deletion, not the operand swap its four landed
-  siblings were -- and re-gate. Measured at `b0a48cde065`.
+- **STRUCTURAL-PARAMETER-PLACE-SPELLING-CONJUNCT.** (split-of:STRUCTURAL-FIELD-SPELLING-BRANCH-RESOLVES-NOTHING)
+  `values/scalar/structural_fields.rs` `structural_parameter_place` (line 1156;
+  the conjunct is at ~1269) still filters candidates on
+  `parameter.symbol == name.head_symbol && names.first() == parameter.name`.
+  This is the **operand-swap** shape of `b0a48cde065`'s four landed sites, not
+  the branch deletion `32c9b9972cf` landed, and that commit's probe did not
+  cover it.
+
+  Frontier: the spelling narrows a `filter` whose uniqueness bail
+  (`candidates.next()?` then `if candidates.next().is_some() { return None }`)
+  decides whether the place resolves at all, so dropping it could in principle
+  turn a unique match into a contested one. The property to measure is
+  therefore the **whole candidate list** on both spellings, not the chosen
+  position -- that is how a sibling cleared the same risk at
+  `value_custody/places/parameter_scoped.rs`, where the two lists were identical
+  across all 296 reaches. The structural backing to confirm: stage 02 mints one
+  parameter symbol per authored binder, so one roster cannot hold two entries
+  sharing a symbol.
+
+  Adjacent and separate: the same function opens with
+  `matches!(names, [spelling] if spelling.is_self_receiver())`, a receiver
+  **spelling** guard. The receiver migration is complete, so the only authored
+  text that can still reach it is the fail fixture pinning that rejection, which
+  must stay. Measure before touching it and do not fold it into this item.
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   Repair selection for explicit completion calls under
