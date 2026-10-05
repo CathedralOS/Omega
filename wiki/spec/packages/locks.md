@@ -3,8 +3,8 @@
 The lock is retained project intent, not a certificate of package safety.
 [Acceptance](acceptance.md) owns review and decision authority;
 [source selection](sources.md) owns resolution and immutable graph construction.
-Standalone compiler-policy file handling belongs to
-[trust-ledger](../../../omega-rust/omega/application/trust-ledger/README.md), not this lock.
+The lock is the one acceptance record; a root grant in `build.omg` accepts the
+root's own claims, and there is no second admissions file.
 
 ## Retained state
 
@@ -87,7 +87,7 @@ no second acceptance channel.
 
 ## Source and control state
 
-Root `omega.lock` and `omega.admissions` in a mutable local package are project
+Root `omega.lock` in a mutable local package is project
 control state, excluded from local source capture including ASCII case variants.
 Publishing policy cannot change the source identity recorded inside it. Symlinks
 into excluded root control files reject. Nested policy-named files remain ordinary

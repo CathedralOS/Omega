@@ -12,7 +12,7 @@ use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageSourcePreparation;
 use crate::declarations::PackageKey;
 use crate::review::CompileResolvedPackageReviewsError;
-use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
+use compiler::{CompileReport, OptimizationRollback};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -34,7 +34,6 @@ pub struct PreparedLocalProjectNativeRequest {
     build_dir: PathBuf,
     target_profiles: Vec<target::TargetProfile>,
 
-    accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
@@ -66,7 +65,6 @@ impl PreparedLocalProjectNativeRequest {
             build_dir: build_dir.into(),
             target_profiles,
 
-            accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
@@ -82,10 +80,6 @@ impl PreparedLocalProjectNativeRequest {
         self
     }
 
-    pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
-        self.accepted_trust_admissions = admissions;
-        self
-    }
 
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
         self.optimization_rollback = rollback;
@@ -172,9 +166,7 @@ impl std::error::Error for CompilePreparedLocalProjectNativeError {}
 /// Observe the exact checked program that native production consumes, without
 /// repeating package acquisition or sponsored build execution. The observer must
 /// only compute a private result: native realization can still reject afterward.
-/// Neither the observation nor a successful report replaces the caller's exact
-/// trust-admission settlement before publication or execution. A caller with
-/// nothing to observe passes `|_| ()`.
+/// A caller with nothing to observe passes `|_| ()`.
 ///
 /// This operation is the production CLI seam. It does not ask project
 /// preparation to infer permissions. Source and compiler identities must match
@@ -224,8 +216,6 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
         prepared,
         build_dir,
         target_profiles,
-
-        accepted_trust_admissions,
         optimization_rollback,
         build_snapshot,
         terminal_authority_policy,
@@ -245,7 +235,6 @@ pub fn compile_prepared_local_project_for_native_targets<Observation>(
                 &entry_path,
                 &build_dir,
                 build_snapshot.as_ref(),
-                &accepted_trust_admissions,
                 &optimization_rollback,
                 terminal_authority_policy.clone(),
                 receiving_terminal_authority_permission_policy.clone(),
@@ -273,7 +262,6 @@ fn compile_one_prepared_target<Observation>(
     entry_path: &Path,
     build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    accepted_trust_admissions: &[TrustAdmission],
     optimization_rollback: &OptimizationRollback,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
@@ -342,8 +330,8 @@ fn compile_one_prepared_target<Observation>(
                 error,
             })?;
     }
-    let trust_settlement = checked
-        .admit_trust(accepted_trust_admissions)
+    checked
+        .admit_trust()
         .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
     let observation = observe(&checked);
     let product = checked
@@ -351,7 +339,6 @@ fn compile_one_prepared_target<Observation>(
             entry_path.to_path_buf(),
             compiler::RequestedCompileProduct::NativeArtifact,
             optimization_rollback,
-            trust_settlement,
         )
         .map_err(CompilePreparedLocalProjectNativeError::Native)?;
     let report = match product {

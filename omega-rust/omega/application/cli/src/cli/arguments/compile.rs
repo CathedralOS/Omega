@@ -4,13 +4,11 @@ use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureReques
 use std::path::PathBuf;
 
 pub(crate) struct CompileArguments {
-    pub(crate) accept_admissions: bool,
     pub(crate) build_dir: Option<PathBuf>,
     pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
-    /// With `--check`, withhold the lock's accepted checkpoint and recorded
-    /// trust admissions so the root compiles under fresh verification rather
-    /// than retained acceptance.
+    /// With `--check`, withhold the lock's accepted checkpoint so the root
+    /// compiles under fresh verification rather than retained acceptance.
     pub(crate) verify: bool,
     pub(crate) offline: bool,
     pub(crate) timings: bool,
@@ -23,13 +21,12 @@ pub(crate) struct CompileArguments {
 }
 
 pub(crate) fn usage() -> &'static str {
-    "usage: omega [--check] [--verify] [--offline] [--accept-admissions] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n       omega refresh-samples [samples-dir]\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
+    "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n       omega refresh-samples [samples-dir]\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
 }
 
 pub(crate) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Result<CompileArguments, String> {
-    let mut accept_admissions = false;
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
     let mut check_only = false;
@@ -60,11 +57,6 @@ pub(crate) fn parse_arguments(
                 return Err("duplicate --verify".into());
             }
             verify = true;
-            continue;
-        }
-
-        if argument == "--accept-admissions" {
-            accept_admissions = true;
             continue;
         }
 
@@ -165,7 +157,6 @@ pub(crate) fn parse_arguments(
         return Err("--verify requires --check".into());
     }
     Ok(CompileArguments {
-        accept_admissions,
         build_dir,
         build_inputs,
         check_only,

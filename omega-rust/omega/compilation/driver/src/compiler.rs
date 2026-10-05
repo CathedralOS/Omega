@@ -61,12 +61,11 @@ fn compile_target(
 
     // Product ownership admits the stop and retains report companions before
     // the selected stage sequence consumes the checked compilation.
-    let trust_settlement = checked.admit_trust(target.accepted_trust_admissions())?;
+    checked.admit_trust()?;
     let product = checked.prepare_product_report(
         root_path,
         shared.requested_product,
         target.optimization_rollback(),
-        trust_settlement,
     )?;
     match product {
         CheckedProductReport::Complete(report) => Ok(report),

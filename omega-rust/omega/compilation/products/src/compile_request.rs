@@ -125,7 +125,6 @@ pub struct TargetCompileConfiguration {
     /// permissions are never projected into receiver rows, and the emitted
     /// artifact cannot satisfy an explicit admission replay.
     pub(super) terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
-    accepted_trust_admissions: Vec<trust_model::TrustAdmission>,
     package_target_inputs: PackageCompilationTargetInputs,
     pub(super) optimization_rollback: OptimizationRollback,
 }
@@ -146,7 +145,6 @@ impl TargetCompileConfiguration {
             // receiver-admission axis is claimed only by an explicit setter
             // call, never by defaulting to an empty or fabricated policy.
             terminal_authority_permission_policy: None,
-            accepted_trust_admissions: Vec::new(),
             package_target_inputs: PackageCompilationTargetInputs::default(),
             optimization_rollback: OptimizationRollback::default(),
         }
@@ -185,13 +183,6 @@ impl TargetCompileConfiguration {
         policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {
         self.terminal_authority_permission_policy = Some(policy);
-        self
-    }
-    pub fn with_accepted_trust_admissions(
-        mut self,
-        admissions: Vec<trust_model::TrustAdmission>,
-    ) -> Self {
-        self.accepted_trust_admissions = admissions;
         self
     }
     pub fn with_package_target_inputs(mut self, inputs: PackageCompilationTargetInputs) -> Self {
@@ -304,15 +295,6 @@ impl CompileRequest {
     ) -> Self {
         for configuration in &mut self.configurations {
             configuration.terminal_authority_permission_policy = Some(policy.clone());
-        }
-        self
-    }
-    pub fn with_accepted_trust_admissions(
-        mut self,
-        admissions: Vec<trust_model::TrustAdmission>,
-    ) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.accepted_trust_admissions = admissions.clone();
         }
         self
     }
@@ -489,9 +471,6 @@ impl ValidatedTargetCompilation {
 
     pub fn options(&self) -> &CompileOptions {
         &self.options
-    }
-    pub fn accepted_trust_admissions(&self) -> &[trust_model::TrustAdmission] {
-        &self.configuration.accepted_trust_admissions
     }
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()

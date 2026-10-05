@@ -20,7 +20,6 @@ use std::path::PathBuf;
 #[cfg(unix)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
-mod admissions_file;
 mod capture;
 mod limits;
 mod observation;

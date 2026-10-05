@@ -44,5 +44,6 @@ The other owners are meaningful siblings:
 - [accepted_templates.rs](src/accepted_templates/mod.rs) holds exact accepted-template
   classifications used during reconstruction.
 
-The CLI's independent [trust-ledger](../../../application/trust-ledger/README.md) owns policy-file reading
-and explicit replacement. Compiler callers supply admissions in memory.
+A root grant in `build.omg` is the root's acceptance; dependency claims are
+accepted through `omega.lock`. This crate compares against no second acceptance
+record.

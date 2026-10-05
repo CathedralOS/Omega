@@ -1,4 +1,4 @@
-//! Prepare a project, compile it, settle admission, and publish the requested product.
+//! Prepare a project, compile it, and publish the requested product.
 
 pub mod publication;
 
@@ -8,7 +8,7 @@ use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
     CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
-    TrustAdmissionSettlement, compile,
+    compile,
 };
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
@@ -29,10 +29,8 @@ pub struct CompileProjectRequest {
     pub timings: bool,
     pub offline: bool,
     /// `--check --verify`: recheck the root's sources under the retained pins
-    /// without the accepted lock's restricted-request grants or recorded
-    /// trust admissions.
+    /// without the accepted lock's restricted-request grants.
     pub verify: bool,
-    pub accept_admissions: bool,
     /// Reject standalone source after package preparation and transaction recovery.
     pub require_package_project: bool,
     pub optimization_rollback: OptimizationRollback,
@@ -49,7 +47,6 @@ impl CompileProjectRequest {
             timings: false,
             offline: false,
             verify: false,
-            accept_admissions: false,
             require_package_project: false,
             optimization_rollback: OptimizationRollback::default(),
             build_snapshot: None,
@@ -70,7 +67,6 @@ pub enum CompileProjectError {
     Preparation(packages::PrepareLocalProjectError),
     PackageCheck(packages::CheckPreparedLocalProjectError),
     PackageNative(packages::CompilePreparedLocalProjectNativeError),
-    UnsettledAdmissions(TrustAdmissionSettlement),
     Publication(String),
     /// The private workspace a check stages into could not be created.
     CheckWorkspace(std::io::Error),
@@ -93,9 +89,6 @@ impl std::fmt::Display for CompileProjectError {
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::PackageCheck(error) => write!(formatter, "{error}"),
             Self::PackageNative(error) => write!(formatter, "{error}"),
-            Self::UnsettledAdmissions(_) => {
-                write!(formatter, "project trust admissions are not settled")
-            }
             Self::Publication(error) => write!(formatter, "{error}"),
             Self::CheckWorkspace(error) => {
                 write!(formatter, "cannot create the check workspace: {error}")
@@ -111,7 +104,7 @@ impl CompileProjectError {
     /// The compiler-request outcome this refusal publishes. Compilation
     /// diagnostics — the standalone route's and accepted package realization's
     /// — are `Incomplete` when every error names an exceeded private provision;
-    /// every other refusal (preparation, review, admission, publication,
+    /// every other refusal (preparation, review, publication,
     /// workspace) is a `Reject`.
     pub fn outcome(&self) -> compiler::CompilerRequestOutcome {
         match self {
@@ -176,7 +169,6 @@ fn compile_project_targets(
         timings: collect_timings,
         offline,
         verify,
-        accept_admissions,
         require_package_project,
         optimization_rollback,
         build_snapshot,
@@ -240,7 +232,6 @@ fn compile_project_targets(
     } else {
         Vec::new()
     };
-    let policy_root_path = options.root_path.clone();
     let prepared = timings
         .record_result(
             StageMeta::new(
@@ -260,8 +251,6 @@ fn compile_project_targets(
             "compilation requires a package project with a sibling build.omg".to_owned(),
         )]));
     }
-    let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
-        .map_err(CompileProjectError::Diagnostics)?;
     // Targets whose output directory was refused take no part in the shared
     // compile; their row is the refusal itself.
     let active_profiles = profiles
@@ -295,7 +284,6 @@ fn compile_project_targets(
                             &base_build_dir,
                             active_profiles.clone(),
                         )
-                        .with_accepted_trust_admissions(admissions.clone())
                         .with_optimization_rollback(optimization_rollback.clone())
                         .with_timings(collect_timings);
                         let request = match &build_snapshot {
@@ -333,7 +321,6 @@ fn compile_project_targets(
                             &base_build_dir,
                             active_profiles.clone(),
                         )
-                        .with_accepted_trust_admissions(admissions.clone())
                         .with_verify(verify)
                         .with_timings(collect_timings);
                         let request = match &build_snapshot {
@@ -367,7 +354,6 @@ fn compile_project_targets(
                                 Some(target_directories[0].clone());
                             CompileRequest::new(single_options)
                                 .with_requested_product(product)
-                                .with_accepted_trust_admissions(admissions.clone())
                                 .with_optimization_rollback(optimization_rollback.clone())
                                 .with_timings(collect_timings)
                         } else {
@@ -383,7 +369,6 @@ fn compile_project_targets(
                                     let mut configuration =
                                         compiler::TargetCompileConfiguration::new(*profile)
                                             .with_build_dir(target_directories[index].clone())
-                                            .with_accepted_trust_admissions(admissions.clone())
                                             .with_optimization_rollback(
                                                 optimization_rollback.clone(),
                                             );
@@ -447,13 +432,6 @@ fn compile_project_targets(
             .expect("every active target produces a report row");
         let (_, result) = reports.remove(position);
         let result = result.and_then(|report| {
-            let settlement = report.trust_admission_settlement();
-            if accept_admissions {
-                trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
-                    .map_err(CompileProjectError::Diagnostics)?;
-            } else if !settlement.is_exactly_admitted() {
-                return Err(CompileProjectError::UnsettledAdmissions(settlement.clone()));
-            }
             match product {
                 ProjectProduct::Check => Ok(CompileProjectOutcome {
                     report,

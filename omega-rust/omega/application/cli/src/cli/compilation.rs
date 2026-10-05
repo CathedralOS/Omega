@@ -1,6 +1,6 @@
 //! Console adapter for the project compilation operation.
 
-use super::{admissions::report_unsettled_admissions, arguments::CompileArguments};
+use super::arguments::CompileArguments;
 use compiler::{CompileOptions, CompilerRequestOutcome};
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, TargetProjectOutcome,
@@ -25,7 +25,6 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         timings: arguments.timings,
         offline: arguments.offline,
         verify: arguments.verify,
-        accept_admissions: arguments.accept_admissions,
         require_package_project: false,
         optimization_rollback: arguments.optimization_rollback,
         build_snapshot: arguments
@@ -48,10 +47,6 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     }
     let outcome = match result {
         Ok(outcome) => outcome,
-        Err(CompileProjectError::UnsettledAdmissions(settlement)) => {
-            report_unsettled_admissions(&settlement);
-            std::process::exit(1);
-        }
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(refusal_exit_status([&error]));
@@ -100,12 +95,7 @@ fn compile_several_targets(
                 report_contents.push_str(&report_text(Some(name), outcome));
             }
             Err(error) => {
-                match error {
-                    CompileProjectError::UnsettledAdmissions(settlement) => {
-                        report_unsettled_admissions(settlement);
-                    }
-                    error => eprintln!("{error}"),
-                }
+                eprintln!("{error}");
                 println!("target {name} failed");
                 report_contents.push_str(&format!("target: {name}\nfailed: {error}\n"));
                 failed.push(name);

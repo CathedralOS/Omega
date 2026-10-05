@@ -8,7 +8,7 @@ self-hosted compiler and not a language rung.
 - `omega/` consumes terminal Psi and performs target lowering and artifact
   emission.
 - `omega/application/cli/` is the `omega` product package and development
-  command, alongside the independent trust-ledger package.
+  command.
 - `library/` contains Rust reference implementations of ordinary Omega library
   contracts; these do not become compiler subsystems.
 

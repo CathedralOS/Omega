@@ -18,10 +18,9 @@ remain part of the operation; another frontend need not reconstruct that sequenc
 Install/update and package inspection already have their own complete operations
 in [package-manager](../../packages/package-manager/src/operations/mod.rs), with no second wrapper.
 
-The independent [trust-ledger](../trust-ledger/README.md) package owns the
-`omega.admissions` file used by compile and run commands. It loads explicit
-owner policy; only `--accept-admissions` requests replacement. The compiler
-receives admissions in memory and never depends on this filesystem lifecycle.
+A root grant in `build.omg` is the root's acceptance of that claim or provider
+plan; dependency claims are accepted through `omega.lock`. There is no second
+admissions file.
 
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,
@@ -55,7 +54,7 @@ CLI startup and dispatch live in `src/main.rs`; typed invocations
 are parsed in `src/cli/arguments/`. Full surface:
 
 ```text
-omega [--check] [--offline] [--accept-admissions] [--timings]
+omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>

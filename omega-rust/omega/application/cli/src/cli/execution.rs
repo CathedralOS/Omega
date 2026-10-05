@@ -1,6 +1,6 @@
 //! Shell output and exit-code policy for the reusable run operation.
 
-use super::{admissions::report_unsettled_admissions, arguments::RunArguments};
+use super::arguments::RunArguments;
 use compiler::CompilerRequestOutcome;
 use omega::execution::{
     ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
@@ -14,10 +14,6 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         keep_artifacts: arguments.keep,
     }) {
         Ok(outcome) => outcome,
-        Err(RunError::UnsettledAdmissions(settlement)) => {
-            report_unsettled_admissions(&settlement);
-            std::process::exit(200);
-        }
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(compile_failure_status(&error));

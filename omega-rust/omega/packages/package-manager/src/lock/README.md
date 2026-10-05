@@ -32,7 +32,7 @@ projections, and selected dependency edges. Occurrence acceptance, compilation
 inputs, and decision state remain section-specific. The format lists explicitly supplied targets; it
 does not discover a deployment set or establish a support matrix.
 
-For mutable local packages, root `omega.lock` and `omega.admissions` are excluded
+For mutable local packages, root `omega.lock` is excluded
 from source capture:
 writing acceptance state cannot change the source pin stored inside that state.
 Nested lock-named source files and exact repository materializations still

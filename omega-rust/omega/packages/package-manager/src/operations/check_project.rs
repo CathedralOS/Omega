@@ -5,7 +5,7 @@ use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::build_session::PackageSourcePreparation;
 use crate::review::CompileResolvedPackageReviewsError;
-use compiler::{CompileOptions, CompileReport, TrustAdmission};
+use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -15,11 +15,9 @@ pub struct PreparedLocalProjectCheckRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
     target_profiles: Vec<TargetProfile>,
-
-    accepted_trust_admissions: Vec<TrustAdmission>,
     /// `--check --verify`: compile under the retained pins without the
-    /// accepted lock's restricted-request grants or recorded trust
-    /// admissions, so findings the lock previously settled surface again.
+    /// accepted lock's restricted-request grants, so findings the lock
+    /// previously settled surface again.
     verify: bool,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     timings: bool,
@@ -47,8 +45,6 @@ impl PreparedLocalProjectCheckRequest {
             prepared,
             build_dir: build_dir.into(),
             target_profiles,
-
-            accepted_trust_admissions: Vec::new(),
             verify: false,
             build_snapshot: None,
             timings: false,
@@ -56,8 +52,7 @@ impl PreparedLocalProjectCheckRequest {
     }
 
     /// Re-verify under the lock's retained source pins: the restricted-request
-    /// checkpoint is not armed and recorded trust admissions do not settle
-    /// findings. Acceptance rows still describe dependencies; they no longer
+    /// checkpoint is not armed. Acceptance rows still describe dependencies; they no longer
     /// grant this run's projected requests.
     pub fn with_verify(mut self, verify: bool) -> Self {
         self.verify = verify;
@@ -71,10 +66,6 @@ impl PreparedLocalProjectCheckRequest {
         self
     }
 
-    pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
-        self.accepted_trust_admissions = admissions;
-        self
-    }
 
     /// Select the root build's input inventory and output obligations. Dependency
     /// builds retain their independently captured package inventories.
@@ -178,8 +169,6 @@ pub fn check_prepared_local_project(
         prepared,
         build_dir,
         target_profiles,
-
-        accepted_trust_admissions,
         verify,
         build_snapshot,
         timings,
@@ -203,7 +192,6 @@ pub fn check_prepared_local_project(
         &entry_path,
         &build_dir,
         build_snapshot.as_ref(),
-        &accepted_trust_admissions,
         verify,
         timings,
         &mut preparation,
@@ -216,7 +204,7 @@ pub fn check_prepared_local_project(
 /// frontier — and any typed frontier whose inputs two targets carry
 /// identically — assembles exactly once for the request. Each target still
 /// stages into `build_dir/<target>`, arms its own accepted checkpoint, and
-/// settles its own trust admission and report.
+/// resolves its own trust grants and report.
 pub fn check_prepared_local_project_for_targets(
     request: PreparedLocalProjectCheckRequest,
 ) -> Vec<CheckedProjectTargetOutcome> {
@@ -224,8 +212,6 @@ pub fn check_prepared_local_project_for_targets(
         prepared,
         build_dir,
         target_profiles,
-
-        accepted_trust_admissions,
         verify,
         build_snapshot,
         timings,
@@ -243,8 +229,7 @@ pub fn check_prepared_local_project_for_targets(
                 &entry_path,
                 &build_dir.join(profile.target_name()),
                 build_snapshot.as_ref(),
-                &accepted_trust_admissions,
-                verify,
+                        verify,
                 timings,
                 &mut preparation,
             );
@@ -267,7 +252,6 @@ fn check_one_prepared_target(
     entry_path: &Path,
     target_build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    accepted_trust_admissions: &[TrustAdmission],
     verify: bool,
     timings: bool,
     preparation: &mut PackageSourcePreparation,
@@ -294,13 +278,8 @@ fn check_one_prepared_target(
         build_dir: Some(target_build_dir.to_path_buf()),
         target_name: Some(profile.target_name().to_owned()),
     };
-    let empty_admissions: &[TrustAdmission] = &[];
-    let settlement = checked
-        .admit_trust(if verify {
-            empty_admissions
-        } else {
-            accepted_trust_admissions
-        })
+    checked
+        .admit_trust()
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     // The checked project reaches product admission through the same
     // settlement call the standalone compiler uses, so a check-only stop
@@ -311,7 +290,6 @@ fn check_one_prepared_target(
             options.root_path,
             compiler::RequestedCompileProduct::Check,
             &compiler::OptimizationRollback::default(),
-            settlement,
         )
         .map_err(CheckPreparedLocalProjectError::ProofProduct)?
     {

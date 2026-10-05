@@ -18,6 +18,6 @@ omega run --both tests/omega/pass/calls/local_records_mixed_record_result_argume
 ```
 
 Package acceptance records the review decisions; it does not claim a dependency
-audit. Keep the resulting `omega.lock` and `omega.admissions` local: the lock
+audit. Keep the resulting `omega.lock` local: the lock
 records absolute source paths and acceptance for this checkout, and cannot be
 reused as another checkout's accepted baseline.

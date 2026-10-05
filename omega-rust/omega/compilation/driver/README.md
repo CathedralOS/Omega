@@ -164,8 +164,6 @@ Opaque representation admission belongs to
 provider selection and planning belong to
 [Omega provider realization](../realization/provider-planning/README.md), beside
 [selected execution](../realization/selected-dispatch/README.md).
-Project admission-policy files belong to the CLI's independent
-[trust ledger](../../application/trust-ledger/README.md), not compiler execution.
 Trust obligation and report reconstruction belong to
 [realization admission](../realization/trust-model/README.md).
 Host output writing and opt-in measurements belong to the

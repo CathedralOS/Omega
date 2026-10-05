@@ -47,7 +47,6 @@ fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
             ".git/index",
             "build/output",
             "omega.lock",
-            "omega.admissions",
         ] {
             let path = root.join(excluded);
             std::fs::create_dir_all(path.parent().unwrap()).expect("create excluded parent");
@@ -86,7 +85,7 @@ fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
             b"nested source"
         );
         assert!(staged.snapshot_root().join("nested/empty").is_dir());
-        for excluded in [".git", "build", "omega.lock", "omega.admissions"] {
+        for excluded in [".git", "build", "omega.lock"] {
             assert!(!staged.snapshot_root().join(excluded).exists());
         }
         assert_eq!(staged.normalized().file_count, original.file_count);
@@ -198,7 +197,6 @@ fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
             ".git/index",
             "build/output",
             "omega.lock",
-            "omega.admissions",
         ];
         for relative_path in excluded {
             let path = root.join(relative_path);
@@ -212,7 +210,6 @@ fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
             ".git/index",
             "build/output",
             "omega.lock",
-            "omega.admissions",
         ] {
             assert_invalid_replacement(root, lane, relative_path);
         }

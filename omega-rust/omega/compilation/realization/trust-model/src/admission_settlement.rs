@@ -1,43 +1,14 @@
-//! Reconstruct required admissions and compare them with owner-supplied policy.
+//! Reconstruct the exact trust obligations a root's grants establish.
 //!
-//! This owner performs no policy-file I/O and never invents approval.
+//! A grant in the root's build declaration is the root's acceptance; this
+//! owner resolves each grant to its exact claim or provider plan and rejects
+//! grants that name nothing the program selects. It performs no policy-file
+//! I/O and compares against no second acceptance record.
 
 use crate::{AcceptedTemplateClassifications, NonProviderTrustGrant, TrustAdmission};
 use diagnostics::Diagnostic;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use typed_trees::TypedTrees;
-
-/// Exact comparison between compiler-reconstructed obligations and the
-/// admissions explicitly supplied in the compile request.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TrustAdmissionSettlement {
-    required: Vec<TrustAdmission>,
-    consumed: Vec<TrustAdmission>,
-    unresolved: Vec<TrustAdmission>,
-    unused: Vec<TrustAdmission>,
-}
-
-impl TrustAdmissionSettlement {
-    pub fn required(&self) -> &[TrustAdmission] {
-        &self.required
-    }
-
-    pub fn consumed(&self) -> &[TrustAdmission] {
-        &self.consumed
-    }
-
-    pub fn unresolved(&self) -> &[TrustAdmission] {
-        &self.unresolved
-    }
-
-    pub fn unused(&self) -> &[TrustAdmission] {
-        &self.unused
-    }
-
-    pub fn is_exactly_admitted(&self) -> bool {
-        self.unresolved.is_empty() && self.unused.is_empty()
-    }
-}
 
 enum PreparedTrustIdentity {
     ProviderPlan {
@@ -54,31 +25,6 @@ enum PreparedTrustIdentity {
 struct PreparedTrustObligation {
     commitment: String,
     identity: PreparedTrustIdentity,
-}
-
-/// Reconstruct obligations, compare the supplied admissions, and independently
-/// validate report evidence for one immutable checked program. Resolved grant
-/// meanings live only in this invocation; report candidate and selected-plan
-/// replay still runs after obligation construction and admission comparison.
-pub fn reconstruct_trust_settlement(
-    checked: &checked_trees::CheckedTrees,
-    root_grants: &[String],
-    provider_plans: &[effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    accepted_template_classifications: &AcceptedTemplateClassifications,
-    package_aware: bool,
-    accepted: &[TrustAdmission],
-) -> Result<TrustAdmissionSettlement, Vec<Diagnostic>> {
-    let obligations = reconstruct_obligations(
-        &checked.typed,
-        checked,
-        root_grants,
-        provider_plans,
-        selected_provider_plans,
-        accepted_template_classifications,
-        package_aware,
-    )?;
-    settle_trust_admissions(obligations, accepted).map_err(|diagnostic| vec![diagnostic])
 }
 
 /// Reconstruct every exact trust obligation from compiler-owned semantic
@@ -221,33 +167,4 @@ fn reconstruct_obligations(
         }
     }
     Ok(resolved.into_values().collect())
-}
-
-pub fn settle_trust_admissions(
-    required: Vec<TrustAdmission>,
-    accepted: &[TrustAdmission],
-) -> Result<TrustAdmissionSettlement, Diagnostic> {
-    let mut accepted_set = BTreeSet::new();
-    let mut accepted_commitments = BTreeSet::new();
-    for admission in accepted {
-        if !accepted_commitments.insert(admission.commitment().to_owned())
-            || !accepted_set.insert(admission.clone())
-        {
-            return Err(Diagnostic::error(format!(
-                "compile request supplied duplicate trust commitment `{}` [{}]",
-                admission.commitment(),
-                admission.digest(),
-            )));
-        }
-    }
-    let required_set = required.iter().cloned().collect::<BTreeSet<_>>();
-    let consumed = required_set.intersection(&accepted_set).cloned().collect();
-    let unresolved = required_set.difference(&accepted_set).cloned().collect();
-    let unused = accepted_set.difference(&required_set).cloned().collect();
-    Ok(TrustAdmissionSettlement {
-        required,
-        consumed,
-        unresolved,
-        unused,
-    })
 }

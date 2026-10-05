@@ -137,19 +137,19 @@ impl CheckedCompilation {
     /// Reconstruct this product's trust obligations against explicit owner
     /// admissions, independently of report output. This grants neither package
     /// review authority nor native publication authority.
-    pub fn admit_trust(
-        &self,
-        accepted: &[trust_model::TrustAdmission],
-    ) -> Result<trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
-        trust_model::reconstruct_trust_settlement(
+    /// Resolve every root grant to its exact claim or provider plan; a grant
+    /// that names nothing the program selects rejects.
+    pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
+        trust_model::reconstruct_trust_obligations(
+            &self.typed,
             self,
             &self.build().config.root_grant_selectors(),
             &self.providers().provider_plans,
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
-            accepted,
         )
+        .map(drop)
     }
 
     /// Retain this package's own explicit generated-source handoffs as one

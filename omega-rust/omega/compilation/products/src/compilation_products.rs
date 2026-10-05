@@ -3,7 +3,7 @@
 //! Filesystem orchestration belongs to `publication`, not this model.
 //!
 //! `CompileReport` is a common shell — root, source count, build-output
-//! companions, trust settlement, proof-product requests and timings — around
+//! companions, proof-product requests and timings — around
 //! one `CompileProduct`. Payload-owning variants carry the evidence only that
 //! product can hold, so custody checks are joins over present fields rather
 //! than negative-space assertions that unrelated `Option`s stayed `None`.
@@ -346,9 +346,6 @@ pub struct CompileReport {
     /// Canonical package-source/build/target/artifact authority for a
     /// package-aware production. Standalone probes carry no such manifest.
     production_manifest: Option<ProductionCompilationManifest>,
-    /// Filesystem-free comparison between the request's explicit admissions
-    /// and every trust obligation reconstructed by compilation.
-    trust_admission_settlement: trust_model::TrustAdmissionSettlement,
     /// The normalized Build's two independent optional proof-product
     /// requests. Both are off by default; neither grants receiving authority.
     pcc_requests: package_compilation::build_execution::build_value::PccRequests,
@@ -381,7 +378,6 @@ impl CompileReport {
             source_file_count,
             wrote_output: false,
             production_manifest: None,
-            trust_admission_settlement: Default::default(),
             pcc_requests: package_compilation::build_execution::build_value::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
@@ -762,14 +758,6 @@ impl CompileReport {
         manifest.require_native_physical_evidence(&product.artifact)
     }
 
-    pub fn with_trust_admission_settlement(
-        mut self,
-        settlement: trust_model::TrustAdmissionSettlement,
-    ) -> Self {
-        self.trust_admission_settlement = settlement;
-        self
-    }
-
     /// Retain the per-stage measurements the checked record accumulated
     /// during this compilation.
     /// Retain the optimization decisions that explain this product. They are
@@ -891,10 +879,6 @@ impl CompileReport {
     /// produced, retained for pair publication by downstream product routes.
     pub const fn terminal_admission_profile(&self) -> &proof_admission::AdmissionProfile {
         &self.terminal_admission_profile
-    }
-
-    pub const fn trust_admission_settlement(&self) -> &trust_model::TrustAdmissionSettlement {
-        &self.trust_admission_settlement
     }
 
     pub fn from_retained_terminal_artifact(

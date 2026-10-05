@@ -6,7 +6,7 @@ mod compilation;
 mod standard_input;
 
 use crate::temporary_directory::TemporaryDirectory;
-use compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
+use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
@@ -117,7 +117,6 @@ pub enum RunError {
     TemporaryStorage(std::io::Error),
     StandardInput(std::io::Error),
     Compilation(Vec<Diagnostic>),
-    UnsettledAdmissions(TrustAdmissionSettlement),
     Publication(String),
     Spawn {
         executable: PathBuf,
@@ -140,9 +139,6 @@ impl std::fmt::Display for RunError {
                     write!(formatter, "\n  {diagnostic}")?;
                 }
                 Ok(())
-            }
-            Self::UnsettledAdmissions(_) => {
-                write!(formatter, "project trust admissions are not settled")
             }
             Self::Publication(error) => write!(formatter, "native publication FAILED: {error}"),
             Self::Spawn { executable, error } => write!(
@@ -184,11 +180,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             .map(standard_input::ReplayInput::bytes),
     )
     .map_err(RunError::Compilation)?;
-    if !report.trust_admission_settlement().is_exactly_admitted() {
-        return Err(RunError::UnsettledAdmissions(
-            report.trust_admission_settlement().clone(),
-        ));
-    }
     let (report, executable) =
         crate::compilation::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;

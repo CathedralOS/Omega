@@ -423,12 +423,9 @@ fn read_and_validate_symlink_target(
 }
 
 fn is_root_control_file(name: &OsStr) -> bool {
-    // Package locks and compiler admission policy are not package source inputs.
-    // Reserve case variants too so the rule agrees on case-folding filesystems.
+    // The package lock is not a package source input. Reserve case variants
+    // too so the rule agrees on case-folding filesystems.
     name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock")
-        || name
-            .as_encoded_bytes()
-            .eq_ignore_ascii_case(b"omega.admissions")
 }
 
 fn push_entry(

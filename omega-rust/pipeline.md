@@ -168,10 +168,9 @@ owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler
 orchestration.
 
-The CLI's independent [`trust-ledger`](omega/application/trust-ledger/README.md)
-package owns reading and explicitly replacing `omega.admissions`. Compile and
-run commands supply its in-memory admissions to the compiler; pipeline execution
-does not load or mutate project policy files.
+A root grant in `build.omg` is the root's acceptance; dependency claims are
+accepted through `omega.lock`. Pipeline execution does not load or mutate a
+separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns provider choices and calling, component and task planning.

@@ -27,7 +27,7 @@ python3 tools/benchmark/benchmark.py measure \
 PowerShell uses the same invocation with `python` instead of `python3`.
 
 Each compile sample runs `omega --timings --build-dir <fresh tempdir>
---target <target> [--accept-admissions] [--disable-optimization
+--target <target> [--disable-optimization
 <ExactName>]... <root>` from the repository root, then the published
 native executable is copied out and run `--run-samples` times with
 stdin from the null device. Subjects that wait on console input (the
@@ -83,11 +83,9 @@ acceptance of the subject's own dependency decisions; it is not a
 source audit. `measure` performs the same settlement automatically
 when `omega.lock` is absent (disable with `--no-prepare`).
 
-`omega.lock` and any `omega.admissions` are host-local generated state:
-the lock embeds absolute checkout paths, so never commit either file.
-`measure` removes an `omega.admissions` it created; `omega.lock` is
-left in place because re-settling it costs a full `update` pass.
-Delete both before any operation that requires a clean tree (for
+`omega.lock` is host-local generated state: it embeds absolute checkout
+paths, so never commit it. `measure` leaves it in place because
+re-settling it costs a full `update` pass. Delete it before any operation that requires a clean tree (for
 example `tools/landing.py`).
 
 ## Record schema `omega-benchmark-record/2`

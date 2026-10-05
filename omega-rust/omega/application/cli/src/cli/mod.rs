@@ -1,6 +1,5 @@
 //! Argument parsing and console presentation; operations live in the library.
 
-mod admissions;
 pub(crate) mod arguments;
 pub(crate) mod compilation;
 pub(crate) mod execution;

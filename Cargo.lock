@@ -1207,7 +1207,6 @@ dependencies = [
  "terminal-fixed-fuel",
  "terminal-psi",
  "terminal-verifier",
- "trust-ledger",
  "typed-trees",
 ]
 
@@ -2209,14 +2208,6 @@ dependencies = [
  "component-description",
  "sha2",
  "terminal-psi",
-]
-
-[[package]]
-name = "trust-ledger"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "trust-model",
 ]
 
 [[package]]

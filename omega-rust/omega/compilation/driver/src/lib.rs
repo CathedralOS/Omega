@@ -49,4 +49,3 @@ pub use compiler::compile;
 pub use compiler::package::retained_terminal_artifact_from_checked_package;
 pub use target::ExplicitTargetSet;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
-pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};

@@ -697,78 +697,67 @@ def measure(args):
     probes = probe_disable_candidates(
         catalog, selection["enabled"], selection["disabled"])
     probes.append(None)
-    # Settling package admissions writes omega.admissions beside the
-    # subject root; a file the measurement created is removed afterward
-    # so the checkout stays clean. A preexisting file is left alone.
-    admissions_path = root.resolve().parent / "omega.admissions"
-    created_admissions = not admissions_path.exists()
     keep = Path(tempfile.mkdtemp(prefix="omega-benchmark-exe-"))
-    try:
-        probe = probes.pop(0)
-        while True:
-            compile_wall.clear()
-            compile_rss.clear()
-            code_sizes.clear()
-            artifact_path = None
-            receipt = None
-            rollback_refused = False
-            for _ in range(args.compile_samples):
-                with tempfile.TemporaryDirectory(
-                    prefix="omega-benchmark-"
-                ) as build_dir:
-                    argv = [
-                        str(omega), "--timings", "--build-dir", build_dir,
-                        "--target", args.target,
-                    ]
-                    if args.accept_admissions:
-                        argv.append("--accept-admissions")
-                    for name in selection["disabled"]:
-                        argv += ["--disable-optimization", name]
-                    if probe is not None:
-                        argv += ["--disable-optimization", probe]
-                    argv.append(str(root.resolve()))
-                    code, wall_ms, rss, output_text = capture_compile(
-                        argv, repository
+    probe = probes.pop(0)
+    while True:
+        compile_wall.clear()
+        compile_rss.clear()
+        code_sizes.clear()
+        artifact_path = None
+        receipt = None
+        rollback_refused = False
+        for _ in range(args.compile_samples):
+            with tempfile.TemporaryDirectory(
+                prefix="omega-benchmark-"
+            ) as build_dir:
+                argv = [
+                    str(omega), "--timings", "--build-dir", build_dir,
+                    "--target", args.target,
+                ]
+                for name in selection["disabled"]:
+                    argv += ["--disable-optimization", name]
+                if probe is not None:
+                    argv += ["--disable-optimization", probe]
+                argv.append(str(root.resolve()))
+                code, wall_ms, rss, output_text = capture_compile(
+                    argv, repository
+                )
+                if code != 0:
+                    if (probe is not None and probes
+                            and ROLLBACK_REFUSAL.search(output_text)):
+                        rollback_refused = True
+                        break
+                    sys.stderr.write(output_text)
+                    raise SystemExit(
+                        f"compile failed with exit {code}")
+                sample_stages, published = parse_timings(output_text)
+                if published is None:
+                    sys.stderr.write(output_text)
+                    raise SystemExit(
+                        "compile produced no native output line"
                     )
-                    if code != 0:
-                        if (probe is not None and probes
-                                and ROLLBACK_REFUSAL.search(output_text)):
-                            rollback_refused = True
+                candidate = Path(published)
+                if not candidate.is_absolute():
+                    for base in (Path(build_dir), repository):
+                        if (base / candidate).exists():
+                            candidate = base / candidate
                             break
-                        sys.stderr.write(output_text)
+                    else:
                         raise SystemExit(
-                            f"compile failed with exit {code}")
-                    sample_stages, published = parse_timings(output_text)
-                    if published is None:
-                        sys.stderr.write(output_text)
-                        raise SystemExit(
-                            "compile produced no native output line"
+                            f"cannot locate published artifact {published!r}"
                         )
-                    candidate = Path(published)
-                    if not candidate.is_absolute():
-                        for base in (Path(build_dir), repository):
-                            if (base / candidate).exists():
-                                candidate = base / candidate
-                                break
-                        else:
-                            raise SystemExit(
-                                f"cannot locate published artifact {published!r}"
-                            )
-                    artifact_path = candidate
-                    code_sizes.append(artifact_path.stat().st_size)
-                    stages = sample_stages
-                    compile_wall.append(wall_ms)
-                    compile_rss.append(rss)
-                    receipt = parse_rollback_receipt(output_text)
-                    kept = keep / artifact_path.name
-                    artifact_path.replace(kept)
-                    artifact_path = kept
-            if not rollback_refused:
-                break
-            probe = probes.pop(0)
-    finally:
-        if created_admissions and admissions_path.exists():
-            admissions_path.unlink()
+                artifact_path = candidate
+                code_sizes.append(artifact_path.stat().st_size)
+                stages = sample_stages
+                compile_wall.append(wall_ms)
+                compile_rss.append(rss)
+                receipt = parse_rollback_receipt(output_text)
+                kept = keep / artifact_path.name
+                artifact_path.replace(kept)
+                artifact_path = kept
+        if not rollback_refused:
+            break
+        probe = probes.pop(0)
 
     requested = set(selection["disabled"])
     if receipt is None:
@@ -1189,10 +1178,6 @@ def main():
                                 help="exact optimization rule to enable (repeatable)")
     measure_parser.add_argument("--disable", action="append", default=[],
                                 help="exact optimization rule to disable (repeatable)")
-    measure_parser.add_argument(
-        "--accept-admissions", action=argparse.BooleanOptionalAction,
-        default=True,
-        help="pass --accept-admissions to the compile leg (default on)")
     measure_parser.add_argument("--compile-samples", type=int, default=3)
     measure_parser.add_argument("--run-samples", type=int, default=5)
     measure_parser.add_argument("--expected-exit", type=int,

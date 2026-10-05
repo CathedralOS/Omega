@@ -6,7 +6,7 @@
 //! produced artifact into a report. Check and artifact-only builds finish
 //! inside the admission itself. Nothing downstream re-admits the stop or
 //! re-decorates the report: the production subject, application metadata,
-//! proof-product context, completed build outputs, trust settlement and
+//! proof-product context, completed build outputs and
 //! timing snapshot are all captured here, before the stage sequence consumes
 //! the checked record.
 
@@ -22,7 +22,6 @@ use package_compilation::BuildObservationIdentity;
 use package_compilation::build_execution::build_value::PccRequests;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
-use trust_model::TrustAdmissionSettlement;
 
 /// Product admission chooses which stage sequence remains, or returns the
 /// completed report when the requested stop needs no artifact lowering.
@@ -46,21 +45,19 @@ pub struct CompileReportSettlement {
     application: NativeApplicationMetadata,
     build_outputs: Option<RetainedBuildOutputs>,
     build_observation: Option<BuildObservationIdentity>,
-    trust: TrustAdmissionSettlement,
     timings: Vec<PhaseTiming>,
 }
 
 impl CheckedCompilation {
     /// Settle completed files, refuse incompatible Build and release-rollback
     /// requests, and capture the report companions before dispatching any
-    /// Terminal or native production. Trust has already been independently
-    /// reconstructed by the caller; admission does not infer it.
+    /// Terminal or native production. The caller has already resolved the
+    /// root's trust grants.
     pub fn prepare_product_report(
         &self,
         root_path: PathBuf,
         requested: RequestedCompileProduct,
         rollback: &OptimizationRollback,
-        trust: TrustAdmissionSettlement,
     ) -> Result<CheckedProductReport, Vec<Diagnostic>> {
         // A rollback naming stages this stop never executes refuses here, for
         // every route, before production or publication can begin
@@ -82,7 +79,6 @@ impl CheckedCompilation {
                 .map(|report| {
                     CheckedProductReport::Complete(
                         report
-                            .with_trust_admission_settlement(trust)
                             .with_timings(timings),
                     )
                 })
@@ -105,7 +101,6 @@ impl CheckedCompilation {
             .map(|report| {
                 CheckedProductReport::Complete(
                     report
-                        .with_trust_admission_settlement(trust)
                         .with_timings(timings),
                 )
             })
@@ -137,7 +132,6 @@ impl CheckedCompilation {
             ),
             build_outputs,
             build_observation: self.build().observation_identity(),
-            trust,
             timings,
         };
         Ok(if terminal {
@@ -224,7 +218,6 @@ impl CompileReportSettlement {
                     report.timings().to_vec()
                 };
                 report
-                    .with_trust_admission_settlement(self.trust)
                     .with_timings(timings)
             })
             .map_err(diagnostics)

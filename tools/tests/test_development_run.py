@@ -67,7 +67,6 @@ class DevelopmentRun(unittest.TestCase):
         self.assert_exit(result, 0)
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
-        self.assertFalse((self.project / "omega.admissions").exists())
         self.assertFalse((self.project / "build/package-manager").exists())
 
     def test_unlocked_compile_uses_the_same_native_route(self):

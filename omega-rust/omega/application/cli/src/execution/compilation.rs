@@ -36,11 +36,8 @@ pub(super) fn compile(
         },
     )
     .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    // Policy belongs to the authored project, never its resolver snapshot.
-    let admissions = trust_ledger::read_trust_admissions(&options.root_path)?;
     let (report, interpretation) = if let Some(prepared) = prepared {
-        let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
-            .with_accepted_trust_admissions(admissions);
+        let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target);
         compile_prepared_local_project_for_native(request, |checked| {
             interpreter_input.map(|input| interpret_checked(checked, input))
         })
@@ -54,8 +51,7 @@ pub(super) fn compile(
     } else {
         let report = compiler::compile(
             CompileRequest::new(options.clone())
-                .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
-                .with_accepted_trust_admissions(admissions),
+                .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?;
         let interpretation = interpreter_input.map(|input| {

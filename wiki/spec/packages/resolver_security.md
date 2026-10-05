@@ -261,7 +261,7 @@ They do not establish whole-tree atomicity or detect every edit that restores
 the compared observations; the later live-tree comparison remains necessary.
 
 Mutable local capture omits Git metadata, the root build-output directory, and
-root `omega.lock` and `omega.admissions`, including ASCII case variants. Project
+root `omega.lock`, including ASCII case variants. Project
 policy must not hash itself through the root source selection. Nested policy-named files remain source, and
 links into excluded control state reject. These omissions do not apply to
 exact materialized/Git tree verification. Lock loading is a separate manager

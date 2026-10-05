@@ -16,7 +16,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// while normalized-foreign, syscall, and checked-physical leaves may need
 /// explicit rows. Ordinary production retains unclassified mechanisms; receiver
 /// admission and physical exclusions require complete classification. This is an independent axis --
-/// trust admissions, service permissions, and provider execution custody
+/// root grants, service permissions, and provider execution custody
 /// never substitute for or widen its rows.
 ///
 /// `terminal_authority_permission_policy` is the second, receiver-admission
