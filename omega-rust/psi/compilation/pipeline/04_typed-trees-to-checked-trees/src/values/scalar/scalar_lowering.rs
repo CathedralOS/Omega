@@ -935,6 +935,7 @@ pub(crate) fn construct_integer_cast(
                     minimum: fact.minimum.clone(),
                     maximum: fact.maximum.clone(),
                 },
+                formation_decided: true,
             },
             cast.domain,
         ));

@@ -331,6 +331,7 @@ pub(crate) fn evaluate_direct_expression(
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,
+            ..
         }
         | LoweredDirectExpression::IntegerTrappingCast {
             scalar_type,

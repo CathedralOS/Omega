@@ -272,6 +272,7 @@ fn exact_cast(operand: LoweredDirectExpression, target: ScalarType) -> LoweredDi
     LoweredDirectExpression::IntegerExactCast {
         scalar_type: target,
         operand: Box::new(operand),
+        formation_decided: false,
     }
 }
 

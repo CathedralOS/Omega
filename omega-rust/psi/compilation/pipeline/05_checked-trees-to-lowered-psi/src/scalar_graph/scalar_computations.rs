@@ -814,6 +814,7 @@ impl<'a> Expansion<'a> {
                             LoweredDirectExpression::IntegerExactCast {
                                 scalar_type: result_type.scalar_type,
                                 operand: Box::new(operand_expression),
+                                formation_decided: false,
                             }
                         }
                     }

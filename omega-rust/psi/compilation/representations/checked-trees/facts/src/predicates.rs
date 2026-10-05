@@ -144,6 +144,11 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
         operand: Box<CheckedScalarExpression>,
         range: CheckedIntegerRange,
+        /// Checking proved this source conversion's value fits its target
+        /// (the retained `range`). Lowering marks the emitted conversion so
+        /// its obligation consumes the decision. A conversion lowering or a
+        /// substitution synthesizes leaves this false and keeps its search.
+        formation_decided: bool,
     },
     /// Selected modular conversion at the target width, never an Exact proof.
     IntegerWrappingCast {

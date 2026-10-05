@@ -1151,8 +1151,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,
+            formation_decided,
             ..
         } => Ok(LoweredDirectExpression::IntegerExactCast {
+            formation_decided: *formation_decided,
             scalar_type: terminal_scalar_type(*primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
                 operand,
@@ -1683,6 +1685,7 @@ pub(crate) fn exact_u64_index(
         ScalarType::Integer(_) => Ok(LoweredDirectExpression::IntegerExactCast {
             scalar_type: u64_type,
             operand: Box::new(index),
+            formation_decided: false,
         }),
         _ => unsupported("indexed reads require an integer index"),
     }

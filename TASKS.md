@@ -3675,12 +3675,29 @@ deletions, which its commit lists.
     `samples/cli/collections/heat_grid` stops on neither: its unproved
     obligation is a `ScalarBlockInvariant` arrival of the authored
     `requires 0 <= y && y <= grid.max_y` at a loop edge. Source checking
-    discharges those requirements at each transition, but the verifier admits
-    `SourceChecked` only for operation owners, so authored arrival obligations
-    need their own decision record and owner rule (inferred invariant
-    proposals stay certificate-proved). Exact casts have decisions that stage 05 drops at
-    `prepare_expression.rs`; Exact add, subtract, multiply and shift
-    representability have none yet. Concrete contract
+    discharges those requirements at each transition
+    (`checks/contracts/calls.rs` `check_call_requires`, success unrecorded),
+    but the verifier admits `SourceChecked` only for operation owners. The
+    design that fits: record each decided transition target
+    `(machine, state, statement_index)` beside `proven_scalar_indexes`; set a
+    flag on `CheckedStructuralControlSuccessorPlan` (built after the checks);
+    have `successor_edge.rs` keep decided arrival edges so
+    `state_graph/emission.rs` publishes those arrivals' obligations; add an
+    authored/inferred origin to `terminal_psi::ScalarBlockInvariant` (codec,
+    validation, reconstruction owner) so the verifier admits the route only for
+    authored rows; and stop the stage 05 invariant pass from conjoining
+    inferred members into an authored row (`scalar_block_invariants.rs`
+    merge), which would otherwise ride the authored evidence. Invocation-entry
+    and scalar-graph arrivals, local refinement rows and inferred rows stay
+    certificate-proved. Exact add, subtract and multiply representability and
+    Exact casts now also travel as `SourceChecked` (only the cast stage 04
+    builds from a checker fact; synthesized index widenings and scalar-graph
+    cast replays keep search). With `OMEGA_DUMP_OBLIGATIONS` over the `pass/`
+    corpus, 3857 obligations still reach certificate search before the cast
+    change: index `LessThan` bounds of writes, non-root reads, selectors and
+    shift counts (1267); scalar block invariant conjunctions (656); operation
+    conjunctions such as UTF-8 byte stores whose goal adds `byte <= 127` to the
+    index bound (486); and Exact cast windows (482). Concrete contract
     arithmetic uses that same formation walk; abstract declaration contracts
     still have a separate carrier-resolution path to unify;
   - cover nested expressions, compiler-generated semantic-to-storage casts,

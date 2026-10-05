@@ -202,6 +202,7 @@ fn integer(
             primitive_type,
             operand,
             range,
+            ..
         } => {
             let target = integer_type(*primitive_type)?;
             let (source, value) = integer(operand, resolve_binding)?;

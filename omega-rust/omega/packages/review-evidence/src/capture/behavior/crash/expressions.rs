@@ -250,6 +250,7 @@ fn project_scalar_expression(
             primitive_type,
             operand,
             range,
+            ..
         } => PackageReviewScalarExpression::IntegerExactCast {
             primitive_type: project_primitive_type(*primitive_type),
             operand: Box::new(project_scalar_expression(operand)?),

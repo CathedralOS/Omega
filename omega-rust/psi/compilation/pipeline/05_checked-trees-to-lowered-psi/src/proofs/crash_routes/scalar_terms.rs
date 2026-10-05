@@ -428,6 +428,7 @@ pub(crate) fn lowered_direct_scalar_term(
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,
+            ..
         } => {
             let ScalarType::Integer(target_type) = scalar_type else {
                 return unsupported("crash predicate cast has a non-integer target");

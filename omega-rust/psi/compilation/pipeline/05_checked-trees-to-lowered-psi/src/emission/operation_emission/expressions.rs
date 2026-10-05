@@ -218,6 +218,9 @@ pub(crate) enum LoweredDirectExpression {
         operand: Box<LoweredDirectExpression>,
     },
     IntegerExactCast {
+        /// Checking proved this source conversion fits its target; emission
+        /// records the conversion's obligation as source-checked.
+        formation_decided: bool,
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
     },
@@ -899,6 +902,7 @@ pub(crate) fn emit_direct_expression(
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,
+            formation_decided,
         } => {
             let operand =
                 emit_direct_expression(operand, parameters, next_value_identity, operations);
@@ -907,6 +911,15 @@ pub(crate) fn emit_direct_expression(
                 .checked_add(1)
                 .expect("generated value identity advances after an exact integer cast");
             let operation = operations.allocate();
+            let obligation = obligation_id(
+                operation
+                    .get()
+                    .checked_add(1)
+                    .expect("exact-cast obligation follows its operation identity"),
+            );
+            if *formation_decided {
+                operations.source_checked_obligations.push(obligation);
+            }
             operations.push(Operation {
                 static_reach_binding: None,
                 suspension_crossing: None,
@@ -918,12 +931,7 @@ pub(crate) fn emit_direct_expression(
                 }),
                 kind: OperationKind::IntegerExactCast {
                     operand,
-                    obligation: obligation_id(
-                        operation
-                            .get()
-                            .checked_add(1)
-                            .expect("exact-cast obligation follows its operation identity"),
-                    ),
+                    obligation,
                 },
             });
             id

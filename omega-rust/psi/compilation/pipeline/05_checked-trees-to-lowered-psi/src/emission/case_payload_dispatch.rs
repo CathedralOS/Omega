@@ -570,9 +570,11 @@ pub(crate) fn substitute_direct(
         Direct::IntegerExactCast {
             scalar_type,
             operand,
+            formation_decided,
         } => Direct::IntegerExactCast {
             scalar_type,
             operand: Box::new(substitute_direct(*operand, bound)),
+            formation_decided,
         },
         Direct::RepresentationView {
             scalar_type,

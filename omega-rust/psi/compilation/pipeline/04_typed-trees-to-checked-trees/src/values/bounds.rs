@@ -164,6 +164,7 @@ fn integer(
             primitive_type,
             operand,
             range,
+            ..
         } => {
             let (_, bounds) = integer(operand, source)?;
             // The retained occurrence fact proved the operand lands inside

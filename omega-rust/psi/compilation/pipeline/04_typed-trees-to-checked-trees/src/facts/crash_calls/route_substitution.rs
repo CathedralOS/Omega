@@ -815,12 +815,15 @@ fn substitute_checked_scalar_expression(
             primitive_type,
             operand,
             range,
+            ..
         } => CheckedScalarExpression::IntegerExactCast {
             primitive_type: *primitive_type,
             operand: Box::new(substitute_checked_scalar_expression(
                 operand, arguments, fields,
             )?),
             range: range.clone(),
+            // A substituted callee term is a different occurrence.
+            formation_decided: false,
         },
         CheckedScalarExpression::Boolean(expression) => CheckedScalarExpression::Boolean(Box::new(
             substitute_checked_boolean_expression(expression, arguments, fields)?,
