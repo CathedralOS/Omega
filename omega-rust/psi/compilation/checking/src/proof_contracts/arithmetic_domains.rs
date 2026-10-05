@@ -80,6 +80,7 @@ pub(crate) use integer_ranges::{
 pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,
+    upper_bound_beyond_place_carrier,
 };
 pub use invariant_bounds::{
     declared_integer_expression_lands, enforced_integer_type_bounds,

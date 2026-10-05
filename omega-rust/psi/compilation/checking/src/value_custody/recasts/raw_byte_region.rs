@@ -156,44 +156,7 @@ pub(super) fn interior_byte_region_source(
     // before formation retires them while a later write cannot retarget it.
     let offset = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Integer(literal) => literal.value_i64().filter(|offset| *offset >= 0),
-        _ => {
-            // The offset place's standing bounds: its declared range, an
-            // immutable parameter's `requires`, or its data's `where` facts.
-            let declared_high =
-                crate::proof_contracts::arithmetic_domains::standing_integer_interval(
-                    program,
-                    machine,
-                    state,
-                    indexed.index,
-                )
-                .and_then(|interval| {
-                    let high = interval.high()?;
-                    (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
-                });
-            // A composite offset (`k * 2`) bounds through the structural
-            // walk over its own operands; where a declared range also
-            // resolves, the tighter of the two upper bounds is the sound
-            // one.
-            let composite_high = super::offset_bounds::composite_offset_upper_bound(
-                program,
-                machine,
-                state,
-                indexed.index,
-            );
-            let occurrence_high =
-                crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    indexed.index,
-                )
-                .and_then(|(low, high)| (low >= 0).then_some(high));
-            [declared_high, composite_high, occurrence_high]
-                .into_iter()
-                .flatten()
-                .min()
-        }
+        _ => proved_offset_upper_bound(program, machine, state, statement_index, indexed.index),
     };
     match offset {
         Some(offset) => InteriorByteRegion::Bounded {
@@ -205,6 +168,54 @@ pub(super) fn interior_byte_region_source(
             region_length,
         },
     }
+}
+
+/// The tightest upper bound the program states on a runtime byte offset.
+/// Three routes answer and the tightest wins: the offset place's standing
+/// bounds (its declared range, an immutable parameter's `requires`, or its
+/// data's `where` facts), the structural walk over a composite offset's own
+/// operands (`k * 2`), and the facts standing at this exact occurrence.
+///
+/// Each answer is an UPPER bound, so only one narrower than the offset
+/// place's own integer carrier states anything about the program: the
+/// carrier maximum is what the type already says, and because the tightest
+/// bound wins, an unnarrowed `u32` offset otherwise reached the author as the
+/// literal offset 4294967295 -- a number no program contains. Rejected here,
+/// the unproven-offset judgment names the three discharge routes instead.
+fn proved_offset_upper_bound(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    index: ExpressionHandle,
+) -> Option<i64> {
+    let declared_high = crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+        program, machine, state, index,
+    )
+    .and_then(|interval| {
+        let high = interval.high()?;
+        (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
+    });
+    let composite_high =
+        super::offset_bounds::composite_offset_upper_bound(program, machine, state, index);
+    let occurrence_high =
+        crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            index,
+        )
+        .and_then(|(low, high)| (low >= 0).then_some(high));
+    [declared_high, composite_high, occurrence_high]
+        .into_iter()
+        .flatten()
+        .filter_map(|high| {
+            crate::proof_contracts::arithmetic_domains::upper_bound_beyond_place_carrier(
+                program, machine, state, index, high,
+            )
+        })
+        .min()
 }
 
 pub(super) fn push_offset_unproven(

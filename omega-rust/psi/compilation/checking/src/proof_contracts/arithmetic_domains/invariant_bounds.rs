@@ -108,10 +108,54 @@ pub(crate) fn standing_integer_interval(
         .or_else(|| stored_place_interval(program, machine, state, expression))?;
     // A place's bare carrier range states nothing beyond its type; callers
     // that report a missing bound must still see none.
-    let carrier = place_type
+    (place_carrier_interval(program, place_type) != Some(interval)).then_some(interval)
+}
+
+/// The integer carrier range of a place's declared type, where it has one.
+/// This is the range the type alone states, so a derived bound that restates
+/// one of its endpoints carries no fact about the program: under ZII the
+/// absence of a bound is the zero value, not the carrier's extreme. Every
+/// query that reports a missing bound measures against this, so the judgment
+/// lives here once rather than beside each caller.
+///
+/// A read of an `&mut u32` place yields a `u32`, and a `u32 in P` place
+/// carries a `u32`, so the reference and qualification shells are peeled
+/// first: the carrier is a property of the storage, and a judgment keyed to
+/// the outermost shell would see none for exactly the places a reference
+/// spells.
+fn place_carrier_interval(
+    program: &TypedTrees,
+    place_type: Option<TypeReferenceHandle>,
+) -> Option<Interval> {
+    place_type
+        .and_then(|handle| program.unwrapped_type_reference(handle))
         .and_then(|handle| program.primitive_type_reference(handle))
-        .and_then(super::integer_ranges::primitive_range);
-    (carrier != Some(interval)).then_some(interval)
+        .and_then(primitive_range)
+}
+
+/// An upper bound on `expression` that states something its own integer
+/// carrier does not. A maximum at or above the carrier's own is what the
+/// type already says -- the shape that let a `u32` offset be reported to an
+/// author as the literal offset 4294967295 -- so it is absence, as
+/// [`standing_integer_interval`] already treats a whole interval that
+/// restates the carrier.
+pub(crate) fn upper_bound_beyond_place_carrier(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    high: i64,
+) -> Option<i64> {
+    let place_type = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        expression,
+    );
+    let carrier_high = place_carrier_interval(program, place_type).and_then(|carrier| carrier.high);
+    carrier_high
+        .is_none_or(|carrier_high| high < carrier_high)
+        .then_some(high)
 }
 
 /// What every store to a place enforces: its declared range and its data's
