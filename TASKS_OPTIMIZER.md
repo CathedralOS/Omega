@@ -24,7 +24,7 @@ Rust tests; acceptance names corpus fixtures under `tests/omega/` run through
 | Order | Work |
 | --- | --- |
 | 1. Correct native execution | GENERAL-CYCLIC-EXECUTION and SPILL-REALIZATION when a real program needs their call/storage route. |
-| 2. Better code for runnable programs | JOIN-INVARIANT-REWRITE-TRANSPORT, GENERAL-LICM, ALLOCATION-REFINEMENT, machine/memory rewrites, representation specialization and interprocedural summaries. FRAME-LAYOUT follows TASKS.md **RUNTIME-SIZED-ACTIVATION-CONTRACT**; ordinary calls do not wait for it. |
+| 2. Better code for runnable programs | GENERAL-LICM, ALLOCATION-REFINEMENT, machine/memory rewrites, representation specialization and interprocedural summaries. FRAME-LAYOUT follows TASKS.md **RUNTIME-SIZED-ACTIVATION-CONTRACT**; ordinary calls do not wait for it. |
 | 3. Consolidation and rollout | PIPELINE-OWNER-CONSOLIDATION, PER-RULE-COVERAGE, BENCHMARKS, WORKSPACE-ROLLOUT. |
 
 A concrete correctness regression takes precedence over this order. Mandatory
@@ -122,26 +122,6 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   arguments, return and cleanup; iterations add no frames (the outer call may
   have one); conflicting parent access and missing required ranking are
   rejected by checking (fail fixtures).
-
-- **JOIN-INVARIANT-REWRITE-TRANSPORT.** Let `copy_propagation` and
-  `dead_scalar_elimination` rewrite values that a retained join invariant
-  names, by rewriting the invariant with them, instead of withholding the
-  rewrite.
-  - Owners: `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/joins.rs`;
-    `omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/copy_propagation/`
-    and `omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/dead_scalar_elimination/`.
-  - Current: both passes record a `PsiRewriteRefusal`
-    (`omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/rewrite_refusal.rs`);
-    it reaches `CompileReport::withheld_rewrites()` and the CLI names the rule
-    and reason. An optimization limitation, not an execution blocker.
-  Acceptance: a corpus fixture with a consumed literal join selects both rules
-  and its withheld-rewrite report is empty while the program still runs to its
-  authored result; a fixture with no invariant stays a control. Changing arm
-  constants to avoid the invariant does not test the missing behavior.
-  Unverified: whether the consumed-join shape still fails image emission with
-  `shared function contains an unaccounted operation`
-  (`omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source.rs`);
-  if so, that is a separate native-emission item.
 
 - **GENERAL-LICM.** Extend loop-invariant motion beyond the current operation
   and custody restrictions and the single shared preheader.

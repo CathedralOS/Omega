@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": null, "load1_end": 4.38, "load1_start": 4.34, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 2.04, "load1_start": 1.96, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -656,6 +656,9 @@ pass/optimizer/constant_branch_selection_compile built 604ms exit:0 @f7f62346002
 pass/optimizer/copied_call_operand_selection_exit built 1338ms exit:70 @f7f623460021+wt
 pass/optimizer/dead_compare_selection_compile built 592ms exit:0 @f7f623460021+wt
 pass/optimizer/equivalent_compare_selection_compile built 598ms exit:0 @f7f623460021+wt
+pass/optimizer/join_invariant_copy_transport_selected built 3274ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @d5cd96d8851e+wt
+pass/optimizer/join_invariant_dead_scalar_transport_selected built 3230ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] exit:0 @d5cd96d8851e+wt
+pass/optimizer/join_invariant_transport_control built 3142ms exit:0 @d5cd96d8851e+wt
 pass/optimizer/redundant_compare_selection_compile built 605ms exit:0 @f7f623460021+wt
 pass/optimizer/rollback_composed_partial_control built 4624ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] exit:0 @3aa9587aec19+wt
 pass/optimizer/rollback_composed_partial_selected built 4257ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] exit:0 @3aa9587aec19+wt

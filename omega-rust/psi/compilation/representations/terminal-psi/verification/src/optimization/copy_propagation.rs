@@ -218,6 +218,19 @@ fn checked_substitutions(
         if expected_machine != new {
             return Err(CopyPropagationRewriteError::ChangedMachine(old.id));
         }
+        // A retained join invariant names values in its destination's
+        // telescope; when a justified copy it names collapses, the stored
+        // predicate moves with the same substitution the reconstruction uses
+        // on the proof question below. Propositions are not scalar use sites,
+        // so nothing else carries this name forward.
+        for invariant in &mut expected.scalar_block_invariants {
+            if invariant.machine != old.id {
+                continue;
+            }
+            invariant
+                .predicate
+                .remap_value_ids(|value| substitution.get(&value).copied().unwrap_or(value));
+        }
     }
     if &expected != after {
         return Err(CopyPropagationRewriteError::ChangedProgramStructure);

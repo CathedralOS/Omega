@@ -2363,6 +2363,9 @@ pass/optimizer/constant_branch_selection_compile checked 4163ms @3aa9587aec19+wt
 pass/optimizer/copied_call_operand_selection_exit checked 4538ms @3aa9587aec19+wt
 pass/optimizer/dead_compare_selection_compile checked 6066ms @3aa9587aec19+wt
 pass/optimizer/equivalent_compare_selection_compile checked 4762ms @3aa9587aec19+wt
+pass/optimizer/join_invariant_copy_transport_selected checked 9344ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:978dada1ff24c11e rolled-back-semantic:22091dc50ee2a5a6 module:differs @d5cd96d8851e+wt
+pass/optimizer/join_invariant_dead_scalar_transport_selected checked 9321ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:978dada1ff24c11e rolled-back-semantic:d9e7a66f20f119a6 module:differs @d5cd96d8851e+wt
+pass/optimizer/join_invariant_transport_control checked 3043ms @d5cd96d8851e+wt
 pass/optimizer/redundant_compare_selection_compile checked 5276ms @3aa9587aec19+wt
 pass/optimizer/rollback_composed_partial_control checked 10553ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:18df686bc3cb918c rolled-back-semantic:18df686bc3cb918c module:same @3aa9587aec19+wt
 pass/optimizer/rollback_composed_partial_selected checked 11893ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:d1eaced1be4ee93b rolled-back-semantic:18df686bc3cb918c module:differs @3aa9587aec19+wt
