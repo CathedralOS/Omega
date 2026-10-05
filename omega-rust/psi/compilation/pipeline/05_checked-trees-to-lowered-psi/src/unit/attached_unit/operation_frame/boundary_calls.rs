@@ -22,7 +22,7 @@ use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
-    LoweringError, Multiplicity, Operation, OperationKind, OperationResult, StructuralMultiplicity,
+    LoweringError, Multiplicity, Operation, OperationKind, OperationResult,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
     allocate_dense, lookup_claim_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
     value_id,
@@ -185,11 +185,7 @@ impl OperationFrame<'_, '_> {
             qualification_establishments,
             place: result_place,
             structural_type,
-            multiplicity: match multiplicity {
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => StructuralMultiplicity::Linear,
-            },
+            multiplicity: crate::terminal_identities::structural_multiplicity(*multiplicity),
             qualifications: qualifications
                 .iter()
                 .map(|domain| {

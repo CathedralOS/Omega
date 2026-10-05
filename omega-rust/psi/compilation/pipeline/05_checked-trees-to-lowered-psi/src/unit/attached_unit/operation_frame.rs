@@ -2720,17 +2720,7 @@ impl OperationFrame<'_, '_> {
         self.results
             .require_next(result, "structural local result binding is not dense")?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
-        let multiplicity = match result.multiplicity {
-            language_semantics::Multiplicity::Affine => {
-                terminal_psi::StructuralMultiplicity::Affine
-            }
-            language_semantics::Multiplicity::Unrestricted => {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            }
-            language_semantics::Multiplicity::Linear => {
-                terminal_psi::StructuralMultiplicity::Linear
-            }
-        };
+        let multiplicity = crate::terminal_identities::structural_multiplicity(result.multiplicity);
         let home = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
         self.operations.push(Operation {

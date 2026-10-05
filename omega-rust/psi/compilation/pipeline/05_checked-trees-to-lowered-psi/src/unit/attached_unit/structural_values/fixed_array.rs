@@ -4,9 +4,9 @@
 //! operation transfers completed operands atomically; evaluation or suspension
 //! before it keeps those operands under their existing temporary custody.
 use super::super::{
-    LoweringError, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
+    LoweringError, Operation, OperationKind, OperationResult, PlaceId, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id,
+    unsupported,
 };
 use super::emission;
 use checked_trees::CheckedStructuralValueHandle;
@@ -38,14 +38,9 @@ impl emission::Emission<'_, '_, '_> {
             return unsupported("fixed array source has a nonarray carrier");
         };
         let element_reference = *element_type;
-        let element_multiplicity =
-            match crate::reference_custody::result_multiplicity(self.checked, element_reference) {
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Linear => {
-                    return unsupported("fixed array cannot create linear custody");
-                }
-            };
+        let element_multiplicity = crate::terminal_identities::structural_multiplicity(
+            crate::reference_custody::result_multiplicity(self.checked, element_reference),
+        );
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
         let source_count = self.values.len();

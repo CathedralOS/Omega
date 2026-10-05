@@ -1,10 +1,10 @@
 //! Complete fields in authored order before committing a declaration-ordered case.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    allocate_dense, obligation_id, place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, allocate_dense, obligation_id,
+    place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -185,16 +185,12 @@ impl emission::Emission<'_, '_, '_> {
                     let parent_type = self.structural_type;
                     let parent_multiplicity = self.multiplicity;
                     self.structural_type = child_type;
-                    self.multiplicity = match crate::reference_custody::result_multiplicity(
-                        self.checked,
-                        field.type_reference,
-                    ) {
-                        Multiplicity::Affine => StructuralMultiplicity::Affine,
-                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                        Multiplicity::Linear => {
-                            return unsupported("nested case cannot create linear custody");
-                        }
-                    };
+                    self.multiplicity = crate::terminal_identities::structural_multiplicity(
+                        crate::reference_custody::result_multiplicity(
+                            self.checked,
+                            field.type_reference,
+                        ),
+                    );
                     let argument = self.constructor_operand(value, field.type_reference)?;
                     self.structural_type = parent_type;
                     self.multiplicity = parent_multiplicity;

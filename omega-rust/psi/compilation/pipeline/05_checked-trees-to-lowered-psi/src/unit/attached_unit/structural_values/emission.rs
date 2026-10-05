@@ -59,7 +59,17 @@ pub(in crate::unit::attached_unit) fn establishment_claims(
         .statements(authored_state.statement_nodes)
         .get(result.statement_index as usize)
     else {
-        return unsupported("linear structural value has no authored local");
+        // Every claim path the checker recorded is rooted at an authored
+        // local's symbol, so only such a statement can carry establishment
+        // claims. A linear result owes its whole-root claim and cannot lose
+        // that root; a result of any other multiplicity carries a claim only
+        // for a contained linear member, and without the local root there is
+        // no path to rebase one onto.
+        return if result.multiplicity == Multiplicity::Linear {
+            unsupported("linear structural value has no authored local")
+        } else {
+            Ok(Vec::new())
+        };
     };
     let mut result_claims = checked
         .facts
@@ -163,11 +173,7 @@ pub(crate) fn emit(
         return unsupported("structural value producer missing");
     };
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-    let multiplicity = match result.multiplicity {
-        Multiplicity::Affine => StructuralMultiplicity::Affine,
-        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-        Multiplicity::Linear => StructuralMultiplicity::Linear,
-    };
+    let multiplicity = crate::terminal_identities::structural_multiplicity(result.multiplicity);
     let authored_state = crate::declarations::state_declaration(checked, state)?.1;
     let sources = checked
         .facts

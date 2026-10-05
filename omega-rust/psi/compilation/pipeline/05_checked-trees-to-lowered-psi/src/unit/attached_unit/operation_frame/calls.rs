@@ -23,8 +23,8 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoo
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, Operation, OperationResult,
-    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
+    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
 };
@@ -494,21 +494,27 @@ impl OperationFrame<'_, '_> {
             ..
         } = self;
         let structural_types = structural_types.declarations();
-        // Fresh linear construction carries the claims the checker
-        // established at the binding statement. Resolve them before the
-        // operand emitter borrows the caller's claim namespace; the
-        // producing operation's result publishes them below.
-        let result_claims = if result.multiplicity == Multiplicity::Linear {
-            structural_values::establishment_claims(
-                checked,
-                machine,
-                state,
-                result,
-                &mut caller.claims,
-            )?
-        } else {
-            Vec::new()
-        };
+        // Fresh construction carries the claims the checker established at
+        // the binding statement. Resolve them before the operand emitter
+        // borrows the caller's claim namespace; the producing operation's
+        // result publishes them below.
+        //
+        // The binding's own multiplicity does not decide whether there are
+        // claims to carry. A transparent affine aggregate contributes no root
+        // claim and holds each contained linear member as an independent
+        // path-indexed claim, so an affine result can own several linear
+        // claims and a linear result owns exactly its whole-root one.
+        // `establishment_claims` already selects the live linear owned
+        // establishments at this statement and lowers each one's own path, so
+        // it answers both shapes and returns nothing when there is no linear
+        // member to carry.
+        let result_claims = structural_values::establishment_claims(
+            checked,
+            machine,
+            state,
+            result,
+            &mut caller.claims,
+        )?;
         // The evaluator supplies its current namespaces at the exact operand
         // occurrence. Recursive construction and calls share normal frame
         // publication; no stale snapshot or second result home is introduced.

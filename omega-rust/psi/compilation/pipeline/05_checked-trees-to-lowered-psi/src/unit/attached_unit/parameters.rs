@@ -456,11 +456,9 @@ pub(crate) fn lower_unit_parameters(
                 })?,
                 is_self: parameter.is_self,
                 structural_type: lookup_type_id(type_ids, &parameter.type_identity)?,
-                multiplicity: match parameter.multiplicity {
-                    Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                    Multiplicity::Affine => StructuralMultiplicity::Affine,
-                    Multiplicity::Linear => StructuralMultiplicity::Linear,
-                },
+                multiplicity: crate::terminal_identities::structural_multiplicity(
+                    parameter.multiplicity,
+                ),
                 access: terminal_access(parameter.access),
                 qualifications,
                 projected_qualifications: lower_projected_qualifications(

@@ -4,7 +4,7 @@
 //! rejoin checked sources to the lowered tables through the lookup functions.
 //! Both lookup failures and namespace exhaustion fail closed.
 
-use language_semantics::{PermissionClaimIdentity, ServiceReachId};
+use language_semantics::{Multiplicity, PermissionClaimIdentity, ServiceReachId};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId,
     PlaceId, PropositionId, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
@@ -18,6 +18,27 @@ pub(crate) const TERMINAL_MACHINE_IDENTITY_STRIDE: u64 = 1_u64 << 32;
 // obligation namespace. Existing contract and cleanup producers allocate from
 // the lower half, so composing their proof bundles cannot alias a call site.
 pub(crate) const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
+
+/// The Terminal tag for one checked custody multiplicity.
+///
+/// This mapping is total on purpose. A producer that re-spells it inline
+/// tends to enumerate only the multiplicities its own result place can wear
+/// and refuse `Linear`, which is wrong for a *contained* value: checking
+/// records a transparent aggregate's linear members as independent
+/// path-indexed claims on the aggregate's root rather than inventing a root
+/// claim, so a linear member is an ordinary carrier of an affine record and
+/// the tag is the member's own, not the root's. Call this instead of
+/// matching; the refusal that belongs to a particular result place belongs
+/// at that place, not in the conversion.
+pub(crate) const fn structural_multiplicity(
+    multiplicity: Multiplicity,
+) -> terminal_psi::StructuralMultiplicity {
+    match multiplicity {
+        Multiplicity::Unrestricted => terminal_psi::StructuralMultiplicity::Unrestricted,
+        Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+        Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
+    }
+}
 
 macro_rules! id_constructor {
     ($function:ident, $type:ty) => {
